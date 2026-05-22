@@ -106,6 +106,131 @@ function getClimateType(temp: number): string {
   return 'Extreme Hot';
 }
 
+// ─── DayMealPanel — shared by calendar + list view ───────────────────────────
+
+interface DayMealPanelProps {
+  dayNum:      number;
+  date:        Date;
+  meals:       { key:string; label:string; time:string; emoji:string; foods:string[]; tip:string }[];
+  dietPlan:    DietPlan | null;
+  total:       number;
+  hasPlan:     boolean;
+  onPrev:      () => void;
+  onNext:      () => void;
+  openSlot:    string | null;
+  setOpenSlot: (k: string | null) => void;
+  inList?:     boolean;
+}
+
+function DayMealPanel({ dayNum, date, meals, dietPlan, total, hasPlan, onPrev, onNext, openSlot, setOpenSlot, inList }: DayMealPanelProps) {
+  const dateStr = date.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  return (
+    <div className={`bg-white overflow-hidden ${inList ? '' : 'rounded-2xl border-2 border-emerald-400 shadow-md'}`}>
+
+      {/* ← Day N → navigation header */}
+      <div className="bg-emerald-600 px-4 py-3 flex items-center justify-between gap-2">
+        <button onClick={onPrev} disabled={dayNum <= 1}
+          className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors shrink-0">
+          <ArrowLeft size={18}/>
+        </button>
+
+        <div className="text-center flex-1 min-w-0">
+          <div className="text-white font-black text-base">Day {dayNum} of {total}</div>
+          <div className="text-emerald-100 text-xs truncate">{dateStr}</div>
+        </div>
+
+        <button onClick={onNext} disabled={dayNum >= total}
+          className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors shrink-0">
+          <ArrowRight size={18}/>
+        </button>
+      </div>
+
+      {!hasPlan ? (
+        <div className="px-5 py-6 text-center text-amber-700 text-sm">🌿 Diet plan being prepared by our Ayurvedic team.</div>
+      ) : (
+        <>
+          {/* 7 Meal Slots — accordion */}
+          <div className="divide-y divide-gray-100">
+            {meals.map(slot => {
+              const isOpen  = openSlot === slot.key;
+              const hasFood = slot.foods.length > 0;
+              return (
+                <div key={slot.key}>
+                  <button
+                    onClick={() => setOpenSlot(isOpen ? null : slot.key)}
+                    className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{slot.emoji}</span>
+                      <div className="text-left">
+                        <div className="font-bold text-gray-900 text-sm">{slot.label}</div>
+                        <div className="text-xs text-gray-400">🕐 {slot.time}</div>
+                      </div>
+                      {hasFood && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                          {slot.foods.length} foods
+                        </span>
+                      )}
+                    </div>
+                    {isOpen ? <ChevronUp size={16} className="text-gray-400 shrink-0"/> : <ChevronDown size={16} className="text-gray-400 shrink-0"/>}
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-5 pb-4 pt-2 bg-gray-50 border-t border-gray-100">
+                      {hasFood ? (
+                        <>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {slot.foods.map((f, i) => (
+                              <span key={i} className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-800">
+                                🌿 {f}
+                              </span>
+                            ))}
+                          </div>
+                          {slot.tip && (
+                            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                              💡 {slot.tip}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic py-1">No specific foods added yet for this slot.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Herbs + lifestyle */}
+          {dietPlan && (dietPlan.herbs?.length > 0 || dietPlan.lifestyleTips?.length > 0) && (
+            <div className="px-5 py-3 bg-green-50 border-t border-green-100">
+              {dietPlan.herbs?.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-[10px] font-bold text-green-700 mb-1">🌱 Daily Herbs:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {dietPlan.herbs.map((h,i) => (
+                      <span key={i} className="px-2 py-0.5 rounded-full bg-white border border-green-200 text-[10px] text-green-800 font-medium">🌿 {h}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {dietPlan.lifestyleTips?.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-blue-700 mb-1">🧘 Lifestyle:</p>
+                  {dietPlan.lifestyleTips.slice(0,2).map((t,i) => (
+                    <p key={i} className="text-[10px] text-blue-700">{i+1}. {t}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RitucharyaPage() {
@@ -129,8 +254,9 @@ export default function RitucharyaPage() {
 
   // Step 3 calendar state
   const [calView,    setCalView]   = useState<'calendar'|'list'>('calendar');
-  const [selectedDay,setSelectedDay] = useState(1);       // 1-30
+  const [selectedDay,setSelectedDay] = useState(1);       // 1-30 (0 = none)
   const [calMonth,  setCalMonth]   = useState(0);         // month offset (0 = today's month)
+  const [openMealSlot, setOpenMealSlot] = useState<string|null>(null); // accordion in day panel
 
   // ── Location handlers ────────────────────────────────────────────────
   const onCountry = (val: string) => {
@@ -597,25 +723,27 @@ export default function RitucharyaPage() {
 
           {/* ── STEP 3: Interactive 30-Day Calendar ────────────────────── */}
           {step === 3 && ritu && (
-            <div className="space-y-5">
+            <div className="space-y-4">
 
-              {/* Header + navigation */}
-              <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-5">
-                <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+              {/* Header row */}
+              <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
-                    <h2 className="text-xl font-bold text-emerald-800">
-                      📅 30-Day Plan — {ritu.icon} {ritu.rituLabel}
+                    <h2 className="text-lg font-bold text-emerald-800">
+                      📅 30-Day Plan — {ritu.icon} {ritu.rituLabel} · {ritu.phaseLabel}
                     </h2>
-                    <p className="text-sm text-gray-600 mt-0.5">{ritu.phaseLabel}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {planDays[0]?.date.toLocaleDateString('en-IN',{day:'numeric',month:'short'})} –{' '}
+                      {planDays[29]?.date.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Calendar / List toggle */}
-                    <div className="flex gap-1 bg-white border-2 border-emerald-200 p-1 rounded-lg">
-                      <button onClick={() => setCalView('calendar')}
+                    <div className="flex gap-0.5 bg-white border-2 border-emerald-200 p-1 rounded-lg">
+                      <button onClick={() => { setCalView('calendar'); setOpenMealSlot(null); }}
                         className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 transition-colors ${calView==='calendar' ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
                         <Calendar size={13}/> Calendar
                       </button>
-                      <button onClick={() => setCalView('list')}
+                      <button onClick={() => { setCalView('list'); setOpenMealSlot(null); }}
                         className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 transition-colors ${calView==='list' ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
                         <List size={13}/> List
                       </button>
@@ -628,214 +756,118 @@ export default function RitucharyaPage() {
                 </div>
               </div>
 
-              {/* ── CALENDAR VIEW ── */}
+              {/* ─── CALENDAR VIEW ─────────────────────────────────────── */}
               {calView === 'calendar' && (
-                <div className="bg-white rounded-2xl border-2 border-gray-200 p-5 shadow-sm">
-                  {/* Month navigation */}
-                  <div className="flex items-center justify-between mb-4">
-                    <button onClick={() => setCalMonth(m => m - 1)}
-                      className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-gray-700 transition-colors">
-                      <ArrowLeft size={18}/>
-                    </button>
-                    <h3 className="font-black text-gray-800 text-lg">{calendarGrid.label}</h3>
-                    <button onClick={() => setCalMonth(m => m + 1)}
-                      className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-gray-700 transition-colors">
-                      <ArrowRight size={18}/>
-                    </button>
-                  </div>
-
-                  {/* Day-of-week header */}
-                  <div className="grid grid-cols-7 gap-1 mb-2">
-                    {DAYS_OF_WEEK.map(d => (
-                      <div key={d} className="text-xs font-bold text-gray-400 text-center py-1">{d}</div>
-                    ))}
-                  </div>
-
-                  {/* Day cells */}
-                  <div className="grid grid-cols-7 gap-1">
-                    {calendarGrid.cells.map((cell, ci) => {
-                      if (!cell.date) return <div key={ci}/>;
-                      const isSelected = cell.dayNum === selectedDay;
-                      const isInPlan   = cell.dayNum !== null;
-
-                      return (
-                        <button key={ci}
-                          onClick={() => cell.dayNum && setSelectedDay(cell.dayNum)}
-                          disabled={!isInPlan}
-                          className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold transition-all hover:scale-105 ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-400 ring-offset-1 scale-105'
-                              : cell.isToday
-                                ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-400'
-                                : isInPlan
-                                  ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100'
-                                  : 'text-gray-300 cursor-not-allowed'
-                          }`}>
-                          <span>{cell.date}</span>
-                          {isInPlan && (
-                            <span className={`text-[9px] mt-0.5 font-normal ${isSelected ? 'text-white/80' : 'text-emerald-500'}`}>
-                              Day {cell.dayNum}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <p className="text-[10px] text-gray-400 text-center mt-3">
-                    🟢 Green days = your 30-day plan · Click any day to see meals
-                  </p>
-                </div>
-              )}
-
-              {/* ── LIST VIEW ── */}
-              {calView === 'list' && (
-                <div className="space-y-2">
-                  {planDays.map(({ dayNum, date }) => {
-                    const isSelected = selectedDay === dayNum;
-                    const isToday    = dayNum === 1;
-                    const dayName    = date.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
-                    return (
-                      <button key={dayNum} onClick={() => setSelectedDay(dayNum)}
-                        className={`w-full text-left px-5 py-3 rounded-xl border-2 flex items-center justify-between transition-all ${
-                          isSelected
-                            ? 'bg-emerald-600 border-emerald-600 text-white'
-                            : isToday
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                              : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300'
-                        }`}>
-                        <div className="flex items-center gap-3">
-                          <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${isSelected ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {dayNum}
-                          </span>
-                          <span className="font-semibold text-sm">{dayName}</span>
-                          {isToday && <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'}`}>TODAY</span>}
-                        </div>
-                        <span className={`text-[10px] ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>
-                          {MEAL_SLOTS.length} meals
-                        </span>
+                <>
+                  <div className="bg-white rounded-2xl border-2 border-gray-200 p-5 shadow-sm">
+                    {/* Month nav */}
+                    <div className="flex items-center justify-between mb-4">
+                      <button onClick={() => setCalMonth(m => m - 1)}
+                        className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-gray-700 transition-colors">
+                        <ArrowLeft size={18}/>
                       </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* ── Selected Day Panel ── */}
-              <div className="bg-white rounded-2xl border-2 border-emerald-400 overflow-hidden shadow-md">
-
-                {/* Day navigation header with arrows */}
-                <div className="bg-emerald-600 px-5 py-4 flex items-center justify-between">
-                  <button
-                    onClick={() => setSelectedDay(d => Math.max(1, d - 1))}
-                    disabled={selectedDay <= 1}
-                    className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold transition-colors">
-                    <ArrowLeft size={20}/>
-                  </button>
-
-                  <div className="text-center">
-                    <div className="text-white font-black text-lg">
-                      Day {selectedDay} of 30
+                      <h3 className="font-black text-gray-800 text-lg">{calendarGrid.label}</h3>
+                      <button onClick={() => setCalMonth(m => m + 1)}
+                        className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-gray-700 transition-colors">
+                        <ArrowRight size={18}/>
+                      </button>
                     </div>
-                    <div className="text-emerald-100 text-sm">
-                      {selectedDayDate?.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {DAYS_OF_WEEK.map(d => (
+                        <div key={d} className="text-xs font-bold text-gray-400 text-center py-1">{d}</div>
+                      ))}
                     </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {calendarGrid.cells.map((cell, ci) => {
+                        if (!cell.date) return <div key={ci}/>;
+                        const isSel = cell.dayNum === selectedDay;
+                        const inPlan = cell.dayNum !== null;
+                        return (
+                          <button key={ci}
+                            onClick={() => { if (cell.dayNum) { setSelectedDay(cell.dayNum); setOpenMealSlot(null); } }}
+                            disabled={!inPlan}
+                            className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold transition-all hover:scale-105 ${
+                              isSel ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-400 ring-offset-1 scale-105'
+                              : cell.isToday ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-400'
+                              : inPlan ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100'
+                              : 'text-gray-300 cursor-not-allowed'
+                            }`}>
+                            <span>{cell.date}</span>
+                            {inPlan && <span className={`text-[8px] mt-0.5 ${isSel ? 'text-white/70' : 'text-emerald-400'}`}>Day {cell.dayNum}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-gray-400 text-center mt-3">🟢 Green = plan days · Click any day to open its diet chart</p>
                   </div>
 
-                  <button
-                    onClick={() => setSelectedDay(d => Math.min(30, d + 1))}
-                    disabled={selectedDay >= 30}
-                    className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold transition-colors">
-                    <ArrowRight size={20}/>
-                  </button>
-                </div>
+                  {/* Day panel shown below calendar when a day is selected */}
+                  {selectedDay > 0 && (
+                    <DayMealPanel
+                      dayNum={selectedDay} date={planDays[selectedDay-1].date}
+                      meals={getDayMeals(selectedDay)} dietPlan={dietPlan}
+                      total={30} hasPlan={!!dietPlan}
+                      onPrev={() => { setSelectedDay(d => Math.max(1,d-1)); setOpenMealSlot(null); }}
+                      onNext={() => { setSelectedDay(d => Math.min(30,d+1)); setOpenMealSlot(null); }}
+                      openSlot={openMealSlot} setOpenSlot={setOpenMealSlot}
+                    />
+                  )}
+                </>
+              )}
 
-                {/* Meal slots for selected day */}
-                <div className="divide-y divide-gray-100">
-                  {selectedDayMeals.map(slot => {
-                    const hasFood = slot.foods.length > 0;
+              {/* ─── LIST VIEW ─────────────────────────────────────────── */}
+              {calView === 'list' && (
+                <div className="space-y-1.5">
+                  {planDays.map(({ dayNum, date }) => {
+                    const isSel   = selectedDay === dayNum;
+                    const isToday = dayNum === 1;
+                    const dayName = date.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
                     return (
-                      <div key={slot.key} className={`px-5 py-4 ${hasFood ? '' : 'opacity-50'}`}>
-                        <div className="flex items-start gap-4">
-                          <div className="text-3xl shrink-0">{slot.emoji}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold text-gray-900 text-sm">{slot.label}</span>
-                              <span className="text-xs text-gray-400">🕐 {slot.time}</span>
-                            </div>
-                            {hasFood ? (
-                              <>
-                                <div className="flex flex-wrap gap-1.5 mb-2">
-                                  {slot.foods.map((f, i) => (
-                                    <span key={i} className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-800">
-                                      🌿 {f}
-                                    </span>
-                                  ))}
-                                </div>
-                                {slot.tip && (
-                                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                                    💡 {slot.tip}
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <p className="text-xs text-gray-400 italic">Not planned yet</p>
+                      <React.Fragment key={dayNum}>
+                        {/* Row button */}
+                        <button
+                          onClick={() => { setSelectedDay(isSel ? 0 : dayNum); setOpenMealSlot(null); }}
+                          className={`w-full text-left px-5 py-3 rounded-xl border-2 flex items-center justify-between transition-all ${
+                            isSel ? 'bg-emerald-600 border-emerald-600 text-white rounded-b-none'
+                            : isToday ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300'
+                          }`}>
+                          <div className="flex items-center gap-3">
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shrink-0 ${isSel ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {dayNum}
+                            </span>
+                            <span className="font-semibold text-sm">{dayName}</span>
+                            {isToday && (
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${isSel ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'}`}>TODAY</span>
                             )}
                           </div>
-                        </div>
-                      </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] ${isSel ? 'text-white/70' : 'text-gray-400'}`}>7 meals</span>
+                            {isSel ? <ChevronUp size={15} className="text-white/70"/> : <ChevronDown size={15} className="text-gray-400"/>}
+                          </div>
+                        </button>
+
+                        {/* Inline expanded day panel */}
+                        {isSel && (
+                          <div className="rounded-b-2xl border-2 border-t-0 border-emerald-600 overflow-hidden shadow-md -mt-0.5 mb-1">
+                            <DayMealPanel
+                              dayNum={dayNum} date={date}
+                              meals={getDayMeals(dayNum)} dietPlan={dietPlan}
+                              total={30} hasPlan={!!dietPlan}
+                              onPrev={() => { setSelectedDay(d => Math.max(1,d-1)); setOpenMealSlot(null); }}
+                              onNext={() => { setSelectedDay(d => Math.min(30,d+1)); setOpenMealSlot(null); }}
+                              openSlot={openMealSlot} setOpenSlot={setOpenMealSlot}
+                              inList
+                            />
+                          </div>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </div>
+              )}
 
-                {/* Daily extras */}
-                {dietPlan && (dietPlan.herbs?.length > 0 || dietPlan.lifestyleTips?.length > 0) && (
-                  <div className="px-5 py-4 bg-green-50 border-t-2 border-green-100">
-                    {dietPlan.herbs?.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-xs font-bold text-green-700 mb-1.5">🌱 Today&apos;s Herbs:</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {dietPlan.herbs.map((h,i) => (
-                            <span key={i} className="px-2.5 py-1 rounded-full bg-white border border-green-200 text-xs text-green-800 font-medium">🌿 {h}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {dietPlan.lifestyleTips?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-bold text-blue-700 mb-1.5">🧘 Today&apos;s Lifestyle:</p>
-                        <div className="space-y-1">
-                          {dietPlan.lifestyleTips.slice(0,2).map((t,i) => (
-                            <div key={i} className="text-xs text-blue-700 flex items-start gap-1.5">
-                              <span className="shrink-0 font-bold">{i+1}.</span> {t}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Day dot navigation */}
-                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
-                  <p className="text-[9px] text-gray-400 mb-2 text-center">Jump to day</p>
-                  <div className="flex flex-wrap gap-1 justify-center">
-                    {Array.from({length:30},(_,i)=>i+1).map(d => (
-                      <button key={d} onClick={() => setSelectedDay(d)}
-                        className={`w-6 h-6 rounded-full text-[9px] font-bold transition-all hover:scale-110 ${
-                          d === selectedDay
-                            ? 'bg-emerald-600 text-white'
-                            : d === 1
-                              ? 'bg-emerald-200 text-emerald-800'
-                              : 'bg-gray-200 text-gray-600 hover:bg-emerald-100'
-                        }`}>
-                        {d}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Avoid foods for full month */}
+              {/* Avoid foods strip */}
               {dietPlan && dietPlan.avoidFoods && dietPlan.avoidFoods.length > 0 && (
                 <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4">
                   <h3 className="font-bold text-red-800 mb-3 text-sm">🚫 Avoid All Month</h3>
