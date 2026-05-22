@@ -50,11 +50,13 @@ async function safeFetch(url: string, options: RequestInit): Promise<{ ok: boole
  * Find the connected session key for a given userId from the bridge.
  * Falls back to any connected session if userId match not found.
  */
-async function findConnectedSessionKey(
+type SessionInfo = { sessionKey: string; tenantId: string };
+
+async function findConnectedSession(
   bridgeUrl: string,
   bridgeSecret: string,
   userId: string
-): Promise<string | null> {
+): Promise<SessionInfo | null> {
   const result = await safeFetch(`${bridgeUrl}/sessions`, {
     method: 'GET',
     headers: { 'x-bridge-secret': bridgeSecret },
@@ -67,11 +69,11 @@ async function findConnectedSessionKey(
   const ownConnected = sessions.find(
     (s) => s.userId === userId && s.status === 'connected'
   );
-  if (ownConnected) return String(ownConnected.sessionKey);
+  if (ownConnected) return { sessionKey: String(ownConnected.sessionKey), tenantId: String(ownConnected.tenantId || ownConnected.sessionKey) };
 
   // Fallback: any connected session
   const anyConnected = sessions.find((s) => s.status === 'connected');
-  if (anyConnected) return String(anyConnected.sessionKey);
+  if (anyConnected) return { sessionKey: String(anyConnected.sessionKey), tenantId: String(anyConnected.tenantId || anyConnected.sessionKey) };
 
   return null;
 }
@@ -82,7 +84,7 @@ async function findConnectedSessionKey(
 async function sendOne(
   bridgeUrl: string,
   bridgeSecret: string,
-  sessionKey: string,
+  session: SessionInfo,
   to: string,
   message: string,
   imageUrl?: string,
@@ -111,7 +113,8 @@ async function sendOne(
     headers: {
       'Content-Type': 'application/json',
       'x-bridge-secret': bridgeSecret,
-      'x-session-key': sessionKey,
+      'x-session-key': session.sessionKey,
+      'x-tenant-id': session.tenantId,   // ← required by bridge for routing
     },
     body: JSON.stringify(payload),
   });
@@ -150,16 +153,16 @@ export async function POST(request: NextRequest) {
     const bridgeUrl = getWhatsAppBridgeUrl();
     const bridgeSecret = getWhatsAppBridgeSecret();
 
-    // Find the connected WhatsApp session
-    const sessionKey = await findConnectedSessionKey(bridgeUrl, bridgeSecret, viewerUserId);
-    if (!sessionKey) {
+    // Find the connected WhatsApp session (sessionKey + tenantId both needed)
+    const session = await findConnectedSession(bridgeUrl, bridgeSecret, viewerUserId);
+    if (!session) {
       return NextResponse.json({
         success: false,
         error: 'WhatsApp is not connected. Please scan the QR code on the QR WhatsApp page first.',
       }, { status: 503 });
     }
 
-    console.log(`[qr-broadcast] Using session key: ${sessionKey} for user ${viewerUserId}`);
+    console.log(`[qr-broadcast] Session: key=${session.sessionKey} tenantId=${session.tenantId} user=${viewerUserId}`);
 
     // Normalize recipients — preserve group IDs (@g.us), only strip digits for phone numbers
     const isGroupId = (r: string) => String(r).includes('@g.us');
@@ -219,7 +222,7 @@ export async function POST(request: NextRequest) {
       const isGroup = isGroupId(recipient);
       try {
         const result = await sendOne(
-          bridgeUrl, bridgeSecret, sessionKey,
+          bridgeUrl, bridgeSecret, session,
           recipient, message, imageUrl,
           Array.isArray(buttons) ? buttons.map((b: any) => String(b?.title || b).slice(0, 20)) : undefined
         );
@@ -276,7 +279,7 @@ export async function POST(request: NextRequest) {
       sent,
       failed,
       totalRecipients: filteredRecipients.length,
-      sessionKey,
+      sessionKey: session.sessionKey,
       ...(errors.length > 0 ? { errors } : {}),
       message: `Sent ${sent}/${filteredRecipients.length} messages`,
     });

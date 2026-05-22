@@ -48,6 +48,32 @@ function shouldRunToday(frequency: string, daysOfWeek: number[]): boolean {
 /**
  * Send single message with deduplication check
  */
+/**
+ * Resolve the active session key and tenant ID from the bridge for a given userId.
+ * The bridge REQUIRES both x-session-key and x-tenant-id headers to route correctly.
+ */
+async function resolveSessionInfo(
+  userId: string,
+  bridgeUrl: string,
+  bridgeSecret: string
+): Promise<{ sessionKey: string; tenantId: string } | null> {
+  try {
+    const res = await fetch(`${bridgeUrl}/sessions`, {
+      headers: { 'x-bridge-secret': bridgeSecret },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const sessions: any[] = data?.sessions || [];
+    const own = sessions.find(s => s.userId === userId && s.status === 'connected');
+    const any = sessions.find(s => s.status === 'connected');
+    const s = own || any;
+    if (!s) return null;
+    return { sessionKey: String(s.sessionKey), tenantId: String(s.tenantId || s.sessionKey) };
+  } catch {
+    return null;
+  }
+}
+
 async function sendMessageWithGaps(
   chatId: string,
   messageText: string,
@@ -57,18 +83,14 @@ async function sendMessageWithGaps(
   userId: string,
   scheduleId: string,
   db: any,
-  mediaUrls?: string[], // Optional image/media URLs
-  sessionKey?: string   // Bridge session key for proper routing
+  mediaUrls?: string[],
+  sessionInfo?: { sessionKey: string; tenantId: string }
 ): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean }> {
   try {
     // CHECK 1: Deduplication - prevent same message to same user today
     const dedupCheck = await canSendMessageToUser(userId, chatId, messageText, db);
     if (!dedupCheck.canSend) {
-      return {
-        success: false,
-        error: dedupCheck.reason,
-        skipped: true, // Mark as skipped, not failed
-      };
+      return { success: false, error: dedupCheck.reason, skipped: true };
     }
 
     // Wait before sending (honor gap)
@@ -77,61 +99,50 @@ async function sendMessageWithGaps(
     const startTime = Date.now();
     const hasMedia = mediaUrls && mediaUrls.length > 0;
 
-    // Build bridge headers — include session key and user ID for proper session routing
+    // Build bridge headers — MUST include x-session-key AND x-tenant-id for routing
     const bridgeHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-bridge-secret': bridgeSecret,
       'x-user-id': userId,
     };
-    if (sessionKey) bridgeHeaders['x-session-key'] = sessionKey;
+    if (sessionInfo?.sessionKey) bridgeHeaders['x-session-key'] = sessionInfo.sessionKey;
+    if (sessionInfo?.tenantId)   bridgeHeaders['x-tenant-id']   = sessionInfo.tenantId;
 
-    // If we have media, send image first then text caption
+    let sendOk = false;
+
     if (hasMedia) {
+      // Send image with text as caption
       for (const mediaUrl of mediaUrls!) {
-        const mediaResponse = await fetch(`${bridgeUrl}/send`, {
+        const res = await fetch(`${bridgeUrl}/send`, {
           method: 'POST',
           headers: bridgeHeaders,
-          body: JSON.stringify({
-            to: chatId,
-            message: messageText, // Caption with the image
-            type: 'image',
-            url: mediaUrl,
-          }),
+          body: JSON.stringify({ to: chatId, type: 'image', url: mediaUrl, message: messageText }),
         });
-        if (!mediaResponse.ok) {
-          console.warn(`[QR Broadcast V2] Media send failed (${mediaResponse.status}), falling back to text`);
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && resData?.success !== false) {
+          sendOk = true;
+          console.log(`[QR Broadcast V2] ✓ Image sent to ${chatId}`);
+        } else {
+          console.warn(`[QR Broadcast V2] Image send failed: ${resData?.error || res.status}`);
         }
       }
-    }
-
-    // Send text message (send separately if no media, or skip if media already sent with caption)
-    const shouldSendText = !hasMedia && messageText.trim();
-    let response: Response | null = null;
-
-    if (shouldSendText) {
-      response = await fetch(`${bridgeUrl}/send`, {
+    } else if (messageText.trim()) {
+      // Send text only
+      const res = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
         headers: bridgeHeaders,
-        body: JSON.stringify({
-          to: chatId,
-          message: messageText,
-          type: 'text',
-        }),
+        body: JSON.stringify({ to: chatId, type: 'text', message: messageText }),
       });
-    } else if (!hasMedia) {
-      // No media and no text - shouldn't happen but fallback
-      response = await fetch(`${bridgeUrl}/send`, {
-        method: 'POST',
-        headers: bridgeHeaders,
-        body: JSON.stringify({
-          to: chatId,
-          message: messageText,
-          type: 'text',
-        }),
-      });
+      const resData = await res.json().catch(() => ({}));
+      sendOk = res.ok && resData?.success !== false;
+      if (!sendOk) console.warn(`[QR Broadcast V2] Text send failed: ${resData?.error || res.status}`);
     }
 
     const sendTimeMs = Date.now() - startTime;
+
+    if (!sendOk) {
+      return { success: false, error: 'Bridge rejected message' };
+    }
 
     // Record message as sent (for deduplication)
     await recordMessageSent(userId, chatId, messageText, scheduleId, db);
@@ -164,10 +175,13 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
   console.log(`[QR Broadcast Processor V2] Processing: ${schedule._id} (${schedule.name})`);
 
   try {
-    // CHECK 0: Session health (prevents auto-signout cascade)
+    // CHECK 0: Resolve session info dynamically (bridge needs BOTH x-session-key AND x-tenant-id)
+    const sessionInfo = await resolveSessionInfo(schedule.userId, bridgeUrl, bridgeSecret);
+    console.log(`[QR Broadcast V2] Session resolved: ${JSON.stringify(sessionInfo)}`);
+
     const sessionHealth = await checkSessionHealth(
       schedule.userId,
-      schedule.sessionKey,
+      sessionInfo?.sessionKey || '',
       bridgeUrl,
       bridgeSecret
     );
@@ -269,7 +283,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       if (heartbeatCheckCounter >= 10) {
         const heartbeat = await sendSessionHeartbeat(
           schedule.userId,
-          schedule.sessionKey,
+          sessionInfo?.sessionKey || '',
           bridgeUrl,
           bridgeSecret
         );
@@ -315,7 +329,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         Array.isArray(schedule.mediaUrls) && schedule.mediaUrls.length > 0
           ? schedule.mediaUrls
           : undefined,
-        schedule.sessionKey || undefined
+        sessionInfo || undefined  // passes both sessionKey + tenantId
       );
 
       if (result.skipped) {
