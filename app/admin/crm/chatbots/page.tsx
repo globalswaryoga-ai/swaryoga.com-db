@@ -129,6 +129,7 @@ export default function ChatbotsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -221,6 +222,21 @@ export default function ChatbotsPage() {
       setDuplicating(null);
     }
   }, [duplicating, fetchStats, router]);
+
+  // Delete a flow
+  const deleteFlow = useCallback(async (flowId: string, flowName: string) => {
+    if (deleting) return;
+    if (!confirm(`Delete flow "${flowName}"? This cannot be undone.`)) return;
+    setDeleting(flowId);
+    try {
+      await crmFetchRef.current(`/api/admin/crm/chatbot-flows/${flowId}`, { method: 'DELETE' });
+      await fetchStats();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete flow');
+    } finally {
+      setDeleting(null);
+    }
+  }, [deleting, fetchStats]);
 
   // Auth guard: after all hooks are called
   if (!token) {
@@ -385,6 +401,14 @@ export default function ChatbotsPage() {
                     >
                       {duplicating === flow._id ? '...' : '📋 Copy'}
                     </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); deleteFlow(flow._id, flow.name); }}
+                      disabled={deleting === flow._id}
+                      className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      title="Delete this flow"
+                    >
+                      {deleting === flow._id ? '...' : '🗑️'}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -452,6 +476,55 @@ export default function ChatbotsPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Health Report */}
+        {!loading && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">🩺 Chatbot System Health</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className={`p-4 rounded-xl border-2 ${stats.activeFlows > 0 ? 'border-green-300 bg-green-50' : 'border-yellow-300 bg-yellow-50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xl">{stats.activeFlows > 0 ? '✅' : '⚠️'}</span>
+                  <span className="text-xs font-bold text-gray-700">Flow Builder</span>
+                </div>
+                <div className={`text-sm font-semibold ${stats.activeFlows > 0 ? 'text-green-700' : 'text-yellow-700'}`}>
+                  {stats.activeFlows > 0 ? `${stats.activeFlows} active` : 'No active flows'}
+                </div>
+              </div>
+              <div className={`p-4 rounded-xl border-2 ${stats.activeRules > 0 ? 'border-green-300 bg-green-50' : 'border-yellow-300 bg-yellow-50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xl">{stats.activeRules > 0 ? '✅' : '⚠️'}</span>
+                  <span className="text-xs font-bold text-gray-700">Automation Rules</span>
+                </div>
+                <div className={`text-sm font-semibold ${stats.activeRules > 0 ? 'text-green-700' : 'text-yellow-700'}`}>
+                  {stats.activeRules > 0 ? `${stats.activeRules} active` : 'No active rules'}
+                </div>
+              </div>
+              <div className={`p-4 rounded-xl border-2 ${stats.activeKb > 0 ? 'border-green-300 bg-green-50' : 'border-yellow-300 bg-yellow-50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xl">{stats.activeKb > 0 ? '✅' : '⚠️'}</span>
+                  <span className="text-xs font-bold text-gray-700">Knowledge Base</span>
+                </div>
+                <div className={`text-sm font-semibold ${stats.activeKb > 0 ? 'text-green-700' : 'text-yellow-700'}`}>
+                  {stats.activeKb > 0 ? `${stats.activeKb} active` : 'No KB articles'}
+                </div>
+              </div>
+              <div className={`p-4 rounded-xl border-2 ${(stats.activeFlows + stats.activeRules + stats.activeKb) > 0 ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xl">{(stats.activeFlows + stats.activeRules + stats.activeKb) > 0 ? '✅' : '❌'}</span>
+                  <span className="text-xs font-bold text-gray-700">Overall Status</span>
+                </div>
+                <div className={`text-sm font-semibold ${(stats.activeFlows + stats.activeRules + stats.activeKb) > 0 ? 'text-green-700' : 'text-red-700'}`}>
+                  {(stats.activeFlows + stats.activeRules + stats.activeKb) > 0 ? 'System Active' : 'No automation running'}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-gray-500 flex items-center gap-2">
+              <span>💡</span>
+              <span>Cron runs every minute to process flows. Make sure at least one flow or rule is <strong>enabled</strong>.</span>
             </div>
           </div>
         )}

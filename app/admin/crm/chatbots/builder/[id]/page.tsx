@@ -2469,16 +2469,22 @@ export default function ChatbotBuilder() {
                               const reader = new FileReader();
                               reader.onload = async () => {
                                 const base64 = reader.result as string;
-                                const res = await crm.fetch('/api/admin/crm/upload/s3/base64', {
-                                  method: 'POST',
-                                  body: JSON.stringify({
-                                    base64,
-                                    fileName: file.name,
-                                    category: 'chatbot-media'
-                                  })
-                                });
-                                if (res?.data?.publicUrl) {
-                                  updateBlockData(block.id, { mediaUrl: res.data.publicUrl });
+                                try {
+                                  const res = await crm.fetch('/api/admin/crm/upload/s3/base64', {
+                                    method: 'POST',
+                                    body: {
+                                      base64,
+                                      fileName: file.name,
+                                      category: 'chatbot-media'
+                                    }
+                                  });
+                                  // useCRM unwraps data, so res = { key, publicUrl, indirectUrl }
+                                  const url = res?.publicUrl || res?.data?.publicUrl;
+                                  if (url) {
+                                    updateBlockData(block.id, { mediaUrl: url });
+                                  }
+                                } catch (uploadErr) {
+                                  console.error('Upload failed:', uploadErr);
                                 }
                                 setUploadingBlockId(null);
                               };
