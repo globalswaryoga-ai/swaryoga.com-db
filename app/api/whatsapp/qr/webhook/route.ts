@@ -328,12 +328,15 @@ async function ingestQRPayload(payload: any) {
                 conversationTimestamp: timestampSeconds,
               },
               $setOnInsert: {
-                unreadCount: 0,
+                // Do NOT set unreadCount here — $inc below handles it
+                // (having both $setOnInsert.unreadCount + $inc.unreadCount causes MongoDB conflict)
                 pinned: false,
                 archived: false,
                 profilePicUrl: '',
                 createdAt: new Date(),
               },
+              // For inbound: increment unreadCount ($inc auto-initializes to 0 if field missing)
+              // For outbound: don't touch unreadCount
               ...(m.fromMe ? {} : { $inc: { unreadCount: 1 } }),
             },
             { upsert: true, new: true }
