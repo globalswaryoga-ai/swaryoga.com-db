@@ -67,8 +67,9 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await User.findOne(query).lean();
+    // Return empty data for new users — they simply haven't saved tasks yet
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ success: true, data: { workshopTasks: [], sadhana: null, date } });
     }
 
     // Return stored daily tasks
@@ -159,11 +160,11 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      { new: true, runValidators: false }
+      { new: true, runValidators: false, upsert: true }
     );
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Failed to save daily tasks' }, { status: 500 });
     }
 
     console.log(`[POST] ✅ Saved daily tasks on ${date}:`, {
