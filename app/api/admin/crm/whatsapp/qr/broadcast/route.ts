@@ -16,6 +16,7 @@ import { connectDB } from '@/lib/db';
 import { getCRMUserSettings, getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } from '@/lib/whatsappBridgeConfig';
+import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
 // Allow up to 60 seconds for bulk sends (Vercel Pro / hobby has 10s; this is best-effort)
@@ -132,6 +133,15 @@ export async function POST(request: NextRequest) {
     const decoded = authCheck(request);
     if (!decoded) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // ── TIME GUARD: No QR messages after 10:30 PM or before 5:00 AM IST ──
+    if (!isQRSendAllowed()) {
+      return NextResponse.json({
+        success: false,
+        error: getQRTimeGuardError(),
+        currentTime: getCurrentISTTime(),
+      }, { status: 403 });
     }
 
     const superAdmin = checkSuperAdmin(decoded);

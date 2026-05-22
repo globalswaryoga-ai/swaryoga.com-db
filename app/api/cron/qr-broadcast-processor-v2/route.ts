@@ -6,6 +6,7 @@ import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { calculateVariableGaps, getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
 import { canSendMessageToUser, recordMessageSent } from '@/lib/messageDeduplication';
+import { isQRSendAllowed } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
@@ -456,6 +457,18 @@ export async function GET(req: NextRequest) {
     });
 
     console.log(`[QR Broadcast V2] Found ${schedules.length} active schedules`);
+
+    // ── GLOBAL TIME GUARD: Never send QR messages after 10:30 PM or before 5:00 AM IST ──
+    if (!isQRSendAllowed()) {
+      console.log('[QR Broadcast V2] ⏰ Outside allowed hours (5:00 AM – 10:30 PM IST). Skipping all schedules.');
+      return NextResponse.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        processedSchedules: 0,
+        results: [],
+        note: 'Outside allowed send window (5:00 AM – 10:30 PM IST)',
+      });
+    }
 
     const results: any[] = [];
     for (const schedule of schedules) {

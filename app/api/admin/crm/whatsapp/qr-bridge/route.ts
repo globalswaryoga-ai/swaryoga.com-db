@@ -6,6 +6,7 @@ import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
+import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -801,6 +802,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ── SENDER DISPLAY NAME SIGNATURE ──
+    // ── TIME GUARD: Block /send and /reply after 10:30 PM or before 5:00 AM IST ──
+    if ((decodedPath === '/send' || decodedPath === '/reply') && !isQRSendAllowed()) {
+      return NextResponse.json({
+        success: false,
+        error: getQRTimeGuardError(),
+        currentTime: getCurrentISTTime(),
+      }, { status: 403 });
+    }
+
     // Append the user's configured display name (e.g. "Swar Yoga") as a bold
     // signature at the bottom of every sent TEXT ONLY message.
     // Do NOT append to media captions as it breaks media formatting.
