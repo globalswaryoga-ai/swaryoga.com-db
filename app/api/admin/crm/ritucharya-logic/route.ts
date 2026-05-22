@@ -28,6 +28,8 @@ const logicSchema = new mongoose.Schema({
   ayana:          { type: String, default: ''  },   // 'uttarayan' | 'dakshinayan'
   characterEn:    { type: String, default: ''  },
   characterHi:    { type: String, default: ''  },
+  dateStart:      { type: String, default: ''  },   // 'MM-DD' e.g. '01-15'
+  dateEnd:        { type: String, default: ''  },   // 'MM-DD' e.g. '02-10'
   updatedAt:      { type: Date,   default: Date.now },
 });
 

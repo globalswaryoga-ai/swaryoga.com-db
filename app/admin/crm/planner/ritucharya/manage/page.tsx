@@ -10,8 +10,8 @@
  *   Admin defines logic → User enters weather → system matches → loads diet plan
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Save, Loader, ArrowLeft, Plus, X, ChevronDown, ChevronUp, CheckCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Save, Loader, ArrowLeft, Plus, X, ChevronDown, ChevronUp, CheckCircle, RefreshCw, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
 // ─── Static Data ──────────────────────────────────────────────────────────────
@@ -32,26 +32,82 @@ const PHASES = [
 ];
 
 // All 18 Ritu-Phase rows with default values from classical Ayurvedic chart
+// dateStart / dateEnd in "MM-DD" format (Gregorian, covers full 365 days)
 const DEFAULT_LOGIC_ROWS = [
-  { ritu:'shishir', phase:'begin', tempMin:-20, tempMax:-10, humidMin:20, humidMax:25,  windMin:15, windMax:25, skyConditions:['Clear'],             aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Deep cold begins, Kapha+Vata rising',        characterHi:'गहन ठंड शुरू, कफ+वात बढ़ रहा'  },
-  { ritu:'shishir', phase:'peak',  tempMin:-10, tempMax:0,   humidMin:15, humidMax:20,  windMin:15, windMax:20, skyConditions:['Clear'],             aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Peak cold, digestion intense',               characterHi:'सर्वाधिक ठंड, पाचन तीव्र'      },
-  { ritu:'shishir', phase:'last',  tempMin:0,   tempMax:10,  humidMin:20, humidMax:30,  windMin:15, windMax:25, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Cold reducing, warmth beginning',            characterHi:'ठंड घट रही, गर्मी शुरू'          },
-  { ritu:'vasant',  phase:'begin', tempMin:10,  tempMax:20,  humidMin:30, humidMax:40,  windMin:15, windMax:25, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Spring begins, Kapha excited',               characterHi:'वसंत शुरू, कफ उत्तेजना'         },
-  { ritu:'vasant',  phase:'peak',  tempMin:20,  tempMax:30,  humidMin:35, humidMax:50,  windMin:15, windMax:30, skyConditions:['Cloudy'],            aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Kapha peak, allergies high',                characterHi:'कफ शिखर, एलर्जी अधिक'          },
-  { ritu:'vasant',  phase:'last',  tempMin:25,  tempMax:35,  humidMin:40, humidMax:55,  windMin:20, windMax:35, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Spring ending, Pitta beginning',             characterHi:'वसंत अंत, पित्त शुरू'           },
-  { ritu:'grishma', phase:'begin', tempMin:30,  tempMax:40,  humidMin:40, humidMax:55,  windMin:25, windMax:40, skyConditions:['Clear','Hazy'],      aqiMin:0, aqiMax:200, ayana:'uttarayan', characterEn:'Intense heat begins, dry',                  characterHi:'तीव्र गर्मी शुरू (सूख)'         },
-  { ritu:'grishma', phase:'peak',  tempMin:35,  tempMax:45,  humidMin:45, humidMax:65,  windMin:30, windMax:45, skyConditions:['Hazy'],             aqiMin:0, aqiMax:200, ayana:'uttarayan', characterEn:'Extreme heat + humidity rising',             characterHi:'अति गर्मी + आर्द्रता बढ़'       },
-  { ritu:'grishma', phase:'last',  tempMin:32,  tempMax:42,  humidMin:55, humidMax:70,  windMin:35, windMax:50, skyConditions:['Mostly Cloudy'],     aqiMin:0, aqiMax:200, ayana:'uttarayan', characterEn:'Summer ending, monsoon approaching',        characterHi:'ग्रीष्म अंत, वर्षा आने वाली'   },
-  { ritu:'varsha',  phase:'begin', tempMin:28,  tempMax:35,  humidMin:65, humidMax:75,  windMin:40, windMax:50, skyConditions:['Heavy Rain','Overcast'], aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Monsoon starts, Vata excited',     characterHi:'वर्षा शुरू, वात उत्तेजना'       },
-  { ritu:'varsha',  phase:'peak',  tempMin:24,  tempMax:28,  humidMin:70, humidMax:85,  windMin:45, windMax:60, skyConditions:['Heavy Rain','Thunderstorm'], aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Peak monsoon, Vata very high', characterHi:'वर्षा शिखर, वात अधिक'          },
-  { ritu:'varsha',  phase:'last',  tempMin:20,  tempMax:24,  humidMin:60, humidMax:75,  windMin:35, windMax:45, skyConditions:['Rainy','Overcast'],  aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Monsoon ending, Sharad approaching',        characterHi:'वर्षा अंत, शरद शुरू'           },
-  { ritu:'sharad',  phase:'begin', tempMin:20,  tempMax:26,  humidMin:55, humidMax:65,  windMin:25, windMax:35, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Sharad begins, sky clearing',               characterHi:'शरद शुरू, साफ आसमान'           },
-  { ritu:'sharad',  phase:'peak',  tempMin:26,  tempMax:32,  humidMin:45, humidMax:55,  windMin:15, windMax:30, skyConditions:['Clear'],             aqiMin:0, aqiMax:100, ayana:'dakshinayan', characterEn:'Sharad peak — BEST HEALTH',                characterHi:'शरद शिखर — BEST HEALTH'         },
-  { ritu:'sharad',  phase:'last',  tempMin:24,  tempMax:30,  humidMin:40, humidMax:50,  windMin:15, windMax:25, skyConditions:['Clear'],             aqiMin:0, aqiMax:100, ayana:'dakshinayan', characterEn:'Sharad ending, cold approaching',           characterHi:'शरद अंत, ठंड आने वाली'         },
-  { ritu:'hemant',  phase:'begin', tempMin:12,  tempMax:24,  humidMin:30, humidMax:40,  windMin:15, windMax:25, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Hemant begins, Kapha building',             characterHi:'हेमंत शुरू, कफ शुरू'           },
-  { ritu:'hemant',  phase:'peak',  tempMin:2,   tempMax:12,  humidMin:25, humidMax:35,  windMin:15, windMax:20, skyConditions:['Clear','Foggy'],     aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Hemant peak — deep cold',                   characterHi:'हेमंत शिखर — गहन ठंड'          },
-  { ritu:'hemant',  phase:'last',  tempMin:-8,  tempMax:2,   humidMin:20, humidMax:30,  windMin:10, windMax:20, skyConditions:['Clear'],             aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Hemant ending, Shishira beginning',         characterHi:'हेमंत अंत, शीत शुरू'           },
+  { ritu:'shishir', phase:'begin', tempMin:-20, tempMax:-10, humidMin:20, humidMax:25,  windMin:15, windMax:25, skyConditions:['Clear'],             aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Deep cold begins, Kapha+Vata rising',        characterHi:'गहन ठंड शुरू, कफ+वात बढ़ रहा',  dateStart:'01-01', dateEnd:'01-20' },
+  { ritu:'shishir', phase:'peak',  tempMin:-10, tempMax:0,   humidMin:15, humidMax:20,  windMin:15, windMax:20, skyConditions:['Clear'],             aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Peak cold, digestion intense',               characterHi:'सर्वाधिक ठंड, पाचन तीव्र',      dateStart:'01-21', dateEnd:'02-09' },
+  { ritu:'shishir', phase:'last',  tempMin:0,   tempMax:10,  humidMin:20, humidMax:30,  windMin:15, windMax:25, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Cold reducing, warmth beginning',            characterHi:'ठंड घट रही, गर्मी शुरू',          dateStart:'02-10', dateEnd:'02-28' },
+  { ritu:'vasant',  phase:'begin', tempMin:10,  tempMax:20,  humidMin:30, humidMax:40,  windMin:15, windMax:25, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Spring begins, Kapha excited',               characterHi:'वसंत शुरू, कफ उत्तेजना',         dateStart:'03-01', dateEnd:'03-20' },
+  { ritu:'vasant',  phase:'peak',  tempMin:20,  tempMax:30,  humidMin:35, humidMax:50,  windMin:15, windMax:30, skyConditions:['Cloudy'],            aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Kapha peak, allergies high',                characterHi:'कफ शिखर, एलर्जी अधिक',          dateStart:'03-21', dateEnd:'04-09' },
+  { ritu:'vasant',  phase:'last',  tempMin:25,  tempMax:35,  humidMin:40, humidMax:55,  windMin:20, windMax:35, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'uttarayan', characterEn:'Spring ending, Pitta beginning',             characterHi:'वसंत अंत, पित्त शुरू',           dateStart:'04-10', dateEnd:'04-30' },
+  { ritu:'grishma', phase:'begin', tempMin:30,  tempMax:40,  humidMin:40, humidMax:55,  windMin:25, windMax:40, skyConditions:['Clear','Hazy'],      aqiMin:0, aqiMax:200, ayana:'uttarayan', characterEn:'Intense heat begins, dry',                  characterHi:'तीव्र गर्मी शुरू (सूख)',         dateStart:'05-01', dateEnd:'05-20' },
+  { ritu:'grishma', phase:'peak',  tempMin:35,  tempMax:45,  humidMin:45, humidMax:65,  windMin:30, windMax:45, skyConditions:['Hazy'],             aqiMin:0, aqiMax:200, ayana:'uttarayan', characterEn:'Extreme heat + humidity rising',             characterHi:'अति गर्मी + आर्द्रता बढ़',       dateStart:'05-21', dateEnd:'06-09' },
+  { ritu:'grishma', phase:'last',  tempMin:32,  tempMax:42,  humidMin:55, humidMax:70,  windMin:35, windMax:50, skyConditions:['Mostly Cloudy'],     aqiMin:0, aqiMax:200, ayana:'uttarayan', characterEn:'Summer ending, monsoon approaching',        characterHi:'ग्रीष्म अंत, वर्षा आने वाली',   dateStart:'06-10', dateEnd:'06-30' },
+  { ritu:'varsha',  phase:'begin', tempMin:28,  tempMax:35,  humidMin:65, humidMax:75,  windMin:40, windMax:50, skyConditions:['Heavy Rain','Overcast'], aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Monsoon starts, Vata excited',     characterHi:'वर्षा शुरू, वात उत्तेजना',       dateStart:'07-01', dateEnd:'07-20' },
+  { ritu:'varsha',  phase:'peak',  tempMin:24,  tempMax:28,  humidMin:70, humidMax:85,  windMin:45, windMax:60, skyConditions:['Heavy Rain','Thunderstorm'], aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Peak monsoon, Vata very high', characterHi:'वर्षा शिखर, वात अधिक',          dateStart:'07-21', dateEnd:'08-09' },
+  { ritu:'varsha',  phase:'last',  tempMin:20,  tempMax:24,  humidMin:60, humidMax:75,  windMin:35, windMax:45, skyConditions:['Rainy','Overcast'],  aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Monsoon ending, Sharad approaching',        characterHi:'वर्षा अंत, शरद शुरू',           dateStart:'08-10', dateEnd:'08-31' },
+  { ritu:'sharad',  phase:'begin', tempMin:20,  tempMax:26,  humidMin:55, humidMax:65,  windMin:25, windMax:35, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Sharad begins, sky clearing',               characterHi:'शरद शुरू, साफ आसमान',           dateStart:'09-01', dateEnd:'09-20' },
+  { ritu:'sharad',  phase:'peak',  tempMin:26,  tempMax:32,  humidMin:45, humidMax:55,  windMin:15, windMax:30, skyConditions:['Clear'],             aqiMin:0, aqiMax:100, ayana:'dakshinayan', characterEn:'Sharad peak — BEST HEALTH',                characterHi:'शरद शिखर — BEST HEALTH',         dateStart:'09-21', dateEnd:'10-10' },
+  { ritu:'sharad',  phase:'last',  tempMin:24,  tempMax:30,  humidMin:40, humidMax:50,  windMin:15, windMax:25, skyConditions:['Clear'],             aqiMin:0, aqiMax:100, ayana:'dakshinayan', characterEn:'Sharad ending, cold approaching',           characterHi:'शरद अंत, ठंड आने वाली',         dateStart:'10-11', dateEnd:'10-31' },
+  { ritu:'hemant',  phase:'begin', tempMin:12,  tempMax:24,  humidMin:30, humidMax:40,  windMin:15, windMax:25, skyConditions:['Partly Cloudy'],     aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Hemant begins, Kapha building',             characterHi:'हेमंत शुरू, कफ शुरू',           dateStart:'11-01', dateEnd:'11-20' },
+  { ritu:'hemant',  phase:'peak',  tempMin:2,   tempMax:12,  humidMin:25, humidMax:35,  windMin:15, windMax:20, skyConditions:['Clear','Foggy'],     aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Hemant peak — deep cold',                   characterHi:'हेमंत शिखर — गहन ठंड',          dateStart:'11-21', dateEnd:'12-10' },
+  { ritu:'hemant',  phase:'last',  tempMin:-8,  tempMax:2,   humidMin:20, humidMax:30,  windMin:10, windMax:20, skyConditions:['Clear'],             aqiMin:0, aqiMax:150, ayana:'dakshinayan', characterEn:'Hemant ending, Shishira beginning',         characterHi:'हेमंत अंत, शीत शुरू',           dateStart:'12-11', dateEnd:'12-31' },
 ];
+
+// ─── Calendar Helpers ────────────────────────────────────────────────────────
+
+const RITU_CAL_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  shishir_begin: { bg:'#bfdbfe', text:'#1d4ed8', label:'Shishira Begin' },
+  shishir_peak:  { bg:'#60a5fa', text:'#1e3a8a', label:'Shishira Peak'  },
+  shishir_last:  { bg:'#93c5fd', text:'#1e40af', label:'Shishira Last'  },
+  vasant_begin:  { bg:'#bbf7d0', text:'#15803d', label:'Vasant Begin'   },
+  vasant_peak:   { bg:'#4ade80', text:'#14532d', label:'Vasant Peak'    },
+  vasant_last:   { bg:'#86efac', text:'#166534', label:'Vasant Last'    },
+  grishma_begin: { bg:'#fed7aa', text:'#c2410c', label:'Grishma Begin'  },
+  grishma_peak:  { bg:'#fb923c', text:'#7c2d12', label:'Grishma Peak'   },
+  grishma_last:  { bg:'#fdba74', text:'#9a3412', label:'Grishma Last'   },
+  varsha_begin:  { bg:'#c7d2fe', text:'#3730a3', label:'Varsha Begin'   },
+  varsha_peak:   { bg:'#818cf8', text:'#1e1b4b', label:'Varsha Peak'    },
+  varsha_last:   { bg:'#a5b4fc', text:'#312e81', label:'Varsha Last'    },
+  sharad_begin:  { bg:'#fde68a', text:'#92400e', label:'Sharad Begin'   },
+  sharad_peak:   { bg:'#fbbf24', text:'#78350f', label:'Sharad Peak'    },
+  sharad_last:   { bg:'#fcd34d', text:'#78350f', label:'Sharad Last'    },
+  hemant_begin:  { bg:'#e9d5ff', text:'#6b21a8', label:'Hemant Begin'   },
+  hemant_peak:   { bg:'#c084fc', text:'#3b0764', label:'Hemant Peak'    },
+  hemant_last:   { bg:'#d8b4fe', text:'#581c87', label:'Hemant Last'    },
+};
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_DAYS  = [31,28,31,30,31,30,31,31,30,31,30,31];
+
+function getDayOfYear(month: number, day: number): number {
+  // month: 1-12, day: 1-31 → 0-364
+  let n = day - 1;
+  for (let m = 1; m < month; m++) n += MONTH_DAYS[m - 1];
+  return n;
+}
+
+function parseMMDD(mmdd: string): { m: number; d: number } {
+  const [m, d] = (mmdd || '01-01').split('-').map(Number);
+  return { m: m || 1, d: d || 1 };
+}
+
+function getRituPhaseKey(month: number, day: number, rows: typeof DEFAULT_LOGIC_ROWS): string {
+  const curr = getDayOfYear(month, day);
+  for (const row of rows) {
+    if (!row.dateStart || !row.dateEnd) continue;
+    const { m: sm, d: sd } = parseMMDD(row.dateStart);
+    const { m: em, d: ed } = parseMMDD(row.dateEnd);
+    const start = getDayOfYear(sm, sd);
+    const end   = getDayOfYear(em, ed);
+    if (start <= end) {
+      if (curr >= start && curr <= end) return `${row.ritu}_${row.phase}`;
+    } else {
+      if (curr >= start || curr <= end) return `${row.ritu}_${row.phase}`;
+    }
+  }
+  return '';
+}
 
 const SKY_OPTIONS = ['Clear','Partly Cloudy','Cloudy','Mostly Cloudy','Overcast','Hazy','Foggy','Light Rain','Rainy','Heavy Rain','Thunderstorm','Snowy'];
 const AYANA_OPTIONS = ['uttarayan','dakshinayan'];
@@ -70,7 +126,7 @@ const MEAL_SLOTS = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type LogicRow = typeof DEFAULT_LOGIC_ROWS[0];
+type LogicRow = typeof DEFAULT_LOGIC_ROWS[0] & { dateStart: string; dateEnd: string };
 interface MealSlot { slotKey:string; time:string; label:string; emoji:string; foods:string[]; tip:string; }
 interface DietPlan  { ritu:string; phase:string; meals:MealSlot[]; herbs:string[]; lifestyleTips:string[]; avoidFoods:string[]; specialNotes:string; }
 
@@ -81,7 +137,7 @@ function emptyPlan(ritu:string, phase:string): DietPlan {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ManageFormPage() {
-  const [activeTab, setActiveTab] = useState<'logic'|'diet'>('logic');
+  const [activeTab, setActiveTab] = useState<'logic'|'diet'|'calendar'>('logic');
 
   // ── LOGIC TABLE STATE ──────────────────────────────────────────────────
   const [logicRows,     setLogicRows]     = useState<LogicRow[]>(DEFAULT_LOGIC_ROWS);
@@ -103,6 +159,23 @@ export default function ManageFormPage() {
   const [newHerb,       setNewHerb]       = useState('');
   const [newLifestyle,  setNewLifestyle]  = useState('');
   const [newAvoid,      setNewAvoid]      = useState('');
+
+  // ── CALENDAR STATE ─────────────────────────────────────────────────────
+  const [calYear,       setCalYear]       = useState(new Date().getFullYear());
+  const [hoveredKey,    setHoveredKey]    = useState<string>('');
+
+  // Memoize calendar grid (month → array of day cells with ritKey)
+  const calGrid = useMemo(() => {
+    return MONTH_NAMES.map((name, mi) => {
+      const month = mi + 1;
+      const daysInMonth = mi === 1 && ((calYear % 4 === 0 && calYear % 100 !== 0) || calYear % 400 === 0) ? 29 : MONTH_DAYS[mi];
+      const firstDow = new Date(calYear, mi, 1).getDay(); // 0=Sun
+      const cells: { day: number | null; key: string }[] = [];
+      for (let i = 0; i < firstDow; i++) cells.push({ day: null, key: '' });
+      for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, key: getRituPhaseKey(month, d, logicRows) });
+      return { name, month, cells };
+    });
+  }, [calYear, logicRows]);
 
   // ── On mount: load logic + diet plans ────────────────────────────────
   useEffect(() => {
@@ -222,7 +295,7 @@ export default function ManageFormPage() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
         <button onClick={() => setActiveTab('logic')}
           className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab==='logic' ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}>
           📊 Weather → Ritu Logic
@@ -231,6 +304,10 @@ export default function ManageFormPage() {
           className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab==='diet' ? 'bg-white shadow text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>
           🍽️ Diet Plans
           <span className="ml-2 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">{savedPlans.length}/18</span>
+        </button>
+        <button onClick={() => setActiveTab('calendar')}
+          className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-1.5 ${activeTab==='calendar' ? 'bg-white shadow text-orange-700' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Calendar size={15}/> Year Calendar
         </button>
       </div>
 
@@ -440,6 +517,49 @@ export default function ManageFormPage() {
                           </div>
                         </div>
 
+                        {/* Date Range for Year Calendar */}
+                        <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Calendar size={14} className="text-orange-600"/>
+                            <span className="text-xs font-bold text-orange-700">📅 Date Range (for Year Calendar Plan)</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[10px] text-gray-500 mb-1">Start Date (MM-DD)</label>
+                              <input type="text"
+                                value={row.dateStart || ''}
+                                onChange={e => updateRow(row.ritu, row.phase, 'dateStart', e.target.value)}
+                                placeholder="01-01"
+                                maxLength={5}
+                                className="w-full px-3 py-2 rounded-lg border-2 border-orange-200 bg-white text-lg font-bold text-orange-800 focus:outline-none focus:border-orange-500 font-mono"/>
+                              <p className="text-[10px] text-gray-400 mt-1">Format: MM-DD (e.g. 01-15)</p>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-gray-500 mb-1">End Date (MM-DD)</label>
+                              <input type="text"
+                                value={row.dateEnd || ''}
+                                onChange={e => updateRow(row.ritu, row.phase, 'dateEnd', e.target.value)}
+                                placeholder="01-31"
+                                maxLength={5}
+                                className="w-full px-3 py-2 rounded-lg border-2 border-orange-200 bg-white text-lg font-bold text-orange-800 focus:outline-none focus:border-orange-500 font-mono"/>
+                              <p className="text-[10px] text-gray-400 mt-1">Format: MM-DD (e.g. 02-15)</p>
+                            </div>
+                          </div>
+                          {row.dateStart && row.dateEnd && (
+                            <div className="mt-2 text-[10px] text-orange-600 font-semibold">
+                              📆 Active period: {row.dateStart} → {row.dateEnd}
+                              {(() => {
+                                const { m:sm, d:sd } = parseMMDD(row.dateStart);
+                                const { m:em, d:ed } = parseMMDD(row.dateEnd);
+                                const start = getDayOfYear(sm, sd);
+                                const end   = getDayOfYear(em, ed);
+                                const days  = end >= start ? end - start + 1 : (365 - start) + end + 1;
+                                return ` · ~${days} days`;
+                              })()}
+                            </div>
+                          )}
+                        </div>
+
                         {/* Quick save for this row */}
                         <div className="flex justify-end gap-3">
                           <button
@@ -466,6 +586,167 @@ export default function ManageFormPage() {
              logicSaved  ? <><CheckCircle size={22}/> ✅ All Logic Saved!</> :
              <><Save size={22}/> Save All Weather → Ritu Logic to MongoDB</>}
           </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════
+          TAB 3 — YEAR CALENDAR
+      ═══════════════════════════════════════════════════════════ */}
+      {activeTab === 'calendar' && (
+        <div className="space-y-5">
+
+          {/* Header */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">📅 Full Year Ritucharya Calendar</h2>
+              <p className="text-sm text-gray-500">
+                Set date ranges in the Logic tab → they appear here as a color-coded year plan
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCalYear(y => y - 1)}
+                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold text-gray-700">‹</button>
+              <span className="text-xl font-black text-gray-900 px-2">{calYear}</span>
+              <button onClick={() => setCalYear(y => y + 1)}
+                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold text-gray-700">›</button>
+              <button onClick={() => setCalYear(new Date().getFullYear())}
+                className="px-3 py-1.5 rounded-lg bg-orange-100 border border-orange-300 text-orange-700 text-xs font-bold hover:bg-orange-200">
+                Today&apos;s Year
+              </button>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="bg-white rounded-2xl border-2 border-gray-200 p-4">
+            <p className="text-xs font-bold text-gray-600 mb-3">🎨 Color Legend</p>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+              {RITUS.map(r => (
+                <div key={r.key} className="text-center">
+                  <div className="text-lg mb-1">{r.icon}</div>
+                  <div className="text-[9px] font-bold text-gray-600 mb-1">{r.key.toUpperCase()}</div>
+                  <div className="flex justify-center gap-0.5">
+                    {['begin','peak','last'].map(p => {
+                      const k = `${r.key}_${p}`;
+                      const c = RITU_CAL_COLORS[k];
+                      return (
+                        <div key={p} title={`${r.key} ${p}`}
+                          className="w-5 h-5 rounded text-[7px] font-bold flex items-center justify-center cursor-pointer hover:scale-125 transition-transform"
+                          style={{ backgroundColor: c?.bg, color: c?.text }}
+                          onMouseEnter={() => setHoveredKey(k)}
+                          onMouseLeave={() => setHoveredKey('')}>
+                          {p[0].toUpperCase()}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {hoveredKey && RITU_CAL_COLORS[hoveredKey] && (
+              <div className="mt-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ backgroundColor: RITU_CAL_COLORS[hoveredKey].bg, color: RITU_CAL_COLORS[hoveredKey].text }}>
+                {RITU_CAL_COLORS[hoveredKey].label} · {logicRows.find(r=>`${r.ritu}_${r.phase}`===hoveredKey)?.dateStart} → {logicRows.find(r=>`${r.ritu}_${r.phase}`===hoveredKey)?.dateEnd}
+              </div>
+            )}
+          </div>
+
+          {/* 12-Month Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {calGrid.map(({ name, month, cells }) => {
+              const today = new Date();
+              const isCurrentMonth = today.getFullYear() === calYear && today.getMonth() + 1 === month;
+              const todayDay = today.getDate();
+
+              return (
+                <div key={name} className={`bg-white rounded-2xl border-2 p-4 shadow-sm ${isCurrentMonth ? 'border-orange-400' : 'border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={`font-black text-sm ${isCurrentMonth ? 'text-orange-700' : 'text-gray-800'}`}>
+                      {name} {calYear}
+                      {isCurrentMonth && <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] rounded-full font-bold">THIS MONTH</span>}
+                    </h3>
+                  </div>
+
+                  {/* Day-of-week header */}
+                  <div className="grid grid-cols-7 gap-0.5 mb-1">
+                    {['S','M','T','W','T','F','S'].map((d,i) => (
+                      <div key={i} className="text-[9px] font-bold text-gray-400 text-center py-0.5">{d}</div>
+                    ))}
+                  </div>
+
+                  {/* Day cells */}
+                  <div className="grid grid-cols-7 gap-0.5">
+                    {cells.map((cell, ci) => {
+                      if (!cell.day) return <div key={ci}/>;
+                      const color = RITU_CAL_COLORS[cell.key];
+                      const isToday_ = isCurrentMonth && cell.day === todayDay;
+                      return (
+                        <div key={ci}
+                          title={color ? `Day ${cell.day}: ${color.label}` : `Day ${cell.day}`}
+                          onMouseEnter={() => cell.key && setHoveredKey(cell.key)}
+                          onMouseLeave={() => setHoveredKey('')}
+                          className={`relative aspect-square rounded flex items-center justify-center text-[9px] font-bold cursor-pointer hover:scale-110 transition-transform ${
+                            isToday_ ? 'ring-2 ring-orange-500 ring-offset-1' : ''
+                          }`}
+                          style={color ? { backgroundColor: color.bg, color: color.text } : { backgroundColor:'#f9fafb', color:'#9ca3af' }}>
+                          {cell.day}
+                          {isToday_ && <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-500 rounded-full"/>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Month Ritu summary */}
+                  <div className="mt-2 pt-2 border-t border-gray-100">
+                    {(() => {
+                      const keysInMonth = new Set(cells.filter(c => c.day && c.key).map(c => c.key));
+                      return Array.from(keysInMonth).map(k => {
+                        const c = RITU_CAL_COLORS[k];
+                        const daysCount = cells.filter(c2 => c2.key === k).length;
+                        return c ? (
+                          <span key={k} className="inline-flex items-center gap-1 mr-1.5 mb-1 px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                            style={{ backgroundColor: c.bg, color: c.text }}>
+                            {c.label} ({daysCount}d)
+                          </span>
+                        ) : null;
+                      });
+                    })()}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Phase timeline strip */}
+          <div className="bg-white rounded-2xl border-2 border-gray-200 p-5">
+            <h3 className="font-bold text-gray-800 mb-4 text-sm">📊 Full Year Phase Timeline</h3>
+            <div className="space-y-3">
+              {RITUS.map(r => (
+                <div key={r.key} className="flex items-center gap-3">
+                  <div className="w-24 text-xs font-bold text-gray-600 shrink-0">{r.icon} {r.key}</div>
+                  <div className="flex-1 flex gap-1">
+                    {['begin','peak','last'].map(p => {
+                      const row = logicRows.find(lr => lr.ritu === r.key && lr.phase === p);
+                      const k   = `${r.key}_${p}`;
+                      const c   = RITU_CAL_COLORS[k];
+                      return (
+                        <div key={p} className="flex-1 rounded-lg px-2 py-1.5 text-center text-[10px] font-bold" style={{ backgroundColor: c?.bg, color: c?.text }}>
+                          <div>{p.toUpperCase()}</div>
+                          <div className="font-mono mt-0.5 opacity-80">{row?.dateStart} → {row?.dateEnd}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-3 text-center">
+              💡 Edit date ranges in the <button onClick={()=>setActiveTab('logic')} className="text-blue-600 font-bold underline">Logic Table tab</button> → expand any row → scroll to Date Range section
+            </p>
+          </div>
+
+          {/* Save reminder */}
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+            <span className="font-bold">💡 Tip:</span> After editing date ranges in the Logic Table tab, click &ldquo;Save All Logic to MongoDB&rdquo; to persist the calendar. The year calendar updates in real-time as you edit dates.
+          </div>
         </div>
       )}
 
