@@ -1767,11 +1767,3 @@ input::-webkit-grammar-error {
 .animate-marquee {
   animation: marquee 20s linear infinite;
 }
-/* No scrollbar utility */
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
