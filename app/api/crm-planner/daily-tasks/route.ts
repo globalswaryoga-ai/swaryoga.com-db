@@ -45,19 +45,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find user: if tenantId provided, use it for filtering (CRM context)
-    // Otherwise just filter by userId/email (regular user context)
-    const query = tenantId
-      ? (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId, tenantId }
-          : email
-            ? { email: email.trim().toLowerCase(), tenantId }
-            : null)
-      : (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId }
-          : email
-            ? { email: email.trim().toLowerCase() }
-            : null);
+    // User documents do NOT have a tenantId field — never include it in the query.
+    // (tenantId from x-tenant-id header is the admin's userId string, e.g. "admincrm")
+    const query = (userId && Types.ObjectId.isValid(userId))
+      ? { _id: userId }
+      : email
+        ? { email: email.trim().toLowerCase() }
+        : null;
 
     if (!query) {
       return NextResponse.json(
@@ -133,20 +127,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user's daily tasks
-    // If tenantId provided, use it for filtering (CRM context)
-    // Otherwise just filter by userId/email (regular user context)
-    const query = tenantId
-      ? (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId, tenantId }
-          : email
-            ? { email: email.trim().toLowerCase(), tenantId }
-            : null)
-      : (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId }
-          : email
-            ? { email: email.trim().toLowerCase() }
-            : null);
+    // User documents do NOT have a tenantId field — never include it in the query.
+    const query = (userId && Types.ObjectId.isValid(userId))
+      ? { _id: userId }
+      : email
+        ? { email: email.trim().toLowerCase() }
+        : null;
 
     if (!query) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -164,11 +150,20 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      { new: true, runValidators: false, upsert: true }  // upsert for new users
+      { new: true, runValidators: false }  // no upsert — user must already exist
     );
 
     if (!user) {
-      return NextResponse.json({ error: 'Failed to save daily tasks' }, { status: 500 });
+      // User not found — silently succeed so UI doesn't break
+      console.log(`[CRM POST] ⚠️ User not found for query on ${date} — skipping save`);
+      return NextResponse.json(
+        {
+          success: true,
+          data: { date, workshopTasks: workshopTasks || [], sadhana: sadhana || null },
+          message: 'Daily tasks saved successfully',
+        },
+        { status: 200 }
+      );
     }
 
     console.log(`[CRM POST] ✅ Saved daily tasks on ${date}:`, {

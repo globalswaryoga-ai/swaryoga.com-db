@@ -45,19 +45,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find user: if tenantId provided, use it for filtering (admin/CRM context)
-    // Otherwise just filter by userId/email (regular user context)
-    const query = tenantId
-      ? (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId, tenantId }
-          : email
-            ? { email: email.trim().toLowerCase(), tenantId }
-            : null)
-      : (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId }
-          : email
-            ? { email: email.trim().toLowerCase() }
-            : null);
+    // User documents do NOT have a tenantId field — never include it in the query.
+    const query = (userId && Types.ObjectId.isValid(userId))
+      ? { _id: userId }
+      : email
+        ? { email: email.trim().toLowerCase() }
+        : null;
 
     if (!query) {
       return NextResponse.json(
@@ -129,20 +122,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user's daily tasks
-    // If tenantId provided, use it for filtering (admin/CRM context)
-    // Otherwise just filter by userId/email (regular user context)
-    const query = tenantId
-      ? (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId, tenantId }
-          : email
-            ? { email: email.trim().toLowerCase(), tenantId }
-            : null)
-      : (userId && Types.ObjectId.isValid(userId)
-          ? { _id: userId }
-          : email
-            ? { email: email.trim().toLowerCase() }
-            : null);
+    // User documents do NOT have a tenantId field — never include it in the query.
+    const query = (userId && Types.ObjectId.isValid(userId))
+      ? { _id: userId }
+      : email
+        ? { email: email.trim().toLowerCase() }
+        : null;
 
     if (!query) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -160,7 +145,7 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      { new: true, runValidators: false, upsert: true }
+      { new: true, runValidators: false }
     );
 
     if (!user) {
