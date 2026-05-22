@@ -145,23 +145,25 @@ export default function BroadcastPage() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
-  // Check superAdmin access
+  // Check superAdmin access — read localStorage directly so we don't
+  // redirect before useAuth() has set the token state (it starts null).
   useEffect(() => {
-    const checkAccess = async () => {
-      if (!token) {
-        router.replace('/admin/login');
-        return;
-      }
-      const isAdmin = await checkIsSuperAdmin();
-      if (!isAdmin) {
-        router.replace('/admin/crm');
-        return;
-      }
-      setIsSuperAdmin(true);
-      setIsChecking(false);
-    };
-    checkAccess();
-  }, [token, router]);
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
+    if (!storedToken) {
+      router.replace('/admin/login');
+      return;
+    }
+    const isAdmin = checkIsSuperAdmin(); // sync — reads localStorage directly
+    if (!isAdmin) {
+      router.replace('/admin/crm');
+      return;
+    }
+    setIsSuperAdmin(true);
+    setIsChecking(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount — no dependency on token state
 
   // Step management
   const [step, setStep] = useState<Step>(1);

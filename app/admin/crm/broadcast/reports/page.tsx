@@ -134,14 +134,18 @@ export default function BroadcastReportsPage() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
-  // Check superAdmin access
+  // Check superAdmin access — read localStorage directly so we don't
+  // redirect before useAuth() has set the token state (it starts null).
   useEffect(() => {
-    const checkAccess = async () => {
-      if (!token) {
+    const checkAccess = () => {
+      const storedToken = typeof window !== 'undefined'
+        ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+        : null;
+      if (!storedToken) {
         router.replace('/admin/login');
         return;
       }
-      const isAdmin = await checkIsSuperAdmin();
+      const isAdmin = checkIsSuperAdmin();
       if (!isAdmin) {
         router.replace('/admin/crm');
         return;
@@ -199,10 +203,7 @@ export default function BroadcastReportsPage() {
   }, [crm]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return; // useAuth handles redirect if truly logged out
     
     if (runId) {
       setView('detail');
