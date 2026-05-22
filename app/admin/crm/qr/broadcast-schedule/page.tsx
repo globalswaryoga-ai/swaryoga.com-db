@@ -31,6 +31,13 @@ export default function QRBroadcastSchedulePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Recipients state
+  const [recipientMode, setRecipientMode] = useState<'groups' | 'people'>('groups');
+  const [availableGroups, setAvailableGroups] = useState<Array<{id: string; subject: string; participants?: number}>>([]);
+  const [availableLeads, setAvailableLeads] = useState<Array<{_id: string; name: string; phoneNumber: string}>>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -49,6 +56,30 @@ export default function QRBroadcastSchedulePage() {
       ensureVariation: true,
     },
   });
+
+  const loadRecipients = useCallback(async () => {
+    if (!token) return;
+    setRecipientsLoading(true);
+    try {
+      const [chatsRes, leadsRes] = await Promise.all([
+        fetch('/api/admin/crm/whatsapp/qr/chats', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/leads?selectAll=true&limit=5000', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (chatsRes.ok) {
+        const data = await chatsRes.json();
+        const chats = data?.chats || [];
+        const groups = chats
+          .filter((c: any) => c.id?.endsWith('@g.us') || c.isGroup || c.isGroupChat)
+          .map((c: any) => ({ id: c.id, subject: c.name || c.subject || 'Unnamed Group', participants: c.participants?.length || 0 }));
+        setAvailableGroups(groups);
+      }
+      if (leadsRes.ok) {
+        const data = await leadsRes.json();
+        setAvailableLeads(data?.data?.leads || []);
+      }
+    } catch (e) { console.error('Error loading recipients:', e); }
+    finally { setRecipientsLoading(false); }
+  }, [token]);
 
   const loadSchedules = useCallback(async () => {
     if (!token) return;
@@ -70,7 +101,8 @@ export default function QRBroadcastSchedulePage() {
 
   useEffect(() => {
     loadSchedules();
-  }, [loadSchedules]);
+    loadRecipients();
+  }, [loadSchedules, loadRecipients]);
 
   const handleSaveSchedule = async () => {
     if (!token || !formData.name.trim() || !formData.messageText.trim()) {
@@ -92,7 +124,9 @@ export default function QRBroadcastSchedulePage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          recipientChatIds: [], // Will be set during actual broadcast
+          recipientChatIds: Array.from(selectedRecipients),
+          totalRecipients: selectedRecipients.size,
+          recipientType: recipientMode,
           ...formData,
           maxMessagesPerDay: Math.min(300, Math.max(1, formData.maxMessagesPerDay)),
         }),
@@ -100,9 +134,10 @@ export default function QRBroadcastSchedulePage() {
 
       const data = await res.json();
       if (data.success) {
-        alert(`Schedule ${editingId ? 'updated' : 'created'} successfully`);
+        alert(`Schedule ${editingId ? 'updated' : 'created'} successfully! Recipients: ${selectedRecipients.size}`);
         setShowForm(false);
         setEditingId(null);
+        setSelectedRecipients(new Set());
         setFormData({
           name: '',
           messageText: '',
@@ -322,6 +357,120 @@ export default function QRBroadcastSchedulePage() {
                   placeholder="Optional notes..."
                   className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              {/* ── RECIPIENTS ── */}
+              <div className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-green-600" />
+                    Recipients
+                    {selectedRecipients.size > 0 && (
+                      <span className="ml-2 text-xs font-bold text-white bg-green-600 px-2 py-0.5 rounded-full">
+                        {selectedRecipients.size} selected
+                      </span>
+                    )}
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setRecipientMode('groups'); setSelectedRecipients(new Set()); }}
+                      className={`px-3 py-1 text-xs font-medium rounded-full transition ${recipientMode === 'groups' ? 'bg-purple-600 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      👥 Groups
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setRecipientMode('people'); setSelectedRecipients(new Set()); }}
+                      className={`px-3 py-1 text-xs font-medium rounded-full transition ${recipientMode === 'people' ? 'bg-green-600 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      🧑 People
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadRecipients}
+                      className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                    >
+                      🔄 Sync
+                    </button>
+                  </div>
+                </div>
+
+                {recipientsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400 mr-2" />
+                    <span className="text-sm text-gray-500">Loading...</span>
+                  </div>
+                ) : recipientMode === 'groups' ? (
+                  <>
+                    <div className="flex gap-2 mb-2">
+                      <button type="button" onClick={() => setSelectedRecipients(new Set(availableGroups.map(g => g.id)))}
+                        className="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded font-medium hover:bg-purple-700">
+                        ✓ Select All ({availableGroups.length})
+                      </button>
+                      <button type="button" onClick={() => setSelectedRecipients(new Set())}
+                        className="flex-1 px-3 py-1.5 bg-gray-400 text-white text-xs rounded font-medium hover:bg-gray-500">
+                        ✕ Clear
+                      </button>
+                    </div>
+                    {availableGroups.length === 0 ? (
+                      <p className="text-sm text-gray-500 py-4 text-center">⚠️ No groups found. Make sure WhatsApp is connected and click Sync.</p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto border rounded bg-white divide-y">
+                        {availableGroups.map(g => (
+                          <label key={g.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox" className="rounded"
+                              checked={selectedRecipients.has(g.id)}
+                              onChange={e => {
+                                const next = new Set(selectedRecipients);
+                                e.target.checked ? next.add(g.id) : next.delete(g.id);
+                                setSelectedRecipients(next);
+                              }} />
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">{g.subject}</p>
+                              <p className="text-xs text-gray-500">{g.participants || 0} members</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-2 mb-2">
+                      <button type="button" onClick={() => setSelectedRecipients(new Set(availableLeads.map(l => l.phoneNumber)))}
+                        className="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded font-medium hover:bg-green-700">
+                        ✓ Select All ({availableLeads.length})
+                      </button>
+                      <button type="button" onClick={() => setSelectedRecipients(new Set())}
+                        className="flex-1 px-3 py-1.5 bg-gray-400 text-white text-xs rounded font-medium hover:bg-gray-500">
+                        ✕ Clear
+                      </button>
+                    </div>
+                    {availableLeads.length === 0 ? (
+                      <p className="text-sm text-gray-500 py-4 text-center">No leads found.</p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto border rounded bg-white divide-y">
+                        {availableLeads.slice(0, 200).map(l => (
+                          <label key={l._id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox" className="rounded"
+                              checked={selectedRecipients.has(l.phoneNumber)}
+                              onChange={e => {
+                                const next = new Set(selectedRecipients);
+                                e.target.checked ? next.add(l.phoneNumber) : next.delete(l.phoneNumber);
+                                setSelectedRecipients(next);
+                              }} />
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">{l.name}</p>
+                              <p className="text-xs text-gray-500">{l.phoneNumber}</p>
+                            </div>
+                          </label>
+                        ))}
+                        {availableLeads.length > 200 && <p className="text-xs text-gray-400 px-3 py-2">Showing first 200 of {availableLeads.length}</p>}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Gap Strategy Settings (WhatsApp Compliance) */}

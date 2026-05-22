@@ -547,51 +547,64 @@ export function HistoryTab({ token }: HistoryTabProps) {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-y sticky top-0">
                 <tr>
-                  <th className="px-4 py-2 text-left font-semibold text-gray-700">Recipient</th>
+                  <th className="px-4 py-2 text-left font-semibold text-gray-700">Direction</th>
+                  <th className="px-4 py-2 text-left font-semibold text-gray-700">Recipient / Sender</th>
                   <th className="px-4 py-2 text-left font-semibold text-gray-700">Message</th>
                   <th className="px-4 py-2 text-center font-semibold text-gray-700">Status</th>
                   <th className="px-4 py-2 text-right font-semibold text-gray-700">Time</th>
                 </tr>
               </thead>
               <tbody>
-                {messages.map((msg, idx) => (
-                  <tr key={msg._id || msg.id || idx} className="border-b hover:bg-gray-50 transition">
-                    <td className="px-4 py-3 font-medium text-gray-900">{msg.phoneNumber || msg.recipient || 'Unknown'}</td>
-                    <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{(msg as any).messageContent || msg.message || msg.text || '-'}</td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        {msg.status === 'sent' ? (
-                          <CheckCircle className="w-4 h-4 text-gray-400" />
-                        ) : msg.status === 'delivered' ? (
-                          <CheckCircle2 className="w-4 h-4 text-gray-400" />
-                        ) : msg.status === 'read' ? (
-                          <CheckCircle2 className="w-4 h-4 text-blue-500" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-red-500" />
-                        )}
-                        <span className="text-xs text-gray-600">
-                          {msg.status === 'read' || msg.status === 'seen'
-                            ? 'Read'
-                            : msg.status === 'delivered'
-                            ? 'Delivered'
-                            : msg.status === 'sent'
-                            ? 'Sent'
-                            : 'Failed'}
+                {messages.map((msg, idx) => {
+                  const direction = (msg as any).direction || 'outbound';
+                  const isInbound = direction === 'inbound';
+                  const msgTime = (msg as any).sentAt || (msg as any).receivedAt || msg.createdAt || msg.timestamp;
+                  return (
+                    <tr key={msg._id || msg.id || idx} className="border-b hover:bg-gray-50 transition">
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                          isInbound ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {isInbound ? '↙ In' : '↗ Out'}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs text-gray-500">
-                      {msg.createdAt
-                        ? new Date(msg.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '-'}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900 text-sm">
+                        {msg.phoneNumber || (msg as any).senderNumber || msg.recipient || 'Unknown'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 max-w-xs truncate text-sm">
+                        {(msg as any).messageContent || msg.message || msg.text || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {msg.status === 'sent' ? (
+                            <CheckCircle className="w-4 h-4 text-gray-400" />
+                          ) : msg.status === 'delivered' ? (
+                            <CheckCircle2 className="w-4 h-4 text-gray-400" />
+                          ) : msg.status === 'read' ? (
+                            <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                          ) : msg.status === 'received' ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-red-500" />
+                          )}
+                          <span className="text-xs text-gray-600 capitalize">
+                            {msg.status === 'received' ? 'Received' : msg.status || 'Unknown'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-gray-500">
+                        {msgTime
+                          ? new Date(msgTime).toLocaleString('en-IN', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '-'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
