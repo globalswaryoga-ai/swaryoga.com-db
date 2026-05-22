@@ -84,7 +84,11 @@ function getZoneName(): string {
 }
 
 function getApiKey(): string {
-  return process.env.BUNNY_STORAGE_API_KEY || '';
+  // BUNNY_STORAGE_KEY is the fallback in case BUNNY_STORAGE_API_KEY is placeholder
+  const key = process.env.BUNNY_STORAGE_API_KEY || process.env.BUNNY_STORAGE_KEY || '';
+  // Reject placeholder values
+  if (key === 'your_bunny_api_key_here') return process.env.BUNNY_STORAGE_KEY || '';
+  return key;
 }
 
 function ensureConfigured() {
@@ -519,9 +523,17 @@ export function validateTemplateFile(
   return { valid: true };
 }
 
-export function generateTemplateS3Key(id: string, name: string, type: string, tenantId?: string): string {
-  const basePath = tenantId ? `tenants/${tenantId}/templates` : `templates`;
-  return `${basePath}/${id}/${type}/${Date.now()}-${name}`;
+/**
+ * Generate storage path for template files.
+ * Structure: templates/{ownerId}/{templateId}/{timestamp}-{sanitizedFileName}
+ * - ownerId: admin username or tenant ID (folder per user/admin)
+ * - templateId: ID of the template (subfolder)
+ * - timestamp: ensures uniqueness
+ */
+export function generateTemplateS3Key(id: string, name: string, type: string, ownerId?: string): string {
+  const sanitized = name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const owner = ownerId ? String(ownerId).replace(/[^a-zA-Z0-9._-]/g, '_') : 'shared';
+  return `templates/${owner}/${id}/${Date.now()}-${sanitized}`;
 }
 
 export async function uploadTemplateFileToS3(options: {
@@ -530,7 +542,7 @@ export async function uploadTemplateFileToS3(options: {
   mimeType?: string;
   fileType: 'image' | 'document' | 'video';
   templateId: string;
-  tenantId?: string;
+  tenantId?: string;  // used as ownerId (admin username or tenant ID)
 }): Promise<string> {
   const key = generateTemplateS3Key(options.templateId, options.fileName, options.fileType, options.tenantId);
   return await uploadToPath(options.file, key, options.mimeType);
