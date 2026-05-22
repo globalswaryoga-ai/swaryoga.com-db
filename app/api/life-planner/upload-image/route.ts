@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
 
     // Get user ID and tenant from session/headers
     const session = await getSession();
-    const userId = session?.userId || session?.email || 'anonymous';
+    const sessionAny = session as any;
+    const userId = sessionAny?.userId || sessionAny?.email || session?.user?.id || session?.user?.email || 'anonymous';
     const tenantId = request.headers.get(TENANT_HEADER);
 
     // tenantId is optional - required for CRM admins, optional for regular users
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Upload to Bunny Storage
     const storageKey = await uploadToBunnyStorage(buffer, file.name, {
       customPath: bunnyPath,
-    });
+    } as any);
 
     // Get public URL
     const publicUrl = getPublicFileUrl(storageKey);

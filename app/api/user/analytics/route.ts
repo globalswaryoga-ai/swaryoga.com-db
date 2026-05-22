@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
         // Get video-specific watch stats
         const videoWatchStats = await Promise.all(
           (enrollment.videosWatched || []).map(async (videoId: any) => {
-            const logs = await VideoWatchLog.findOne({
+            const logs: any = await VideoWatchLog.findOne({
               userId: userId,
               videoId: videoId,
             })

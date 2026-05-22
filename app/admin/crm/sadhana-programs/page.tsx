@@ -67,7 +67,7 @@ export default function SadhanaProgramsPage() {
     enableBotAutomation: true,
   });
 
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const load = async () => {
     if (!token) return;

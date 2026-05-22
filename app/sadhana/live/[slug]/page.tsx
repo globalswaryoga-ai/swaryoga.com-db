@@ -402,7 +402,7 @@ export default function ProgramLivePage() {
   } else if (session.status === 'live') {
     if (playerMode === 'hls' && playerUrl) {
       sessionView = (
-        <HLSPlayer url={playerUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
+        <HLSPlayer url={playerUrl} videoRef={videoRef as any} offsetSeconds={session.videoOffsetSeconds} />
       );
     } else {
       // Convert Bunny player embed URL to direct HLS stream URL
@@ -418,7 +418,7 @@ export default function ProgramLivePage() {
       }
 
       sessionView = hlsUrl ? (
-        <HLSPlayer url={hlsUrl} videoRef={videoRef} offsetSeconds={session.videoOffsetSeconds} />
+        <HLSPlayer url={hlsUrl} videoRef={videoRef as any} offsetSeconds={session.videoOffsetSeconds} />
       ) : playableUrl ? (
         <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}>
           <iframe
@@ -454,7 +454,7 @@ export default function ProgramLivePage() {
 
   const isLive = session?.status === 'live';
 
-  const isLiveVideo = session?.status === 'live' && (playerMode === 'hls' || (playerMode !== 'hls' && playableUrl));
+  const isLiveVideo = session?.status === 'live' && (playerMode === 'hls' || playableUrl);
 
   return (
     <div ref={containerRef} className={`${fullscreenMode ? 'fixed inset-0 z-50' : 'min-h-screen'} bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white`}>
@@ -765,8 +765,7 @@ function HLSPlayer({ url, videoRef, offsetSeconds }: HLSPlayerProps) {
           levelLoadingMaxRetry: 4,
           manifestLoadingTimeOut: 10000,
           manifestLoadingMaxRetry: 1,
-          startLevel: undefined,
-          autoStartLevel: true,
+          startLevel: -1,
         });
         hlsRef.current = hls;
         hls.loadSource(url);

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       ]),
       // Country breakdown
       User.aggregate([
-        { $match: { country: { $ne: null, $ne: '' } } },
+        { $match: { country: { $exists: true, $ne: '' } } },
         { $group: { _id: '$country', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 10 },

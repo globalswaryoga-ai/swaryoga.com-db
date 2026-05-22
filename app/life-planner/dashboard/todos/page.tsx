@@ -179,6 +179,10 @@ export default function TodosPage() {
   const handleEditTodo = (todo: Todo) => {
     setEditingTodo(todo);
     setFormData({
+      visionHead: (todo as any).visionHead || '',
+      visionId: (todo as any).visionId || '',
+      actionPlanId: (todo as any).actionPlanId || '',
+      goalId: (todo as any).goalId || '',
       taskId: todo.taskId || '',
       title: todo.title || '',
       description: todo.description || '',
@@ -245,6 +249,7 @@ export default function TodosPage() {
       category: formData.category || undefined,
       completed: formData.completed,
       createdAt: editingTodo?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     if (editingTodo) {
@@ -267,7 +272,7 @@ export default function TodosPage() {
   const filteredTodos = todos
     .filter((t) => {
       const matchesTask = filterTask === 'all' || t.taskId === filterTask;
-      const matchesStatus = filterStatus === 'all' || (t.status || 'not-started') === filterStatus;
+      const matchesStatus = filterStatus === 'all' || ((t as any).status || 'not-started') === filterStatus;
       const matchesPriority = filterPriority === 'all' || t.priority === filterPriority;
 
       const haystack = `${t.title || ''} ${t.description || ''} ${getTaskTitle(t.taskId)}`.toLowerCase();

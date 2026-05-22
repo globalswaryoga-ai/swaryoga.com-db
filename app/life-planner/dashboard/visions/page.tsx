@@ -4,7 +4,8 @@ import React, { useState, useCallback } from 'react';
 import { Plus, X, Edit2, Trash2, Target, CheckSquare, Bell, Calendar, DollarSign, LayoutDashboard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import VisionForm, { Vision } from '@/components/VisionForm';
-import GoalForm, { Goal } from '@/components/GoalForm';
+import GoalForm from '@/components/GoalForm';
+import { Goal } from '@/lib/types/lifePlanner';
 
 interface RelatedWork {
   goals: Goal[];
@@ -46,16 +47,14 @@ export default function VisionPage() {
       title: 'Complete 100-Hour Yoga Training',
       description: 'Advance certification course covering advanced asanas and teaching methodology',
       visionId: '1',
-      visionTitle: 'Master Yoga & Meditation',
       startDate: '2025-12-15',
-      endDate: '2026-06-30',
-      amount: '30000',
-      category: 'health',
-      imageUrl: '',
+      targetDate: '2026-06-30',
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       completed: false,
-      priority: 'high'
-    }
+      priority: 'high',
+      status: 'not-started',
+    } as Goal
   ]);
 
   const [showVisionForm, setShowVisionForm] = useState(false);
@@ -211,7 +210,7 @@ export default function VisionPage() {
                 onSubmit={handleGoalSubmit}
                 onCancel={() => setShowGoalForm(false)}
                 initialData={editingGoal || undefined}
-                visions={[selectedVision]}
+                visions={[selectedVision] as any}
               />
             </div>
           </div>
@@ -375,7 +374,7 @@ export default function VisionPage() {
                       getRelatedWork(selectedVision.id).goals.map(goal => (
                         <div key={goal.id} className="bg-white rounded-lg p-2 text-xs">
                           <p className="font-medium text-swar-text">{goal.title}</p>
-                          <p className="text-swar-text-secondary">{goal.startDate} → {goal.endDate}</p>
+                          <p className="text-swar-text-secondary">{goal.startDate} → {goal.targetDate || (goal as any).endDate}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                               goal.priority === 'high' ? 'bg-swar-primary-light text-swar-primary' :

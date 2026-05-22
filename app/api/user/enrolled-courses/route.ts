@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     // Enrich with course details and progress
     const enrolledCoursesWithProgress = await Promise.all(
       enrollments.map(async (enrollment: any) => {
-        const course = await RecordedCourse.findById(enrollment.courseId).lean();
+        const course: any = await RecordedCourse.findById(enrollment.courseId).lean();
         if (!course) return null;
 
         const videos = await CourseVideo.find({

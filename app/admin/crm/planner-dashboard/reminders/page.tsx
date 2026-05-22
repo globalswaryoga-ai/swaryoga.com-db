@@ -11,6 +11,7 @@ const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
 type UiReminder = {
   id: string;
+  standalone?: boolean;
   text: string;
   date: string;
   time: string;
@@ -670,6 +671,7 @@ export default function RemindersPage() {
                     setShowForm(false);
                     setError(null);
                     setFormData({
+                      standalone: false,
                       text: '',
                       date: today,
                       time: '11:00',

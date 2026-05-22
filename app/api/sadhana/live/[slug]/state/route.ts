@@ -206,7 +206,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     });
 
     let sessionInfo: any = null;
-    let playableVideoUrl = null;
+    let playableVideoUrl: any = null;
     if (activeSchedule) {
       sessionInfo = computeSessionStatus(activeSchedule, now);
 
@@ -324,7 +324,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       .toArray();
 
     // Get todayVideo from program calendar or schedule videoUrl
-    let todayVideo = null;
+    let todayVideo: any = null;
     let upcomingVideos: any[] = [];
     if (activeSchedule?.slug) {
       try {

@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
     }
     
     // Send a health check ping to the bridge to keep connection alive
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     const response = await fetch(`${bridgeUrl}/status`, {
       method: 'GET',
       headers: {
@@ -32,8 +34,9 @@ export async function GET(request: NextRequest) {
         'x-bridge-secret': bridgeSecret,
         'Content-Type': 'application/json',
       },
-      timeout: 10000,
-    }).catch(e => ({ status: 0, error: e.message }));
+      signal: controller.signal,
+    }).catch((e: any) => ({ status: 0, error: e.message as string }));
+    clearTimeout(timeoutId);
     
     if ('error' in response) {
       return NextResponse.json({

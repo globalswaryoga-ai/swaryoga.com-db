@@ -35,7 +35,7 @@ export async function GET(
     const collection = db.collection('merge_group_v2_queue');
 
     const operation = await collection.findOne({
-      _id: new ObjectId(params.id),
+      _id: new ObjectId(params.id) as any,
       userId,
     });
 
@@ -46,7 +46,7 @@ export async function GET(
       );
     }
 
-    const progress = formatMergeGroupV2Progress(operation);
+    const progress = formatMergeGroupV2Progress(operation as any);
 
     return NextResponse.json({
       success: true,
@@ -98,7 +98,7 @@ export async function DELETE(
     const collection = db.collection('merge_group_v2_queue');
 
     const operation = await collection.findOne({
-      _id: new ObjectId(params.id),
+      _id: new ObjectId(params.id) as any,
       userId,
     });
 
@@ -118,7 +118,7 @@ export async function DELETE(
 
     // Mark as cancelled
     await collection.updateOne(
-      { _id: new ObjectId(params.id) },
+      { _id: new ObjectId(params.id) as any },
       {
         $set: {
           status: 'cancelled',

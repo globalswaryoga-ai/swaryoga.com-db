@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (result.upsertedId || result.matchedCount > 0) {
-          createdSessions.push({ date, timeSlot });
+          (createdSessions as any[]).push({ date, timeSlot });
         }
       } catch (err: any) {
         // Ignore duplicate key errors

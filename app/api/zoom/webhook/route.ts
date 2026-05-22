@@ -305,8 +305,8 @@ async function handleMeetingStarted(payload: any): Promise<NextResponse> {
 
     // Connect to database to find Sadhana schedule
     await connectDB();
-    const { getSadhanaSchedule } = await import('@/lib/schemas/enterpriseSchemas');
-    const SadhanaSchedule = getSadhanaSchedule();
+    const enterpriseSchemas1 = await import('@/lib/schemas/enterpriseSchemas');
+    const SadhanaSchedule = (enterpriseSchemas1 as any).getSadhanaSchedule?.();
 
     // Find active Sadhana schedule 
     const schedule = await SadhanaSchedule.findOne({
@@ -326,8 +326,8 @@ async function handleMeetingStarted(payload: any): Promise<NextResponse> {
     console.log('[Zoom Webhook] Video URL:', schedule.videoUrl);
 
     // Store meeting event in database
-    const { getZoomMeetingEvent } = await import('@/lib/schemas/enterpriseSchemas');
-    const ZoomMeetingEvent = getZoomMeetingEvent();
+    const enterpriseSchemas2 = await import('@/lib/schemas/enterpriseSchemas');
+    const ZoomMeetingEvent = (enterpriseSchemas2 as any).getZoomMeetingEvent?.();
     
     await ZoomMeetingEvent.create({
       meetingId,

@@ -231,7 +231,7 @@ export async function GET(req: NextRequest) {
 
     console.log(`[QR Broadcast Processor] Found ${schedules.length} active schedules`);
 
-    const results = [];
+    const results: any[] = [];
     for (const schedule of schedules) {
       const result = await processSchedule(schedule, bridgeUrl, bridgeSecret);
       results.push({ scheduleId: schedule._id, ...result });

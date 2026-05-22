@@ -61,23 +61,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Generate certificate
-    const course = enrollment.courseId;
+    const course: any = enrollment.courseId;
+    const enrollmentUser: any = enrollment.userId;
+    const enrollmentAny: any = enrollment;
     const certificate = generateCourseCertificate({
-      studentName: enrollment.userId.name,
-      studentEmail: enrollment.userId.email,
+      studentName: enrollmentUser.name,
+      studentEmail: enrollmentUser.email,
       courseTitle: course.content?.en?.title || course.title || 'Course',
       courseInstructor: course.instructor || 'Swar Yoga',
-      completionDate: enrollment.completedAt || enrollment.certificateIssuedAt || new Date(),
-      certificateNumber: enrollment.certificateNumber || `CERT-${enrollmentId.substring(0, 12).toUpperCase()}`,
+      completionDate: enrollmentAny.completedAt || enrollmentAny.certificateIssuedAt || new Date(),
+      certificateNumber: enrollmentAny.certificateNumber || `CERT-${enrollmentId.substring(0, 12).toUpperCase()}`,
       duration: course.totalDuration || 0,
       progress: enrollment.progress,
     });
 
     // Stream PDF response
-    return new NextResponse(certificate, {
+    return new NextResponse(certificate as any, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${enrollment.userId.name.replace(/\s+/g, '_')}_${course.content?.en?.title?.replace(/\s+/g, '_') || 'Certificate'}.pdf"`,
+        'Content-Disposition': `attachment; filename="${enrollmentUser.name.replace(/\s+/g, '_')}_${course.content?.en?.title?.replace(/\s+/g, '_') || 'Certificate'}.pdf"`,
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
@@ -132,7 +134,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Generate certificate number if not exists
-    const certificateNumber = enrollment.certificateNumber || `CERT-${enrollmentId.substring(0, 12).toUpperCase()}-${new Date().getFullYear()}`;
+    const enrollmentAny2: any = enrollment;
+    const certificateNumber = enrollmentAny2.certificateNumber || `CERT-${enrollmentId.substring(0, 12).toUpperCase()}-${new Date().getFullYear()}`;
 
     // Update enrollment with certificate info
     const updated = await CourseEnrollment.findByIdAndUpdate(
@@ -141,7 +144,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         certificateIssued: true,
         certificateNumber,
         certificateIssuedAt: new Date(),
-        completedAt: enrollment.completedAt || new Date(),
+        completedAt: enrollmentAny2.completedAt || new Date(),
       },
       { new: true }
     );

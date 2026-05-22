@@ -87,7 +87,7 @@ export async function PUT(req: NextRequest) {
     if (designation !== undefined) update.designation = designation.trim();
     if (bankDetails !== undefined) update.bankDetails = bankDetails;
 
-    const result = await crmDb.collection('admin_users').findOneAndUpdate(
+    const result: any = await crmDb.collection('admin_users').findOneAndUpdate(
       { $or: [{ userId: decoded.userId }, { email: decoded.userId }] },
       { $set: update },
       { returnDocument: 'after', projection: { password: 0 } }

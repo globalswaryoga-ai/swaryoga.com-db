@@ -27,7 +27,7 @@ export async function POST(
 
     // Find session and add participant
     const result = await sessionsCol.findOneAndUpdate(
-      { _id: new mongoose.Types.ObjectId(params.sessionId) },
+      { _id: new mongoose.Types.ObjectId(params.sessionId) as any },
       {
         $push: {
           participants: {
@@ -36,7 +36,7 @@ export async function POST(
             joinedAt: new Date(),
           },
         },
-      },
+      } as any,
       { returnDocument: 'after' }
     );
 

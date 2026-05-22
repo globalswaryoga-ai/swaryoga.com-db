@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     // Find updates needed
     const standardBatchName = '25th April Batch';
-    const updates = [];
+    const updates: any[] = [];
 
     for (const video of videos) {
       const parts = video.title.split(' > ');
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     // Apply updates
     let successCount = 0;
-    const updateDetails = [];
+    const updateDetails: any[] = [];
 
     for (const upd of updates) {
       const result = await CommunityVideo.updateOne(

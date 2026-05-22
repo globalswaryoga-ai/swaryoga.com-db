@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = decoded.userId as string;
-    let subscription = await CRMSubscription.findOne({ userId }).lean();
+    let subscription: any = await CRMSubscription.findOne({ userId }).lean();
 
     // If no subscription exists, create one with Basic plan defaults
     if (!subscription) {

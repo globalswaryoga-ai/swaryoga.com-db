@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     // ============================================================================
     console.log('[Sadhana Verify] 2️⃣ Testing Zoom API connection...');
 
-    let zoomAccessToken = null;
+    let zoomAccessToken: any = null;
     let zoomError = null;
 
     try {

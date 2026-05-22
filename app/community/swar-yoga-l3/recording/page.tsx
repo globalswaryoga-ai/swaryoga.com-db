@@ -46,6 +46,7 @@ export default function SwarYogaL3RecordingsPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = useCallback(() => {

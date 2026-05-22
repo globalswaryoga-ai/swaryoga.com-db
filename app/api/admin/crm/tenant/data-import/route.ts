@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
       messagesImported: 0,
       broadcastsImported: 0,
       templatesImported: 0,
-      errors: [],
+      errors: [] as string[],
     };
 
     try {

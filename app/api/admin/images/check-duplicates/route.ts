@@ -84,8 +84,8 @@ export async function POST(request: NextRequest) {
       success: true,
       prefix,
       totalFiles: files.length,
-      nameDuplicates: nameDuplicates.length,
-      sizeDuplicates: sizeDuplicates.length,
+      nameDuplicatesCount: nameDuplicates.length,
+      sizeDuplicatesCount: sizeDuplicates.length,
       nameDuplicates,
       sizeDuplicates,
     });

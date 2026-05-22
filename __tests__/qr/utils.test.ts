@@ -91,7 +91,7 @@ describe('linkifyText', () => {
     const result = linkifyText('Visit https://example.com for info');
     expect(result).toHaveLength(3); // text, link, text
     // The second element should be the link
-    const link = result[1] as React.ReactElement;
+    const link = result[1] as React.ReactElement<any>;
     expect(link.props.href).toBe('https://example.com');
     expect(link.props.target).toBe('_blank');
     expect(link.props.rel).toBe('noopener noreferrer');
@@ -115,7 +115,7 @@ describe('linkifyText', () => {
 
   it('handles http:// URLs', () => {
     const result = linkifyText('See http://example.com');
-    const link = result[1] as React.ReactElement;
+    const link = result[1] as React.ReactElement<any>;
     expect(link.props.href).toBe('http://example.com');
   });
 });

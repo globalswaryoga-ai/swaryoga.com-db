@@ -26,10 +26,12 @@ interface RouteParams {
  * GET - Get video streaming data
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  let videoId = '';
   try {
     await connectDB();
 
-    const { videoId } = await params;
+    const resolved = await params;
+    videoId = resolved.videoId;
 
     // Auth optional (required for paid videos, optional for free)
     let decoded: any = null;

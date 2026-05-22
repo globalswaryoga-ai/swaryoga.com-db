@@ -112,7 +112,7 @@ const PLANS = [
 ];
 
 /* Billing cycles */
-const CYCLES: { id: BillingCycle; label: string }[] = [
+const CYCLES: { id: BillingCycle; label: string; discount?: number }[] = [
   { id: '1mo', label: 'Monthly' },
   { id: '3mo', label: '3 Months' },
   { id: '6mo', label: '6 Months' },
@@ -171,7 +171,7 @@ export default function PricingPage() {
                   }`}
                 >
                   {c.label}
-                  {c.discount > 0 && (
+                  {(c.discount ?? 0) > 0 && (
                     <span className="text-swar-primary text-xs font-semibold ml-1">-{c.discount}%</span>
                   )}
                 </button>

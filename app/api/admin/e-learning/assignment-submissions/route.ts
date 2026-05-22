@@ -127,9 +127,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Assignment not submitted' }, { status: 404 });
     }
 
-    enrollment.assignmentsCompleted[assignmentIndex].score = score;
-    enrollment.assignmentsCompleted[assignmentIndex].gradedAt = new Date();
-    enrollment.assignmentsCompleted[assignmentIndex].gradedBy = decoded.id;
+    (enrollment.assignmentsCompleted[assignmentIndex] as any).score = score;
+    (enrollment.assignmentsCompleted[assignmentIndex] as any).gradedAt = new Date();
+    (enrollment.assignmentsCompleted[assignmentIndex] as any).gradedBy = (decoded as any).id;
 
     await enrollment.save();
 

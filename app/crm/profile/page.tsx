@@ -149,7 +149,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between gap-3">
                 <p className="font-mono text-xl text-green-900">{trial.qrWhatsAppNumber}</p>
                 <button
-                  onClick={() => handleCopy(trial.qrWhatsAppNumber, 'qr')}
+                  onClick={() => handleCopy(trial.qrWhatsAppNumber || '', 'qr')}
                   className="px-3 py-2 bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-50 font-medium text-sm transition-colors"
                 >
                   {copying === 'qr' ? '✓ Copied' : '📋 Copy'}

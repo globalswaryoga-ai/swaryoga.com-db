@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const materials: any[] = [];
 
     for (const enrollment of enrollments) {
-      const course = enrollment.courseId;
+      const course: any = enrollment.courseId;
 
       // Get course materials (if they exist in course doc)
       if (course.materials) {
@@ -83,15 +83,16 @@ export async function GET(request: NextRequest) {
         });
 
         for (const video of videos) {
-          if (video.materials) {
-            const videoMaterials = Array.isArray(video.materials) ? video.materials : [];
+          const videoAny: any = video;
+          if (videoAny.materials) {
+            const videoMaterials = Array.isArray(videoAny.materials) ? videoAny.materials : [];
             materials.push(
               ...videoMaterials.map((m: any) => ({
                 id: m._id || `${video._id}-${m.title}`,
                 courseId: course._id,
                 courseTitle: course.content?.en?.title || course.title,
                 videoId: video._id,
-                videoTitle: video.content?.en?.title,
+                videoTitle: (videoAny as any).content?.en?.title,
                 title: m.title,
                 description: m.description || '',
                 type: m.type || 'resource',

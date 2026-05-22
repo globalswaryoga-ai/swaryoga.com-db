@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
       .toArray();
 
     let sessionInfo: any = null;
-    let playableVideoUrl = null;
+    let playableVideoUrl: any = null;
     if (activeSchedule) {
       sessionInfo = computeSessionStatus(activeSchedule, now);
 
@@ -304,8 +304,8 @@ export async function POST(request: NextRequest) {
     // Get program details (from sadhana_programs collection)
     const programsDb = await getProgramsDb();
     const programsCol = programsDb.collection('sadhana_programs');
-    let program = null;
-    let todayVideo = null;
+    let program: any = null;
+    let todayVideo: any = null;
     let upcomingVideos: any[] = [];
 
     if (activeSchedule?.programSlug) {

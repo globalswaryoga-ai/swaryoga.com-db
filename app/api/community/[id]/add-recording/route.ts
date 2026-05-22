@@ -118,7 +118,7 @@ export async function POST(
 
     // Check if community exists
     const Community = mongoose.models.Community || mongoose.model('Community', new mongoose.Schema({}));
-    const community = await Community.findById(params.id).lean();
+    const community: any = await Community.findById(params.id).lean();
 
     if (!community) {
       return NextResponse.json(

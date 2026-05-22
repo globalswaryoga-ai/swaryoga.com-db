@@ -80,7 +80,7 @@ async function resolveTenantAccess(request: NextRequest): Promise<TenantAccessCo
     $or: [
       viewerId ? { userId: viewerId } : null,
       viewerEmail ? { email: viewerEmail } : null,
-    ].filter(Boolean),
+    ].filter(Boolean) as any[],
   });
 
   if (!currentUser) {
@@ -106,7 +106,7 @@ async function resolveTenantAccess(request: NextRequest): Promise<TenantAccessCo
     $or: [
       viewerEmail ? { email: viewerEmail } : null,
       viewerId ? { userId: viewerId } : null,
-    ].filter(Boolean),
+    ].filter(Boolean) as any[],
   });
 
   const isTenantOwner =

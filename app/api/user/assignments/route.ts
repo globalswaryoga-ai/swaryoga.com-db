@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     // Get assignments from each course
     for (const enrollment of enrollments) {
-      const course = enrollment.courseId;
+      const course: any = enrollment.courseId;
 
       // Check if course has assignments collection
       try {

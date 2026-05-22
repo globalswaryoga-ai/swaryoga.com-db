@@ -36,7 +36,7 @@ const WordModal: React.FC<WordModalProps> = ({ word, onSave, onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({ ...formData, completed: false });
   };
 
   return (

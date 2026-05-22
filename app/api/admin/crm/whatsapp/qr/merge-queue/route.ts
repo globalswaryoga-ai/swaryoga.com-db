@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
     
     // Create queue entry
     const queueEntry = createMergeQueueEntry(
-      decoded.userId,
-      sessionKey || decoded.userId,
+      decoded.userId || '',
+      sessionKey || decoded.userId || '',
       targetGroupId,
       sourceGroupIds,
       { removeFromSource, spreadMinutes }
@@ -161,8 +161,8 @@ export async function GET(
     return NextResponse.json({
       success: true,
       queue,
-      progress: formatMergeQueueProgress(queue),
-      nextCheckIn: Math.max(0, queue.nextOperationTime - Date.now()),
+      progress: formatMergeQueueProgress(queue as any),
+      nextCheckIn: Math.max(0, (queue as any).nextOperationTime - Date.now()),
     });
   } catch (err) {
     console.error('[merge-queue] GET error:', err);
@@ -177,7 +177,7 @@ export async function GET(
  * POST /api/admin/crm/whatsapp/qr/merge-queue/:queueId/resume
  * Resume a paused merge after reconnection
  */
-export async function putResumeQueue(request: NextRequest) {
+async function putResumeQueue(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.split('Bearer ')[1];
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -204,7 +204,7 @@ export async function putResumeQueue(request: NextRequest) {
     }
     
     // Resume the queue
-    const resumed = resumeMergeQueue(queue);
+    const resumed = resumeMergeQueue(queue as any);
     await col.updateOne(
       { _id: new mongoose.Types.ObjectId(queueId) },
       { $set: resumed }

@@ -40,7 +40,8 @@ interface MergeJobRequest {
 }
 
 export async function POST(req: NextRequest) {
-  const decoded = verifyToken(req);
+  const token = req.headers.get('authorization')?.replace('Bearer ', '') || '';
+  const decoded = verifyToken(token);
   if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -59,12 +60,12 @@ export async function POST(req: NextRequest) {
     // ✅ START BACKGROUND JOB (async, no await - returns immediately)
     startBackgroundMergeJob({
       jobId,
-      userId: decoded.userId,
+      userId: decoded.userId || '',
       targetGroupId,
       sourceGroupIds,
       removeFromSource,
-      bridgeUrl: process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_HTTP_URL,
-      bridgeSecret: process.env.WHATSAPP_BRIDGE_SECRET,
+      bridgeUrl: process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_HTTP_URL || '',
+      bridgeSecret: process.env.WHATSAPP_BRIDGE_SECRET || '',
     }).catch((err) => {
       console.error(`❌ Merge job ${jobId} failed:`, err);
     });
@@ -100,7 +101,7 @@ async function startBackgroundMergeJob({
   targetGroupId: string;
   sourceGroupIds: string[];
   removeFromSource: boolean;
-  bridgeUrl?: string;
+  bridgeUrl: string;
   bridgeSecret?: string;
 }) {
   console.log(`🚀 [${jobId}] Starting background merge job for user ${userId}`);

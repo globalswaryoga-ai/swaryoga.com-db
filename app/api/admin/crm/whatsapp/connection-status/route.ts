@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const token = authHeader.slice(7);
-    const decoded = verifyJWT(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import mongoose from 'mongoose';
 import { getNextGroupOperationGap, shouldStopDueToFailureRate, addErrorToLog } from '@/lib/safeGroupMergeV2';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
 import { ObjectId } from 'mongodb';
@@ -271,7 +272,7 @@ export async function GET(req: NextRequest) {
 
     await connectDB();
 
-    const db = (await import('@/lib/db')).getDb();
+    const db = mongoose.connection.db!;
     const collection = db.collection('merge_group_v2_queue');
 
     const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
@@ -286,7 +287,7 @@ export async function GET(req: NextRequest) {
 
     console.log(`[Group Merge V2] Found ${operations.length} active operations`);
 
-    const results = [];
+    const results: any[] = [];
     for (const op of operations) {
       const result = await processMergeOperation(op, bridgeUrl, bridgeSecret, db);
       results.push({

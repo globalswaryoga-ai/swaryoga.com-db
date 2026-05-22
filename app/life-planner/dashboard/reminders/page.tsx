@@ -442,7 +442,7 @@ export default function RemindersPage() {
                     ) : (
                       <select
                         value={formData.actionPlanId || ''}
-                        onChange={(e) => setFormData({ ...formData, actionPlanId: e.target.value || undefined, goalId: '', taskId: '', todoId: '' })}
+                        onChange={(e) => setFormData({ ...formData, actionPlanId: e.target.value || '', goalId: '', taskId: '', todoId: '' })}
                         className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
                       >
                         <option value="">Select Action Plan (optional)</option>
@@ -609,6 +609,7 @@ export default function RemindersPage() {
                       time: '11:00',
                       visionHead: '',
                       visionId: '',
+                      actionPlanId: '',
                       goalId: '',
                       taskId: '',
                       todoId: '',

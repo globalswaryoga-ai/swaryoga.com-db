@@ -332,12 +332,12 @@ function VisionView({
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center gap-2" style={{ color: '#FFFFFF' }}>
                     <Calendar size={16} />
-                    <span className="text-sm">Due: {new Date(vision.targetDate || '').toLocaleDateString()}</span>
+                    <span className="text-sm">Due: {new Date((vision as any).targetDate || '').toLocaleDateString()}</span>
                   </div>
-                  {vision.amount && (
+                  {(vision as any).amount && (
                     <div className="flex items-center gap-2" style={{ color: '#FFFFFF' }}>
                       <DollarSign size={16} />
-                      <span className="text-sm">₹{parseFloat(vision.amount).toLocaleString()}</span>
+                      <span className="text-sm">₹{parseFloat((vision as any).amount).toLocaleString()}</span>
                     </div>
                   )}
                 </div>

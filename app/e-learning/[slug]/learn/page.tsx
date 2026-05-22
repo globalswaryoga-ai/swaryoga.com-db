@@ -183,6 +183,8 @@ interface VideoStreamData {
     directUrl?: string;
     hlsUrl?: string;
     dashUrl?: string;
+    playerUrl?: string;
+    [key: string]: any;
   };
   courseSettings: {
     allowDownload: boolean;
@@ -212,7 +214,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastVideoTimeRef = useRef<number>();
+  const lastVideoTimeRef = useRef<number | undefined>(undefined);
 
   const t = translations[language];
 
@@ -800,7 +802,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                     autoPlay={autoplay}
                     muted={currentVideo.isFree}
                     className="w-full h-full"
-                    videoRef={videoRef}
+                    videoRef={videoRef as any}
                     onPlay={startProgressTracking}
                     onError={(err) => console.error('Video error:', err)}
                   />

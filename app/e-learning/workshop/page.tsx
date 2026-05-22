@@ -86,10 +86,10 @@ export default function WorkshopPage() {
             setSelectedVideo(firstCourse.videos[0]);
 
             // Track completed videos
-            const completed = new Set(
+            const completed = new Set<string>(
               firstCourse.videos
                 .filter((v: Video) => v.isCompleted)
-                .map((v: Video) => v._id)
+                .map((v: Video) => v._id as string)
             );
             setCompletedVideos(completed);
           }

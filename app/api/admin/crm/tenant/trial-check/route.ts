@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const daysSinceStart = Math.ceil((now.getTime() - new Date(trial.trialStartDate).getTime()) / (1000 * 60 * 60 * 24));
 
     // Determine which popup to show
-    let popup = null;
+    let popup: any = null;
 
     // Day 2: Storage payment popup
     if (daysSinceStart >= 2 && !trial.day2PopupShown && !trial.storagePaymentPaid) {

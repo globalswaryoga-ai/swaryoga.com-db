@@ -6,8 +6,10 @@ let announcementDb: Db | null = null;
 async function getAnnouncementDb() {
   if (announcementDb) return announcementDb;
   try {
-    const { connectToDatabase } = await import('@/lib/mongodb');
-    const db = await connectToDatabase();
+    const connectToDatabase = (await import('@/lib/mongodb')).default;
+    await connectToDatabase();
+    const mongoose = await import('mongoose');
+    const db = mongoose.connection.getClient().db() as any;
     announcementDb = db;
     return db;
   } catch (error) {

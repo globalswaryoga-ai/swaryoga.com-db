@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const body = await request.json();
     const { courseId, videoId, progress, isCompleted } = body;
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
     }
 
     const VideoWatchLog = getVideoWatchLog();
+
+    // Get existing watch log first for watchDuration
+    const existingWatchLog: any = await VideoWatchLog.findOne({ userId: decoded.id, courseId, videoId });
 
     // Update or create watch log
     const watchLog = await VideoWatchLog.findOneAndUpdate(
@@ -50,7 +54,7 @@ export async function POST(request: NextRequest) {
         progress: progress || 0,
         isCompleted: isCompleted || false,
         lastWatchedAt: new Date(),
-        watchDuration: (watchLog?.watchDuration || 0) + 1, // Increment by 1 second per update
+        watchDuration: (existingWatchLog?.watchDuration || 0) + 1, // Increment by 1 second per update
       },
       { upsert: true, new: true }
     );
@@ -80,6 +84,7 @@ export async function GET(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const courseId = request.nextUrl.searchParams.get('courseId');
     if (!courseId) {
