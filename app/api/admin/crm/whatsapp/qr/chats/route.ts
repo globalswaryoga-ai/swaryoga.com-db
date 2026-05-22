@@ -58,27 +58,40 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 0. Find the active session key — bridge requires it to return chats
+    let sessionKey: string | null = null;
+    try {
+      const sessionsRes = await fetch(`${bridgeUrl}/sessions`, {
+        method: 'GET',
+        headers: { 'x-bridge-secret': bridgeSecret },
+      });
+      if (sessionsRes.ok) {
+        const sessionsData = await sessionsRes.json();
+        const sessions: any[] = sessionsData?.sessions || [];
+        // Prefer session owned by this user
+        const ownSession = sessions.find(s => s.userId === viewerUserId && s.status === 'connected');
+        const anySession = sessions.find(s => s.status === 'connected');
+        sessionKey = ownSession?.sessionKey || anySession?.sessionKey || null;
+        console.log(`[QR Chats API] Session key resolved: ${sessionKey || 'NONE'} (user: ${viewerUserId})`);
+      }
+    } catch (e: any) {
+      console.warn('[QR Chats API] Failed to resolve session key:', e.message);
+    }
+
+    const sessionHeaders: Record<string, string> = {
+      'x-bridge-secret': bridgeSecret,
+      'x-user-id': viewerUserId,
+    };
+    if (sessionKey) sessionHeaders['x-session-key'] = sessionKey;
+
     // 1. Fetch chats and groups from bridge
     const bridgeChatsUrl = `${bridgeUrl}/chats`;
     const bridgeGroupsUrl = `${bridgeUrl}/groups`;
-    console.log('[QR Chats API] Calling bridge chats:', bridgeChatsUrl);
-    console.log('[QR Chats API] Calling bridge groups:', bridgeGroupsUrl);
+    console.log('[QR Chats API] Calling bridge chats:', bridgeChatsUrl, '| sessionKey:', sessionKey);
 
     const [chatsRes, groupsRes] = await Promise.all([
-      fetch(bridgeChatsUrl, {
-        method: 'GET',
-        headers: {
-          'x-bridge-secret': bridgeSecret,
-          'x-user-id': viewerUserId,
-        }
-      }),
-      fetch(bridgeGroupsUrl, {
-        method: 'GET',
-        headers: {
-          'x-bridge-secret': bridgeSecret,
-          'x-user-id': viewerUserId,
-        }
-      }).catch(err => {
+      fetch(bridgeChatsUrl, { method: 'GET', headers: sessionHeaders }),
+      fetch(bridgeGroupsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
         console.warn('[QR Chats API] Groups endpoint failed:', err.message);
         return null;
       })

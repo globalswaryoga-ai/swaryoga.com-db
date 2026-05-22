@@ -71,18 +71,25 @@ export async function GET(request: NextRequest) {
       filter.provider = 'meta';
     }
 
-    // Add date range filter — endDate is inclusive (use end of that day)
+    // Add date range filter — match on sentAt OR createdAt (inbound messages may not have sentAt)
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
     if (startDate || endDate) {
-      filter.sentAt = {};
-      if (startDate) filter.sentAt.$gte = new Date(startDate);
+      const dateRange: any = {};
+      if (startDate) dateRange.$gte = new Date(startDate);
       if (endDate) {
-        // Add 1 day - 1ms so "2026-05-22" means "end of 2026-05-22"
         const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        filter.sentAt.$lt = end;
+        end.setDate(end.getDate() + 1); // include full end day
+        dateRange.$lt = end;
       }
+      // Use $and so this doesn't conflict with any existing $or on filter
+      if (!filter.$and) filter.$and = [];
+      filter.$and.push({
+        $or: [
+          { sentAt: dateRange },
+          { sentAt: { $exists: false }, createdAt: dateRange },
+        ],
+      });
     }
 
     // Access control:
@@ -126,7 +133,7 @@ export async function GET(request: NextRequest) {
     }
 
     const messages = await WhatsAppMessage.find(filter)
-      .sort({ sentAt: sortDir })
+      .sort({ sentAt: sortDir, createdAt: sortDir }) // createdAt fallback for messages without sentAt
       .skip(skip)
       .limit(limit)
       .populate('leadId', 'name phoneNumber assignedToUserId')

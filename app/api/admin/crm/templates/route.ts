@@ -78,6 +78,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    // viewerUserId must be declared BEFORE body destructuring so it's available below
+    const viewerUserId = getViewerUserId(decoded);
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
