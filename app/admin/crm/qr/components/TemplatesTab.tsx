@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Pencil, Trash2, Eye, Loader2, X, ChevronDown, Upload, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, Plus, Pencil, Trash2, Eye, Loader2, X, ChevronDown, Upload, Image as ImageIcon, Bold, Italic, Strikethrough, Smile } from 'lucide-react';
 
 interface Template {
   _id: string;
@@ -20,6 +20,19 @@ interface Template {
 interface TemplatesTabProps {
   token: string | null;
 }
+
+const EMOJI_QUICK = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'];
+
+const EMOJI_CATEGORIES: Record<string, string[]> = {
+  'Faces': ['😊','😀','😃','😄','😁','😆','😂','🤣','😍','🥰','😘','😎','🤩','😇','🥹','😅','😉','🙂','😋','😛'],
+  'Gestures': ['🙏','👋','👍','👎','✌️','🤙','👌','👏','🤝','💪','🦾','❤️','💕','💔'],
+  'Symbols': ['✅','❌','⭐','🌟','💯','✨','🔥','💫','⚡','🏆','🎯','🔔','📢','📣','💬'],
+  'Events': ['🎉','🎊','🎁','🎂','🥳','🎈','🎪','🎭','🎨','🎵','🎸','🎤','🏆'],
+  'Business': ['📱','💻','🖥️','⌨️','💾','💿','📺','📷','📞','📧','💰','💳','📊','📈'],
+  'Nature': ['🌿','🌱','🌲','🌳','🌴','🍀','🍁','🌺','🌸','🌼','🌻','🌹','🌷','🌙','☀️','🌈'],
+  'Food': ['🍎','🍊','🍋','🍇','🍓','🍑','🥭','🍍','🍅','🥑','🥦','🥕','🌽','🍔','🍕','🍜','🍰','☕'],
+  'Objects': ['🎁','🎀','🎈','🎂','📚','📖','✏️','📝','🖊️','⌚','🔑','🔒','🔓','🎁','🎪']
+};
 
 export function TemplatesTab({ token }: TemplatesTabProps) {
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -42,6 +55,49 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [headerImageFile, setHeaderImageFile] = useState<File | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiCategory, setEmojiCategory] = useState<string>('Faces');
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handler);
+    }
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showEmojiPicker]);
+
+  // Formatting helpers
+  const insertAround = (el: HTMLTextAreaElement | null, value: string, l: string, r: string) => {
+    if (!el) return value;
+    const s = el.selectionStart ?? 0;
+    const e = el.selectionEnd ?? 0;
+    return `${value.slice(0, s)}${l}${value.slice(s, e)}${r}${value.slice(e)}`;
+  };
+
+  const applyFormat = (l: string, r: string) => {
+    setFormData(prev => ({
+      ...prev,
+      body: insertAround(bodyRef.current, prev.body, l, r)
+    }));
+    requestAnimationFrame(() => bodyRef.current?.focus());
+  };
+
+  const addEmoji = (em: string) => {
+    setFormData(prev => {
+      const el = bodyRef.current;
+      if (!el) return { ...prev, body: prev.body + em };
+      const s = el.selectionStart ?? prev.body.length;
+      return { ...prev, body: `${prev.body.slice(0, s)}${em}${prev.body.slice(s)}` };
+    });
+    requestAnimationFrame(() => bodyRef.current?.focus());
+  };
 
   const fetchTemplates = useCallback(async () => {
     if (!token) return;
@@ -432,13 +488,80 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
 
               {/* Body */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message Body *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Message Body *</label>
+
+                {/* Formatting Toolbar */}
+                <div className="flex items-center gap-1 flex-wrap p-2 bg-gray-50 border border-b-0 rounded-t-lg">
+                  {/* Format buttons */}
+                  <button type="button" onClick={() => applyFormat('*', '*')}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs font-bold text-gray-700 transition" title="Bold (*text*)">
+                    <Bold className="w-3.5 h-3.5" /> Bold
+                  </button>
+                  <button type="button" onClick={() => applyFormat('_', '_')}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs italic text-gray-700 transition" title="Italic (_text_)">
+                    <Italic className="w-3.5 h-3.5" /> Italic
+                  </button>
+                  <button type="button" onClick={() => applyFormat('~', '~')}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs line-through text-gray-700 transition" title="Strikethrough (~text~)">
+                    <Strikethrough className="w-3.5 h-3.5" /> Strike
+                  </button>
+
+                  <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                  {/* Quick emoji row */}
+                  {EMOJI_QUICK.slice(0, 10).map(em => (
+                    <button key={em} type="button" onClick={() => addEmoji(em)}
+                      className="w-7 h-7 rounded border bg-white hover:bg-gray-100 flex items-center justify-center text-base leading-none transition" title={em}>
+                      {em}
+                    </button>
+                  ))}
+
+                  <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                  {/* Full emoji picker trigger */}
+                  <div className="relative" ref={emojiPickerRef}>
+                    <button type="button"
+                      onClick={() => setShowEmojiPicker(v => !v)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded border text-xs font-medium transition ${showEmojiPicker ? 'bg-green-50 border-green-400 text-green-700' : 'bg-white hover:bg-gray-100 text-gray-700'}`}>
+                      <Smile className="w-3.5 h-3.5" /> More
+                    </button>
+
+                    {/* Emoji picker panel */}
+                    {showEmojiPicker && (
+                      <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-80">
+                        {/* Category tabs */}
+                        <div className="flex overflow-x-auto border-b p-1 gap-0.5" style={{ scrollbarWidth: 'none' }}>
+                          {Object.keys(EMOJI_CATEGORIES).map(cat => (
+                            <button key={cat} type="button"
+                              onClick={() => setEmojiCategory(cat)}
+                              className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium transition whitespace-nowrap ${emojiCategory === cat ? 'bg-green-100 text-green-700' : 'hover:bg-gray-100 text-gray-600'}`}>
+                              {cat.split(' ')[0]}
+                            </button>
+                          ))}
+                        </div>
+                        {/* Emoji grid */}
+                        <div className="p-2 grid grid-cols-8 gap-0.5 max-h-48 overflow-y-auto">
+                          {EMOJI_CATEGORIES[emojiCategory]?.map(em => (
+                            <button key={em} type="button"
+                              onClick={() => { addEmoji(em); setShowEmojiPicker(false); }}
+                              className="w-8 h-8 rounded hover:bg-gray-100 flex items-center justify-center text-lg leading-none transition"
+                              title={em}>
+                              {em}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <textarea
+                  ref={bodyRef}
                   value={formData.body}
                   onChange={(e) => setFormData({ ...formData, body: e.target.value })}
                   placeholder="Your message here..."
                   rows={4}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                  className="w-full px-3 py-2 border border-t-0 rounded-b-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
                 />
               </div>
 
