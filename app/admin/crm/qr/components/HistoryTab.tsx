@@ -195,15 +195,16 @@ export function HistoryTab({ token }: HistoryTabProps) {
     if (!token) return;
     setLoading(true);
     try {
-      // Fetch sent messages
+      // Fetch sent messages from the generic API (includes both Meta and QR with provider filter)
       const params = new URLSearchParams();
       params.set('limit', '100');
+      params.set('provider', 'all');
       if (filterStatus && filterStatus !== 'all') params.set('status', filterStatus);
-      if (dateFrom) params.set('from', dateFrom);
-      if (dateTo) params.set('to', dateTo);
+      if (dateFrom) params.set('startDate', dateFrom);
+      if (dateTo) params.set('endDate', dateTo);
 
       const [msgsRes, broadcastsRes] = await Promise.all([
-        fetch(`/api/admin/crm/whatsapp/messages?${params}`, {
+        fetch(`/api/admin/crm/messages?${params}`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
         fetch('/api/admin/crm/qr-broadcast-schedule', {
@@ -218,7 +219,44 @@ export function HistoryTab({ token }: HistoryTabProps) {
 
       if (broadcastsRes.ok) {
         const data = await broadcastsRes.json();
-        setBroadcasts(data?.data ?? []);
+        const schedules = data?.data ?? [];
+
+        // Fetch stats for each broadcast
+        const enrichedBroadcasts = await Promise.all(
+          schedules.map(async (broadcast: any) => {
+            try {
+              const statsRes = await fetch(
+                `/api/admin/crm/qr-broadcast-schedule/stats?scheduleId=${broadcast._id}`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+              );
+              if (statsRes.ok) {
+                const statsData = await statsRes.json();
+                return {
+                  ...broadcast,
+                  stats: {
+                    totalSent: statsData.stats?.totalSent || 0,
+                    totalFailed: 0,
+                    totalPending: Math.max(0, (broadcast.totalRecipients || 0) - (statsData.stats?.totalSent || 0)),
+                    totalBlocked: 0,
+                  }
+                };
+              }
+            } catch (e) {
+              // Fallback if stats fetch fails
+            }
+
+            return {
+              ...broadcast,
+              stats: {
+                totalSent: 0,
+                totalFailed: 0,
+                totalPending: broadcast.totalRecipients || 0,
+                totalBlocked: 0,
+              }
+            };
+          })
+        );
+        setBroadcasts(enrichedBroadcasts);
       }
 
       // Calculate statistics
