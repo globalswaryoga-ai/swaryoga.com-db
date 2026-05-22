@@ -127,30 +127,18 @@ export default function ProgramDetailPage() {
 
   const fetchParticipantCountsForMonth = async (year: number, monthIdx: number) => {
     if (!program?.slug) return;
-    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
-    const counts: Record<string, number> = {};
-
+    // Use the batch endpoint (1 request instead of 31)
     try {
-      console.log(`[Sadhana Calendar] Fetching participant counts for ${year}-${monthIdx + 1} (${daysInMonth} days)`);
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = dateKey(year, monthIdx, d);
-        try {
-          const res = await fetch(`/api/sadhana/live/${program.slug}/participants-by-date?date=${dateStr}`);
-          if (!res.ok) {
-            counts[dateStr] = 0; // Set 0 for failed requests instead of skipping
-            continue;
-          }
-          const data = await res.json();
-          if (data.success && typeof data.totalParticipants === 'number') {
-            counts[dateStr] = data.totalParticipants;
-            console.log(`[Sadhana Calendar] ${dateStr}: ${data.totalParticipants} participants`);
-          }
-        } catch (e) {
-          counts[dateStr] = 0; // Set 0 on error instead of skipping
-        }
+      const month = monthIdx + 1; // Convert 0-indexed to 1-indexed
+      const res = await fetch(`/api/sadhana/live/${program.slug}/participants-by-month?year=${year}&month=${month}`);
+      if (!res.ok) {
+        console.warn(`[Sadhana Calendar] Batch fetch failed: ${res.status}`);
+        return;
       }
-      console.log(`[Sadhana Calendar] Final counts:`, counts);
-      setParticipantCountsByDate(counts);
+      const data = await res.json();
+      if (data.success && data.countsByDate) {
+        setParticipantCountsByDate(data.countsByDate);
+      }
     } catch (err) {
       console.error('Failed to fetch participant counts:', err);
     }

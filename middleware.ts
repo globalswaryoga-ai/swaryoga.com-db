@@ -218,7 +218,10 @@ export function middleware(request: NextRequest) {
   let baseLimit = 60;
   let bucket = 'api';
 
-  if (path.startsWith('/api/admin/crm/whatsapp/')) {
+  if (path.startsWith('/api/sadhana/')) {
+    bucket = 'sadhana';
+    baseLimit = 300; // High limit: sadhana pages poll every 3s + admin calendar views
+  } else if (path.startsWith('/api/admin/crm/whatsapp/')) {
     bucket = 'crm_whatsapp';
     baseLimit = hasAuthHeader ? 600 : 120;
   } else if (path.startsWith('/api/admin/crm/messages')) {
