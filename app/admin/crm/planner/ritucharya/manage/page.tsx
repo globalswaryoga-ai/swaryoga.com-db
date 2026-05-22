@@ -28,12 +28,13 @@ const PHASES = [
 ];
 
 const MEAL_SLOTS = [
-  { key: 'brahma_muhurta', time: '4:00–5:00 AM',     label: 'Brahma Muhurta Drink', emoji: '🌙', placeholder: 'e.g. Lukewarm water with honey' },
-  { key: 'herbal_drink',   time: '6:00–7:00 AM',     label: 'Herbal Morning Drink',  emoji: '🌿', placeholder: 'e.g. Tulsi tea, Ginger water'   },
-  { key: 'breakfast',      time: '8:30–9:30 AM',     label: 'Breakfast (Nasta)',     emoji: '🥣', placeholder: 'e.g. Khichdi, Oatmeal with ghee' },
-  { key: 'lunch',          time: '11:30 AM–1:00 PM', label: 'Lunch (Bhojan)',        emoji: '🍱', placeholder: 'e.g. Dal rice, Seasonal sabzi'   },
-  { key: 'dinner',         time: '7:00–8:00 PM',     label: 'Dinner (Ratri Bhojan)', emoji: '🌙', placeholder: 'e.g. Light soup, Khichdi'        },
-  { key: 'before_sleep',   time: '9:00–10:00 PM',    label: 'Before Sleep',          emoji: '🥛', placeholder: 'e.g. Warm turmeric milk'         },
+  { key: 'gond_pani',    time: '4:00 AM',       label: 'Gond Pani',           emoji: '🌙', placeholder: 'e.g. Gond Pani, Warm lemon water, Honey water' },
+  { key: 'herbal_drink', time: '6:00 AM',       label: 'Herbal Drink',        emoji: '🌿', placeholder: 'e.g. Tulsi tea, Ginger water, Neem water'      },
+  { key: 'breakfast',    time: '8:30 AM',       label: 'Breakfast (Nasta)',   emoji: '🥣', placeholder: 'e.g. Khichdi, Oatmeal with ghee, Poha'         },
+  { key: 'lunch',        time: '11:30 AM',      label: 'Lunch (Bhojan)',      emoji: '🍱', placeholder: 'e.g. Dal rice, Seasonal sabzi, Roti'           },
+  { key: 'snacks',       time: '5:00 PM',       label: 'Snacks (Nashta)',     emoji: '🍎', placeholder: 'e.g. Fruits, Dry fruits, Roasted chana'        },
+  { key: 'dinner',       time: '7:30 PM',       label: 'Dinner (Ratri Bhojan)', emoji: '🍽️', placeholder: 'e.g. Light soup, Khichdi, Dal chapati'    },
+  { key: 'sleep_drink',  time: '9:30 PM',       label: 'Sleep Drink',         emoji: '🥛', placeholder: 'e.g. Warm turmeric milk, Ashwagandha milk'    },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────

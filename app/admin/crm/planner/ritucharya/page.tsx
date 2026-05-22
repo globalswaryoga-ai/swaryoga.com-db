@@ -207,49 +207,56 @@ function build30DayPlan(ritu: RituKey, dosha: DoshaProfile): WeekPlan[] {
   const rData = RITUS[ritu];
   const dominant = dosha.dominant;
 
-  // Shared base meal structure for the season
+  // Shared base meal structure for the season — 7 time slots
   const baseMeals: MealSlot[] = [
     {
-      time: '4:00–5:00 AM',
-      label: 'Brahma Muhurta Drink',
+      time: '4:00 AM',
+      label: 'Gond Pani',
       emoji: '🌙',
-      foods: ['Lukewarm water with honey', 'Gond Pani (गोंद पानी)', 'Warm lemon water'],
-      tip: 'Wake up in Brahma Muhurta for best Ojas (vital energy)',
+      foods: ['Gond Pani (गोंद पानी)', 'Lukewarm water with honey', 'Warm lemon water'],
+      tip: 'Wake up in Brahma Muhurta — first drink should be warm, never cold',
     },
     {
-      time: '6:00–7:00 AM',
-      label: 'Herbal Morning Drink',
+      time: '6:00 AM',
+      label: 'Herbal Drink',
       emoji: '🌿',
       foods: getFoodsForSlot('herbal', ritu, dosha, 4),
       tip: `${rData.dietTips[0]} — drink warm, never cold`,
     },
     {
-      time: '8:30–9:30 AM',
+      time: '8:30 AM',
       label: 'Breakfast (Nasta)',
       emoji: '🥣',
       foods: getFoodsForSlot('breakfast', ritu, dosha, 5),
-      tip: `Agni is ${dosha.agni} now — ${dosha.agni === 'Weak' ? 'eat light' : 'moderate portion'}`,
+      tip: `Agni is ${dosha.agni} — ${dosha.agni === 'Weak' ? 'eat light' : 'moderate portions'}`,
     },
     {
-      time: '11:30 AM–1:00 PM',
+      time: '11:30 AM',
       label: 'Lunch (Bhojan)',
       emoji: '🍱',
       foods: getFoodsForSlot('lunch', ritu, dosha, 6),
       tip: 'Largest meal of the day — Agni is strongest at midday',
     },
     {
-      time: '7:00–8:00 PM',
-      label: 'Dinner (Ratri Bhojan)',
-      emoji: '🌙',
-      foods: getFoodsForSlot('dinner', ritu, dosha, 4),
-      tip: 'Keep dinner light — digestive fire is low at night',
+      time: '5:00 PM',
+      label: 'Snacks (Nashta)',
+      emoji: '🍎',
+      foods: getFoodsForSlot('snack', ritu, dosha, 3),
+      tip: 'Light seasonal snack only — keep Agni active before dinner',
     },
     {
-      time: '9:00–10:00 PM',
-      label: 'Before Sleep',
+      time: '7:30 PM',
+      label: 'Dinner (Ratri Bhojan)',
+      emoji: '🍽️',
+      foods: getFoodsForSlot('dinner', ritu, dosha, 4),
+      tip: 'Keep dinner light and warm — digestive fire slows at night',
+    },
+    {
+      time: '9:30 PM',
+      label: 'Sleep Drink',
       emoji: '🥛',
-      foods: ['Warm turmeric milk (Haldi Doodh)', 'Ashwagandha in warm milk', 'Saffron milk (optional)'],
-      tip: 'Ojas-building drink — promotes deep sleep',
+      foods: ['Warm turmeric milk (Haldi Doodh)', 'Ashwagandha warm milk', 'Saffron milk (optional)'],
+      tip: 'Ojas-building drink — promotes deep restful sleep',
     },
   ];
 
