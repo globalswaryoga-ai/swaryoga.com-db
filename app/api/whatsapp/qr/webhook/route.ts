@@ -150,6 +150,7 @@ async function ingestQRPayload(payload: any) {
     const messageType = hasMedia ? 'media' : 'text';
     const messageContent = text || (hasMedia ? `[${m.media?.kind || 'media'} message]` : '');
 
+    const messageTimestamp = m.timestamp || new Date();
     const doc: any = {
       provider: 'whatsapp_web_bridge', // Unified provider for all QR/Bridge messages
       direction: m.fromMe ? 'outbound' : 'inbound',
@@ -158,8 +159,8 @@ async function ingestQRPayload(payload: any) {
       messageType,
       status: 'delivered',
       waMessageId: m.messageId,
-      // sentAt is used widely for sorting.
-      sentAt: m.timestamp || new Date(),
+      sentAt: messageTimestamp,
+      timestamp: messageTimestamp,
       // Tag with bridge user for multi-user session isolation
       ...(payload.bridgeUserId && { bridgeUserId: payload.bridgeUserId, ownerId: payload.bridgeUserId }),
       // Keep raw/provider details in metadata.
