@@ -44,14 +44,16 @@ export default function AdminOffers() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken');
-    const adminUser = localStorage.getItem('adminUser');
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
+    const adminUser = typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null;
 
-    if (!adminToken || adminUser !== 'admin') {
+    if (!storedToken || adminUser !== 'admin') {
       router.push('/admin/login');
     } else {
       setIsAuthenticated(true);
-      fetchOffers(adminToken);
+      fetchOffers(storedToken);
     }
   }, [router]);
 

@@ -48,13 +48,16 @@ export default function SignupData() {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
+    if (!storedToken) {
       router.push('/admin/login');
     } else {
       setIsAuthenticated(true);
       fetchSignupData();
     }
-  }, [router, token]);
+  }, [router]);
 
   // Auto-dismiss toast
   useEffect(() => {

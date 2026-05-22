@@ -66,7 +66,9 @@ export default function AdminCommunityPage() {
         setLoading(true);
         setError('');
 
-        const token = localStorage.getItem('adminToken') || '';
+        const token = typeof window !== 'undefined'
+          ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+          : null;
         if (!token) {
           router.push('/admin/login');
           return;

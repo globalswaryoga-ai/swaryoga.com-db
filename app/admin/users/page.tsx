@@ -78,7 +78,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const resolvedToken = localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || '';
+    const resolvedToken = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
     if (!resolvedToken) {
       router.replace('/admin/login');
       return;

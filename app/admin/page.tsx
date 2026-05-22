@@ -105,7 +105,7 @@ export default function AdminRoot() {
 
   useEffect(() => {
     const token = typeof window !== 'undefined'
-      ? (localStorage.getItem('admin_token') || localStorage.getItem('adminToken'))
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
       : null;
     if (!token) {
       router.push('/admin/login');

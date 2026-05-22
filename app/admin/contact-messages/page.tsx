@@ -31,7 +31,9 @@ export default function ContactMessages() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken');
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
     const userStr = localStorage.getItem('admin_user');
     let userId = localStorage.getItem('adminUser') || '';
     let permissions: string[] = [];
@@ -48,7 +50,7 @@ export default function ContactMessages() {
     const isSuperAdmin = userId === 'admin' || permissions.includes('all');
     const canEmail = isSuperAdmin || permissions.includes('email');
 
-    if (!adminToken) {
+    if (!storedToken) {
       router.push('/admin/login');
     } else {
       if (!canEmail) {

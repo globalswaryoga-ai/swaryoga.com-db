@@ -29,9 +29,11 @@ export default function SigninData() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken');
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
 
-    if (!adminToken) {
+    if (!storedToken) {
       router.push('/admin/login');
     } else {
       setIsAuthenticated(true);

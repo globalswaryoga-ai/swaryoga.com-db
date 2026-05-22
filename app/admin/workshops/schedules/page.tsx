@@ -222,12 +222,14 @@ export default function AdminWorkshopSchedulesPage() {
     const [savingNepalQr, setSavingNepalQr] = useState(false);
 
     useEffect(() => {
-      const token = localStorage.getItem('adminToken') || '';
-      if (!token) {
+      const storedToken = typeof window !== 'undefined'
+        ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+        : null;
+      if (!storedToken) {
         router.push('/admin/login');
         return;
       }
-      setAdminToken(token);
+      setAdminToken(storedToken);
     }, [router]);
 
     const loadAllSchedules = async (token: string) => {

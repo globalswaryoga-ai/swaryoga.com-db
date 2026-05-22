@@ -40,7 +40,10 @@ export default function AdminCommunityMembersPage() {
   // All non-global communities for the dropdown (global is auto-approved, no need)
   const communities = COMMUNITY_DESIGNS.filter(c => c.id !== 'global');
 
-  const getToken = () => localStorage.getItem('token') || '';
+  const getToken = () =>
+    (typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null) || '';
 
   // Fetch pending counts for each community
   const fetchPendingCounts = useCallback(async () => {
@@ -79,7 +82,7 @@ export default function AdminCommunityMembersPage() {
     try {
       const token = getToken();
       if (!token) {
-        router.push('/admin/login');
+        router.replace('/admin/login');
         return;
       }
 
@@ -107,8 +110,10 @@ export default function AdminCommunityMembersPage() {
   }, [selectedCommunity, filterStatus, router]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
+    if (!storedToken) {
       router.push('/admin/login');
       return;
     }

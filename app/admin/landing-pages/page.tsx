@@ -519,12 +519,14 @@ export default function AdminLandingPagesPage() {
 
   // Load admin token
   useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
+    if (!storedToken) {
       router.push('/admin/login');
       return;
     }
-    setAdminToken(token);
+    setAdminToken(storedToken);
   }, [router]);
 
   // Load landing pages
