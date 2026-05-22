@@ -114,7 +114,7 @@ export default function AdminRoot() {
       const user = getStoredAdminUser();
       setAdminUser(user.userId || 'Admin');
       const perms = Array.isArray(user.permissions) ? user.permissions : [];
-      const superAdmin = (user.userId || '') === 'admin' || perms.includes('all');
+      const superAdmin = ['admin', 'admincrm'].includes(user.userId || '') || perms.includes('all') || user.isAdmin === true;
       const hasCRM = superAdmin || perms.includes('crm');
       setIsSuperAdmin(superAdmin);
       setHasCRMPermission(hasCRM);
