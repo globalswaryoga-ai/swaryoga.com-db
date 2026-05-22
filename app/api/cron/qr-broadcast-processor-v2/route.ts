@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
-import { shuffleArray, calculateVariableGaps, getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
+import { shuffleArray } from '@/lib/whatsappRateLimiter';
+import { calculateVariableGaps, getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
 import { canSendMessageToUser, recordMessageSent } from '@/lib/messageDeduplication';
 
