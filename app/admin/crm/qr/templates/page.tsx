@@ -64,7 +64,18 @@ function insertAround(el: HTMLTextAreaElement | null, value: string, l: string, 
   return `${value.slice(0, s)}${l}${value.slice(s, e)}${r}${value.slice(e)}`;
 }
 
-const EMOJIS = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'];
+const EMOJI_QUICK = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'];
+
+const EMOJI_CATEGORIES: Record<string, string[]> = {
+  'Faces': ['😊','😀','😃','😄','😁','😆','😂','🤣','😍','🥰','😘','😎','🤩','😇','🥹','😅','😉','🙂','😋','😛'],
+  'Gestures': ['🙏','👋','👍','👎','✌️','🤙','👌','👏','🤝','💪','🦾','❤️','💕','💔'],
+  'Symbols': ['✅','❌','⭐','🌟','💯','✨','🔥','💫','⚡','🏆','🎯','🔔','📢','📣','💬'],
+  'Events': ['🎉','🎊','🎁','🎂','🥳','🎈','🎪','🎭','🎨','🎵','🎸','🎤','🏆'],
+  'Business': ['📱','💻','🖥️','⌨️','💾','💿','📺','📷','📞','📧','💰','💳','📊','📈'],
+  'Nature': ['🌿','🌱','🌲','🌳','🌴','🍀','🍁','🌺','🌸','🌼','🌻','🌹','🌷','🌙','☀️','🌈'],
+  'Food': ['🍎','🍊','🍋','🍇','🍓','🍑','🥭','🍍','🍅','🥑','🥦','🥕','🌽','🍔','🍕','🍜','🍰','☕'],
+  'Objects': ['🎁','🎀','🎈','🎂','📚','📖','✏️','📝','🖊️','⌚','🔑','🔒','🔓','🎁','🎪']
+};
 
 export default function QRTemplatesPage() {
   const token = useAuth();
@@ -100,6 +111,22 @@ export default function QRTemplatesPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiCategory, setEmojiCategory] = useState<string>('Faces');
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handler);
+    }
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showEmojiPicker]);
 
   // ── Fetch templates (QR provider only) ──
   const fetchTemplates = useCallback(async () => {
@@ -422,24 +449,40 @@ export default function QRTemplatesPage() {
                   <div className="space-y-3">
                     {/* Upload area */}
                     {!mediaUrl ? (
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition"
-                      >
-                        <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                        <p className="text-sm font-medium text-gray-600">
-                          Click to upload {headerType === 'IMAGE' ? 'an image' : headerType === 'VIDEO' ? 'a video' : 'a document'}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {headerType === 'IMAGE' ? 'JPG, PNG, WebP, GIF · Max 25MB' : headerType === 'VIDEO' ? 'MP4, MOV, WebM · Max 25MB' : 'PDF, DOC, DOCX · Max 25MB'}
-                        </p>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept={getAcceptTypes()}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) handleMediaUpload(f); e.target.value = ''; }}
-                          className="hidden"
-                        />
+                      <div>
+                        <div
+                          onClick={() => !uploading && fileInputRef.current?.click()}
+                          className={`border-2 border-dashed rounded-xl p-8 text-center transition ${uploading ? 'border-green-400 bg-green-50 cursor-wait' : 'border-gray-300 cursor-pointer hover:border-green-400 hover:bg-green-50/30'}`}
+                        >
+                          {uploading ? (
+                            <div className="space-y-2">
+                              <Loader2 className="w-8 h-8 mx-auto text-green-600 animate-spin" />
+                              <p className="text-sm font-medium text-green-700">Uploading to Bunny CDN…</p>
+                              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-green-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                              </div>
+                              <p className="text-xs text-green-600">{uploadProgress}%</p>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                              <p className="text-sm font-semibold text-gray-700">
+                                Click to upload {headerType === 'IMAGE' ? 'an image' : headerType === 'VIDEO' ? 'a video' : 'a document'}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {headerType === 'IMAGE' ? '📷 JPG, PNG, WebP, GIF · Max 25MB' : headerType === 'VIDEO' ? '🎥 MP4, MOV, WebM · Max 25MB' : '📄 PDF, DOC, DOCX · Max 25MB'}
+                              </p>
+                              <p className="text-[10px] text-green-600 mt-2">Saved to Bunny CDN (swaryogadb)</p>
+                            </>
+                          )}
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept={getAcceptTypes()}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleMediaUpload(f); e.target.value = ''; }}
+                            className="hidden"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div className="border rounded-xl overflow-hidden">
@@ -477,19 +520,6 @@ export default function QRTemplatesPage() {
                       </div>
                     )}
 
-                    {/* Upload progress */}
-                    {uploading && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-green-600" />
-                          <span className="text-xs text-gray-600">Uploading…</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-green-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-                        </div>
-                      </div>
-                    )}
-
                     {/* Or paste URL */}
                     <div>
                       <label className="block text-[11px] text-gray-500 mb-1">Or paste a URL directly</label>
@@ -507,30 +537,90 @@ export default function QRTemplatesPage() {
 
               {/* Body */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-semibold text-gray-800">Message Body *</label>
-                  <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => applyFormat('*', '*')} className="w-7 h-7 rounded border hover:bg-gray-50 flex items-center justify-center" title="Bold"><Bold className="w-3.5 h-3.5" /></button>
-                    <button type="button" onClick={() => applyFormat('_', '_')} className="w-7 h-7 rounded border hover:bg-gray-50 flex items-center justify-center" title="Italic"><Italic className="w-3.5 h-3.5" /></button>
-                    <button type="button" onClick={() => applyFormat('~', '~')} className="w-7 h-7 rounded border hover:bg-gray-50 flex items-center justify-center" title="Strikethrough"><Strikethrough className="w-3.5 h-3.5" /></button>
-                    <div className="w-px h-5 bg-gray-200 mx-1" />
-                    {EMOJIS.slice(0, 8).map(em => (
-                      <button key={em} type="button" onClick={() => addEmoji(em)} className="w-7 h-7 rounded border hover:bg-gray-50 flex items-center justify-center text-sm">{em}</button>
-                    ))}
+                <label className="text-sm font-semibold text-gray-800 mb-2 block">Message Body *</label>
+
+                {/* Formatting Toolbar */}
+                <div className="flex items-center gap-1 flex-wrap p-2 bg-gray-50 border border-b-0 rounded-t-lg">
+                  {/* Format buttons with labels */}
+                  <button type="button" onClick={() => applyFormat('*', '*')}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs font-bold text-gray-700 transition" title="Bold (*text*)">
+                    <Bold className="w-3.5 h-3.5" /> Bold
+                  </button>
+                  <button type="button" onClick={() => applyFormat('_', '_')}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs italic text-gray-700 transition" title="Italic (_text_)">
+                    <Italic className="w-3.5 h-3.5" /> Italic
+                  </button>
+                  <button type="button" onClick={() => applyFormat('~', '~')}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs line-through text-gray-700 transition" title="Strikethrough (~text~)">
+                    <Strikethrough className="w-3.5 h-3.5" /> Strike
+                  </button>
+
+                  <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                  {/* Quick emoji row */}
+                  {EMOJI_QUICK.slice(0, 10).map(em => (
+                    <button key={em} type="button" onClick={() => addEmoji(em)}
+                      className="w-7 h-7 rounded border bg-white hover:bg-gray-100 flex items-center justify-center text-base leading-none transition" title={em}>
+                      {em}
+                    </button>
+                  ))}
+
+                  <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                  {/* Full emoji picker trigger */}
+                  <div className="relative" ref={emojiPickerRef}>
+                    <button type="button"
+                      onClick={() => setShowEmojiPicker(v => !v)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded border text-xs font-medium transition ${showEmojiPicker ? 'bg-green-50 border-green-400 text-green-700' : 'bg-white hover:bg-gray-100 text-gray-700'}`}>
+                      <Smile className="w-3.5 h-3.5" /> More
+                    </button>
+
+                    {/* Emoji picker panel */}
+                    {showEmojiPicker && (
+                      <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-80">
+                        {/* Category tabs */}
+                        <div className="flex overflow-x-auto border-b p-1 gap-0.5" style={{ scrollbarWidth: 'none' }}>
+                          {Object.keys(EMOJI_CATEGORIES).map(cat => (
+                            <button key={cat} type="button"
+                              onClick={() => setEmojiCategory(cat)}
+                              className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium transition whitespace-nowrap ${emojiCategory === cat ? 'bg-green-100 text-green-700' : 'hover:bg-gray-100 text-gray-600'}`}>
+                              {cat.split(' ')[0]}
+                            </button>
+                          ))}
+                        </div>
+                        {/* Emoji grid */}
+                        <div className="p-2 grid grid-cols-8 gap-0.5 max-h-48 overflow-y-auto">
+                          {EMOJI_CATEGORIES[emojiCategory]?.map(em => (
+                            <button key={em} type="button"
+                              onClick={() => { addEmoji(em); setShowEmojiPicker(false); }}
+                              className="w-8 h-8 rounded hover:bg-gray-100 flex items-center justify-center text-lg leading-none transition"
+                              title={em}>
+                              {em}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="px-3 py-1.5 border-t bg-gray-50 rounded-b-xl">
+                          <p className="text-[10px] text-gray-400">Click emoji to insert at cursor</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
+
                 <textarea
                   ref={bodyRef}
                   value={bodyText}
                   onChange={e => setBodyText(e.target.value)}
-                  placeholder="Type your message here…"
+                  placeholder="Type your message here… Use *bold*, _italic_, ~strikethrough~"
                   rows={8}
-                  className="w-full px-3 py-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
+                  className="w-full px-3 py-2.5 text-sm border border-t-0 rounded-b-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
                   spellCheck
                   maxLength={LIMITS.BODY_TEXT + 100}
                 />
-                <div className="flex justify-between mt-0.5">
-                  <span className="text-[10px] text-gray-400">Bold: *text* | Italic: _text_ | Strike: ~text~</span>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[10px] text-gray-400">
+                    💡 Format: <span className="font-bold">*bold*</span> · <span className="italic">_italic_</span> · <span className="line-through">~strike~</span>
+                  </span>
                   <CharCount current={bodyText.length} max={LIMITS.BODY_TEXT} />
                 </div>
               </div>
