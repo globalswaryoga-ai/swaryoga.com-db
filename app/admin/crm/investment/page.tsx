@@ -233,7 +233,7 @@ export default function CRMInvestmentPage() {
         );
         
         // Refresh investments list
-        const listResponse = await fetch('/api/admin/crm/investments');
+        const listResponse = await fetch('/api/admin/crm/investments', { headers: authHeaders });
         if (listResponse.ok) {
           const data = await listResponse.json();
           setInvestments(data.investments || []);
