@@ -300,6 +300,14 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   const uniqueWorkshops = Array.isArray(leads) ? Array.from(new Set(leads.map(l => l?.workshop).filter(Boolean))) : [];
   const allLabels = Array.isArray(leads) ? Array.from(new Set(leads.flatMap(l => l?.labels || []))) : [];
 
+  // ── TIME GUARD UI: Check if current IST time is within allowed send hours ──
+  const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const istHour = nowIST.getHours();
+  const istMin = nowIST.getMinutes();
+  const istTotal = istHour * 60 + istMin;
+  const isSendBlocked = istTotal < (5 * 60) || istTotal > (22 * 60 + 30); // before 5 AM or after 10:30 PM
+  const istTimeStr = `${String(istHour).padStart(2,'0')}:${String(istMin).padStart(2,'0')} IST`;
+
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -328,6 +336,18 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
           </button>
         ))}
       </div>
+
+      {/* Time Guard Warning */}
+      {isSendBlocked && (
+        <div className="mx-4 mt-3 p-3 bg-orange-50 border border-orange-300 rounded-lg text-sm text-orange-800 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-orange-500" />
+          <div>
+            <strong>⏰ Outside allowed hours</strong> — Current time: {istTimeStr}
+            <br />Messages can only be sent between <strong>5:00 AM – 10:30 PM IST</strong>.
+            You can still save a schedule for future delivery.
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
@@ -627,11 +647,13 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
             {/* Submit */}
             <button
               onClick={handleInitiateBroadcast}
-              disabled={sending || (recipientTab === 'people' ? selectedPhones.size === 0 : selectedGroupIds.size === 0)}
+              disabled={sending
+                || (recipientTab === 'people' ? selectedPhones.size === 0 : selectedGroupIds.size === 0)
+                || (isSendBlocked && scheduleMode === 'now') /* block Send Now outside allowed hours */}
               className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4" />
-              {sending ? 'Sending...' : scheduleMode === 'schedule' ? '📅 Schedule Broadcast' : '🚀 Send Broadcast Now'}
+              {sending ? 'Sending...' : scheduleMode === 'schedule' ? '📅 Schedule Broadcast' : isSendBlocked ? '🚫 Blocked (after 10:30 PM)' : '🚀 Send Broadcast Now'}
             </button>
           </div>
         </div>
