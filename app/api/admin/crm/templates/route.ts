@@ -115,24 +115,12 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const WhatsAppTemplate = getWhatsAppTemplate();
 
-    // WhatsAppTemplate schema expects createdBy as an ObjectId reference.
-    // Our admin JWT contains decoded.userId (e.g., "admincrm") which is NOT an ObjectId.
-    // Resolve it to a User._id.
-    let createdBy: any = null;
-    const decodedUserId = String(decoded?.userId || '').trim();
-    const decodedEmail = String((decoded as any)?.email || '').trim();
-    if (decodedUserId && mongoose.Types.ObjectId.isValid(decodedUserId)) {
-      createdBy = new mongoose.Types.ObjectId(decodedUserId);
-    } else {
-      const userDoc: any =
-        (decodedUserId ? await User.findOne({ userId: decodedUserId }).select('_id').lean() : null) ||
-        (decodedEmail ? await User.findOne({ email: decodedEmail }).select('_id').lean() : null);
-      createdBy = userDoc && userDoc._id ? new mongoose.Types.ObjectId(String(userDoc._id)) : null;
-    }
-
+    // WhatsAppTemplate schema uses createdBy as a String (userId like 'admincrm').
+    // Use viewerUserId directly — no need for ObjectId conversion.
+    const createdBy = viewerUserId || String(decoded?.userId || decoded?.username || '').trim();
     if (!createdBy) {
       return NextResponse.json(
-        { error: 'Unable to resolve template creator (createdBy). Please login again.' },
+        { error: 'Unable to identify template creator. Please login again.' },
         { status: 401 }
       );
     }
