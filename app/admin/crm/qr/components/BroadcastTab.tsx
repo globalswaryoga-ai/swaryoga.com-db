@@ -337,14 +337,13 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         ))}
       </div>
 
-      {/* Time Guard Warning */}
+      {/* Time Guard Info */}
       {isSendBlocked && (
-        <div className="mx-4 mt-3 p-3 bg-orange-50 border border-orange-300 rounded-lg text-sm text-orange-800 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-orange-500" />
+        <div className="mx-4 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
           <div>
-            <strong>⏰ Outside allowed hours</strong> — Current time: {istTimeStr}
-            <br />Messages can only be sent between <strong>5:00 AM – 10:30 PM IST</strong>.
-            You can still save a schedule for future delivery.
+            <strong>📅 After-hours mode</strong> — Current time: {istTimeStr}
+            <br />Messages sent now will be <strong>automatically delivered at 5:00 AM IST</strong> tomorrow.
           </div>
         </div>
       )}
@@ -647,13 +646,11 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
             {/* Submit */}
             <button
               onClick={handleInitiateBroadcast}
-              disabled={sending
-                || (recipientTab === 'people' ? selectedPhones.size === 0 : selectedGroupIds.size === 0)
-                || (isSendBlocked && scheduleMode === 'now') /* block Send Now outside allowed hours */}
+              disabled={sending || (recipientTab === 'people' ? selectedPhones.size === 0 : selectedGroupIds.size === 0)}
               className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4" />
-              {sending ? 'Sending...' : scheduleMode === 'schedule' ? '📅 Schedule Broadcast' : isSendBlocked ? '🚫 Blocked (after 10:30 PM)' : '🚀 Send Broadcast Now'}
+              {sending ? 'Sending...' : scheduleMode === 'schedule' ? '📅 Schedule Broadcast' : isSendBlocked ? '📅 Queue for 5 AM' : '🚀 Send Broadcast Now'}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { getCRMUserSettings, getLead, getQrWhatsAppChat, getQrWhatsAppMessage, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
@@ -6,7 +7,7 @@ import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
-import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime } from '@/lib/qrTimeGuard';
+import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -802,13 +803,40 @@ export async function POST(req: NextRequest) {
     }
 
     // ── SENDER DISPLAY NAME SIGNATURE ──
-    // ── TIME GUARD: Block /send and /reply after 10:30 PM or before 5:00 AM IST ──
+    // ── TIME GUARD: Queue /send and /reply after 10:30 PM or before 5:00 AM IST ──
     if ((decodedPath === '/send' || decodedPath === '/reply') && !isQRSendAllowed()) {
-      return NextResponse.json({
-        success: false,
-        error: getQRTimeGuardError(),
-        currentTime: getCurrentISTTime(),
-      }, { status: 403 });
+      try {
+        // Save to queue — will auto-send at 5 AM
+        const sendAt = getNext5AMIST();
+        const queueDb = mongoose.connection.getClient().db(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+        const queueCol = queueDb.collection('qr_message_queue');
+        await queueCol.insertOne({
+          userId,
+          to: body?.to || body?.chatId || body?.jid || '',
+          message: body?.message || body?.text || body?.caption || '',
+          type: body?.url || body?.media ? 'image' : 'text',
+          url: body?.url || null,
+          status: 'pending',
+          sendAt,
+          createdAt: new Date(),
+        });
+        const sendAtIST = new Date(sendAt.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+        const timeStr = `${String(sendAtIST.getHours()).padStart(2,'0')}:${String(sendAtIST.getMinutes()).padStart(2,'0')} IST`;
+        console.log(`[QR Bridge] ⏰ Message queued for ${timeStr}: ${body?.to}`);
+        return NextResponse.json({
+          success: true,
+          queued: true,
+          sendAt: sendAt.toISOString(),
+          message: `📅 Message queued — will be sent at 5:00 AM IST (${getCurrentISTTime()} now)`,
+        });
+      } catch (qErr) {
+        console.error('[QR Bridge] Failed to queue message:', qErr);
+        return NextResponse.json({
+          success: false,
+          error: getQRTimeGuardError(),
+          currentTime: getCurrentISTTime(),
+        }, { status: 403 });
+      }
     }
 
     // Append the user's configured display name (e.g. "Swar Yoga") as a bold

@@ -16,7 +16,7 @@ import { connectDB } from '@/lib/db';
 import { getCRMUserSettings, getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } from '@/lib/whatsappBridgeConfig';
-import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime } from '@/lib/qrTimeGuard';
+import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
 // Allow up to 60 seconds for bulk sends (Vercel Pro / hobby has 10s; this is best-effort)
@@ -135,13 +135,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // ── TIME GUARD: No QR messages after 10:30 PM or before 5:00 AM IST ──
+    // ── TIME GUARD: Auto-schedule for 5 AM instead of blocking ──
     if (!isQRSendAllowed()) {
+      // Parse body first so we can create a schedule
+      let earlyBody: any = {};
+      try { earlyBody = await request.clone().json(); } catch { /* ignore */ }
+      const sendAt = getNext5AMIST();
+      const sendAtIST = new Date(sendAt.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const startHH = String(sendAtIST.getHours()).padStart(2,'0');
+      const startMM = String(sendAtIST.getMinutes()).padStart(2,'0');
+      const endHH = String(sendAtIST.getHours() + 1).padStart(2,'0');
+      try {
+        await connectDB();
+        const { getQRBroadcastSchedule } = await import('@/lib/schemas/enterpriseSchemas');
+        const QRBroadcastSchedule = getQRBroadcastSchedule();
+        const decoded2 = authCheck(request);
+        const uid = decoded2 ? (decoded2.userId || decoded2.username || 'admin') : 'admin';
+        await QRBroadcastSchedule.create({
+          userId: uid,
+          tenantId: 'default',
+          name: `Auto-queued Broadcast — ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+          messageText: earlyBody.message || '',
+          mediaUrls: earlyBody.imageUrl ? [earlyBody.imageUrl] : [],
+          recipientChatIds: Array.isArray(earlyBody.recipients) ? earlyBody.recipients : [],
+          totalRecipients: Array.isArray(earlyBody.recipients) ? earlyBody.recipients.length : 0,
+          isActive: true,
+          startTime: `${startHH}:${startMM}`,
+          endTime: `${endHH}:${startMM}`,
+          timezone: 'Asia/Kolkata',
+          frequency: 'once',
+          status: 'scheduled',
+          createdBy: uid,
+        });
+      } catch (schedErr) {
+        console.error('[qr-broadcast] Failed to auto-schedule:', schedErr);
+      }
       return NextResponse.json({
-        success: false,
-        error: getQRTimeGuardError(),
-        currentTime: getCurrentISTTime(),
-      }, { status: 403 });
+        success: true,
+        queued: true,
+        sendAt: sendAt.toISOString(),
+        message: `📅 Broadcast queued — will be sent at 5:00 AM IST (${getCurrentISTTime()} now)`,
+      });
     }
 
     const superAdmin = checkSuperAdmin(decoded);

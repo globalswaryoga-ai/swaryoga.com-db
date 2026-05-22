@@ -1,7 +1,7 @@
 /**
  * QR WhatsApp Time Guard
- * Enforces no messages sent outside 5:00 AM – 10:30 PM IST
- * Apply to ALL QR send paths: broadcast API, qr-bridge /send, cron processor
+ * Allowed hours: 5:00 AM – 10:30 PM IST
+ * Messages sent outside hours are QUEUED and auto-sent at 5:00 AM next morning.
  */
 
 const ALLOWED_START = { h: 5,  m: 0  }; // 5:00 AM IST
@@ -17,12 +17,30 @@ export function isQRSendAllowed(): boolean {
   return totalMinutes >= startMin && totalMinutes <= endMin;
 }
 
-export function getQRTimeGuardError(): string {
-  return 'Messages cannot be sent after 10:30 PM or before 5:00 AM IST. Please try again during allowed hours (5:00 AM – 10:30 PM IST).';
+/** Returns next 5:00 AM IST as a UTC Date */
+export function getNext5AMIST(): Date {
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: TIMEZONE }));
+
+  // Build 5:00 AM today in IST
+  const next5AM = new Date(ist);
+  next5AM.setHours(5, 0, 0, 0);
+
+  // If already past 5 AM, push to tomorrow
+  if (ist >= next5AM) {
+    next5AM.setDate(next5AM.getDate() + 1);
+  }
+
+  // IST = UTC+5:30 → subtract 5h30m to get UTC
+  return new Date(next5AM.getTime() - (5.5 * 60 * 60 * 1000));
 }
 
 export function getCurrentISTTime(): string {
   const now = new Date();
   const ist = new Date(now.toLocaleString('en-US', { timeZone: TIMEZONE }));
   return `${String(ist.getHours()).padStart(2,'0')}:${String(ist.getMinutes()).padStart(2,'0')} IST`;
+}
+
+export function getQRTimeGuardError(): string {
+  return `Outside allowed hours (5:00 AM – 10:30 PM IST). Current time: ${getCurrentISTTime()}`;
 }
