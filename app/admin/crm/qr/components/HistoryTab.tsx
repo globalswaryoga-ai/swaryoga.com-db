@@ -186,8 +186,20 @@ export function HistoryTab({ token }: HistoryTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+
+  // Set default dates to last 30 days
+  const getDefaultFromDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getDefaultToDate = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const [dateFrom, setDateFrom] = useState(getDefaultFromDate());
+  const [dateTo, setDateTo] = useState(getDefaultToDate());
   const [selectedBroadcast, setSelectedBroadcast] = useState<BroadcastSchedule | null>(null);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'sent'>('scheduled');
 
@@ -383,18 +395,16 @@ export function HistoryTab({ token }: HistoryTabProps) {
             className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
 
-          {(filterStatus !== 'all' || dateFrom || dateTo) && (
-            <button
-              onClick={() => {
-                setFilterStatus('all');
-                setDateFrom('');
-                setDateTo('');
-              }}
-              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-700 font-medium"
-            >
-              Clear
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setFilterStatus('all');
+              setDateFrom(getDefaultFromDate());
+              setDateTo(getDefaultToDate());
+            }}
+            className="px-3 py-2 text-sm text-gray-600 hover:text-gray-700 font-medium"
+          >
+            Reset to Last 30 Days
+          </button>
         </div>
       )}
 
