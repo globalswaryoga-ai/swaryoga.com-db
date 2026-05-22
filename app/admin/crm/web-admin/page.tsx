@@ -135,10 +135,7 @@ export default function WebAdminPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     
     // Check if user is superadmin
     try {

@@ -98,10 +98,7 @@ export default function MessagesPage() {
   }, [crmFetch, directionFilter, page, pageSize, statusFilter]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchMessages();
   }, [token, router, fetchMessages]);
 

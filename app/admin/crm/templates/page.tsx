@@ -143,10 +143,7 @@ export default function TemplatesPage() {
   const initialFetchDoneRef = useRef(false);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     
     // Only auto-fetch on mount. Subsequent fetches happen via pagination or filter changes.
     if (initialFetchDoneRef.current) return;

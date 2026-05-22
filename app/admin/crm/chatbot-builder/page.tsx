@@ -55,10 +55,7 @@ export default function ChatbotBuilderPage() {
   }, [crmFetch]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchFlows();
   }, [token, router, fetchFlows]);
 

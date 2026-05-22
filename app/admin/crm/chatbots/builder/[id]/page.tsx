@@ -268,10 +268,7 @@ export default function ChatbotBuilder() {
 
   // Fetch data on mount
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
 
     const fetchDetail = async () => {
       if (chatbotId === 'new') {

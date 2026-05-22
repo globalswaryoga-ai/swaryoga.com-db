@@ -81,10 +81,7 @@ export default function AdminCommunityMembersPage() {
     setError('');
     try {
       const token = getToken();
-      if (!token) {
-        router.replace('/admin/login');
-        return;
-      }
+      if (!token) return;
 
       const res = await fetch(
         `/api/admin/community/members?communityId=${selectedCommunity}&status=${filterStatus}`,

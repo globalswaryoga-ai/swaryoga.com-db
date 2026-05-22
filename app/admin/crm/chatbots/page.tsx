@@ -199,10 +199,7 @@ export default function ChatbotsPage() {
   }, []);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchStats();
   }, [token, router, fetchStats]);
 

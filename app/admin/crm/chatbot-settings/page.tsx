@@ -51,10 +51,7 @@ export default function ChatbotSettingsPage() {
   }, [crmFetch]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, router]);

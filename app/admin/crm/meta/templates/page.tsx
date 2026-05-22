@@ -281,10 +281,7 @@ function TemplatesContent() {
   }, [crmFetch]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
 
     const successParam = searchParams.get('success');
     if (successParam === 'created') {

@@ -806,10 +806,7 @@ export default function WhatsAppChatDashboardPage() {
   );
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchConversations();
     fetchQuickReplies();
     fetchAdminUsers();

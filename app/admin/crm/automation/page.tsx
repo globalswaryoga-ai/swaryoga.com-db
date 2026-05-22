@@ -167,10 +167,7 @@ export default function AutomationPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    if (!token) {
-      window.location.href = getLoginPath();
-      return;
-    }
+    if (!token) return;
 
     if (initialFetchDoneRef.current['welcome']) return;
     initialFetchDoneRef.current['welcome'] = true;

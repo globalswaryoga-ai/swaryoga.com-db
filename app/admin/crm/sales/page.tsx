@@ -335,10 +335,7 @@ export default function SalesPage() {
     // Don't attempt fetch if token isn't loaded yet (null = loading, empty string = not authenticated)
     if (token === null) return;
     
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchSalesData();
   }, [token, router, fetchSalesData]);
 

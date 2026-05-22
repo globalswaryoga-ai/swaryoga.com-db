@@ -92,10 +92,7 @@ export default function ChatbotEditorPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
 
     const key = `${token}:chatbot-editor-v2`;
     if (lastFetchKeyRef.current === key) return;

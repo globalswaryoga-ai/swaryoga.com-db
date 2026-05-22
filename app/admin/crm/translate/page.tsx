@@ -54,10 +54,7 @@ export default function TranslationPage() {
   // Check auth
   useEffect(() => {
     const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     setIsAuthenticated(true);
     fetchLanguages();
   }, [router]);

@@ -70,10 +70,7 @@ function SettingsContent() {
   }, [crmFetch]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchAccounts();
   }, [token, router, fetchAccounts]);
 

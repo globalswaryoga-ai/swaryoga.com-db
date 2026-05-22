@@ -131,10 +131,7 @@ export default function MessagesPage() {
     // Sync crmRef with current crm object
     crmRef.current = crm;
 
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     doFetch();
     intervalRef.current = setInterval(doFetch, 10000);
     return () => {

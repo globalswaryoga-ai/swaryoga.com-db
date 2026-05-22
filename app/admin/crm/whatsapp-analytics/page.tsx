@@ -226,10 +226,7 @@ export default function WhatsAppAnalyticsPage() {
   }, [token, startDate, endDate]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchData();
   }, [token, router, fetchData]);
 

@@ -114,10 +114,7 @@ export default function DeletedLeadsPage() {
   }, [token, limit, skip, q, isSuperAdmin, userFilter]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchDeleted();
   }, [token, router, fetchDeleted]);
 

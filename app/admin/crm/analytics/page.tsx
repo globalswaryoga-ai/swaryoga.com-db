@@ -108,10 +108,7 @@ export default function AnalyticsPage() {
   }, [token, view]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchAnalytics();
   }, [token, router, fetchAnalytics]);
 

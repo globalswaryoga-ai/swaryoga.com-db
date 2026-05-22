@@ -74,10 +74,7 @@ export default function ConsentPage() {
   }, [channelFilter, crm, page, pageSize, statusFilter]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchConsents();
   }, [token, router, fetchConsents]);
 

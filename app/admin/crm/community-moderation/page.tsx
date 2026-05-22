@@ -65,10 +65,7 @@ export default function CommunityModerationPage() {
 
   async function checkAuth() {
     const token = localStorage.getItem('token');
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     try {
       const res = await fetch('/api/auth/profile', {
         headers: { 'Authorization': `Bearer ${token}` },

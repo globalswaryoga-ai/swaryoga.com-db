@@ -96,10 +96,7 @@ export default function KnowledgeBasePage() {
   }, [crmFetch, filterCategory, filterEnabled, searchQuery]);
 
   useEffect(() => {
-    if (!token) {
-      router.push(getLoginPath());
-      return;
-    }
+    if (!token) return;
     fetchArticles();
   }, [token, router, fetchArticles]);
 
