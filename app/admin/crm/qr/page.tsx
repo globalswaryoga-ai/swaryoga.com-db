@@ -2331,6 +2331,9 @@ export default function QRWhatsAppPage() {
             <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5 transition" title="View Statuses">
               <Radio className="w-3.5 h-3.5" /> Stories
             </button>
+            <a href="/admin/crm/reports/qr" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 transition" title="QR Broadcast Reports">
+              📊 Reports
+            </a>
           </div>
         </div>
 
