@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Eye, Users, Plus, Trash2, Clock } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Participant {
   _id: string;
@@ -36,6 +37,8 @@ export const SessionsPanel: React.FC<SessionsPanelProps> = ({
   timeSlots,
   onSessionsLoaded,
 }) => {
+  const token = useAuth();
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -48,7 +51,8 @@ export const SessionsPanel: React.FC<SessionsPanelProps> = ({
     try {
       setLoading(true);
       const res = await fetch(
-        `/api/admin/crm/sadhana-sessions?programId=${programId}&date=${date}`
+        `/api/admin/crm/sadhana-sessions?programId=${programId}&date=${date}`,
+        { headers: authHeaders }
       );
       const data = await res.json();
 
@@ -69,7 +73,7 @@ export const SessionsPanel: React.FC<SessionsPanelProps> = ({
       setLoading(true);
       const res = await fetch('/api/admin/crm/sadhana-sessions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           programId,
           programSlug,

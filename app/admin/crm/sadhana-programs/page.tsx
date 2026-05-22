@@ -32,6 +32,7 @@ const TIMEZONES = [
 ];
 
 export default function SadhanaProgramsPage() {
+  const token = useAuth();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -66,17 +67,20 @@ export default function SadhanaProgramsPage() {
     enableBotAutomation: true,
   });
 
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+
   const load = async () => {
+    if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/sadhana-programs');
+      const res = await fetch('/api/admin/crm/sadhana-programs', { headers: authHeader });
       const data = await res.json();
       if (data.success) setPrograms(data.programs);
     } catch (err) { console.error(err); }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (token) load(); }, [token]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +93,7 @@ export default function SadhanaProgramsPage() {
     try {
       const res = await fetch('/api/admin/crm/sadhana-programs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ ...newProgram, timeSlots }),
       });
       const data = await res.json();
@@ -140,7 +144,7 @@ export default function SadhanaProgramsPage() {
     try {
       const res = await fetch(`/api/admin/crm/sadhana-programs/${editingId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ ...editProgram, timeSlots }),
       });
       const data = await res.json();
@@ -155,7 +159,7 @@ export default function SadhanaProgramsPage() {
 
   const del = async (id: string, name: string) => {
     if (!confirm(`Delete program "${name}"? All videos will be removed.`)) return;
-    await fetch(`/api/admin/crm/sadhana-programs/${id}`, { method: 'DELETE' });
+    await fetch(`/api/admin/crm/sadhana-programs/${id}`, { method: 'DELETE', headers: authHeader });
     setToast('🗑️ Program deleted');
     load();
     setTimeout(() => setToast(''), 3000);

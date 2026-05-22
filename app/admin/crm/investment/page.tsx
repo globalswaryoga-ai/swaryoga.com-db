@@ -62,6 +62,7 @@ export default function CRMInvestmentPage() {
   const token = useAuth();
   // Decode token for role checks (server enforces actual permissions)
   const user: any = token ? (() => { try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; } })() : null;
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -94,7 +95,7 @@ export default function CRMInvestmentPage() {
   useEffect(() => {
     const fetchInvestments = async () => {
       try {
-        const response = await fetch('/api/admin/crm/investments');
+        const response = await fetch('/api/admin/crm/investments', { headers: authHeaders });
         if (response.ok) {
           const data = await response.json();
           setInvestments(data.investments || []);
@@ -298,6 +299,7 @@ export default function CRMInvestmentPage() {
     try {
       const response = await fetch(`/api/admin/crm/investments/${investmentId}`, {
         method: 'DELETE',
+        headers: authHeaders,
       });
 
       if (response.ok) {
