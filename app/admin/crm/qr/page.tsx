@@ -464,6 +464,7 @@ export default function QRWhatsAppPage() {
   const dbLoadedRef = useRef(false);
   const crmFetchRef = useRef(crmFetch);
   const fetchChatsRef = useRef<(() => Promise<void>) | null>(null);
+  const sendLockRef = useRef(false); // Prevents double-send from rapid clicks / Enter key
   const pendingUpdatesRef = useRef<Record<string, any>>({});
   const connectedRef = useRef(false);
   const hasAutoSwitchedRef = useRef(false);
@@ -1518,7 +1519,8 @@ export default function QRWhatsAppPage() {
 
   // ── Send message (text or media) ──
   const handleSend = useCallback(async () => {
-    if ((!composerText.trim() && !mediaPreview) || !selectedChat || sending) return;
+    if ((!composerText.trim() && !mediaPreview) || !selectedChat || sending || sendLockRef.current) return;
+    sendLockRef.current = true; // Lock immediately (sync) to prevent race condition
     setSending(true);
     try {
       // For groups, send using the full JID; for individuals, strip the suffix
@@ -1629,6 +1631,7 @@ export default function QRWhatsAppPage() {
       setMessages(prev => prev.filter(m => !m.id.startsWith('opt-')));
     } finally {
       setSending(false);
+      sendLockRef.current = false; // Release lock
     }
   }, [composerText, mediaPreview, selectedChat, sending, bridgeCall, fetchMessages, token, replyingTo]);
 

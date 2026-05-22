@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
         randomizeTimings: true,
         jitterPercent: 15,
       },
-      status: 'draft',
+      status: body.status || 'scheduled', // use requested status, default to 'scheduled' (not 'draft')
       createdBy: uid,
       description: body.description || '',
       tags: body.tags || [],

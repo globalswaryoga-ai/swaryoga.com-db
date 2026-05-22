@@ -452,7 +452,7 @@ export async function GET(req: NextRequest) {
     // Find active schedules
     const schedules = await QRBroadcastSchedule.find({
       isActive: true,
-      status: { $in: ['scheduled', 'in-progress'] },
+      status: { $in: ['scheduled', 'in-progress', 'draft'] }, // 'draft' included for backward compat
     });
 
     console.log(`[QR Broadcast V2] Found ${schedules.length} active schedules`);

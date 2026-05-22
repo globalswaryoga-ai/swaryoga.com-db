@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Clock, Loader2, CheckCircle2, CheckCircle, AlertCircle, BarChart3, Eye, X } from 'lucide-react';
+import { Clock, Loader2, CheckCircle2, CheckCircle, AlertCircle, BarChart3, Eye, X, Trash2 } from 'lucide-react';
 
 interface MessageRecord {
   _id?: string;
@@ -202,6 +202,22 @@ export function HistoryTab({ token }: HistoryTabProps) {
   const [dateTo, setDateTo] = useState(getDefaultToDate());
   const [selectedBroadcast, setSelectedBroadcast] = useState<BroadcastSchedule | null>(null);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'sent'>('scheduled');
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const deleteSchedule = async (id: string) => {
+    if (!token || !confirm('Delete this scheduled broadcast?')) return;
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/admin/crm/qr-broadcast-schedule/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setBroadcasts(prev => prev.filter(b => b._id !== id));
+      }
+    } catch (e) { /* ignore */ }
+    setDeleting(null);
+  };
 
   const fetchData = useCallback(async () => {
     if (!token) return;
@@ -444,7 +460,7 @@ export function HistoryTab({ token }: HistoryTabProps) {
                   <th className="px-3 py-2 text-left text-gray-500 font-medium">Sent</th>
                   <th className="px-3 py-2 text-left text-gray-500 font-medium">Status</th>
                   <th className="px-3 py-2 text-left text-gray-500 font-medium">Created</th>
-                  <th className="px-3 py-2 text-center text-gray-500 font-medium">View</th>
+                  <th className="px-3 py-2 text-center text-gray-500 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -486,9 +502,18 @@ export function HistoryTab({ token }: HistoryTabProps) {
                     </td>
                     <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{createdAt}</td>
                     <td className="px-3 py-2 text-center">
-                      <button onClick={() => setSelectedBroadcast(broadcast)} className="p-1 text-green-600 hover:bg-green-50 rounded">
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => setSelectedBroadcast(broadcast)} className="p-1 text-green-600 hover:bg-green-50 rounded" title="View details">
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => deleteSchedule(broadcast._id)}
+                          disabled={deleting === broadcast._id}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded disabled:opacity-40" title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
