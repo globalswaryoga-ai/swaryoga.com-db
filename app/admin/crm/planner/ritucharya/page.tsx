@@ -526,6 +526,24 @@ export default function RitucharyaPage() {
     return 'Thunderstorm';
   }
 
+  // Auto-calculate climate type from temperature
+  function getClimateType(temp: number): string {
+    if (temp < 0)   return 'Extreme Cold';
+    if (temp < 10)  return 'Very Cold';
+    if (temp < 18)  return 'Cold';
+    if (temp < 24)  return 'Mild / Pleasant';
+    if (temp < 30)  return 'Warm';
+    if (temp < 36)  return 'Hot';
+    if (temp < 42)  return 'Very Hot';
+    return 'Extreme Hot';
+  }
+
+  // Auto-fetch weather when city changes
+  useEffect(() => {
+    if (city) fetchWeather();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city]);
+
   // Run Ayurvedic analysis
   const runAnalysis = useCallback(() => {
     // Detect Ritu — use hemisphere from known country names
@@ -563,122 +581,191 @@ export default function RitucharyaPage() {
   // ─── STEP 1: Location + Weather Form ─────────────────────────────────────
 
   if (step === 1) return (
-    <div className="space-y-6 max-w-3xl mx-auto">
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-4xl">🌿</span>
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">ऋतुचर्या — Ritucharya</h1>
-          <p className="text-slate-500">Ayurvedic Seasonal Wellness Planner</p>
-        </div>
+    <div className="space-y-6 p-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-slate-900">⚙️ Manage Weather Form</h1>
       </div>
 
-      {/* Progress Steps */}
-      <div className="flex items-center gap-2 mb-6">
-        {['📍 Location & Weather', '🌿 Ayurvedic Analysis', '📅 30-Day Plan'].map((s, i) => (
-          <React.Fragment key={i}>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
-              i === 0 ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
-              <span>{s}</span>
-            </div>
-            {i < 2 && <div className="flex-1 h-0.5 bg-gray-200" />}
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* Location Picker */}
+      {/* Location — same green box as manage page */}
       <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-6">
-        <h2 className="text-xl font-bold text-emerald-800 mb-1">📍 Your Location</h2>
-        <p className="text-sm text-emerald-700 mb-4">Select your location to auto-detect current Ritu and fetch live weather</p>
+        <h2 className="text-xl font-bold text-emerald-700 mb-4">📍 User Selected Location</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Location dropdowns */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-xs font-semibold text-emerald-700 mb-1">Country</label>
+            <p className="text-sm text-gray-600 mb-1">Country</p>
             <select value={country} onChange={e => handleCountryChange(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
               <option value="">Select Country…</option>
               {locationData.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-emerald-700 mb-1">State / Region</label>
+            <p className="text-sm text-gray-600 mb-1">State/Region</p>
             <select value={state} onChange={e => handleStateChange(e.target.value)}
               disabled={!country}
-              className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
+              className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
               <option value="">Select State…</option>
               {states.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-emerald-700 mb-1">City</label>
+            <p className="text-sm text-gray-600 mb-1">City</p>
             <select value={city} onChange={e => setCity(e.target.value)}
               disabled={!state}
-              className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
+              className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
               <option value="">Select City…</option>
               {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
             </select>
           </div>
         </div>
 
+        {/* Selected location display — same as manage page */}
+        {country && (
+          <div className="flex gap-8 mt-2">
+            <div>
+              <p className="text-sm text-gray-500">Country</p>
+              <p className="text-lg font-bold text-emerald-700">{country}</p>
+            </div>
+            {state && (
+              <div>
+                <p className="text-sm text-gray-500">State/Region</p>
+                <p className="text-lg font-bold text-emerald-700">{state}</p>
+              </div>
+            )}
+            {city && (
+              <div>
+                <p className="text-sm text-gray-500">City</p>
+                <p className="text-lg font-bold text-emerald-700">{city}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Manual refresh button */}
         {city && (
           <button onClick={fetchWeather} disabled={fetchingWeather}
-            className="mt-4 px-5 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2">
-            {fetchingWeather ? (
-              <><span className="animate-spin">⏳</span> Fetching live weather…</>
-            ) : (
-              <><span>🌤️</span> Fetch Live Weather</>
-            )}
+            className="mt-4 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2">
+            {fetchingWeather
+              ? <><span className="animate-spin inline-block">⏳</span> Fetching…</>
+              : <><span>🔄</span> Refresh Weather</>}
           </button>
         )}
       </div>
 
-      {/* Weather Input Grid */}
-      <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-6">
-        <h2 className="text-xl font-bold text-blue-800 mb-1">🌡️ Weather Details</h2>
-        <p className="text-sm text-blue-700 mb-4">Auto-filled from live data. You can edit any value below.</p>
+      {/* Editable Weather Blocks — exact same as manage page */}
+      <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-8">
+        <h2 className="text-2xl font-bold text-blue-700 mb-6">☁️ Editable Weather Blocks</h2>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { key: 'temp',      label: '🌡️ Current Temp', unit: '°C', color: 'red' },
-            { key: 'tempMin',   label: '❄️ Min Temp',      unit: '°C', color: 'blue' },
-            { key: 'tempMax',   label: '🔥 Max Temp',      unit: '°C', color: 'orange' },
-            { key: 'humidity',  label: '💧 Humidity',      unit: '%',  color: 'cyan' },
-            { key: 'windSpeed', label: '💨 Wind Speed',    unit: 'km/h', color: 'yellow' },
-            { key: 'aqi',       label: '🌫️ Air Quality',  unit: 'AQI', color: 'purple' },
-          ].map(f => (
-            <div key={f.key} className={`bg-white rounded-xl p-4 border-2 border-${f.color}-200`}>
-              <p className="text-xs text-gray-500 mb-1">{f.label}</p>
-              <div className="flex items-baseline gap-1">
-                <input
-                  type="number"
-                  value={(weather as any)[f.key]}
-                  onChange={e => setWeather(w => ({ ...w, [f.key]: Number(e.target.value) }))}
-                  className={`w-full text-2xl font-bold text-${f.color}-700 bg-transparent outline-none`}
-                />
-                <span className="text-xs text-gray-400">{f.unit}</span>
-              </div>
-              {f.key === 'aqi' && (
-                <p className="text-[10px] mt-1 text-gray-400">
-                  {weather.aqi <= 50 ? '🟢 Good' : weather.aqi <= 100 ? '🟡 Moderate' : weather.aqi <= 150 ? '🟠 Sensitive' : '🔴 Unhealthy'}
-                </p>
-              )}
-            </div>
-          ))}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
 
-          {/* Description */}
-          <div className="bg-white rounded-xl p-4 border-2 border-indigo-200">
-            <p className="text-xs text-gray-500 mb-1">📝 Sky Condition</p>
-            <select
-              value={weather.description}
-              onChange={e => setWeather(w => ({ ...w, description: e.target.value }))}
-              className="w-full text-sm font-bold text-indigo-700 bg-transparent outline-none">
-              {['Clear sky', 'Partly cloudy', 'Overcast', 'Foggy', 'Light rain', 'Heavy rain', 'Thunderstorm', 'Snowy'].map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
+          {/* Current Temp */}
+          <div className="bg-blue-100 rounded-xl p-4 border border-blue-300">
+            <p className="text-xs text-gray-600 mb-2">🌡️ Current Temp</p>
+            <input type="number" value={weather.temp}
+              onChange={e => setWeather(w => ({ ...w, temp: Number(e.target.value) }))}
+              className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-blue-300 rounded px-3 py-2" />
+            <p className="text-xs text-gray-500 mt-2">Today's temp</p>
           </div>
+
+          {/* Min Temp */}
+          <div className="bg-blue-100 rounded-xl p-4 border border-blue-300">
+            <p className="text-xs text-gray-600 mb-2">❄️ Min Temp</p>
+            <input type="number" value={weather.tempMin}
+              onChange={e => setWeather(w => ({ ...w, tempMin: Number(e.target.value) }))}
+              className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-blue-300 rounded px-3 py-2" />
+            <p className="text-xs text-gray-500 mt-2">Lowest today</p>
+          </div>
+
+          {/* Max Temp */}
+          <div className="bg-blue-100 rounded-xl p-4 border border-blue-300">
+            <p className="text-xs text-gray-600 mb-2">🔥 Max Temp</p>
+            <input type="number" value={weather.tempMax}
+              onChange={e => setWeather(w => ({ ...w, tempMax: Number(e.target.value) }))}
+              className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-blue-300 rounded px-3 py-2" />
+            <p className="text-xs text-gray-500 mt-2">Highest today</p>
+          </div>
+
+          {/* Humidity */}
+          <div className="bg-cyan-100 rounded-xl p-4 border border-cyan-300">
+            <p className="text-xs text-gray-600 mb-2">💧 Humidity (%)</p>
+            <input type="number" value={weather.humidity}
+              onChange={e => setWeather(w => ({ ...w, humidity: Number(e.target.value) }))}
+              className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-cyan-300 rounded px-3 py-2" />
+            <p className="text-xs text-gray-500 mt-2">Air moisture</p>
+          </div>
+
+          {/* Wind Speed */}
+          <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-300">
+            <p className="text-xs text-gray-600 mb-2">💨 Wind Speed</p>
+            <input type="number" value={weather.windSpeed}
+              onChange={e => setWeather(w => ({ ...w, windSpeed: Number(e.target.value) }))}
+              className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-yellow-300 rounded px-3 py-2" />
+            <p className="text-xs text-gray-500 mt-2">km/h — Air movement</p>
+          </div>
+
+          {/* Air Quality */}
+          <div className="bg-red-100 rounded-xl p-4 border border-red-300">
+            <p className="text-xs text-gray-600 mb-2">🌫️ Air Quality (AQI)</p>
+            <input type="number" value={weather.aqi}
+              onChange={e => setWeather(w => ({ ...w, aqi: Number(e.target.value) }))}
+              className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-red-300 rounded px-3 py-2" />
+            <p className="text-xs text-gray-500 mt-2">
+              {weather.aqi <= 50 ? '🟢 Good' : weather.aqi <= 100 ? '🟡 Moderate' : weather.aqi <= 150 ? '🟠 Sensitive' : '🔴 Unhealthy'}
+            </p>
+          </div>
+
+          {/* Description dropdown */}
+          <div className="bg-purple-100 rounded-xl p-4 border border-purple-300">
+            <p className="text-xs text-gray-600 mb-2">📝 Description</p>
+            <select value={weather.description}
+              onChange={e => setWeather(w => ({ ...w, description: e.target.value }))}
+              className="w-full text-sm font-bold bg-white text-slate-900 outline-none border-2 border-purple-300 rounded px-3 py-2">
+              <option value="Clear">Clear</option>
+              <option value="Partly cloudy">Partly cloudy</option>
+              <option value="Cloudy">Cloudy</option>
+              <option value="Mostly cloudy">Mostly cloudy</option>
+              <option value="Overcast">Overcast</option>
+              <option value="Foggy">Foggy</option>
+              <option value="Hazy">Hazy</option>
+              <option value="Light rain">Light rain</option>
+              <option value="Rainy">Rainy</option>
+              <option value="Heavy rain">Heavy rain</option>
+              <option value="Thunderstorm">Thunderstorm</option>
+              <option value="Snowy">Snowy</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-2">Clear, Cloudy, Rainy</p>
+          </div>
+
+          {/* Climate Type — auto-calculated */}
+          <div className="bg-green-100 rounded-xl p-4 border border-green-300">
+            <p className="text-xs text-gray-600 mb-2">🌍 Climate Type</p>
+            <div className="w-full text-2xl font-bold bg-white text-slate-900 border-2 border-green-300 rounded px-3 py-2">
+              {getClimateType(weather.temp)}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Auto-calculated</p>
+          </div>
+
         </div>
+
+        {/* Save / Analyse button — same style as manage page */}
+        <button onClick={goToAnalysis} disabled={!country}
+          className="w-full px-6 py-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-bold text-lg flex items-center justify-center gap-2">
+          {fetchingWeather
+            ? <><span className="animate-spin">⏳</span> Loading weather data…</>
+            : <><span>🌿</span> Save Weather &amp; Run Ayurvedic Analysis</>}
+        </button>
       </div>
+
+      {/* Note */}
+      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+        <p className="text-sm text-yellow-800">
+          <strong>💡 Note:</strong> Select your location to auto-fetch live weather data. All fields are editable — adjust if needed for your actual conditions.
+        </p>
+      </div>
+    </div>
+  );
 
       {/* Ayurvedic Preview */}
       <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-6">
@@ -707,16 +794,6 @@ export default function RitucharyaPage() {
       </div>
 
       {/* CTA */}
-      <button
-        onClick={goToAnalysis}
-        disabled={!country}
-        className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-3 transition-colors shadow-lg">
-        <span>🌿</span>
-        Run Ayurvedic Analysis →
-      </button>
-    </div>
-  );
-
   // ─── STEP 2: Ayurvedic Analysis Results ──────────────────────────────────
 
   if (step === 2 && dosha && rasaPlan) return (
