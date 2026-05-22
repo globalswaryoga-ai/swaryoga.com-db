@@ -1164,17 +1164,18 @@ export async function POST(req: NextRequest) {
           try {
             const WaMsg = getWhatsAppMessage();
             const phoneNum = chatJid.split('@')[0];
+            const hasMedia = !!(body.url || body.media || body.hasMedia);
             await WaMsg.create({
               phoneNumber: phoneNum,
               direction: 'outbound',
               messageContent: messageText || '[media]',
-              messageType: (body.url || body.media || body.hasMedia) ? 'image' : 'text',
+              messageType: hasMedia ? 'media' : 'text',
+              media: hasMedia ? { kind: 'image', url: body.url || '' } : undefined,
               status: 'sent',
               sentByUserId: userId,
               sentByLabel: userId,
               provider: 'whatsapp_web_bridge',
               sentAt: new Date(),
-              recipientType: chatJid.endsWith('@g.us') ? 'group' : 'individual',
             });
           } catch (waErr: any) {
             // Non-fatal — QrWhatsAppMessage already saved successfully
