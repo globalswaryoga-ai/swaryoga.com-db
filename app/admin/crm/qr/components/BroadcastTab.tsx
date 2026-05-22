@@ -224,6 +224,8 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
           recipientChatIds: recipients,
           recipientType: recipientTab === 'people' ? 'people' : 'groups',
           totalRecipients,
+          // Include image URL so cron processor sends it
+          mediaUrls: imageUrl.trim() ? [imageUrl.trim()] : [],
           // Use scheduleDate + scheduleTime as start time, end 1 hour later
           startTime: scheduleTime || '09:00',
           endTime: scheduleTime

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
+import { getQRBroadcastSchedule, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { calculateVariableGaps, getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
@@ -329,6 +329,24 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         console.log(
           `[QR Broadcast V2] ✓ ${i + 1}/${recipients.length} sent (gap: ${(gap / 1000).toFixed(1)}s)`
         );
+        // Save to WhatsAppMessage so stats page shows real data
+        try {
+          const WaMsg = getWhatsAppMessage();
+          const phoneNum = chatId.includes('@') ? chatId.split('@')[0] : chatId.replace(/\D/g, '');
+          await WaMsg.create({
+            phoneNumber: phoneNum,
+            direction: 'outbound',
+            messageContent: schedule.messageText || '[media]',
+            messageType: (schedule.mediaUrls?.length > 0) ? 'media' : 'text',
+            media: schedule.mediaUrls?.length > 0 ? { kind: 'image', url: schedule.mediaUrls[0] } : undefined,
+            status: 'sent',
+            sentByUserId: schedule.userId,
+            sentByLabel: schedule.userId,
+            provider: 'whatsapp_web_bridge',
+            sentAt: new Date(),
+            recipientType: chatId.endsWith('@g.us') ? 'group' : 'individual',
+          });
+        } catch (_waErr) { /* non-fatal */ }
       } else {
         failed++;
         console.error(

@@ -435,10 +435,21 @@ export function HistoryTab({ token }: HistoryTabProps) {
               <p className="text-sm">No scheduled messages yet</p>
             </div>
           ) : (
-            <div className="divide-y">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-3 py-2 text-left text-gray-500 font-medium">Message</th>
+                  <th className="px-3 py-2 text-left text-gray-500 font-medium">Time</th>
+                  <th className="px-3 py-2 text-left text-gray-500 font-medium">Recip.</th>
+                  <th className="px-3 py-2 text-left text-gray-500 font-medium">Sent</th>
+                  <th className="px-3 py-2 text-left text-gray-500 font-medium">Status</th>
+                  <th className="px-3 py-2 text-left text-gray-500 font-medium">Created</th>
+                  <th className="px-3 py-2 text-center text-gray-500 font-medium">View</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
               {broadcasts.map((broadcast) => {
                 const stats = broadcast.stats || { totalSent: 0, totalFailed: 0, totalPending: 0 };
-                const total = stats.totalSent + (stats.totalFailed || 0) + (stats.totalPending || 0);
                 const progress = broadcast.totalRecipients > 0 ? Math.round((stats.totalSent / broadcast.totalRecipients) * 100) : 0;
 
                 const statusColor: Record<string, string> = {
@@ -450,92 +461,40 @@ export function HistoryTab({ token }: HistoryTabProps) {
                   draft: 'bg-purple-100 text-purple-700',
                 };
                 const createdAt = (broadcast as any).createdAt
-                  ? new Date((broadcast as any).createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                  ? new Date((broadcast as any).createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })
                   : '—';
-                const lastRun = (broadcast as any).lastRunDate
-                  ? new Date((broadcast as any).lastRunDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-                  : 'Not yet run';
 
                 return (
-                  <div key={broadcast._id} className="p-4 hover:bg-gray-50 transition border-b">
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-semibold text-gray-900">{broadcast.name}</h4>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[broadcast.status] || 'bg-gray-100 text-gray-600'}`}>
-                            {broadcast.status?.toUpperCase() || 'DRAFT'}
-                          </span>
-                          {broadcast.isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">● Active</span>}
-                        </div>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{broadcast.messageText}</p>
+                  <tr key={broadcast._id} className="hover:bg-gray-50 transition">
+                    <td className="px-3 py-2 max-w-[200px]">
+                      <p className="text-gray-800 truncate font-medium" title={broadcast.messageText}>{broadcast.messageText}</p>
+                      {broadcast.isActive && <span className="text-[10px] text-green-600">● Active</span>}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{broadcast.startTime}–{broadcast.endTime}</td>
+                    <td className="px-3 py-2 text-gray-700 font-medium">{broadcast.totalRecipients}</td>
+                    <td className="px-3 py-2">
+                      <span className="text-green-700 font-semibold">{stats.totalSent}</span>
+                      {(stats.totalFailed || 0) > 0 && <span className="text-red-600 ml-1">/ {stats.totalFailed}✕</span>}
+                      <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
+                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${Math.min(100, progress)}%` }} />
                       </div>
-                      <button
-                        onClick={() => setSelectedBroadcast(broadcast)}
-                        className="ml-3 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg flex items-center gap-1 transition flex-shrink-0"
-                      >
-                        <Eye className="w-4 h-4" /> View
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor[broadcast.status] || 'bg-gray-100 text-gray-600'}`}>
+                        {broadcast.status?.toUpperCase() || 'DRAFT'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{createdAt}</td>
+                    <td className="px-3 py-2 text-center">
+                      <button onClick={() => setSelectedBroadcast(broadcast)} className="p-1 text-green-600 hover:bg-green-50 rounded">
+                        <Eye className="w-3.5 h-3.5" />
                       </button>
-                    </div>
-
-                    {/* Time & Schedule Info */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs bg-gray-50 rounded-lg p-2">
-                      <div>
-                        <p className="text-gray-500 font-medium">⏰ Time Window</p>
-                        <p className="text-gray-800 font-semibold">{broadcast.startTime} – {broadcast.endTime}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 font-medium">📅 Frequency</p>
-                        <p className="text-gray-800 font-semibold capitalize">{broadcast.frequency}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 font-medium">👥 Recipients</p>
-                        <p className="text-gray-800 font-semibold">{broadcast.totalRecipients}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 font-medium">🕐 Last Run</p>
-                        <p className="text-gray-800 font-semibold">{lastRun}</p>
-                      </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="mb-2">
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-gray-600">Delivery Progress</span>
-                        <span className="font-semibold text-gray-900">
-                          {stats.totalSent} / {broadcast.totalRecipients} ({progress}%)
-                        </span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-500 rounded-full transition-all"
-                          style={{ width: `${Math.min(100, progress)}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Status Summary */}
-                    <div className="flex items-center gap-4 text-xs">
-                      <div className="flex items-center gap-1 text-green-700">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Sent: <strong>{stats.totalSent}</strong></span>
-                      </div>
-                      <div className="flex items-center gap-1 text-blue-700">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>Pending: <strong>{stats.totalPending || 0}</strong></span>
-                      </div>
-                      {(stats.totalFailed || 0) > 0 && (
-                        <div className="flex items-center gap-1 text-red-700">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          <span>Failed: <strong>{stats.totalFailed}</strong></span>
-                        </div>
-                      )}
-                      <span className="text-gray-400 ml-auto text-[11px]">Created: {createdAt}</span>
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
+              </tbody>
+            </table>
           )
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-500">
