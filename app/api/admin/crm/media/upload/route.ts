@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';

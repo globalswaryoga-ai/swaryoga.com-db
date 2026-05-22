@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 /**
  * Auto-provision bridge URL + secret for QR WhatsApp tenants
  * Called on first access to QR page — uses permanent tenant ID

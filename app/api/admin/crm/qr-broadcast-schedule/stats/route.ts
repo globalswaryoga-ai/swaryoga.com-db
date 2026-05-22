@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB();
-    const db = (await import('@/lib/db')).getDb ? (await import('@/lib/db')).getDb() : null;
 
     // Get MongoDB connection using native driver
     const mongoose = await import('mongoose');

@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadToS3 } from '@/lib/bunny-storage';
 import { verifyToken } from '@/lib/auth';

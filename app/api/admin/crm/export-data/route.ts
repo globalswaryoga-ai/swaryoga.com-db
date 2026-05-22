@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getViewerUserId } from '@/lib/crm-handlers';
+
+export const dynamic = 'force-dynamic';
 import {
   getLead,
   getWhatsAppMessage,

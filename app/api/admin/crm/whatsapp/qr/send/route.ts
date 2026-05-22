@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 /**
  * QR WhatsApp Send Message API
  * POST /api/admin/crm/whatsapp/qr/send

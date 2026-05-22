@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 /**
  * QR WhatsApp Sync API — Bridge → MongoDB persistent storage
  * 
