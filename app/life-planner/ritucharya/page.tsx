@@ -2,15 +2,13 @@
 
 /**
  * Public Ritucharya Page — swaryoga.com/life-planner/ritucharya
- * Emerald theme, white bg — matches admin manage page style
- * Connected to MongoDB logic table + diet plans
  * Step 1 → Location + Weather
- * Step 2 → Detected Ritu + Full Diet Plan
- * Step 3 → 30-Day Meal Calendar
+ * Step 2 → Detected Ritu (with Uttarayan/Dakshinayan) + Full Diet Plan + Submit
+ * Step 3 → Interactive 30-Day Calendar with day-click + ← → navigation
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Loader, RefreshCw, ChevronDown, ChevronUp, Calendar, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Loader, RefreshCw, ChevronDown, ChevronUp, Calendar, ArrowRight, ArrowLeft, List } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { locationData } from '@/lib/locationData';
@@ -34,6 +32,7 @@ interface RituResult {
   phaseLabel:  string;
   icon:        string;
   score:       number;
+  ayana:       string;   // 'uttarayan' | 'dakshinayan'
   characterEn: string;
   characterHi: string;
 }
@@ -57,19 +56,30 @@ interface DietPlan {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const RITU_META: Record<string, { label:string; icon:string; color:string; bg:string; accent:string }> = {
-  shishir: { label:'शीत (SHISHIRA)',    icon:'❄️', color:'text-blue-700',   bg:'bg-blue-50 border-blue-300',   accent:'blue'   },
-  vasant:  { label:'वसंत (VASANT)',     icon:'🌸', color:'text-green-700',  bg:'bg-green-50 border-green-300', accent:'green'  },
-  grishma: { label:'ग्रीष्म (GRISHMA)', icon:'☀️', color:'text-orange-700', bg:'bg-orange-50 border-orange-300',accent:'orange' },
-  varsha:  { label:'वर्षा (VARSHA)',     icon:'🌧️', color:'text-indigo-700', bg:'bg-indigo-50 border-indigo-300',accent:'indigo' },
-  sharad:  { label:'शरद (SHARAD)',      icon:'🍂', color:'text-amber-700',  bg:'bg-amber-50 border-amber-300', accent:'amber'  },
-  hemant:  { label:'हेमंत (HEMANT)',    icon:'🥶', color:'text-purple-700', bg:'bg-purple-50 border-purple-300',accent:'purple' },
+const RITU_META: Record<string, { label:string; icon:string; color:string; bg:string }> = {
+  shishir: { label:'शीत (SHISHIRA)',    icon:'❄️', color:'text-blue-700',   bg:'bg-blue-50 border-blue-300'   },
+  vasant:  { label:'वसंत (VASANT)',     icon:'🌸', color:'text-green-700',  bg:'bg-green-50 border-green-300' },
+  grishma: { label:'ग्रीष्म (GRISHMA)', icon:'☀️', color:'text-orange-700', bg:'bg-orange-50 border-orange-300'},
+  varsha:  { label:'वर्षा (VARSHA)',     icon:'🌧️', color:'text-indigo-700', bg:'bg-indigo-50 border-indigo-300'},
+  sharad:  { label:'शरद (SHARAD)',      icon:'🍂', color:'text-amber-700',  bg:'bg-amber-50 border-amber-300' },
+  hemant:  { label:'हेमंत (HEMANT)',    icon:'🥶', color:'text-purple-700', bg:'bg-purple-50 border-purple-300'},
 };
 
 const PHASE_META: Record<string, { label:string; hi:string }> = {
   begin: { label:'BEGIN', hi:'प्रारंभ' },
   peak:  { label:'PEAK',  hi:'शिखर'   },
   last:  { label:'LAST',  hi:'अंत'    },
+};
+
+const AYANA_META: Record<string, { label:string; sublabel:string; hi:string; bg:string; color:string; icon:string }> = {
+  uttarayan: {
+    label:'Uttarayan', sublabel:'Adana Kala', hi:'उत्तरायण',
+    bg:'bg-amber-100 border-amber-400', color:'text-amber-800', icon:'🌅'
+  },
+  dakshinayan: {
+    label:'Dakshinayan', sublabel:'Visarga Kala', hi:'दक्षिणायन',
+    bg:'bg-indigo-100 border-indigo-400', color:'text-indigo-800', icon:'🌌'
+  },
 };
 
 const MEAL_SLOTS = [
@@ -82,7 +92,8 @@ const MEAL_SLOTS = [
   { key:'sleep_drink',  time:'9:30 PM',  label:'Sleep Drink',           emoji:'🥛' },
 ];
 
-const WEEKS = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+const DAYS_OF_WEEK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTH_NAMES  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function getClimateType(temp: number): string {
   if (temp < 0)   return 'Extreme Cold';
@@ -93,22 +104,6 @@ function getClimateType(temp: number): string {
   if (temp < 36)  return 'Hot';
   if (temp < 42)  return 'Very Hot';
   return 'Extreme Hot';
-}
-
-function build30DayPlan(diet: DietPlan | null) {
-  if (!diet) return [];
-  const days: { day: number; week: number; meals: { key:string; foods:string[]; tip:string }[] }[] = [];
-  for (let d = 1; d <= 30; d++) {
-    days.push({
-      day:  d,
-      week: Math.ceil(d / 7),
-      meals: MEAL_SLOTS.map(slot => {
-        const saved = diet.meals?.find(m => m.slotKey === slot.key);
-        return { key: slot.key, foods: saved?.foods || [], tip: saved?.tip || '' };
-      }),
-    });
-  }
-  return days;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -132,10 +127,10 @@ export default function RitucharyaPage() {
   const [dietPlan, setDietPlan]   = useState<DietPlan|null>(null);
   const [openSlot, setOpenSlot]   = useState<string|null>('gond_pani');
 
-  // 30-day plan state
-  const [plan30,   setPlan30]     = useState<ReturnType<typeof build30DayPlan>>([]);
-  const [activeWeek, setActiveWeek] = useState(1);
-  const [openDay,  setOpenDay]    = useState<number|null>(1);
+  // Step 3 calendar state
+  const [calView,    setCalView]   = useState<'calendar'|'list'>('calendar');
+  const [selectedDay,setSelectedDay] = useState(1);       // 1-30
+  const [calMonth,  setCalMonth]   = useState(0);         // month offset (0 = today's month)
 
   // ── Location handlers ────────────────────────────────────────────────
   const onCountry = (val: string) => {
@@ -149,7 +144,6 @@ export default function RitucharyaPage() {
     setState(val); setCity(''); setCities(s?.cities || []);
   };
 
-  // ── Auto-fetch weather when city selected ──────────────────────────
   useEffect(() => {
     if (city) fetchWeather();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,7 +162,7 @@ export default function RitucharyaPage() {
       ]);
       const w = { ...weather };
       if (wRes.status === 'fulfilled' && wRes.value.ok) {
-        const d    = await wRes.value.json();
+        const d = await wRes.value.json();
         const code = d.current.weather_code;
         w.temp        = Math.round(d.current.temperature_2m);
         w.humidity    = Math.round(d.current.relative_humidity_2m);
@@ -186,19 +180,17 @@ export default function RitucharyaPage() {
     finally { setFetching(false); }
   };
 
-  // ── Run analysis: weather → MongoDB logic → diet plan ────────────
+  // ── Run analysis ──────────────────────────────────────────────────────
   const runAnalysis = useCallback(async () => {
     setAnalysing(true);
     try {
-      // 1. Fetch logic table from MongoDB
       let logicRows: any[] = [];
       try {
         const res  = await fetch('/api/admin/crm/ritucharya-logic');
         const data = await res.json();
         if (data.success && data.rows?.length > 0) logicRows = data.rows;
-      } catch { /* use empty */ }
+      } catch { /* fallback */ }
 
-      // 2. Score each row against current weather
       let bestRitu  = 'grishma';
       let bestPhase = 'peak';
       let bestScore = 0;
@@ -232,11 +224,11 @@ export default function RitucharyaPage() {
         phaseLabel:  `${phaseMeta.label} — ${phaseMeta.hi}`,
         icon:        rituMeta.icon,
         score:       bestScore,
+        ayana:       bestRow?.ayana || '',
         characterEn: bestRow?.characterEn || '',
         characterHi: bestRow?.characterHi || '',
       });
 
-      // 3. Fetch diet plan from MongoDB
       let fetchedDiet: DietPlan | null = null;
       try {
         const res  = await fetch(`/api/admin/crm/ritucharya-diet?ritu=${bestRitu}&phase=${bestPhase}`);
@@ -245,15 +237,54 @@ export default function RitucharyaPage() {
       } catch { /* silent */ }
 
       setDietPlan(fetchedDiet);
-      setPlan30(build30DayPlan(fetchedDiet));
       setStep(2);
     } catch { /* silent */ }
     finally { setAnalysing(false); }
   }, [weather]);
 
-  // ── helpers ──────────────────────────────────────────────────────────
-  const today = new Date();
-  const monthName = today.toLocaleString('default', { month: 'long', year: 'numeric' });
+  // ── Calendar helpers ──────────────────────────────────────────────────
+  const today = useMemo(() => new Date(), []);
+
+  // Build 30 days starting from today
+  const planDays = useMemo(() => {
+    return Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      return { dayNum: i + 1, date: d };
+    });
+  }, [today]);
+
+  // Calendar grid for the displayed month
+  const calendarGrid = useMemo(() => {
+    const base = new Date(today.getFullYear(), today.getMonth() + calMonth, 1);
+    const year  = base.getFullYear();
+    const month = base.getMonth();
+    const firstDow = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const cells: { date: number | null; dayNum: number | null; isToday: boolean }[] = [];
+    for (let i = 0; i < firstDow; i++) cells.push({ date: null, dayNum: null, isToday: false });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cellDate = new Date(year, month, d);
+      const diff = Math.floor((cellDate.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
+      const dayNum = diff >= 0 && diff < 30 ? diff + 1 : null;
+      const isToday = diff === 0;
+      cells.push({ date: d, dayNum, isToday });
+    }
+    return { cells, label: `${MONTH_NAMES[month]} ${year}` };
+  }, [today, calMonth]);
+
+  // Get meal data for a specific day
+  const getDayMeals = (dayNum: number) => {
+    if (!dietPlan) return [];
+    return MEAL_SLOTS.map(slot => {
+      const saved = dietPlan.meals?.find(m => m.slotKey === slot.key);
+      return { ...slot, foods: saved?.foods || [], tip: saved?.tip || '' };
+    });
+  };
+
+  const selectedDayDate = planDays[selectedDay - 1]?.date;
+  const selectedDayMeals = getDayMeals(selectedDay);
 
   // ─────────────────────────────────────────────────────────────────────
   return (
@@ -271,64 +302,45 @@ export default function RitucharyaPage() {
 
             {/* Step indicator */}
             <div className="flex items-center justify-center gap-2 mt-5">
-              {(['1','2','3'] as const).map((s,i) => (
+              {[1,2,3].map((s,i) => (
                 <React.Fragment key={s}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
-                    step === Number(s)
-                      ? 'bg-emerald-600 border-emerald-600 text-white'
-                      : step > Number(s)
-                        ? 'bg-emerald-100 border-emerald-400 text-emerald-700'
-                        : 'bg-white border-gray-300 text-gray-400'
+                    step === s ? 'bg-emerald-600 border-emerald-600 text-white'
+                    : step > s ? 'bg-emerald-100 border-emerald-400 text-emerald-700'
+                    : 'bg-white border-gray-300 text-gray-400'
                   }`}>{s}</div>
                   {i < 2 && <div className={`w-10 h-0.5 ${step > i+1 ? 'bg-emerald-400' : 'bg-gray-300'}`}/>}
                 </React.Fragment>
               ))}
             </div>
             <div className="flex justify-center gap-10 mt-2 text-xs text-gray-500">
-              <span>Location</span><span>Ritu & Plan</span><span>30-Day Calendar</span>
+              <span>Location</span><span>Ritu &amp; Plan</span><span>30-Day Calendar</span>
             </div>
           </div>
 
-          {/* ── STEP 1: Location + Weather ─────────────────────────────── */}
+          {/* ── STEP 1 ─────────────────────────────────────────────────── */}
           {step === 1 && (
             <div className="space-y-5">
 
-              {/* Location */}
+              {/* Location card */}
               <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-6">
                 <h2 className="text-xl font-bold text-emerald-800 mb-4">📍 Select Your Location</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Country</p>
-                    <select value={country} onChange={e => onCountry(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                      <option value="">Select Country…</option>
-                      {locationData.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">State / Region</p>
-                    <select value={state} onChange={e => onState(e.target.value)} disabled={!country}
-                      className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
-                      <option value="">Select State…</option>
-                      {states.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">City</p>
-                    <select value={city} onChange={e => setCity(e.target.value)} disabled={!state}
-                      className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
-                      <option value="">Select City…</option>
-                      {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
+                  {[
+                    { label:'Country',      val:country, items:locationData.map(c=>c.name), onChange:(v:string)=>onCountry(v),           disabled:false  },
+                    { label:'State / Region', val:state, items:states.map(s=>s.name),       onChange:(v:string)=>onState(v),              disabled:!country },
+                    { label:'City',          val:city,   items:cities.map(c=>c.name),        onChange:(v:string)=>setCity(v),              disabled:!state },
+                  ].map(sel => (
+                    <div key={sel.label}>
+                      <p className="text-sm text-gray-600 mb-1">{sel.label}</p>
+                      <select value={sel.val} onChange={e=>sel.onChange(e.target.value)} disabled={sel.disabled}
+                        className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                        <option value="">Select {sel.label}…</option>
+                        {sel.items.map(i => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                    </div>
+                  ))}
                 </div>
-                {country && state && city && (
-                  <div className="mt-3 flex gap-6 flex-wrap">
-                    <div><p className="text-xs text-gray-500">Country</p><p className="font-bold text-emerald-700">{country}</p></div>
-                    <div><p className="text-xs text-gray-500">State</p><p className="font-bold text-emerald-700">{state}</p></div>
-                    <div><p className="text-xs text-gray-500">City</p><p className="font-bold text-emerald-700">{city}</p></div>
-                  </div>
-                )}
                 {city && (
                   <button onClick={fetchWeather} disabled={fetching}
                     className="mt-4 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2 transition-colors">
@@ -337,63 +349,33 @@ export default function RitucharyaPage() {
                 )}
               </div>
 
-              {/* Weather Blocks */}
+              {/* Weather blocks */}
               <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-6">
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="text-xl font-bold text-blue-800">☁️ Weather Details</h2>
-                  {fetching && <div className="flex items-center gap-2 text-blue-600 text-sm"><Loader className="animate-spin" size={15}/> Auto-fetching…</div>}
+                  {fetching && <div className="flex items-center gap-2 text-blue-600 text-sm"><Loader className="animate-spin" size={15}/> Fetching…</div>}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-
-                  <div className="bg-blue-100 rounded-xl p-4 border border-blue-300">
-                    <p className="text-xs text-gray-600 mb-2">🌡️ Current Temp (°C)</p>
-                    <input type="number" value={weather.temp}
-                      onChange={e => setWeather(w => ({...w, temp:Number(e.target.value)}))}
-                      className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-blue-300 rounded px-3 py-2"/>
-                    <p className="text-xs text-gray-500 mt-1">Today's temperature</p>
-                  </div>
-
-                  <div className="bg-blue-100 rounded-xl p-4 border border-blue-300">
-                    <p className="text-xs text-gray-600 mb-2">❄️ Min Temp (°C)</p>
-                    <input type="number" value={weather.tempMin}
-                      onChange={e => setWeather(w => ({...w, tempMin:Number(e.target.value)}))}
-                      className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-blue-300 rounded px-3 py-2"/>
-                    <p className="text-xs text-gray-500 mt-1">Lowest today</p>
-                  </div>
-
-                  <div className="bg-blue-100 rounded-xl p-4 border border-blue-300">
-                    <p className="text-xs text-gray-600 mb-2">🔥 Max Temp (°C)</p>
-                    <input type="number" value={weather.tempMax}
-                      onChange={e => setWeather(w => ({...w, tempMax:Number(e.target.value)}))}
-                      className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-blue-300 rounded px-3 py-2"/>
-                    <p className="text-xs text-gray-500 mt-1">Highest today</p>
-                  </div>
-
-                  <div className="bg-cyan-100 rounded-xl p-4 border border-cyan-300">
-                    <p className="text-xs text-gray-600 mb-2">💧 Humidity (%)</p>
-                    <input type="number" value={weather.humidity}
-                      onChange={e => setWeather(w => ({...w, humidity:Number(e.target.value)}))}
-                      className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-cyan-300 rounded px-3 py-2"/>
-                    <p className="text-xs text-gray-500 mt-1">Air moisture</p>
-                  </div>
-
-                  <div className="bg-yellow-100 rounded-xl p-4 border border-yellow-300">
-                    <p className="text-xs text-gray-600 mb-2">💨 Wind Speed (km/h)</p>
-                    <input type="number" value={weather.windSpeed}
-                      onChange={e => setWeather(w => ({...w, windSpeed:Number(e.target.value)}))}
-                      className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-yellow-300 rounded px-3 py-2"/>
-                    <p className="text-xs text-gray-500 mt-1">km/h</p>
-                  </div>
-
-                  <div className="bg-red-100 rounded-xl p-4 border border-red-300">
-                    <p className="text-xs text-gray-600 mb-2">🌫️ Air Quality (AQI)</p>
-                    <input type="number" value={weather.aqi}
-                      onChange={e => setWeather(w => ({...w, aqi:Number(e.target.value)}))}
-                      className="w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-red-300 rounded px-3 py-2"/>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {weather.aqi<=50?'🟢 Good':weather.aqi<=100?'🟡 Moderate':weather.aqi<=150?'🟠 Sensitive':'🔴 Unhealthy'}
-                    </p>
-                  </div>
+                  {[
+                    { label:'🌡️ Current Temp (°C)', field:'temp',        color:'blue',   val:weather.temp        },
+                    { label:'❄️ Min Temp (°C)',      field:'tempMin',     color:'blue',   val:weather.tempMin     },
+                    { label:'🔥 Max Temp (°C)',      field:'tempMax',     color:'blue',   val:weather.tempMax     },
+                    { label:'💧 Humidity (%)',        field:'humidity',    color:'cyan',   val:weather.humidity    },
+                    { label:'💨 Wind Speed (km/h)',  field:'windSpeed',   color:'yellow', val:weather.windSpeed   },
+                    { label:'🌫️ Air Quality (AQI)',  field:'aqi',         color:'red',    val:weather.aqi         },
+                  ].map(item => (
+                    <div key={item.field} className={`bg-${item.color}-100 rounded-xl p-4 border border-${item.color}-300`}>
+                      <p className="text-xs text-gray-600 mb-2">{item.label}</p>
+                      <input type="number" value={item.val}
+                        onChange={e => setWeather(w => ({...w, [item.field]:Number(e.target.value)}))}
+                        className={`w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-${item.color}-300 rounded px-3 py-2`}/>
+                      {item.field === 'aqi' && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {weather.aqi<=50?'🟢 Good':weather.aqi<=100?'🟡 Moderate':weather.aqi<=150?'🟠 Sensitive':'🔴 Unhealthy'}
+                        </p>
+                      )}
+                    </div>
+                  ))}
 
                   <div className="bg-purple-100 rounded-xl p-4 border border-purple-300">
                     <p className="text-xs text-gray-600 mb-2">📝 Sky Condition</p>
@@ -402,7 +384,6 @@ export default function RitucharyaPage() {
                       {['Clear sky','Partly cloudy','Cloudy','Mostly cloudy','Overcast','Foggy','Hazy','Light rain','Rainy','Heavy rain','Thunderstorm','Snowy'].map(d =>
                         <option key={d} value={d}>{d}</option>)}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">Current sky</p>
                   </div>
 
                   <div className="bg-green-100 rounded-xl p-4 border border-green-300">
@@ -414,7 +395,6 @@ export default function RitucharyaPage() {
                   </div>
                 </div>
 
-                {/* Get Plan button */}
                 <button onClick={runAnalysis} disabled={analysing || !country}
                   className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg transition-colors">
                   {analysing
@@ -426,15 +406,26 @@ export default function RitucharyaPage() {
             </div>
           )}
 
-          {/* ── STEP 2: Ritu + Diet Plan ────────────────────────────────── */}
+          {/* ── STEP 2 ─────────────────────────────────────────────────── */}
           {step === 2 && ritu && (
             <div className="space-y-5">
 
-              {/* Ritu detected banner */}
+              {/* Ritu detected banner — with Uttarayan/Dakshinayan */}
               {(() => {
-                const meta = RITU_META[ritu.ritu] || RITU_META['grishma'];
+                const meta  = RITU_META[ritu.ritu] || RITU_META['grishma'];
+                const ayana = AYANA_META[ritu.ayana];
                 return (
                   <div className={`rounded-2xl border-2 p-6 ${meta.bg}`}>
+                    {/* Ayana badge row */}
+                    {ayana && (
+                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border-2 text-sm font-bold mb-4 ${ayana.bg} ${ayana.color}`}>
+                        <span className="text-lg">{ayana.icon}</span>
+                        <span>{ayana.label} ({ayana.hi})</span>
+                        <span className="font-normal opacity-70">— {ayana.sublabel}</span>
+                      </div>
+                    )}
+
+                    {/* Main Ritu info */}
                     <div className="flex items-start gap-5">
                       <div className="text-6xl">{ritu.icon}</div>
                       <div className="flex-1 min-w-0">
@@ -451,11 +442,20 @@ export default function RitucharyaPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Uttarayan/Dakshinayan explanation */}
+                    {ayana && (
+                      <div className="mt-4 pt-4 border-t border-black/10 text-xs text-gray-600">
+                        {ritu.ayana === 'uttarayan'
+                          ? '☀️ Uttarayan (Jan–Jun): Sun moves northward. Body energy reduces, digestion strong. Light, nourishing diet recommended.'
+                          : '🌌 Dakshinayan (Jul–Dec): Sun moves southward. Body builds strength. Heavier, nourishing foods are beneficial.'}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
 
-              {/* Weather summary strip */}
+              {/* Weather summary */}
               <div className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-blue-800">☁️ Your Weather</h3>
@@ -489,7 +489,6 @@ export default function RitucharyaPage() {
                     🍽️ {ritu.icon} {ritu.rituLabel} — {ritu.phaseLabel} Diet Plan
                   </h2>
 
-                  {/* 7 Meal Slots accordion */}
                   <div className="space-y-2">
                     {MEAL_SLOTS.map(slot => {
                       const mealData = dietPlan.meals?.find(m => m.slotKey === slot.key);
@@ -532,21 +531,17 @@ export default function RitucharyaPage() {
                     })}
                   </div>
 
-                  {/* Herbs */}
                   {dietPlan.herbs?.length > 0 && (
                     <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-sm">
-                      <h3 className="font-bold text-gray-800 mb-3 text-sm">🌱 Herbs & Supplements</h3>
+                      <h3 className="font-bold text-gray-800 mb-3 text-sm">🌱 Herbs &amp; Supplements</h3>
                       <div className="flex flex-wrap gap-2">
                         {dietPlan.herbs.map((h,i) => (
-                          <span key={i} className="px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-xs font-medium text-green-800">
-                            🌿 {h}
-                          </span>
+                          <span key={i} className="px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-xs font-medium text-green-800">🌿 {h}</span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Lifestyle Tips */}
                   {dietPlan.lifestyleTips?.length > 0 && (
                     <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-sm">
                       <h3 className="font-bold text-gray-800 mb-3 text-sm">🧘 Lifestyle Tips</h3>
@@ -560,249 +555,302 @@ export default function RitucharyaPage() {
                     </div>
                   )}
 
-                  {/* Avoid Foods */}
                   {dietPlan.avoidFoods?.length > 0 && (
                     <div className="bg-white rounded-xl border-2 border-gray-200 p-4 shadow-sm">
                       <h3 className="font-bold text-gray-800 mb-3 text-sm">🚫 Avoid This Season</h3>
                       <div className="flex flex-wrap gap-2">
                         {dietPlan.avoidFoods.map((f,i) => (
-                          <span key={i} className="px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-medium text-red-800">
-                            ✗ {f}
-                          </span>
+                          <span key={i} className="px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-medium text-red-800">✗ {f}</span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Special Notes */}
                   {dietPlan.specialNotes && (
                     <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 shadow-sm">
                       <h3 className="font-bold text-amber-800 mb-2 text-sm">📝 Special Notes</h3>
                       <p className="text-sm text-amber-900">{dietPlan.specialNotes}</p>
                     </div>
                   )}
-
-                  {/* View 30-Day Plan button */}
-                  <button onClick={() => { setStep(3); setActiveWeek(1); setOpenDay(1); }}
-                    className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold flex items-center justify-center gap-3 shadow-lg transition-colors">
-                    <Calendar size={22}/> View 30-Day Meal Calendar →
-                  </button>
                 </div>
               ) : (
                 <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-8 text-center">
                   <div className="text-4xl mb-3">🌿</div>
                   <p className="text-amber-800 font-semibold">Diet plan for {ritu.rituLabel} ({ritu.phaseLabel}) is being prepared.</p>
                   <p className="text-amber-600 text-sm mt-1">Our Ayurvedic team is adding the complete plan. Please check back soon.</p>
-                  <button onClick={() => setStep(1)}
-                    className="mt-4 px-4 py-2 rounded-lg border-2 border-amber-400 text-amber-700 font-bold hover:bg-amber-100 text-sm transition-colors">
-                    ← Change Location
-                  </button>
                 </div>
               )}
 
+              {/* SUBMIT button + Change Location link */}
+              <button
+                onClick={() => { setSelectedDay(1); setCalMonth(0); setStep(3); }}
+                className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold flex items-center justify-center gap-3 shadow-lg transition-colors">
+                <Calendar size={22}/> Submit — View My 30-Day Plan →
+              </button>
+
               <button onClick={() => setStep(1)}
-                className="w-full py-3 rounded-xl border-2 border-emerald-600 text-emerald-700 font-bold hover:bg-emerald-50 transition-colors">
+                className="w-full text-center text-sm text-emerald-600 hover:text-emerald-800 font-semibold transition-colors py-2">
                 ← Change Location / Weather
               </button>
             </div>
           )}
 
-          {/* ── STEP 3: 30-Day Calendar Plan ──────────────────────────── */}
+          {/* ── STEP 3: Interactive 30-Day Calendar ────────────────────── */}
           {step === 3 && ritu && (
             <div className="space-y-5">
 
-              {/* Header */}
+              {/* Header + navigation */}
               <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-5">
-                <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
                   <div>
                     <h2 className="text-xl font-bold text-emerald-800">
                       📅 30-Day Plan — {ritu.icon} {ritu.rituLabel}
                     </h2>
-                    <p className="text-sm text-gray-600 mt-0.5">{monthName} · {ritu.phaseLabel}</p>
+                    <p className="text-sm text-gray-600 mt-0.5">{ritu.phaseLabel}</p>
                   </div>
-                  <button onClick={() => setStep(2)}
-                    className="px-4 py-2 rounded-lg border-2 border-emerald-400 text-emerald-700 font-bold hover:bg-emerald-100 text-sm transition-colors">
-                    ← Back to Plan
-                  </button>
-                </div>
-
-                {/* Week tabs */}
-                <div className="flex gap-2 mt-4 flex-wrap">
-                  {WEEKS.map((w,i) => (
-                    <button key={w} onClick={() => { setActiveWeek(i+1); setOpenDay((i*7)+1); }}
-                      className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
-                        activeWeek === i+1
-                          ? 'bg-emerald-600 text-white shadow'
-                          : 'bg-white border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
-                      }`}>
-                      {w}
+                  <div className="flex items-center gap-2">
+                    {/* Calendar / List toggle */}
+                    <div className="flex gap-1 bg-white border-2 border-emerald-200 p-1 rounded-lg">
+                      <button onClick={() => setCalView('calendar')}
+                        className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 transition-colors ${calView==='calendar' ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+                        <Calendar size={13}/> Calendar
+                      </button>
+                      <button onClick={() => setCalView('list')}
+                        className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1 transition-colors ${calView==='list' ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+                        <List size={13}/> List
+                      </button>
+                    </div>
+                    <button onClick={() => setStep(2)}
+                      className="px-4 py-2 rounded-lg border-2 border-emerald-400 text-emerald-700 font-bold hover:bg-emerald-100 text-sm transition-colors">
+                      ← Back
                     </button>
-                  ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Day cards for active week */}
-              <div className="space-y-3">
-                {plan30
-                  .filter(d => d.week === activeWeek)
-                  .map(dayPlan => {
-                    const isOpen = openDay === dayPlan.day;
-                    const today_ = new Date();
-                    const dayDate = new Date(today_.getFullYear(), today_.getMonth(), today_.getDate() + dayPlan.day - 1);
-                    const dayName = dayDate.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
-                    const isToday = dayPlan.day === 1;
+              {/* ── CALENDAR VIEW ── */}
+              {calView === 'calendar' && (
+                <div className="bg-white rounded-2xl border-2 border-gray-200 p-5 shadow-sm">
+                  {/* Month navigation */}
+                  <div className="flex items-center justify-between mb-4">
+                    <button onClick={() => setCalMonth(m => m - 1)}
+                      className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-gray-700 transition-colors">
+                      <ArrowLeft size={18}/>
+                    </button>
+                    <h3 className="font-black text-gray-800 text-lg">{calendarGrid.label}</h3>
+                    <button onClick={() => setCalMonth(m => m + 1)}
+                      className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-gray-700 transition-colors">
+                      <ArrowRight size={18}/>
+                    </button>
+                  </div>
 
-                    return (
-                      <div key={dayPlan.day} className={`rounded-xl border-2 overflow-hidden shadow-sm ${isToday ? 'border-emerald-500' : 'border-gray-200'}`}>
-                        {/* Day header row */}
-                        <button className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isToday ? 'bg-emerald-50 hover:bg-emerald-100' : 'bg-white hover:bg-gray-50'}`}
-                          onClick={() => setOpenDay(isOpen ? null : dayPlan.day)}>
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border-2 ${
-                              isToday ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-gray-100 border-gray-300 text-gray-700'
-                            }`}>
-                              {dayPlan.day}
-                            </div>
-                            <div className="text-left">
-                              <div className={`font-bold text-sm ${isToday ? 'text-emerald-800' : 'text-gray-800'}`}>
-                                {dayName} {isToday && <span className="ml-1 px-2 py-0.5 bg-emerald-600 text-white text-[10px] rounded-full">TODAY</span>}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {dayPlan.meals.filter(m => m.foods.length > 0).length} meals planned
-                              </div>
-                            </div>
-                          </div>
+                  {/* Day-of-week header */}
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {DAYS_OF_WEEK.map(d => (
+                      <div key={d} className="text-xs font-bold text-gray-400 text-center py-1">{d}</div>
+                    ))}
+                  </div>
 
-                          {/* Quick meal preview */}
-                          <div className="hidden md:flex items-center gap-1 mr-3">
-                            {MEAL_SLOTS.slice(0,5).map(slot => {
-                              const m = dayPlan.meals.find(m2 => m2.key === slot.key);
-                              return (
-                                <span key={slot.key} title={slot.label} className={`text-lg ${m && m.foods.length ? 'opacity-100' : 'opacity-20'}`}>
-                                  {slot.emoji}
-                                </span>
-                              );
-                            })}
-                          </div>
+                  {/* Day cells */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {calendarGrid.cells.map((cell, ci) => {
+                      if (!cell.date) return <div key={ci}/>;
+                      const isSelected = cell.dayNum === selectedDay;
+                      const isInPlan   = cell.dayNum !== null;
 
-                          {isOpen ? <ChevronUp size={18} className="text-gray-400 shrink-0"/> : <ChevronDown size={18} className="text-gray-400 shrink-0"/>}
+                      return (
+                        <button key={ci}
+                          onClick={() => cell.dayNum && setSelectedDay(cell.dayNum)}
+                          disabled={!isInPlan}
+                          className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold transition-all hover:scale-105 ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-400 ring-offset-1 scale-105'
+                              : cell.isToday
+                                ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-400'
+                                : isInPlan
+                                  ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100'
+                                  : 'text-gray-300 cursor-not-allowed'
+                          }`}>
+                          <span>{cell.date}</span>
+                          {isInPlan && (
+                            <span className={`text-[9px] mt-0.5 font-normal ${isSelected ? 'text-white/80' : 'text-emerald-500'}`}>
+                              Day {cell.dayNum}
+                            </span>
+                          )}
                         </button>
+                      );
+                    })}
+                  </div>
 
-                        {/* Expanded meals */}
-                        {isOpen && (
-                          <div className="border-t border-gray-100">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
-                              {MEAL_SLOTS.map(slot => {
-                                const m = dayPlan.meals.find(m2 => m2.key === slot.key);
-                                const hasFoods = m && m.foods.length > 0;
-                                return (
-                                  <div key={slot.key} className="px-4 py-3">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <span>{slot.emoji}</span>
-                                      <div>
-                                        <div className="text-xs font-bold text-gray-700">{slot.label}</div>
-                                        <div className="text-[10px] text-gray-400">{slot.time}</div>
-                                      </div>
-                                    </div>
-                                    {hasFoods ? (
-                                      <div className="flex flex-wrap gap-1">
-                                        {m.foods.slice(0,4).map((f,i) => (
-                                          <span key={i} className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-800 font-medium">
-                                            {f}
-                                          </span>
-                                        ))}
-                                        {m.foods.length > 4 && (
-                                          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-500">
-                                            +{m.foods.length - 4} more
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <p className="text-[10px] text-gray-400 italic">Not planned</p>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {/* Herbs strip */}
-                            {dietPlan?.herbs && dietPlan.herbs.length > 0 && (
-                              <div className="px-4 py-2 bg-green-50 border-t border-green-100">
-                                <span className="text-[10px] font-bold text-green-700 mr-2">🌱 Daily Herbs:</span>
-                                {dietPlan.herbs.slice(0,3).map((h,i) => (
-                                  <span key={i} className="text-[10px] text-green-800 mr-2">{h}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
+                  <p className="text-[10px] text-gray-400 text-center mt-3">
+                    🟢 Green days = your 30-day plan · Click any day to see meals
+                  </p>
+                </div>
+              )}
 
-              {/* Summary grid (non-expandable compact view) */}
-              <div className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
-                <h3 className="font-bold text-gray-800 mb-4">📊 Full Month Overview</h3>
-                <div className="grid grid-cols-5 gap-2">
-                  {plan30.map(d => {
-                    const hasPlan = d.meals.some(m => m.foods.length > 0);
-                    const isToday_ = d.day === 1;
+              {/* ── LIST VIEW ── */}
+              {calView === 'list' && (
+                <div className="space-y-2">
+                  {planDays.map(({ dayNum, date }) => {
+                    const isSelected = selectedDay === dayNum;
+                    const isToday    = dayNum === 1;
+                    const dayName    = date.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
                     return (
-                      <button key={d.day}
-                        onClick={() => { setActiveWeek(d.week); setOpenDay(d.day); }}
-                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold border-2 transition-all hover:scale-105 ${
-                          isToday_
-                            ? 'bg-emerald-600 text-white border-emerald-600'
-                            : hasPlan
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-400'
-                              : 'bg-gray-50 text-gray-400 border-gray-200'
+                      <button key={dayNum} onClick={() => setSelectedDay(dayNum)}
+                        className={`w-full text-left px-5 py-3 rounded-xl border-2 flex items-center justify-between transition-all ${
+                          isSelected
+                            ? 'bg-emerald-600 border-emerald-600 text-white'
+                            : isToday
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                              : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300'
                         }`}>
-                        <span>{d.day}</span>
-                        {hasPlan && !isToday_ && <span className="text-[8px] mt-0.5 opacity-60">✓</span>}
+                        <div className="flex items-center gap-3">
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${isSelected ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {dayNum}
+                          </span>
+                          <span className="font-semibold text-sm">{dayName}</span>
+                          {isToday && <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'}`}>TODAY</span>}
+                        </div>
+                        <span className={`text-[10px] ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>
+                          {MEAL_SLOTS.length} meals
+                        </span>
                       </button>
                     );
                   })}
                 </div>
+              )}
+
+              {/* ── Selected Day Panel ── */}
+              <div className="bg-white rounded-2xl border-2 border-emerald-400 overflow-hidden shadow-md">
+
+                {/* Day navigation header with arrows */}
+                <div className="bg-emerald-600 px-5 py-4 flex items-center justify-between">
+                  <button
+                    onClick={() => setSelectedDay(d => Math.max(1, d - 1))}
+                    disabled={selectedDay <= 1}
+                    className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold transition-colors">
+                    <ArrowLeft size={20}/>
+                  </button>
+
+                  <div className="text-center">
+                    <div className="text-white font-black text-lg">
+                      Day {selectedDay} of 30
+                    </div>
+                    <div className="text-emerald-100 text-sm">
+                      {selectedDayDate?.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedDay(d => Math.min(30, d + 1))}
+                    disabled={selectedDay >= 30}
+                    className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white font-bold transition-colors">
+                    <ArrowRight size={20}/>
+                  </button>
+                </div>
+
+                {/* Meal slots for selected day */}
+                <div className="divide-y divide-gray-100">
+                  {selectedDayMeals.map(slot => {
+                    const hasFood = slot.foods.length > 0;
+                    return (
+                      <div key={slot.key} className={`px-5 py-4 ${hasFood ? '' : 'opacity-50'}`}>
+                        <div className="flex items-start gap-4">
+                          <div className="text-3xl shrink-0">{slot.emoji}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-bold text-gray-900 text-sm">{slot.label}</span>
+                              <span className="text-xs text-gray-400">🕐 {slot.time}</span>
+                            </div>
+                            {hasFood ? (
+                              <>
+                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                  {slot.foods.map((f, i) => (
+                                    <span key={i} className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-800">
+                                      🌿 {f}
+                                    </span>
+                                  ))}
+                                </div>
+                                {slot.tip && (
+                                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                                    💡 {slot.tip}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-xs text-gray-400 italic">Not planned yet</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Daily extras */}
+                {dietPlan && (dietPlan.herbs?.length > 0 || dietPlan.lifestyleTips?.length > 0) && (
+                  <div className="px-5 py-4 bg-green-50 border-t-2 border-green-100">
+                    {dietPlan.herbs?.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-bold text-green-700 mb-1.5">🌱 Today&apos;s Herbs:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dietPlan.herbs.map((h,i) => (
+                            <span key={i} className="px-2.5 py-1 rounded-full bg-white border border-green-200 text-xs text-green-800 font-medium">🌿 {h}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {dietPlan.lifestyleTips?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-blue-700 mb-1.5">🧘 Today&apos;s Lifestyle:</p>
+                        <div className="space-y-1">
+                          {dietPlan.lifestyleTips.slice(0,2).map((t,i) => (
+                            <div key={i} className="text-xs text-blue-700 flex items-start gap-1.5">
+                              <span className="shrink-0 font-bold">{i+1}.</span> {t}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Day dot navigation */}
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+                  <p className="text-[9px] text-gray-400 mb-2 text-center">Jump to day</p>
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    {Array.from({length:30},(_,i)=>i+1).map(d => (
+                      <button key={d} onClick={() => setSelectedDay(d)}
+                        className={`w-6 h-6 rounded-full text-[9px] font-bold transition-all hover:scale-110 ${
+                          d === selectedDay
+                            ? 'bg-emerald-600 text-white'
+                            : d === 1
+                              ? 'bg-emerald-200 text-emerald-800'
+                              : 'bg-gray-200 text-gray-600 hover:bg-emerald-100'
+                        }`}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              {/* Lifestyle & avoids for the month */}
-              {dietPlan && (
-                <div className="grid md:grid-cols-2 gap-4">
-                  {dietPlan.lifestyleTips?.length > 0 && (
-                    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-4">
-                      <h3 className="font-bold text-blue-800 mb-3 text-sm">🧘 Daily Lifestyle Tips</h3>
-                      <div className="space-y-2">
-                        {dietPlan.lifestyleTips.map((t,i) => (
-                          <div key={i} className="flex items-start gap-2 text-xs text-blue-800 bg-white rounded-lg px-3 py-2 border border-blue-100">
-                            <span className="shrink-0 font-bold text-blue-500">{i+1}.</span> {t}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {dietPlan.avoidFoods?.length > 0 && (
-                    <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4">
-                      <h3 className="font-bold text-red-800 mb-3 text-sm">🚫 Avoid All Month</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {dietPlan.avoidFoods.map((f,i) => (
-                          <span key={i} className="px-3 py-1.5 rounded-full bg-white border border-red-200 text-xs font-medium text-red-800">✗ {f}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+              {/* Avoid foods for full month */}
+              {dietPlan && dietPlan.avoidFoods && dietPlan.avoidFoods.length > 0 && (
+                <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4">
+                  <h3 className="font-bold text-red-800 mb-3 text-sm">🚫 Avoid All Month</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {dietPlan.avoidFoods.map((f,i) => (
+                      <span key={i} className="px-3 py-1.5 rounded-full bg-white border border-red-200 text-xs font-medium text-red-800">✗ {f}</span>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <button onClick={() => setStep(2)}
-                  className="flex-1 py-3 rounded-xl border-2 border-emerald-600 text-emerald-700 font-bold hover:bg-emerald-50 transition-colors">
-                  ← Back to Diet Plan
-                </button>
-                <button onClick={() => setStep(1)}
-                  className="flex-1 py-3 rounded-xl border-2 border-gray-400 text-gray-600 font-bold hover:bg-gray-100 transition-colors">
-                  ← Change Location
-                </button>
-              </div>
+              <button onClick={() => setStep(1)}
+                className="w-full text-center text-sm text-emerald-600 hover:text-emerald-800 font-semibold transition-colors py-2">
+                ← Change Location / Weather
+              </button>
             </div>
           )}
 
