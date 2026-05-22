@@ -441,25 +441,67 @@ export function HistoryTab({ token }: HistoryTabProps) {
                 const total = stats.totalSent + (stats.totalFailed || 0) + (stats.totalPending || 0);
                 const progress = broadcast.totalRecipients > 0 ? Math.round((stats.totalSent / broadcast.totalRecipients) * 100) : 0;
 
+                const statusColor: Record<string, string> = {
+                  scheduled: 'bg-blue-100 text-blue-700',
+                  in_progress: 'bg-yellow-100 text-yellow-700',
+                  completed: 'bg-green-100 text-green-700',
+                  failed: 'bg-red-100 text-red-700',
+                  paused: 'bg-gray-100 text-gray-700',
+                  draft: 'bg-purple-100 text-purple-700',
+                };
+                const createdAt = (broadcast as any).createdAt
+                  ? new Date((broadcast as any).createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                  : '—';
+                const lastRun = (broadcast as any).lastRunDate
+                  ? new Date((broadcast as any).lastRunDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                  : 'Not yet run';
+
                 return (
-                  <div key={broadcast._id} className="p-4 hover:bg-gray-50 transition">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">{broadcast.name}</h4>
+                  <div key={broadcast._id} className="p-4 hover:bg-gray-50 transition border-b">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-gray-900">{broadcast.name}</h4>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[broadcast.status] || 'bg-gray-100 text-gray-600'}`}>
+                            {broadcast.status?.toUpperCase() || 'DRAFT'}
+                          </span>
+                          {broadcast.isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">● Active</span>}
+                        </div>
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{broadcast.messageText}</p>
                       </div>
                       <button
                         onClick={() => setSelectedBroadcast(broadcast)}
-                        className="ml-3 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg flex items-center gap-1 transition"
+                        className="ml-3 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg flex items-center gap-1 transition flex-shrink-0"
                       >
                         <Eye className="w-4 h-4" /> View
                       </button>
                     </div>
 
+                    {/* Time & Schedule Info */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs bg-gray-50 rounded-lg p-2">
+                      <div>
+                        <p className="text-gray-500 font-medium">⏰ Time Window</p>
+                        <p className="text-gray-800 font-semibold">{broadcast.startTime} – {broadcast.endTime}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 font-medium">📅 Frequency</p>
+                        <p className="text-gray-800 font-semibold capitalize">{broadcast.frequency}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 font-medium">👥 Recipients</p>
+                        <p className="text-gray-800 font-semibold">{broadcast.totalRecipients}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 font-medium">🕐 Last Run</p>
+                        <p className="text-gray-800 font-semibold">{lastRun}</p>
+                      </div>
+                    </div>
+
                     {/* Progress Bar */}
                     <div className="mb-2">
                       <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-gray-600">Progress</span>
+                        <span className="text-gray-600">Delivery Progress</span>
                         <span className="font-semibold text-gray-900">
                           {stats.totalSent} / {broadcast.totalRecipients} ({progress}%)
                         </span>
@@ -467,32 +509,28 @@ export function HistoryTab({ token }: HistoryTabProps) {
                       <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full transition-all"
-                          style={{ width: `${progress}%` }}
+                          style={{ width: `${Math.min(100, progress)}%` }}
                         />
                       </div>
                     </div>
 
                     {/* Status Summary */}
                     <div className="flex items-center gap-4 text-xs">
-                      <div className="flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        <span className="text-gray-700">Sent: <strong>{stats.totalSent}</strong></span>
+                      <div className="flex items-center gap-1 text-green-700">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Sent: <strong>{stats.totalSent}</strong></span>
                       </div>
-                      {(stats.totalPending || 0) > 0 && (
-                        <div className="flex items-center gap-1">
-                          <CheckCircle className="w-4 h-4 text-blue-600" />
-                          <span className="text-gray-700">Pending: <strong>{stats.totalPending}</strong></span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 text-blue-700">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Pending: <strong>{stats.totalPending || 0}</strong></span>
+                      </div>
                       {(stats.totalFailed || 0) > 0 && (
-                        <div className="flex items-center gap-1">
-                          <AlertCircle className="w-4 h-4 text-red-600" />
-                          <span className="text-gray-700">Failed: <strong>{stats.totalFailed}</strong></span>
+                        <div className="flex items-center gap-1 text-red-700">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>Failed: <strong>{stats.totalFailed}</strong></span>
                         </div>
                       )}
-                      <span className="text-gray-500 ml-auto">
-                        {broadcast.frequency === 'daily' ? '📅 Daily' : '⏰ ' + broadcast.frequency}
-                      </span>
+                      <span className="text-gray-400 ml-auto text-[11px]">Created: {createdAt}</span>
                     </div>
                   </div>
                 );
@@ -519,7 +557,7 @@ export function HistoryTab({ token }: HistoryTabProps) {
                 {messages.map((msg, idx) => (
                   <tr key={msg._id || msg.id || idx} className="border-b hover:bg-gray-50 transition">
                     <td className="px-4 py-3 font-medium text-gray-900">{msg.phoneNumber || msg.recipient || 'Unknown'}</td>
-                    <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{msg.message || msg.text || '-'}</td>
+                    <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{(msg as any).messageContent || msg.message || msg.text || '-'}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
                         {msg.status === 'sent' ? (

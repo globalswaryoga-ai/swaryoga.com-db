@@ -81,28 +81,42 @@ export async function GET(request: NextRequest) {
     }
 
     // Access control:
-    // - Super admin (admincrm) can see all messages.
-    // - Other admins can see messages for leads assigned to them OR created by them (user compartment).
+    // - Super admin (admincrm/admin) can see all messages.
+    // - Other admins can see messages:
+    //   a) For leads assigned to or created by them (Meta messages), OR
+    //   b) Sent/received via their QR WhatsApp session (sentByUserId / bridgeUserId / ownerId)
     if (!superAdmin) {
-      // Find leads assigned to this user OR created by this user
-      const accessibleLeads = await Lead.find({ 
-        $or: [
-          { assignedToUserId: viewerUserId },
-          { createdByUserId: viewerUserId }
-        ]
-      }).select('_id').lean();
-      
-      const accessibleIds = accessibleLeads.map(l => String(l._id));
-      
       if (filter.leadId) {
-        // If they requested a specific lead, check if it's in their accessible list
+        // Specific lead requested — check access
+        const accessibleLeads = await Lead.find({
+          $or: [
+            { assignedToUserId: viewerUserId },
+            { createdByUserId: viewerUserId }
+          ]
+        }).select('_id').lean();
+        const accessibleIds = accessibleLeads.map(l => String(l._id));
         if (!accessibleIds.includes(String(filter.leadId))) {
-          // Forbidden lead requested
           return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
         }
       } else {
-        // No specific lead requested, filter by all accessible leads
-        filter.leadId = { $in: accessibleIds };
+        // No specific lead — allow messages where:
+        // 1. Lead assigned to this user, OR
+        // 2. Message sent by this user (QR outbound), OR
+        // 3. Message received on this user's QR session (inbound via bridgeUserId)
+        const accessibleLeads = await Lead.find({
+          $or: [
+            { assignedToUserId: viewerUserId },
+            { createdByUserId: viewerUserId }
+          ]
+        }).select('_id').lean();
+        const accessibleIds = accessibleLeads.map(l => String(l._id));
+
+        filter.$or = [
+          { leadId: { $in: accessibleIds } },
+          { sentByUserId: viewerUserId },      // QR outbound messages sent by this admin
+          { bridgeUserId: viewerUserId },      // QR inbound messages on this user's session
+          { ownerId: viewerUserId },           // QR messages tagged with ownerId
+        ];
       }
     }
 
