@@ -59,7 +59,13 @@ export default function NotesPage() {
 
   // Fetch notes
   useEffect(() => {
-    const storedToken = localStorage.getItem('lifePlannerToken') || localStorage.getItem('token');
+    // Try all admin token keys — CRM admin stores token as adminToken/admin_token
+    const storedToken =
+      localStorage.getItem('admin_token') ||
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('crm_token') ||
+      localStorage.getItem('lifePlannerToken') ||
+      localStorage.getItem('token');
 
     setToken(storedToken || '');
 

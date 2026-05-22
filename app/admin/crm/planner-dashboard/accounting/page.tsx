@@ -79,7 +79,14 @@ export default function LifePlannerAccountingPage() {
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
-    const token = typeof window !== 'undefined' ? localStorage.getItem('lifePlannerToken') || localStorage.getItem('token') : null;
+    // Try all admin token keys (CRM admin stores token as adminToken/admin_token)
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('admin_token') ||
+        localStorage.getItem('adminToken') ||
+        localStorage.getItem('crm_token') ||
+        localStorage.getItem('lifePlannerToken') ||
+        localStorage.getItem('token')
+      : null;
     const tenantId = typeof window !== 'undefined' ? localStorage.getItem('tenantId') : null;
     if (token) {
       headers.Authorization = `Bearer ${token}`;

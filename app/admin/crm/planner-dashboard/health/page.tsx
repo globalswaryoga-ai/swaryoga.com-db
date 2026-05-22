@@ -431,10 +431,14 @@ export default function HealthPage() {
     setLoading(true);
     setError(null);
     try {
-      const userSession = localStorage.getItem('lifePlannerUser');
-      const token = localStorage.getItem('lifePlannerToken');
-      
-      if (!userSession || !token) {
+      // Try all admin token keys (CRM admin stores token as adminToken/admin_token)
+      const token = localStorage.getItem('admin_token') ||
+        localStorage.getItem('adminToken') ||
+        localStorage.getItem('crm_token') ||
+        localStorage.getItem('lifePlannerToken') ||
+        localStorage.getItem('token');
+
+      if (!token) {
         setError('Please log in to access health routines');
         setLoading(false);
         return;
@@ -476,10 +480,13 @@ export default function HealthPage() {
     
     const saveToMongo = async () => {
       try {
-        const userSession = localStorage.getItem('lifePlannerUser');
-        const token = localStorage.getItem('lifePlannerToken');
-        
-        if (!userSession || !token) {
+        const token = localStorage.getItem('admin_token') ||
+          localStorage.getItem('adminToken') ||
+          localStorage.getItem('crm_token') ||
+          localStorage.getItem('lifePlannerToken') ||
+          localStorage.getItem('token');
+
+        if (!token) {
           console.warn('Not authenticated - cannot save routines');
           return;
         }
@@ -502,10 +509,13 @@ export default function HealthPage() {
     if (!mounted || dailyLoading) return;
     const saveToMongo = async () => {
       try {
-        const userSession = localStorage.getItem('lifePlannerUser');
-        const token = localStorage.getItem('lifePlannerToken');
+        const token = localStorage.getItem('admin_token') ||
+          localStorage.getItem('adminToken') ||
+          localStorage.getItem('crm_token') ||
+          localStorage.getItem('lifePlannerToken') ||
+          localStorage.getItem('token');
 
-        if (!userSession || !token) {
+        if (!token) {
           console.warn('Not authenticated - cannot save daily health plans');
           return;
         }

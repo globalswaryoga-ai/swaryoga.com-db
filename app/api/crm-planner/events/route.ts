@@ -39,7 +39,8 @@ export async function GET(request: NextRequest) {
     if (!query) return NextResponse.json({ error: 'Invalid user context' }, { status: 400 });
 
     const user = await User.findOne(query);
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    // If user not found, return empty events (new user hasn't created any yet)
+    if (!user) return NextResponse.json({ events: [] });
 
     return NextResponse.json({ events: user.crmEvents || [] });
   } catch (error: any) {
@@ -64,9 +65,9 @@ export async function POST(request: NextRequest) {
     const user = await User.findOneAndUpdate(
       query,
       { crmEvents: events, updatedAt: new Date() },
-      { new: true }
+      { new: true, upsert: true }  // Create user doc if not found
     );
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!user) return NextResponse.json({ error: 'Failed to save events' }, { status: 500 });
 
     return NextResponse.json({ events: user.crmEvents || [] });
   } catch (error: any) {
