@@ -270,38 +270,44 @@ async function ingestQRPayload(payload: any) {
       const timestampSeconds = Math.floor(timestampMs / 1000);
 
       if (chatJid && m.messageId) {
-        // Use messageId as primary key for deduplication
-        const existingQrMsg = await QrWhatsAppMessage.findOne({
-          messageId: m.messageId,
-          userId: bridgeUserId,
-          connectedPhone,
-        }).select({ _id: 1 });
-
-        if (!existingQrMsg) {
-          await QrWhatsAppMessage.create({
-            userId: bridgeUserId,
-            connectedPhone,
-            chatJid,
-            messageId: m.messageId,
-            direction: m.fromMe ? 'outbound' : 'inbound',
-            fromMe: !!m.fromMe,
-            text: messageContent,
-            type: m.media?.kind || m.type || 'text',
-            participant: '',
-            pushName: typeof lead.name === 'string' ? lead.name : '',
-            timestamp: timestampSeconds,
-            status: m.fromMe ? 2 : 0,
-            hasMedia: !!hasMedia,
-            mediaUrl: doc.media?.url || '',
-            mediaMimetype: doc.media?.mimeType || '',
-            mediaFileName: doc.media?.fileName || '',
-            quotedId: '',
-            quotedText: '',
-            quotedParticipant: '',
-            rawMessage: payload,
-            metadata: doc.metadata,
-            createdAt: new Date(),
-          });
+        // Use atomic findOneAndUpdate to prevent race condition duplicates
+        try {
+          await QrWhatsAppMessage.findOneAndUpdate(
+            { messageId: m.messageId, userId: bridgeUserId, connectedPhone },
+            {
+              $set: {
+                userId: bridgeUserId,
+                connectedPhone,
+                chatJid,
+                direction: m.fromMe ? 'outbound' : 'inbound',
+                fromMe: !!m.fromMe,
+                text: messageContent,
+                type: m.media?.kind || m.type || 'text',
+                participant: '',
+                pushName: typeof lead.name === 'string' ? lead.name : '',
+                timestamp: timestampSeconds,
+                status: m.fromMe ? 2 : 0,
+                hasMedia: !!hasMedia,
+                mediaUrl: doc.media?.url || '',
+                mediaMimetype: doc.media?.mimeType || '',
+                mediaFileName: doc.media?.fileName || '',
+                quotedId: '',
+                quotedText: '',
+                quotedParticipant: '',
+                rawMessage: payload,
+                metadata: doc.metadata,
+              },
+              $setOnInsert: { createdAt: new Date() }
+            },
+            { upsert: true, new: true }
+          );
+        } catch (err: any) {
+          // Handle duplicate key error (should be rare with upsert, but log just in case)
+          if (err.code === 11000) {
+            console.log(`[QR WEBHOOK] Duplicate message ignored: ${m.messageId}`);
+          } else {
+            throw err;
+          }
         }
 
         // Update chat thread (only if messageId exists to avoid duplicates)
