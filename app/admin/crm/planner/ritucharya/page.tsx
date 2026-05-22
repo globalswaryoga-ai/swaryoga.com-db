@@ -203,62 +203,95 @@ function getFoodsForSlot(
   return result.slice(0, count).map(f => `${f.nameHi} (${f.nameEn})`);
 }
 
-function build30DayPlan(ritu: RituKey, dosha: DoshaProfile): WeekPlan[] {
+function build30DayPlan(ritu: RituKey, dosha: DoshaProfile, savedDiet?: any): WeekPlan[] {
   const rData = RITUS[ritu];
   const dominant = dosha.dominant;
 
-  // Shared base meal structure for the season — 7 time slots
+  // Helper: get foods for a slot from saved MongoDB diet plan
+  const getSavedFoods = (slotKey: string): string[] => {
+    if (!savedDiet?.meals) return [];
+    const slot = savedDiet.meals.find((m: any) => m.slotKey === slotKey);
+    return Array.isArray(slot?.foods) && slot.foods.length > 0 ? slot.foods : [];
+  };
+  const getSavedTip = (slotKey: string): string => {
+    if (!savedDiet?.meals) return '';
+    const slot = savedDiet.meals.find((m: any) => m.slotKey === slotKey);
+    return slot?.tip || '';
+  };
+
+  // Shared base meal structure — 7 time slots
+  // Foods from MongoDB if admin saved them, otherwise fallback to generated foods
   const baseMeals: MealSlot[] = [
     {
       time: '4:00 AM',
       label: 'Gond Pani',
       emoji: '🌙',
-      foods: ['Gond Pani (गोंद पानी)', 'Lukewarm water with honey', 'Warm lemon water'],
-      tip: 'Wake up in Brahma Muhurta — first drink should be warm, never cold',
+      // Use admin-saved foods if available, else default
+      foods: getSavedFoods('gond_pani').length > 0
+        ? getSavedFoods('gond_pani')
+        : ['Gond Pani (गोंद पानी)', 'Lukewarm water with honey', 'Warm lemon water'],
+      tip: getSavedTip('gond_pani') || 'Wake up in Brahma Muhurta — first drink should be warm, never cold',
     },
     {
       time: '6:00 AM',
       label: 'Herbal Drink',
       emoji: '🌿',
-      foods: getFoodsForSlot('herbal', ritu, dosha, 4),
-      tip: `${rData.dietTips[0]} — drink warm, never cold`,
+      foods: getSavedFoods('herbal_drink').length > 0
+        ? getSavedFoods('herbal_drink')
+        : getFoodsForSlot('herbal', ritu, dosha, 4),
+      tip: getSavedTip('herbal_drink') || `${rData.dietTips[0]} — drink warm, never cold`,
     },
     {
       time: '8:30 AM',
       label: 'Breakfast (Nasta)',
       emoji: '🥣',
-      foods: getFoodsForSlot('breakfast', ritu, dosha, 5),
-      tip: `Agni is ${dosha.agni} — ${dosha.agni === 'Weak' ? 'eat light' : 'moderate portions'}`,
+      foods: getSavedFoods('breakfast').length > 0
+        ? getSavedFoods('breakfast')
+        : getFoodsForSlot('breakfast', ritu, dosha, 5),
+      tip: getSavedTip('breakfast') || `Agni is ${dosha.agni} — ${dosha.agni === 'Weak' ? 'eat light' : 'moderate portions'}`,
     },
     {
       time: '11:30 AM',
       label: 'Lunch (Bhojan)',
       emoji: '🍱',
-      foods: getFoodsForSlot('lunch', ritu, dosha, 6),
-      tip: 'Largest meal of the day — Agni is strongest at midday',
+      foods: getSavedFoods('lunch').length > 0
+        ? getSavedFoods('lunch')
+        : getFoodsForSlot('lunch', ritu, dosha, 6),
+      tip: getSavedTip('lunch') || 'Largest meal of the day — Agni is strongest at midday',
     },
     {
       time: '5:00 PM',
       label: 'Snacks (Nashta)',
       emoji: '🍎',
-      foods: getFoodsForSlot('snack', ritu, dosha, 3),
-      tip: 'Light seasonal snack only — keep Agni active before dinner',
+      foods: getSavedFoods('snacks').length > 0
+        ? getSavedFoods('snacks')
+        : getFoodsForSlot('snack', ritu, dosha, 3),
+      tip: getSavedTip('snacks') || 'Light seasonal snack — keep Agni active before dinner',
     },
     {
       time: '7:30 PM',
       label: 'Dinner (Ratri Bhojan)',
       emoji: '🍽️',
-      foods: getFoodsForSlot('dinner', ritu, dosha, 4),
-      tip: 'Keep dinner light and warm — digestive fire slows at night',
+      foods: getSavedFoods('dinner').length > 0
+        ? getSavedFoods('dinner')
+        : getFoodsForSlot('dinner', ritu, dosha, 4),
+      tip: getSavedTip('dinner') || 'Keep dinner light and warm — digestive fire slows at night',
     },
     {
       time: '9:30 PM',
       label: 'Sleep Drink',
       emoji: '🥛',
-      foods: ['Warm turmeric milk (Haldi Doodh)', 'Ashwagandha warm milk', 'Saffron milk (optional)'],
-      tip: 'Ojas-building drink — promotes deep restful sleep',
+      foods: getSavedFoods('sleep_drink').length > 0
+        ? getSavedFoods('sleep_drink')
+        : ['Warm turmeric milk (Haldi Doodh)', 'Ashwagandha warm milk', 'Saffron milk (optional)'],
+      tip: getSavedTip('sleep_drink') || 'Ojas-building drink — promotes deep restful sleep',
     },
   ];
+
+  // If admin saved herbs/lifestyle/avoid — use them in Week plans
+  const savedHerbs     = savedDiet?.herbs         || [];
+  const savedLifestyle = savedDiet?.lifestyleTips || [];
+  const savedAvoid     = savedDiet?.avoidFoods    || [];
 
   return [
     {
@@ -273,18 +306,15 @@ function build30DayPlan(ritu: RituKey, dosha: DoshaProfile): WeekPlan[] {
         foods: m.label === 'Lunch (Bhojan)' ? m.foods.slice(0, 3) : m.foods,
         tip: m.tip + (m.label === 'Breakfast (Nasta)' ? ' — Week 1: lighter portions, no heavy grains yet' : ''),
       })),
-      lifestyleTips: [
-        ...rData.lifestyle.slice(0, 3),
-        'Drink 8–10 glasses of warm water daily',
-        'Sleep before 10 PM for best Ojas',
-        'Morning Surya Namaskar (5–10 rounds)',
-      ],
-      herbs: dominant === 'Pitta'
-        ? ['Amla (Aanvla)', 'Shatavari', 'Coriander seeds tea']
-        : dominant === 'Vata'
-        ? ['Ashwagandha', 'Dashamool', 'Ginger tea']
-        : ['Trikatu', 'Guggul', 'Turmeric'],
-      avoidFoods: rData.avoid.map(k => `${RASAS[k].english} foods (${RASAS[k].examples.slice(0, 2).join(', ')})`),
+      lifestyleTips: savedLifestyle.length > 0
+        ? savedLifestyle
+        : [...rData.lifestyle.slice(0, 3), 'Drink 8–10 glasses of warm water daily', 'Sleep before 10 PM for best Ojas', 'Morning Surya Namaskar (5–10 rounds)'],
+      herbs: savedHerbs.length > 0
+        ? savedHerbs
+        : (dominant === 'Pitta' ? ['Amla (Aanvla)', 'Shatavari', 'Coriander seeds tea'] : dominant === 'Vata' ? ['Ashwagandha', 'Dashamool', 'Ginger tea'] : ['Trikatu', 'Guggul', 'Turmeric']),
+      avoidFoods: savedAvoid.length > 0
+        ? savedAvoid
+        : rData.avoid.map(k => `${RASAS[k].english} foods (${RASAS[k].examples.slice(0, 2).join(', ')})`),
     },
     {
       week: 2,
@@ -293,22 +323,15 @@ function build30DayPlan(ritu: RituKey, dosha: DoshaProfile): WeekPlan[] {
       color: 'green',
       days: 'Day 8–14',
       meals: baseMeals,
-      lifestyleTips: [
-        ...rData.lifestyle,
-        'Practice Pranayama 15 min (Nadi Shodhana)',
-        'Oil massage 2x this week (Abhyanga)',
-      ],
-      herbs: dominant === 'Pitta'
-        ? ['Brahmi', 'Neem (neem water morning)', 'Rose petals in water']
-        : dominant === 'Vata'
-        ? ['Bala', 'Vidari', 'Sesame oil massage daily']
-        : ['Punarnava', 'Triphala', 'Dry ginger powder'],
-      avoidFoods: [
-        ...rData.avoid.map(k => RASAS[k].english + ' taste'),
-        'Processed foods, packaged snacks',
-        'Cold drinks, ice water',
-        'Late-night eating after 8 PM',
-      ],
+      lifestyleTips: savedLifestyle.length > 0
+        ? savedLifestyle
+        : [...rData.lifestyle, 'Practice Pranayama 15 min (Nadi Shodhana)', 'Oil massage 2x this week (Abhyanga)'],
+      herbs: savedHerbs.length > 0
+        ? savedHerbs
+        : (dominant === 'Pitta' ? ['Brahmi', 'Neem water morning', 'Rose petals in water'] : dominant === 'Vata' ? ['Bala', 'Vidari', 'Sesame oil massage daily'] : ['Punarnava', 'Triphala', 'Dry ginger powder']),
+      avoidFoods: savedAvoid.length > 0
+        ? savedAvoid
+        : [...rData.avoid.map(k => RASAS[k].english + ' taste'), 'Processed foods, packaged snacks', 'Cold drinks, ice water', 'Late-night eating after 8 PM'],
     },
     {
       week: 3,
@@ -551,35 +574,141 @@ export default function RitucharyaPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
 
-  // Run Ayurvedic analysis
-  const runAnalysis = useCallback(() => {
-    // Detect Ritu — use hemisphere from known country names
-    const hemisphere: HemisphereType =
-      ['Australia', 'New Zealand', 'South Africa', 'Argentina', 'Chile', 'Brazil'].includes(country)
-        ? 'south'
-        : ['Singapore', 'Malaysia', 'Thailand', 'Indonesia', 'Kenya', 'Nigeria', 'Ghana', 'Philippines', 'Sri Lanka', 'Bangladesh', 'Colombia'].includes(country)
-        ? 'tropical'
-        : 'north';
+  // Detect Ritu from admin-saved logic table in MongoDB
+  function matchWeatherToLogic(
+    w: WeatherInput,
+    rows: any[]
+  ): { ritu: RituKey; phase: string; score: number; row: any } | null {
+    let best: { ritu: RituKey; phase: string; score: number; row: any } | null = null;
 
-    const detectedRitu = getCurrentRitu(hemisphere);
-    setRitu(detectedRitu);
+    for (const row of rows) {
+      let score = 0;
 
-    const d = computeDoshaFromWeather(weather, detectedRitu);
-    const r = computeRasaPlan(detectedRitu, d);
-    const plan = build30DayPlan(detectedRitu, d);
+      // Temperature match (40 pts) — most reliable
+      const temp = w.temp;
+      if (temp >= row.tempMin && temp <= row.tempMax) {
+        score += 40;
+      } else {
+        const gap = temp < row.tempMin ? row.tempMin - temp : temp - row.tempMax;
+        if (gap <= 3)  score += 28;
+        else if (gap <= 7)  score += 15;
+        else if (gap <= 12) score += 5;
+      }
 
-    setDosha(d);
-    setRasaPlan(r);
-    setPlan30(plan);
+      // Humidity match (30 pts) — flexible ±15% for coastal/desert areas
+      const humid = w.humidity;
+      if (humid >= row.humidMin && humid <= row.humidMax) {
+        score += 30;
+      } else {
+        const gap = humid < row.humidMin ? row.humidMin - humid : humid - row.humidMax;
+        if (gap <= 10) score += 20;
+        else if (gap <= 20) score += 10;
+        else if (gap <= 30) score += 3;
+      }
 
-    // Save to localStorage
-    localStorage.setItem('ritucharya_plan_v2', JSON.stringify({
-      country, state, city, weather, ritu: detectedRitu, step: 2,
-      savedAt: new Date().toISOString(),
-    }));
+      // Wind match (15 pts)
+      const wind = w.windSpeed;
+      if (wind >= row.windMin && wind <= row.windMax) {
+        score += 15;
+      } else {
+        const gap = wind < row.windMin ? row.windMin - wind : wind - row.windMax;
+        if (gap <= 5)  score += 10;
+        else if (gap <= 10) score += 5;
+      }
+
+      // Sky/Cloud match (15 pts)
+      if (row.skyConditions?.length > 0) {
+        const desc = w.description.toLowerCase();
+        const matched = (row.skyConditions as string[]).some(sky =>
+          desc.includes(sky.toLowerCase().split(' ')[0])
+        );
+        if (matched) score += 15;
+        else score += 3; // partial credit — sky is subjective
+      } else {
+        score += 8; // no sky filter = partial match
+      }
+
+      if (!best || score > best.score) {
+        best = { ritu: row.ritu as RituKey, phase: row.phase, score, row };
+      }
+    }
+
+    return best;
+  }
+
+  // Run full Ayurvedic analysis — fetch logic from MongoDB then match weather
+  const runAnalysis = useCallback(async () => {
+    try {
+      // 1. Fetch admin-saved logic table from MongoDB
+      let logicRows: any[] = [];
+      try {
+        const res  = await fetch('/api/admin/crm/ritucharya-logic');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.rows) && data.rows.length > 0) {
+          logicRows = data.rows;
+        }
+      } catch { /* fall through to fallback */ }
+
+      // 2. Detect Ritu — from MongoDB logic OR fallback to date-based method
+      let detectedRitu: RituKey;
+      let detectedPhase = 'peak';
+
+      if (logicRows.length > 0) {
+        // Use admin-defined logic table
+        const match = matchWeatherToLogic(weather, logicRows);
+        if (match) {
+          detectedRitu  = match.ritu;
+          detectedPhase = match.phase;
+        } else {
+          // Fallback to hemisphere date-based
+          const hemisphere: HemisphereType =
+            ['Australia', 'New Zealand', 'South Africa', 'Argentina', 'Chile', 'Brazil'].includes(country) ? 'south' :
+            ['Singapore', 'Malaysia', 'Thailand', 'Indonesia', 'Kenya', 'Nigeria', 'Ghana', 'Philippines', 'Sri Lanka', 'Bangladesh', 'Colombia'].includes(country) ? 'tropical' :
+            'north';
+          detectedRitu = getCurrentRitu(hemisphere);
+        }
+      } else {
+        // No logic saved yet — use date-based fallback
+        const hemisphere: HemisphereType =
+          ['Australia', 'New Zealand', 'South Africa', 'Argentina', 'Chile', 'Brazil'].includes(country) ? 'south' :
+          ['Singapore', 'Malaysia', 'Thailand', 'Indonesia', 'Kenya', 'Nigeria', 'Ghana', 'Philippines', 'Sri Lanka', 'Bangladesh', 'Colombia'].includes(country) ? 'tropical' :
+          'north';
+        detectedRitu = getCurrentRitu(hemisphere);
+      }
+
+      setRitu(detectedRitu);
+
+      // 3. Fetch diet plan for detected Ritu + Phase from MongoDB
+      let fetchedDiet: any = null;
+      try {
+        const dietRes  = await fetch(`/api/admin/crm/ritucharya-diet?ritu=${detectedRitu}&phase=${detectedPhase}`);
+        const dietData = await dietRes.json();
+        if (dietData.success && dietData.plan) fetchedDiet = dietData.plan;
+      } catch { /* ignore — use generated plan */ }
+
+      // 4. Compute dosha + rasa plan (still needed for Step 2 display)
+      const d = computeDoshaFromWeather(weather, detectedRitu);
+      const r = computeRasaPlan(detectedRitu, d);
+      const plan = build30DayPlan(detectedRitu, d, fetchedDiet);
+
+      setDosha(d);
+      setRasaPlan(r);
+      setPlan30(plan);
+
+      // 5. Save state to localStorage
+      localStorage.setItem('ritucharya_plan_v2', JSON.stringify({
+        country, state, city, weather,
+        ritu: detectedRitu,
+        phase: detectedPhase,
+        step: 2,
+        savedAt: new Date().toISOString(),
+      }));
+    } catch (err) {
+      console.error('[runAnalysis] error:', err);
+    }
   }, [weather, country, state, city]);
 
-  const goToAnalysis = () => { runAnalysis(); setStep(2); };
+  const goToAnalysis = async () => { await runAnalysis(); setStep(2); };
   const goTo30DayPlan = () => { setStep(3); };
 
   const rituData = RITUS[ritu];
