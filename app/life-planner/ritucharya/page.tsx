@@ -233,6 +233,8 @@ function DayMealPanel({ dayNum, date, meals, dietPlan, total, hasPlan, onPrev, o
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const STORAGE_KEY = 'ritucharya_user_data_v1';
+
 export default function RitucharyaPage() {
 
   const [step, setStep]           = useState<1|2|3>(1);
@@ -247,6 +249,8 @@ export default function RitucharyaPage() {
   });
   const [fetching, setFetching]   = useState(false);
   const [analysing, setAnalysing] = useState(false);
+  const [savedAt,  setSavedAt]    = useState<Date|null>(null);   // when data was last saved
+  const [saveFlash,setSaveFlash]  = useState(false);             // brief "✓ Saved" flash
 
   const [ritu,     setRitu]       = useState<RituResult|null>(null);
   const [dietPlan, setDietPlan]   = useState<DietPlan|null>(null);
@@ -254,9 +258,58 @@ export default function RitucharyaPage() {
 
   // Step 3 calendar state
   const [calView,    setCalView]   = useState<'calendar'|'list'>('calendar');
-  const [selectedDay,setSelectedDay] = useState(1);       // 1-30 (0 = none)
-  const [calMonth,  setCalMonth]   = useState(0);         // month offset (0 = today's month)
-  const [openMealSlot, setOpenMealSlot] = useState<string|null>(null); // accordion in day panel
+  const [selectedDay,setSelectedDay] = useState(1);
+  const [calMonth,  setCalMonth]   = useState(0);
+  const [openMealSlot, setOpenMealSlot] = useState<string|null>(null);
+
+  // ── Persist helpers ──────────────────────────────────────────────────
+  const saveData = useCallback((w: WeatherState, loc: { country:string; state:string; city:string }) => {
+    try {
+      const data = { ...loc, weather: w, savedAt: new Date().toISOString() };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      setSavedAt(new Date());
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 2500);
+    } catch { /* storage full / private mode */ }
+  }, []);
+
+  const clearSaved = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setSavedAt(null);
+    setCountry(''); setState(''); setCity('');
+    setStates([]); setCities([]);
+    setWeather({ temp:28, tempMin:22, tempMax:35, humidity:55, windSpeed:12, aqi:60, description:'Partly cloudy' });
+  };
+
+  // ── On mount: restore saved location + weather ───────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data.country) return;
+
+      // Restore location dropdowns
+      const countryData = locationData.find(c => c.name === data.country);
+      if (!countryData) return;
+      setCountry(data.country);
+      setStates(countryData.states);
+
+      if (data.state) {
+        const stateData = countryData.states.find(s => s.name === data.state);
+        if (stateData) {
+          setState(data.state);
+          setCities(stateData.cities);
+          if (data.city) setCity(data.city);
+        }
+      }
+
+      // Restore weather
+      if (data.weather) setWeather(data.weather);
+      if (data.savedAt) setSavedAt(new Date(data.savedAt));
+    } catch { /* corrupted data */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Location handlers ────────────────────────────────────────────────
   const onCountry = (val: string) => {
@@ -268,6 +321,15 @@ export default function RitucharyaPage() {
     const c = locationData.find(c => c.name === country);
     const s = c?.states.find(s => s.name === val);
     setState(val); setCity(''); setCities(s?.cities || []);
+  };
+
+  // ── Auto-save whenever weather field is edited manually ───────────────
+  const handleWeatherChange = (field: keyof WeatherState, val: number | string) => {
+    setWeather(w => {
+      const updated = { ...w, [field]: val };
+      if (country && city) saveData(updated, { country, state, city });
+      return updated;
+    });
   };
 
   useEffect(() => {
@@ -302,6 +364,8 @@ export default function RitucharyaPage() {
         if (a?.current?.us_aqi != null) w.aqi = Math.round(a.current.us_aqi);
       }
       setWeather(w);
+      // ← auto-save after fetch
+      saveData(w, { country, state, city });
     } catch { /* silent */ }
     finally { setFetching(false); }
   };
@@ -450,12 +514,41 @@ export default function RitucharyaPage() {
 
               {/* Location card */}
               <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-6">
-                <h2 className="text-xl font-bold text-emerald-800 mb-4">📍 Select Your Location</h2>
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                  <h2 className="text-xl font-bold text-emerald-800">📍 Select Your Location</h2>
+                  <div className="flex items-center gap-2">
+                    {saveFlash && (
+                      <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold animate-pulse">
+                        ✓ Saved
+                      </span>
+                    )}
+                    {savedAt && !saveFlash && (
+                      <span className="px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-700 text-[10px] font-semibold">
+                        💾 Last saved {savedAt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}
+                      </span>
+                    )}
+                    {savedAt && (
+                      <button onClick={clearSaved}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 border border-red-200 transition-colors">
+                        ✕ Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {savedAt && country && (
+                  <div className="mb-4 px-4 py-2.5 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center gap-2 text-sm text-emerald-800">
+                    <span>📍</span>
+                    <span className="font-bold">{city}{state ? `, ${state}` : ''}{country ? `, ${country}` : ''}</span>
+                    <span className="text-emerald-600 text-xs ml-auto">Saved location · Edit below</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { label:'Country',      val:country, items:locationData.map(c=>c.name), onChange:(v:string)=>onCountry(v),           disabled:false  },
-                    { label:'State / Region', val:state, items:states.map(s=>s.name),       onChange:(v:string)=>onState(v),              disabled:!country },
-                    { label:'City',          val:city,   items:cities.map(c=>c.name),        onChange:(v:string)=>setCity(v),              disabled:!state },
+                    { label:'Country',        val:country, items:locationData.map(c=>c.name), onChange:(v:string)=>onCountry(v), disabled:false    },
+                    { label:'State / Region', val:state,   items:states.map(s=>s.name),       onChange:(v:string)=>onState(v),   disabled:!country },
+                    { label:'City',           val:city,    items:cities.map(c=>c.name),        onChange:(v:string)=>setCity(v),   disabled:!state   },
                   ].map(sel => (
                     <div key={sel.label}>
                       <p className="text-sm text-gray-600 mb-1">{sel.label}</p>
@@ -483,17 +576,17 @@ export default function RitucharyaPage() {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
                   {[
-                    { label:'🌡️ Current Temp (°C)', field:'temp',        color:'blue',   val:weather.temp        },
-                    { label:'❄️ Min Temp (°C)',      field:'tempMin',     color:'blue',   val:weather.tempMin     },
-                    { label:'🔥 Max Temp (°C)',      field:'tempMax',     color:'blue',   val:weather.tempMax     },
-                    { label:'💧 Humidity (%)',        field:'humidity',    color:'cyan',   val:weather.humidity    },
-                    { label:'💨 Wind Speed (km/h)',  field:'windSpeed',   color:'yellow', val:weather.windSpeed   },
-                    { label:'🌫️ Air Quality (AQI)',  field:'aqi',         color:'red',    val:weather.aqi         },
+                    { label:'🌡️ Current Temp (°C)', field:'temp'      as keyof WeatherState, color:'blue',   val:weather.temp      },
+                    { label:'❄️ Min Temp (°C)',      field:'tempMin'   as keyof WeatherState, color:'blue',   val:weather.tempMin   },
+                    { label:'🔥 Max Temp (°C)',      field:'tempMax'   as keyof WeatherState, color:'blue',   val:weather.tempMax   },
+                    { label:'💧 Humidity (%)',        field:'humidity'  as keyof WeatherState, color:'cyan',   val:weather.humidity  },
+                    { label:'💨 Wind Speed (km/h)',  field:'windSpeed' as keyof WeatherState, color:'yellow', val:weather.windSpeed },
+                    { label:'🌫️ Air Quality (AQI)',  field:'aqi'       as keyof WeatherState, color:'red',    val:weather.aqi       },
                   ].map(item => (
                     <div key={item.field} className={`bg-${item.color}-100 rounded-xl p-4 border border-${item.color}-300`}>
                       <p className="text-xs text-gray-600 mb-2">{item.label}</p>
                       <input type="number" value={item.val}
-                        onChange={e => setWeather(w => ({...w, [item.field]:Number(e.target.value)}))}
+                        onChange={e => handleWeatherChange(item.field, Number(e.target.value))}
                         className={`w-full text-2xl font-bold bg-white text-slate-900 outline-none border-2 border-${item.color}-300 rounded px-3 py-2`}/>
                       {item.field === 'aqi' && (
                         <p className="text-xs text-gray-500 mt-1">
@@ -505,7 +598,7 @@ export default function RitucharyaPage() {
 
                   <div className="bg-purple-100 rounded-xl p-4 border border-purple-300">
                     <p className="text-xs text-gray-600 mb-2">📝 Sky Condition</p>
-                    <select value={weather.description} onChange={e => setWeather(w => ({...w, description:e.target.value}))}
+                    <select value={weather.description} onChange={e => handleWeatherChange('description', e.target.value)}
                       className="w-full text-sm font-bold bg-white text-slate-900 outline-none border-2 border-purple-300 rounded px-3 py-2">
                       {['Clear sky','Partly cloudy','Cloudy','Mostly cloudy','Overcast','Foggy','Hazy','Light rain','Rainy','Heavy rain','Thunderstorm','Snowy'].map(d =>
                         <option key={d} value={d}>{d}</option>)}
