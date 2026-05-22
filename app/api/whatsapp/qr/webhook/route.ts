@@ -269,68 +269,69 @@ async function ingestQRPayload(payload: any) {
       const timestampMs = m.timestamp instanceof Date ? m.timestamp.getTime() : Date.now();
       const timestampSeconds = Math.floor(timestampMs / 1000);
 
-      if (chatJid) {
-        await QrWhatsAppMessage.updateOne(
-          {
+      if (chatJid && m.messageId) {
+        // Use messageId as primary key for deduplication
+        const existingQrMsg = await QrWhatsAppMessage.findOne({
+          messageId: m.messageId,
+          userId: bridgeUserId,
+          connectedPhone,
+        }).select({ _id: 1 });
+
+        if (!existingQrMsg) {
+          await QrWhatsAppMessage.create({
             userId: bridgeUserId,
             connectedPhone,
             chatJid,
-            messageId: m.messageId || String(newMessage._id),
-          },
-          {
-            $set: {
-              userId: bridgeUserId,
-              connectedPhone,
-              chatJid,
-              messageId: m.messageId || String(newMessage._id),
-              direction: m.fromMe ? 'outbound' : 'inbound',
-              fromMe: !!m.fromMe,
-              text: messageContent,
-              type: m.media?.kind || m.type || 'text',
-              participant: '',
-              pushName: typeof lead.name === 'string' ? lead.name : '',
-              timestamp: timestampSeconds,
-              status: m.fromMe ? 2 : 0,
-              hasMedia: !!hasMedia,
-              mediaUrl: doc.media?.url || '',
-              mediaMimetype: doc.media?.mimeType || '',
-              mediaFileName: doc.media?.fileName || '',
-              quotedId: '',
-              quotedText: '',
-              quotedParticipant: '',
-              rawMessage: payload,
-              metadata: doc.metadata,
-            },
-            $setOnInsert: { createdAt: new Date() },
-          },
-          { upsert: true }
-        );
+            messageId: m.messageId,
+            direction: m.fromMe ? 'outbound' : 'inbound',
+            fromMe: !!m.fromMe,
+            text: messageContent,
+            type: m.media?.kind || m.type || 'text',
+            participant: '',
+            pushName: typeof lead.name === 'string' ? lead.name : '',
+            timestamp: timestampSeconds,
+            status: m.fromMe ? 2 : 0,
+            hasMedia: !!hasMedia,
+            mediaUrl: doc.media?.url || '',
+            mediaMimetype: doc.media?.mimeType || '',
+            mediaFileName: doc.media?.fileName || '',
+            quotedId: '',
+            quotedText: '',
+            quotedParticipant: '',
+            rawMessage: payload,
+            metadata: doc.metadata,
+            createdAt: new Date(),
+          });
+        }
 
-        await QrWhatsAppChat.updateOne(
-          { userId: bridgeUserId, connectedPhone, chatJid },
-          {
-            $set: {
-              userId: bridgeUserId,
-              connectedPhone,
-              chatJid,
-              name: typeof lead.name === 'string' ? lead.name : normalizedPhone,
-              isGroup: chatJid.endsWith('@g.us'),
-              lastMessage: messageContent,
-              lastMessageTime: new Date(timestampMs),
-              lastMessageFromMe: !!m.fromMe,
-              conversationTimestamp: timestampSeconds,
+        // Update chat thread (only if messageId exists to avoid duplicates)
+        if (m.messageId) {
+          await QrWhatsAppChat.findOneAndUpdate(
+            { userId: bridgeUserId, connectedPhone, chatJid },
+            {
+              $set: {
+                userId: bridgeUserId,
+                connectedPhone,
+                chatJid,
+                name: typeof lead.name === 'string' ? lead.name : normalizedPhone,
+                isGroup: chatJid.endsWith('@g.us'),
+                lastMessage: messageContent,
+                lastMessageTime: new Date(timestampMs),
+                lastMessageFromMe: !!m.fromMe,
+                conversationTimestamp: timestampSeconds,
+              },
+              $setOnInsert: {
+                unreadCount: 0,
+                pinned: false,
+                archived: false,
+                profilePicUrl: '',
+                createdAt: new Date(),
+              },
+              ...(m.fromMe ? {} : { $inc: { unreadCount: 1 } }),
             },
-            $setOnInsert: {
-              unreadCount: 0,
-              pinned: false,
-              archived: false,
-              profilePicUrl: '',
-              createdAt: new Date(),
-            },
-            ...(m.fromMe ? {} : { $inc: { unreadCount: 1 } }),
-          },
-          { upsert: true }
-        );
+            { upsert: true, new: true }
+          );
+        }
       }
     }
 
