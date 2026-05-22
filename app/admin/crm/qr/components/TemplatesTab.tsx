@@ -808,11 +808,13 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
                   disabled={submitting}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition font-medium text-sm"
                 >
-                  {submitting ? 'Creating...' : 'Create Template'}
+                  {submitting
+                    ? (editingId ? 'Saving...' : 'Creating...')
+                    : (editingId ? '💾 Save Changes' : '➕ Create Template')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowCreate(false)}
+                  onClick={() => { setShowCreate(false); setEditingId(null); }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium text-sm"
                 >
                   Cancel

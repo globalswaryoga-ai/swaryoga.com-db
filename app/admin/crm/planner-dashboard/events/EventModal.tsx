@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Eye, Plus } from 'lucide-react';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 export type EventSubtype = 'meeting' | 'event' | 'birthday';
 
@@ -290,24 +291,18 @@ export default function EventModal({
 
             {showImageEditor && (
               <div className="mt-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
-                <label className="block text-sm font-semibold text-emerald-900 mb-2">Custom Image URL (optional)</label>
-                <input
-                  type="url"
-                  value={form.imageUrl}
-                  onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))}
-                  className="w-full px-4 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
-                  placeholder="https://..."
+                <LifePlannerImageUpload
+                  label="Custom Event Image (optional)"
+                  currentImageUrl={form.imageUrl}
+                  onImageUrlChange={(url) => setForm((p) => ({ ...p, imageUrl: url }))}
                 />
-                <div className="flex items-center gap-2 mt-3">
-                  <button
-                    type="button"
-                    onClick={() => setForm((p) => ({ ...p, imageUrl: '' }))}
-                    className="px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 transition"
-                  >
-                    Use default
-                  </button>
-                  <p className="text-xs text-emerald-800">Default image is used when no URL is provided.</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, imageUrl: '' }))}
+                  className="mt-2 text-xs text-emerald-800 hover:underline"
+                >
+                  Use default image
+                </button>
               </div>
             )}
           </div>

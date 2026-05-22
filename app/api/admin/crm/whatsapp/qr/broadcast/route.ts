@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } from '@/lib/whatsappBridgeConfig';
 
@@ -159,8 +159,12 @@ export async function POST(request: NextRequest) {
 
     console.log(`[qr-broadcast] Using session key: ${sessionKey} for user ${viewerUserId}`);
 
-    // Lead ownership filter for non-super-admins
-    let filteredRecipients: string[] = recipients.map((r: string) => String(r).replace(/\D/g, ''));
+    // Normalize recipients — preserve group IDs (@g.us), only strip digits for phone numbers
+    const isGroupId = (r: string) => String(r).includes('@g.us');
+    let filteredRecipients: string[] = recipients.map((r: string) => {
+      const s = String(r);
+      return isGroupId(s) ? s : s.replace(/\D/g, ''); // keep group IDs intact
+    });
 
     if (!superAdmin && (recipientType || 'people') === 'people') {
       try {
@@ -201,25 +205,45 @@ export async function POST(request: NextRequest) {
     let sent = 0;
     let failed = 0;
     const errors: string[] = [];
-    const MAX_SYNC = 20; // send first 20 synchronously, rest are fire-and-forget
+    const MAX_SYNC = 20; // send first 20 synchronously, rest fire-and-forget
+    const messageRecordsToSave: any[] = [];
+
+    // Connect DB once for message saving
+    await connectDB();
+    const WhatsAppMessage = getWhatsAppMessage();
 
     for (let i = 0; i < filteredRecipients.length; i++) {
-      const phone = filteredRecipients[i];
+      const recipient = filteredRecipients[i];
+      const isGroup = isGroupId(recipient);
       try {
         const result = await sendOne(
           bridgeUrl, bridgeSecret, sessionKey,
-          phone, message, imageUrl,
+          recipient, message, imageUrl,
           Array.isArray(buttons) ? buttons.map((b: any) => String(b?.title || b).slice(0, 20)) : undefined
         );
         if (result.success) {
           sent++;
+          // Queue a message record for each successful send
+          messageRecordsToSave.push({
+            phoneNumber: isGroup ? recipient : recipient,
+            direction: 'outbound',
+            messageContent: message,
+            messageType: imageUrl ? 'media' : 'text',
+            media: imageUrl ? { kind: 'image', url: imageUrl } : undefined,
+            status: 'sent',
+            sentByUserId: viewerUserId,
+            sentByLabel: viewerUserId,
+            provider: 'whatsapp_web_bridge',
+            sentAt: new Date(),
+            recipientType: isGroup ? 'group' : 'individual',
+          });
         } else {
           failed++;
-          if (errors.length < 5) errors.push(`${phone}: ${result.error}`);
+          if (errors.length < 5) errors.push(`${recipient}: ${result.error}`);
         }
       } catch (err: any) {
         failed++;
-        if (errors.length < 5) errors.push(`${phone}: ${err.message}`);
+        if (errors.length < 5) errors.push(`${recipient}: ${err.message}`);
       }
 
       // Small delay between messages to avoid rate-limiting
@@ -230,8 +254,18 @@ export async function POST(request: NextRequest) {
       // Stop synchronous sending after MAX_SYNC to avoid Vercel timeout
       if (i + 1 >= MAX_SYNC && i < filteredRecipients.length - 1) {
         failed += filteredRecipients.length - (i + 1);
-        errors.push(`Only first ${MAX_SYNC} messages sent synchronously. Use broadcast runs for large lists.`);
+        errors.push(`Only first ${MAX_SYNC} messages sent synchronously.`);
         break;
+      }
+    }
+
+    // Bulk-save all sent message records to MongoDB
+    if (messageRecordsToSave.length > 0) {
+      try {
+        await WhatsAppMessage.insertMany(messageRecordsToSave, { ordered: false });
+        console.log(`[qr-broadcast] ✅ Saved ${messageRecordsToSave.length} message records to DB`);
+      } catch (dbErr: any) {
+        console.error('[qr-broadcast] DB save error (non-fatal):', dbErr.message);
       }
     }
 

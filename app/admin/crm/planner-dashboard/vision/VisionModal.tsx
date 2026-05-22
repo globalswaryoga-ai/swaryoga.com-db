@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { Vision, VisionCategory, Milestone, Reminder, Goal, Task, Todo, Word, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 const LANDSCAPE_IMAGE = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1280&q=80';
 
@@ -248,30 +249,15 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-swar-text mb-2">Image URL</label>
-              <input
-                type="url"
-                name="imageUrl"
-                value={formData.imageUrl}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                placeholder="https://images.unsplash.com/..."
+              <LifePlannerImageUpload
+                label="Vision Image"
+                currentImageUrl={formData.imageUrl}
+                onImageUrlChange={(url) => {
+                  setFormData(prev => ({ ...prev, imageUrl: url }));
+                  setPreviewUrl(url || LANDSCAPE_IMAGE);
+                }}
               />
               <p className="text-xs text-swar-text-secondary mt-1">Landscape images work best; a default has already been chosen.</p>
-              <div className="mt-4 rounded-2xl overflow-hidden h-44 border border-dashed border-swar-border">
-                <img
-                  src={previewUrl}
-                  alt="Vision preview"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/800x400?text=Beautiful+Vision';
-                  }}
-                />
-              </div>
-              <div className="mt-3 text-xs text-swar-text-secondary">
-                <label className="font-medium">Upload a file</label>
-                <input type="file" accept="image/*" onChange={handleFileChange} className="block mt-1 text-xs" />
-              </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">

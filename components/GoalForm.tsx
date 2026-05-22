@@ -4,6 +4,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Calendar, DollarSign, Flag } from 'lucide-react';
 import { VISION_CATEGORIES, Goal } from '@/lib/types/lifePlanner';
 import type { Vision, ActionPlan, Milestone } from '@/lib/types/lifePlanner';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 interface GoalFormProps {
   onSubmit: (goalData: Goal) => void;
@@ -543,15 +544,12 @@ const GoalForm: React.FC<GoalFormProps> = ({
         />
       </div>
 
-      {/* Goal Image Upload - simplified for stability */}
+      {/* Goal Image Upload */}
       <div>
-        <label className="block text-sm font-semibold text-swar-text mb-2">Goal Image URL (Optional)</label>
-        <input
-          type="text"
-          value={formData.imageUrl}
-          onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
-          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-          placeholder="https://example.com/goal-image.jpg"
+        <LifePlannerImageUpload
+          label="Goal Image (Optional)"
+          currentImageUrl={formData.imageUrl}
+          onImageUrlChange={(url) => setFormData(prev => ({ ...prev, imageUrl: url }))}
         />
       </div>
 

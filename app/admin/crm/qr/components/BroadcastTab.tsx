@@ -66,6 +66,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   const [filterWorkshop, setFilterWorkshop] = useState('');
   const [filterLabel, setFilterLabel] = useState('');
   const [confirmedCount, setConfirmedCount] = useState(0);
+  const [imageUrl, setImageUrl] = useState('');
 
   // Initialize schedule date and time on mount
   useEffect(() => {
@@ -179,15 +180,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
     }
   }, [recipientTab, token, isConnected, fetchData]);
 
-  // Load runs from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('qr_broadcast_runs');
-      if (saved) setRuns(JSON.parse(saved));
-    } catch (e) {
-      console.error('Failed to load broadcast history');
-    }
-  }, []);
+  // Broadcast run history is shown in the Sent Messages tab (HistoryTab) — no localStorage needed
 
   const handleInitiateBroadcast = () => {
     const totalRecipients = (recipientTab === 'people' ? selectedPhones.size : selectedGroupIds.size);
@@ -214,60 +207,62 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
     setError(null);
 
     try {
-      const runId = `run_${Date.now()}`;
       const message = customMessage.trim();
       const template = templates.find(t => t._id === selectedTemplate);
-
-      // Determine recipients and type
+      const finalMessage = message || template?.templateContent || '';
       const recipients = recipientTab === 'people' ? Array.from(selectedPhones) : Array.from(selectedGroupIds);
+      const totalRecipients = recipients.length;
 
-      // Prepare broadcast payload
-      const broadcastPayload = {
-        recipients,
-        message: message || template?.templateContent || '',
-        schedule: scheduleMode === 'schedule' ? {
-          mode: 'scheduled',
-          date: scheduleDate,
-          time: scheduleTime,
-        } : null,
-        recipientType: recipientTab === 'people' ? 'people' : 'groups',
-      };
+      if (scheduleMode === 'schedule') {
+        // ── SCHEDULED: save to qr-broadcast-schedule collection ──
+        const schedulePayload = {
+          name: `Broadcast - ${new Date().toLocaleString()}`,
+          messageText: finalMessage,
+          recipientChatIds: recipients,
+          recipientType: recipientTab === 'people' ? 'people' : 'groups',
+          totalRecipients,
+          // Use scheduleDate + scheduleTime as start time, end 1 hour later
+          startTime: scheduleTime || '09:00',
+          endTime: scheduleTime
+            ? `${String(parseInt(scheduleTime.split(':')[0]) + 1).padStart(2, '0')}:${scheduleTime.split(':')[1]}`
+            : '10:00',
+          scheduledDate: scheduleDate,
+          frequency: 'once',
+          status: 'scheduled',
+          isActive: true,
+        };
 
-      // Send broadcast via API
-      const broadcastRes = await fetch('/api/admin/crm/whatsapp/qr/broadcast', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(broadcastPayload),
-      });
+        const res = await fetch('/api/admin/crm/qr-broadcast-schedule', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(schedulePayload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to schedule broadcast');
 
-      const broadcastData = await broadcastRes.json();
+        setSuccess(`✅ Scheduled broadcast for ${scheduleDate} at ${scheduleTime} — ${totalRecipients} recipient${totalRecipients !== 1 ? 's' : ''}`);
+      } else {
+        // ── SEND NOW: call broadcast API immediately ──
+        const broadcastRes = await fetch('/api/admin/crm/whatsapp/qr/broadcast', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipients,
+            message: finalMessage,
+            imageUrl: imageUrl.trim() || undefined,
+            recipientType: recipientTab === 'people' ? 'people' : 'groups',
+          }),
+        });
 
-      if (!broadcastRes.ok) {
-        throw new Error(broadcastData.error || `Broadcast failed: ${broadcastRes.status}`);
+        const broadcastData = await broadcastRes.json();
+        if (!broadcastRes.ok) throw new Error(broadcastData.error || `Broadcast failed: ${broadcastRes.status}`);
+
+        const typeLabel = recipientTab === 'people'
+          ? `${broadcastData.sent || totalRecipients} people`
+          : `${broadcastData.sent || totalRecipients} group${totalRecipients !== 1 ? 's' : ''}`;
+        setSuccess(`✅ Sent to ${typeLabel}! (${broadcastData.failed || 0} failed)`);
       }
 
-      const totalRecipients = recipientTab === 'people' ? selectedPhones.size : selectedGroupIds.size;
-
-      // Create run record
-      const newRun: BroadcastRun = {
-        id: runId,
-        name: `Broadcast - ${new Date().toLocaleString()}`,
-        recipients: recipients,
-        sent: broadcastData.rateLimitInfo?.totalRecipients || totalRecipients,
-        status: scheduleMode === 'now' ? 'sending' : 'queued',
-        createdAt: new Date().toISOString(),
-      };
-
-      // Save to localStorage
-      const updatedRuns = [newRun, ...runs].slice(0, 50);
-      localStorage.setItem('qr_broadcast_runs', JSON.stringify(updatedRuns));
-      setRuns(updatedRuns);
-
-      const typeLabel = recipientTab === 'people' ? `${totalRecipients} people` : `${totalRecipients} group${totalRecipients === 1 ? '' : 's'}`;
-      setSuccess(`✅ Broadcast ${scheduleMode === 'now' ? 'sent to ' + typeLabel + '!' : 'scheduled successfully!'}`);
       setShowConfirmation(false);
       setTimeout(() => {
         setSuccess(null);
@@ -275,9 +270,8 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
         setSelectedGroupIds(new Set());
         setSelectedTemplate('');
         setCustomMessage('');
-        setScheduleDate('');
-        setScheduleTime('');
-      }, 3000);
+        setImageUrl('');
+      }, 4000);
     } catch (e: any) {
       setError(e.message || 'Failed to send broadcast');
     } finally {
@@ -563,6 +557,39 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
               </div>
             </div>
 
+            {/* Image URL (optional) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                📷 Image URL <span className="text-gray-400 font-normal">(optional — attaches image to all messages)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                {imageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl('')}
+                    className="px-3 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {imageUrl && (
+                <img
+                  src={imageUrl}
+                  alt="Preview"
+                  className="mt-2 h-20 rounded-lg object-cover border"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              )}
+            </div>
+
             {/* Schedule */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Send</label>
@@ -590,51 +617,25 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
             {/* Submit */}
             <button
               onClick={handleInitiateBroadcast}
-              disabled={sending || selectedPhones.size === 0}
+              disabled={sending || (recipientTab === 'people' ? selectedPhones.size === 0 : selectedGroupIds.size === 0)}
               className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium flex items-center justify-center gap-2"
             >
-              <Send className="w-4 h-4" /> {sending ? 'Sending...' : 'Send Broadcast'}
+              <Send className="w-4 h-4" />
+              {sending ? 'Sending...' : scheduleMode === 'schedule' ? '📅 Schedule Broadcast' : '🚀 Send Broadcast Now'}
             </button>
           </div>
         </div>
       )}
 
-      {/* History Tab */}
+      {/* History Tab — redirect to Sent Messages tab */}
       {activeTab === 'history' && (
-        <div className="flex-1 overflow-y-auto p-4">
-          {runs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-              <Clock className="w-12 h-12 mb-3 opacity-50" />
-              <p className="text-sm">No broadcasts yet</p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-w-2xl mx-auto">
-              {runs.map(run => (
-                <div key={run.id} className="p-3 border rounded-lg bg-white">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium text-sm">{run.name}</h3>
-                      <p className="text-xs text-gray-500 mt-1">{run.recipients.length} recipients • {run.sent} sent</p>
-                      <div className="w-32 h-2 bg-gray-100 rounded-full mt-2">
-                        <div
-                          className="h-full bg-green-600 rounded-full transition-all"
-                          style={{ width: `${run.recipients.length > 0 ? (run.sent / run.recipients.length) * 100 : 0}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className={`text-xs font-medium px-2 py-1 rounded ${
-                      run.status === 'completed' ? 'bg-green-100 text-green-700' :
-                      run.status === 'sending' ? 'bg-blue-100 text-blue-700' :
-                      run.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {run.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="flex-1 flex flex-col items-center justify-center py-12 text-center px-6">
+          <CheckCircle2 className="w-12 h-12 text-green-500 mb-3" />
+          <h3 className="text-base font-semibold text-gray-800 mb-1">Broadcast history moved</h3>
+          <p className="text-sm text-gray-500 max-w-xs">
+            All sent messages and scheduled broadcasts are now tracked in the <strong>Sent Messages</strong> tab (top navigation).
+            Go there to see stats, delivery status, and scheduled runs.
+          </p>
         </div>
       )}
 

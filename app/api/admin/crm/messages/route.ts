@@ -71,13 +71,18 @@ export async function GET(request: NextRequest) {
       filter.provider = 'meta';
     }
 
-    // Add date range filter
+    // Add date range filter — endDate is inclusive (use end of that day)
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
     if (startDate || endDate) {
       filter.sentAt = {};
       if (startDate) filter.sentAt.$gte = new Date(startDate);
-      if (endDate) filter.sentAt.$lte = new Date(endDate);
+      if (endDate) {
+        // Add 1 day - 1ms so "2026-05-22" means "end of 2026-05-22"
+        const end = new Date(endDate);
+        end.setDate(end.getDate() + 1);
+        filter.sentAt.$lt = end;
+      }
     }
 
     // Access control:

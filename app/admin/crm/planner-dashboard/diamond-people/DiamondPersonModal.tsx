@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { DiamondPerson, VISION_CATEGORIES, type VisionCategory } from '@/lib/types/lifePlanner';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 interface DiamondPersonModalProps {
   person: DiamondPerson | null;
@@ -236,16 +237,12 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
             />
           </div>
 
-          {/* Image URL */}
+          {/* Image Upload */}
           <div>
-            <label className="block text-xs sm:text-sm font-medium text-swar-text mb-1 sm:mb-2">Image URL</label>
-            <input
-              type="text"
-              name="imageUrl"
-              value={formData.imageUrl}
-              onChange={handleChange}
-              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
-              placeholder="https://example.com/image.jpg"
+            <LifePlannerImageUpload
+              label="Person Photo"
+              currentImageUrl={formData.imageUrl}
+              onImageUrlChange={(url) => setFormData(prev => ({ ...prev, imageUrl: url }))}
             />
           </div>
           {/* Notes */}

@@ -16,8 +16,10 @@ import {
   ListTodo,
   BookOpen,
 } from 'lucide-react';
+import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { ActionPlan, Goal, Reminder, Task, Todo, Vision, Word } from '@/lib/types/lifePlanner';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 function toISODate(d: Date) {
   const year = d.getFullYear();
@@ -793,14 +795,11 @@ export default function EnhancedCalendar() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-swar-text mb-1">Image (optional)</label>
-                <input
-                  value={addForm.imageUrl}
-                  onChange={(e) => setAddForm((p) => ({ ...p, imageUrl: e.target.value }))}
-                  placeholder="Paste image URL"
-                  className="w-full rounded-xl border border-swar-border bg-white px-3 py-2"
+                <LifePlannerImageUpload
+                  label="Image (optional)"
+                  currentImageUrl={addForm.imageUrl}
+                  onImageUrlChange={(url) => setAddForm((p) => ({ ...p, imageUrl: url }))}
                 />
-                <p className="mt-1 text-[11px] text-swar-text-secondary">Tip: you can paste a link to an image.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

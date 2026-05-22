@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Edit2, Save, X, ChevronDown, ChevronUp, Plus, Trash2, Image, Video, FileText, Type } from 'lucide-react';
 import { seasonalDatabase } from '@/lib/ritucharya/seasonalAnalysis';
+import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
 interface TimeSlotRecommendation {
   time: string;
@@ -338,16 +339,10 @@ export default function RitusAdminPage() {
                               </div>
 
                               <div>
-                                <label style={{ color: '#FFFF00' }} className="text-xs font-semibold block mb-1">
-                                  Image URL
-                                </label>
-                                <input
-                                  type="text"
-                                  value={slot.imageUrl || ''}
-                                  onChange={(e) => updateTimeSlot(idx, 'imageUrl', e.target.value)}
-                                  className="w-full px-2 py-1 rounded text-sm"
-                                  style={{ backgroundColor: '#333', color: '#FFFFFF', border: '1px solid #FFFF00' }}
-                                  placeholder="https://..."
+                                <LifePlannerImageUpload
+                                  label="Image"
+                                  currentImageUrl={slot.imageUrl}
+                                  onImageUrlChange={(url) => updateTimeSlot(idx, 'imageUrl', url)}
                                 />
                               </div>
 
