@@ -221,6 +221,8 @@ export default function QRBroadcastSchedulePage() {
           <button
             onClick={() => {
               setEditingId(null);
+              setSelectedRecipients(new Set());
+              setRecipientMode('groups');
               setFormData({
                 name: '',
                 messageText: '',

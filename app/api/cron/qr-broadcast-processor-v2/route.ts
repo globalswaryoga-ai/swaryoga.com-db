@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
@@ -256,7 +257,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     let heartbeatCheckCounter = 0;
 
     // Get database for deduplication
-    const db = (await connectDB(), (await import('@/lib/db')).getDb());
+    const db = mongoose.connection.db;
 
     // Send with gaps
     for (let i = 0; i < recipients.length; i++) {
@@ -411,8 +412,9 @@ export async function GET(req: NextRequest) {
     await connectDB();
     const QRBroadcastSchedule = getQRBroadcastSchedule();
 
-    const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
-    const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+    const { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } = await import('@/lib/whatsappBridgeConfig');
+    const bridgeUrl = getWhatsAppBridgeUrl();
+    const bridgeSecret = getWhatsAppBridgeSecret();
 
     // Find active schedules
     const schedules = await QRBroadcastSchedule.find({
@@ -422,7 +424,7 @@ export async function GET(req: NextRequest) {
 
     console.log(`[QR Broadcast V2] Found ${schedules.length} active schedules`);
 
-    const results = [];
+    const results: any[] = [];
     for (const schedule of schedules) {
       const result = await processSchedule(schedule, bridgeUrl, bridgeSecret);
       results.push({
