@@ -224,9 +224,12 @@ export function HistoryTab({ token }: HistoryTabProps) {
         }),
       ]);
 
+      // Use fresh messages from API (not stale state) for stats calculation
+      let freshMessages: MessageRecord[] = [];
       if (msgsRes.ok) {
         const data = await msgsRes.json();
-        setMessages(data?.messages ?? []);
+        freshMessages = data?.messages ?? [];
+        setMessages(freshMessages);
       }
 
       if (broadcastsRes.ok) {
@@ -278,23 +281,28 @@ export function HistoryTab({ token }: HistoryTabProps) {
       const monthAgo = new Date(today.getFullYear(), today.getMonth(), 1);
       const yearAgo = new Date(today.getFullYear(), 0, 1);
 
+      // Use freshMessages (not stale state) — fixes all-zero stats bug
       const calculateStats = (msgs: MessageRecord[], startDate: Date, endDate: Date) => {
         return msgs.filter(msg => {
-          const msgDate = new Date(msg.createdAt || msg.timestamp || '');
+          // Check all possible date fields: sentAt (QR/WhatsApp), createdAt, timestamp
+          const rawDate = (msg as any).sentAt || msg.createdAt || msg.timestamp || '';
+          const msgDate = new Date(rawDate);
+          if (isNaN(msgDate.getTime())) return false;
           return msgDate >= startDate && msgDate <= endDate;
         }).reduce((acc, msg) => {
-          if (msg.status === 'sent' || msg.ticks === 0) acc.sent++;
-          else if (msg.status === 'failed') acc.failed++;
+          const status = msg.status || '';
+          if (status === 'sent' || status === 'delivered' || status === 'read' || msg.ticks === 0) acc.sent++;
+          else if (status === 'failed') acc.failed++;
           else acc.pending++;
           return acc;
         }, { sent: 0, failed: 0, pending: 0 });
       };
 
       setStats({
-        today: calculateStats(messages, today, now),
-        week: calculateStats(messages, weekAgo, now),
-        month: calculateStats(messages, monthAgo, now),
-        year: calculateStats(messages, yearAgo, now),
+        today: calculateStats(freshMessages, today, now),
+        week: calculateStats(freshMessages, weekAgo, now),
+        month: calculateStats(freshMessages, monthAgo, now),
+        year: calculateStats(freshMessages, yearAgo, now),
       });
     } catch (e: any) {
       setError(e.message || 'Failed to load data');

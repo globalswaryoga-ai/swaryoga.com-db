@@ -55,7 +55,8 @@ async function sendMessageWithGaps(
   delayBefore: number,
   userId: string,
   scheduleId: string,
-  db: any
+  db: any,
+  mediaUrls?: string[] // Optional image/media URLs
 ): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean }> {
   try {
     // CHECK 1: Deduplication - prevent same message to same user today
@@ -72,25 +73,64 @@ async function sendMessageWithGaps(
     await new Promise(resolve => setTimeout(resolve, delayBefore));
 
     const startTime = Date.now();
+    const hasMedia = mediaUrls && mediaUrls.length > 0;
 
-    const response = await fetch(`${bridgeUrl}/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-bridge-secret': bridgeSecret,
-      },
-      body: JSON.stringify({
-        to: chatId,
-        message: messageText,
-        type: 'text',
-      }),
-    });
+    // If we have media, send image first then text caption
+    if (hasMedia) {
+      for (const mediaUrl of mediaUrls!) {
+        const mediaResponse = await fetch(`${bridgeUrl}/send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-bridge-secret': bridgeSecret,
+          },
+          body: JSON.stringify({
+            to: chatId,
+            message: messageText, // Caption with the image
+            type: 'image',
+            url: mediaUrl,
+          }),
+        });
+        if (!mediaResponse.ok) {
+          console.warn(`[QR Broadcast V2] Media send failed (${mediaResponse.status}), falling back to text`);
+        }
+      }
+    }
+
+    // Send text message (send separately if no media, or skip if media already sent with caption)
+    const shouldSendText = !hasMedia && messageText.trim();
+    let response: Response | null = null;
+
+    if (shouldSendText) {
+      response = await fetch(`${bridgeUrl}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': bridgeSecret,
+        },
+        body: JSON.stringify({
+          to: chatId,
+          message: messageText,
+          type: 'text',
+        }),
+      });
+    } else if (!hasMedia) {
+      // No media and no text - shouldn't happen but fallback
+      response = await fetch(`${bridgeUrl}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': bridgeSecret,
+        },
+        body: JSON.stringify({
+          to: chatId,
+          message: messageText,
+          type: 'text',
+        }),
+      });
+    }
 
     const sendTimeMs = Date.now() - startTime;
-
-    if (!response.ok) {
-      throw new Error(`Bridge returned ${response.status}`);
-    }
 
     // Record message as sent (for deduplication)
     await recordMessageSent(userId, chatId, messageText, scheduleId, db);
@@ -270,7 +310,10 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         gap,
         schedule.userId,
         schedule._id.toString(),
-        db
+        db,
+        Array.isArray(schedule.mediaUrls) && schedule.mediaUrls.length > 0
+          ? schedule.mediaUrls
+          : undefined
       );
 
       if (result.skipped) {

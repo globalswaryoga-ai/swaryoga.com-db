@@ -40,6 +40,8 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null); // null = create, string = edit
+  const [viewTemplate, setViewTemplate] = useState<Template | null>(null); // for view modal
 
   // Form state
   const [formData, setFormData] = useState({
@@ -138,6 +140,21 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
     }
   };
 
+  const openEdit = (t: Template) => {
+    setEditingId(t._id);
+    setFormData({
+      templateName: t.templateName,
+      language: t.language || 'en',
+      category: t.category || 'MARKETING',
+      headerFormat: t.headerFormat || 'NONE',
+      headerMediaUrl: t.headerMedia?.url || '',
+      body: t.templateContent,
+      footer: t.footer || '',
+      buttons: t.buttons || [],
+    });
+    setShowCreate(true);
+  };
+
   const handleSubmitTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -171,8 +188,14 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
         });
       }
 
-      const res = await fetch('/api/admin/crm/templates', {
-        method: 'POST',
+      // Create or Update
+      const url = editingId
+        ? `/api/admin/crm/templates/${editingId}`
+        : '/api/admin/crm/templates';
+      const method = editingId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -181,10 +204,18 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create template');
+      if (!res.ok) throw new Error(data.error || `Failed to ${editingId ? 'update' : 'create'} template`);
 
-      setTemplates([data.template || data.data, ...templates]);
+      if (editingId) {
+        // Update in place
+        const updated = data.template || data.data;
+        setTemplates(templates.map(t => t._id === editingId ? { ...t, ...updated } : t));
+      } else {
+        setTemplates([data.template || data.data, ...templates]);
+      }
+
       setShowCreate(false);
+      setEditingId(null);
       setFormData({
         templateName: '',
         language: 'en',
@@ -328,15 +359,21 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
                   {t.language && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{t.language}</span>}
                 </div>
                 <div className="flex items-center gap-1 mt-3">
-                  <button className="flex items-center gap-1 text-xs text-gray-600 hover:text-green-600">
+                  <button
+                    onClick={() => setViewTemplate(t)}
+                    className="flex items-center gap-1 text-xs text-gray-600 hover:text-green-600 px-2 py-1 rounded hover:bg-green-50"
+                  >
                     <Eye className="w-3 h-3" /> View
                   </button>
-                  <button className="flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600">
+                  <button
+                    onClick={() => openEdit(t)}
+                    className="flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-blue-50"
+                  >
                     <Pencil className="w-3 h-3" /> Edit
                   </button>
                   <button
                     onClick={() => handleDelete(t._id)}
-                    className="flex items-center gap-1 text-xs text-gray-600 hover:text-red-600 ml-auto"
+                    className="flex items-center gap-1 text-xs text-gray-600 hover:text-red-600 ml-auto px-2 py-1 rounded hover:bg-red-50"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -347,13 +384,73 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
         )}
       </div>
 
-      {/* Create Modal */}
+      {/* View Modal */}
+      {viewTemplate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">{viewTemplate.templateName}</h2>
+              <button onClick={() => setViewTemplate(null)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex gap-2 flex-wrap">
+                {viewTemplate.category && <span className="text-xs bg-gray-100 px-2 py-1 rounded font-medium">{viewTemplate.category}</span>}
+                {viewTemplate.language && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium">{viewTemplate.language}</span>}
+                {viewTemplate.status && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">{viewTemplate.status}</span>}
+              </div>
+              {viewTemplate.headerMedia?.url && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Header Image</p>
+                  <img src={viewTemplate.headerMedia.url} alt="Header" className="max-h-48 rounded-lg object-contain border" />
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Message Body</p>
+                <div className="bg-[#e9fcd4] rounded-lg p-3 text-sm whitespace-pre-wrap font-sans border border-green-100">
+                  {viewTemplate.templateContent}
+                </div>
+              </div>
+              {viewTemplate.footer && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Footer</p>
+                  <p className="text-sm text-gray-600 italic">{viewTemplate.footer}</p>
+                </div>
+              )}
+              {viewTemplate.buttons && viewTemplate.buttons.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Buttons</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {viewTemplate.buttons.map((b, i) => (
+                      <span key={i} className="text-xs border border-blue-300 text-blue-700 px-3 py-1 rounded-full">{b.title}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => { openEdit(viewTemplate); setViewTemplate(null); }}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                ✏️ Edit Template
+              </button>
+              <button onClick={() => setViewTemplate(null)} className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Create Template</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-700">
+              <h2 className="text-lg font-bold">{editingId ? '✏️ Edit Template' : '➕ Create Template'}</h2>
+              <button onClick={() => { setShowCreate(false); setEditingId(null); }} className="text-gray-500 hover:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
