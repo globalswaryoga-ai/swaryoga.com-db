@@ -26,6 +26,9 @@ interface Template {
   _id: string;
   templateName: string;
   templateContent: string;
+  imageFile?: { url?: string };
+  headerMedia?: { url?: string };
+  videoUrl?: string;
 }
 
 interface BroadcastRun {
@@ -390,7 +393,7 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                   onChange={(e) => setFilterGroup(e.target.value)}
                   className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  <option value="">All Groups</option>
+                  <option value="">All Batches</option>
                   {uniqueGroups.map(g => (
                     <option key={g} value={g}>{g}</option>
                   ))}
@@ -539,7 +542,12 @@ export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
                   onChange={(e) => {
                     setSelectedTemplate(e.target.value);
                     const t = templates.find(x => x._id === e.target.value);
-                    if (t) setCustomMessage(t.templateContent);
+                    if (t) {
+                      setCustomMessage(t.templateContent);
+                      // Auto-fill image from template if available
+                      const templateImg = t.imageFile?.url || t.headerMedia?.url || '';
+                      if (templateImg) setImageUrl(templateImg);
+                    }
                   }}
                   className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >

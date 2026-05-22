@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead, getQrWhatsAppChat, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead, getQrWhatsAppChat, getQrWhatsAppMessage, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
@@ -1159,6 +1159,29 @@ export async function POST(req: NextRequest) {
             { upsert: true }
           );
           console.log(`[QR Bridge Proxy POST /send] Saved outbound message to MongoDB: ${chatJid}`);
+
+          // Also save to WhatsAppMessage (stats/history page reads this collection)
+          try {
+            const WaMsg = getWhatsAppMessage();
+            const phoneNum = chatJid.split('@')[0];
+            await WaMsg.create({
+              phoneNumber: phoneNum,
+              direction: 'outbound',
+              messageContent: messageText || '[media]',
+              messageType: (body.url || body.media || body.hasMedia) ? 'image' : 'text',
+              status: 'sent',
+              sentByUserId: userId,
+              sentByLabel: userId,
+              provider: 'whatsapp_web_bridge',
+              sentAt: new Date(),
+              recipientType: chatJid.endsWith('@g.us') ? 'group' : 'individual',
+            });
+          } catch (waErr: any) {
+            // Non-fatal — QrWhatsAppMessage already saved successfully
+            if (!waErr.message?.includes('duplicate')) {
+              console.warn('[QR Bridge Proxy POST /send] WhatsAppMessage save skipped:', waErr.message);
+            }
+          }
         }
       } catch (saveErr) {
         console.error('[QR Bridge Proxy POST /send] Failed to save outbound message:', (saveErr as Error).message);

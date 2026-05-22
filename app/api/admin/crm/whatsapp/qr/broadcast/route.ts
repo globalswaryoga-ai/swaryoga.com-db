@@ -93,7 +93,7 @@ async function sendOne(
   let payload: any = { to: toNormalized };
 
   if (imageUrl) {
-    payload.type = 'media';
+    payload.type = 'image';
     payload.url = imageUrl;
     payload.caption = message;
     payload.message = message;
