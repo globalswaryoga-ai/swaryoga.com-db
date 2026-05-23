@@ -5,7 +5,7 @@ import { getQRBroadcastSchedule, getWhatsAppMessage } from '@/lib/schemas/enterp
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { calculateVariableGaps, getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
-import { canSendMessageToUser, recordMessageSent } from '@/lib/messageDeduplication';
+import { reserveMessageSend } from '@/lib/messageDeduplication';
 import { isQRSendAllowed } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
@@ -40,9 +40,12 @@ function shouldRunToday(frequency: string, daysOfWeek: number[]): boolean {
 
   if (frequency === 'weekly') {
     const today = new Date().getDay();
-    return daysOfWeek.includes(today);
+    const shouldRun = daysOfWeek.includes(today);
+    return shouldRun;
   }
 
+  // Unknown frequency — default to false (don't run)
+  console.warn(`[QR Broadcast V2] Unknown frequency: ${frequency}`);
   return false;
 }
 
@@ -88,10 +91,10 @@ async function sendMessageWithGaps(
   sessionInfo?: { sessionKey: string; tenantId: string }
 ): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean }> {
   try {
-    // CHECK 1: Deduplication - prevent same message to same user today
-    const dedupCheck = await canSendMessageToUser(userId, chatId, messageText, db);
-    if (!dedupCheck.canSend) {
-      return { success: false, error: dedupCheck.reason, skipped: true };
+    // CHECK 1: Atomic deduplication - reserve message slot before sending
+    const reservation = await reserveMessageSend(userId, chatId, messageText, scheduleId, db);
+    if (!reservation.reserved) {
+      return { success: false, error: reservation.reason, skipped: true };
     }
 
     // Wait before sending (honor gap)
@@ -145,9 +148,6 @@ async function sendMessageWithGaps(
       return { success: false, error: 'Bridge rejected message' };
     }
 
-    // Record message as sent (for deduplication)
-    await recordMessageSent(userId, chatId, messageText, scheduleId, db);
-
     return { success: true, sendTimeMs };
   } catch (error) {
     return {
@@ -173,7 +173,12 @@ function estimateSendTime(totalMessages: number, gaps: number[]): string {
  * Process schedule with WhatsApp-safe gaps
  */
 async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: string) {
+  const now = new Date();
+  const istTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const currentTimeStr = istTime.toLocaleTimeString('en-IN', { hour12: false });
+
   console.log(`[QR Broadcast Processor V2] Processing: ${schedule._id} (${schedule.name})`);
+  console.log(`  Current time (IST): ${currentTimeStr}, Window: ${schedule.startTime}-${schedule.endTime}, Freq: ${schedule.frequency}, isActive: ${schedule.isActive}`);
 
   try {
     // CHECK 0: Resolve session info dynamically (bridge needs BOTH x-session-key AND x-tenant-id)
@@ -207,12 +212,14 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
     // Check time window
     if (!isWithinTimeWindow(schedule.startTime, schedule.endTime, schedule.timezone)) {
-      console.log(`[QR Broadcast Processor V2] Outside time window: ${schedule.startTime}-${schedule.endTime}`);
+      console.log(`[QR Broadcast Processor V2] ⏰ Outside time window (${schedule.startTime}-${schedule.endTime})`);
       return { status: 'skipped', reason: 'outside_time_window' };
     }
 
     // Check if should run today
     if (!shouldRunToday(schedule.frequency, schedule.daysOfWeek)) {
+      const today = new Date();
+      console.log(`[QR Broadcast Processor V2] 📅 Not scheduled for today (frequency: ${schedule.frequency}, daysOfWeek: ${schedule.daysOfWeek}, today: ${today.getDay()})`);
       return { status: 'skipped', reason: 'not_scheduled_for_today' };
     }
 
@@ -220,7 +227,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     const lastRunDate = schedule.lastRunDate ? new Date(schedule.lastRunDate) : null;
     const today = new Date();
     if (lastRunDate && lastRunDate.toDateString() === today.toDateString()) {
-      console.log(`[QR Broadcast Processor V2] Already ran today`);
+      console.log(`[QR Broadcast Processor V2] ✓ Already ran today at ${lastRunDate.toLocaleTimeString()}`);
       return { status: 'skipped', reason: 'already_ran_today' };
     }
 
@@ -450,13 +457,25 @@ export async function GET(req: NextRequest) {
     const bridgeUrl = getWhatsAppBridgeUrl();
     const bridgeSecret = getWhatsAppBridgeSecret();
 
-    // Find active schedules
+    // Find active schedules — include draft, scheduled, in-progress, paused
+    // Draft = newly created and ready to send, Paused = auto-paused (session lost), etc.
     const schedules = await QRBroadcastSchedule.find({
       isActive: true,
-      status: { $in: ['scheduled', 'in-progress', 'draft'] }, // 'draft' included for backward compat
+      status: { $in: ['draft', 'scheduled', 'in-progress', 'paused'] },
     });
 
     console.log(`[QR Broadcast V2] Found ${schedules.length} active schedules`);
+
+    if (schedules.length === 0) {
+      // Debug: check why no schedules found
+      const allCount = await QRBroadcastSchedule.countDocuments({});
+      const inactiveCount = await QRBroadcastSchedule.countDocuments({ isActive: false });
+      const badStatusCount = await QRBroadcastSchedule.countDocuments({
+        isActive: true,
+        status: { $nin: ['draft', 'scheduled', 'in-progress', 'paused'] },
+      });
+      console.log(`[QR Broadcast V2] Debug: Total=${allCount}, Inactive=${inactiveCount}, BadStatus=${badStatusCount}`);
+    }
 
     // ── GLOBAL TIME GUARD: Never send QR messages after 10:30 PM or before 5:00 AM IST ──
     if (!isQRSendAllowed()) {

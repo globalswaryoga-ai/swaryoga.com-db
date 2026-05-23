@@ -94,8 +94,66 @@ export async function canSendMessageToUser(
 }
 
 /**
+ * Atomically reserve message send (prevent duplicates)
+ * Call BEFORE sending to prevent race conditions
+ */
+export async function reserveMessageSend(
+  userId: string,
+  chatId: string,
+  messageText: string,
+  scheduleId: string,
+  db: any
+): Promise<{ reserved: boolean; reason?: string }> {
+  try {
+    const collection = db.collection('message_dedup_log');
+    const messageHash = hashMessage(messageText);
+    const dayKey = getDayKey();
+
+    // Atomic: insert only if NOT already sent today
+    const result = await collection.updateOne(
+      {
+        userId,
+        chatId,
+        messageHash,
+        dayKey,
+      },
+      {
+        $setOnInsert: {
+          userId,
+          chatId,
+          messageHash,
+          messageText,
+          scheduleId,
+          sentAt: new Date(),
+          dayKey,
+        },
+      },
+      { upsert: true }
+    );
+
+    // If matched count is 0, it means we inserted (reserved successfully)
+    if (result.upsertedId) {
+      console.log(
+        `[Message Dedup] Reserved: ${chatId} on ${dayKey} (hash: ${messageHash})`
+      );
+      return { reserved: true };
+    }
+
+    // Document already exists — message was already sent or reserved
+    return {
+      reserved: false,
+      reason: 'Message already sent or reserved today',
+    };
+  } catch (error) {
+    console.error('[Message Dedup] Error reserving message:', error);
+    return { reserved: false, reason: 'Database error' };
+  }
+}
+
+/**
  * Record message as sent
  * Call AFTER successfully sending message
+ * @deprecated Use reserveMessageSend instead for atomicity
  */
 export async function recordMessageSent(
   userId: string,

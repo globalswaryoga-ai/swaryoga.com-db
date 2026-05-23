@@ -23,7 +23,8 @@ interface SessionHealth {
 
 /**
  * Check if session is still connected
- * CRITICAL: Call every 5 minutes during operations
+ * Uses GET /sessions endpoint (the bridge has no /session-health endpoint).
+ * Matches by sessionKey first, then falls back to any connected session.
  */
 export async function checkSessionHealth(
   userId: string,
@@ -32,33 +33,14 @@ export async function checkSessionHealth(
   bridgeSecret: string
 ): Promise<SessionHealth> {
   try {
-    const response = await fetch(`${bridgeUrl}/session-health`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-bridge-secret': bridgeSecret,
-      },
-      body: JSON.stringify({
-        sessionKey,
-      }),
-      timeout: 5000,
+    // Use /sessions endpoint — the only reliable health check on this bridge
+    const response = await fetch(`${bridgeUrl}/sessions`, {
+      method: 'GET',
+      headers: { 'x-bridge-secret': bridgeSecret },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
-      return {
-        connected: false,
-        lastHeartbeat: new Date(),
-        heartbeatIntervalMs: 300000, // 5 minutes
-        reconnectAttempts: 0,
-        maxReconnectAttempts: 5,
-        status: 'disconnected',
-        message: `❌ Session disconnected (HTTP ${response.status})`,
-      };
-    }
-
-    const data = await response.json();
-
-    if (data.connected === false) {
       return {
         connected: false,
         lastHeartbeat: new Date(),
@@ -66,18 +48,55 @@ export async function checkSessionHealth(
         reconnectAttempts: 0,
         maxReconnectAttempts: 5,
         status: 'disconnected',
-        message: '❌ WhatsApp auto-signout detected',
+        message: `❌ Bridge unreachable (HTTP ${response.status})`,
       };
     }
 
+    const data = await response.json();
+    const sessions: any[] = Array.isArray(data?.sessions) ? data.sessions : [];
+
+    // 1. Look for the exact sessionKey match
+    const exactMatch = sessions.find(
+      (s: any) => String(s.sessionKey) === String(sessionKey) && s.status === 'connected'
+    );
+    if (exactMatch) {
+      return {
+        connected: true,
+        lastHeartbeat: new Date(),
+        heartbeatIntervalMs: 300000,
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 5,
+        status: 'healthy',
+        message: `✅ Session ${sessionKey} connected (${exactMatch.phone?.id || 'no phone'})`,
+      };
+    }
+
+    // 2. Any connected session (fallback — different sessionKey but still usable)
+    const anyConnected = sessions.find((s: any) => s.status === 'connected');
+    if (anyConnected) {
+      return {
+        connected: true,
+        lastHeartbeat: new Date(),
+        heartbeatIntervalMs: 300000,
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 5,
+        status: 'healthy',
+        message: `✅ Active session found (key=${anyConnected.sessionKey}, phone=${anyConnected.phone?.id || 'none'})`,
+      };
+    }
+
+    // No connected sessions at all
+    const reconnecting = sessions.some((s: any) => s.status === 'connecting');
     return {
-      connected: true,
+      connected: false,
       lastHeartbeat: new Date(),
       heartbeatIntervalMs: 300000,
       reconnectAttempts: 0,
       maxReconnectAttempts: 5,
-      status: 'healthy',
-      message: '✅ Session healthy',
+      status: reconnecting ? 'reconnecting' : 'disconnected',
+      message: reconnecting
+        ? '🔄 WhatsApp session reconnecting — scan QR again if needed'
+        : '❌ No WhatsApp session connected — scan QR code',
     };
   } catch (error) {
     return {
@@ -87,7 +106,7 @@ export async function checkSessionHealth(
       reconnectAttempts: 0,
       maxReconnectAttempts: 5,
       status: 'disconnected',
-      message: `❌ Connection check failed: ${error instanceof Error ? error.message : 'Unknown'}`,
+      message: `❌ Bridge unreachable: ${error instanceof Error ? error.message : 'Unknown'}`,
     };
   }
 }
@@ -120,7 +139,7 @@ export async function reconnectSession(
         sessionKey,
         attemptNumber,
       }),
-      timeout: 10000,
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
