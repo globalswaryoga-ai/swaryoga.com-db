@@ -115,18 +115,18 @@ async function sendMessageWithGaps(
     let sendOk = false;
 
     if (hasMedia) {
-      // Send image with text as caption — send first image, then text if present
+      // Send image with text — use /send-template endpoint for proper media handling
       const mediaUrl = mediaUrls![0]; // Use first media URL
-      console.log(`[QR Broadcast V2] Sending media: ${mediaUrl} to ${chatId}`);
+      console.log(`[QR Broadcast V2] Sending image via /send-template: ${mediaUrl} to ${chatId}`);
 
-      const res = await fetch(`${bridgeUrl}/send`, {
+      const res = await fetch(`${bridgeUrl}/send-template`, {
         method: 'POST',
         headers: bridgeHeaders,
         body: JSON.stringify({
           to: chatId,
-          type: 'image',
-          url: mediaUrl,
-          message: messageText || ''
+          imageUrl: mediaUrl,
+          bodyText: messageText || '',
+          footerText: 'Swar Yoga'
         }),
       });
       const resData = await res.json().catch(() => ({}));
