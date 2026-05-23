@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { connectDB } from "@/lib/db";
+import { getWhatsAppMessage } from "@/lib/schemas/enterpriseSchemas";
 
 export const dynamic = 'force-dynamic';
-
-
-const { url: BRIDGE_URL, secret: BRIDGE_SECRET } = getWhatsAppBridgeConfig();
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,30 +11,64 @@ export async function GET(request: NextRequest) {
     if (!authHeader) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
-    
+
     const decoded = await verifyToken(authHeader.replace("Bearer ", ""));
     if (!decoded || !decoded.isAdmin) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
     }
 
+    await connectDB();
+    const WhatsAppMessage = getWhatsAppMessage();
+
     const { searchParams } = new URL(request.url);
-    const broadcastId = searchParams.get("broadcastId");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const phoneNumber = searchParams.get("phoneNumber");
+    const status = searchParams.get("status");
+    const direction = searchParams.get("direction") || "outbound";
+    const limit = Math.min(parseInt(searchParams.get("limit") || "100"), 1000);
 
-    let url = `${BRIDGE_URL}/broadcast/report`;
-    const params = new URLSearchParams();
-    if (broadcastId) params.append("broadcastId", broadcastId);
-    if (from) params.append("from", from);
-    if (to) params.append("to", to);
-    if (params.toString()) url += `?${params.toString()}`;
+    // Build filter
+    const filter: any = { direction };
+    if (phoneNumber) filter.phoneNumber = phoneNumber;
+    if (status) filter.status = status;
 
-    const response = await fetch(url, {
-      headers: { "x-bridge-secret": BRIDGE_SECRET },
+    // Date range filter
+    if (from || to) {
+      filter.sentAt = {};
+      if (from) filter.sentAt.$gte = new Date(from);
+      if (to) filter.sentAt.$lte = new Date(to);
+    }
+
+    // Query messages from MongoDB
+    const messages = await WhatsAppMessage.find(filter)
+      .sort({ sentAt: -1 })
+      .limit(limit)
+      .lean();
+
+    // Calculate statistics
+    const stats = await WhatsAppMessage.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const totalCount = await WhatsAppMessage.countDocuments(filter);
+
+    return NextResponse.json({
+      success: true,
+      data: messages,
+      stats: {
+        total: totalCount,
+        byStatus: stats,
+        count: messages.length,
+      },
+      message: `Found ${totalCount} messages`,
     });
-    
-    const data = await response.json();
-    return NextResponse.json(data);
   } catch (error: any) {
     console.error("[broadcast-report] GET error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

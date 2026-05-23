@@ -200,13 +200,16 @@ export async function POST(request: NextRequest) {
     // Find the connected WhatsApp session (sessionKey + tenantId both needed)
     const session = await findConnectedSession(bridgeUrl, bridgeSecret, viewerUserId);
     if (!session) {
+      console.error(`[qr-broadcast] ❌ No connected session found for user=${viewerUserId} at ${bridgeUrl}/sessions`);
       return NextResponse.json({
         success: false,
-        error: 'WhatsApp is not connected. Please scan the QR code on the QR WhatsApp page first.',
+        error: '❌ WhatsApp is not connected. Please open the QR WhatsApp page and scan the QR code to connect.',
+        bridgeUrl: bridgeUrl,
+        instruction: 'Visit the QR WhatsApp page → Scan QR code → Connection will establish',
       }, { status: 503 });
     }
 
-    console.log(`[qr-broadcast] Session: key=${session.sessionKey} tenantId=${session.tenantId} user=${viewerUserId}`);
+    console.log(`[qr-broadcast] ✅ Session: key=${session.sessionKey} tenantId=${session.tenantId} user=${viewerUserId}`);
 
     // Normalize recipients — preserve group IDs (@g.us), only strip digits for phone numbers
     const isGroupId = (r: string) => String(r).includes('@g.us');
@@ -248,7 +251,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[qr-broadcast] Sending to ${filteredRecipients.length} recipients via ${bridgeUrl}/send`);
+    console.log(`[qr-broadcast] ▶ Starting broadcast to ${filteredRecipients.length} recipients via ${bridgeUrl}/send`);
+    console.log(`[qr-broadcast]   Message: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
+    console.log(`[qr-broadcast]   Type: ${imageUrl ? 'media' : 'text'}, Recipients: ${filteredRecipients.slice(0, 3).join(', ')}${filteredRecipients.length > 3 ? ` +${filteredRecipients.length - 3}` : ''}`);
 
     // Send messages one by one (bridge has no /broadcast endpoint)
     let sent = 0;
@@ -272,6 +277,7 @@ export async function POST(request: NextRequest) {
         );
         if (result.success) {
           sent++;
+          console.log(`[qr-broadcast] ✅ ${i + 1}/${filteredRecipients.length} sent to ${recipient}`);
           // Queue a message record for each successful send
           messageRecordsToSave.push({
             phoneNumber: isGroup ? recipient : recipient,
@@ -288,10 +294,12 @@ export async function POST(request: NextRequest) {
           });
         } else {
           failed++;
+          console.error(`[qr-broadcast] ❌ ${i + 1}/${filteredRecipients.length} failed to send to ${recipient}: ${result.error}`);
           if (errors.length < 5) errors.push(`${recipient}: ${result.error}`);
         }
       } catch (err: any) {
         failed++;
+        console.error(`[qr-broadcast] ❌ ${i + 1}/${filteredRecipients.length} exception sending to ${recipient}: ${err.message}`);
         if (errors.length < 5) errors.push(`${recipient}: ${err.message}`);
       }
 
