@@ -34,7 +34,7 @@ const RITU_LABELS: Record<string, string> = {
 };
 
 const AYANAS = ['uttarayan', 'dakshinayan'];
-const SEASONS = ['summer', 'winter', 'rainy'];
+const SEASONS = ['summer-pleasant', 'summer-hot', 'winter-pleasant', 'winter-cold', 'rainy-pleasant', 'rainy-heavy', 'rainy-no-rain'];
 const HUMIDITY_LEVELS = ['low', 'medium', 'high'];
 const SKY_OPTIONS = ['Clear', 'Partly cloudy', 'Cloudy', 'Overcast', 'Foggy', 'Rainy', 'Snowy', 'Thunderstorm'];
 
@@ -56,7 +56,7 @@ export default function RitucharyaLogicPage() {
     windMax: 20,
     skyConditions: [],
     ayana: 'uttarayan',
-    season: 'summer',
+    season: 'summer-pleasant',
     characterEn: '',
     characterHi: '',
   });
@@ -130,7 +130,7 @@ export default function RitucharyaLogicPage() {
         windMax: 20,
         skyConditions: [],
         ayana: 'uttarayan',
-        season: 'summer',
+        season: 'summer-pleasant',
         characterEn: '',
         characterHi: '',
       });
@@ -412,15 +412,22 @@ export default function RitucharyaLogicPage() {
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Season</label>
                   <select
-                    value={formData.season || 'summer'}
+                    value={formData.season || 'summer-pleasant'}
                     onChange={(e) => setFormData({ ...formData, season: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    {SEASONS.map(s => (
-                      <option key={s} value={s}>
-                        {s === 'summer' ? '☀️ Summer' : s === 'winter' ? '❄️ Winter' : '🌧️ Rainy'}
-                      </option>
-                    ))}
+                    {SEASONS.map(s => {
+                      const label = s === 'summer-pleasant' ? '☀️ Summer - Pleasant'
+                        : s === 'summer-hot' ? '☀️ Summer - Too Hot'
+                        : s === 'winter-pleasant' ? '❄️ Winter - Pleasant'
+                        : s === 'winter-cold' ? '❄️ Winter - Too Cold'
+                        : s === 'rainy-pleasant' ? '🌧️ Rainy - Pleasant'
+                        : s === 'rainy-heavy' ? '🌧️ Rainy - Heavy'
+                        : '🌧️ Rainy - But No Rain';
+                      return (
+                        <option key={s} value={s}>{label}</option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
