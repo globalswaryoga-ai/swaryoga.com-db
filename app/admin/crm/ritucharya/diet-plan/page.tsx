@@ -117,8 +117,18 @@ export default function DietPlanPage() {
     const existing = plans.find(p => p.ritu === ritu && p.phase === phase);
     if (existing) {
       setFormData(existing);
-      setShowForm(true);
+    } else {
+      setFormData({
+        ritu,
+        phase,
+        meals: MEAL_SLOTS.map(slot => ({ ...slot, foods: [], tip: '' })),
+        herbs: [],
+        lifestyleTips: [],
+        avoidFoods: [],
+        specialNotes: '',
+      });
     }
+    setShowForm(true);
   };
 
   return (

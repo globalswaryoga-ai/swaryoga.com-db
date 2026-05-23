@@ -119,8 +119,17 @@ export default function DietaryRecommendationsPage() {
     const existing = recommendations.find(r => r.ritu === ritu && r.phase === phase);
     if (existing) {
       setFormData(existing);
-      setShowForm(true);
+    } else {
+      setFormData({
+        ritu,
+        phase,
+        title: '',
+        tasteRecommendations: [{ name: '', percentage: 0, emoji: '', description: '' }],
+        avoidRecommendations: [{ name: '', emoji: '', description: '' }],
+        additionalNotes: '',
+      });
     }
+    setShowForm(true);
   };
 
   return (

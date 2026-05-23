@@ -115,22 +115,28 @@ async function sendMessageWithGaps(
     let sendOk = false;
 
     if (hasMedia) {
-      // Send image with text as caption
-      for (const mediaUrl of mediaUrls!) {
-        const res = await fetch(`${bridgeUrl}/send`, {
-          method: 'POST',
-          headers: bridgeHeaders,
-          body: JSON.stringify({ to: chatId, type: 'image', url: mediaUrl, message: messageText }),
-        });
-        const resData = await res.json().catch(() => ({}));
-        if (res.ok && resData?.success !== false) {
-          sendOk = true;
-          console.log(`[QR Broadcast V2] ✓ Image sent to ${chatId}`);
-        } else {
-          console.warn(`[QR Broadcast V2] Image send failed: ${resData?.error || res.status}`);
-        }
+      // Send image with text as caption — send first image, then text if present
+      const mediaUrl = mediaUrls![0]; // Use first media URL
+      console.log(`[QR Broadcast V2] Sending media: ${mediaUrl} to ${chatId}`);
+
+      const res = await fetch(`${bridgeUrl}/send`, {
+        method: 'POST',
+        headers: bridgeHeaders,
+        body: JSON.stringify({
+          to: chatId,
+          type: 'image',
+          url: mediaUrl,
+          message: messageText || ''
+        }),
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok && resData?.success !== false) {
+        sendOk = true;
+        console.log(`[QR Broadcast V2] ✓ Image sent to ${chatId}`);
+      } else {
+        console.warn(`[QR Broadcast V2] Image send failed for ${mediaUrl}: ${resData?.error || res.status}`);
       }
-    } else if (messageText.trim()) {
+    } else if (messageText && messageText.trim()) {
       // Send text only
       const res = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
@@ -179,6 +185,25 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
   console.log(`[QR Broadcast Processor V2] Processing: ${schedule._id} (${schedule.name})`);
   console.log(`  Current time (IST): ${currentTimeStr}, Window: ${schedule.startTime}-${schedule.endTime}, Freq: ${schedule.frequency}, isActive: ${schedule.isActive}`);
+
+  // LOCK: Prevent concurrent processing of same schedule
+  const db = mongoose.connection.db;
+  const locksCollection = db.collection('processor_locks');
+  const lockKey = `schedule_${schedule._id}`;
+  const lockExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min lock
+
+  const existingLock = await locksCollection.findOne({ lockKey });
+  if (existingLock && existingLock.expiresAt > new Date()) {
+    console.log(`[QR Broadcast V2] ⚠️ Schedule is already being processed. Skipping.`);
+    return { status: 'skipped', reason: 'already_being_processed' };
+  }
+
+  // Acquire lock
+  await locksCollection.updateOne(
+    { lockKey },
+    { $set: { lockKey, expiresAt: lockExpiry, acquiredAt: new Date() } },
+    { upsert: true }
+  );
 
   try {
     // CHECK 0: Resolve session info dynamically (bridge needs BOTH x-session-key AND x-tenant-id)
@@ -444,6 +469,11 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       status: 'error',
       error: error instanceof Error ? error.message : 'Unknown error',
     };
+  } finally {
+    // Release lock
+    const locksCollection = db.collection('processor_locks');
+    const lockKey = `schedule_${schedule._id}`;
+    await locksCollection.deleteOne({ lockKey }).catch(() => {});
   }
 }
 

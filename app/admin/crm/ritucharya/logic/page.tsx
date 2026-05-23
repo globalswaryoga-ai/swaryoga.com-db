@@ -111,8 +111,23 @@ export default function RitucharyaLogicPage() {
     const existing = logics.find(l => l.ritu === ritu && l.phase === phase);
     if (existing) {
       setFormData(existing);
-      setShowForm(true);
+    } else {
+      setFormData({
+        ritu,
+        phase,
+        tempMin: 25,
+        tempMax: 40,
+        humidMin: 20,
+        humidMax: 60,
+        windMin: 0,
+        windMax: 20,
+        skyConditions: [],
+        ayana: 'uttarayan',
+        characterEn: '',
+        characterHi: '',
+      });
     }
+    setShowForm(true);
   };
 
   return (

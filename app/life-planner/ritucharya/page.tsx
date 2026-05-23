@@ -442,6 +442,21 @@ export default function RitucharyaPage() {
     finally { setAnalysing(false); }
   }, [weather]);
 
+  // ── Refresh diet data from admin (for live updates) ────────────────
+  const refreshDietData = useCallback(async () => {
+    if (!ritu?.ritu || !ritu?.phase) return;
+    try {
+      const [dietRes, recRes] = await Promise.all([
+        fetch(`/api/admin/crm/ritucharya-diet?ritu=${ritu.ritu}&phase=${ritu.phase}`),
+        fetch(`/api/ritucharya/dietary-recommendations?ritu=${ritu.ritu}&phase=${ritu.phase}`),
+      ]);
+      const dietData = await dietRes.json();
+      const recData = await recRes.json();
+      if (dietData.success && dietData.plan) setDietPlan(dietData.plan);
+      if (recData.success && recData.data) setDietaryRecommendations(recData.data);
+    } catch { /* silent */ }
+  }, [ritu?.ritu, ritu?.phase]);
+
   // ── Calendar helpers ──────────────────────────────────────────────────
   const today = useMemo(() => new Date(), []);
 
@@ -894,7 +909,7 @@ export default function RitucharyaPage() {
                         const inPlan = cell.dayNum !== null;
                         return (
                           <button key={ci}
-                            onClick={() => { if (cell.dayNum) { setSelectedDay(cell.dayNum); setOpenMealSlot(null); } }}
+                            onClick={() => { if (cell.dayNum) { refreshDietData(); setSelectedDay(cell.dayNum); setOpenMealSlot(null); } }}
                             disabled={!inPlan}
                             className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold transition-all hover:scale-105 ${
                               isSel ? 'bg-emerald-600 text-white shadow-lg ring-2 ring-emerald-400 ring-offset-1 scale-105'
@@ -927,7 +942,7 @@ export default function RitucharyaPage() {
 
               {/* ─── LIST VIEW ─────────────────────────────────────────── */}
               {calView === 'list' && (
-                <div className="space-y-1.5">
+                <div className="space-y-0.5">
                   {planDays.map(({ dayNum, date }) => {
                     const isSel   = selectedDay === dayNum;
                     const isToday = dayNum === 1;
@@ -936,24 +951,24 @@ export default function RitucharyaPage() {
                       <React.Fragment key={dayNum}>
                         {/* Row button */}
                         <button
-                          onClick={() => { setSelectedDay(isSel ? 0 : dayNum); setOpenMealSlot(null); }}
-                          className={`w-full text-left px-5 py-3 rounded-xl border-2 flex items-center justify-between transition-all ${
+                          onClick={() => { if (!isSel) refreshDietData(); setSelectedDay(isSel ? 0 : dayNum); setOpenMealSlot(null); }}
+                          className={`w-full text-left px-4 py-2 rounded-lg border-2 flex items-center justify-between transition-all ${
                             isSel ? 'bg-emerald-600 border-emerald-600 text-white rounded-b-none'
                             : isToday ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
                             : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-300'
                           }`}>
-                          <div className="flex items-center gap-3">
-                            <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm shrink-0 ${isSel ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isSel ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-700'}`}>
                               {dayNum}
                             </span>
-                            <span className="font-semibold text-sm">{dayName}</span>
+                            <span className="font-medium text-xs">{dayName}</span>
                             {isToday && (
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${isSel ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'}`}>TODAY</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold shrink-0 ${isSel ? 'bg-white/20 text-white' : 'bg-emerald-600 text-white'}`}>TODAY</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[10px] ${isSel ? 'text-white/70' : 'text-gray-400'}`}>7 meals</span>
-                            {isSel ? <ChevronUp size={15} className="text-white/70"/> : <ChevronDown size={15} className="text-gray-400"/>}
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[9px] ${isSel ? 'text-white/70' : 'text-gray-400'}`}>7 meals</span>
+                            {isSel ? <ChevronUp size={13} className="text-white/70"/> : <ChevronDown size={13} className="text-gray-400"/>}
                           </div>
                         </button>
 
