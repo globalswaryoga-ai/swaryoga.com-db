@@ -625,6 +625,17 @@ export default function RitucharyaPage() {
                       <option value="rainy-no-rain">🌧️ Rainy - But No Rain</option>
                     </select>
                   </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">💧 Humidity Level</p>
+                    <select value={humidityLevel} onChange={e => { setHumidityLevel(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan, season, humidityLevel: e.target.value }); }}
+                      className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Select Humidity…</option>
+                      <option value="low">🟢 Low (0-40%)</option>
+                      <option value="medium">🟡 Medium (40-70%)</option>
+                      <option value="high">🔴 High (70-100%)</option>
+                    </select>
+                  </div>
                 </div>
                 {city && (
                   <button onClick={fetchWeather} disabled={fetching}
@@ -668,17 +679,6 @@ export default function RitucharyaPage() {
                       className="w-full text-sm font-bold bg-white text-slate-900 outline-none border-2 border-purple-300 rounded px-3 py-2">
                       {['Clear sky','Partly cloudy','Cloudy','Mostly cloudy','Overcast','Foggy','Hazy','Light rain','Rainy','Heavy rain','Thunderstorm','Snowy'].map(d =>
                         <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="bg-teal-100 rounded-xl p-4 border border-teal-300">
-                    <p className="text-xs text-gray-600 mb-2">💧 Humidity Level</p>
-                    <select value={humidityLevel} onChange={e => { setHumidityLevel(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan, season, humidityLevel: e.target.value }); }}
-                      className="w-full text-sm font-bold bg-white text-slate-900 outline-none border-2 border-teal-300 rounded px-3 py-2">
-                      <option value="">Select Level…</option>
-                      <option value="low">🟢 Low (0-40%)</option>
-                      <option value="medium">🟡 Medium (40-70%)</option>
-                      <option value="high">🔴 High (70-100%)</option>
                     </select>
                   </div>
 
