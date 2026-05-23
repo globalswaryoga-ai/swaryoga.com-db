@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Loader, RefreshCw, ChevronDown, ChevronUp, Calendar, ArrowRight, ArrowLeft, List } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import DietaryRecommendationsChart from '@/components/ritucharya/DietaryRecommendationsChart';
 import { locationData } from '@/lib/locationData';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -254,6 +255,7 @@ export default function RitucharyaPage() {
 
   const [ritu,     setRitu]       = useState<RituResult|null>(null);
   const [dietPlan, setDietPlan]   = useState<DietPlan|null>(null);
+  const [dietaryRecommendations, setDietaryRecommendations] = useState<any|null>(null);
   const [openSlot, setOpenSlot]   = useState<string|null>('gond_pani');
 
   // Step 3 calendar state
@@ -426,7 +428,15 @@ export default function RitucharyaPage() {
         if (data.success && data.plan) fetchedDiet = data.plan;
       } catch { /* silent */ }
 
+      let fetchedRecommendations: any = null;
+      try {
+        const res  = await fetch(`/api/ritucharya/dietary-recommendations?ritu=${bestRitu}&phase=${bestPhase}`);
+        const data = await res.json();
+        if (data.success && data.data) fetchedRecommendations = data.data;
+      } catch { /* silent */ }
+
       setDietPlan(fetchedDiet);
+      setDietaryRecommendations(fetchedRecommendations);
       setStep(2);
     } catch { /* silent */ }
     finally { setAnalysing(false); }
@@ -707,6 +717,13 @@ export default function RitucharyaPage() {
                   <h2 className="text-xl font-bold text-emerald-800">
                     🍽️ {ritu.icon} {ritu.rituLabel} — {ritu.phaseLabel} Diet Plan
                   </h2>
+
+                  {/* Dietary Recommendations Chart */}
+                  <DietaryRecommendationsChart
+                    tasteRecommendations={dietaryRecommendations?.tasteRecommendations}
+                    avoidRecommendations={dietaryRecommendations?.avoidRecommendations}
+                    title={dietaryRecommendations?.title || `${ritu.rituLabel} — ${ritu.phaseLabel} Dietary Recommendations`}
+                  />
 
                   <div className="space-y-2">
                     {MEAL_SLOTS.map(slot => {

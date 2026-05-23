@@ -51,6 +51,8 @@ import {
   Video,
   Clock,
   Leaf,
+  Cloud,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
@@ -347,32 +349,32 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         {
           icon: Zap,
           label: 'Ritucharya Admin',
-          href: '/admin/crm/planner/ritucharya/manage',
+          href: '/admin/crm/ritucharya',
           color: 'text-emerald-500',
           module: 'lifePlanner',
           planModule: 'lifePlanner',
-          description: 'Manage weather & seasons',
+          description: 'Manage weather, dietary & meal plans',
           items: [
             {
-              icon: Wrench,
-              label: 'Manage Weather Form',
-              href: '/admin/crm/planner/ritucharya/manage',
+              icon: Cloud,
+              label: 'Ritucharya Logic',
+              href: '/admin/crm/ritucharya/logic',
               color: 'text-blue-400',
-              description: 'Edit weather parameters',
+              description: 'Weather ranges & Ritu mapping',
+            },
+            {
+              icon: UtensilsCrossed,
+              label: 'Dietary Recommendations',
+              href: '/admin/crm/ritucharya/dietary-recommendations',
+              color: 'text-green-400',
+              description: 'Tastes & avoid recommendations',
             },
             {
               icon: CalendarDays,
-              label: 'Manage Seasons',
-              href: '/admin/crm/planner-dashboard/ritucharya/ritus-admin',
-              color: 'text-yellow-400',
-              description: 'Edit ritu details & doshas',
-            },
-            {
-              icon: BarChart3,
-              label: 'Today\'s Recommendations',
-              href: '/admin/crm/planner-dashboard/ritucharya/today',
-              color: 'text-green-400',
-              description: 'View today\'s recommendations',
+              label: 'Diet Plan & Meals',
+              href: '/admin/crm/ritucharya/diet-plan',
+              color: 'text-orange-400',
+              description: 'Daily meal schedules & tips',
             },
           ],
         },
