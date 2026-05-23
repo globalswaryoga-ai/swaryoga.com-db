@@ -337,7 +337,18 @@ export default function RitucharyaPage() {
   const handleWeatherChange = (field: keyof WeatherState, val: number | string) => {
     setWeather(w => {
       const updated = { ...w, [field]: val };
-      if (country && city) saveData(updated, { country, state, city, aayan, season, humidityLevel });
+      let newHumidityLevel = humidityLevel;
+
+      // Auto-update humidity level based on humidity % value
+      if (field === 'humidity') {
+        const humidityVal = Number(val);
+        if (humidityVal <= 40) newHumidityLevel = 'low';
+        else if (humidityVal <= 70) newHumidityLevel = 'medium';
+        else newHumidityLevel = 'high';
+        setHumidityLevel(newHumidityLevel);
+      }
+
+      if (country && city) saveData(updated, { country, state, city, aayan, season, humidityLevel: newHumidityLevel });
       return updated;
     });
   };
@@ -379,9 +390,16 @@ export default function RitucharyaPage() {
           w.aqi = aqiValue === 1 ? 30 : aqiValue === 2 ? 50 : aqiValue === 3 ? 100 : aqiValue === 4 ? 150 : 200;
         }
       }
+      // Auto-update humidity level based on fetched humidity value
+      let newHumidityLevel = humidityLevel;
+      if (w.humidity <= 40) newHumidityLevel = 'low';
+      else if (w.humidity <= 70) newHumidityLevel = 'medium';
+      else newHumidityLevel = 'high';
+      setHumidityLevel(newHumidityLevel);
+
       setWeather(w);
       // ← auto-save after fetch
-      saveData(w, { country, state, city, aayan, season, humidityLevel });
+      saveData(w, { country, state, city, aayan, season, humidityLevel: newHumidityLevel });
     } catch { /* silent */ }
     finally { setFetching(false); }
   };
