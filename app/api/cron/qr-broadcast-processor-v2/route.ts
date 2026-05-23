@@ -351,11 +351,12 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         console.log(
           `[QR Broadcast V2] ✓ ${i + 1}/${recipients.length} sent (gap: ${(gap / 1000).toFixed(1)}s)`
         );
-        // Save to WhatsAppMessage so stats page shows real data
+        // Save to WhatsAppMessage (main DB, not CRM DB) so stats page shows real data
         try {
-          const WaMsg = getWhatsAppMessage();
+          const mainDb = mongoose.connection.db;
+          const waCollection = mainDb.collection('whatsapp_messages');
           const phoneNum = chatId.includes('@') ? chatId.split('@')[0] : chatId.replace(/\D/g, '');
-          await WaMsg.create({
+          await waCollection.insertOne({
             phoneNumber: phoneNum,
             direction: 'outbound',
             messageContent: schedule.messageText || '[media]',
@@ -367,8 +368,12 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
             provider: 'whatsapp_web_bridge',
             sentAt: new Date(),
             recipientType: chatId.endsWith('@g.us') ? 'group' : 'individual',
+            createdAt: new Date(),
+            updatedAt: new Date(),
           });
-        } catch (_waErr) { /* non-fatal */ }
+        } catch (waErr) {
+          console.warn(`[QR Broadcast V2] Warning: Failed to save message to WhatsAppMessage:`, waErr instanceof Error ? waErr.message : String(waErr));
+        }
       } else {
         failed++;
         console.error(
