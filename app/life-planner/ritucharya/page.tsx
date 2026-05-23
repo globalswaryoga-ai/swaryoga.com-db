@@ -242,6 +242,8 @@ export default function RitucharyaPage() {
   const [country, setCountry]     = useState('');
   const [state,   setState]       = useState('');
   const [city,    setCity]        = useState('');
+  const [aayan,   setAayan]       = useState('');
+  const [season,  setSeason]      = useState('');
   const [states,  setStates]      = useState<any[]>([]);
   const [cities,  setCities]      = useState<any[]>([]);
 
@@ -265,7 +267,7 @@ export default function RitucharyaPage() {
   const [openMealSlot, setOpenMealSlot] = useState<string|null>(null);
 
   // ── Persist helpers ──────────────────────────────────────────────────
-  const saveData = useCallback((w: WeatherState, loc: { country:string; state:string; city:string }) => {
+  const saveData = useCallback((w: WeatherState, loc: { country:string; state:string; city:string; aayan:string; season:string }) => {
     try {
       const data = { ...loc, weather: w, savedAt: new Date().toISOString() };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -278,7 +280,7 @@ export default function RitucharyaPage() {
   const clearSaved = () => {
     localStorage.removeItem(STORAGE_KEY);
     setSavedAt(null);
-    setCountry(''); setState(''); setCity('');
+    setCountry(''); setState(''); setCity(''); setAayan(''); setSeason('');
     setStates([]); setCities([]);
     setWeather({ temp:28, tempMin:22, tempMax:35, humidity:55, windSpeed:12, aqi:60, description:'Partly cloudy' });
   };
@@ -306,6 +308,10 @@ export default function RitucharyaPage() {
         }
       }
 
+      // Restore aayan and season
+      if (data.aayan) setAayan(data.aayan);
+      if (data.season) setSeason(data.season);
+
       // Restore weather
       if (data.weather) setWeather(data.weather);
       if (data.savedAt) setSavedAt(new Date(data.savedAt));
@@ -329,7 +335,7 @@ export default function RitucharyaPage() {
   const handleWeatherChange = (field: keyof WeatherState, val: number | string) => {
     setWeather(w => {
       const updated = { ...w, [field]: val };
-      if (country && city) saveData(updated, { country, state, city });
+      if (country && city) saveData(updated, { country, state, city, aayan, season });
       return updated;
     });
   };
@@ -569,7 +575,7 @@ export default function RitucharyaPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   {[
                     { label:'Country',        val:country, items:locationData.map(c=>c.name), onChange:(v:string)=>onCountry(v), disabled:false    },
                     { label:'State / Region', val:state,   items:states.map(s=>s.name),       onChange:(v:string)=>onState(v),   disabled:!country },
@@ -584,6 +590,29 @@ export default function RitucharyaPage() {
                       </select>
                     </div>
                   ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">☀️ Aayan</p>
+                    <select value={aayan} onChange={e => { setAayan(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan: e.target.value, season }); }}
+                      className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Select Aayan…</option>
+                      <option value="uttarayan">🌅 Uttarayan (Jan-Jun)</option>
+                      <option value="dakshinayan">🌌 Dakshinayan (Jul-Dec)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">🌍 Season</p>
+                    <select value={season} onChange={e => { setSeason(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan, season: e.target.value }); }}
+                      className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Select Season…</option>
+                      <option value="summer">☀️ Summer</option>
+                      <option value="winter">❄️ Winter</option>
+                      <option value="rainy">🌧️ Rainy</option>
+                    </select>
+                  </div>
                 </div>
                 {city && (
                   <button onClick={fetchWeather} disabled={fetching}

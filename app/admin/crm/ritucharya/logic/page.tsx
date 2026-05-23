@@ -16,6 +16,7 @@ interface RituLogic {
   windMax: number;
   skyConditions?: string[];
   ayana?: string;
+  season?: string;
   characterEn?: string;
   characterHi?: string;
 }
@@ -32,6 +33,7 @@ const RITU_LABELS: Record<string, string> = {
 };
 
 const AYANAS = ['uttarayan', 'dakshinayan'];
+const SEASONS = ['summer', 'winter', 'rainy'];
 const SKY_OPTIONS = ['Clear', 'Partly cloudy', 'Cloudy', 'Overcast', 'Foggy', 'Rainy', 'Snowy', 'Thunderstorm'];
 
 export default function RitucharyaLogicPage() {
@@ -51,6 +53,7 @@ export default function RitucharyaLogicPage() {
     windMax: 20,
     skyConditions: [],
     ayana: 'uttarayan',
+    season: 'summer',
     characterEn: '',
     characterHi: '',
   });
@@ -123,6 +126,7 @@ export default function RitucharyaLogicPage() {
         windMax: 20,
         skyConditions: [],
         ayana: 'uttarayan',
+        season: 'summer',
         characterEn: '',
         characterHi: '',
       });
@@ -369,20 +373,37 @@ export default function RitucharyaLogicPage() {
                 </div>
               </div>
 
-              {/* Ayana */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Ayana (Sun's Path)</label>
-                <select
-                  value={formData.ayana}
-                  onChange={(e) => setFormData({ ...formData, ayana: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  {AYANAS.map(a => (
-                    <option key={a} value={a}>
-                      {a === 'uttarayan' ? '☀️ Uttarayan (Jan-Jun)' : '🌌 Dakshinayan (Jul-Dec)'}
-                    </option>
-                  ))}
-                </select>
+              {/* Ayana & Season */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Ayana (Sun's Path)</label>
+                  <select
+                    value={formData.ayana}
+                    onChange={(e) => setFormData({ ...formData, ayana: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {AYANAS.map(a => (
+                      <option key={a} value={a}>
+                        {a === 'uttarayan' ? '☀️ Uttarayan (Jan-Jun)' : '🌌 Dakshinayan (Jul-Dec)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Season</label>
+                  <select
+                    value={formData.season || 'summer'}
+                    onChange={(e) => setFormData({ ...formData, season: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {SEASONS.map(s => (
+                      <option key={s} value={s}>
+                        {s === 'summer' ? '☀️ Summer' : s === 'winter' ? '❄️ Winter' : '🌧️ Rainy'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Character Description */}
