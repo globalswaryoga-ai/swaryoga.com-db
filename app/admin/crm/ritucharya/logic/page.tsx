@@ -12,6 +12,7 @@ interface RituLogic {
   tempMax: number;
   humidMin: number;
   humidMax: number;
+  humidityLevel?: string;
   windMin: number;
   windMax: number;
   skyConditions?: string[];
@@ -34,6 +35,7 @@ const RITU_LABELS: Record<string, string> = {
 
 const AYANAS = ['uttarayan', 'dakshinayan'];
 const SEASONS = ['summer', 'winter', 'rainy'];
+const HUMIDITY_LEVELS = ['low', 'medium', 'high'];
 const SKY_OPTIONS = ['Clear', 'Partly cloudy', 'Cloudy', 'Overcast', 'Foggy', 'Rainy', 'Snowy', 'Thunderstorm'];
 
 export default function RitucharyaLogicPage() {
@@ -49,6 +51,7 @@ export default function RitucharyaLogicPage() {
     tempMax: 40,
     humidMin: 20,
     humidMax: 60,
+    humidityLevel: 'low',
     windMin: 0,
     windMax: 20,
     skyConditions: [],
@@ -122,6 +125,7 @@ export default function RitucharyaLogicPage() {
         tempMax: 40,
         humidMin: 20,
         humidMax: 60,
+        humidityLevel: 'low',
         windMin: 0,
         windMax: 20,
         skyConditions: [],
@@ -287,10 +291,10 @@ export default function RitucharyaLogicPage() {
                 </div>
               </div>
 
-              {/* Humidity Range */}
+              {/* Humidity Range & Level */}
               <div className="bg-cyan-50 p-4 rounded-lg border border-cyan-300">
-                <h3 className="font-bold text-cyan-900 mb-3">💧 Humidity Range (%)</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <h3 className="font-bold text-cyan-900 mb-3">💧 Humidity Range (%) & Level</h3>
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="text-sm text-gray-700">Min</label>
                     <input
@@ -313,6 +317,21 @@ export default function RitucharyaLogicPage() {
                       className="w-full px-3 py-2 border border-cyan-300 rounded"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Humidity Level</label>
+                  <select
+                    value={formData.humidityLevel || 'low'}
+                    onChange={(e) => setFormData({ ...formData, humidityLevel: e.target.value })}
+                    className="w-full px-3 py-2 border border-cyan-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {HUMIDITY_LEVELS.map(h => (
+                      <option key={h} value={h}>
+                        {h === 'low' ? '🟢 Low (0-40%)' : h === 'medium' ? '🟡 Medium (40-70%)' : '🔴 High (70-100%)'}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
