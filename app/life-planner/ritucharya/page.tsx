@@ -244,6 +244,7 @@ export default function RitucharyaPage() {
   const [city,    setCity]        = useState('');
   const [aayan,   setAayan]       = useState('');
   const [season,  setSeason]      = useState('');
+  const [humidityLevel, setHumidityLevel] = useState('');
   const [states,  setStates]      = useState<any[]>([]);
   const [cities,  setCities]      = useState<any[]>([]);
 
@@ -267,7 +268,7 @@ export default function RitucharyaPage() {
   const [openMealSlot, setOpenMealSlot] = useState<string|null>(null);
 
   // ── Persist helpers ──────────────────────────────────────────────────
-  const saveData = useCallback((w: WeatherState, loc: { country:string; state:string; city:string; aayan:string; season:string }) => {
+  const saveData = useCallback((w: WeatherState, loc: { country:string; state:string; city:string; aayan:string; season:string; humidityLevel?:string }) => {
     try {
       const data = { ...loc, weather: w, savedAt: new Date().toISOString() };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -280,7 +281,7 @@ export default function RitucharyaPage() {
   const clearSaved = () => {
     localStorage.removeItem(STORAGE_KEY);
     setSavedAt(null);
-    setCountry(''); setState(''); setCity(''); setAayan(''); setSeason('');
+    setCountry(''); setState(''); setCity(''); setAayan(''); setSeason(''); setHumidityLevel('');
     setStates([]); setCities([]);
     setWeather({ temp:28, tempMin:22, tempMax:35, humidity:55, windSpeed:12, aqi:60, description:'Partly cloudy' });
   };
@@ -308,9 +309,10 @@ export default function RitucharyaPage() {
         }
       }
 
-      // Restore aayan and season
+      // Restore aayan, season, and humidity level
       if (data.aayan) setAayan(data.aayan);
       if (data.season) setSeason(data.season);
+      if (data.humidityLevel) setHumidityLevel(data.humidityLevel);
 
       // Restore weather
       if (data.weather) setWeather(data.weather);
@@ -335,7 +337,7 @@ export default function RitucharyaPage() {
   const handleWeatherChange = (field: keyof WeatherState, val: number | string) => {
     setWeather(w => {
       const updated = { ...w, [field]: val };
-      if (country && city) saveData(updated, { country, state, city, aayan, season });
+      if (country && city) saveData(updated, { country, state, city, aayan, season, humidityLevel });
       return updated;
     });
   };
@@ -379,7 +381,7 @@ export default function RitucharyaPage() {
       }
       setWeather(w);
       // ← auto-save after fetch
-      saveData(w, { country, state, city });
+      saveData(w, { country, state, city, aayan, season, humidityLevel });
     } catch { /* silent */ }
     finally { setFetching(false); }
   };
@@ -601,7 +603,7 @@ export default function RitucharyaPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">☀️ Aayan</p>
-                    <select value={aayan} onChange={e => { setAayan(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan: e.target.value, season }); }}
+                    <select value={aayan} onChange={e => { setAayan(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan: e.target.value, season, humidityLevel }); }}
                       className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
                       <option value="">Select Aayan…</option>
                       <option value="uttarayan">🌅 Uttarayan (Jan-Jun)</option>
@@ -611,7 +613,7 @@ export default function RitucharyaPage() {
 
                   <div>
                     <p className="text-sm text-gray-600 mb-1">🌍 Season</p>
-                    <select value={season} onChange={e => { setSeason(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan, season: e.target.value }); }}
+                    <select value={season} onChange={e => { setSeason(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan, season: e.target.value, humidityLevel }); }}
                       className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
                       <option value="">Select Season…</option>
                       <option value="summer-pleasant">☀️ Summer - Pleasant</option>
@@ -621,6 +623,17 @@ export default function RitucharyaPage() {
                       <option value="rainy-pleasant">🌧️ Rainy - Pleasant</option>
                       <option value="rainy-heavy">🌧️ Rainy - Heavy</option>
                       <option value="rainy-no-rain">🌧️ Rainy - But No Rain</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">💧 Humidity Level</p>
+                    <select value={humidityLevel} onChange={e => { setHumidityLevel(e.target.value); if (country && city) saveData(weather, { country, state, city, aayan, season, humidityLevel: e.target.value }); }}
+                      className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white text-sm font-semibold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Select Humidity…</option>
+                      <option value="low">🟢 Low (0-40%)</option>
+                      <option value="medium">🟡 Medium (40-70%)</option>
+                      <option value="high">🔴 High (70-100%)</option>
                     </select>
                   </div>
                 </div>
