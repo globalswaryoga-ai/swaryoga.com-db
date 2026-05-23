@@ -307,7 +307,7 @@ export function HistoryTab({ token }: HistoryTabProps) {
           return msgDate >= startDate && msgDate <= endDate;
         }).reduce((acc, msg) => {
           const status = msg.status || '';
-          if (status === 'sent' || status === 'delivered' || status === 'read' || msg.ticks === 0) acc.sent++;
+          if (status === 'sent' || status === 'delivered' || status === 'read' || status === 'completed' || status === 'COMPLETED' || msg.ticks >= 1) acc.sent++;
           else if (status === 'failed') acc.failed++;
           else acc.pending++;
           return acc;
