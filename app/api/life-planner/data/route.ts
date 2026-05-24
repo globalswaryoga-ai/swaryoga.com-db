@@ -92,7 +92,15 @@ export async function GET(request: NextRequest) {
     // Return specific data type or all data
     if (dataType) {
       const fieldName = `lifePlanner${dataType.charAt(0).toUpperCase()}${dataType.slice(1)}`;
-      const result = user[fieldName as keyof typeof user] || [];
+      let result = user[fieldName as keyof typeof user];
+
+      // Handle accounting data specially (object instead of array)
+      if (dataType === 'accounting') {
+        result = result || { accounts: [], transactions: [], investments: [], budget: null };
+      } else {
+        result = result || [];
+      }
+
       return NextResponse.json({
         data: result,
       });
