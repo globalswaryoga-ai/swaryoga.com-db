@@ -204,7 +204,23 @@ export default function LifePlannerAccountingPage() {
     // Parse received date ensuring UTC to avoid timezone issues
     const [year, month, day] = investment.amountReceivedDate.split('-').map(Number);
     const receivedDate = new Date(Date.UTC(year, month - 1, day));
-    const annualRate = investment.dividend_rate || 0;
+
+    // Get the annual rate for calculations
+    // dividend_rate is the rate for the specified frequency (not annual)
+    // Frequency-specific rates take priority, but dividend_rate is the fallback
+    const frequencyRate = investment[`${investment.dividendPayFrequency}Rate`] || investment.dividend_rate || 0;
+
+    // Convert frequency rate to annual rate
+    // The rate represents the percentage for that specific dividend period
+    let annualRate = frequencyRate;
+    if (investment.dividendPayFrequency === 'semiannual') {
+      annualRate = frequencyRate * 2; // 2 periods per year = annual
+    } else if (investment.dividendPayFrequency === 'quarterly') {
+      annualRate = frequencyRate * 4; // 4 periods per year = annual
+    } else if (investment.dividendPayFrequency === 'monthly') {
+      annualRate = frequencyRate * 12; // 12 periods per year = annual
+    }
+    // For 'yearly', frequencyRate is already annual
 
     // Helper: Find next fixed date (March 30 or Sept 30) from a given date (using UTC to avoid timezone issues)
     const getNextFixedDate = (fromDate: Date): Date => {
@@ -1997,12 +2013,10 @@ export default function LifePlannerAccountingPage() {
                   (() => {
                     const schedule = generateDividendSchedule(selectedInvestmentView)[editingDividendIndex];
                     const investment = selectedInvestmentView;
-                    const divFrequency = investment?.dividendPayFrequency || 'yearly';
-                    const ratePerFrequency = investment?.[`${divFrequency}Rate`] || investment?.dividend_rate || 0;
-                    const baseDividendAmount = investment ? (investment.amount * ratePerFrequency) / 100 : schedule.amount;
+                    const baseDividendAmount = schedule.amount;
 
                     const dueDate = new Date(schedule.dueDate);
-                    const paymentDate = new Date(paymentForm.paymentDate);
+                    const paymentDate = new Date(paymentForm.paidDate);
                     const daysOverdueValue = Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
                     const isLate = paymentDate > dueDate;
 
