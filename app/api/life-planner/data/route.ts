@@ -199,8 +199,11 @@ export async function PUT(request: NextRequest) {
     } else {
       user = await User.findOneAndUpdate(
         query,
-        { $set: { [fieldName]: data, updatedAt: new Date() } },
-        { new: true }
+        {
+          $set: { [fieldName]: data, updatedAt: new Date() },
+          $setOnInsert: { email: payload.email || `user-${Date.now()}@swaryoga.com`, name: payload.email || 'User', createdAt: new Date() }
+        },
+        { new: true, upsert: true }
       );
     }
 
