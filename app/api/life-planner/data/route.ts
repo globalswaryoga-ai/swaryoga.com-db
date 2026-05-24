@@ -197,20 +197,26 @@ export async function PUT(request: NextRequest) {
         { new: true, upsert: true }
       );
     } else {
-      const userEmail = email || `user-${Date.now()}@swaryoga.com`;
-      user = await User.findOneAndUpdate(
-        query,
-        {
-          $set: { [fieldName]: data, updatedAt: new Date() },
-          $setOnInsert: { email: userEmail, name: userEmail, createdAt: new Date() }
-        },
-        { new: true, upsert: true }
-      );
+      try {
+        user = await User.findOneAndUpdate(
+          query,
+          { $set: { [fieldName]: data, updatedAt: new Date() } },
+          { new: true }
+        );
+
+        if (!user) {
+          console.warn('[Life Planner PUT] User not found with query:', JSON.stringify(query));
+          return NextResponse.json({ message: 'No user found to update', data: [] }, { status: 404 });
+        }
+      } catch (updateError) {
+        console.error('[Life Planner PUT] Update error:', updateError, 'Query:', JSON.stringify(query), 'FieldName:', fieldName);
+        throw updateError;
+      }
     }
 
     if (!user) {
-      console.warn('[Life Planner PUT] User not found, data not saved');
-      return NextResponse.json({ message: 'No user found to update', data: [] });
+      console.warn('[Life Planner PUT] User not found after all attempts');
+      return NextResponse.json({ message: 'No user found to update', data: [] }, { status: 404 });
     }
 
     return NextResponse.json({
