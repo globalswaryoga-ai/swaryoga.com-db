@@ -16,7 +16,10 @@ import {
   CreditCard,
   Wallet,
   Target,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  X,
+  Check
 } from 'lucide-react';
 import { filterTransactionsByDateRange, getReportPeriodRange, type ReportPeriodKey } from '@/lib/accountingReportPeriod';
 import MyBudgetPanel from '@/components/life-planner/MyBudgetPanel';
@@ -86,6 +89,8 @@ export default function LifePlannerAccountingPage() {
   const [reportMonth, setReportMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [generatingReport, setGeneratingReport] = useState(false);
   const [budgetPlan, setBudgetPlan] = useState<any>(null);
+  const [showDividendViewModal, setShowDividendViewModal] = useState(false);
+  const [selectedInvestmentView, setSelectedInvestmentView] = useState<Investment | null>(null);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
@@ -172,6 +177,58 @@ export default function LifePlannerAccountingPage() {
       setLoading(false);
     }
   }, [getAuthHeaders]);
+
+  // Generate dividend payment schedule
+  const generateDividendSchedule = (investment: Investment) => {
+    const schedule: any[] = [];
+    if (!investment.amountReceivedDate || !investment.dividendPayFrequency) return schedule;
+
+    const startDate = new Date(investment.amountReceivedDate);
+    const today = new Date();
+    let currentDate = new Date(startDate);
+    let totalDividendAmount = 0;
+
+    // Determine frequency in months
+    const frequencyMonths: { [key: string]: number } = {
+      monthly: 1,
+      quarterly: 3,
+      semiannual: 6,
+      yearly: 12
+    };
+
+    const monthsPerFrequency = frequencyMonths[investment.dividendPayFrequency] || 12;
+    const ratePerFrequency = investment[`${investment.dividendPayFrequency === 'semiannual' ? 'semiannual' : investment.dividendPayFrequency}Rate`] || investment.dividend_rate || 0;
+    const dividendPerPayment = (investment.amount * ratePerFrequency) / 100;
+
+    // Generate schedule for next 5 years
+    for (let i = 0; i < 20; i++) {
+      const dueDate = new Date(startDate);
+      dueDate.setMonth(dueDate.getMonth() + (monthsPerFrequency * (i + 1)));
+
+      const isPaid = false; // Check if paid in transactions
+      const isOverdue = dueDate < today;
+
+      let penalty = 0;
+      if (isOverdue && !isPaid) {
+        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        penalty = (dividendPerPayment * 12 * daysOverdue) / (100 * 365); // 12% PA
+      }
+
+      schedule.push({
+        dueDate: dueDate.toISOString().split('T')[0],
+        amount: dividendPerPayment,
+        penalty: penalty,
+        totalDue: dividendPerPayment + penalty,
+        isPaid: isPaid,
+        isOverdue: isOverdue,
+        daysOverdue: isOverdue ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0
+      });
+
+      totalDividendAmount += dividendPerPayment;
+    }
+
+    return schedule;
+  };
 
   // Save all accounting data to unified Life Planner API
   const saveAccountingData = useCallback(async (updatedAccounts: Account[], updatedTransactions: Transaction[], updatedInvestments: Investment[], updatedBudget: any) => {
@@ -1087,6 +1144,16 @@ export default function LifePlannerAccountingPage() {
                                         {investment && (
                                           <>
                                             <button
+                                              onClick={() => {
+                                                setSelectedInvestmentView(investment);
+                                                setShowDividendViewModal(true);
+                                              }}
+                                              className="px-3 py-1 bg-purple-100 text-purple-600 hover:bg-purple-200 rounded text-xs font-semibold flex items-center gap-1"
+                                              title="View dividend schedule"
+                                            >
+                                              <Eye size={14} /> View
+                                            </button>
+                                            <button
                                               onClick={() => handleEditInvestment(investment)}
                                               className="px-3 py-1 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded text-xs font-semibold"
                                               title="Edit investment details"
@@ -1704,6 +1771,150 @@ export default function LifePlannerAccountingPage() {
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
                     {editingInvestment ? 'Update' : 'Create'} Investment
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dividend View Modal */}
+        {showDividendViewModal && selectedInvestmentView && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-swar-border p-6 flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-swar-text">Dividend Schedule - {selectedInvestmentView.name}</h2>
+                <button
+                  onClick={() => {
+                    setShowDividendViewModal(false);
+                    setSelectedInvestmentView(null);
+                  }}
+                  className="text-swar-text-secondary hover:text-swar-text"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6">
+                {/* Investment Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <p className="text-xs text-swar-text-secondary uppercase">Investment Amount</p>
+                    <p className="text-xl font-bold text-blue-600">₹{selectedInvestmentView.amount.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <p className="text-xs text-swar-text-secondary uppercase">Amount Received Date</p>
+                    <p className="text-lg font-semibold text-green-600">
+                      {selectedInvestmentView.amountReceivedDate ? new Date(selectedInvestmentView.amountReceivedDate).toLocaleDateString() : 'N/A'}
+                    </p>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <p className="text-xs text-swar-text-secondary uppercase">Dividend Rate</p>
+                    <p className="text-xl font-bold text-purple-600">{selectedInvestmentView[`${selectedInvestmentView.dividendPayFrequency}Rate`] || selectedInvestmentView.dividend_rate}%</p>
+                  </div>
+                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                    <p className="text-xs text-swar-text-secondary uppercase">Payment Frequency</p>
+                    <p className="text-lg font-semibold text-yellow-600 capitalize">{selectedInvestmentView.dividendPayFrequency}</p>
+                  </div>
+                </div>
+
+                {/* Dividend Payment Schedule Table */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-swar-text mb-4">Dividend Payment Schedule (Next 20 Periods)</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-swar-bg border-b border-swar-border">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Due Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Dividend Amount</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Penalty (12% PA)</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Total Due</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-swar-text-secondary uppercase">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {generateDividendSchedule(selectedInvestmentView).map((schedule, idx) => (
+                          <tr key={idx} className={schedule.isOverdue && !schedule.isPaid ? 'bg-red-50' : schedule.isPaid ? 'bg-green-50' : ''}>
+                            <td className="px-4 py-3 text-sm font-medium text-swar-text">
+                              {new Date(schedule.dueDate).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-blue-600">₹{schedule.amount.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-sm">
+                              {schedule.isPaid ? (
+                                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold flex items-center gap-1 w-fit">
+                                  <Check size={14} /> Paid
+                                </span>
+                              ) : schedule.isOverdue ? (
+                                <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold flex items-center gap-1 w-fit">
+                                  <AlertTriangle size={14} /> Overdue ({schedule.daysOverdue} days)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-semibold">Pending</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {schedule.penalty > 0 ? (
+                                <span className="font-semibold text-orange-600">₹{schedule.penalty.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
+                              ) : (
+                                <span className="text-swar-text-secondary">-</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-bold text-swar-text">₹{schedule.totalDue.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+                            <td className="px-4 py-3 text-center">
+                              {!schedule.isPaid && (
+                                <button
+                                  onClick={() => {
+                                    const paymentAmount = prompt(`Record payment for ${new Date(schedule.dueDate).toLocaleDateString()}\n\nAmount: ₹${schedule.totalDue.toLocaleString(undefined, {maximumFractionDigits: 2})}\n\nEnter amount to pay:`, schedule.totalDue.toLocaleString(undefined, {maximumFractionDigits: 2}));
+                                    if (paymentAmount && !isNaN(Number(paymentAmount))) {
+                                      const amount = Number(paymentAmount);
+                                      const newDividendPaid = (selectedInvestmentView.dividendPaid || 0) + amount;
+                                      const updatedInvestment = { ...selectedInvestmentView, dividendPaid: newDividendPaid };
+                                      const updatedInvestments = investments.map(inv => inv.id === selectedInvestmentView.id ? updatedInvestment : inv);
+                                      saveAccountingData(accounts, transactions, updatedInvestments, budgetPlan).then(success => {
+                                        if (success) {
+                                          setInvestments(updatedInvestments);
+                                          setSelectedInvestmentView(updatedInvestment);
+                                          alert(`Payment of ₹${amount} recorded successfully`);
+                                        } else {
+                                          alert('Failed to record payment');
+                                        }
+                                      });
+                                    }
+                                  }}
+                                  className="px-3 py-1 bg-green-100 text-green-600 hover:bg-green-200 rounded text-xs font-semibold"
+                                  title="Record payment"
+                                >
+                                  Add Paid
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Summary Info */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-swar-text-secondary mb-2">
+                    <strong>Penalty Calculation:</strong> If a dividend payment is not made by the due date, a penalty of 12% per annum is applied on the unpaid amount. This is calculated based on the number of days the payment is overdue.
+                  </p>
+                  <p className="text-xs text-swar-text-secondary">
+                    <strong>Formula:</strong> Penalty = (Dividend Amount × 12% × Days Overdue) / 365
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setShowDividendViewModal(false);
+                      setSelectedInvestmentView(null);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Close
                   </button>
                 </div>
               </div>
