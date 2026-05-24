@@ -56,11 +56,14 @@ interface Investment {
   account_id: string;
   account_name: string;
   status: 'active' | 'completed' | 'cancelled';
+  amountReceivedDate?: string;
+  dividendPayFrequency?: 'quarterly' | 'semiannual' | 'yearly';
+  dividendPaid?: number;
   created_at: string;
 }
 
 export default function LifePlannerAccountingPage() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'accounts' | 'transactions' | 'investments' | 'reports' | 'budget'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'accounts' | 'transactions' | 'investments' | 'dividend' | 'reports' | 'budget'>('dashboard');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
@@ -127,7 +130,10 @@ export default function LifePlannerAccountingPage() {
     reminder_enabled: true,
     next_due_date: '',
     account_id: '',
-    status: 'active' as Investment['status']
+    status: 'active' as Investment['status'],
+    amountReceivedDate: new Date().toISOString().split('T')[0],
+    dividendPayFrequency: 'yearly' as Investment['dividendPayFrequency'],
+    dividendPaid: 0
   });
 
   const loadData = useCallback(async () => {
@@ -202,6 +208,66 @@ export default function LifePlannerAccountingPage() {
       totalBalance,
       totalInvestments,
       netWorth: totalBalance + totalInvestments
+    };
+  };
+
+  const calculateDividends = () => {
+    const now = new Date();
+    let totalDividend = 0;
+    let dividendPaid = 0;
+    let dividendPending = 0;
+    let dividendOverdue = 0;
+
+    const investmentDividends = investments.filter(inv => inv.status === 'active' && inv.type === 'investment_in').map(inv => {
+      if (!inv.amountReceivedDate) return null;
+
+      const receivedDate = new Date(inv.amountReceivedDate);
+      const daysSinceReceived = Math.floor((now.getTime() - receivedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Calculate annual dividend
+      const annualDividend = (inv.amount * inv.dividend_rate) / 100;
+
+      // Calculate accrued dividend
+      const accruedDividend = (annualDividend * daysSinceReceived) / 365;
+
+      // Calculate next payment date based on frequency
+      let nextPaymentDate = new Date(receivedDate);
+      const frequencyDays = inv.dividendPayFrequency === 'quarterly' ? 90 : inv.dividendPayFrequency === 'semiannual' ? 180 : 365;
+      nextPaymentDate.setDate(nextPaymentDate.getDate() + frequencyDays);
+
+      const alreadyPaid = inv.dividendPaid || 0;
+      const pendingDividend = Math.max(0, accruedDividend - alreadyPaid);
+      const isOverdue = nextPaymentDate < now && pendingDividend > 0;
+
+      totalDividend += accruedDividend;
+      dividendPaid += alreadyPaid;
+      if (isOverdue) {
+        dividendOverdue += pendingDividend;
+      } else {
+        dividendPending += pendingDividend;
+      }
+
+      return {
+        name: inv.name,
+        amount: inv.amount,
+        dividendRate: inv.dividend_rate,
+        frequency: inv.dividendPayFrequency,
+        receivedDate: inv.amountReceivedDate,
+        accruedDividend: Math.round(accruedDividend * 100) / 100,
+        alreadyPaid,
+        pending: Math.round(pendingDividend * 100) / 100,
+        nextPaymentDate: nextPaymentDate.toISOString().split('T')[0],
+        isOverdue
+      };
+    }).filter(Boolean);
+
+    return {
+      totalDividend: Math.round(totalDividend * 100) / 100,
+      dividendPaid: Math.round(dividendPaid * 100) / 100,
+      dividendPending: Math.round(dividendPending * 100) / 100,
+      dividendOverdue: Math.round(dividendOverdue * 100) / 100,
+      dividendToBePaid: Math.round((dividendPending) * 100) / 100,
+      investmentDividends
     };
   };
 
@@ -449,7 +515,7 @@ export default function LifePlannerAccountingPage() {
   };
 
   const resetInvestmentForm = () => {
-    setInvestmentForm({ name: '', type: 'investment_in', amount: 0, interest_rate: 0, dividend_rate: 0, repayment_mode: 'monthly', reminder_enabled: true, next_due_date: '', account_id: '', status: 'active' });
+    setInvestmentForm({ name: '', type: 'investment_in', amount: 0, interest_rate: 0, dividend_rate: 0, repayment_mode: 'monthly', reminder_enabled: true, next_due_date: '', account_id: '', status: 'active', amountReceivedDate: new Date().toISOString().split('T')[0], dividendPayFrequency: 'yearly', dividendPaid: 0 });
   };
 
   const handleEditAccount = (account: Account) => {
@@ -466,7 +532,7 @@ export default function LifePlannerAccountingPage() {
 
   const handleEditInvestment = (investment: Investment) => {
     setEditingInvestment(investment);
-    setInvestmentForm({ name: investment.name, type: investment.type, amount: investment.amount, interest_rate: investment.interest_rate, dividend_rate: investment.dividend_rate, repayment_mode: investment.repayment_mode, reminder_enabled: investment.reminder_enabled, next_due_date: investment.next_due_date || '', account_id: investment.account_id, status: investment.status });
+    setInvestmentForm({ name: investment.name, type: investment.type, amount: investment.amount, interest_rate: investment.interest_rate, dividend_rate: investment.dividend_rate, repayment_mode: investment.repayment_mode, reminder_enabled: investment.reminder_enabled, next_due_date: investment.next_due_date || '', account_id: investment.account_id, status: investment.status, amountReceivedDate: investment.amountReceivedDate || '', dividendPayFrequency: investment.dividendPayFrequency || 'yearly', dividendPaid: investment.dividendPaid || 0 });
     setShowInvestmentModal(true);
   };
 
@@ -531,6 +597,7 @@ export default function LifePlannerAccountingPage() {
                 { id: 'accounts', label: 'Accounts', icon: Building },
                 { id: 'transactions', label: 'Transactions', icon: DollarSign },
                 { id: 'investments', label: 'Investments', icon: Target },
+                { id: 'dividend', label: 'Dividends', icon: TrendingUp },
                 { id: 'budget', label: 'Budget', icon: PieChart },
                 { id: 'reports', label: 'Reports', icon: FileText }
               ].map((tab) => (
@@ -810,6 +877,93 @@ export default function LifePlannerAccountingPage() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dividend Tab */}
+        {activeTab === 'dividend' && (
+          <div>
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-2xl font-bold text-swar-text mb-6">Dividend Management</h2>
+
+              {(() => {
+                const divStats = calculateDividends();
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <p className="text-sm text-swar-text-secondary">Total Dividend</p>
+                        <p className="text-2xl font-bold text-blue-600">₹{divStats.totalDividend.toLocaleString()}</p>
+                      </div>
+
+                      <div className="bg-swar-primary-light p-4 rounded-lg border border-swar-primary">
+                        <p className="text-sm text-swar-text-secondary">Dividend Paid</p>
+                        <p className="text-2xl font-bold text-swar-primary">₹{divStats.dividendPaid.toLocaleString()}</p>
+                      </div>
+
+                      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                        <p className="text-sm text-swar-text-secondary">Pending Dividend</p>
+                        <p className="text-2xl font-bold text-yellow-600">₹{divStats.dividendPending.toLocaleString()}</p>
+                      </div>
+
+                      <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                        <p className="text-sm text-swar-text-secondary">To Be Paid</p>
+                        <p className="text-2xl font-bold text-orange-600">₹{divStats.dividendToBePaid.toLocaleString()}</p>
+                      </div>
+
+                      <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <p className="text-sm text-swar-text-secondary">Overdue Dividend</p>
+                        <p className="text-2xl font-bold text-red-600">₹{divStats.dividendOverdue.toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-8">
+                      <h3 className="text-lg font-semibold text-swar-text mb-4">Investment Dividends</h3>
+                      {divStats.investmentDividends.length === 0 ? (
+                        <p className="text-swar-text-secondary">No active investments with dividends</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-swar-bg">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Investment</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Amount</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Dividend Rate</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Frequency</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Accrued</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Paid</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Pending</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Next Payment</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {divStats.investmentDividends.map((inv, idx) => (
+                                <tr key={idx}>
+                                  <td className="px-4 py-3 text-sm font-medium text-swar-text">{inv.name}</td>
+                                  <td className="px-4 py-3 text-sm text-swar-text">₹{inv.amount.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm text-swar-text">{inv.dividendRate}%</td>
+                                  <td className="px-4 py-3 text-sm text-swar-text capitalize">{inv.frequency}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">₹{inv.accruedDividend.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-swar-primary">₹{inv.alreadyPaid.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-yellow-600">₹{inv.pending.toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-sm text-swar-text">{new Date(inv.nextPaymentDate).toLocaleDateString()}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${inv.isOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                      {inv.isOverdue ? 'OVERDUE' : 'PENDING'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -1210,6 +1364,40 @@ export default function LifePlannerAccountingPage() {
                         step="0.01"
                       />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-swar-text mb-1">Amount Received Date</label>
+                      <input
+                        type="date"
+                        value={investmentForm.amountReceivedDate}
+                        onChange={(e) => setInvestmentForm({ ...investmentForm, amountReceivedDate: e.target.value })}
+                        className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-swar-text mb-1">Dividend Pay Frequency</label>
+                      <select
+                        value={investmentForm.dividendPayFrequency}
+                        onChange={(e) => setInvestmentForm({ ...investmentForm, dividendPayFrequency: e.target.value as Investment['dividendPayFrequency'] })}
+                        className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="quarterly">3 Months</option>
+                        <option value="semiannual">6 Months</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-1">Dividend Already Paid (₹)</label>
+                    <input
+                      type="number"
+                      value={investmentForm.dividendPaid}
+                      onChange={(e) => setInvestmentForm({ ...investmentForm, dividendPaid: parseFloat(e.target.value) || 0 })}
+                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="0"
+                      step="0.01"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-swar-text mb-1">Repayment Mode</label>
