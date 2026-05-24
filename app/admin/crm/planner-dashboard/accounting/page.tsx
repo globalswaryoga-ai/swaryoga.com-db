@@ -201,17 +201,24 @@ export default function LifePlannerAccountingPage() {
     if (!investment.amountReceivedDate || !investment.dividendPayFrequency) return schedule;
 
     const today = new Date();
-    const receivedDate = new Date(investment.amountReceivedDate);
+    // Parse received date ensuring UTC to avoid timezone issues
+    const [year, month, day] = investment.amountReceivedDate.split('-').map(Number);
+    const receivedDate = new Date(Date.UTC(year, month - 1, day));
     const annualRate = investment.dividend_rate || 0;
 
-    // Helper: Find next fixed date (March 30 or Sept 30) from a given date
+    // Helper: Find next fixed date (March 30 or Sept 30) from a given date (using UTC to avoid timezone issues)
     const getNextFixedDate = (fromDate: Date): Date => {
-      const march30 = new Date(fromDate.getFullYear(), 2, 30);
-      const sept30 = new Date(fromDate.getFullYear(), 8, 30);
+      const year = fromDate.getUTCFullYear();
+      const month = fromDate.getUTCMonth();
+      const date = fromDate.getUTCDate();
+
+      // Create dates in UTC
+      const march30 = new Date(Date.UTC(year, 2, 30));
+      const sept30 = new Date(Date.UTC(year, 8, 30));
 
       if (fromDate <= march30) return march30;
       if (fromDate <= sept30) return sept30;
-      return new Date(fromDate.getFullYear() + 1, 2, 30);
+      return new Date(Date.UTC(year + 1, 2, 30));
     };
 
     // Helper: Calculate days between two dates
@@ -226,7 +233,6 @@ export default function LifePlannerAccountingPage() {
 
     // Generate schedule for 20 periods
     let currentPeriodStart = new Date(receivedDate);
-    let isFirstDividend = true;
 
     for (let i = 0; i < 20; i++) {
       const nextFixedDate = getNextFixedDate(currentPeriodStart);
@@ -234,17 +240,18 @@ export default function LifePlannerAccountingPage() {
 
       // Calculate dividend amount based on days in this period
       let daysInPeriod = daysBetween(currentPeriodStart, dueDate);
-      if (daysInPeriod <= 0) daysInPeriod = 1; // Minimum 1 day
+      // Add 1 to include the end date (inclusive calculation)
+      daysInPeriod = Math.max(daysInPeriod + 1, 1);
 
       // Calculate prorated dividend: (amount × annual_rate × days) / 365
       let calculatedAmount = (investment.amount * annualRate * daysInPeriod) / (100 * 365);
 
-      const dueDateStr = dueDate.toISOString().split('T')[0];
+      // Format date in UTC to avoid timezone display issues
+      const dueDateStr = `${dueDate.getUTCFullYear()}-${String(dueDate.getUTCMonth() + 1).padStart(2, '0')}-${String(dueDate.getUTCDate()).padStart(2, '0')}`;
 
       // Find transaction that matches this period
-      const nextPeriodStart = new Date(dueDate);
-      nextPeriodStart.setDate(nextPeriodStart.getDate() + 1);
-      const nextNextFixedDate = i + 1 < 20 ? getNextFixedDate(nextPeriodStart) : new Date(dueDate.getFullYear() + 1, dueDate.getMonth(), dueDate.getDate());
+      const nextPeriodStart = new Date(Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate() + 1));
+      const nextNextFixedDate = i + 1 < 20 ? getNextFixedDate(nextPeriodStart) : new Date(Date.UTC(dueDate.getUTCFullYear() + 1, dueDate.getUTCMonth(), dueDate.getUTCDate()));
 
       const paymentTransaction = dividendTransactions.find(t => {
         const txnDate = new Date(t.date);
@@ -292,7 +299,6 @@ export default function LifePlannerAccountingPage() {
 
       // Move to next period
       currentPeriodStart = new Date(nextNextFixedDate);
-      isFirstDividend = false;
     }
 
     return schedule;
