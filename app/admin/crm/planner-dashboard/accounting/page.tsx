@@ -201,122 +201,97 @@ export default function LifePlannerAccountingPage() {
 
     const today = new Date();
     const receivedDate = new Date(investment.amountReceivedDate);
-    const receivedMonth = receivedDate.getMonth(); // 0-11
-    const receivedYear = receivedDate.getFullYear();
+    const annualRate = investment.dividend_rate || 0;
 
-    const ratePerFrequency = investment[`${investment.dividendPayFrequency === 'semiannual' ? 'semiannual' : investment.dividendPayFrequency}Rate`] || investment.dividend_rate || 0;
-    const dividendPerPayment = (investment.amount * ratePerFrequency) / 100;
+    // Helper: Find next fixed date (March 30 or Sept 30) from a given date
+    const getNextFixedDate = (fromDate: Date): Date => {
+      const march30 = new Date(fromDate.getFullYear(), 2, 30);
+      const sept30 = new Date(fromDate.getFullYear(), 8, 30);
 
-    // Calculate first dividend due date (2 months after received date, on 31st March or 30th Sept)
-    const generateDates = () => {
-      const dates = [];
-      let currentDate = new Date(receivedDate);
-      currentDate.setMonth(currentDate.getMonth() + 2); // First dividend 2 months after received
-
-      // First dividend: snap to most recent March 31 or Sept 30 (backward)
-      let firstDueDate;
-      const month = currentDate.getMonth(); // 0=Jan, 1=Feb, 2=Mar, ..., 8=Sept, 11=Dec
-      const day = currentDate.getDate();
-
-      // Check both potential dates and pick the most recent one (backward snap)
-      const march31 = new Date(currentDate.getFullYear(), 2, 31);
-      const sept30 = new Date(currentDate.getFullYear(), 8, 30);
-      const prevMarch31 = new Date(currentDate.getFullYear() - 1, 2, 31);
-
-      if (currentDate <= march31) {
-        // On or before March 31 → snap to March 31 of current year
-        firstDueDate = march31;
-      } else if (currentDate <= sept30) {
-        // Between March 31 and Sept 30 → snap back to March 31 of current year
-        firstDueDate = march31;
-      } else {
-        // After Sept 30 → snap to Sept 30 of current year
-        firstDueDate = sept30;
-      }
-
-      dates.push(firstDueDate);
-
-      // Generate subsequent dates: March 31 and Sept 30
-      let year = firstDueDate.getFullYear();
-      let monthTracker = firstDueDate.getMonth();
-
-      for (let i = 1; i < 20; i++) {
-        if (monthTracker === 2) {
-          // Just did March, next is Sept
-          dates.push(new Date(year, 8, 30));
-          monthTracker = 8;
-        } else {
-          // Just did Sept, next is March
-          year++;
-          dates.push(new Date(year, 2, 31));
-          monthTracker = 2;
-        }
-      }
-
-      return dates;
+      if (fromDate <= march30) return march30;
+      if (fromDate <= sept30) return sept30;
+      return new Date(fromDate.getFullYear() + 1, 2, 30);
     };
 
-    const dueDates = generateDates();
+    // Helper: Calculate days between two dates
+    const daysBetween = (date1: Date, date2: Date): number => {
+      return Math.floor((date2.getTime() - date1.getTime()) / (1000 * 60 * 60 * 24));
+    };
 
     // Get all dividend payment transactions for this investment, sorted by date
     const dividendTransactions = transactions
       .filter(t => t.investmentId === investment.id && t.category === 'dividend_payment' && t.type === 'expense')
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Generate first 20 periods
-    for (let i = 0; i < 20; i++) {
-      if (i >= dueDates.length) break;
+    // Generate schedule for 20 periods
+    let currentPeriodStart = new Date(receivedDate);
+    let isFirstDividend = true;
 
-      const dueDate = dueDates[i];
+    for (let i = 0; i < 20; i++) {
+      const nextFixedDate = getNextFixedDate(currentPeriodStart);
+      const dueDate = new Date(nextFixedDate); // Due on the fixed date
+
+      // Calculate dividend amount based on days in this period
+      let daysInPeriod = daysBetween(currentPeriodStart, dueDate);
+      if (daysInPeriod <= 0) daysInPeriod = 1; // Minimum 1 day
+
+      // Calculate prorated dividend: (amount × annual_rate × days) / 365
+      let calculatedAmount = (investment.amount * annualRate * daysInPeriod) / (100 * 365);
+
       const dueDateStr = dueDate.toISOString().split('T')[0];
 
-      // Find transaction that matches this period - transactions on or after due date within reasonable range
-      // Look for transaction between due date and 6 months after (before next dividend due date)
-      const nextDueDate = i + 1 < dueDates.length ? dueDates[i + 1] : new Date(dueDate.getFullYear() + 1, dueDate.getMonth(), dueDate.getDate());
-      const paymentTransaction = dividendTransactions.find(
-        t => {
-          const txnDate = new Date(t.date);
-          return txnDate >= dueDate && txnDate < nextDueDate;
-        }
-      );
+      // Find transaction that matches this period
+      const nextPeriodStart = new Date(dueDate);
+      nextPeriodStart.setDate(nextPeriodStart.getDate() + 1);
+      const nextNextFixedDate = i + 1 < 20 ? getNextFixedDate(nextPeriodStart) : new Date(dueDate.getFullYear() + 1, dueDate.getMonth(), dueDate.getDate());
+
+      const paymentTransaction = dividendTransactions.find(t => {
+        const txnDate = new Date(t.date);
+        return txnDate >= dueDate && txnDate < nextNextFixedDate;
+      });
 
       let isPaid = false;
       let paidDate = '';
       let penalty = 0;
-      let totalDue = dividendPerPayment;
+      let totalDue = calculatedAmount;
 
       if (paymentTransaction) {
         isPaid = true;
         paidDate = paymentTransaction.date;
 
-        // Calculate penalty based on actual payment date
+        // Calculate penalty if paid late
         const paymentDateObj = new Date(paidDate);
         if (paymentDateObj > dueDate) {
-          const daysOverdue = Math.floor((paymentDateObj.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          penalty = (dividendPerPayment * 12 * daysOverdue) / (100 * 365);
+          const daysOverdue = daysBetween(dueDate, paymentDateObj);
+          penalty = (calculatedAmount * 12 * daysOverdue) / (100 * 365);
         }
-        totalDue = dividendPerPayment + penalty;
+        totalDue = calculatedAmount + penalty;
       } else {
         // Not yet paid - check if overdue
         const isOverdue = dueDate < today;
         if (isOverdue) {
-          const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          penalty = (dividendPerPayment * 12 * daysOverdue) / (100 * 365);
-          totalDue = dividendPerPayment + penalty;
+          const daysOverdue = daysBetween(dueDate, today);
+          penalty = (calculatedAmount * 12 * daysOverdue) / (100 * 365);
+          totalDue = calculatedAmount + penalty;
         }
       }
 
       schedule.push({
         dueDate: dueDateStr,
-        amount: dividendPerPayment,
+        amount: calculatedAmount,
         penalty: penalty,
         totalDue: totalDue,
         isPaid: isPaid,
         paidDate: paidDate,
         isOverdue: dueDate < today && !isPaid,
-        daysOverdue: !isPaid && dueDate < today ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0,
-        transactionId: paymentTransaction?.id
+        daysOverdue: !isPaid && dueDate < today ? daysBetween(dueDate, today) : 0,
+        transactionId: paymentTransaction?.id,
+        daysInPeriod: daysInPeriod
       });
+
+      // Move to next period
+      currentPeriodStart = new Date(nextNextFixedDate);
+      isFirstDividend = false;
     }
 
     return schedule;
