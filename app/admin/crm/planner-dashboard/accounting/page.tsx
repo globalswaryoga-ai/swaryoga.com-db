@@ -1056,26 +1056,68 @@ export default function LifePlannerAccountingPage() {
                                 <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Pending</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Next Payment</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Status</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                              {divStats.investmentDividends.map((inv, idx) => (
-                                <tr key={idx}>
-                                  <td className="px-4 py-3 text-sm font-medium text-swar-text">{inv.name}</td>
-                                  <td className="px-4 py-3 text-sm text-swar-text">₹{inv.amount.toLocaleString()}</td>
-                                  <td className="px-4 py-3 text-sm text-swar-text">{inv.dividendRate}%</td>
-                                  <td className="px-4 py-3 text-sm text-swar-text capitalize">{inv.frequency}</td>
-                                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">₹{inv.accruedDividend.toLocaleString()}</td>
-                                  <td className="px-4 py-3 text-sm font-semibold text-swar-primary">₹{inv.alreadyPaid.toLocaleString()}</td>
-                                  <td className="px-4 py-3 text-sm font-semibold text-yellow-600">₹{inv.pending.toLocaleString()}</td>
-                                  <td className="px-4 py-3 text-sm text-swar-text">{new Date(inv.nextPaymentDate).toLocaleDateString()}</td>
-                                  <td className="px-4 py-3 text-sm">
-                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${inv.isOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                      {inv.isOverdue ? 'OVERDUE' : 'PENDING'}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
+                              {divStats.investmentDividends.map((inv, idx) => {
+                                const investment = investments.find(i => i.name === inv.name && i.status === 'active' && i.type === 'investment_in');
+                                return (
+                                  <tr key={idx}>
+                                    <td className="px-4 py-3 text-sm font-medium text-swar-text">{inv.name}</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text">₹{inv.amount.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text">{inv.dividendRate}%</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text capitalize">{inv.frequency}</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-blue-600">₹{inv.accruedDividend.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-swar-primary">₹{inv.alreadyPaid.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-yellow-600">₹{inv.pending.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text">{new Date(inv.nextPaymentDate).toLocaleDateString()}</td>
+                                    <td className="px-4 py-3 text-sm">
+                                      <span className={`px-2 py-1 rounded text-xs font-semibold ${inv.isOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                        {inv.isOverdue ? 'OVERDUE' : 'PENDING'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-center">
+                                      <div className="flex gap-2 justify-center flex-wrap">
+                                        {investment && (
+                                          <>
+                                            <button
+                                              onClick={() => handleEditInvestment(investment)}
+                                              className="px-3 py-1 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded text-xs font-semibold"
+                                              title="Edit investment details"
+                                            >
+                                              Edit
+                                            </button>
+                                            <button
+                                              onClick={() => {
+                                                const paymentAmount = prompt(`Record dividend payment for ${inv.name}. Pending: ₹${inv.pending}\n\nEnter amount to pay:`, inv.pending.toString());
+                                                if (paymentAmount && !isNaN(Number(paymentAmount))) {
+                                                  const amount = Number(paymentAmount);
+                                                  const newDividendPaid = (investment.dividendPaid || 0) + amount;
+                                                  const updatedInvestment = { ...investment, dividendPaid: newDividendPaid };
+                                                  const updatedInvestments = investments.map(inv => inv.id === investment.id ? updatedInvestment : inv);
+                                                  saveAccountingData(accounts, transactions, updatedInvestments, budgetPlan).then(success => {
+                                                    if (success) {
+                                                      setInvestments(updatedInvestments);
+                                                      alert(`Dividend payment of ₹${amount} recorded successfully`);
+                                                    } else {
+                                                      alert('Failed to record dividend payment');
+                                                    }
+                                                  });
+                                                }
+                                              }}
+                                              className="px-3 py-1 bg-green-100 text-green-600 hover:bg-green-200 rounded text-xs font-semibold"
+                                              title="Record dividend payment"
+                                            >
+                                              Payment
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
