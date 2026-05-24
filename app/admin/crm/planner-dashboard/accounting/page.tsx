@@ -134,7 +134,7 @@ export default function LifePlannerAccountingPage() {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const res = await fetch('/api/life-planner/data?type=accounting', { headers });
+      const res = await fetch('/api/crm-planner/data?type=accounting', { headers });
 
       if (res.ok) {
         const response = await res.json();
@@ -165,8 +165,8 @@ export default function LifePlannerAccountingPage() {
         budget: updatedBudget
       };
 
-      const response = await fetch('/api/life-planner/data', {
-        method: 'PUT',
+      const response = await fetch('/api/crm-planner/data', {
+        method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'accounting',

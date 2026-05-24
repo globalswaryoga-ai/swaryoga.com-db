@@ -40,6 +40,7 @@ function getPlannerModel() {
     crmDiamondPeople:  { type: mongoose.Schema.Types.Mixed, default: [] },
     crmProgress:       { type: mongoose.Schema.Types.Mixed, default: [] },
     crmEvents:         { type: mongoose.Schema.Types.Mixed, default: [] },
+    crmAccounting:     { type: mongoose.Schema.Types.Mixed, default: { accounts: [], transactions: [], investments: [], budget: null } },
     updatedAt:         { type: Date, default: Date.now },
     createdAt:         { type: Date, default: Date.now },
   }, { strict: false });
@@ -54,6 +55,7 @@ const EMPTY_DATA = {
   visions: [], actionPlans: [], goals: [], tasks: [], todos: [],
   words: [], reminders: [], healthRoutines: [], dailyHealthPlans: [],
   diamondPeople: [], progress: [], events: [],
+  accounting: { accounts: [], transactions: [], investments: [], budget: null },
 };
 
 function typeToField(type: string): string {
@@ -79,6 +81,7 @@ function buildResponse(doc: any) {
     diamondPeople:    Array.isArray(doc?.crmDiamondPeople)    ? doc.crmDiamondPeople    : [],
     progress:         Array.isArray(doc?.crmProgress)         ? doc.crmProgress         : [],
     events:           Array.isArray(doc?.crmEvents)           ? doc.crmEvents           : [],
+    accounting:       doc?.crmAccounting || { accounts: [], transactions: [], investments: [], budget: null },
   };
 }
 
