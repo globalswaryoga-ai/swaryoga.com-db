@@ -207,8 +207,13 @@ export default function LifePlannerAccountingPage() {
 
     // Get the annual rate for calculations
     // dividend_rate is the rate for the specified frequency (not annual)
-    // Frequency-specific rates take priority, but dividend_rate is the fallback
-    const frequencyRate = investment[`${investment.dividendPayFrequency}Rate`] || investment.dividend_rate || 0;
+    // Use frequency-specific rate if it's reasonable (>0.1%), else use dividend_rate
+    let frequencyRate = investment[`${investment.dividendPayFrequency}Rate`] || 0;
+
+    // If frequency-specific rate is too small (likely corrupted), use dividend_rate
+    if (frequencyRate < 0.1 && investment.dividend_rate && investment.dividend_rate > 0) {
+      frequencyRate = investment.dividend_rate;
+    }
 
     // Convert frequency rate to annual rate
     // The rate represents the percentage for that specific dividend period
