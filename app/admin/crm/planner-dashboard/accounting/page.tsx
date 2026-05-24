@@ -219,6 +219,60 @@ export default function LifePlannerAccountingPage() {
     };
   };
 
+  const calculateDashboardDividends = () => {
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+    let toBePaid = 0;
+    let paid = 0;
+    let overdue = 0;
+
+    investments.filter(inv => inv.status === 'active' && inv.type === 'investment_in').forEach(inv => {
+      if (!inv.amountReceivedDate) return;
+
+      const receivedDate = new Date(inv.amountReceivedDate);
+      const daysSinceReceived = Math.floor((now.getTime() - receivedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      let frequencyRate = 0;
+      let frequencyDays = 365;
+
+      if (inv.dividendPayFrequency === 'monthly') {
+        frequencyRate = inv.monthlyRate || 0;
+        frequencyDays = 30;
+      } else if (inv.dividendPayFrequency === 'quarterly') {
+        frequencyRate = inv.quarterlyRate || 0;
+        frequencyDays = 90;
+      } else if (inv.dividendPayFrequency === 'semiannual') {
+        frequencyRate = inv.semiannualRate || 0;
+        frequencyDays = 180;
+      } else {
+        frequencyRate = inv.yearlyRate || 0;
+        frequencyDays = 365;
+      }
+
+      const accruedDividend = (inv.amount * frequencyRate) / 100 * (daysSinceReceived / frequencyDays);
+      const alreadyPaid = inv.dividendPaid || 0;
+      const pendingDividend = Math.max(0, accruedDividend - alreadyPaid);
+
+      let nextPaymentDate = new Date(receivedDate);
+      nextPaymentDate.setDate(nextPaymentDate.getDate() + frequencyDays);
+
+      paid += alreadyPaid;
+
+      if (nextPaymentDate < oneYearAgo && pendingDividend > 0) {
+        overdue += pendingDividend;
+      } else {
+        toBePaid += pendingDividend;
+      }
+    });
+
+    return {
+      toBePaid: Math.round(toBePaid * 100) / 100,
+      paid: Math.round(paid * 100) / 100,
+      overdue: Math.round(overdue * 100) / 100,
+    };
+  };
+
   const calculateDividends = () => {
     const now = new Date();
     let totalDividend = 0;
@@ -714,6 +768,45 @@ export default function LifePlannerAccountingPage() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-swar-text-secondary">Total Balance</p>
                     <p className="text-2xl font-bold text-swar-text">₹{stats.totalBalance.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Dividend Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-orange-500">
+                <div className="flex items-center">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <TrendingUp className="text-orange-600" size={24} />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-swar-text-secondary">Dividends to Be Paid</p>
+                    <p className="text-2xl font-bold text-orange-600">₹{calculateDashboardDividends().toBePaid.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-swar-primary">
+                <div className="flex items-center">
+                  <div className="p-2 bg-swar-primary-light rounded-lg">
+                    <DollarSign className="text-swar-primary" size={24} />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-swar-text-secondary">Dividends Paid</p>
+                    <p className="text-2xl font-bold text-swar-primary">₹{calculateDashboardDividends().paid.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-600">
+                <div className="flex items-center">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <AlertTriangle className="text-red-600" size={24} />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-swar-text-secondary">Overdue Dividends</p>
+                    <p className="text-2xl font-bold text-red-600">₹{calculateDashboardDividends().overdue.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
