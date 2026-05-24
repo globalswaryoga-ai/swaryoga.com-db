@@ -213,20 +213,25 @@ export default function LifePlannerAccountingPage() {
       let currentDate = new Date(receivedDate);
       currentDate.setMonth(currentDate.getMonth() + 2); // First dividend 2 months after received
 
-      // First dividend: snap to nearest March 31 or Sept 30
+      // First dividend: snap to most recent March 31 or Sept 30 (backward)
       let firstDueDate;
       const month = currentDate.getMonth(); // 0=Jan, 1=Feb, 2=Mar, ..., 8=Sept, 11=Dec
       const day = currentDate.getDate();
 
-      if (month < 2 || (month === 2 && day < 31)) {
-        // Before March 31 → snap to March 31 of current year
-        firstDueDate = new Date(currentDate.getFullYear(), 2, 31);
-      } else if (month < 9 || (month === 8 && day <= 30)) {
-        // From March 31 to Sept 30 → snap to Sept 30 of current year
-        firstDueDate = new Date(currentDate.getFullYear(), 8, 30);
+      // Check both potential dates and pick the most recent one (backward snap)
+      const march31 = new Date(currentDate.getFullYear(), 2, 31);
+      const sept30 = new Date(currentDate.getFullYear(), 8, 30);
+      const prevMarch31 = new Date(currentDate.getFullYear() - 1, 2, 31);
+
+      if (currentDate <= march31) {
+        // On or before March 31 → snap to March 31 of current year
+        firstDueDate = march31;
+      } else if (currentDate <= sept30) {
+        // Between March 31 and Sept 30 → snap back to March 31 of current year
+        firstDueDate = march31;
       } else {
-        // After Sept 30 → snap to March 31 of next year
-        firstDueDate = new Date(currentDate.getFullYear() + 1, 2, 31);
+        // After Sept 30 → snap to Sept 30 of current year
+        firstDueDate = sept30;
       }
 
       dates.push(firstDueDate);
