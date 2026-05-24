@@ -91,6 +91,18 @@ export default function LifePlannerAccountingPage() {
   const [budgetPlan, setBudgetPlan] = useState<any>(null);
   const [showDividendViewModal, setShowDividendViewModal] = useState(false);
   const [selectedInvestmentView, setSelectedInvestmentView] = useState<Investment | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentModalData, setPaymentModalData] = useState<{
+    dueDate: string;
+    amount: number;
+    investmentId: string;
+    investmentName: string;
+    fromSchedule: boolean;
+  } | null>(null);
+  const [paymentForm, setPaymentForm] = useState({
+    paymentDate: new Date().toISOString().split('T')[0],
+    amount: 0
+  });
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
@@ -1778,6 +1790,117 @@ export default function LifePlannerAccountingPage() {
           </div>
         )}
 
+        {/* Payment Modal */}
+        {showPaymentModal && paymentModalData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-md">
+              <div className="border-b border-swar-border p-6">
+                <h2 className="text-xl font-bold text-swar-text">Record Payment</h2>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <p className="text-sm text-swar-text-secondary mb-1">Investment</p>
+                  <p className="font-semibold text-swar-text">{paymentModalData.investmentName}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-swar-text-secondary mb-1">Due Date</p>
+                  <p className="font-semibold text-swar-text">{new Date(paymentModalData.dueDate).toLocaleDateString()}</p>
+                </div>
+
+                <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                  <p className="text-xs text-swar-text-secondary">Amount Due (including penalty)</p>
+                  <p className="text-lg font-bold text-blue-600">₹{paymentModalData.amount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Payment Date</label>
+                  <input
+                    type="date"
+                    value={paymentForm.paymentDate}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                    className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  {new Date(paymentForm.paymentDate) > new Date(paymentModalData.dueDate) && (
+                    <p className="text-xs text-orange-600 mt-1">⚠️ Payment is after due date - penalty applies</p>
+                  )}
+                  {new Date(paymentForm.paymentDate) <= new Date(paymentModalData.dueDate) && (
+                    <p className="text-xs text-green-600 mt-1">✓ Payment is on time - no penalty</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Payment Amount</label>
+                  <input
+                    type="number"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    step="0.01"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setPaymentModalData(null);
+                    }}
+                    className="flex-1 px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (paymentForm.amount <= 0) {
+                        alert('Please enter a valid amount');
+                        return;
+                      }
+                      const newDividendPaid = (selectedInvestmentView!.dividendPaid || 0) + paymentForm.amount;
+                      const updatedInvestment = { ...selectedInvestmentView!, dividendPaid: newDividendPaid };
+                      const updatedInvestments = investments.map(inv => inv.id === selectedInvestmentView!.id ? updatedInvestment : inv);
+
+                      // Create transaction record for payment
+                      const newTransaction: Transaction = {
+                        id: `trans_${Date.now()}`,
+                        type: 'expense',
+                        amount: paymentForm.amount,
+                        description: `Dividend payment - ${paymentModalData.investmentName}`,
+                        category: 'dividend_payment',
+                        account_id: '',
+                        account_name: '',
+                        date: paymentForm.paymentDate,
+                        mode: 'bank',
+                        investmentId: paymentModalData.investmentId,
+                        investmentName: paymentModalData.investmentName,
+                        created_at: new Date().toISOString()
+                      };
+                      const updatedTransactions = [...transactions, newTransaction];
+
+                      saveAccountingData(accounts, updatedTransactions, updatedInvestments, budgetPlan).then(success => {
+                        if (success) {
+                          setInvestments(updatedInvestments);
+                          setTransactions(updatedTransactions);
+                          setSelectedInvestmentView(updatedInvestment);
+                          setShowPaymentModal(false);
+                          setPaymentModalData(null);
+                          alert(`Payment of ₹${paymentForm.amount} recorded for ${paymentForm.paymentDate}`);
+                        } else {
+                          alert('Failed to record payment');
+                        }
+                      });
+                    }}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Record Payment
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Dividend View Modal */}
         {showDividendViewModal && selectedInvestmentView && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1865,22 +1988,18 @@ export default function LifePlannerAccountingPage() {
                               {!schedule.isPaid && (
                                 <button
                                   onClick={() => {
-                                    const paymentAmount = prompt(`Record payment for ${new Date(schedule.dueDate).toLocaleDateString()}\n\nAmount: ₹${schedule.totalDue.toLocaleString(undefined, {maximumFractionDigits: 2})}\n\nEnter amount to pay:`, schedule.totalDue.toLocaleString(undefined, {maximumFractionDigits: 2}));
-                                    if (paymentAmount && !isNaN(Number(paymentAmount))) {
-                                      const amount = Number(paymentAmount);
-                                      const newDividendPaid = (selectedInvestmentView.dividendPaid || 0) + amount;
-                                      const updatedInvestment = { ...selectedInvestmentView, dividendPaid: newDividendPaid };
-                                      const updatedInvestments = investments.map(inv => inv.id === selectedInvestmentView.id ? updatedInvestment : inv);
-                                      saveAccountingData(accounts, transactions, updatedInvestments, budgetPlan).then(success => {
-                                        if (success) {
-                                          setInvestments(updatedInvestments);
-                                          setSelectedInvestmentView(updatedInvestment);
-                                          alert(`Payment of ₹${amount} recorded successfully`);
-                                        } else {
-                                          alert('Failed to record payment');
-                                        }
-                                      });
-                                    }
+                                    setPaymentModalData({
+                                      dueDate: schedule.dueDate,
+                                      amount: schedule.totalDue,
+                                      investmentId: selectedInvestmentView!.id,
+                                      investmentName: selectedInvestmentView!.name,
+                                      fromSchedule: true
+                                    });
+                                    setPaymentForm({
+                                      paymentDate: new Date().toISOString().split('T')[0],
+                                      amount: schedule.totalDue
+                                    });
+                                    setShowPaymentModal(true);
                                   }}
                                   className="px-3 py-1 bg-green-100 text-green-600 hover:bg-green-200 rounded text-xs font-semibold"
                                   title="Record payment"
