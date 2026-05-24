@@ -1174,21 +1174,18 @@ export default function LifePlannerAccountingPage() {
                                             </button>
                                             <button
                                               onClick={() => {
-                                                const paymentAmount = prompt(`Record dividend payment for ${inv.name}. Pending: ₹${inv.pending}\n\nEnter amount to pay:`, inv.pending.toString());
-                                                if (paymentAmount && !isNaN(Number(paymentAmount))) {
-                                                  const amount = Number(paymentAmount);
-                                                  const newDividendPaid = (investment.dividendPaid || 0) + amount;
-                                                  const updatedInvestment = { ...investment, dividendPaid: newDividendPaid };
-                                                  const updatedInvestments = investments.map(inv => inv.id === investment.id ? updatedInvestment : inv);
-                                                  saveAccountingData(accounts, transactions, updatedInvestments, budgetPlan).then(success => {
-                                                    if (success) {
-                                                      setInvestments(updatedInvestments);
-                                                      alert(`Dividend payment of ₹${amount} recorded successfully`);
-                                                    } else {
-                                                      alert('Failed to record dividend payment');
-                                                    }
-                                                  });
-                                                }
+                                                setPaymentModalData({
+                                                  dueDate: inv.nextPaymentDate,
+                                                  amount: inv.pending,
+                                                  investmentId: investment.id,
+                                                  investmentName: investment.name,
+                                                  fromSchedule: false
+                                                });
+                                                setPaymentForm({
+                                                  paymentDate: new Date().toISOString().split('T')[0],
+                                                  amount: inv.pending
+                                                });
+                                                setShowPaymentModal(true);
                                               }}
                                               className="px-3 py-1 bg-green-100 text-green-600 hover:bg-green-200 rounded text-xs font-semibold"
                                               title="Record dividend payment"
