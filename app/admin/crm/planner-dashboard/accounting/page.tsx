@@ -92,6 +92,7 @@ export default function LifePlannerAccountingPage() {
   const [showDividendViewModal, setShowDividendViewModal] = useState(false);
   const [selectedInvestmentView, setSelectedInvestmentView] = useState<Investment | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingDividendIndex, setEditingDividendIndex] = useState<number | null>(null);
   const [paymentModalData, setPaymentModalData] = useState<{
     dueDate: string;
     amount: number;
@@ -101,8 +102,9 @@ export default function LifePlannerAccountingPage() {
     transactionId?: string;
   } | null>(null);
   const [paymentForm, setPaymentForm] = useState({
-    paymentDate: new Date().toISOString().split('T')[0],
-    amount: 0
+    paidDate: new Date().toISOString().split('T')[0],
+    paidAmount: 0,
+    paidPenalty: 0
   });
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
@@ -213,15 +215,18 @@ export default function LifePlannerAccountingPage() {
 
       // First dividend: snap to nearest March 31 or Sept 30
       let firstDueDate;
-      if (currentDate.getMonth() < 2 || (currentDate.getMonth() === 2 && currentDate.getDate() <= 31)) {
-        // Before or on March 31
-        firstDueDate = new Date(currentDate.getFullYear(), 2, 31); // March 31
-      } else if (currentDate.getMonth() < 8 || (currentDate.getMonth() === 8 && currentDate.getDate() <= 30)) {
-        // Before or on Sept 30
-        firstDueDate = new Date(currentDate.getFullYear(), 8, 30); // Sept 30
+      const month = currentDate.getMonth(); // 0=Jan, 1=Feb, 2=Mar, ..., 8=Sept, 11=Dec
+      const day = currentDate.getDate();
+
+      if (month < 2 || (month === 2 && day < 31)) {
+        // Before March 31 → snap to March 31 of current year
+        firstDueDate = new Date(currentDate.getFullYear(), 2, 31);
+      } else if (month < 9 || (month === 8 && day <= 30)) {
+        // From March 31 to Sept 30 → snap to Sept 30 of current year
+        firstDueDate = new Date(currentDate.getFullYear(), 8, 30);
       } else {
-        // After Sept 30, next is March 31
-        firstDueDate = new Date(currentDate.getFullYear() + 1, 2, 31); // Next year March 31
+        // After Sept 30 → snap to March 31 of next year
+        firstDueDate = new Date(currentDate.getFullYear() + 1, 2, 31);
       }
 
       dates.push(firstDueDate);
@@ -248,6 +253,11 @@ export default function LifePlannerAccountingPage() {
 
     const dueDates = generateDates();
 
+    // Get all dividend payment transactions for this investment, sorted by date
+    const dividendTransactions = transactions
+      .filter(t => t.investmentId === investment.id && t.category === 'dividend_payment' && t.type === 'expense')
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     // Generate first 20 periods
     for (let i = 0; i < 20; i++) {
       if (i >= dueDates.length) break;
@@ -255,11 +265,14 @@ export default function LifePlannerAccountingPage() {
       const dueDate = dueDates[i];
       const dueDateStr = dueDate.toISOString().split('T')[0];
 
-      // Find transaction matching this dividend payment
-      const paymentTransaction = transactions.find(
-        t => t.investmentId === investment.id &&
-             t.category === 'dividend_payment' &&
-             t.type === 'expense'
+      // Find transaction that matches this period - transactions on or after due date within reasonable range
+      // Look for transaction between due date and 6 months after (before next dividend due date)
+      const nextDueDate = i + 1 < dueDates.length ? dueDates[i + 1] : new Date(dueDate.getFullYear() + 1, dueDate.getMonth(), dueDate.getDate());
+      const paymentTransaction = dividendTransactions.find(
+        t => {
+          const txnDate = new Date(t.date);
+          return txnDate >= dueDate && txnDate < nextDueDate;
+        }
       );
 
       let isPaid = false;
@@ -1236,18 +1249,8 @@ export default function LifePlannerAccountingPage() {
                                             </button>
                                             <button
                                               onClick={() => {
-                                                setPaymentModalData({
-                                                  dueDate: inv.nextPaymentDate,
-                                                  amount: inv.pending,
-                                                  investmentId: investment.id,
-                                                  investmentName: investment.name,
-                                                  fromSchedule: false
-                                                });
-                                                setPaymentForm({
-                                                  paymentDate: new Date().toISOString().split('T')[0],
-                                                  amount: inv.pending
-                                                });
-                                                setShowPaymentModal(true);
+                                                setSelectedInvestmentView(investment);
+                                                setShowDividendViewModal(true);
                                               }}
                                               className="px-3 py-1 bg-green-100 text-green-600 hover:bg-green-200 rounded text-xs font-semibold"
                                               title="Record dividend payment"
@@ -1849,187 +1852,18 @@ export default function LifePlannerAccountingPage() {
           </div>
         )}
 
-        {/* Payment Modal */}
-        {(() => {
-          if (!showPaymentModal || !paymentModalData) return null;
-
-          const investment = investments.find(inv => inv.id === paymentModalData.investmentId);
-          const divFrequency = investment?.dividendPayFrequency || 'yearly';
-          const frequencyMonths: { [key: string]: number } = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
-          const ratePerFrequency = investment?.[`${divFrequency}Rate`] || investment?.dividend_rate || 0;
-          const baseDividendAmount = investment ? (investment.amount * ratePerFrequency) / 100 : paymentModalData.amount;
-
-          const dueDate = new Date(paymentModalData.dueDate);
-          const paymentDate = new Date(paymentForm.paymentDate);
-          const daysOverdueValue = Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-          const isLate = paymentDate > dueDate;
-
-          let calculatedPenalty = 0;
-          if (isLate && daysOverdueValue > 0) {
-            calculatedPenalty = (baseDividendAmount * 12 * daysOverdueValue) / (100 * 365);
-          }
-
-          const totalDueWithPenalty = baseDividendAmount + calculatedPenalty;
-
-          return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-lg w-full max-w-md max-h-[90vh] flex flex-col">
-                <div className="border-b border-swar-border p-6 flex-shrink-0">
-                  <h2 className="text-xl font-bold text-swar-text">Record Payment</h2>
-                </div>
-
-                <div className="p-6 space-y-4 overflow-y-auto flex-1">
-                  <div>
-                    <p className="text-sm text-swar-text-secondary mb-1">Investment</p>
-                    <p className="font-semibold text-swar-text">{paymentModalData.investmentName}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-swar-text-secondary mb-1">Due Date</p>
-                    <p className="font-semibold text-swar-text">{dueDate.toLocaleDateString()}</p>
-                  </div>
-
-                  <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                    <p className="text-xs text-swar-text-secondary">Base Dividend Amount</p>
-                    <p className="text-lg font-bold text-blue-600">₹{baseDividendAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-                  </div>
-
-                  {calculatedPenalty > 0 && (
-                    <div className="bg-orange-50 p-3 rounded border border-orange-200">
-                      <p className="text-xs text-swar-text-secondary">Penalty (12% PA - {daysOverdueValue} days late)</p>
-                      <p className="text-lg font-bold text-orange-600">₹{calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-                    </div>
-                  )}
-
-                  <div className="bg-swar-primary-light p-3 rounded border border-swar-primary">
-                    <p className="text-xs text-swar-text-secondary">Total Amount Due</p>
-                    <p className="text-2xl font-bold text-swar-primary">₹{totalDueWithPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-swar-text mb-2">Payment Date</label>
-                    <input
-                      type="date"
-                      value={paymentForm.paymentDate}
-                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
-                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    {isLate ? (
-                      <p className="text-xs text-orange-600 mt-1">⚠️ Payment is {daysOverdueValue} days late - {calculatedPenalty > 0 ? `₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty applies` : 'no penalty'}</p>
-                    ) : (
-                      <p className="text-xs text-green-600 mt-1">✓ Payment is on time - no penalty</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-swar-text mb-2">Payment Amount</label>
-                    <input
-                      type="number"
-                      value={paymentForm.amount}
-                      onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
-                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      step="0.01"
-                    />
-                  </div>
-
-                </div>
-
-                <div className="border-t border-swar-border p-6 flex-shrink-0 flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShowPaymentModal(false);
-                      setPaymentModalData(null);
-                    }}
-                    className="flex-1 px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (paymentForm.amount <= 0) {
-                        alert('Please enter a valid amount');
-                        return;
-                      }
-                      const investmentToUpdate = investments.find(inv => inv.id === paymentModalData.investmentId);
-                      if (!investmentToUpdate) {
-                        alert('Investment not found');
-                        return;
-                      }
-
-                      const isEditing = !!paymentModalData.transactionId;
-                      let updatedTransactions = [...transactions];
-
-                      if (isEditing) {
-                        // Update existing transaction
-                        updatedTransactions = transactions.map(t =>
-                          t.id === paymentModalData.transactionId
-                            ? {
-                                ...t,
-                                amount: paymentForm.amount,
-                                date: paymentForm.paymentDate,
-                                description: `Dividend payment - ${paymentModalData.investmentName}${calculatedPenalty > 0 ? ` (₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}`
-                              }
-                            : t
-                        );
-                      } else {
-                        // Create new transaction
-                        const newTransaction: Transaction = {
-                          id: `trans_${Date.now()}`,
-                          type: 'expense',
-                          amount: paymentForm.amount,
-                          description: `Dividend payment - ${paymentModalData.investmentName}${calculatedPenalty > 0 ? ` (₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}`,
-                          category: 'dividend_payment',
-                          account_id: '',
-                          account_name: '',
-                          date: paymentForm.paymentDate,
-                          mode: 'bank',
-                          investmentId: paymentModalData.investmentId,
-                          investmentName: paymentModalData.investmentName,
-                          created_at: new Date().toISOString()
-                        };
-                        updatedTransactions = [...transactions, newTransaction];
-                      }
-
-                      const newDividendPaid = (investmentToUpdate.dividendPaid || 0) + (isEditing ? 0 : paymentForm.amount);
-                      const updatedInvestment = { ...investmentToUpdate, dividendPaid: newDividendPaid };
-                      const updatedInvestments = investments.map(inv => inv.id === paymentModalData.investmentId ? updatedInvestment : inv);
-
-                      saveAccountingData(accounts, updatedTransactions, updatedInvestments, budgetPlan).then(success => {
-                        if (success) {
-                          setInvestments(updatedInvestments);
-                          setTransactions(updatedTransactions);
-                          if (selectedInvestmentView?.id === paymentModalData.investmentId) {
-                            setSelectedInvestmentView(updatedInvestment);
-                          }
-                          setShowPaymentModal(false);
-                          setPaymentModalData(null);
-                          const action = isEditing ? 'updated' : 'recorded';
-                          alert(`Payment of ₹${paymentForm.amount} ${action}${calculatedPenalty > 0 ? ` (with ₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''} for ${paymentForm.paymentDate}`);
-                        } else {
-                          alert(`Failed to ${isEditing ? 'update' : 'record'} payment`);
-                        }
-                      });
-                    }}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    {paymentModalData?.transactionId ? 'Update Payment' : 'Record Payment'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Dividend View Modal */}
+        {/* Dividend View Modal - Two Column Layout */}
         {showDividendViewModal && selectedInvestmentView && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-swar-border p-6 flex justify-between items-center">
+            <div className="bg-white rounded-lg shadow-lg max-w-6xl w-full max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="border-b border-swar-border p-6 flex-shrink-0 flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-swar-text">Dividend Schedule - {selectedInvestmentView.name}</h2>
                 <button
                   onClick={() => {
                     setShowDividendViewModal(false);
                     setSelectedInvestmentView(null);
+                    setEditingDividendIndex(null);
                   }}
                   className="text-swar-text-secondary hover:text-swar-text"
                 >
@@ -2037,35 +1871,40 @@ export default function LifePlannerAccountingPage() {
                 </button>
               </div>
 
-              <div className="p-6">
-                {/* Investment Summary */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <p className="text-xs text-swar-text-secondary uppercase">Investment Amount</p>
-                    <p className="text-xl font-bold text-blue-600">₹{selectedInvestmentView.amount.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <p className="text-xs text-swar-text-secondary uppercase">Amount Received Date</p>
-                    <p className="text-lg font-semibold text-green-600">
-                      {selectedInvestmentView.amountReceivedDate ? new Date(selectedInvestmentView.amountReceivedDate).toLocaleDateString() : 'N/A'}
-                    </p>
-                  </div>
-                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                    <p className="text-xs text-swar-text-secondary uppercase">Dividend Rate</p>
-                    <p className="text-xl font-bold text-purple-600">{selectedInvestmentView[`${selectedInvestmentView.dividendPayFrequency}Rate`] || selectedInvestmentView.dividend_rate}%</p>
-                  </div>
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                    <p className="text-xs text-swar-text-secondary uppercase">Payment Frequency</p>
-                    <p className="text-lg font-semibold text-yellow-600 capitalize">{selectedInvestmentView.dividendPayFrequency}</p>
-                  </div>
-                </div>
+              {/* Two Column Layout */}
+              <div className="flex flex-1 overflow-hidden">
+                {/* Left Column - Schedule */}
+                <div className="flex-1 overflow-y-auto flex flex-col border-r border-swar-border">
+                  <div className="p-6 flex-shrink-0">
+                    {/* Investment Summary */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <p className="text-xs text-swar-text-secondary uppercase">Investment Amount</p>
+                        <p className="text-xl font-bold text-blue-600">₹{selectedInvestmentView.amount.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <p className="text-xs text-swar-text-secondary uppercase">Amount Received Date</p>
+                        <p className="text-lg font-semibold text-green-600">
+                          {selectedInvestmentView.amountReceivedDate ? new Date(selectedInvestmentView.amountReceivedDate).toLocaleDateString() : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                        <p className="text-xs text-swar-text-secondary uppercase">Dividend Rate</p>
+                        <p className="text-xl font-bold text-purple-600">{selectedInvestmentView[`${selectedInvestmentView.dividendPayFrequency}Rate`] || selectedInvestmentView.dividend_rate}%</p>
+                      </div>
+                      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                        <p className="text-xs text-swar-text-secondary uppercase">Payment Frequency</p>
+                        <p className="text-lg font-semibold text-yellow-600 capitalize">{selectedInvestmentView.dividendPayFrequency}</p>
+                      </div>
+                    </div>
 
-                {/* Dividend Payment Schedule Table */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-swar-text mb-4">Dividend Payment Schedule (Next 20 Periods)</h3>
-                  <div className="overflow-x-auto">
+                    <h3 className="text-lg font-semibold text-swar-text mb-4">Dividend Payment Schedule (Next 20 Periods)</h3>
+                  </div>
+
+                  {/* Schedule Table */}
+                  <div className="flex-1 overflow-x-auto px-6 pb-6">
                     <table className="w-full text-sm">
-                      <thead className="bg-swar-bg border-b border-swar-border">
+                      <thead className="bg-swar-bg border-b border-swar-border sticky top-0">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Due Date</th>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Dividend Amount</th>
@@ -2078,7 +1917,23 @@ export default function LifePlannerAccountingPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {generateDividendSchedule(selectedInvestmentView).map((schedule, idx) => (
-                          <tr key={idx} className={schedule.isOverdue && !schedule.isPaid ? 'bg-red-50' : schedule.isPaid ? 'bg-green-50' : ''}>
+                          <tr
+                            key={idx}
+                            className={`cursor-pointer transition-colors ${
+                              editingDividendIndex === idx ? 'bg-blue-100' :
+                              schedule.isOverdue && !schedule.isPaid ? 'bg-red-50 hover:bg-red-100' :
+                              schedule.isPaid ? 'bg-green-50 hover:bg-green-100' :
+                              'hover:bg-gray-50'
+                            }`}
+                            onClick={() => {
+                              setEditingDividendIndex(editingDividendIndex === idx ? null : idx);
+                              setPaymentForm({
+                                paidDate: schedule.paidDate || new Date().toISOString().split('T')[0],
+                                paidAmount: schedule.isPaid ? schedule.amount : schedule.amount,
+                                paidPenalty: schedule.penalty || 0
+                              });
+                            }}
+                          >
                             <td className="px-4 py-3 text-sm font-medium text-swar-text">
                               {new Date(schedule.dueDate).toLocaleDateString()}
                             </td>
@@ -2108,79 +1963,235 @@ export default function LifePlannerAccountingPage() {
                             </td>
                             <td className="px-4 py-3 text-sm font-bold text-swar-text">₹{schedule.totalDue.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
                             <td className="px-4 py-3 text-center">
-                              {schedule.isPaid ? (
-                                <button
-                                  onClick={() => {
-                                    setPaymentModalData({
-                                      dueDate: schedule.dueDate,
-                                      amount: schedule.totalDue,
-                                      investmentId: selectedInvestmentView!.id,
-                                      investmentName: selectedInvestmentView!.name,
-                                      fromSchedule: true,
-                                      transactionId: schedule.transactionId
-                                    });
-                                    setPaymentForm({
-                                      paymentDate: schedule.paidDate,
-                                      amount: schedule.amount
-                                    });
-                                    setShowPaymentModal(true);
-                                  }}
-                                  className="px-3 py-1 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded text-xs font-semibold"
-                                  title="Edit payment"
-                                >
-                                  Edit
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    setPaymentModalData({
-                                      dueDate: schedule.dueDate,
-                                      amount: schedule.totalDue,
-                                      investmentId: selectedInvestmentView!.id,
-                                      investmentName: selectedInvestmentView!.name,
-                                      fromSchedule: true
-                                    });
-                                    setPaymentForm({
-                                      paymentDate: new Date().toISOString().split('T')[0],
-                                      amount: schedule.totalDue
-                                    });
-                                    setShowPaymentModal(true);
-                                  }}
-                                  className="px-3 py-1 bg-green-100 text-green-600 hover:bg-green-200 rounded text-xs font-semibold"
-                                  title="Record payment"
-                                >
-                                  Add Paid
-                                </button>
-                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingDividendIndex(editingDividendIndex === idx ? null : idx);
+                                  setPaymentForm({
+                                    paidDate: schedule.paidDate || new Date().toISOString().split('T')[0],
+                                    paidAmount: schedule.isPaid ? schedule.amount : schedule.amount,
+                                    paidPenalty: schedule.penalty || 0
+                                  });
+                                }}
+                                className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                                  editingDividendIndex === idx
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                    : schedule.isPaid
+                                    ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                    : 'bg-green-100 text-green-600 hover:bg-green-200'
+                                }`}
+                              >
+                                {editingDividendIndex === idx ? 'Close' : (schedule.isPaid ? 'Edit' : 'Add Paid')}
+                              </button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Info Box */}
+                  <div className="p-6 flex-shrink-0 border-t border-swar-border">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-swar-text-secondary mb-2">
+                        <strong>Penalty Calculation:</strong> If a dividend payment is not made by the due date, a penalty of 12% per annum is applied on the unpaid amount.
+                      </p>
+                      <p className="text-xs text-swar-text-secondary">
+                        <strong>Formula:</strong> Penalty = (Dividend Amount × 12% × Days Overdue) / 365
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Summary Info */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                  <p className="text-sm text-swar-text-secondary mb-2">
-                    <strong>Penalty Calculation:</strong> If a dividend payment is not made by the due date, a penalty of 12% per annum is applied on the unpaid amount. This is calculated based on the number of days the payment is overdue.
-                  </p>
-                  <p className="text-xs text-swar-text-secondary">
-                    <strong>Formula:</strong> Penalty = (Dividend Amount × 12% × Days Overdue) / 365
-                  </p>
-                </div>
+                {/* Right Column - Payment Form */}
+                {editingDividendIndex !== null && (
+                  (() => {
+                    const schedule = generateDividendSchedule(selectedInvestmentView)[editingDividendIndex];
+                    const investment = selectedInvestmentView;
+                    const divFrequency = investment?.dividendPayFrequency || 'yearly';
+                    const ratePerFrequency = investment?.[`${divFrequency}Rate`] || investment?.dividend_rate || 0;
+                    const baseDividendAmount = investment ? (investment.amount * ratePerFrequency) / 100 : schedule.amount;
 
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => {
-                      setShowDividendViewModal(false);
-                      setSelectedInvestmentView(null);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Close
-                  </button>
-                </div>
+                    const dueDate = new Date(schedule.dueDate);
+                    const paymentDate = new Date(paymentForm.paymentDate);
+                    const daysOverdueValue = Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const isLate = paymentDate > dueDate;
+
+                    let calculatedPenalty = 0;
+                    if (isLate && daysOverdueValue > 0) {
+                      calculatedPenalty = (baseDividendAmount * 12 * daysOverdueValue) / (100 * 365);
+                    }
+
+                    const totalDueWithPenalty = baseDividendAmount + calculatedPenalty;
+
+                    return (
+                      <div className="w-96 flex flex-col border-l border-swar-border overflow-hidden">
+                        <div className="p-6 border-b border-swar-border flex-shrink-0">
+                          <h3 className="text-lg font-bold text-swar-text">Record Payment</h3>
+                        </div>
+
+                        <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                          <div>
+                            <p className="text-sm text-swar-text-secondary mb-1">Investment</p>
+                            <p className="font-semibold text-swar-text">{investment.name}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-sm text-swar-text-secondary mb-1">Due Date</p>
+                            <p className="font-semibold text-swar-text">{dueDate.toLocaleDateString()}</p>
+                          </div>
+
+                          <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                            <p className="text-xs text-swar-text-secondary">Base Dividend Amount</p>
+                            <p className="text-lg font-bold text-blue-600">₹{baseDividendAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-swar-text mb-2">Paid Date</label>
+                            <input
+                              type="date"
+                              value={paymentForm.paidDate}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, paidDate: e.target.value })}
+                              className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                            {new Date(paymentForm.paidDate) > dueDate ? (
+                              <p className="text-xs text-orange-600 mt-1">⚠️ Payment is {daysOverdueValue} days late</p>
+                            ) : (
+                              <p className="text-xs text-green-600 mt-1">✓ Payment is on time</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-swar-text mb-2">Paid Amount</label>
+                            <input
+                              type="number"
+                              value={paymentForm.paidAmount}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, paidAmount: parseFloat(e.target.value) || 0 })}
+                              className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                              step="0.01"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-swar-text mb-2">Penalty Amount (12% PA)</label>
+                            <input
+                              type="number"
+                              value={paymentForm.paidPenalty}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, paidPenalty: parseFloat(e.target.value) || 0 })}
+                              className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                              step="0.01"
+                              placeholder="Edit to override calculated penalty"
+                            />
+                            {calculatedPenalty > 0 && (
+                              <p className="text-xs text-orange-600 mt-1">Auto-calculated: ₹{calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} ({daysOverdueValue} days late)</p>
+                            )}
+                            {calculatedPenalty === 0 && (
+                              <p className="text-xs text-green-600 mt-1">No penalty - payment on time</p>
+                            )}
+                          </div>
+
+                          <div className="bg-swar-primary-light p-3 rounded border border-swar-primary">
+                            <p className="text-xs text-swar-text-secondary">Total Amount Due</p>
+                            <p className="text-2xl font-bold text-swar-primary">₹{(paymentForm.paidAmount + paymentForm.paidPenalty).toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-swar-border p-6 flex-shrink-0 flex gap-3">
+                          <button
+                            onClick={() => {
+                              setEditingDividendIndex(null);
+                            }}
+                            className="flex-1 px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (paymentForm.paidAmount <= 0) {
+                                alert('Please enter a valid paid amount');
+                                return;
+                              }
+                              const investmentToUpdate = investments.find(inv => inv.id === selectedInvestmentView!.id);
+                              if (!investmentToUpdate) {
+                                alert('Investment not found');
+                                return;
+                              }
+
+                              const isEditing = !!schedule.transactionId;
+                              let updatedTransactions = [...transactions];
+                              const totalPaid = paymentForm.paidAmount + paymentForm.paidPenalty;
+
+                              if (isEditing) {
+                                updatedTransactions = transactions.map(t =>
+                                  t.id === schedule.transactionId
+                                    ? {
+                                        ...t,
+                                        amount: totalPaid,
+                                        date: paymentForm.paidDate,
+                                        description: `Dividend payment - ${investment.name}${paymentForm.paidPenalty > 0 ? ` (₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}`
+                                      }
+                                    : t
+                                );
+                              } else {
+                                const newTransaction: Transaction = {
+                                  id: `trans_${Date.now()}`,
+                                  type: 'expense',
+                                  amount: totalPaid,
+                                  description: `Dividend payment - ${investment.name}${paymentForm.paidPenalty > 0 ? ` (₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}`,
+                                  category: 'dividend_payment',
+                                  account_id: '',
+                                  account_name: '',
+                                  date: paymentForm.paidDate,
+                                  mode: 'bank',
+                                  investmentId: selectedInvestmentView!.id,
+                                  investmentName: investment.name,
+                                  created_at: new Date().toISOString()
+                                };
+                                updatedTransactions = [...transactions, newTransaction];
+                              }
+
+                              const newDividendPaid = (investmentToUpdate.dividendPaid || 0) + (isEditing ? 0 : paymentForm.paidAmount);
+                              const updatedInvestment = { ...investmentToUpdate, dividendPaid: newDividendPaid };
+                              const updatedInvestments = investments.map(inv => inv.id === selectedInvestmentView!.id ? updatedInvestment : inv);
+
+                              saveAccountingData(accounts, updatedTransactions, updatedInvestments, budgetPlan).then(success => {
+                                if (success) {
+                                  setInvestments(updatedInvestments);
+                                  setTransactions(updatedTransactions);
+                                  if (selectedInvestmentView?.id === selectedInvestmentView!.id) {
+                                    setSelectedInvestmentView(updatedInvestment);
+                                  }
+                                  setEditingDividendIndex(null);
+                                  const action = isEditing ? 'updated' : 'recorded';
+                                  alert(`Payment of ₹${paymentForm.paidAmount} ${action}${paymentForm.paidPenalty > 0 ? ` (with ₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''} for ${paymentForm.paidDate}`);
+                                } else {
+                                  alert(`Failed to ${isEditing ? 'update' : 'record'} payment`);
+                                }
+                              });
+                            }}
+                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                          >
+                            {schedule.transactionId ? 'Update Payment' : 'Record Payment'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-swar-border p-6 flex-shrink-0 flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowDividendViewModal(false);
+                    setSelectedInvestmentView(null);
+                    setEditingDividendIndex(null);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
