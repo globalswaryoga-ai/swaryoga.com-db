@@ -41,6 +41,7 @@ function getPlannerModel() {
     crmProgress:       { type: mongoose.Schema.Types.Mixed, default: [] },
     crmEvents:         { type: mongoose.Schema.Types.Mixed, default: [] },
     crmAccounting:     { type: mongoose.Schema.Types.Mixed, default: { accounts: [], transactions: [], investments: [], budget: null } },
+    crmExpenseBudgets: { type: mongoose.Schema.Types.Mixed, default: [] },
     updatedAt:         { type: Date, default: Date.now },
     createdAt:         { type: Date, default: Date.now },
   }, { strict: false });
@@ -56,6 +57,7 @@ const EMPTY_DATA = {
   words: [], reminders: [], healthRoutines: [], dailyHealthPlans: [],
   diamondPeople: [], progress: [], events: [],
   accounting: { accounts: [], transactions: [], investments: [], budget: null },
+  expenseBudgets: [],
 };
 
 function typeToField(type: string): string {
@@ -82,6 +84,7 @@ function buildResponse(doc: any) {
     progress:         Array.isArray(doc?.crmProgress)         ? doc.crmProgress         : [],
     events:           Array.isArray(doc?.crmEvents)           ? doc.crmEvents           : [],
     accounting:       doc?.crmAccounting || { accounts: [], transactions: [], investments: [], budget: null },
+    expenseBudgets:   Array.isArray(doc?.crmExpenseBudgets)   ? doc.crmExpenseBudgets   : [],
   };
 }
 
@@ -144,6 +147,9 @@ export async function GET(request: NextRequest) {
       if (dataType === 'accounting') {
         return NextResponse.json({ data: doc[field] || { accounts: [], transactions: [], investments: [], budget: null } });
       }
+      if (dataType === 'expense_budgets') {
+        return NextResponse.json({ data: Array.isArray(doc[field]) ? doc[field] : [] });
+      }
       return NextResponse.json({ data: Array.isArray(doc[field]) ? doc[field] : [] });
     }
 
@@ -184,7 +190,9 @@ export async function POST(request: NextRequest) {
     // Handle accounting (object) vs other data (arrays)
     const dataToSave = type === 'accounting'
       ? (data || { accounts: [], transactions: [], investments: [], budget: null })
-      : (Array.isArray(data) ? data : []);
+      : (type === 'expense_budgets'
+        ? (Array.isArray(data) ? data : [])
+        : (Array.isArray(data) ? data : []));
 
     // Upsert — always succeeds even if no document exists yet
     await Model.findOneAndUpdate(

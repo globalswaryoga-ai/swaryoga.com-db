@@ -67,6 +67,7 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
   const [mounted, setMounted] = useState(false);
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [savingPlan, setSavingPlan] = useState(false);
+  const [savingExpenses, setSavingExpenses] = useState(false);
 
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [plan, setPlan] = useState<BudgetPlan | null>(null);
@@ -114,6 +115,20 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     }
   }, [getAuthHeaders, year]);
 
+  const loadExpenseBudgets = useCallback(async () => {
+    try {
+      const res = await fetch('/api/crm-planner/data?type=expense_budgets', {
+        headers: { ...getAuthHeaders(), 'x-tenant-id': localStorage.getItem('tenantId') || '' },
+      });
+      const json = await res.json();
+      if (res.ok && json.data && Array.isArray(json.data)) {
+        setExpenseBudgets(json.data);
+      }
+    } catch (e: any) {
+      console.error('Failed to load expense budgets:', e);
+    }
+  }, [getAuthHeaders]);
+
   const savePlan = useCallback(async () => {
     if (!plan) return;
     setSavingPlan(true);
@@ -133,6 +148,27 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
       setSavingPlan(false);
     }
   }, [getAuthHeaders, plan, year]);
+
+  const saveExpenseBudgets = useCallback(async () => {
+    setSavingExpenses(true);
+    try {
+      const res = await fetch('/api/crm-planner/data', {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'x-tenant-id': localStorage.getItem('tenantId') || '' },
+        body: JSON.stringify({
+          type: 'expense_budgets',
+          data: expenseBudgets,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to save expense budgets');
+      alert('Expense budgets saved successfully');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to save expense budgets');
+    } finally {
+      setSavingExpenses(false);
+    }
+  }, [expenseBudgets, getAuthHeaders]);
 
   const loadReport = useCallback(async () => {
     setLoadingReport(true);
@@ -202,7 +238,8 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
   useEffect(() => {
     if (!mounted) return;
     loadPlan();
-  }, [loadPlan, mounted]);
+    loadExpenseBudgets();
+  }, [loadPlan, loadExpenseBudgets, mounted]);
 
   // auto-refresh report when range changes (only if report already loaded once)
   useEffect(() => {
@@ -530,27 +567,39 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
           <h2 className="text-lg font-semibold text-swar-text">Monthly Expense Budget</h2>
-          <button
-            onClick={() => {
-              const newId = `exp-${Date.now()}`;
-              const currentMonth = new Date().toISOString().split('T')[0].slice(0, 7);
-              setExpenseBudgets([
-                ...expenseBudgets,
-                {
-                  id: newId,
-                  month: currentMonth,
-                  particular: '',
-                  accountHead: '',
-                  type: 'expense' as const,
-                  amount: 0,
-                  reality: 0,
-                },
-              ]);
-            }}
-            className="px-4 py-2 bg-swar-primary hover:bg-swar-primary-hover text-white rounded-lg text-sm font-semibold"
-          >
-            + Add Entry
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                const newId = `exp-${Date.now()}`;
+                const currentMonth = new Date().toISOString().split('T')[0].slice(0, 7);
+                setExpenseBudgets([
+                  ...expenseBudgets,
+                  {
+                    id: newId,
+                    month: currentMonth,
+                    particular: '',
+                    accountHead: '',
+                    type: 'expense' as const,
+                    amount: 0,
+                    reality: 0,
+                  },
+                ]);
+              }}
+              className="px-4 py-2 bg-swar-primary hover:bg-swar-primary-hover text-white rounded-lg text-sm font-semibold"
+            >
+              + Add Entry
+            </button>
+            {expenseBudgets.length > 0 && (
+              <button
+                onClick={saveExpenseBudgets}
+                disabled={savingExpenses}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg text-sm font-semibold inline-flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {savingExpenses ? 'Saving…' : 'Save Budgets'}
+              </button>
+            )}
+          </div>
         </div>
 
         {expenseBudgets.length === 0 ? (
