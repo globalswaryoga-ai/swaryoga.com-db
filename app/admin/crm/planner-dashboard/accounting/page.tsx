@@ -57,7 +57,11 @@ interface Investment {
   account_name: string;
   status: 'active' | 'completed' | 'cancelled';
   amountReceivedDate?: string;
-  dividendPayFrequency?: 'quarterly' | 'semiannual' | 'yearly';
+  dividendPayFrequency?: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
+  monthlyRate?: number;
+  quarterlyRate?: number;
+  semiannualRate?: number;
+  yearlyRate?: number;
   dividendPaid?: number;
   created_at: string;
 }
@@ -133,6 +137,10 @@ export default function LifePlannerAccountingPage() {
     status: 'active' as Investment['status'],
     amountReceivedDate: new Date().toISOString().split('T')[0],
     dividendPayFrequency: 'yearly' as Investment['dividendPayFrequency'],
+    monthlyRate: 0,
+    quarterlyRate: 0,
+    semiannualRate: 0,
+    yearlyRate: 0,
     dividendPaid: 0
   });
 
@@ -224,15 +232,34 @@ export default function LifePlannerAccountingPage() {
       const receivedDate = new Date(inv.amountReceivedDate);
       const daysSinceReceived = Math.floor((now.getTime() - receivedDate.getTime()) / (1000 * 60 * 60 * 24));
 
-      // Calculate annual dividend
-      const annualDividend = (inv.amount * inv.dividend_rate) / 100;
+      // Get the rate based on dividend pay frequency
+      let frequencyRate = 0;
+      let frequencyDays = 365;
+      let frequencyLabel = 'yearly';
 
-      // Calculate accrued dividend
-      const accruedDividend = (annualDividend * daysSinceReceived) / 365;
+      if (inv.dividendPayFrequency === 'monthly') {
+        frequencyRate = inv.monthlyRate || 0;
+        frequencyDays = 30;
+        frequencyLabel = 'monthly';
+      } else if (inv.dividendPayFrequency === 'quarterly') {
+        frequencyRate = inv.quarterlyRate || 0;
+        frequencyDays = 90;
+        frequencyLabel = 'quarterly';
+      } else if (inv.dividendPayFrequency === 'semiannual') {
+        frequencyRate = inv.semiannualRate || 0;
+        frequencyDays = 180;
+        frequencyLabel = 'semiannual';
+      } else {
+        frequencyRate = inv.yearlyRate || 0;
+        frequencyDays = 365;
+        frequencyLabel = 'yearly';
+      }
+
+      // Calculate accrued dividend based on frequency rate
+      const accruedDividend = (inv.amount * frequencyRate) / 100 * (daysSinceReceived / frequencyDays);
 
       // Calculate next payment date based on frequency
       let nextPaymentDate = new Date(receivedDate);
-      const frequencyDays = inv.dividendPayFrequency === 'quarterly' ? 90 : inv.dividendPayFrequency === 'semiannual' ? 180 : 365;
       nextPaymentDate.setDate(nextPaymentDate.getDate() + frequencyDays);
 
       const alreadyPaid = inv.dividendPaid || 0;
@@ -250,7 +277,7 @@ export default function LifePlannerAccountingPage() {
       return {
         name: inv.name,
         amount: inv.amount,
-        dividendRate: inv.dividend_rate,
+        dividendRate: frequencyRate,
         frequency: inv.dividendPayFrequency,
         receivedDate: inv.amountReceivedDate,
         accruedDividend: Math.round(accruedDividend * 100) / 100,
@@ -515,7 +542,7 @@ export default function LifePlannerAccountingPage() {
   };
 
   const resetInvestmentForm = () => {
-    setInvestmentForm({ name: '', type: 'investment_in', amount: 0, interest_rate: 0, dividend_rate: 0, repayment_mode: 'monthly', reminder_enabled: true, next_due_date: '', account_id: '', status: 'active', amountReceivedDate: new Date().toISOString().split('T')[0], dividendPayFrequency: 'yearly', dividendPaid: 0 });
+    setInvestmentForm({ name: '', type: 'investment_in', amount: 0, interest_rate: 0, dividend_rate: 0, repayment_mode: 'monthly', reminder_enabled: true, next_due_date: '', account_id: '', status: 'active', amountReceivedDate: new Date().toISOString().split('T')[0], dividendPayFrequency: 'yearly', monthlyRate: 0, quarterlyRate: 0, semiannualRate: 0, yearlyRate: 0, dividendPaid: 0 });
   };
 
   const handleEditAccount = (account: Account) => {
@@ -532,7 +559,7 @@ export default function LifePlannerAccountingPage() {
 
   const handleEditInvestment = (investment: Investment) => {
     setEditingInvestment(investment);
-    setInvestmentForm({ name: investment.name, type: investment.type, amount: investment.amount, interest_rate: investment.interest_rate, dividend_rate: investment.dividend_rate, repayment_mode: investment.repayment_mode, reminder_enabled: investment.reminder_enabled, next_due_date: investment.next_due_date || '', account_id: investment.account_id, status: investment.status, amountReceivedDate: investment.amountReceivedDate || '', dividendPayFrequency: investment.dividendPayFrequency || 'yearly', dividendPaid: investment.dividendPaid || 0 });
+    setInvestmentForm({ name: investment.name, type: investment.type, amount: investment.amount, interest_rate: investment.interest_rate, dividend_rate: investment.dividend_rate, repayment_mode: investment.repayment_mode, reminder_enabled: investment.reminder_enabled, next_due_date: investment.next_due_date || '', account_id: investment.account_id, status: investment.status, amountReceivedDate: investment.amountReceivedDate || '', dividendPayFrequency: investment.dividendPayFrequency || 'yearly', monthlyRate: investment.monthlyRate || 0, quarterlyRate: investment.quarterlyRate || 0, semiannualRate: investment.semiannualRate || 0, yearlyRate: investment.yearlyRate || 0, dividendPaid: investment.dividendPaid || 0 });
     setShowInvestmentModal(true);
   };
 
@@ -1354,16 +1381,50 @@ export default function LifePlannerAccountingPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-swar-text mb-1">Dividend Rate (%)</label>
-                      <input
-                        type="number"
-                        value={investmentForm.dividend_rate}
-                        onChange={(e) => setInvestmentForm({ ...investmentForm, dividend_rate: parseFloat(e.target.value) || 0 })}
+                      <label className="block text-sm font-medium text-swar-text mb-1">Dividend Pay Frequency</label>
+                      <select
+                        value={investmentForm.dividendPayFrequency}
+                        onChange={(e) => setInvestmentForm({ ...investmentForm, dividendPayFrequency: e.target.value as Investment['dividendPayFrequency'] })}
                         className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="0.00"
-                        step="0.01"
-                      />
+                      >
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly (3 Months)</option>
+                        <option value="semiannual">Semi-annual (6 Months)</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-1">
+                      {investmentForm.dividendPayFrequency === 'monthly' && 'Monthly Dividend Rate (%)'}
+                      {investmentForm.dividendPayFrequency === 'quarterly' && 'Quarterly Dividend Rate (%)'}
+                      {investmentForm.dividendPayFrequency === 'semiannual' && 'Semi-annual Dividend Rate (%)'}
+                      {investmentForm.dividendPayFrequency === 'yearly' && 'Yearly Dividend Rate (%)'}
+                    </label>
+                    <input
+                      type="number"
+                      value={
+                        investmentForm.dividendPayFrequency === 'monthly' ? investmentForm.monthlyRate :
+                        investmentForm.dividendPayFrequency === 'quarterly' ? investmentForm.quarterlyRate :
+                        investmentForm.dividendPayFrequency === 'semiannual' ? investmentForm.semiannualRate :
+                        investmentForm.yearlyRate
+                      }
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        if (investmentForm.dividendPayFrequency === 'monthly') {
+                          setInvestmentForm({ ...investmentForm, monthlyRate: val });
+                        } else if (investmentForm.dividendPayFrequency === 'quarterly') {
+                          setInvestmentForm({ ...investmentForm, quarterlyRate: val });
+                        } else if (investmentForm.dividendPayFrequency === 'semiannual') {
+                          setInvestmentForm({ ...investmentForm, semiannualRate: val });
+                        } else {
+                          setInvestmentForm({ ...investmentForm, yearlyRate: val });
+                        }
+                      }}
+                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="0.00"
+                      step="0.01"
+                    />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -1376,28 +1437,16 @@ export default function LifePlannerAccountingPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-swar-text mb-1">Dividend Pay Frequency</label>
-                      <select
-                        value={investmentForm.dividendPayFrequency}
-                        onChange={(e) => setInvestmentForm({ ...investmentForm, dividendPayFrequency: e.target.value as Investment['dividendPayFrequency'] })}
+                      <label className="block text-sm font-medium text-swar-text mb-1">Dividend Already Paid (₹)</label>
+                      <input
+                        type="number"
+                        value={investmentForm.dividendPaid}
+                        onChange={(e) => setInvestmentForm({ ...investmentForm, dividendPaid: parseFloat(e.target.value) || 0 })}
                         className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="quarterly">3 Months</option>
-                        <option value="semiannual">6 Months</option>
-                        <option value="yearly">Yearly</option>
-                      </select>
+                        placeholder="0"
+                        step="0.01"
+                      />
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-swar-text mb-1">Dividend Already Paid (₹)</label>
-                    <input
-                      type="number"
-                      value={investmentForm.dividendPaid}
-                      onChange={(e) => setInvestmentForm({ ...investmentForm, dividendPaid: parseFloat(e.target.value) || 0 })}
-                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="0"
-                      step="0.01"
-                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-swar-text mb-1">Repayment Mode</label>
