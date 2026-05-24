@@ -233,18 +233,18 @@ export default function LifePlannerAccountingPage() {
 
       // Generate subsequent dates: March 31 and Sept 30
       let year = firstDueDate.getFullYear();
-      let month = firstDueDate.getMonth();
+      let monthTracker = firstDueDate.getMonth();
 
       for (let i = 1; i < 20; i++) {
-        if (month === 2) {
+        if (monthTracker === 2) {
           // Just did March, next is Sept
           dates.push(new Date(year, 8, 30));
-          month = 8;
+          monthTracker = 8;
         } else {
           // Just did Sept, next is March
           year++;
           dates.push(new Date(year, 2, 31));
-          month = 2;
+          monthTracker = 2;
         }
       }
 
