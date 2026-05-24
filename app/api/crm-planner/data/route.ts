@@ -141,6 +141,9 @@ export async function GET(request: NextRequest) {
 
     if (dataType) {
       const field = typeToField(dataType);
+      if (dataType === 'accounting') {
+        return NextResponse.json({ data: doc[field] || { accounts: [], transactions: [], investments: [], budget: null } });
+      }
       return NextResponse.json({ data: Array.isArray(doc[field]) ? doc[field] : [] });
     }
 
@@ -178,12 +181,17 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const Model = getPlannerModel();
 
+    // Handle accounting (object) vs other data (arrays)
+    const dataToSave = type === 'accounting'
+      ? (data || { accounts: [], transactions: [], investments: [], budget: null })
+      : (Array.isArray(data) ? data : []);
+
     // Upsert — always succeeds even if no document exists yet
     await Model.findOneAndUpdate(
       { ownerId: owner.ownerId },
       {
         $set: {
-          [fieldName]: Array.isArray(data) ? data : [],
+          [fieldName]: dataToSave,
           ownerType: owner.ownerType,
           updatedAt: new Date(),
         },
@@ -199,7 +207,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'Data saved successfully',
-      data: Array.isArray(data) ? data : [],
+      data: type === 'accounting' ? dataToSave : (Array.isArray(data) ? data : []),
     });
 
   } catch (error: any) {
