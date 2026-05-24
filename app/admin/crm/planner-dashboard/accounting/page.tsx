@@ -41,6 +41,8 @@ interface Transaction {
   account_name: string;
   date: string;
   mode: 'cash' | 'bank' | 'card' | 'online';
+  investmentId?: string;
+  investmentName?: string;
   created_at: string;
 }
 
@@ -122,7 +124,9 @@ export default function LifePlannerAccountingPage() {
     category: '',
     account_id: '',
     date: new Date().toISOString().split('T')[0],
-    mode: 'cash' as Transaction['mode']
+    mode: 'cash' as Transaction['mode'],
+    investmentId: '',
+    investmentName: ''
   });
 
   const [investmentForm, setInvestmentForm] = useState({
@@ -593,7 +597,7 @@ export default function LifePlannerAccountingPage() {
   };
 
   const resetTransactionForm = () => {
-    setTransactionForm({ type: 'income', amount: 0, description: '', category: '', account_id: '', date: new Date().toISOString().split('T')[0], mode: 'cash' });
+    setTransactionForm({ type: 'income', amount: 0, description: '', category: '', account_id: '', date: new Date().toISOString().split('T')[0], mode: 'cash', investmentId: '', investmentName: '' });
   };
 
   const resetInvestmentForm = () => {
@@ -608,7 +612,7 @@ export default function LifePlannerAccountingPage() {
 
   const handleEditTransaction = (transaction: Transaction) => {
     setEditingTransaction(transaction);
-    setTransactionForm({ type: transaction.type, amount: transaction.amount, description: transaction.description, category: transaction.category, account_id: transaction.account_id, date: transaction.date, mode: transaction.mode });
+    setTransactionForm({ type: transaction.type, amount: transaction.amount, description: transaction.description, category: transaction.category, account_id: transaction.account_id, date: transaction.date, mode: transaction.mode, investmentId: transaction.investmentId || '', investmentName: transaction.investmentName || '' });
     setShowTransactionModal(true);
   };
 
@@ -1405,6 +1409,44 @@ export default function LifePlannerAccountingPage() {
                       placeholder="Enter category"
                     />
                   </div>
+                  {(transactionForm.category?.toLowerCase().includes('dividend') || transactionForm.category?.toLowerCase().includes('paid')) && (
+                    <div>
+                      <label className="block text-sm font-medium text-swar-text mb-1">Person/Investment Name</label>
+                      <select
+                        value={transactionForm.investmentId}
+                        onChange={(e) => {
+                          const selected = investments.find(inv => inv.id === e.target.value);
+                          setTransactionForm({
+                            ...transactionForm,
+                            investmentId: e.target.value,
+                            investmentName: selected?.name || ''
+                          });
+                        }}
+                        className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select person/investment</option>
+                        {investments.filter(inv => inv.status === 'active' && inv.type === 'investment_in').map((investment) => {
+                          const divStats = calculateDividends();
+                          const invDiv = divStats.investmentDividends.find(d => d.name === investment.name);
+                          const maxAmount = invDiv?.pending || 0;
+                          return (
+                            <option key={investment.id} value={investment.id}>
+                              {investment.name} (Pending: ₹{maxAmount.toLocaleString()})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {transactionForm.investmentId && (() => {
+                        const divStats = calculateDividends();
+                        const invDiv = divStats.investmentDividends.find(d => d.name === transactionForm.investmentName);
+                        const maxAmount = invDiv?.pending || 0;
+                        const isExceeding = transactionForm.amount > maxAmount;
+                        return isExceeding ? (
+                          <p className="text-xs text-red-600 mt-1">⚠️ Payment exceeds pending amount of ₹{maxAmount.toLocaleString()}</p>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-swar-text mb-1">Account</label>
                     <select
