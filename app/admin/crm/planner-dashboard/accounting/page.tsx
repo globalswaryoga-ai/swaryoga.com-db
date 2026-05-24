@@ -1788,115 +1788,154 @@ export default function LifePlannerAccountingPage() {
         )}
 
         {/* Payment Modal */}
-        {showPaymentModal && paymentModalData && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-md">
-              <div className="border-b border-swar-border p-6">
-                <h2 className="text-xl font-bold text-swar-text">Record Payment</h2>
-              </div>
+        {showPaymentModal && paymentModalData && (() => {
+          const investment = investments.find(inv => inv.id === paymentModalData.investmentId);
+          const divFrequency = investment?.dividendPayFrequency || 'yearly';
+          const frequencyMonths: { [key: string]: number } = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
+          const monthsPerFrequency = frequencyMonths[divFrequency] || 12;
+          const ratePerFrequency = investment?.[`${divFrequency}Rate`] || investment?.dividend_rate || 0;
+          const baseDividendAmount = investment ? (investment.amount * ratePerFrequency) / 100 : paymentModalData.amount;
 
-              <div className="p-6 space-y-4">
-                <div>
-                  <p className="text-sm text-swar-text-secondary mb-1">Investment</p>
-                  <p className="font-semibold text-swar-text">{paymentModalData.investmentName}</p>
+          const dueDate = new Date(paymentModalData.dueDate);
+          const paymentDate = new Date(paymentForm.paymentDate);
+
+          let calculatedPenalty = 0;
+          if (paymentDate > dueDate) {
+            const daysOverdue = Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+            calculatedPenalty = (baseDividendAmount * 12 * daysOverdue) / (100 * 365);
+          }
+
+          const totalDueWithPenalty = baseDividendAmount + calculatedPenalty;
+
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-lg w-full max-w-md">
+                <div className="border-b border-swar-border p-6">
+                  <h2 className="text-xl font-bold text-swar-text">Record Payment</h2>
                 </div>
 
-                <div>
-                  <p className="text-sm text-swar-text-secondary mb-1">Due Date</p>
-                  <p className="font-semibold text-swar-text">{new Date(paymentModalData.dueDate).toLocaleDateString()}</p>
-                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <p className="text-sm text-swar-text-secondary mb-1">Investment</p>
+                    <p className="font-semibold text-swar-text">{paymentModalData.investmentName}</p>
+                  </div>
 
-                <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                  <p className="text-xs text-swar-text-secondary">Amount Due (including penalty)</p>
-                  <p className="text-lg font-bold text-blue-600">₹{paymentModalData.amount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-                </div>
+                  <div>
+                    <p className="text-sm text-swar-text-secondary mb-1">Due Date</p>
+                    <p className="font-semibold text-swar-text">{dueDate.toLocaleDateString()}</p>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-swar-text mb-2">Payment Date</label>
-                  <input
-                    type="date"
-                    value={paymentForm.paymentDate}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
-                    className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  {new Date(paymentForm.paymentDate) > new Date(paymentModalData.dueDate) && (
-                    <p className="text-xs text-orange-600 mt-1">⚠️ Payment is after due date - penalty applies</p>
+                  <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                    <p className="text-xs text-swar-text-secondary">Base Dividend Amount</p>
+                    <p className="text-lg font-bold text-blue-600">₹{baseDividendAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                  </div>
+
+                  {calculatedPenalty > 0 && (
+                    <div className="bg-orange-50 p-3 rounded border border-orange-200">
+                      <p className="text-xs text-swar-text-secondary">Penalty (12% PA - {Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))} days late)</p>
+                      <p className="text-lg font-bold text-orange-600">₹{calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                    </div>
                   )}
-                  {new Date(paymentForm.paymentDate) <= new Date(paymentModalData.dueDate) && (
-                    <p className="text-xs text-green-600 mt-1">✓ Payment is on time - no penalty</p>
-                  )}
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-swar-text mb-2">Payment Amount</label>
-                  <input
-                    type="number"
-                    value={paymentForm.amount}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
-                    className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    step="0.01"
-                  />
-                </div>
+                  <div className="bg-swar-primary-light p-3 rounded border border-swar-primary">
+                    <p className="text-xs text-swar-text-secondary">Total Amount Due</p>
+                    <p className="text-2xl font-bold text-swar-primary">₹{totalDueWithPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                  </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => {
-                      setShowPaymentModal(false);
-                      setPaymentModalData(null);
-                    }}
-                    className="flex-1 px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (paymentForm.amount <= 0) {
-                        alert('Please enter a valid amount');
-                        return;
-                      }
-                      const newDividendPaid = (selectedInvestmentView!.dividendPaid || 0) + paymentForm.amount;
-                      const updatedInvestment = { ...selectedInvestmentView!, dividendPaid: newDividendPaid };
-                      const updatedInvestments = investments.map(inv => inv.id === selectedInvestmentView!.id ? updatedInvestment : inv);
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Payment Date</label>
+                    <input
+                      type="date"
+                      value={paymentForm.paymentDate}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    {paymentDate > dueDate ? (
+                      <p className="text-xs text-orange-600 mt-1">⚠️ Payment is {Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))} days late - {calculatedPenalty > 0 ? `₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty applies` : 'no penalty'}</p>
+                    ) : (
+                      <p className="text-xs text-green-600 mt-1">✓ Payment is on time - no penalty</p>
+                    )}
+                  </div>
 
-                      // Create transaction record for payment
-                      const newTransaction: Transaction = {
-                        id: `trans_${Date.now()}`,
-                        type: 'expense',
-                        amount: paymentForm.amount,
-                        description: `Dividend payment - ${paymentModalData.investmentName}`,
-                        category: 'dividend_payment',
-                        account_id: '',
-                        account_name: '',
-                        date: paymentForm.paymentDate,
-                        mode: 'bank',
-                        investmentId: paymentModalData.investmentId,
-                        investmentName: paymentModalData.investmentName,
-                        created_at: new Date().toISOString()
-                      };
-                      const updatedTransactions = [...transactions, newTransaction];
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Payment Amount</label>
+                    <input
+                      type="number"
+                      value={paymentForm.amount}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
+                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      step="0.01"
+                    />
+                  </div>
 
-                      saveAccountingData(accounts, updatedTransactions, updatedInvestments, budgetPlan).then(success => {
-                        if (success) {
-                          setInvestments(updatedInvestments);
-                          setTransactions(updatedTransactions);
-                          setSelectedInvestmentView(updatedInvestment);
-                          setShowPaymentModal(false);
-                          setPaymentModalData(null);
-                          alert(`Payment of ₹${paymentForm.amount} recorded for ${paymentForm.paymentDate}`);
-                        } else {
-                          alert('Failed to record payment');
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setShowPaymentModal(false);
+                        setPaymentModalData(null);
+                      }}
+                      className="flex-1 px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (paymentForm.amount <= 0) {
+                          alert('Please enter a valid amount');
+                          return;
                         }
-                      });
-                    }}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Record Payment
-                  </button>
+                        const investmentToUpdate = investments.find(inv => inv.id === paymentModalData.investmentId);
+                        if (!investmentToUpdate) {
+                          alert('Investment not found');
+                          return;
+                        }
+
+                        const newDividendPaid = (investmentToUpdate.dividendPaid || 0) + paymentForm.amount;
+                        const updatedInvestment = { ...investmentToUpdate, dividendPaid: newDividendPaid };
+                        const updatedInvestments = investments.map(inv => inv.id === paymentModalData.investmentId ? updatedInvestment : inv);
+
+                        // Create transaction record for payment
+                        const newTransaction: Transaction = {
+                          id: `trans_${Date.now()}`,
+                          type: 'expense',
+                          amount: paymentForm.amount,
+                          description: `Dividend payment - ${paymentModalData.investmentName}${calculatedPenalty > 0 ? ` (₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}`,
+                          category: 'dividend_payment',
+                          account_id: '',
+                          account_name: '',
+                          date: paymentForm.paymentDate,
+                          mode: 'bank',
+                          investmentId: paymentModalData.investmentId,
+                          investmentName: paymentModalData.investmentName,
+                          created_at: new Date().toISOString()
+                        };
+                        const updatedTransactions = [...transactions, newTransaction];
+
+                        saveAccountingData(accounts, updatedTransactions, updatedInvestments, budgetPlan).then(success => {
+                          if (success) {
+                            setInvestments(updatedInvestments);
+                            setTransactions(updatedTransactions);
+                            if (selectedInvestmentView?.id === paymentModalData.investmentId) {
+                              setSelectedInvestmentView(updatedInvestment);
+                            }
+                            setShowPaymentModal(false);
+                            setPaymentModalData(null);
+                            alert(`Payment of ₹${paymentForm.amount} recorded${calculatedPenalty > 0 ? ` (with ₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''} for ${paymentForm.paymentDate}`);
+                          } else {
+                            alert('Failed to record payment');
+                          }
+                        });
+                      }}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      Record Payment
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Dividend View Modal */}
         {showDividendViewModal && selectedInvestmentView && (
