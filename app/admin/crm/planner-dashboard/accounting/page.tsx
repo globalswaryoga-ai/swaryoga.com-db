@@ -104,7 +104,8 @@ export default function LifePlannerAccountingPage() {
   const [paymentForm, setPaymentForm] = useState({
     paidDate: new Date().toISOString().split('T')[0],
     paidAmount: 0,
-    paidPenalty: 0
+    paidPenalty: 0,
+    giftAmount: 0
   });
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
@@ -1910,7 +1911,8 @@ export default function LifePlannerAccountingPage() {
                               setPaymentForm({
                                 paidDate: schedule.paidDate || new Date().toISOString().split('T')[0],
                                 paidAmount: schedule.isPaid ? schedule.amount : schedule.amount,
-                                paidPenalty: schedule.penalty || 0
+                                paidPenalty: schedule.penalty || 0,
+                                giftAmount: 0
                               });
                             }}
                           >
@@ -1950,7 +1952,8 @@ export default function LifePlannerAccountingPage() {
                                   setPaymentForm({
                                     paidDate: schedule.paidDate || new Date().toISOString().split('T')[0],
                                     paidAmount: schedule.isPaid ? schedule.amount : schedule.amount,
-                                    paidPenalty: schedule.penalty || 0
+                                    paidPenalty: schedule.penalty || 0,
+                                    giftAmount: 0
                                   });
                                 }}
                                 className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
@@ -2070,9 +2073,27 @@ export default function LifePlannerAccountingPage() {
                             )}
                           </div>
 
+                          <div>
+                            <label className="block text-sm font-medium text-swar-text mb-2">Gift Amount (Optional)</label>
+                            <input
+                              type="number"
+                              value={paymentForm.giftAmount}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, giftAmount: parseFloat(e.target.value) || 0 })}
+                              className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-green-500"
+                              step="0.01"
+                              placeholder="Add any gift amount you want to give"
+                            />
+                            {paymentForm.giftAmount > 0 && (
+                              <p className="text-xs text-green-600 mt-1">🎁 Gift: ₹{paymentForm.giftAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                            )}
+                          </div>
+
                           <div className="bg-swar-primary-light p-3 rounded border border-swar-primary">
                             <p className="text-xs text-swar-text-secondary">Total Amount Due</p>
-                            <p className="text-2xl font-bold text-swar-primary">₹{(paymentForm.paidAmount + paymentForm.paidPenalty).toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                            <p className="text-2xl font-bold text-swar-primary">₹{(paymentForm.paidAmount + paymentForm.paidPenalty + paymentForm.giftAmount).toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+                            <p className="text-xs text-swar-text-secondary mt-2">
+                              = Dividend (₹{paymentForm.paidAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}) + Penalty (₹{paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})}) + Gift (₹{paymentForm.giftAmount.toLocaleString(undefined, {maximumFractionDigits: 2})})
+                            </p>
                           </div>
                         </div>
 
@@ -2099,7 +2120,7 @@ export default function LifePlannerAccountingPage() {
 
                               const isEditing = !!schedule.transactionId;
                               let updatedTransactions = [...transactions];
-                              const totalPaid = paymentForm.paidAmount + paymentForm.paidPenalty;
+                              const totalPaid = paymentForm.paidAmount + paymentForm.paidPenalty + paymentForm.giftAmount;
 
                               if (isEditing) {
                                 updatedTransactions = transactions.map(t =>
@@ -2108,7 +2129,7 @@ export default function LifePlannerAccountingPage() {
                                         ...t,
                                         amount: totalPaid,
                                         date: paymentForm.paidDate,
-                                        description: `Dividend payment - ${investment.name}${paymentForm.paidPenalty > 0 ? ` (₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}`
+                                        description: `Dividend payment - ${investment.name}${paymentForm.paidPenalty > 0 ? ` (₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}${paymentForm.giftAmount > 0 ? ` + ₹${paymentForm.giftAmount.toLocaleString(undefined, {maximumFractionDigits: 2})} gift` : ''}`
                                       }
                                     : t
                                 );
@@ -2117,7 +2138,7 @@ export default function LifePlannerAccountingPage() {
                                   id: `trans_${Date.now()}`,
                                   type: 'expense',
                                   amount: totalPaid,
-                                  description: `Dividend payment - ${investment.name}${paymentForm.paidPenalty > 0 ? ` (₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}`,
+                                  description: `Dividend payment - ${investment.name}${paymentForm.paidPenalty > 0 ? ` (₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}${paymentForm.giftAmount > 0 ? ` + ₹${paymentForm.giftAmount.toLocaleString(undefined, {maximumFractionDigits: 2})} gift` : ''}`,
                                   category: 'dividend_payment',
                                   account_id: '',
                                   account_name: '',
@@ -2143,7 +2164,7 @@ export default function LifePlannerAccountingPage() {
                                   }
                                   setEditingDividendIndex(null);
                                   const action = isEditing ? 'updated' : 'recorded';
-                                  alert(`Payment of ₹${paymentForm.paidAmount} ${action}${paymentForm.paidPenalty > 0 ? ` (with ₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''} for ${paymentForm.paidDate}`);
+                                  alert(`Total payment of ₹${totalPaid.toLocaleString(undefined, {maximumFractionDigits: 2})} ${action}${paymentForm.paidPenalty > 0 ? ` (with ₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}${paymentForm.giftAmount > 0 ? ` + ₹${paymentForm.giftAmount.toLocaleString(undefined, {maximumFractionDigits: 2})} gift` : ''} for ${paymentForm.paidDate}`);
                                 } else {
                                   alert(`Failed to ${isEditing ? 'update' : 'record'} payment`);
                                 }
