@@ -192,26 +192,58 @@ export default function LifePlannerAccountingPage() {
   }, [getAuthHeaders]);
 
   // Generate dividend payment schedule with actual payment records
-  // Fixed dates: March 31 and September 30 each year (semiannual)
+  // First dividend: 2 months after amount received date, then every 6 months on March 31 & Sept 30
   const generateDividendSchedule = (investment: Investment) => {
     const schedule: any[] = [];
     if (!investment.amountReceivedDate || !investment.dividendPayFrequency) return schedule;
 
     const today = new Date();
-    const currentYear = today.getFullYear();
-    const startYear = new Date(investment.amountReceivedDate).getFullYear();
+    const receivedDate = new Date(investment.amountReceivedDate);
+    const receivedMonth = receivedDate.getMonth(); // 0-11
+    const receivedYear = receivedDate.getFullYear();
 
     const ratePerFrequency = investment[`${investment.dividendPayFrequency === 'semiannual' ? 'semiannual' : investment.dividendPayFrequency}Rate`] || investment.dividend_rate || 0;
     const dividendPerPayment = (investment.amount * ratePerFrequency) / 100;
 
-    // For semiannual: generate dates for March 31 and September 30
+    // Calculate first dividend due date (2 months after received date, on 31st March or 30th Sept)
     const generateDates = () => {
       const dates = [];
-      for (let year = startYear; year <= currentYear + 10; year++) {
-        dates.push(new Date(year, 2, 31)); // March 31
-        dates.push(new Date(year, 8, 30)); // September 30
+      let currentDate = new Date(receivedDate);
+      currentDate.setMonth(currentDate.getMonth() + 2); // First dividend 2 months after received
+
+      // First dividend: snap to nearest March 31 or Sept 30
+      let firstDueDate;
+      if (currentDate.getMonth() < 2 || (currentDate.getMonth() === 2 && currentDate.getDate() <= 31)) {
+        // Before or on March 31
+        firstDueDate = new Date(currentDate.getFullYear(), 2, 31); // March 31
+      } else if (currentDate.getMonth() < 8 || (currentDate.getMonth() === 8 && currentDate.getDate() <= 30)) {
+        // Before or on Sept 30
+        firstDueDate = new Date(currentDate.getFullYear(), 8, 30); // Sept 30
+      } else {
+        // After Sept 30, next is March 31
+        firstDueDate = new Date(currentDate.getFullYear() + 1, 2, 31); // Next year March 31
       }
-      return dates.sort((a, b) => a.getTime() - b.getTime());
+
+      dates.push(firstDueDate);
+
+      // Generate subsequent dates: March 31 and Sept 30
+      let year = firstDueDate.getFullYear();
+      let month = firstDueDate.getMonth();
+
+      for (let i = 1; i < 20; i++) {
+        if (month === 2) {
+          // Just did March, next is Sept
+          dates.push(new Date(year, 8, 30));
+          month = 8;
+        } else {
+          // Just did Sept, next is March
+          year++;
+          dates.push(new Date(year, 2, 31));
+          month = 2;
+        }
+      }
+
+      return dates;
     };
 
     const dueDates = generateDates();
