@@ -1788,21 +1788,23 @@ export default function LifePlannerAccountingPage() {
         )}
 
         {/* Payment Modal */}
-        {showPaymentModal && paymentModalData && (() => {
+        {(() => {
+          if (!showPaymentModal || !paymentModalData) return null;
+
           const investment = investments.find(inv => inv.id === paymentModalData.investmentId);
           const divFrequency = investment?.dividendPayFrequency || 'yearly';
           const frequencyMonths: { [key: string]: number } = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
-          const monthsPerFrequency = frequencyMonths[divFrequency] || 12;
           const ratePerFrequency = investment?.[`${divFrequency}Rate`] || investment?.dividend_rate || 0;
           const baseDividendAmount = investment ? (investment.amount * ratePerFrequency) / 100 : paymentModalData.amount;
 
           const dueDate = new Date(paymentModalData.dueDate);
           const paymentDate = new Date(paymentForm.paymentDate);
+          const daysOverdueValue = Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          const isLate = paymentDate > dueDate;
 
           let calculatedPenalty = 0;
-          if (paymentDate > dueDate) {
-            const daysOverdue = Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-            calculatedPenalty = (baseDividendAmount * 12 * daysOverdue) / (100 * 365);
+          if (isLate && daysOverdueValue > 0) {
+            calculatedPenalty = (baseDividendAmount * 12 * daysOverdueValue) / (100 * 365);
           }
 
           const totalDueWithPenalty = baseDividendAmount + calculatedPenalty;
@@ -1832,7 +1834,7 @@ export default function LifePlannerAccountingPage() {
 
                   {calculatedPenalty > 0 && (
                     <div className="bg-orange-50 p-3 rounded border border-orange-200">
-                      <p className="text-xs text-swar-text-secondary">Penalty (12% PA - {Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))} days late)</p>
+                      <p className="text-xs text-swar-text-secondary">Penalty (12% PA - {daysOverdueValue} days late)</p>
                       <p className="text-lg font-bold text-orange-600">₹{calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
                     </div>
                   )}
@@ -1850,8 +1852,8 @@ export default function LifePlannerAccountingPage() {
                       onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
                       className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
-                    {paymentDate > dueDate ? (
-                      <p className="text-xs text-orange-600 mt-1">⚠️ Payment is {Math.floor((paymentDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))} days late - {calculatedPenalty > 0 ? `₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty applies` : 'no penalty'}</p>
+                    {isLate ? (
+                      <p className="text-xs text-orange-600 mt-1">⚠️ Payment is {daysOverdueValue} days late - {calculatedPenalty > 0 ? `₹${calculatedPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty applies` : 'no penalty'}</p>
                     ) : (
                       <p className="text-xs text-green-600 mt-1">✓ Payment is on time - no penalty</p>
                     )}
