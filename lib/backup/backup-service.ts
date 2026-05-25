@@ -66,20 +66,43 @@ const BACKUP_COLLECTIONS = [
   { name: 'Sadhana' },
   { name: 'SadhanaParticipant' },
   { name: 'Video' },
-  // Logs: keep last 7 days only
-  { name: 'VideoWatchLog', daysBack: CONFIG.LOG_RETENTION_DAYS },
-  { name: 'VideoAccessLog', daysBack: CONFIG.LOG_RETENTION_DAYS },
-  { name: 'ViewTracking', daysBack: CONFIG.LOG_RETENTION_DAYS },
-  { name: 'ErrorLog', daysBack: CONFIG.LOG_RETENTION_DAYS },
+  // Video logs — last 7 days only
+  { name: 'VideoWatchLog',  daysBack: 7  },
+  { name: 'VideoAccessLog', daysBack: 7  },
+  { name: 'ViewTracking',   daysBack: 7  },
+  { name: 'ErrorLog',       daysBack: 7  },
+  // CRM logs — last 30 days only
+  { name: 'WhatsAppMessage',    daysBack: 30 },
+  { name: 'QrWhatsAppMessage',  daysBack: 30 },
+  { name: 'BroadcastRunMessage',daysBack: 30 },
+  { name: 'AnalyticsEvent',     daysBack: 30 },
+  { name: 'AuditLog',           daysBack: 30 },
+  { name: 'EmailLog',           daysBack: 30 },
 ];
 
-// Only these log collections get archived → deleted from MongoDB to keep Atlas lean.
+// ─── Collections archived to Bunny THEN deleted from Atlas ─────────────────
+// These have real data worth keeping — saved to Bunny before removal.
 // ⛔ NEVER add User, Course, Workshop, Purchase, Payment etc. here.
-const ARCHIVE_LOG_COLLECTIONS = [
-  'VideoWatchLog',
-  'VideoAccessLog',
-  'ViewTracking',
-  'ErrorLog',
+const ARCHIVE_LOG_COLLECTIONS: Array<{ name: string; days: number }> = [
+  // Video platform logs
+  { name: 'VideoWatchLog',   days: 7  },
+  { name: 'VideoAccessLog',  days: 7  },
+  { name: 'ViewTracking',    days: 7  },
+  { name: 'ErrorLog',        days: 7  },
+  // CRM logs — worth archiving for audits
+  { name: 'AnalyticsEvent',  days: 30 },
+  { name: 'AuditLog',        days: 30 },
+  { name: 'EmailLog',        days: 30 },
+];
+
+// ─── Collections deleted directly (no archive needed) ───────────────────────
+// These are transient/diagnostic records with zero long-term value.
+const DELETE_ONLY_COLLECTIONS: Array<{ name: string; days: number; dateField?: string }> = [
+  { name: 'MessageStatus',             days: 7,  dateField: 'statusChangedAt' },
+  { name: 'WhatsAppWebhookEvent',      days: 7,  dateField: 'createdAt'       },
+  { name: 'TallySyncLog',              days: 7,  dateField: 'createdAt'       },
+  // Chat flows are max 15 days — delete after 16 days (all guaranteed closed)
+  { name: 'ChatbotConversationState',  days: 16, dateField: 'updatedAt'       },
 ];
 
 // Soft-deleted records from these collections are permanently removed from MongoDB
@@ -366,60 +389,81 @@ export class BackupService {
     );
   }
 
-  // ─── Private: Archive old LOG data → Bunny, delete from Atlas ───────────
+  // ─── Private: Archive old LOG data → Bunny, then delete from Atlas ────────
 
   private async archiveOldLogData(backupId: string): Promise<{
     archivedLogRecords: number;
     deletedLogRecords: number;
   }> {
-    const cutoff = new Date(
-      Date.now() - CONFIG.LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
-    );
     const dateStr = new Date().toISOString().split('T')[0];
     let archivedLogRecords = 0;
     let deletedLogRecords = 0;
 
-    logger.info(`🗂️  Archiving log data older than ${CONFIG.LOG_RETENTION_DAYS} days...`, {
-      backupId,
-    });
+    // ── 1. Archive to Bunny first, then delete from Atlas ──────────────────
+    logger.info('🗂️  Archiving CRM/video log collections...', { backupId });
 
-    for (const collName of ARCHIVE_LOG_COLLECTIONS) {
+    for (const { name: collName, days } of ARCHIVE_LOG_COLLECTIONS) {
       try {
         const model = mongoose.models[collName];
         if (!model) continue;
 
+        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
         const oldDocs = await model.find({ createdAt: { $lt: cutoff } }).lean();
+
         if (oldDocs.length === 0) {
-          logger.info(`  ℹ️  ${collName}: nothing to archive`);
+          logger.info(`  ℹ️  ${collName}: nothing to archive (>${days}d)`);
           continue;
         }
 
-        // Archive compressed to Bunny
-        const json = JSON.stringify(oldDocs);
-        const compressed = await gzipAsync(json);
+        // Compress + upload to Bunny
+        const compressed = await gzipAsync(JSON.stringify(oldDocs));
         const archivePath = `${CONFIG.BUNNY_ARCHIVE_PATH}/${collName}/${dateStr}.json.gz`;
         await this.bunny.upload(archivePath, compressed);
 
-        logger.info(
-          `  📤 Archived ${oldDocs.length} ${collName} records → Bunny ${archivePath}`,
-          { backupId }
-        );
-
         // Delete from Atlas only after successful archive
-        const deleteResult = await model.deleteMany({ createdAt: { $lt: cutoff } });
+        const del = await model.deleteMany({ createdAt: { $lt: cutoff } });
         archivedLogRecords += oldDocs.length;
-        deletedLogRecords += deleteResult.deletedCount;
+        deletedLogRecords  += del.deletedCount;
 
         logger.info(
-          `  🗑️  Deleted ${deleteResult.deletedCount} old ${collName} records from Atlas`,
+          `  📤 ${collName}: archived ${oldDocs.length} → Bunny, deleted ${del.deletedCount} from Atlas (>${days}d)`,
           { backupId }
         );
       } catch (error) {
         logger.error(`  ❌ Error archiving ${collName}`, {
-          backupId,
-          error: (error as Error).message,
+          backupId, error: (error as Error).message,
         });
-        // Non-fatal — continue with other collections
+      }
+    }
+
+    // ── 2. Delete-only collections (transient/diagnostic, no archive needed) ─
+    logger.info('🗑️  Cleaning transient CRM collections...', { backupId });
+
+    for (const { name: collName, days, dateField = 'createdAt' } of DELETE_ONLY_COLLECTIONS) {
+      try {
+        const model = mongoose.models[collName];
+        if (!model) continue;
+
+        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const query = { [dateField]: { $lt: cutoff } };
+
+        const count = await model.countDocuments(query);
+        if (count === 0) {
+          logger.info(`  ℹ️  ${collName}: nothing to delete (>${days}d)`);
+          continue;
+        }
+
+        const del = await model.deleteMany(query);
+        deletedLogRecords += del.deletedCount;
+
+        logger.info(
+          `  🗑️  ${collName}: deleted ${del.deletedCount} records from Atlas (>${days}d by ${dateField})`,
+          { backupId }
+        );
+      } catch (error) {
+        logger.error(`  ❌ Error cleaning ${collName}`, {
+          backupId, error: (error as Error).message,
+        });
       }
     }
 

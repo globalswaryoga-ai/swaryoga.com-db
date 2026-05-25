@@ -21,28 +21,47 @@ import { BunnyStorageClient } from './bunny-client';
 import { logger } from './logger';
 import * as zlib from 'zlib';
 
-// Collections that are SAFE to clean from MongoDB after archiving to Bunny.
-// These are logs/analytics — they grow fast and are not needed for app queries.
-const LOG_COLLECTIONS_TO_CLEAN = [
-  'VideoWatchLog',
-  'VideoAccessLog',
-  'ViewTracking',
-  'ErrorLog',
-  'PostAnalytics',
+// ─── Archive to Bunny THEN delete from Atlas ────────────────────────────────
+// Data worth keeping — saved to /archives/ on Bunny before removal.
+// ⛔ NEVER add User, Course, Workshop, Purchase, Lead, Payment etc.
+const ARCHIVE_COLLECTIONS: Array<{ name: string; days: number; dateField?: string }> = [
+  // Video platform logs (overlap with daily — weekly catches anything missed)
+  { name: 'VideoWatchLog',        days: 7   },
+  { name: 'VideoAccessLog',       days: 7   },
+  { name: 'ViewTracking',         days: 7   },
+  { name: 'ErrorLog',             days: 7   },
+  { name: 'PostAnalytics',        days: 7   },
+  // CRM message history — 90 days in Atlas, then Bunny forever
+  { name: 'WhatsAppMessage',      days: 90  },
+  { name: 'QrWhatsAppMessage',    days: 90  },
+  // CRM logs — 30 days in Atlas
+  { name: 'BroadcastRunMessage',  days: 30  },
+  { name: 'AnalyticsEvent',       days: 30  },
+  { name: 'AuditLog',             days: 30  },
+  { name: 'EmailLog',             days: 30  },
+  // Business history — 90 days in Atlas
+  { name: 'FunnelStageHistory',   days: 90  },
+  { name: 'AccAuditTrail',        days: 90  },
 ];
 
-// Auth/admin session collections — clean after 30 days (longer retention)
-const SESSION_COLLECTIONS_TO_CLEAN = [
-  'AdminSession',
+// ─── Delete directly (no archive needed — transient/diagnostic data) ─────────
+const DELETE_ONLY_COLLECTIONS: Array<{ name: string; days: number; dateField?: string }> = [
+  { name: 'MessageStatus',            days: 7,  dateField: 'statusChangedAt' },
+  { name: 'WhatsAppWebhookEvent',     days: 7,  dateField: 'createdAt'       },
+  { name: 'TallySyncLog',             days: 7,  dateField: 'createdAt'       },
+  // Chat flows are max 15 days — 16 days = all guaranteed closed
+  { name: 'ChatbotConversationState', days: 16, dateField: 'updatedAt'       },
+  // Admin login sessions
+  { name: 'AdminSession',             days: 30, dateField: 'loginAt'         },
 ];
 
-// ⛔ These collections MUST NEVER be touched by cleanup:
-// User, Course, CourseLesson, CourseModule, CourseSection, CourseVideo,
-// CourseMaterial, CourseAssignment, CourseEnrollment, CourseReview,
-// CourseDevice, RecordedCourse, Workshop, WorkshopVideo, WorkshopSeatInventory,
-// Batch, Program, ProgramSession, Purchase, Payment, KYC, Company,
-// Investment, InvestmentUser, OldInvestment, Sadhana, SadhanaParticipant,
-// Video, Session (yoga content), Post, SocialAccount, AdminSettings
+// ⛔ These collections MUST NEVER be touched by any cleanup:
+// User, Course, CourseSection, CourseVideo, CourseMaterial, CourseAssignment,
+// CourseEnrollment, CourseReview, CourseDevice, RecordedCourse,
+// Workshop, WorkshopVideo, WorkshopSeatInventory, Batch, Program,
+// ProgramSession, Purchase, Payment, KYC, Company, Investment,
+// Sadhana, SadhanaParticipant, Video, Session, Lead, LeadNote,
+// LeadFollowUp, BroadcastRun, BroadcastList, AdminSettings
 
 export class WeeklySyncService {
   private bunnyClient: BunnyStorageClient;
@@ -58,8 +77,8 @@ export class WeeklySyncService {
     success: boolean;
     message: string;
     snapshotSize?: string;
-    cleanedLogs?: number;
-    cleanedSessions?: number;
+    archivedRecords?: number;
+    deletedRecords?: number;
   }> {
     const syncId = `weekly-${new Date().toISOString().split('T')[0]}`;
     logger.info(`🔄 Starting weekly sync: ${syncId}`);
@@ -71,24 +90,22 @@ export class WeeklySyncService {
       // ─── Step 1: Full snapshot of ALL collections → Bunny ───────────────────
       const snapshotSize = await this.takeFullSnapshot(db, syncId);
 
-      // ─── Step 2: Clean log collections older than 7 days ────────────────────
-      const cleanedLogs = await this.cleanLogCollections(db);
+      // ─── Step 2: Archive old collections → Bunny, then delete from Atlas ────
+      const archivedRecords = await this.archiveOldCollections(db);
 
-      // ─── Step 3: Clean old admin sessions (older than 30 days) ──────────────
-      const cleanedSessions = await this.cleanSessionCollections(db);
+      // ─── Step 3: Delete transient/diagnostic collections from Atlas ──────────
+      const deletedRecords = await this.deleteTransientCollections(db);
 
       logger.info(`✅ Weekly sync complete: ${syncId}`, {
-        snapshotSize,
-        cleanedLogs,
-        cleanedSessions,
+        snapshotSize, archivedRecords, deletedRecords,
       });
 
       return {
         success: true,
         message: `Weekly sync complete: ${syncId}`,
         snapshotSize,
-        cleanedLogs,
-        cleanedSessions,
+        archivedRecords,
+        deletedRecords,
       };
     } catch (error) {
       logger.error('❌ Weekly sync failed', { error: (error as Error).message });
@@ -128,97 +145,89 @@ export class WeeklySyncService {
   }
 
   /**
-   * Archive log collections older than 7 days to Bunny, then delete from MongoDB.
-   * ONLY touches: VideoWatchLog, VideoAccessLog, ViewTracking, ErrorLog, PostAnalytics
+   * Archive old collections → Bunny, then delete from Atlas.
+   * Covers: video logs, WA messages, CRM logs, business history.
    */
-  private async cleanLogCollections(db: any): Promise<number> {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  private async archiveOldCollections(db: any): Promise<number> {
     const dateStr = new Date().toISOString().split('T')[0];
-    let totalDeleted = 0;
+    let totalArchived = 0;
 
-    logger.info('🗂️  Archiving old log collections...');
+    logger.info('🗂️  Archiving old collections to Bunny...');
 
-    for (const collName of LOG_COLLECTIONS_TO_CLEAN) {
+    for (const { name: collName, days, dateField = 'createdAt' } of ARCHIVE_COLLECTIONS) {
       try {
-        // Check if collection exists
-        const exists = await db
-          .listCollections({ name: collName })
-          .hasNext();
+        const exists = await db.listCollections({ name: collName }).hasNext();
         if (!exists) continue;
 
         const col = db.collection(collName);
+        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const query = { [dateField]: { $lt: cutoff } };
 
-        // Count records to archive
-        const count = await col.countDocuments({ createdAt: { $lt: sevenDaysAgo } });
+        const count = await col.countDocuments(query);
         if (count === 0) {
-          logger.info(`  ℹ️  ${collName}: nothing to archive`);
+          logger.info(`  ℹ️  ${collName}: nothing to archive (>${days}d)`);
           continue;
         }
 
-        // Archive to Bunny before deleting
-        const oldDocs = await col.find({ createdAt: { $lt: sevenDaysAgo } }).toArray();
+        // Archive to Bunny first
+        const oldDocs = await col.find(query).toArray();
         const compressed = await new Promise<Buffer>((resolve, reject) => {
           zlib.gzip(Buffer.from(JSON.stringify(oldDocs)), (err, r) =>
             err ? reject(err) : resolve(r)
           );
         });
         await this.bunnyClient.upload(
-          `/archives/logs/${collName}/${dateStr}.json.gz`,
+          `/archives/${collName}/${dateStr}.json.gz`,
           compressed
         );
 
-        // Now safe to delete from MongoDB
-        const result = await col.deleteMany({ createdAt: { $lt: sevenDaysAgo } });
-        totalDeleted += result.deletedCount;
+        // Delete from Atlas only after successful archive
+        const result = await col.deleteMany(query);
+        totalArchived += result.deletedCount;
 
         logger.info(
-          `  🗑️  ${collName}: archived ${count} docs → Bunny, deleted ${result.deletedCount} from Atlas`
+          `  📤 ${collName}: archived ${count} → Bunny, deleted ${result.deletedCount} from Atlas (>${days}d)`
         );
       } catch (err) {
-        logger.error(`  ❌ Error cleaning ${collName}`, {
-          error: (err as Error).message,
-        });
+        logger.error(`  ❌ Error archiving ${collName}`, { error: (err as Error).message });
       }
     }
 
-    return totalDeleted;
+    return totalArchived;
   }
 
   /**
-   * Clean old admin/auth session records (older than 30 days).
-   * These are login sessions, safe to delete after 30 days.
+   * Delete transient/diagnostic collections directly from Atlas.
+   * No archive needed — these have zero long-term value.
+   * Covers: MessageStatus, WhatsAppWebhookEvent, TallySyncLog,
+   *         ChatbotConversationState, AdminSession.
    */
-  private async cleanSessionCollections(db: any): Promise<number> {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  private async deleteTransientCollections(db: any): Promise<number> {
     let totalDeleted = 0;
 
-    logger.info('🔑 Cleaning old admin sessions...');
+    logger.info('🗑️  Deleting transient collections from Atlas...');
 
-    for (const collName of SESSION_COLLECTIONS_TO_CLEAN) {
+    for (const { name: collName, days, dateField = 'createdAt' } of DELETE_ONLY_COLLECTIONS) {
       try {
         const exists = await db.listCollections({ name: collName }).hasNext();
         if (!exists) continue;
 
         const col = db.collection(collName);
-
-        // For AdminSession, use loginAt field
-        const query =
-          collName === 'AdminSession'
-            ? { loginAt: { $lt: thirtyDaysAgo } }
-            : { createdAt: { $lt: thirtyDaysAgo } };
+        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const query = { [dateField]: { $lt: cutoff } };
 
         const result = await col.deleteMany(query);
         totalDeleted += result.deletedCount;
 
         if (result.deletedCount > 0) {
-          logger.info(`  🗑️  ${collName}: deleted ${result.deletedCount} old sessions`);
+          logger.info(
+            `  🗑️  ${collName}: deleted ${result.deletedCount} records (>${days}d by ${dateField})`
+          );
         } else {
-          logger.info(`  ℹ️  ${collName}: no old sessions to clean`);
+          logger.info(`  ℹ️  ${collName}: nothing to delete (>${days}d)`);
         }
       } catch (err) {
-        logger.error(`  ❌ Error cleaning sessions: ${collName}`, {
-          error: (err as Error).message,
-        });
+        logger.error(`  ❌ Error deleting ${collName}`, { error: (err as Error).message });
       }
     }
 
