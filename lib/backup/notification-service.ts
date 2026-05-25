@@ -1,258 +1,209 @@
 /**
- * Notification Service for Backup Events
- * Sends email/Slack alerts for backup status
+ * =====================================================
+ * BACKUP NOTIFICATION SERVICE
+ * =====================================================
+ * Sends WhatsApp alerts (primary) + Email (optional)
+ * for backup success, failure, and warnings.
+ *
+ * WhatsApp uses the existing bridge/Meta infrastructure.
+ * Set BACKUP_ALERT_PHONE in env to receive WA alerts.
+ * =====================================================
  */
 
 import { logger } from './logger';
-import nodemailer from 'nodemailer';
 
-interface NotificationPayload {
-  type: 'backup_success' | 'backup_error' | 'backup_warning' | 'restore_success' | 'restore_error';
+export interface NotificationPayload {
+  type:
+    | 'backup_success'
+    | 'backup_error'
+    | 'backup_warning'
+    | 'restore_success'
+    | 'restore_error';
   backupId?: string;
   result?: any;
   error?: string;
   details?: any;
 }
 
-class NotificationService {
-  private emailTransporter: any;
-  private slackWebhook: string | null;
+// ─── WhatsApp alert ────────────────────────────────────────────────────────
 
-  constructor() {
-    this.initializeEmail();
-    this.initializeSlack();
+async function sendWhatsAppAlert(message: string): Promise<void> {
+  const alertPhone = process.env.BACKUP_ALERT_PHONE;
+  if (!alertPhone) {
+    logger.warn('⚠️  BACKUP_ALERT_PHONE not set — skipping WhatsApp alert');
+    return;
   }
 
-  private initializeEmail() {
-    const emailConfig = {
-      service: process.env.SMTP_SERVICE || 'gmail',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
-      },
-    };
+  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
+  const bridgeSecret = (process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
 
-    if (emailConfig.auth.user && emailConfig.auth.pass) {
-      this.emailTransporter = nodemailer.createTransport(emailConfig);
-      logger.info('✅ Email transporter initialized');
-    }
-  }
-
-  private initializeSlack() {
-    this.slackWebhook = process.env.SLACK_WEBHOOK_URL || null;
-    if (this.slackWebhook) {
-      logger.info('✅ Slack webhook configured');
-    }
-  }
-
-  async send(payload: NotificationPayload): Promise<void> {
+  // Try WhatsApp Bridge (Baileys on EC2) first
+  if (bridgeUrl && bridgeSecret) {
     try {
-      // Send email
-      if (this.emailTransporter) {
-        await this.sendEmail(payload);
-      }
-
-      // Send to Slack
-      if (this.slackWebhook) {
-        await this.sendSlack(payload);
-      }
-
-      // Log to database (optional)
-      await this.logToDatabase(payload);
-    } catch (error) {
-      logger.error('Error sending notification', { error: error.message, payload });
-    }
-  }
-
-  private async sendEmail(payload: NotificationPayload): Promise<void> {
-    try {
-      const { subject, html } = this.formatEmail(payload);
-
-      await this.emailTransporter.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@swaryoga.com',
-        to: process.env.BACKUP_ALERT_EMAIL || 'admin@swaryoga.com',
-        subject,
-        html,
-      });
-
-      logger.info(`✅ Email notification sent: ${subject}`);
-    } catch (error) {
-      logger.error('Failed to send email notification', { error: error.message });
-    }
-  }
-
-  private async sendSlack(payload: NotificationPayload): Promise<void> {
-    try {
-      const message = this.formatSlack(payload);
-
-      const response = await fetch(this.slackWebhook!, {
+      const res = await fetch(`${bridgeUrl}/send-message`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(message),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': bridgeSecret,
+        },
+        body: JSON.stringify({ to: alertPhone, message }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Slack API returned ${response.status}`);
+      if (res.ok) {
+        logger.info(`📱 WhatsApp alert sent via bridge to ${alertPhone}`);
+        return;
       }
-
-      logger.info(`✅ Slack notification sent`);
-    } catch (error) {
-      logger.error('Failed to send Slack notification', { error: error.message });
+      logger.warn(`⚠️  WA bridge returned ${res.status}, trying Meta fallback...`);
+    } catch (err) {
+      logger.warn('⚠️  WA bridge failed, trying Meta fallback...', {
+        error: (err as Error).message,
+      });
     }
   }
 
-  private async logToDatabase(payload: NotificationPayload): Promise<void> {
-    // Optional: Log to MongoDB collection
+  // Fallback: Meta Cloud API
+  const metaToken = process.env.META_PAGE_ACCESS_TOKEN;
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID || process.env.META_FACEBOOK_PAGE_ID;
+
+  if (metaToken && phoneNumberId) {
     try {
-      // This would be implemented if you have a notifications collection
-      // await NotificationLog.create({
-      //   type: payload.type,
-      //   backupId: payload.backupId,
-      //   details: payload.details,
-      //   timestamp: new Date(),
-      // });
-    } catch (error) {
-      logger.warn('Could not log notification to database', { error: error.message });
-    }
-  }
-
-  private formatEmail(payload: NotificationPayload): { subject: string; html: string } {
-    const timestamp = new Date().toISOString();
-
-    switch (payload.type) {
-      case 'backup_success':
-        return {
-          subject: `✅ Backup Success - ${payload.backupId}`,
-          html: `
-            <h2>✅ Backup Completed Successfully</h2>
-            <p><strong>Backup ID:</strong> ${payload.backupId}</p>
-            <p><strong>Timestamp:</strong> ${timestamp}</p>
-            <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
-              <tr style="background-color: #f0f0f0;">
-                <td style="border: 1px solid #ddd; padding: 10px;"><strong>MongoDB Size Before</strong></td>
-                <td style="border: 1px solid #ddd; padding: 10px;">${payload.result?.mongodbSizeBefore}MB</td>
-              </tr>
-              <tr>
-                <td style="border: 1px solid #ddd; padding: 10px;"><strong>MongoDB Size After</strong></td>
-                <td style="border: 1px solid #ddd; padding: 10px;">${payload.result?.mongodbSizeAfter}MB</td>
-              </tr>
-              <tr style="background-color: #f0f0f0;">
-                <td style="border: 1px solid #ddd; padding: 10px;"><strong>Saved</strong></td>
-                <td style="border: 1px solid #ddd; padding: 10px;">${
-                  payload.result?.mongodbSizeBefore - payload.result?.mongodbSizeAfter
-                }MB</td>
-              </tr>
-              <tr>
-                <td style="border: 1px solid #ddd; padding: 10px;"><strong>Backup Size</strong></td>
-                <td style="border: 1px solid #ddd; padding: 10px;">${payload.result?.compressedSize}MB</td>
-              </tr>
-              <tr style="background-color: #f0f0f0;">
-                <td style="border: 1px solid #ddd; padding: 10px;"><strong>Duration</strong></td>
-                <td style="border: 1px solid #ddd; padding: 10px;">${Math.round(
-                  payload.result?.duration / 1000
-                )}s</td>
-              </tr>
-              <tr>
-                <td style="border: 1px solid #ddd; padding: 10px;"><strong>Location</strong></td>
-                <td style="border: 1px solid #ddd; padding: 10px;">${payload.result?.bunnyPath}</td>
-              </tr>
-            </table>
-          `,
-        };
-
-      case 'backup_error':
-        return {
-          subject: `❌ Backup Failed - ${payload.backupId}`,
-          html: `
-            <h2 style="color: red;">❌ Backup Failed</h2>
-            <p><strong>Backup ID:</strong> ${payload.backupId}</p>
-            <p><strong>Error:</strong> ${payload.error}</p>
-            <p><strong>Timestamp:</strong> ${timestamp}</p>
-            <p style="color: red; font-weight: bold;">Please check logs and retry manually if needed.</p>
-          `,
-        };
-
-      default:
-        return {
-          subject: `Backup Notification - ${payload.type}`,
-          html: `<pre>${JSON.stringify(payload, null, 2)}</pre>`,
-        };
-    }
-  }
-
-  private formatSlack(payload: NotificationPayload): any {
-    const colors = {
-      backup_success: '#36a64f',
-      backup_error: '#ff0000',
-      backup_warning: '#ffaa00',
-      restore_success: '#36a64f',
-      restore_error: '#ff0000',
-    };
-
-    const titles = {
-      backup_success: '✅ Backup Successful',
-      backup_error: '❌ Backup Failed',
-      backup_warning: '⚠️ Backup Warning',
-      restore_success: '✅ Restore Successful',
-      restore_error: '❌ Restore Failed',
-    };
-
-    return {
-      attachments: [
+      const to = alertPhone.replace(/\D/g, '');
+      const res = await fetch(
+        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
         {
-          color: colors[payload.type],
-          title: titles[payload.type],
-          fields: [
-            {
-              title: 'Backup ID',
-              value: payload.backupId || 'N/A',
-              short: true,
-            },
-            {
-              title: 'Timestamp',
-              value: new Date().toISOString(),
-              short: true,
-            },
-            ...(payload.result
-              ? [
-                  {
-                    title: 'MongoDB Size',
-                    value: `${payload.result.mongodbSizeBefore}MB → ${payload.result.mongodbSizeAfter}MB (Saved: ${
-                      payload.result.mongodbSizeBefore - payload.result.mongodbSizeAfter
-                    }MB)`,
-                    short: false,
-                  },
-                  {
-                    title: 'Duration',
-                    value: `${Math.round(payload.result.duration / 1000)}s`,
-                    short: true,
-                  },
-                  {
-                    title: 'Location',
-                    value: payload.result.bunnyPath,
-                    short: false,
-                  },
-                ]
-              : []),
-            ...(payload.error
-              ? [
-                  {
-                    title: 'Error',
-                    value: payload.error,
-                    short: false,
-                  },
-                ]
-              : []),
-          ],
-        },
-      ],
-    };
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to,
+            type: 'text',
+            text: { body: message },
+          }),
+        }
+      );
+
+      if (res.ok) {
+        logger.info(`📱 WhatsApp alert sent via Meta to ${alertPhone}`);
+        return;
+      }
+      logger.warn(`⚠️  Meta WA API returned ${res.status}`);
+    } catch (err) {
+      logger.warn('⚠️  Meta WA fallback failed', { error: (err as Error).message });
+    }
+  }
+
+  logger.warn('⚠️  WhatsApp alert could not be delivered — no working WA channel');
+}
+
+// ─── Email alert (optional, if SMTP configured) ───────────────────────────
+
+async function sendEmailAlert(subject: string, body: string): Promise<void> {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASSWORD;
+  const alertEmail = process.env.BACKUP_ALERT_EMAIL;
+
+  if (!smtpUser || !smtpPass || !alertEmail) return; // silently skip if not configured
+
+  try {
+    // Dynamic import to avoid loading nodemailer when not needed
+    const nodemailer = await import('nodemailer');
+    const transporter = nodemailer.default.createTransport({
+      service: process.env.SMTP_SERVICE || 'gmail',
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || 'noreply@swaryoga.com',
+      to: alertEmail,
+      subject,
+      html: `<pre style="font-family:monospace">${body}</pre>`,
+    });
+    logger.info(`📧 Email alert sent: ${subject}`);
+  } catch (err) {
+    logger.warn('⚠️  Email alert failed', { error: (err as Error).message });
   }
 }
 
-export const sendNotification = async (payload: NotificationPayload) => {
-  const service = new NotificationService();
-  await service.send(payload);
-};
+// ─── Format messages ───────────────────────────────────────────────────────
 
-export default NotificationService;
+function formatWhatsAppMessage(payload: NotificationPayload): string {
+  const ts = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+  switch (payload.type) {
+    case 'backup_success': {
+      const r = payload.result;
+      return (
+        `✅ *Swaryoga Backup Success*\n` +
+        `🕐 ${ts} IST\n` +
+        `📦 ID: ${payload.backupId}\n` +
+        `📊 Atlas: ${r?.mongodbSizeBefore} MB → ${r?.mongodbSizeAfter} MB\n` +
+        `🗜️  Compressed: ${r?.compressedSizeMB} MB\n` +
+        `🗂️  Logs archived: ${r?.archivedLogRecords}\n` +
+        `⏱️  Duration: ${Math.round((r?.durationMs || 0) / 1000)}s\n` +
+        `☁️  Bunny: ${r?.bunnyPath}`
+      );
+    }
+
+    case 'backup_error': {
+      return (
+        `❌ *Swaryoga Backup FAILED*\n` +
+        `🕐 ${ts} IST\n` +
+        `📦 ID: ${payload.backupId || 'unknown'}\n` +
+        `⚠️  Error: ${payload.error}\n` +
+        `👉 Please check Vercel logs immediately.`
+      );
+    }
+
+    case 'restore_success': {
+      return (
+        `✅ *Swaryoga Restore Complete*\n` +
+        `🕐 ${ts} IST\n` +
+        `📦 Backup ID: ${payload.backupId}`
+      );
+    }
+
+    case 'restore_error': {
+      return (
+        `❌ *Swaryoga Restore FAILED*\n` +
+        `🕐 ${ts} IST\n` +
+        `⚠️  Error: ${payload.error}`
+      );
+    }
+
+    default:
+      return `ℹ️ Swaryoga Backup: ${payload.type} at ${ts}`;
+  }
+}
+
+function formatEmailSubject(payload: NotificationPayload): string {
+  const subjects: Record<string, string> = {
+    backup_success: `✅ Backup Success — ${payload.backupId}`,
+    backup_error: `❌ BACKUP FAILED — ${payload.backupId || 'unknown'}`,
+    backup_warning: `⚠️ Backup Warning — ${payload.backupId}`,
+    restore_success: `✅ Restore Complete — ${payload.backupId}`,
+    restore_error: `❌ Restore Failed`,
+  };
+  return subjects[payload.type] || `Backup Alert — ${payload.type}`;
+}
+
+// ─── Public send function ──────────────────────────────────────────────────
+
+export async function sendNotification(payload: NotificationPayload): Promise<void> {
+  try {
+    const waMessage = formatWhatsAppMessage(payload);
+    const emailSubject = formatEmailSubject(payload);
+
+    // Send both in parallel (both are non-blocking, errors are caught inside)
+    await Promise.allSettled([
+      sendWhatsAppAlert(waMessage),
+      sendEmailAlert(emailSubject, waMessage),
+    ]);
+  } catch (err) {
+    // Never let notification errors crash the backup
+    logger.error('❌ Notification service error', { error: (err as Error).message });
+  }
+}
+
+export default sendNotification;
