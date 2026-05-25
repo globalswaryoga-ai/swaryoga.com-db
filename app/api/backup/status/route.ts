@@ -3,6 +3,8 @@
  * Get backup and archiving status
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { BunnyStorageClient } from '@/lib/backup/bunny-client';
 import { logger } from '@/lib/backup/logger';

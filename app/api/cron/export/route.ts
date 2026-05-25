@@ -3,6 +3,8 @@
  * Schedule: 0 3 * * * (Every day 3:00 AM UTC)
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { DailyExportService } from '@/lib/backup/daily-export';

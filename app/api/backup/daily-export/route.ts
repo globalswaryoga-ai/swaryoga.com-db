@@ -3,6 +3,8 @@
  * Get daily data export status and statistics
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { DailyExportService } from '@/lib/backup/daily-export';
 import { logger } from '@/lib/backup/logger';

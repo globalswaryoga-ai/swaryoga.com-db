@@ -4,6 +4,8 @@
  * Secured by CRON_SECRET env var
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { BackupService } from '@/lib/backup/backup-service';

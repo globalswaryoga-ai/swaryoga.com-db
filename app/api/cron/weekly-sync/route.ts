@@ -3,6 +3,8 @@
  * Schedule: 0 2 * * 0 (Every Sunday 2:00 AM UTC)
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { WeeklySyncService } from '@/lib/backup/weekly-sync';

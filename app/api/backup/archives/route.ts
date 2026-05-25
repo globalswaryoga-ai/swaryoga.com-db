@@ -3,6 +3,8 @@
  * Retrieve archived data from Bunny tiers
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { ArchiveService } from '@/lib/backup/archive-service';
 import { logger } from '@/lib/backup/logger';
