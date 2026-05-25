@@ -93,14 +93,32 @@ async function sendOne(
 ): Promise<{ success: boolean; error?: string }> {
   // Preserve group IDs (@g.us) intact; only strip non-digits for individual phone numbers
   const toNormalized = to.includes('@g.us') ? to : to.replace(/\D/g, '');
-  let payload: any = { to: toNormalized };
 
+  const bridgeHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-bridge-secret': bridgeSecret,
+    'x-session-key': session.sessionKey,
+    'x-tenant-id': session.tenantId,   // ← required by bridge for routing
+  };
+
+  // Use /send-template for images (same format as cron processor v2 — ensures image+text sends correctly)
   if (imageUrl) {
-    payload.type = 'image';
-    payload.url = imageUrl;
-    payload.caption = message;
-    payload.message = message;
-  } else if (buttons && buttons.length > 0) {
+    const result = await safeFetch(`${bridgeUrl}/send-template`, {
+      method: 'POST',
+      headers: bridgeHeaders,
+      body: JSON.stringify({
+        to: toNormalized,
+        imageUrl,
+        bodyText: message || '',
+        footerText: '',
+      }),
+    });
+    if (result.ok && result.data?.success !== false) return { success: true };
+    return { success: false, error: result.data?.error || `Bridge status ${result.status}` };
+  }
+
+  let payload: any = { to: toNormalized };
+  if (buttons && buttons.length > 0) {
     payload.type = 'buttons';
     payload.message = message;
     payload.buttons = buttons;
@@ -111,12 +129,7 @@ async function sendOne(
 
   const result = await safeFetch(`${bridgeUrl}/send`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-bridge-secret': bridgeSecret,
-      'x-session-key': session.sessionKey,
-      'x-tenant-id': session.tenantId,   // ← required by bridge for routing
-    },
+    headers: bridgeHeaders,
     body: JSON.stringify(payload),
   });
 

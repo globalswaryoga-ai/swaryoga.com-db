@@ -32,8 +32,14 @@ async function resolveSessionInfo(userId: string, bridgeUrl: string, bridgeSecre
 }
 
 export async function GET(req: NextRequest) {
-  const cronSecret = req.headers.get('authorization') || req.nextUrl.searchParams.get('secret');
-  if (cronSecret !== process.env.CRON_SECRET) {
+  // Vercel Cron sends "Authorization: Bearer {CRON_SECRET}" — strip the prefix before comparing
+  const rawAuth = req.headers.get('authorization') || '';
+  const cronSecret =
+    rawAuth.replace(/^Bearer\s+/i, '').trim() ||
+    req.nextUrl.searchParams.get('secret') ||
+    '';
+  const expectedSecret = process.env.CRON_SECRET || '';
+  if (expectedSecret && cronSecret !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

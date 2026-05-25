@@ -33,9 +33,23 @@ function isWithinTimeWindow(startTime: string, endTime: string, timezone: string
 
 /**
  * Check if schedule should run today
+ * For 'once' frequency, also checks firstRunDate (scheduled specific date)
  */
-function shouldRunToday(frequency: string, daysOfWeek: number[]): boolean {
-  if (frequency === 'once') return true;
+function shouldRunToday(frequency: string, daysOfWeek: number[], firstRunDate?: Date): boolean {
+  if (frequency === 'once') {
+    // If a specific scheduled date was set, only run on that date (IST comparison)
+    if (firstRunDate) {
+      const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const scheduledIST = new Date(firstRunDate.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const todayStr = nowIST.toDateString();
+      const scheduledStr = scheduledIST.toDateString();
+      if (todayStr !== scheduledStr) {
+        console.log(`[QR Broadcast V2] 'once' schedule has firstRunDate ${scheduledStr}, today is ${todayStr}. Skipping.`);
+        return false;
+      }
+    }
+    return true;
+  }
   if (frequency === 'daily') return true;
 
   if (frequency === 'weekly') {
@@ -242,9 +256,9 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     }
 
     // Check if should run today
-    if (!shouldRunToday(schedule.frequency, schedule.daysOfWeek)) {
+    if (!shouldRunToday(schedule.frequency, schedule.daysOfWeek, schedule.firstRunDate)) {
       const today = new Date();
-      console.log(`[QR Broadcast Processor V2] 📅 Not scheduled for today (frequency: ${schedule.frequency}, daysOfWeek: ${schedule.daysOfWeek}, today: ${today.getDay()})`);
+      console.log(`[QR Broadcast Processor V2] 📅 Not scheduled for today (frequency: ${schedule.frequency}, daysOfWeek: ${schedule.daysOfWeek}, today: ${today.getDay()}, firstRunDate: ${schedule.firstRunDate})`);
       return { status: 'skipped', reason: 'not_scheduled_for_today' };
     }
 
@@ -479,9 +493,18 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret
-    const cronSecret = req.headers.get('authorization') || req.nextUrl.searchParams.get('secret');
-    if (cronSecret !== process.env.CRON_SECRET) {
+    // Verify cron secret — Vercel Cron sends "Authorization: Bearer {CRON_SECRET}"
+    // so we must strip the "Bearer " prefix before comparing
+    const rawAuth = req.headers.get('authorization') || '';
+    const cronSecret =
+      rawAuth.replace(/^Bearer\s+/i, '').trim() ||
+      req.nextUrl.searchParams.get('secret') ||
+      '';
+    const expectedSecret = process.env.CRON_SECRET || '';
+
+    // Allow: matching cron secret, OR if CRON_SECRET not set (dev/local)
+    if (expectedSecret && cronSecret !== expectedSecret) {
+      console.warn('[QR Broadcast V2] Unauthorized cron call. Got:', cronSecret?.substring(0, 8) + '...');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

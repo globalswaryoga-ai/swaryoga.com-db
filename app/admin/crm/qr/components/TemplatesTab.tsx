@@ -295,7 +295,8 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed');
 
-      setFormData({ ...formData, headerMediaUrl: data.data.url });
+      // Use functional update to avoid stale closure overwriting other field changes made during upload
+      setFormData(prev => ({ ...prev, headerMediaUrl: data.data.url }));
       setError(null);
     } catch (e: any) {
       setError(`Upload failed: ${e.message}`);

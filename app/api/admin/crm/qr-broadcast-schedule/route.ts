@@ -96,6 +96,11 @@ export async function POST(req: NextRequest) {
       createdBy: uid,
       description: body.description || '',
       tags: body.tags || [],
+      // Save scheduled date as firstRunDate for 'once' frequency schedules
+      // This lets the cron processor check if today is the correct date to send
+      firstRunDate: body.scheduledDate
+        ? new Date(body.scheduledDate + 'T00:00:00+05:30') // parse as IST midnight
+        : undefined,
     });
 
     return NextResponse.json({ success: true, data: schedule }, { status: 201 });

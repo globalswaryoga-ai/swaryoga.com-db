@@ -47,6 +47,8 @@ type BudgetReport = {
   meta: { transactionsCount: number; generatedAt: string };
 };
 
+type RecurrenceType = 'none' | 'monthly' | 'custom' | 'yearly';
+
 const normalize = (s: string) => s.trim();
 
 const sumPercent = (allocations: BudgetAllocation[]) =>
@@ -91,12 +93,22 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     type: 'income' | 'expense';
     amount: number;
     reality: number;
+    recurrence?: RecurrenceType;
+    customInterval?: number;
   }>>([]);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
-    const token = typeof window !== 'undefined' ? localStorage.getItem('lifePlannerToken') : null;
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('admin_token') ||
+        localStorage.getItem('adminToken') ||
+        localStorage.getItem('crm_token') ||
+        localStorage.getItem('lifePlannerToken') ||
+        localStorage.getItem('token')
+      : null;
+    const tenantId = typeof window !== 'undefined' ? localStorage.getItem('tenantId') : null;
     if (token) headers.Authorization = `Bearer ${token}`;
+    if (tenantId) headers['x-tenant-id'] = tenantId;
     return headers;
   }, []);
 
@@ -118,7 +130,7 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
   const loadExpenseBudgets = useCallback(async () => {
     try {
       const res = await fetch('/api/crm-planner/data?type=expense_budgets', {
-        headers: { ...getAuthHeaders(), 'x-tenant-id': localStorage.getItem('tenantId') || '' },
+        headers: getAuthHeaders(),
       });
       const json = await res.json();
       if (res.ok && json.data && Array.isArray(json.data)) {
@@ -149,12 +161,76 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     }
   }, [getAuthHeaders, plan, year]);
 
+  // Generate repeating entries from an entry with recurrence set
+  const generateRepeatingEntries = useCallback((sourceEntry: typeof expenseBudgets[0], totalMonths: number = 12) => {
+    const interval = sourceEntry.recurrence === 'monthly' ? 1
+      : sourceEntry.recurrence === 'yearly' ? 12
+      : (sourceEntry.customInterval || 1);
+
+    const [baseYear, baseMonth] = sourceEntry.month.split('-').map(Number);
+    const newEntries: typeof expenseBudgets = [];
+
+    for (let i = interval; i <= totalMonths; i += interval) {
+      const d = new Date(baseYear, baseMonth - 1 + i, 1);
+      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      // Skip if already exists for same particular + month
+      const alreadyExists = expenseBudgets.some(
+        e => e.month === monthStr && e.particular === sourceEntry.particular && e.accountHead === sourceEntry.accountHead
+      );
+      if (!alreadyExists) {
+        newEntries.push({
+          ...sourceEntry,
+          id: `exp-${Date.now()}-${i}`,
+          month: monthStr,
+          reality: 0,
+        });
+      }
+    }
+    return newEntries;
+  }, [expenseBudgets]);
+
+  // Auto-load actual spending from accounting transactions and fill reality
+  const autoMatchReality = useCallback(async () => {
+    try {
+      const res = await fetch('/api/crm-planner/data?type=accounting', { headers: getAuthHeaders() });
+      const json = await res.json();
+      const transactions: any[] = json?.data?.transactions || [];
+
+      const updated = expenseBudgets.map(entry => {
+        const [yr, mo] = entry.month.split('-').map(Number);
+        const monthStart = new Date(yr, mo - 1, 1);
+        const monthEnd = new Date(yr, mo, 0);
+
+        // Sum matching transactions in that month
+        const matched = transactions.filter(t => {
+          const d = new Date(t.date);
+          const sameMonth = d >= monthStart && d <= monthEnd;
+          const sameType = entry.type === 'income' ? t.type === 'income' : t.type === 'expense';
+          const sameHead = entry.accountHead
+            ? t.category?.toLowerCase().includes(entry.accountHead.toLowerCase()) ||
+              t.description?.toLowerCase().includes(entry.accountHead.toLowerCase()) ||
+              entry.accountHead.toLowerCase().includes(t.category?.toLowerCase() || '')
+            : true;
+          return sameMonth && sameType && sameHead;
+        });
+
+        const reality = matched.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+        return { ...entry, reality: Math.round(reality) };
+      });
+
+      setExpenseBudgets(updated);
+      alert('Reality figures updated from actual transactions!');
+    } catch (e: any) {
+      alert('Failed to load transactions: ' + e.message);
+    }
+  }, [expenseBudgets, getAuthHeaders]);
+
   const saveExpenseBudgets = useCallback(async () => {
     setSavingExpenses(true);
     try {
       const res = await fetch('/api/crm-planner/data', {
         method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'x-tenant-id': localStorage.getItem('tenantId') || '' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'expense_budgets',
           data: expenseBudgets,
@@ -235,13 +311,63 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     setMounted(true);
   }, []);
 
+  // Real transactions for matching
+  const [realTransactions, setRealTransactions] = useState<any[]>([]);
+
+  const loadRealTransactions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/crm-planner/data?type=accounting', { headers: getAuthHeaders() });
+      const json = await res.json();
+      setRealTransactions(json?.data?.transactions || []);
+    } catch { setRealTransactions([]); }
+  }, [getAuthHeaders]);
+
+  // Smart category matcher: maps alloc key/label to transaction categories
+  const matchesAlloc = useCallback((alloc: BudgetAllocation, category: string, description: string): boolean => {
+    const cat = (category || '').toLowerCase().trim();
+    const desc = (description || '').toLowerCase().trim();
+    const key = (alloc.key || '').toLowerCase().trim();
+    const label = (alloc.label || '').toLowerCase().trim();
+
+    // Exact match first
+    if (cat === key || cat === label) return true;
+
+    // Partial match: key/label contains category word or vice versa
+    const catWords = cat.split(/[\s_\-\/,]+/).filter(Boolean);
+    const keyWords = [...key.split(/[\s_\-\/,]+/), ...label.split(/[\s_\-\/,]+/)].filter(Boolean);
+
+    for (const kw of keyWords) {
+      if (kw.length < 3) continue;
+      if (cat.includes(kw) || desc.includes(kw)) return true;
+    }
+    for (const cw of catWords) {
+      if (cw.length < 3) continue;
+      if (key.includes(cw) || label.includes(cw)) return true;
+    }
+    return false;
+  }, []);
+
   useEffect(() => {
     if (!mounted) return;
     loadPlan();
     loadExpenseBudgets();
-  }, [loadPlan, loadExpenseBudgets, mounted]);
+    loadRealTransactions();
+  }, [loadPlan, loadExpenseBudgets, loadRealTransactions, mounted]);
 
-  // auto-refresh report when range changes (only if report already loaded once)
+  // Auto-refresh transactions when year changes
+  useEffect(() => {
+    if (!mounted) return;
+    loadRealTransactions();
+  }, [year, mounted, loadRealTransactions]);
+
+  // auto-load report when plan loads successfully
+  useEffect(() => {
+    if (!mounted || !plan) return;
+    loadReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.year, mounted]);
+
+  // auto-refresh report when range/mode changes
   useEffect(() => {
     if (!mounted) return;
     if (!report) return;
@@ -249,41 +375,29 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseMode, range.startDate, range.endDate, year]);
 
-  // Calculate dashboard statistics
+  // Calculate dashboard statistics — works without report
   const dashboardStats = useMemo(() => {
-    if (!plan || !report) {
-      return {
-        totalIncome: 0,
-        totalExpenses: 0,
-        netProfit: 0,
-        budgetUtilization: 0
-      };
-    }
+    if (!plan) return { totalIncome: 0, totalExpenses: 0, netProfit: 0, budgetUtilization: 0, realIncome: 0, realExpenses: 0 };
 
-    // Total income from allocations
-    const totalIncome = plan.incomeTargetYearly;
-
-    // Total expenses from allocations
-    const expenseAllocations = plan.allocations.filter(a => a.kind === 'expense');
+    const totalIncome = plan.incomeTargetYearly || 0;
+    const expenseAllocations = plan.allocations?.filter(a => a.kind === 'expense') || [];
     const totalExpensePercent = sumPercent(expenseAllocations);
     const totalExpenses = (totalExpensePercent / 100) * totalIncome;
-
-    // Profit allocations
-    const profitAllocations = plan.allocations.filter(a => a.kind === 'profit');
+    const profitAllocations = plan.allocations?.filter(a => a.kind === 'profit') || [];
     const totalProfitPercent = sumPercent(profitAllocations);
     const totalProfit = (totalProfitPercent / 100) * totalIncome;
 
-    // Budget utilization from actual report
-    const actualTotalOutflow = report?.totals?.outflow || 0;
-    const budgetUtilization = totalExpenses > 0 ? (actualTotalOutflow / totalExpenses) * 100 : 0;
+    // Real figures from actual transactions (current year)
+    const yearTxns = realTransactions.filter(t => new Date(t.date).getFullYear() === (plan.year || year));
+    const realIncome = yearTxns.filter(t => t.type === 'income').reduce((s: number, t: any) => s + (t.amount || 0), 0);
+    const realExpenses = yearTxns.filter(t => t.type === 'expense').reduce((s: number, t: any) => s + (t.amount || 0), 0);
 
-    return {
-      totalIncome,
-      totalExpenses,
-      netProfit: totalProfit,
-      budgetUtilization: Math.round(budgetUtilization)
-    };
-  }, [plan, report]);
+    // Budget utilization: real expenses vs budgeted expenses
+    const actualTotalOutflow = report?.totals?.outflow || realExpenses;
+    const budgetUtilization = totalExpenses > 0 ? Math.round((actualTotalOutflow / totalExpenses) * 100) : 0;
+
+    return { totalIncome, totalExpenses, netProfit: totalProfit, budgetUtilization, realIncome, realExpenses };
+  }, [plan, report, realTransactions, year]);
 
   if (!mounted) return null;
 
@@ -296,51 +410,70 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
         </div>
       ) : null}
 
-      {/* Dashboard - 4 Summary Blocks */}
+      {/* Dashboard - Summary Blocks */}
       {plan && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {/* Total Income Block */}
-          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-md p-6 border border-green-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-green-700 mb-2">Total Income Target</p>
-                <p className="text-3xl font-bold text-green-900">{plan.currency} {dashboardStats.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
-                <p className="text-xs text-green-700 mt-1">Yearly target</p>
-              </div>
+          {/* Income Block */}
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-md p-5 border border-green-200">
+            <p className="text-sm font-semibold text-green-700 mb-2">💰 Income</p>
+            <p className="text-2xl font-bold text-green-900">₹{dashboardStats.totalIncome.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-green-700 mt-1">Target yearly</p>
+            <div className="mt-2 pt-2 border-t border-green-200">
+              <p className="text-xs text-green-600">Real (this year)</p>
+              <p className={`text-lg font-bold ${dashboardStats.realIncome >= dashboardStats.totalIncome ? 'text-green-800' : 'text-orange-700'}`}>
+                ₹{dashboardStats.realIncome.toLocaleString('en-IN')}
+                <span className="text-xs ml-1">{dashboardStats.totalIncome > 0 ? `(${Math.round((dashboardStats.realIncome / dashboardStats.totalIncome) * 100)}%)` : ''}</span>
+              </p>
             </div>
           </div>
 
-          {/* Total Expenses Block */}
-          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg shadow-md p-6 border border-red-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-red-700 mb-2">Total Expenses Budget</p>
-                <p className="text-3xl font-bold text-red-900">{plan.currency} {dashboardStats.totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
-                <p className="text-xs text-red-700 mt-1">Annual allocation</p>
-              </div>
+          {/* Expenses Block */}
+          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg shadow-md p-5 border border-red-200">
+            <p className="text-sm font-semibold text-red-700 mb-2">💸 Expenses</p>
+            <p className="text-2xl font-bold text-red-900">₹{dashboardStats.totalExpenses.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-red-700 mt-1">Budget annual</p>
+            <div className="mt-2 pt-2 border-t border-red-200">
+              <p className="text-xs text-red-600">Real (this year)</p>
+              <p className={`text-lg font-bold ${dashboardStats.realExpenses > dashboardStats.totalExpenses ? 'text-red-800' : 'text-green-700'}`}>
+                ₹{dashboardStats.realExpenses.toLocaleString('en-IN')}
+                {dashboardStats.realExpenses > dashboardStats.totalExpenses
+                  ? <span className="text-xs ml-1 text-red-600">⚠ Over budget</span>
+                  : <span className="text-xs ml-1 text-green-600">✓ Within budget</span>}
+              </p>
             </div>
           </div>
 
           {/* Net Profit/Savings Block */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-md p-6 border border-blue-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-700 mb-2">Net Profit/Savings</p>
-                <p className="text-3xl font-bold text-blue-900">{plan.currency} {dashboardStats.netProfit.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
-                <p className="text-xs text-blue-700 mt-1">Target profit allocation</p>
-              </div>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-md p-5 border border-blue-200">
+            <p className="text-sm font-semibold text-blue-700 mb-2">📈 Net Profit/Savings</p>
+            <p className="text-2xl font-bold text-blue-900">₹{dashboardStats.netProfit.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-blue-700 mt-1">Target profit</p>
+            <div className="mt-2 pt-2 border-t border-blue-200">
+              <p className="text-xs text-blue-600">Real net (Income - Expense)</p>
+              {(() => {
+                const realNet = dashboardStats.realIncome - dashboardStats.realExpenses;
+                return (
+                  <p className={`text-lg font-bold ${realNet >= 0 ? 'text-green-800' : 'text-red-800'}`}>
+                    {realNet >= 0 ? '+' : ''}₹{realNet.toLocaleString('en-IN')}
+                  </p>
+                );
+              })()}
             </div>
           </div>
 
           {/* Budget Utilization Block */}
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-md p-6 border border-purple-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-700 mb-2">Budget Utilization</p>
-                <p className={`text-3xl font-bold ${dashboardStats.budgetUtilization > 90 ? 'text-red-900' : dashboardStats.budgetUtilization > 75 ? 'text-orange-900' : 'text-purple-900'}`}>
-                  {dashboardStats.budgetUtilization}%
-                </p>
-                <p className="text-xs text-purple-700 mt-1">Current period</p>
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-md p-5 border border-purple-200">
+            <p className="text-sm font-semibold text-purple-700 mb-2">🎯 Budget Used</p>
+            <p className={`text-2xl font-bold ${dashboardStats.budgetUtilization > 100 ? 'text-red-900' : dashboardStats.budgetUtilization > 80 ? 'text-orange-900' : 'text-purple-900'}`}>
+              {dashboardStats.budgetUtilization}%
+            </p>
+            <p className="text-xs text-purple-700 mt-1">Of annual expense budget</p>
+            <div className="mt-2 pt-2 border-t border-purple-200">
+              <div className="w-full bg-purple-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full ${dashboardStats.budgetUtilization > 100 ? 'bg-red-500' : dashboardStats.budgetUtilization > 80 ? 'bg-orange-500' : 'bg-green-500'}`}
+                  style={{ width: `${Math.min(dashboardStats.budgetUtilization, 100)}%` }}
+                />
               </div>
             </div>
           </div>
@@ -582,6 +715,8 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                     type: 'expense' as const,
                     amount: 0,
                     reality: 0,
+                    recurrence: 'none' as const,
+                    customInterval: 1,
                   },
                 ]);
               }}
@@ -590,14 +725,23 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
               + Add Entry
             </button>
             {expenseBudgets.length > 0 && (
-              <button
-                onClick={saveExpenseBudgets}
-                disabled={savingExpenses}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg text-sm font-semibold inline-flex items-center gap-2"
-              >
-                <Save className="h-4 w-4" />
-                {savingExpenses ? 'Saving…' : 'Save Budgets'}
-              </button>
+              <>
+                <button
+                  onClick={autoMatchReality}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold inline-flex items-center gap-2"
+                  title="Auto-fill Reality column from actual transactions"
+                >
+                  <RefreshCw className="h-4 w-4" /> Auto-Match Real
+                </button>
+                <button
+                  onClick={saveExpenseBudgets}
+                  disabled={savingExpenses}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg text-sm font-semibold inline-flex items-center gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  {savingExpenses ? 'Saving…' : 'Save Budgets'}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -619,6 +763,7 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                   <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Reality</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Variance</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Repeat</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Action</th>
                 </tr>
               </thead>
@@ -709,166 +854,382 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                       <td className={`px-4 py-3 text-center font-semibold rounded ${varianceColor}`}>
                         {variance > 0 ? '+' : ''}{variance.toFixed(2)}
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-2">
+                          <select
+                            value={entry.recurrence || 'none'}
+                            onChange={(e) => {
+                              const next = [...expenseBudgets];
+                              next[idx].recurrence = e.target.value as RecurrenceType;
+                              setExpenseBudgets(next);
+                            }}
+                            className="w-full p-2 border border-swar-border rounded-lg text-sm"
+                          >
+                            <option value="none">No repeat</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                          {entry.recurrence === 'custom' && (
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-swar-text-secondary">Every</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={entry.customInterval || 1}
+                                onChange={(e) => {
+                                  const next = [...expenseBudgets];
+                                  next[idx].customInterval = Math.max(1, Number(e.target.value));
+                                  setExpenseBudgets(next);
+                                }}
+                                className="w-16 p-1 border border-swar-border rounded text-sm"
+                              />
+                              <span className="text-xs text-swar-text-secondary">months</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => {
-                            setExpenseBudgets(expenseBudgets.filter((_, i) => i !== idx));
-                          }}
-                          className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex flex-col gap-1">
+                          {(entry.recurrence && entry.recurrence !== 'none') && (
+                            <button
+                              onClick={() => {
+                                // Always generate 1 year (12 months) of entries
+                                const newEntries = generateRepeatingEntries(entry, 12);
+                                if (newEntries.length === 0) {
+                                  alert('All repeat entries already exist!');
+                                } else {
+                                  setExpenseBudgets([...expenseBudgets, ...newEntries]);
+                                  alert(`✓ Generated ${newEntries.length} repeating entries`);
+                                }
+                              }}
+                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-xs font-semibold"
+                            >
+                              ↻ Repeat
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setExpenseBudgets(expenseBudgets.filter((_, i) => i !== idx));
+                            }}
+                            className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
+              {/* Totals row */}
+              {expenseBudgets.length > 0 && (() => {
+                const totalBudget = expenseBudgets.filter(e => e.type === 'expense').reduce((s, e) => s + e.amount, 0);
+                const totalIncome = expenseBudgets.filter(e => e.type === 'income').reduce((s, e) => s + e.amount, 0);
+                const totalRealExp = expenseBudgets.filter(e => e.type === 'expense').reduce((s, e) => s + e.reality, 0);
+                const totalRealInc = expenseBudgets.filter(e => e.type === 'income').reduce((s, e) => s + e.reality, 0);
+                const netBudget = totalIncome - totalBudget;
+                const netReal = totalRealInc - totalRealExp;
+                return (
+                  <tfoot className="bg-gray-100 border-t-2 border-gray-300 font-bold">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-sm font-bold">TOTAL</td>
+                      <td className="px-4 py-3 text-sm"></td>
+                      <td className="px-4 py-3 text-xs">
+                        <div className="text-green-700">Inc: ₹{totalIncome.toLocaleString()}</div>
+                        <div className="text-red-700">Exp: ₹{totalBudget.toLocaleString()}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm">₹{totalBudget.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-sm">₹{totalRealExp.toLocaleString()}</td>
+                      <td className={`px-4 py-3 text-center text-sm font-bold ${netBudget >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                        <div>{netReal >= 0 ? '+' : ''}{netReal.toLocaleString()} <span className="text-xs font-normal">real</span></div>
+                        <div className="text-xs text-gray-500">{netBudget >= 0 ? '+' : ''}{netBudget.toLocaleString()} plan</div>
+                      </td>
+                      <td className="px-4 py-3"></td>
+                      <td className="px-4 py-3"></td>
+                    </tr>
+                  </tfoot>
+                );
+              })()}
             </table>
           </div>
         )}
       </div>
 
-      {/* Compare */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-lg font-semibold text-swar-text">Reality vs Budget (Error Report)</h2>
-          <div className="flex gap-2 flex-wrap items-center">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-swar-text-secondary">Start</label>
-              <input
-                type="date"
-                value={range.startDate}
-                onChange={(e) => setRange({ ...range, startDate: e.target.value || todayISO() })}
-                className="p-2 border border-swar-border rounded-lg"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-swar-text-secondary">End</label>
-              <input
-                type="date"
-                value={range.endDate}
-                onChange={(e) => setRange({ ...range, endDate: e.target.value || todayISO() })}
-                className="p-2 border border-swar-border rounded-lg"
-              />
-            </div>
-            <select
-              value={baseMode}
-              onChange={(e) => setBaseMode(e.target.value === 'target' ? 'target' : 'actual')}
-              className="p-2 border border-swar-border rounded-lg"
-              title="Budget base income"
-            >
-              <option value="actual">Base = Actual Income</option>
-              <option value="target">Base = Target Income</option>
-            </select>
-            <button
-              onClick={loadReport}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-semibold"
-              disabled={loadingReport}
-            >
-              <FileText className="h-4 w-4" />
-              {loadingReport ? 'Generating…' : 'Generate Report'}
-            </button>
-          </div>
-        </div>
+      {/* Monthly Budget vs Actual — Indian FY (Apr→Mar) with Quarter Blocks */}
+      {plan && (() => {
+        const now = new Date();
+        const fy = plan.year || year; // FY start year (e.g. 2026 means Apr 2026 - Mar 2027)
 
-        {reportError ? <div className="mt-4 text-red-600">{reportError}</div> : null}
+        // Indian FY months: Apr(fy) ... Dec(fy), Jan(fy+1) ... Mar(fy+1)
+        const fyMonths = [
+          { y: fy, m: 4,  label: 'Apr' },
+          { y: fy, m: 5,  label: 'May' },
+          { y: fy, m: 6,  label: 'Jun' },
+          { y: fy, m: 7,  label: 'Jul' },
+          { y: fy, m: 8,  label: 'Aug' },
+          { y: fy, m: 9,  label: 'Sep' },
+          { y: fy, m: 10, label: 'Oct' },
+          { y: fy, m: 11, label: 'Nov' },
+          { y: fy, m: 12, label: 'Dec' },
+          { y: fy+1, m: 1, label: 'Jan' },
+          { y: fy+1, m: 2, label: 'Feb' },
+          { y: fy+1, m: 3, label: 'Mar' },
+        ];
+        const allMonths = fyMonths.map(({ y, m }) => `${y}-${String(m).padStart(2, '0')}`);
 
-        {report ? (
-          <div className="mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-4 rounded-lg border border-swar-border bg-swar-bg">
-                <p className="text-sm text-swar-text-secondary">Income</p>
-                <p className="text-xl font-bold">₹{Math.round(report.totals.income).toLocaleString()}</p>
+        const quarters = [
+          { label: `Q1 · Apr–Jun ${fy}`,   color: 'blue',   bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   idxs: [0,1,2]  },
+          { label: `Q2 · Jul–Sep ${fy}`,   color: 'green',  bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  idxs: [3,4,5]  },
+          { label: `Q3 · Oct–Dec ${fy}`,   color: 'orange', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', idxs: [6,7,8]  },
+          { label: `Q4 · Jan–Mar ${fy+1}`, color: 'purple', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', idxs: [9,10,11]},
+        ];
+
+        const monthlyIncomeTgt = plan.incomeTargetMonthly || ((plan.incomeTargetYearly || 0) / 12) || 0;
+        const nowMk = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+        // Compute actual income + expense per month from real transactions
+        const txByMonth: Record<string, { income: number; expense: number }> = {};
+        realTransactions.forEach((t: any) => {
+          const d = new Date(t.date);
+          const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (!txByMonth[mk]) txByMonth[mk] = { income: 0, expense: 0 };
+          if (t.type === 'income') txByMonth[mk].income += t.amount || 0;
+          if (t.type === 'expense') txByMonth[mk].expense += t.amount || 0;
+        });
+
+        // Match allocation to actual using smart matcher
+        const getAllocActual = (alloc: BudgetAllocation, mk: string): number => {
+          // Sum all transactions in this month that match this allocation
+          return realTransactions
+            .filter((t: any) => {
+              if (t.type !== 'expense') return false;
+              const d = new Date(t.date);
+              const tmk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+              return tmk === mk && matchesAlloc(alloc, t.category || '', t.description || '');
+            })
+            .reduce((s: number, t: any) => s + (t.amount || 0), 0);
+        };
+
+        // Helper to render a single month cell
+        const MonthCell = ({ mk, budget, actual, kind }: { mk: string; budget: number; actual: number; kind: 'income' | 'expense' }) => {
+          const diff = kind === 'expense' ? budget - actual : actual - budget;
+          const good = diff >= 0;
+          const isCurrent = mk === nowMk;
+          return (
+            <td className={`py-2 px-1 text-center align-top border-r border-gray-100 ${isCurrent ? 'bg-yellow-50' : ''}`} style={{ minWidth: '100px', width: '100px' }}>
+              <div className="text-[10px] text-gray-400 leading-tight">₹{Math.round(budget).toLocaleString()}</div>
+              <div className={`text-xs font-bold leading-tight mt-0.5 ${
+                kind === 'expense'
+                  ? (actual > budget ? 'text-red-600' : actual > 0 ? 'text-gray-800' : 'text-gray-400')
+                  : (actual >= budget ? 'text-green-700' : actual > 0 ? 'text-orange-600' : 'text-gray-400')
+              }`}>
+                ₹{Math.round(actual).toLocaleString()}
               </div>
-              <div className="p-4 rounded-lg border border-swar-border bg-swar-bg">
-                <p className="text-sm text-swar-text-secondary">Outflow</p>
-                <p className="text-xl font-bold">₹{Math.round(report.totals.outflow).toLocaleString()}</p>
+              {actual > 0 && (
+                <div className={`text-[10px] font-semibold leading-tight ${good ? 'text-green-600' : 'text-red-500'}`}>
+                  {good ? '+' : ''}{Math.round(diff).toLocaleString()}
+                </div>
+              )}
+            </td>
+          );
+        };
+
+        // Quarter total cell
+        const QuarterCell = ({ idxs, budget, kind }: { idxs: number[]; budget: number; kind: 'income' | 'expense' }) => {
+          const qtBudget = budget * 3;
+          const qtActual = idxs.reduce((s, i) => {
+            const mk = allMonths[i];
+            return s + (kind === 'income' ? txByMonth[mk]?.income || 0 : txByMonth[mk]?.expense || 0);
+          }, 0);
+          const diff = kind === 'expense' ? qtBudget - qtActual : qtActual - qtBudget;
+          return (
+            <td className="py-2 px-2 text-center align-top bg-gray-100 border-r-2 border-gray-300" style={{ minWidth: '90px', width: '90px' }}>
+              <div className="text-[10px] text-gray-500 font-medium">₹{Math.round(qtBudget).toLocaleString()}</div>
+              <div className={`text-xs font-bold ${kind==='expense'?(qtActual>qtBudget?'text-red-600':'text-gray-800'):(qtActual>=qtBudget?'text-green-700':'text-orange-600')}`}>
+                ₹{Math.round(qtActual).toLocaleString()}
               </div>
-              <div className="p-4 rounded-lg border border-swar-border bg-swar-bg">
-                <p className="text-sm text-swar-text-secondary">Profit</p>
-                <p className={`text-xl font-bold ${report.totals.profit >= 0 ? 'text-swar-primary' : 'text-red-600'}`}>
-                  ₹{Math.round(report.totals.profit).toLocaleString()}
-                </p>
+              <div className={`text-[10px] font-semibold ${diff>=0?'text-green-600':'text-red-500'}`}>
+                {diff>=0?'+':''}{Math.round(diff).toLocaleString()}
               </div>
-              <div className="p-4 rounded-lg border border-swar-border bg-swar-bg">
-                <p className="text-sm text-swar-text-secondary">Profit Ratio</p>
-                <p className="text-xl font-bold">
-                  {report.totals.income > 0 ? ((report.totals.profit / report.totals.income) * 100).toFixed(1) : '0.0'}%
-                </p>
+            </td>
+          );
+        };
+
+        return (
+          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-swar-text">📊 Monthly Budget vs Actual</h2>
+                <p className="text-xs text-gray-500">Indian FY {fy}–{fy+1} &nbsp;•&nbsp; Apr {fy} → Mar {fy+1} &nbsp;•&nbsp; Scroll →</p>
+              </div>
+              <div className="flex gap-2 flex-wrap items-center">
+                <button onClick={loadRealTransactions} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold hover:bg-blue-100">
+                  <RefreshCw className="h-3 w-3" /> Refresh
+                </button>
+                {(['budget','reality','variance'] as const).map(t => (
+                  <button key={t} onClick={() => downloadHtml(t)} className="inline-flex items-center gap-1 px-2 py-1.5 border border-gray-200 bg-white rounded text-xs font-medium hover:bg-gray-50">
+                    <Download className="h-3 w-3" /> {t.charAt(0).toUpperCase()+t.slice(1)}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-swar-bg">
+            {/* Legend */}
+            <div className="flex gap-4 mb-3 text-xs text-gray-500 flex-wrap">
+              <span className="text-gray-400">Top: Budget target</span>
+              <span className="font-bold text-gray-700">Middle: Actual</span>
+              <span className="text-green-600 font-semibold">+Saved / +Earned</span>
+              <span className="text-red-500 font-semibold">-Over budget</span>
+              <span className="bg-yellow-50 px-2 rounded">Current month</span>
+            </div>
+
+            <div className="overflow-x-auto -mx-2">
+              <table className="text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
+                <thead>
+                  {/* Quarter row */}
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Bucket</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Budget %</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Budget Amount</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Actual</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Variance</th>
+                    <th className="sticky left-0 z-10 bg-gray-50 border-b-2 border-gray-200 px-3 py-2 text-left text-xs font-bold text-gray-600 uppercase" style={{ minWidth: '155px', width: '155px' }}>Budget Head</th>
+                    <th className="bg-gray-50 border-b-2 border-gray-200 px-1 py-2 text-center text-xs font-bold text-gray-500" style={{ minWidth: '40px', width: '40px' }}>%</th>
+                    {quarters.map(q => (
+                      <React.Fragment key={q.label}>
+                        <th colSpan={3} className={`${q.bg} border-b-2 ${q.border} px-2 py-2 text-center text-xs font-bold ${q.text} uppercase`} style={{ minWidth: '300px' }}>
+                          {q.label}
+                        </th>
+                        <th className="bg-gray-100 border-b-2 border-gray-300 px-2 py-2 text-center text-xs font-bold text-gray-600 uppercase" style={{ minWidth: '90px', width: '90px' }}>
+                          Total
+                        </th>
+                      </React.Fragment>
+                    ))}
+                    <th className="bg-gray-200 border-b-2 border-gray-400 px-2 py-2 text-center text-xs font-bold text-gray-700 uppercase" style={{ minWidth: '90px', width: '90px' }}>FY Total</th>
+                  </tr>
+                  {/* Month name row */}
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="sticky left-0 z-10 bg-gray-50 px-3 py-1" style={{ minWidth: '155px' }}></th>
+                    <th className="px-1 py-1" style={{ minWidth: '40px' }}></th>
+                    {quarters.map(q => (
+                      <React.Fragment key={q.label}>
+                        {q.idxs.map(i => (
+                          <th key={i} className={`px-1 py-1.5 text-center text-xs font-semibold border-r border-gray-100 ${allMonths[i] === nowMk ? 'bg-yellow-100 text-yellow-800' : `${q.bg} ${q.text}`}`} style={{ minWidth: '100px', width: '100px' }}>
+                            {fyMonths[i].label} {fyMonths[i].y}
+                          </th>
+                        ))}
+                        <th className="px-2 py-1.5 text-center text-xs font-semibold text-gray-500 bg-gray-100 border-r-2 border-gray-300" style={{ minWidth: '90px', width: '90px' }}>Q Sub</th>
+                      </React.Fragment>
+                    ))}
+                    <th className="px-2 py-1.5 text-center text-xs font-semibold text-gray-600 bg-gray-200" style={{ minWidth: '90px' }}>Year</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {report.buckets.map((b) => {
-                    const bad = b.kind === 'profit' ? b.actualAmount < b.budgetAmount : b.actualAmount > b.budgetAmount;
+                <tbody>
+                  {/* ── Income Row ── */}
+                  <tr className="bg-green-50 border-b-2 border-green-300">
+                    <td className="sticky left-0 z-10 bg-green-50 px-3 py-2 border-r border-green-200" style={{ minWidth: '155px' }}>
+                      <div className="font-bold text-green-800 text-sm">💰 Income</div>
+                      <div className="text-[10px] text-green-600">Target vs Actual</div>
+                    </td>
+                    <td className="px-1 py-2 text-center text-xs font-bold text-green-700">100%</td>
+                    {quarters.map(q => (
+                      <React.Fragment key={q.label}>
+                        {q.idxs.map(i => {
+                          const mk = allMonths[i];
+                          const actual = txByMonth[mk]?.income || 0;
+                          return <MonthCell key={mk} mk={mk} budget={monthlyIncomeTgt} actual={actual} kind="income" />;
+                        })}
+                        <QuarterCell idxs={q.idxs} budget={monthlyIncomeTgt} kind="income" />
+                      </React.Fragment>
+                    ))}
+                    {/* FY Total */}
+                    <td className="py-2 px-2 text-center align-top bg-gray-100 border-l-2 border-gray-300" style={{ minWidth: '90px' }}>
+                      <div className="text-[10px] text-gray-500">₹{Math.round((plan.incomeTargetYearly||0)).toLocaleString()}</div>
+                      {(() => {
+                        const tot = realTransactions.filter((t:any) => t.type==='income' && allMonths.includes(`${new Date(t.date).getFullYear()}-${String(new Date(t.date).getMonth()+1).padStart(2,'0')}`)).reduce((s:number,t:any)=>s+(t.amount||0),0);
+                        const diff = tot - (plan.incomeTargetYearly||0);
+                        return (<><div className={`text-xs font-bold ${tot>=(plan.incomeTargetYearly||0)?'text-green-700':'text-orange-600'}`}>₹{Math.round(tot).toLocaleString()}</div><div className={`text-[10px] font-semibold ${diff>=0?'text-green-600':'text-red-500'}`}>{diff>=0?'+':''}{Math.round(diff).toLocaleString()}</div></>);
+                      })()}
+                    </td>
+                  </tr>
+
+                  {/* ── Allocation Rows ── */}
+                  {(plan.allocations || []).map((alloc, ai) => {
+                    const monthlyBudget = (alloc.percent / 100) * monthlyIncomeTgt;
+                    const yearlyBudget = monthlyBudget * 12;
+                    let fyActualTotal = 0;
                     return (
-                      <tr key={b.key}>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-swar-text">{b.label}</div>
-                          <div className="text-xs text-swar-text-secondary">
-                            {b.kind === 'profit' ? 'Profit' : 'Category outflow'} • key: {b.key}
-                          </div>
+                      <tr key={alloc.key} className={`border-b border-gray-100 ${ai % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                        <td className={`sticky left-0 z-10 px-3 py-2 border-r border-gray-200 ${ai % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`} style={{ minWidth: '155px' }}>
+                          <div className="font-semibold text-swar-text text-sm">{alloc.label}</div>
+                          <div className="text-[10px] text-swar-text-secondary capitalize">{alloc.kind} • {alloc.key}</div>
                         </td>
-                        <td className="px-4 py-3 text-right">{Number.isFinite(b.percent) ? b.percent.toFixed(2) : '0.00'}%</td>
-                        <td className="px-4 py-3 text-right">₹{Math.round(b.budgetAmount).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right">₹{Math.round(b.actualAmount).toLocaleString()}</td>
-                        <td className={`px-4 py-3 text-right font-semibold ${bad ? 'text-red-600' : 'text-swar-primary'}`}>
-                          {b.varianceAmount >= 0 ? '+' : ''}₹{Math.round(b.varianceAmount).toLocaleString()}
+                        <td className="px-1 py-2 text-center text-xs font-medium text-gray-600">{alloc.percent}%</td>
+                        {quarters.map(q => (
+                          <React.Fragment key={q.label}>
+                            {q.idxs.map(i => {
+                              const mk = allMonths[i];
+                              const actual = getAllocActual(alloc, mk);
+                              fyActualTotal += actual;
+                              return <MonthCell key={mk} mk={mk} budget={monthlyBudget} actual={actual} kind="expense" />;
+                            })}
+                            {/* Quarter sub-total */}
+                            {(() => {
+                              const qAct = q.idxs.reduce((s,i)=>s+getAllocActual(alloc,allMonths[i]),0);
+                              const qBud = monthlyBudget * 3;
+                              const diff = qBud - qAct;
+                              return (
+                                <td className="py-2 px-2 text-center align-top bg-gray-100 border-r-2 border-gray-300" style={{ minWidth: '90px' }}>
+                                  <div className="text-[10px] text-gray-500">₹{Math.round(qBud).toLocaleString()}</div>
+                                  <div className={`text-xs font-bold ${qAct>qBud?'text-red-600':'text-gray-700'}`}>₹{Math.round(qAct).toLocaleString()}</div>
+                                  <div className={`text-[10px] font-semibold ${diff>=0?'text-green-600':'text-red-500'}`}>{diff>=0?'+':''}{Math.round(diff).toLocaleString()}</div>
+                                </td>
+                              );
+                            })()}
+                          </React.Fragment>
+                        ))}
+                        {/* FY Total */}
+                        <td className="py-2 px-2 text-center align-top bg-gray-100 border-l-2 border-gray-300" style={{ minWidth: '90px' }}>
+                          <div className="text-[10px] text-gray-500">₹{Math.round(yearlyBudget).toLocaleString()}</div>
+                          <div className={`text-xs font-bold ${fyActualTotal>yearlyBudget?'text-red-600':'text-gray-700'}`}>₹{Math.round(fyActualTotal).toLocaleString()}</div>
+                          {(() => { const diff=yearlyBudget-fyActualTotal; return <div className={`text-[10px] font-semibold ${diff>=0?'text-green-600':'text-red-500'}`}>{diff>=0?'+':''}{Math.round(diff).toLocaleString()}</div>; })()}
                         </td>
                       </tr>
                     );
                   })}
+
+                  {/* ── Total Expense Row ── */}
+                  <tr className="bg-red-50 border-t-2 border-red-300">
+                    <td className="sticky left-0 z-10 bg-red-50 px-3 py-2 border-r border-red-200" style={{ minWidth: '155px' }}>
+                      <div className="font-bold text-red-800 text-sm">💸 Total Expense</div>
+                      <div className="text-[10px] text-red-600">Budget vs Actual</div>
+                    </td>
+                    <td className="px-1 py-2 text-center text-xs font-bold text-red-700">
+                      {(plan.allocations||[]).filter(a=>a.kind==='expense').reduce((s,a)=>s+a.percent,0)}%
+                    </td>
+                    {quarters.map(q => (
+                      <React.Fragment key={q.label}>
+                        {q.idxs.map(i => {
+                          const mk = allMonths[i];
+                          const totalExpBudget = (plan.allocations||[]).filter(a=>a.kind==='expense').reduce((s,a)=>s+(a.percent/100)*monthlyIncomeTgt,0);
+                          const actualExp = txByMonth[mk]?.expense || 0;
+                          return <MonthCell key={mk} mk={mk} budget={totalExpBudget} actual={actualExp} kind="expense" />;
+                        })}
+                        <QuarterCell idxs={q.idxs} budget={(plan.allocations||[]).filter(a=>a.kind==='expense').reduce((s,a)=>s+(a.percent/100)*monthlyIncomeTgt,0)} kind="expense" />
+                      </React.Fragment>
+                    ))}
+                    <td className="py-2 px-2 text-center align-top bg-gray-100 border-l-2 border-gray-300" style={{ minWidth: '90px' }}>
+                      {(() => {
+                        const yBud=(plan.allocations||[]).filter(a=>a.kind==='expense').reduce((s,a)=>s+(a.percent/100)*(plan.incomeTargetYearly||0),0);
+                        const yAct=realTransactions.filter((t:any)=>t.type==='expense'&&allMonths.includes(`${new Date(t.date).getFullYear()}-${String(new Date(t.date).getMonth()+1).padStart(2,'0')}`)).reduce((s:number,t:any)=>s+(t.amount||0),0);
+                        const diff=yBud-yAct;
+                        return (<><div className="text-[10px] text-gray-500">₹{Math.round(yBud).toLocaleString()}</div><div className={`text-xs font-bold ${yAct>yBud?'text-red-700':'text-green-700'}`}>₹{Math.round(yAct).toLocaleString()}</div><div className={`text-[10px] font-semibold ${diff>=0?'text-green-600':'text-red-500'}`}>{diff>=0?'+':''}{Math.round(diff).toLocaleString()}</div></>);
+                      })()}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                onClick={() => downloadHtml('budget')}
-                className="inline-flex items-center gap-2 rounded-lg border border-swar-border bg-white px-4 py-2 text-sm font-semibold"
-              >
-                <Download className="h-4 w-4" /> Download Budget
-              </button>
-              <button
-                onClick={() => downloadHtml('reality')}
-                className="inline-flex items-center gap-2 rounded-lg border border-swar-border bg-white px-4 py-2 text-sm font-semibold"
-              >
-                <Download className="h-4 w-4" /> Download Reality
-              </button>
-              <button
-                onClick={() => downloadHtml('variance')}
-                className="inline-flex items-center gap-2 rounded-lg border border-swar-border bg-white px-4 py-2 text-sm font-semibold"
-              >
-                <Download className="h-4 w-4" /> Download Error Report
-              </button>
-              <button
-                onClick={() => downloadHtml('guide')}
-                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-semibold"
-              >
-                <FileText className="h-4 w-4" /> Download Guide
-              </button>
-            </div>
-
-            <p className="mt-3 text-xs text-swar-text-secondary">
-              Downloads are HTML files (open/print as PDF). Range: {report.range.startDate} → {report.range.endDate}. Transactions counted:{' '}
-              {report.meta.transactionsCount}.
-            </p>
           </div>
-        ) : (
-          <p className="mt-4 text-swar-text-secondary">Generate report to see budget vs reality.</p>
-        )}
-      </div>
+        );
+      })()}
     </>
   );
 }

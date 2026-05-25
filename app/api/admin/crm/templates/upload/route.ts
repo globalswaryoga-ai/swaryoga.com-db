@@ -20,20 +20,21 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
 
-    // Accept admin users (isAdmin + username) OR regular users (userId)
-    const isAdmin = decoded?.isAdmin && decoded?.username;
+    // Accept admin users (isAdmin) OR regular users (userId) OR any authenticated user
+    const isAdmin = decoded?.isAdmin;
     const isUser = decoded?.userId;
+    const isAnyAuth = decoded?.username || decoded?.isAdmin || decoded?.userId;
 
-    if (!isAdmin && !isUser) {
+    if (!isAnyAuth) {
       console.error('[Template Upload] Auth failed:', JSON.stringify({ isAdmin: decoded?.isAdmin, hasUsername: !!decoded?.username, hasUserId: !!decoded?.userId }));
       return NextResponse.json(
         { error: 'Unauthorized: Login required' },
-        { status: 403 }
+        { status: 401 }
       );
     }
 
     // Resolve folder identifier: admin uses username, tenant user uses tenantId or userId
-    const folderOwner = decoded?.username || decoded?.tenantId || String(decoded?.userId || 'default');
+    const folderOwner = decoded?.username || decoded?.tenantId || String(decoded?.userId || 'admin');
 
     // 2. Parse multipart form data
     const formData = await request.formData();

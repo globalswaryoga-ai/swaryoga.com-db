@@ -89,6 +89,9 @@ export default function LifePlannerAccountingPage() {
   const [reportMonth, setReportMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [generatingReport, setGeneratingReport] = useState(false);
   const [budgetPlan, setBudgetPlan] = useState<any>(null);
+  // Dashboard monthly overview state
+  const [dashboardMonth, setDashboardMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [dashboardHeadFilter, setDashboardHeadFilter] = useState<string>('all');
   const [showDividendViewModal, setShowDividendViewModal] = useState(false);
   const [selectedInvestmentView, setSelectedInvestmentView] = useState<Investment | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -318,8 +321,8 @@ export default function LifePlannerAccountingPage() {
         daysInPeriod: daysInPeriod
       });
 
-      // Move to next period
-      currentPeriodStart = new Date(nextNextFixedDate);
+      // Move to next period — start from day AFTER current due date
+      currentPeriodStart = new Date(nextPeriodStart);
     }
 
     return schedule;
@@ -969,29 +972,219 @@ export default function LifePlannerAccountingPage() {
               </div>
             </div>
 
-            {/* Recent Transactions */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-swar-text mb-4">Recent Transactions</h3>
-              <div className="space-y-3">
-                {transactions.slice(0, 5).map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 border border-swar-border rounded-lg">
-                    <div className="flex items-center">
-                      {getTransactionIcon(transaction.type)}
-                      <div className="ml-3">
-                        <p className="font-medium text-swar-text">{transaction.description}</p>
-                        <p className="text-sm text-swar-text-secondary">{transaction.category} • {transaction.account_name}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-semibold ${transaction.type === 'income' ? 'text-swar-primary' : 'text-red-600'}`}>
-                        {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
-                      </p>
-                      <p className="text-sm text-swar-text-secondary">{new Date(transaction.date).toLocaleDateString()}</p>
+            {/* Monthly Overview by Account Head */}
+            {(() => {
+              // All unique categories from transactions
+              const allCategories = Array.from(new Set(transactions.map(t => t.category || 'Other').filter(Boolean)));
+
+              // Budget allocation heads for rows
+              const allocHeads: Array<{ key: string; label: string; kind: string }> = budgetPlan?.allocations || [];
+
+              // Build a "row key → label" map
+              // First from budget heads, then any remaining transaction categories
+              const rowKeys: Array<{ key: string; label: string }> = [
+                ...allocHeads.map(a => ({ key: a.key, label: a.label })),
+              ];
+              // Add uncategorized from real transactions not matching any head
+              const matchedCats = new Set<string>();
+              allCategories.forEach(cat => {
+                const matched = allocHeads.some(a => {
+                  const k = a.key.toLowerCase(), l = a.label.toLowerCase(), c = cat.toLowerCase();
+                  return c === k || c === l || c.includes(k) || k.includes(c) || c.includes(l) || l.includes(c);
+                });
+                if (!matched) rowKeys.push({ key: cat, label: cat });
+                else matchedCats.add(cat);
+              });
+              if (rowKeys.length === 0) rowKeys.push({ key: 'other', label: 'Uncategorized' });
+
+              // Filter transactions for selected month
+              const [selY, selM] = dashboardMonth.split('-').map(Number);
+              const monthTxns = transactions.filter(t => {
+                const d = new Date(t.date);
+                return d.getFullYear() === selY && d.getMonth() + 1 === selM;
+              });
+
+              // Get amount by type for a given row key
+              const getAmt = (rowKey: string, rowLabel: string, txType: string) => {
+                const isAllocHead = allocHeads.some(a => a.key === rowKey);
+                return monthTxns.filter(t => {
+                  if (t.type !== txType) return false;
+                  const cat = (t.category || '').toLowerCase();
+                  const desc = (t.description || '').toLowerCase();
+                  if (isAllocHead) {
+                    const k = rowKey.toLowerCase(), l = rowLabel.toLowerCase();
+                    return cat === k || cat === l || cat.includes(k) || k.includes(cat) || cat.includes(l) || l.includes(cat) || desc.includes(k) || desc.includes(l);
+                  } else {
+                    return (t.category || 'Other') === rowKey;
+                  }
+                }).reduce((s, t) => s + t.amount, 0);
+              };
+
+              // Filter rows
+              const visibleRows = dashboardHeadFilter === 'all'
+                ? rowKeys
+                : rowKeys.filter(r => r.key === dashboardHeadFilter);
+
+              // Month options (last 24 months)
+              const monthOptions: string[] = [];
+              for (let i = 0; i < 24; i++) {
+                const d = new Date();
+                d.setMonth(d.getMonth() - i);
+                monthOptions.push(d.toISOString().slice(0, 7));
+              }
+
+              // Totals for selected month
+              const totalInflow = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+                + monthTxns.filter(t => t.type === 'loan').reduce((s, t) => s + t.amount, 0)
+                + monthTxns.filter(t => t.type === 'investment_out').reduce((s, t) => s + t.amount, 0);
+              const totalOutflow = monthTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+                + monthTxns.filter(t => t.type === 'emi').reduce((s, t) => s + t.amount, 0)
+                + monthTxns.filter(t => t.type === 'investment_in').reduce((s, t) => s + t.amount, 0);
+              const monthNet = totalInflow - totalOutflow;
+
+              return (
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  {/* Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                    <h3 className="text-lg font-semibold text-swar-text">📅 Monthly Cash Flow</h3>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <select
+                        value={dashboardMonth}
+                        onChange={e => setDashboardMonth(e.target.value)}
+                        className="px-3 py-2 border border-swar-border rounded-lg text-sm font-medium"
+                      >
+                        {monthOptions.map(m => (
+                          <option key={m} value={m}>{new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={dashboardHeadFilter}
+                        onChange={e => setDashboardHeadFilter(e.target.value)}
+                        className="px-3 py-2 border border-swar-border rounded-lg text-sm font-medium"
+                      >
+                        <option value="all">All Account Heads</option>
+                        {rowKeys.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+                      </select>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+
+                  {/* Top Summary for Month */}
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                      <p className="text-xs text-green-700 font-medium">Total In-Flow</p>
+                      <p className="text-xl font-bold text-green-800">₹{totalInflow.toLocaleString()}</p>
+                      <p className="text-xs text-green-600 mt-0.5">Income + Loans + Investments</p>
+                    </div>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                      <p className="text-xs text-red-700 font-medium">Total Out-Flow</p>
+                      <p className="text-xl font-bold text-red-800">₹{totalOutflow.toLocaleString()}</p>
+                      <p className="text-xs text-red-600 mt-0.5">Expenses + EMI + Investments</p>
+                    </div>
+                    <div className={`${monthNet >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'} border rounded-lg p-3 text-center`}>
+                      <p className={`text-xs font-medium ${monthNet >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>Net Balance</p>
+                      <p className={`text-xl font-bold ${monthNet >= 0 ? 'text-blue-800' : 'text-orange-800'}`}>
+                        {monthNet >= 0 ? '+' : ''}₹{monthNet.toLocaleString()}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${monthNet >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{monthNet >= 0 ? '✓ Surplus' : '⚠ Deficit'}</p>
+                    </div>
+                  </div>
+
+                  {/* Detailed Table by Account Head */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b-2 border-gray-200">
+                          <th className="px-3 py-2 text-left text-xs font-bold text-gray-600 uppercase sticky left-0 bg-gray-50 min-w-[150px]">Account Head</th>
+                          {/* IN-FLOW */}
+                          <th colSpan={3} className="px-3 py-2 text-center text-xs font-bold text-green-700 uppercase bg-green-50 border-x border-green-200">
+                            ← IN-FLOW
+                          </th>
+                          <th className="px-3 py-2 text-center text-xs font-bold text-green-800 bg-green-100">In Total</th>
+                          {/* OUT-FLOW */}
+                          <th colSpan={3} className="px-3 py-2 text-center text-xs font-bold text-red-700 uppercase bg-red-50 border-x border-red-200">
+                            OUT-FLOW →
+                          </th>
+                          <th className="px-3 py-2 text-center text-xs font-bold text-red-800 bg-red-100">Out Total</th>
+                          {/* NET */}
+                          <th className="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase bg-gray-100">Net</th>
+                        </tr>
+                        <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500">
+                          <th className="px-3 py-1.5 text-left sticky left-0 bg-gray-50"></th>
+                          <th className="px-2 py-1.5 text-center bg-green-50">Income</th>
+                          <th className="px-2 py-1.5 text-center bg-green-50">Loan In</th>
+                          <th className="px-2 py-1.5 text-center bg-green-50">Invest. In</th>
+                          <th className="px-2 py-1.5 text-center bg-green-100"></th>
+                          <th className="px-2 py-1.5 text-center bg-red-50">Expense</th>
+                          <th className="px-2 py-1.5 text-center bg-red-50">Loan/EMI</th>
+                          <th className="px-2 py-1.5 text-center bg-red-50">Invest. Out</th>
+                          <th className="px-2 py-1.5 text-center bg-red-100"></th>
+                          <th className="px-2 py-1.5 text-center bg-gray-100"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {visibleRows.map((row, ri) => {
+                          const inc = getAmt(row.key, row.label, 'income');
+                          const loanIn = getAmt(row.key, row.label, 'loan');
+                          const invIn = getAmt(row.key, row.label, 'investment_out');
+                          const exp = getAmt(row.key, row.label, 'expense');
+                          const emi = getAmt(row.key, row.label, 'emi');
+                          const invOut = getAmt(row.key, row.label, 'investment_in');
+                          const totalIn = inc + loanIn + invIn;
+                          const totalOut = exp + emi + invOut;
+                          const net = totalIn - totalOut;
+                          if (dashboardHeadFilter === 'all' && totalIn === 0 && totalOut === 0) return null;
+                          const isAllocHead = allocHeads.some(a => a.key === row.key);
+                          return (
+                            <tr key={row.key} className={`${ri % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'} hover:bg-blue-50/30 transition-colors`}>
+                              <td className={`px-3 py-2.5 sticky left-0 ${ri % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                <div className="font-semibold text-swar-text text-sm">{row.label}</div>
+                                {isAllocHead && <div className="text-[10px] text-gray-400">{row.key}</div>}
+                              </td>
+                              {/* IN-FLOW */}
+                              <td className="px-2 py-2.5 text-center text-green-700 font-medium bg-green-50/40">{inc > 0 ? `₹${inc.toLocaleString()}` : <span className="text-gray-300">—</span>}</td>
+                              <td className="px-2 py-2.5 text-center text-green-700 font-medium bg-green-50/40">{loanIn > 0 ? `₹${loanIn.toLocaleString()}` : <span className="text-gray-300">—</span>}</td>
+                              <td className="px-2 py-2.5 text-center text-green-700 font-medium bg-green-50/40">{invIn > 0 ? `₹${invIn.toLocaleString()}` : <span className="text-gray-300">—</span>}</td>
+                              <td className="px-2 py-2.5 text-center font-bold text-green-800 bg-green-100">{totalIn > 0 ? `₹${totalIn.toLocaleString()}` : <span className="text-gray-300">₹0</span>}</td>
+                              {/* OUT-FLOW */}
+                              <td className="px-2 py-2.5 text-center text-red-600 font-medium bg-red-50/40">{exp > 0 ? `₹${exp.toLocaleString()}` : <span className="text-gray-300">—</span>}</td>
+                              <td className="px-2 py-2.5 text-center text-red-600 font-medium bg-red-50/40">{emi > 0 ? `₹${emi.toLocaleString()}` : <span className="text-gray-300">—</span>}</td>
+                              <td className="px-2 py-2.5 text-center text-red-600 font-medium bg-red-50/40">{invOut > 0 ? `₹${invOut.toLocaleString()}` : <span className="text-gray-300">—</span>}</td>
+                              <td className="px-2 py-2.5 text-center font-bold text-red-800 bg-red-100">{totalOut > 0 ? `₹${totalOut.toLocaleString()}` : <span className="text-gray-300">₹0</span>}</td>
+                              {/* NET */}
+                              <td className={`px-2 py-2.5 text-center font-bold ${net > 0 ? 'text-green-700 bg-green-50' : net < 0 ? 'text-red-600 bg-red-50' : 'text-gray-400'}`}>
+                                {net !== 0 ? `${net > 0 ? '+' : ''}₹${net.toLocaleString()}` : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {/* Totals Footer */}
+                      <tfoot className="border-t-2 border-gray-300 bg-gray-100 font-bold text-sm">
+                        <tr>
+                          <td className="px-3 py-2.5 sticky left-0 bg-gray-100 text-gray-700">TOTAL</td>
+                          {['income','loan','investment_out'].map(type => {
+                            const tot = monthTxns.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0);
+                            return <td key={type} className="px-2 py-2.5 text-center text-green-800 bg-green-50">{tot > 0 ? `₹${tot.toLocaleString()}` : '₹0'}</td>;
+                          })}
+                          <td className="px-2 py-2.5 text-center text-green-900 bg-green-100">₹{totalInflow.toLocaleString()}</td>
+                          {['expense','emi','investment_in'].map(type => {
+                            const tot = monthTxns.filter(t => t.type === type).reduce((s, t) => s + t.amount, 0);
+                            return <td key={type} className="px-2 py-2.5 text-center text-red-800 bg-red-50">{tot > 0 ? `₹${tot.toLocaleString()}` : '₹0'}</td>;
+                          })}
+                          <td className="px-2 py-2.5 text-center text-red-900 bg-red-100">₹{totalOutflow.toLocaleString()}</td>
+                          <td className={`px-2 py-2.5 text-center font-bold text-lg ${monthNet >= 0 ? 'text-green-800 bg-green-100' : 'text-red-700 bg-red-100'}`}>
+                            {monthNet >= 0 ? '+' : ''}₹{monthNet.toLocaleString()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  {monthTxns.length === 0 && (
+                    <p className="text-center text-gray-400 py-8">No transactions found for {new Date(dashboardMonth + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
