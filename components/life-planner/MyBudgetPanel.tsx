@@ -596,95 +596,168 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
           <div className="text-swar-text-secondary mt-3">Loading…</div>
         ) : showAllocations && plan ? (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-swar-bg">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Bucket</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Key</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Type</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Percent</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Action</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {plan.allocations.map((a, idx) => (
-                  <tr key={`${a.key}-${idx}`}>
-                    <td className="px-4 py-3">
-                      <input
-                        value={a.label}
-                        onChange={(e) => {
-                          const next = [...plan.allocations];
-                          next[idx] = { ...a, label: normalize(e.target.value) };
-                          setPlan({ ...plan, allocations: next });
-                        }}
-                        className="w-full p-2 border border-swar-border rounded-lg"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        value={a.key}
-                        onChange={(e) => {
-                          const next = [...plan.allocations];
-                          next[idx] = { ...a, key: normalize(e.target.value) };
-                          setPlan({ ...plan, allocations: next });
-                        }}
-                        className="w-full p-2 border border-swar-border rounded-lg"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={a.kind}
-                        onChange={(e) => {
-                          const next = [...plan.allocations];
-                          next[idx] = { ...a, kind: e.target.value === 'profit' ? 'profit' : 'expense' };
-                          setPlan({ ...plan, allocations: next });
-                        }}
-                        className="w-full p-2 border border-swar-border rounded-lg"
-                      >
-                        <option value="expense">Expense</option>
-                        <option value="profit">Profit</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <input
-                        type="number"
-                        value={a.percent}
-                        onChange={(e) => {
-                          const next = [...plan.allocations];
-                          next[idx] = { ...a, percent: Number(e.target.value) };
-                          setPlan({ ...plan, allocations: next });
-                        }}
-                        className="w-28 p-2 border border-swar-border rounded-lg text-right"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => {
-                          const next = plan.allocations.filter((_, i) => i !== idx);
-                          setPlan({ ...plan, allocations: next });
-                        }}
-                        className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td className="px-4 py-3 font-semibold" colSpan={3}>
-                    Total
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-bold ${allocationTotalOk ? 'text-swar-primary' : 'text-red-600'}`}
-                  >
-                    {allocationTotal.toFixed(2)}%
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
+            {(() => {
+              const yearlyIncome = plan.incomeTargetYearly || 0;
+              const planYear = plan.year || year;
+              // Pre-compute real yearly amount per allocation from actual transactions
+              const getRealAmount = (alloc: BudgetAllocation): number => {
+                return realTransactions
+                  .filter((t: any) => {
+                    const d = new Date(t.date);
+                    if (d.getFullYear() !== planYear) return false;
+                    const isRelevant = alloc.kind === 'expense'
+                      ? (t.type === 'expense' || t.type === 'emi')
+                      : t.type === 'income';  // profit allocs compare against income
+                    return isRelevant && matchesAlloc(alloc, t.category || '', t.description || '');
+                  })
+                  .reduce((s: number, t: any) => s + (t.amount || 0), 0);
+              };
+              const totalRealExpenses = plan.allocations
+                .filter(a => a.kind === 'expense')
+                .reduce((s, a) => s + getRealAmount(a), 0);
+              const totalBudgetExpenses = plan.allocations
+                .filter(a => a.kind === 'expense')
+                .reduce((s, a) => s + (a.percent / 100) * yearlyIncome, 0);
+
+              return (
+                <table className="w-full min-w-[800px]">
+                  <thead className="bg-swar-bg">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Bucket</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Key</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Type</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Percent</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-green-700 uppercase bg-green-50">
+                        Budget Amt
+                        <div className="text-[10px] font-normal text-green-500 normal-case">Yearly (auto)</div>
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-blue-700 uppercase bg-blue-50">
+                        Real Amt
+                        <div className="text-[10px] font-normal text-blue-500 normal-case">Actual (auto)</div>
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {plan.allocations.map((a, idx) => {
+                      const budgetAmt = Math.round((a.percent / 100) * yearlyIncome);
+                      const realAmt = Math.round(getRealAmount(a));
+                      const diff = a.kind === 'expense' ? budgetAmt - realAmt : realAmt - budgetAmt;
+                      const isOver = diff < 0;
+                      return (
+                        <tr key={`${a.key}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}>
+                          <td className="px-4 py-3">
+                            <input
+                              value={a.label}
+                              onChange={(e) => {
+                                const next = [...plan.allocations];
+                                next[idx] = { ...a, label: normalize(e.target.value) };
+                                setPlan({ ...plan, allocations: next });
+                              }}
+                              className="w-full p-2 border border-swar-border rounded-lg text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              value={a.key}
+                              onChange={(e) => {
+                                const next = [...plan.allocations];
+                                next[idx] = { ...a, key: normalize(e.target.value) };
+                                setPlan({ ...plan, allocations: next });
+                              }}
+                              className="w-full p-2 border border-swar-border rounded-lg text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={a.kind}
+                              onChange={(e) => {
+                                const next = [...plan.allocations];
+                                next[idx] = { ...a, kind: e.target.value === 'profit' ? 'profit' : 'expense' };
+                                setPlan({ ...plan, allocations: next });
+                              }}
+                              className="w-full p-2 border border-swar-border rounded-lg text-sm"
+                            >
+                              <option value="expense">Expense</option>
+                              <option value="profit">Profit</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <input
+                              type="number"
+                              value={a.percent}
+                              onChange={(e) => {
+                                const next = [...plan.allocations];
+                                next[idx] = { ...a, percent: Number(e.target.value) };
+                                setPlan({ ...plan, allocations: next });
+                              }}
+                              className="w-24 p-2 border border-swar-border rounded-lg text-right text-sm"
+                            />
+                          </td>
+                          {/* Budget Amount — auto from yearly income × percent */}
+                          <td className="px-4 py-3 text-right bg-green-50">
+                            <div className="font-semibold text-green-800 text-sm">
+                              ₹{budgetAmt.toLocaleString('en-IN')}
+                            </div>
+                            <div className="text-[10px] text-green-500">
+                              ₹{Math.round(budgetAmt / 12).toLocaleString('en-IN')}/mo
+                            </div>
+                          </td>
+                          {/* Real Amount — auto from actual transactions */}
+                          <td className="px-4 py-3 text-right bg-blue-50">
+                            <div className={`font-semibold text-sm ${
+                              realAmt === 0 ? 'text-gray-400' :
+                              isOver ? 'text-red-600' : 'text-blue-700'
+                            }`}>
+                              ₹{realAmt.toLocaleString('en-IN')}
+                            </div>
+                            {realAmt > 0 && (
+                              <div className={`text-[10px] font-semibold ${isOver ? 'text-red-500' : 'text-green-600'}`}>
+                                {isOver ? '▲ over ' : '▼ saved '}₹{Math.abs(diff).toLocaleString('en-IN')}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => {
+                                const next = plan.allocations.filter((_, i) => i !== idx);
+                                setPlan({ ...plan, allocations: next });
+                              }}
+                              className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-bold text-sm">
+                    <tr>
+                      <td className="px-4 py-3 font-semibold text-gray-700" colSpan={3}>Total</td>
+                      <td className={`px-4 py-3 text-right font-bold ${allocationTotalOk ? 'text-swar-primary' : 'text-red-600'}`}>
+                        {allocationTotal.toFixed(2)}%
+                      </td>
+                      {/* Total Budget */}
+                      <td className="px-4 py-3 text-right bg-green-100">
+                        <div className="font-bold text-green-800">₹{yearlyIncome.toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] text-green-600">₹{Math.round(yearlyIncome / 12).toLocaleString('en-IN')}/mo</div>
+                      </td>
+                      {/* Total Real */}
+                      <td className="px-4 py-3 text-right bg-blue-100">
+                        <div className={`font-bold ${totalRealExpenses > totalBudgetExpenses ? 'text-red-700' : 'text-blue-800'}`}>
+                          ₹{Math.round(totalRealExpenses).toLocaleString('en-IN')}
+                        </div>
+                        <div className="text-[10px] text-blue-600">
+                          {totalBudgetExpenses > 0 ? `${Math.round((totalRealExpenses / totalBudgetExpenses) * 100)}% used` : ''}
+                        </div>
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              );
+            })()}
           </div>
         ) : null}
 
