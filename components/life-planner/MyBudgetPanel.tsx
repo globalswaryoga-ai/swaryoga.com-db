@@ -842,7 +842,7 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                   <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Reality</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Variance</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Repeat</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase min-w-[150px]">Repeat</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Action</th>
                 </tr>
               </thead>
@@ -933,7 +933,7 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                       <td className={`px-4 py-3 text-center font-semibold rounded ${varianceColor}`}>
                         {variance > 0 ? '+' : ''}{variance.toFixed(2)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 min-w-[150px]">
                         <div className="flex flex-col gap-2">
                           <select
                             value={entry.recurrence || 'none'}
@@ -942,7 +942,7 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                               next[idx].recurrence = e.target.value as RecurrenceType;
                               setExpenseBudgets(next);
                             }}
-                            className="w-full p-2 border border-swar-border rounded-lg text-sm"
+                            className="w-full min-w-[130px] p-2 border border-swar-border rounded-lg text-sm bg-white"
                           >
                             <option value="none">No repeat</option>
                             <option value="monthly">Monthly</option>
