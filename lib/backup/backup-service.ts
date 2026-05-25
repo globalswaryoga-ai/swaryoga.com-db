@@ -78,6 +78,33 @@ const BACKUP_COLLECTIONS = [
   { name: 'AnalyticsEvent',     daysBack: 30 },
   { name: 'AuditLog',           daysBack: 30 },
   { name: 'EmailLog',           daysBack: 30 },
+  // ── CRM Core ────────────────────────────────────────────────────────────────
+  { name: 'Lead' },
+  { name: 'LeadNote' },
+  { name: 'LeadFollowUp' },
+  { name: 'BroadcastList' },
+  { name: 'BroadcastRun' },
+  { name: 'WhatsAppTemplate' },
+  { name: 'ChatbotFlow' },
+  { name: 'ChatbotSettings' },
+  { name: 'AdminSettings' },
+  // ── Website & Content ────────────────────────────────────────────────────────
+  { name: 'LandingPage' },
+  { name: 'BlogNewsletter' },
+  { name: 'MediaPost' },
+  { name: 'CommunityPost' },
+  { name: 'Community' },
+  { name: 'CommunityMember' },
+  { name: 'CommunityVideo' },
+  { name: 'Contact' },
+  { name: 'Message' },
+  { name: 'Note' },
+  { name: 'Order' },
+  { name: 'Transaction' },
+  { name: 'BudgetPlan' },
+  { name: 'SocialMediaPost' },
+  { name: 'SocialMediaAccount' },
+  // NOTE: crm_planner_data is in swaryoga_admin_crm DB — exported separately below
 ];
 
 // ─── Collections archived to Bunny THEN deleted from Atlas ─────────────────
@@ -299,6 +326,32 @@ export class BackupService {
         });
         throw error;
       }
+    }
+
+    // ── Export CRM Planner data from swaryoga_admin_crm DB ──────────────────
+    // crm_planner_data lives in a separate DB — access via raw connection
+    try {
+      const crmDb = mongoose.connection.useDb('swaryoga_admin_crm');
+      const plannerDocs = await crmDb.collection('crm_planner_data').find({}).toArray();
+      const plannerJson = JSON.stringify(plannerDocs);
+      const plannerSizeMB = Math.round(plannerJson.length / 1024 / 1024);
+      totalSize += plannerSizeMB;
+      backupData.collections['crm_planner_data'] = plannerDocs;
+      backupData.metadata.push({
+        name: 'crm_planner_data',
+        count: plannerDocs.length,
+        size: plannerSizeMB,
+        checksum: crypto.createHash('sha256').update(plannerJson).digest('hex'),
+      });
+      logger.info(
+        `  ✅ Exported crm_planner_data (swaryoga_admin_crm): ${plannerDocs.length} docs`,
+        { backupId }
+      );
+    } catch (error) {
+      logger.warn(
+        `  ⚠️  Could not export crm_planner_data: ${(error as Error).message}`,
+        { backupId }
+      );
     }
 
     backupData.totalSize = totalSize;

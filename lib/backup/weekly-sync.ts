@@ -88,7 +88,9 @@ export class WeeklySyncService {
       if (!db) throw new Error('MongoDB not connected');
 
       // ─── Step 1: Full snapshot of ALL collections → Bunny ───────────────────
-      const snapshotSize = await this.takeFullSnapshot(db, syncId);
+      // Snapshots BOTH the main DB and the CRM DB for complete coverage
+      const crmDb = mongoose.connection.useDb('swaryoga_admin_crm');
+      const snapshotSize = await this.takeFullSnapshot(db, syncId, crmDb);
 
       // ─── Step 2: Archive old collections → Bunny, then delete from Atlas ────
       const archivedRecords = await this.archiveOldCollections(db);
@@ -96,8 +98,10 @@ export class WeeklySyncService {
       // ─── Step 3: Delete transient/diagnostic collections from Atlas ──────────
       const deletedRecords = await this.deleteTransientCollections(db);
 
-      // ─── Step 4: Clean Bunny archive files older than 1 year ─────────────────
-      await this.cleanBunnyArchivesOlderThanOneYear();
+      // ─── Step 4: Bunny archives are kept FOREVER (lifetime retention) ──────────
+      // All archived data is stored permanently on Bunny.
+      // Users wanting access to old WhatsApp chat history (>1 year) pay for retrieval.
+      // No automatic deletion of archives.
 
       logger.info(`✅ Weekly sync complete: ${syncId}`, {
         snapshotSize, archivedRecords, deletedRecords,
@@ -118,13 +122,15 @@ export class WeeklySyncService {
 
   /**
    * Take a full snapshot of every collection and upload to Bunny.
-   * This is a raw full export — stored at /weekly-backups/YYYY-MM-DD.json.gz
+   * Snapshots BOTH main DB (swaryogaDB) and CRM DB (swaryoga_admin_crm).
+   * Stored at /weekly-backups/weekly-YYYY-MM-DD.json.gz
    */
-  private async takeFullSnapshot(db: any, syncId: string): Promise<string> {
-    logger.info('📦 Taking full DB snapshot...');
-    const collections = await db.listCollections().toArray();
+  private async takeFullSnapshot(db: any, syncId: string, crmDb?: any): Promise<string> {
+    logger.info('📦 Taking full DB snapshot (main + CRM)...');
     const exportData: Record<string, any[]> = {};
 
+    // ── Main DB collections ──────────────────────────────────────────────────
+    const collections = await db.listCollections().toArray();
     for (const col of collections) {
       try {
         const docs = await db.collection(col.name).find({}).toArray();
@@ -132,6 +138,24 @@ export class WeeklySyncService {
         logger.info(`  ✅ Snapped ${col.name}: ${docs.length} docs`);
       } catch {
         logger.warn(`  ⚠️  Could not snapshot collection: ${col.name}`);
+      }
+    }
+
+    // ── CRM DB collections (swaryoga_admin_crm) ─────────────────────────────
+    if (crmDb) {
+      try {
+        const crmCollections = await crmDb.listCollections().toArray();
+        for (const col of crmCollections) {
+          try {
+            const docs = await crmDb.collection(col.name).find({}).toArray();
+            exportData[`crm__${col.name}`] = docs; // prefix to avoid name collision
+            logger.info(`  ✅ Snapped CRM/${col.name}: ${docs.length} docs`);
+          } catch {
+            logger.warn(`  ⚠️  Could not snapshot CRM collection: ${col.name}`);
+          }
+        }
+      } catch {
+        logger.warn('  ⚠️  Could not list CRM DB collections');
       }
     }
 
@@ -238,57 +262,16 @@ export class WeeklySyncService {
   }
 
   /**
-   * Delete Bunny archive files older than 1 year.
-   * WhatsApp messages are kept for 1 year on Bunny — after that, permanently gone.
-   * Other archives (logs, analytics) are also cleaned after 1 year.
+   * ⚠️  Intentionally disabled — Bunny archives are kept FOREVER.
+   *
+   * All data is stored for lifetime on Bunny CDN.
+   * Users who need access to WhatsApp chat history older than 1 year
+   * will pay for retrieval (paid archive access feature).
+   *
+   * Bunny storage is cheap (~$0.01/GB/month) so keeping all data
+   * is more valuable than the storage cost savings from deletion.
    */
-  private async cleanBunnyArchivesOlderThanOneYear(): Promise<void> {
-    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-    const cutoffDateStr = oneYearAgo.toISOString().split('T')[0]; // YYYY-MM-DD
-
-    logger.info(`🗓️  Cleaning Bunny archives older than 1 year (before ${cutoffDateStr})...`);
-
-    // Collections that have dated archive files on Bunny
-    const archivePaths = [
-      'WhatsAppMessage',
-      'QrWhatsAppMessage',
-      'BroadcastRunMessage',
-      'AnalyticsEvent',
-      'AuditLog',
-      'EmailLog',
-      'FunnelStageHistory',
-      'AccAuditTrail',
-      'VideoWatchLog',
-      'VideoAccessLog',
-      'ViewTracking',
-      'ErrorLog',
-      'PostAnalytics',
-      'MessageStatus',
-    ];
-
-    for (const collName of archivePaths) {
-      try {
-        const files = await this.bunnyClient.list(`/archives/${collName}`);
-        if (!Array.isArray(files) || files.length === 0) continue;
-
-        for (const file of files) {
-          const fileName: string = file.ObjectName || file.name || '';
-          if (!fileName) continue;
-
-          // File names are YYYY-MM-DD.json.gz — compare date prefix
-          const fileDateStr = fileName.substring(0, 10);
-          if (fileDateStr < cutoffDateStr) {
-            await this.bunnyClient.delete(`/archives/${collName}/${fileName}`);
-            logger.info(`  🗑️  Deleted old Bunny archive: /archives/${collName}/${fileName}`);
-          }
-        }
-      } catch {
-        // Non-fatal — skip if collection folder doesn't exist yet
-      }
-    }
-
-    logger.info('✅ Bunny 1-year archive cleanup complete');
-  }
+  // private async cleanBunnyArchivesOlderThanOneYear() { /* disabled */ }
 }
 
 export async function initializeWeeklySync(_bunnyStorageKey: string) {

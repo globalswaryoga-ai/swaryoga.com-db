@@ -22,24 +22,56 @@ import { logger } from './logger';
 
 // Collections to export — business data that apps read frequently
 const COLLECTIONS_TO_EXPORT = [
-  'Course',
-  'CourseLesson',
-  'CourseModule',
+  // ── E-Learning ──────────────────────────────────────────────────────────────
+  'User',
+  'RecordedCourse',
   'CourseSection',
   'CourseVideo',
   'CourseMaterial',
+  'CourseAssignment',
   'CourseEnrollment',
-  'User',
+  'CourseReview',
+  'CourseDevice',
   'Workshop',
   'WorkshopVideo',
+  'WorkshopSeatInventory',
   'Batch',
+  'Program',
+  'ProgramSession',
   'Sadhana',
   'SadhanaParticipant',
   'Video',
   'VideoWatchLog',
-  'Program',
-  'ProgramSession',
   'Purchase',
+  'Payment',
+  'KYC',
+  // ── CRM Core ────────────────────────────────────────────────────────────────
+  'Lead',
+  'LeadNote',
+  'LeadFollowUp',
+  'BroadcastList',
+  'BroadcastRun',
+  'WhatsAppTemplate',
+  'ChatbotFlow',
+  'ChatbotSettings',
+  'AdminSettings',
+  // ── Website & Content ────────────────────────────────────────────────────────
+  'LandingPage',
+  'BlogNewsletter',
+  'MediaPost',
+  'CommunityPost',
+  'Community',
+  'CommunityMember',
+  'CommunityVideo',
+  'Contact',
+  'Message',
+  'Note',
+  'Order',
+  'Transaction',
+  'BudgetPlan',
+  'SocialMediaPost',
+  'SocialMediaAccount',
+  // NOTE: crm_planner_data exported separately below (different DB)
 ];
 
 // Keep dated history for 90 days, then auto-clean old ones
@@ -106,7 +138,28 @@ export class DailyExportService {
       }
     }
 
-    // 3. Clean old history files (older than 90 days) to save Bunny storage
+    // 3. Export CRM Planner data from swaryoga_admin_crm DB (separate DB)
+    try {
+      const crmDb = mongoose.connection.useDb('swaryoga_admin_crm');
+      const plannerDocs = await crmDb.collection('crm_planner_data').find({}).toArray();
+      if (plannerDocs.length > 0) {
+        const plannerJson = JSON.stringify(plannerDocs);
+        const plannerBuf = Buffer.from(plannerJson, 'utf-8');
+        const plannerSizeMB = (plannerBuf.length / 1024 / 1024).toFixed(2);
+        totalSizeBytes += plannerBuf.length;
+        await this.bunny.upload('/data/latest/crm_planner_data.json', plannerBuf);
+        await this.bunny.upload(`/data/history/${dateStr}/crm_planner_data.json`, plannerBuf);
+        results.push({ collection: 'crm_planner_data', status: 'success', count: plannerDocs.length, sizeMB: plannerSizeMB });
+        logger.info(`  ✅ Exported crm_planner_data: ${plannerDocs.length} docs (${plannerSizeMB} MB)`);
+      } else {
+        results.push({ collection: 'crm_planner_data', status: 'skipped', reason: 'empty collection' });
+      }
+    } catch (error) {
+      results.push({ collection: 'crm_planner_data', status: 'error', error: (error as Error).message });
+      logger.warn(`  ⚠️  crm_planner_data export failed: ${(error as Error).message}`);
+    }
+
+    // 4. Clean old history files (older than 90 days) to save Bunny storage
     await this.cleanOldHistory();
 
     logger.info(`✅ Daily export complete. Total: ${(totalSizeBytes / 1024 / 1024).toFixed(2)} MB`);
