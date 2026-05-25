@@ -31,9 +31,9 @@ const ARCHIVE_COLLECTIONS: Array<{ name: string; days: number; dateField?: strin
   { name: 'ViewTracking',         days: 7   },
   { name: 'ErrorLog',             days: 7   },
   { name: 'PostAnalytics',        days: 7   },
-  // CRM message history — 90 days in Atlas, then Bunny forever
-  { name: 'WhatsAppMessage',      days: 90  },
-  { name: 'QrWhatsAppMessage',    days: 90  },
+  // CRM message history — 365 days in Atlas, then Bunny (1 year max on Bunny)
+  { name: 'WhatsAppMessage',      days: 365 },
+  { name: 'QrWhatsAppMessage',    days: 365 },
   // CRM logs — 30 days in Atlas
   { name: 'BroadcastRunMessage',  days: 30  },
   { name: 'AnalyticsEvent',       days: 30  },
@@ -95,6 +95,9 @@ export class WeeklySyncService {
 
       // ─── Step 3: Delete transient/diagnostic collections from Atlas ──────────
       const deletedRecords = await this.deleteTransientCollections(db);
+
+      // ─── Step 4: Clean Bunny archive files older than 1 year ─────────────────
+      await this.cleanBunnyArchivesOlderThanOneYear();
 
       logger.info(`✅ Weekly sync complete: ${syncId}`, {
         snapshotSize, archivedRecords, deletedRecords,
@@ -232,6 +235,59 @@ export class WeeklySyncService {
     }
 
     return totalDeleted;
+  }
+
+  /**
+   * Delete Bunny archive files older than 1 year.
+   * WhatsApp messages are kept for 1 year on Bunny — after that, permanently gone.
+   * Other archives (logs, analytics) are also cleaned after 1 year.
+   */
+  private async cleanBunnyArchivesOlderThanOneYear(): Promise<void> {
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const cutoffDateStr = oneYearAgo.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    logger.info(`🗓️  Cleaning Bunny archives older than 1 year (before ${cutoffDateStr})...`);
+
+    // Collections that have dated archive files on Bunny
+    const archivePaths = [
+      'WhatsAppMessage',
+      'QrWhatsAppMessage',
+      'BroadcastRunMessage',
+      'AnalyticsEvent',
+      'AuditLog',
+      'EmailLog',
+      'FunnelStageHistory',
+      'AccAuditTrail',
+      'VideoWatchLog',
+      'VideoAccessLog',
+      'ViewTracking',
+      'ErrorLog',
+      'PostAnalytics',
+      'MessageStatus',
+    ];
+
+    for (const collName of archivePaths) {
+      try {
+        const files = await this.bunnyClient.list(`/archives/${collName}`);
+        if (!Array.isArray(files) || files.length === 0) continue;
+
+        for (const file of files) {
+          const fileName: string = file.ObjectName || file.name || '';
+          if (!fileName) continue;
+
+          // File names are YYYY-MM-DD.json.gz — compare date prefix
+          const fileDateStr = fileName.substring(0, 10);
+          if (fileDateStr < cutoffDateStr) {
+            await this.bunnyClient.delete(`/archives/${collName}/${fileName}`);
+            logger.info(`  🗑️  Deleted old Bunny archive: /archives/${collName}/${fileName}`);
+          }
+        }
+      } catch {
+        // Non-fatal — skip if collection folder doesn't exist yet
+      }
+    }
+
+    logger.info('✅ Bunny 1-year archive cleanup complete');
   }
 }
 

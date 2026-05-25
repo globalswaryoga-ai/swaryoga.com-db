@@ -71,9 +71,9 @@ const BACKUP_COLLECTIONS = [
   { name: 'VideoAccessLog', daysBack: 7  },
   { name: 'ViewTracking',   daysBack: 7  },
   { name: 'ErrorLog',       daysBack: 7  },
-  // CRM logs — last 30 days only
-  { name: 'WhatsAppMessage',    daysBack: 30 },
-  { name: 'QrWhatsAppMessage',  daysBack: 30 },
+  // CRM WA messages — last 365 days in Atlas, older → archived to Bunny
+  { name: 'WhatsAppMessage',    daysBack: 365 },
+  { name: 'QrWhatsAppMessage',  daysBack: 365 },
   { name: 'BroadcastRunMessage',daysBack: 30 },
   { name: 'AnalyticsEvent',     daysBack: 30 },
   { name: 'AuditLog',           daysBack: 30 },
