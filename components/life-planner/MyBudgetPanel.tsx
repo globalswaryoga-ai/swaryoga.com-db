@@ -97,6 +97,25 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     customInterval?: number;
   }>>([]);
 
+  // Expanded rows for "View" toggle
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const toggleRow = (id: string) => setExpandedRows(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
+
+  // Dropdown option lists (Particular & Account Head)
+  const [particulars, setParticulars] = useState<string[]>([
+    'Home Rent', 'Milk', 'House Kirana', 'Vegetables', 'Light Bill',
+    'Parent Expense', 'Bishi', 'Medicine', 'Travel', 'Mobile Bill',
+    'Internet', 'Petrol', 'School Fee', 'EMI', 'Savings',
+  ]);
+  const [accountHeads, setAccountHeads] = useState<string[]>([
+    'Home', 'Food', 'Health', 'Transport', 'Education',
+    'Entertainment', 'Utilities', 'Savings', 'Investment', 'Personal',
+  ]);
+  // Inline "add new option" state: { field: 'particular'|'accountHead', rowId: string, value: string }
+  const [addingOption, setAddingOption] = useState<{ field: 'particular' | 'accountHead'; rowId: string; value: string } | null>(null);
+
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
     const token = typeof window !== 'undefined'
@@ -798,6 +817,8 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                     customInterval: 1,
                   },
                 ]);
+                // Auto-expand new row so user can fill in details
+                setExpandedRows(prev => new Set([...prev, newId]));
               }}
               className="px-4 py-2 bg-swar-primary hover:bg-swar-primary-hover text-white rounded-lg text-sm font-semibold"
             >
@@ -827,177 +848,289 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
 
         {expenseBudgets.length === 0 ? (
           <div className="text-swar-text-secondary text-center py-6">
-            No expense budget entries yet. Click "Add Entry" to create one.
+            No expense budget entries yet. Click "+ Add Entry" to create one.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-swar-bg">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Sr. No</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Month</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Particular</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Account Head</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Type</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Amount</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Reality</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Variance</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase min-w-[150px]">Repeat</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Action</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase w-10">Sr.</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Month</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Particular</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Account Head</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase w-24">Type</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase w-28">Amount</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase w-24">Reality</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase w-24">Variance</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase w-32">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {expenseBudgets.map((entry, idx) => {
+                  const isExpanded = expandedRows.has(entry.id);
                   const variance = entry.reality - entry.amount;
-                  const varianceColor = variance > 0 ? 'text-red-600 bg-red-50' : variance < 0 ? 'text-green-600 bg-green-50' : 'text-gray-600';
+                  const varianceColor = variance > 0 ? 'text-red-600' : variance < 0 ? 'text-green-600' : 'text-gray-500';
+                  const isAddingParticular = addingOption?.field === 'particular' && addingOption?.rowId === entry.id;
+                  const isAddingAccountHead = addingOption?.field === 'accountHead' && addingOption?.rowId === entry.id;
+
+                  // Helper: update a single field
+                  const update = (field: string, value: any) => {
+                    const next = [...expenseBudgets];
+                    (next[idx] as any)[field] = value;
+                    setExpenseBudgets(next);
+                  };
+
                   return (
-                    <tr key={entry.id}>
-                      <td className="px-4 py-3">{idx + 1}</td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="month"
-                          value={entry.month}
-                          onChange={(e) => {
-                            const next = [...expenseBudgets];
-                            next[idx].month = e.target.value;
-                            setExpenseBudgets(next);
-                          }}
-                          className="w-full p-2 border border-swar-border rounded-lg"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={entry.particular}
-                          placeholder="e.g., Rent, Food"
-                          onChange={(e) => {
-                            const next = [...expenseBudgets];
-                            next[idx].particular = e.target.value;
-                            setExpenseBudgets(next);
-                          }}
-                          className="w-full p-2 border border-swar-border rounded-lg"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={entry.accountHead}
-                          placeholder="e.g., Housing"
-                          onChange={(e) => {
-                            const next = [...expenseBudgets];
-                            next[idx].accountHead = e.target.value;
-                            setExpenseBudgets(next);
-                          }}
-                          className="w-full p-2 border border-swar-border rounded-lg"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={entry.type}
-                          onChange={(e) => {
-                            const next = [...expenseBudgets];
-                            next[idx].type = e.target.value === 'income' ? 'income' : 'expense';
-                            setExpenseBudgets(next);
-                          }}
-                          className="w-full p-2 border border-swar-border rounded-lg"
-                        >
-                          <option value="expense">Expense</option>
-                          <option value="income">Income</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <input
-                          type="number"
-                          value={entry.amount}
-                          onChange={(e) => {
-                            const next = [...expenseBudgets];
-                            next[idx].amount = Number(e.target.value);
-                            setExpenseBudgets(next);
-                          }}
-                          className="w-24 p-2 border border-swar-border rounded-lg text-right"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <input
-                          type="number"
-                          value={entry.reality}
-                          placeholder="Auto-update"
-                          onChange={(e) => {
-                            const next = [...expenseBudgets];
-                            next[idx].reality = Number(e.target.value);
-                            setExpenseBudgets(next);
-                          }}
-                          className="w-24 p-2 border border-swar-border rounded-lg text-right"
-                        />
-                      </td>
-                      <td className={`px-4 py-3 text-center font-semibold rounded ${varianceColor}`}>
-                        {variance > 0 ? '+' : ''}{variance.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 min-w-[150px]">
-                        <div className="flex flex-col gap-2">
-                          <select
-                            value={entry.recurrence || 'none'}
-                            onChange={(e) => {
-                              const next = [...expenseBudgets];
-                              next[idx].recurrence = e.target.value as RecurrenceType;
-                              setExpenseBudgets(next);
-                            }}
-                            className="w-full min-w-[130px] p-2 border border-swar-border rounded-lg text-sm bg-white"
-                          >
-                            <option value="none">No repeat</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="yearly">Yearly</option>
-                            <option value="custom">Custom</option>
-                          </select>
-                          {entry.recurrence === 'custom' && (
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs text-swar-text-secondary">Every</label>
+                    <React.Fragment key={entry.id}>
+                      {/* ── Compact row ── */}
+                      <tr className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'} hover:bg-green-50/30 transition-colors`}>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{idx + 1}</td>
+
+                        {/* Month */}
+                        <td className="px-3 py-2">
+                          <input
+                            type="month"
+                            value={entry.month}
+                            onChange={(e) => update('month', e.target.value)}
+                            className="w-full p-1.5 border border-swar-border rounded text-xs bg-white"
+                          />
+                        </td>
+
+                        {/* Particular — dropdown + Add button */}
+                        <td className="px-3 py-2">
+                          {isAddingParticular ? (
+                            <div className="flex gap-1">
                               <input
-                                type="number"
-                                min="1"
-                                value={entry.customInterval || 1}
-                                onChange={(e) => {
-                                  const next = [...expenseBudgets];
-                                  next[idx].customInterval = Math.max(1, Number(e.target.value));
-                                  setExpenseBudgets(next);
+                                autoFocus
+                                type="text"
+                                value={addingOption.value}
+                                onChange={(e) => setAddingOption({ ...addingOption, value: e.target.value })}
+                                placeholder="New particular…"
+                                className="flex-1 p-1.5 border border-green-400 rounded text-xs"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const v = addingOption.value.trim();
+                                    if (v && !particulars.includes(v)) setParticulars(prev => [...prev, v]);
+                                    if (v) update('particular', v);
+                                    setAddingOption(null);
+                                  }
+                                  if (e.key === 'Escape') setAddingOption(null);
                                 }}
-                                className="w-16 p-1 border border-swar-border rounded text-sm"
                               />
-                              <span className="text-xs text-swar-text-secondary">months</span>
+                              <button
+                                onClick={() => {
+                                  const v = addingOption.value.trim();
+                                  if (v && !particulars.includes(v)) setParticulars(prev => [...prev, v]);
+                                  if (v) update('particular', v);
+                                  setAddingOption(null);
+                                }}
+                                className="px-2 py-1 bg-green-600 text-white rounded text-xs font-semibold"
+                              >✓</button>
+                              <button onClick={() => setAddingOption(null)} className="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs">✕</button>
+                            </div>
+                          ) : (
+                            <div className="flex gap-1 items-center">
+                              <select
+                                value={entry.particular}
+                                onChange={(e) => update('particular', e.target.value)}
+                                className="flex-1 p-1.5 border border-swar-border rounded text-xs bg-white"
+                              >
+                                {entry.particular && !particulars.includes(entry.particular) && (
+                                  <option value={entry.particular}>{entry.particular}</option>
+                                )}
+                                <option value="">— Select —</option>
+                                {particulars.map(p => <option key={p} value={p}>{p}</option>)}
+                              </select>
+                              <button
+                                title="Add new particular"
+                                onClick={() => setAddingOption({ field: 'particular', rowId: entry.id, value: '' })}
+                                className="px-1.5 py-1 bg-green-100 text-green-700 rounded text-xs font-bold hover:bg-green-200 shrink-0"
+                              >+</button>
                             </div>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex flex-col gap-1">
-                          {(entry.recurrence && entry.recurrence !== 'none') && (
-                            <button
-                              onClick={() => {
-                                // Always generate 1 year (12 months) of entries
-                                const newEntries = generateRepeatingEntries(entry, 12);
-                                if (newEntries.length === 0) {
-                                  alert('All repeat entries already exist!');
-                                } else {
-                                  setExpenseBudgets([...expenseBudgets, ...newEntries]);
-                                  alert(`✓ Generated ${newEntries.length} repeating entries`);
-                                }
-                              }}
-                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-xs font-semibold"
-                            >
-                              ↻ Repeat
-                            </button>
+                        </td>
+
+                        {/* Account Head — dropdown + Add button */}
+                        <td className="px-3 py-2">
+                          {isAddingAccountHead ? (
+                            <div className="flex gap-1">
+                              <input
+                                autoFocus
+                                type="text"
+                                value={addingOption.value}
+                                onChange={(e) => setAddingOption({ ...addingOption, value: e.target.value })}
+                                placeholder="New head…"
+                                className="flex-1 p-1.5 border border-blue-400 rounded text-xs"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const v = addingOption.value.trim();
+                                    if (v && !accountHeads.includes(v)) setAccountHeads(prev => [...prev, v]);
+                                    if (v) update('accountHead', v);
+                                    setAddingOption(null);
+                                  }
+                                  if (e.key === 'Escape') setAddingOption(null);
+                                }}
+                              />
+                              <button
+                                onClick={() => {
+                                  const v = addingOption.value.trim();
+                                  if (v && !accountHeads.includes(v)) setAccountHeads(prev => [...prev, v]);
+                                  if (v) update('accountHead', v);
+                                  setAddingOption(null);
+                                }}
+                                className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-semibold"
+                              >✓</button>
+                              <button onClick={() => setAddingOption(null)} className="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs">✕</button>
+                            </div>
+                          ) : (
+                            <div className="flex gap-1 items-center">
+                              <select
+                                value={entry.accountHead}
+                                onChange={(e) => update('accountHead', e.target.value)}
+                                className="flex-1 p-1.5 border border-swar-border rounded text-xs bg-white"
+                              >
+                                {entry.accountHead && !accountHeads.includes(entry.accountHead) && (
+                                  <option value={entry.accountHead}>{entry.accountHead}</option>
+                                )}
+                                <option value="">— Select —</option>
+                                {accountHeads.map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              <button
+                                title="Add new account head"
+                                onClick={() => setAddingOption({ field: 'accountHead', rowId: entry.id, value: '' })}
+                                className="px-1.5 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold hover:bg-blue-200 shrink-0"
+                              >+</button>
+                            </div>
                           )}
-                          <button
-                            onClick={() => {
-                              setExpenseBudgets(expenseBudgets.filter((_, i) => i !== idx));
-                            }}
-                            className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
+                        </td>
+
+                        {/* Type */}
+                        <td className="px-3 py-2">
+                          <select
+                            value={entry.type}
+                            onChange={(e) => update('type', e.target.value)}
+                            className="w-full p-1.5 border border-swar-border rounded text-xs bg-white"
                           >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                            <option value="expense">Expense</option>
+                            <option value="income">Income</option>
+                          </select>
+                        </td>
+
+                        {/* Amount */}
+                        <td className="px-3 py-2 text-right">
+                          <input
+                            type="number"
+                            value={entry.amount}
+                            onChange={(e) => update('amount', Number(e.target.value))}
+                            className="w-full p-1.5 border border-swar-border rounded text-xs text-right bg-white"
+                          />
+                        </td>
+
+                        {/* Reality (read-only in compact; editable in expanded) */}
+                        <td className="px-3 py-2 text-right text-xs text-gray-600 font-medium">
+                          ₹{entry.reality.toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Variance */}
+                        <td className={`px-3 py-2 text-center text-xs font-semibold ${varianceColor}`}>
+                          {variance > 0 ? '+' : ''}{variance.toFixed(0)}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-3 py-2 text-center">
+                          <div className="flex gap-1 justify-center">
+                            <button
+                              onClick={() => toggleRow(entry.id)}
+                              title={isExpanded ? 'Collapse' : 'View details'}
+                              className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${isExpanded ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                            >
+                              {isExpanded ? '▲ Hide' : '▼ View'}
+                            </button>
+                            <button
+                              onClick={() => setExpenseBudgets(expenseBudgets.filter((_, i) => i !== idx))}
+                              className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
+                            >✕</button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* ── Expanded detail panel ── */}
+                      {isExpanded && (
+                        <tr className="bg-blue-50/40">
+                          <td colSpan={9} className="px-4 py-3">
+                            <div className="flex flex-wrap gap-4 items-end">
+                              {/* Reality */}
+                              <div className="flex flex-col gap-1 min-w-[120px]">
+                                <label className="text-xs font-semibold text-gray-600">Reality (Actual ₹)</label>
+                                <input
+                                  type="number"
+                                  value={entry.reality}
+                                  onChange={(e) => update('reality', Number(e.target.value))}
+                                  className="p-2 border border-blue-300 rounded text-sm w-full bg-white"
+                                  placeholder="Auto-match"
+                                />
+                              </div>
+                              {/* Repeat */}
+                              <div className="flex flex-col gap-1 min-w-[140px]">
+                                <label className="text-xs font-semibold text-gray-600">Repeat</label>
+                                <select
+                                  value={entry.recurrence || 'none'}
+                                  onChange={(e) => update('recurrence', e.target.value)}
+                                  className="p-2 border border-blue-300 rounded text-sm bg-white"
+                                >
+                                  <option value="none">No repeat</option>
+                                  <option value="monthly">Monthly</option>
+                                  <option value="yearly">Yearly</option>
+                                  <option value="custom">Custom</option>
+                                </select>
+                              </div>
+                              {/* Custom interval */}
+                              {entry.recurrence === 'custom' && (
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-semibold text-gray-600">Every (months)</label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={entry.customInterval || 1}
+                                    onChange={(e) => update('customInterval', Math.max(1, Number(e.target.value)))}
+                                    className="w-20 p-2 border border-blue-300 rounded text-sm bg-white"
+                                  />
+                                </div>
+                              )}
+                              {/* Generate repeating entries */}
+                              {entry.recurrence && entry.recurrence !== 'none' && (
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-xs font-semibold text-gray-600 invisible">Action</label>
+                                  <button
+                                    onClick={() => {
+                                      const newEntries = generateRepeatingEntries(entry, 12);
+                                      if (newEntries.length === 0) {
+                                        alert('All repeat entries already exist!');
+                                      } else {
+                                        setExpenseBudgets([...expenseBudgets, ...newEntries]);
+                                        alert(`✓ Generated ${newEntries.length} repeating entries`);
+                                      }
+                                    }}
+                                    className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700"
+                                  >
+                                    ↻ Generate Repeat
+                                  </button>
+                                </div>
+                              )}
+                              {/* Variance badge */}
+                              <div className="flex flex-col gap-1 ml-auto">
+                                <label className="text-xs font-semibold text-gray-600">Variance</label>
+                                <div className={`px-3 py-2 rounded text-sm font-bold ${variance > 0 ? 'bg-red-100 text-red-700' : variance < 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {variance > 0 ? '▲ Over' : variance < 0 ? '▼ Under' : '✓ On target'}&nbsp;
+                                  ₹{Math.abs(variance).toLocaleString('en-IN')}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -1012,20 +1145,20 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                 return (
                   <tfoot className="bg-gray-100 border-t-2 border-gray-300 font-bold">
                     <tr>
-                      <td colSpan={3} className="px-4 py-3 text-sm font-bold">TOTAL</td>
-                      <td className="px-4 py-3 text-sm"></td>
-                      <td className="px-4 py-3 text-xs">
+                      <td colSpan={2} className="px-3 py-3 text-sm font-bold">TOTAL</td>
+                      <td className="px-3 py-3 text-xs">
                         <div className="text-green-700">Inc: ₹{totalIncome.toLocaleString()}</div>
                         <div className="text-red-700">Exp: ₹{totalBudget.toLocaleString()}</div>
                       </td>
-                      <td className="px-4 py-3 text-right text-sm">₹{totalBudget.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right text-sm">₹{totalRealExp.toLocaleString()}</td>
-                      <td className={`px-4 py-3 text-center text-sm font-bold ${netBudget >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      <td className="px-3 py-3"></td>
+                      <td className="px-3 py-3"></td>
+                      <td className="px-3 py-3 text-right text-sm">₹{totalBudget.toLocaleString()}</td>
+                      <td className="px-3 py-3 text-right text-sm">₹{totalRealExp.toLocaleString()}</td>
+                      <td className={`px-3 py-3 text-center text-sm font-bold ${netBudget >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                         <div>{netReal >= 0 ? '+' : ''}{netReal.toLocaleString()} <span className="text-xs font-normal">real</span></div>
                         <div className="text-xs text-gray-500">{netBudget >= 0 ? '+' : ''}{netBudget.toLocaleString()} plan</div>
                       </td>
-                      <td className="px-4 py-3"></td>
-                      <td className="px-4 py-3"></td>
+                      <td className="px-3 py-3"></td>
                     </tr>
                   </tfoot>
                 );
