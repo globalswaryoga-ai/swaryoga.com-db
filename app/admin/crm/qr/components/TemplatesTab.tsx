@@ -659,7 +659,7 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
                   onChange={(e) => setFormData({ ...formData, body: e.target.value })}
                   placeholder="Your message here..."
                   rows={4}
-                  className="w-full px-3 py-2 border border-t-0 rounded-b-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                  className="w-full px-3 py-2 border border-t-0 rounded-b-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-y min-h-[100px]"
                 />
               </div>
 
