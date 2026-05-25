@@ -202,10 +202,14 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
         const monthEnd = new Date(yr, mo, 0);
 
         // Sum matching transactions in that month
+        // Income entries: only earned income (type=income), never loans
+        // Expense entries: regular expenses + EMI repayments (but not loan receipts)
         const matched = transactions.filter(t => {
           const d = new Date(t.date);
           const sameMonth = d >= monthStart && d <= monthEnd;
-          const sameType = entry.type === 'income' ? t.type === 'income' : t.type === 'expense';
+          const sameType = entry.type === 'income'
+            ? t.type === 'income'                        // only earned income — loans excluded
+            : (t.type === 'expense' || t.type === 'emi'); // expense + loan repayments
           const sameHead = entry.accountHead
             ? t.category?.toLowerCase().includes(entry.accountHead.toLowerCase()) ||
               t.description?.toLowerCase().includes(entry.accountHead.toLowerCase()) ||
@@ -388,9 +392,11 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     const totalProfit = (totalProfitPercent / 100) * totalIncome;
 
     // Real figures from actual transactions (current year)
+    // Loans received are NOT income — only count earned income (type='income')
+    // Expenses include regular expenses + loan repayments (EMI), but NOT loan receipts
     const yearTxns = realTransactions.filter(t => new Date(t.date).getFullYear() === (plan.year || year));
     const realIncome = yearTxns.filter(t => t.type === 'income').reduce((s: number, t: any) => s + (t.amount || 0), 0);
-    const realExpenses = yearTxns.filter(t => t.type === 'expense').reduce((s: number, t: any) => s + (t.amount || 0), 0);
+    const realExpenses = yearTxns.filter(t => t.type === 'expense' || t.type === 'emi').reduce((s: number, t: any) => s + (t.amount || 0), 0);
 
     // Budget utilization: real expenses vs budgeted expenses
     const actualTotalOutflow = report?.totals?.outflow || realExpenses;
@@ -995,15 +1001,23 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
           const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
           if (!txByMonth[mk]) txByMonth[mk] = { income: 0, expense: 0 };
           if (t.type === 'income') txByMonth[mk].income += t.amount || 0;
-          if (t.type === 'expense') txByMonth[mk].expense += t.amount || 0;
+          // Expenses include both regular expenses AND loan repayments (EMI)
+          // Loan receipts (type='loan') are NOT counted as income
+          if (t.type === 'expense' || t.type === 'emi') txByMonth[mk].expense += t.amount || 0;
         });
 
         // Match allocation to actual using smart matcher
+        // Expense allocations include both regular expenses AND loan repayments (emi)
+        // Loans received (type='loan') are NEVER counted as income or expense
         const getAllocActual = (alloc: BudgetAllocation, mk: string): number => {
           // Sum all transactions in this month that match this allocation
           return realTransactions
             .filter((t: any) => {
-              if (t.type !== 'expense') return false;
+              // Income allocations: only earned income (never loans)
+              if (alloc.kind === 'profit') return false; // profit allocations not matched to transactions
+              // Expense allocations: count both expense and emi (loan repayments)
+              const isRelevantType = t.type === 'expense' || t.type === 'emi';
+              if (!isRelevantType) return false;
               const d = new Date(t.date);
               const tmk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
               return tmk === mk && matchesAlloc(alloc, t.category || '', t.description || '');
@@ -1122,11 +1136,11 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                   </tr>
                 </thead>
                 <tbody>
-                  {/* ── Income Row ── */}
+                  {/* ── Income Row — earned income only, loans excluded ── */}
                   <tr className="bg-green-50 border-b-2 border-green-300">
                     <td className="sticky left-0 z-10 bg-green-50 px-3 py-2 border-r border-green-200" style={{ minWidth: '155px' }}>
-                      <div className="font-bold text-green-800 text-sm">💰 Income</div>
-                      <div className="text-[10px] text-green-600">Target vs Actual</div>
+                      <div className="font-bold text-green-800 text-sm">💰 Real Income</div>
+                      <div className="text-[10px] text-green-600">Earned only (excl. loans)</div>
                     </td>
                     <td className="px-1 py-2 text-center text-xs font-bold text-green-700">100%</td>
                     {quarters.map(q => (

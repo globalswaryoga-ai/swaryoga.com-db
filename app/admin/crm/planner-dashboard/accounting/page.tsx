@@ -1034,12 +1034,17 @@ export default function LifePlannerAccountingPage() {
               }
 
               // Totals for selected month
-              const totalInflow = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-                + monthTxns.filter(t => t.type === 'loan').reduce((s, t) => s + t.amount, 0)
-                + monthTxns.filter(t => t.type === 'investment_out').reduce((s, t) => s + t.amount, 0);
-              const totalOutflow = monthTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-                + monthTxns.filter(t => t.type === 'emi').reduce((s, t) => s + t.amount, 0)
-                + monthTxns.filter(t => t.type === 'investment_in').reduce((s, t) => s + t.amount, 0);
+              // Loans are NOT income — separate them clearly
+              const realIncome = monthTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+              const loanReceived = monthTxns.filter(t => t.type === 'loan').reduce((s, t) => s + t.amount, 0);
+              const investmentReturn = monthTxns.filter(t => t.type === 'investment_out').reduce((s, t) => s + t.amount, 0);
+              const totalInflow = realIncome + loanReceived + investmentReturn;
+              const totalExpenses = monthTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+              const loanRepayment = monthTxns.filter(t => t.type === 'emi').reduce((s, t) => s + t.amount, 0);
+              const investmentOut = monthTxns.filter(t => t.type === 'investment_in').reduce((s, t) => s + t.amount, 0);
+              const totalOutflow = totalExpenses + loanRepayment + investmentOut;
+              // Net savings = earned income minus actual expenses (excluding loan flows)
+              const netSavings = realIncome - totalExpenses;
               const monthNet = totalInflow - totalOutflow;
 
               return (
@@ -1068,24 +1073,43 @@ export default function LifePlannerAccountingPage() {
                     </div>
                   </div>
 
-                  {/* Top Summary for Month */}
-                  <div className="grid grid-cols-3 gap-3 mb-5">
+                  {/* Top Summary for Month — 5 cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
+                    {/* Real Income — earned only, never loans */}
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                      <p className="text-xs text-green-700 font-medium">Total In-Flow</p>
-                      <p className="text-xl font-bold text-green-800">₹{totalInflow.toLocaleString()}</p>
-                      <p className="text-xs text-green-600 mt-0.5">Income + Loans + Investments</p>
+                      <p className="text-xs text-green-700 font-semibold">💰 Real Income</p>
+                      <p className="text-xl font-bold text-green-800">₹{realIncome.toLocaleString()}</p>
+                      <p className="text-xs text-green-600 mt-0.5">Earned only</p>
                     </div>
+                    {/* Loan Received — borrowed, NOT income */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                      <p className="text-xs text-blue-700 font-semibold">🏦 Loan Received</p>
+                      <p className="text-xl font-bold text-blue-800">₹{loanReceived.toLocaleString()}</p>
+                      <p className="text-xs text-blue-600 mt-0.5">Borrowed (not income)</p>
+                    </div>
+                    {/* Total Expenses */}
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                      <p className="text-xs text-red-700 font-medium">Total Out-Flow</p>
-                      <p className="text-xl font-bold text-red-800">₹{totalOutflow.toLocaleString()}</p>
-                      <p className="text-xs text-red-600 mt-0.5">Expenses + EMI + Investments</p>
+                      <p className="text-xs text-red-700 font-semibold">🛒 Expenses</p>
+                      <p className="text-xl font-bold text-red-800">₹{totalExpenses.toLocaleString()}</p>
+                      <p className="text-xs text-red-600 mt-0.5">Regular spending</p>
                     </div>
-                    <div className={`${monthNet >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'} border rounded-lg p-3 text-center`}>
-                      <p className={`text-xs font-medium ${monthNet >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>Net Balance</p>
-                      <p className={`text-xl font-bold ${monthNet >= 0 ? 'text-blue-800' : 'text-orange-800'}`}>
-                        {monthNet >= 0 ? '+' : ''}₹{monthNet.toLocaleString()}
+                    {/* Loan Repayment — EMI */}
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                      <p className="text-xs text-orange-700 font-semibold">📋 Loan Repayment</p>
+                      <p className="text-xl font-bold text-orange-800">₹{loanRepayment.toLocaleString()}</p>
+                      <p className="text-xs text-orange-600 mt-0.5">EMI paid this month</p>
+                    </div>
+                    {/* Net Savings = income - expenses (no loans) */}
+                    <div className={`${netSavings >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'} border rounded-lg p-3 text-center`}>
+                      <p className={`text-xs font-semibold ${netSavings >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        {netSavings >= 0 ? '✅ Net Savings' : '⚠️ Deficit'}
                       </p>
-                      <p className={`text-xs mt-0.5 ${monthNet >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{monthNet >= 0 ? '✓ Surplus' : '⚠ Deficit'}</p>
+                      <p className={`text-xl font-bold ${netSavings >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                        {netSavings >= 0 ? '+' : ''}₹{netSavings.toLocaleString()}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${netSavings >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        Income − Expenses
+                      </p>
                     </div>
                   </div>
 
