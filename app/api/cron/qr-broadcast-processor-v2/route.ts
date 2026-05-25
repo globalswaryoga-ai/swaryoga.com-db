@@ -444,7 +444,8 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       { _id: schedule._id },
       {
         lastRunDate: new Date(),
-        status: failed === recipients.length ? 'failed' : 'completed',
+        // 'failed' only if ZERO messages got through; 'completed' if at least 1 was sent
+        status: sent === 0 && failed > 0 ? 'failed' : 'completed',
         'stats.totalAttempted': (schedule.stats?.totalAttempted || 0) + recipients.length,
         'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
         'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
@@ -474,6 +475,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       { _id: schedule._id },
       {
         status: 'failed',
+        lastRunDate: new Date(), // ← prevent infinite retry: mark as run so today check skips it
         lastError: error instanceof Error ? error.message : 'Unknown error',
         lastErrorAt: new Date(),
       }

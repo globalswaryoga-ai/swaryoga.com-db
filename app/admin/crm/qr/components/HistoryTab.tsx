@@ -219,6 +219,23 @@ export function HistoryTab({ token }: HistoryTabProps) {
     setDeleting(null);
   };
 
+  // Reset a FAILED schedule back to 'scheduled' so the cron will retry it
+  const retrySchedule = async (id: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/admin/crm/qr-broadcast-schedule/${id}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'scheduled', lastError: null, lastRunDate: null }),
+      });
+      if (res.ok) {
+        setBroadcasts(prev => prev.map(b =>
+          b._id === id ? { ...b, status: 'scheduled' } : b
+        ));
+      }
+    } catch (e) { /* ignore */ }
+  };
+
   const fetchData = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -252,41 +269,24 @@ export function HistoryTab({ token }: HistoryTabProps) {
         const data = await broadcastsRes.json();
         const schedules = data?.data ?? [];
 
-        // Fetch stats for each broadcast
-        const enrichedBroadcasts = await Promise.all(
-          schedules.map(async (broadcast: any) => {
-            try {
-              const statsRes = await fetch(
-                `/api/admin/crm/qr-broadcast-schedule/stats?scheduleId=${broadcast._id}`,
-                { headers: { 'Authorization': `Bearer ${token}` } }
-              );
-              if (statsRes.ok) {
-                const statsData = await statsRes.json();
-                return {
-                  ...broadcast,
-                  stats: {
-                    totalSent: statsData.stats?.totalSent || 0,
-                    totalFailed: 0,
-                    totalPending: Math.max(0, (broadcast.totalRecipients || 0) - (statsData.stats?.totalSent || 0)),
-                    totalBlocked: 0,
-                  }
-                };
-              }
-            } catch (e) {
-              // Fallback if stats fetch fails
-            }
-
-            return {
-              ...broadcast,
-              stats: {
-                totalSent: 0,
-                totalFailed: 0,
-                totalPending: broadcast.totalRecipients || 0,
-                totalBlocked: 0,
-              }
-            };
-          })
-        );
+        // Use the schedule's own stats (correctly updated by the processor after SUCCESSFUL sends).
+        // Do NOT use message_dedup_log which counts reservations made BEFORE sending —
+        // that would show "Sent: 1" even when the bridge failed.
+        const enrichedBroadcasts = schedules.map((broadcast: any) => {
+          const s = broadcast.stats || {};
+          const totalSent    = s.totalSent    || 0;
+          const totalFailed  = s.totalFailed  || 0;
+          const totalSkipped = s.totalSkipped || 0;
+          // Pending = recipients not yet processed
+          const totalPending = Math.max(
+            0,
+            (broadcast.totalRecipients || 0) - totalSent - totalFailed - totalSkipped
+          );
+          return {
+            ...broadcast,
+            stats: { totalSent, totalFailed, totalPending, totalBlocked: 0 },
+          };
+        });
         setBroadcasts(enrichedBroadcasts);
       }
 
@@ -480,17 +480,24 @@ export function HistoryTab({ token }: HistoryTabProps) {
                   ? new Date((broadcast as any).createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })
                   : '—';
 
+                const isFailed  = broadcast.status === 'failed';
+                const lastError = (broadcast as any).lastError;
+
                 return (
                   <tr key={broadcast._id} className="hover:bg-gray-50 transition">
                     <td className="px-3 py-2 max-w-[200px]">
                       <p className="text-gray-800 truncate font-medium" title={broadcast.messageText}>{broadcast.messageText}</p>
                       {broadcast.isActive && <span className="text-[10px] text-green-600">● Active</span>}
+                      {isFailed && lastError && (
+                        <p className="text-[10px] text-red-500 truncate mt-0.5" title={lastError}>⚠ {lastError}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{broadcast.startTime}–{broadcast.endTime}</td>
                     <td className="px-3 py-2 text-gray-700 font-medium">{broadcast.totalRecipients}</td>
                     <td className="px-3 py-2">
                       <span className="text-green-700 font-semibold">{stats.totalSent}</span>
                       {(stats.totalFailed || 0) > 0 && <span className="text-red-600 ml-1">/ {stats.totalFailed}✕</span>}
+                      {(stats.totalPending || 0) > 0 && <span className="text-blue-500 ml-1">/ {stats.totalPending}⏳</span>}
                       <div className="w-16 h-1 bg-gray-200 rounded-full mt-1">
                         <div className="h-full bg-green-500 rounded-full" style={{ width: `${Math.min(100, progress)}%` }} />
                       </div>
@@ -506,6 +513,15 @@ export function HistoryTab({ token }: HistoryTabProps) {
                         <button onClick={() => setSelectedBroadcast(broadcast)} className="p-1 text-green-600 hover:bg-green-50 rounded" title="View details">
                           <Eye className="w-3.5 h-3.5" />
                         </button>
+                        {/* Retry button — resets failed schedule back to scheduled */}
+                        {isFailed && (
+                          <button
+                            onClick={() => retrySchedule(broadcast._id)}
+                            className="p-1 text-blue-500 hover:bg-blue-50 rounded text-[10px] font-bold" title="Retry — reset to scheduled"
+                          >
+                            ↺
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteSchedule(broadcast._id)}
                           disabled={deleting === broadcast._id}
