@@ -17,7 +17,6 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { crmPlannerStorage } from '@/lib/crmPlannerMongoStorage';
-import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { ActionPlan, Goal, Reminder, Task, Todo, Vision, Word } from '@/lib/types/lifePlanner';
 import LifePlannerImageUpload from '@/components/LifePlannerImageUpload';
 
@@ -173,13 +172,13 @@ export default function EnhancedCalendar() {
 
       const [mongoVisions, mongoPlans, mongoGoals, mongoTasks, mongoTodos, mongoReminders, mongoWords] =
         await Promise.all([
-          lifePlannerStorage.getVisions(),
-          lifePlannerStorage.getActionPlans(),
-          lifePlannerStorage.getGoals(),
-          lifePlannerStorage.getTasks(),
-          lifePlannerStorage.getTodos(),
-          lifePlannerStorage.getReminders(),
-          lifePlannerStorage.getWords(),
+          crmPlannerStorage.getVisions(),
+          crmPlannerStorage.getActionPlans(),
+          crmPlannerStorage.getGoals(),
+          crmPlannerStorage.getTasks(),
+          crmPlannerStorage.getTodos(),
+          crmPlannerStorage.getReminders(),
+          crmPlannerStorage.getWords(),
         ]);
 
       const safeArray = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
@@ -456,10 +455,10 @@ export default function EnhancedCalendar() {
         updatedAt: nowIso,
       };
 
-      lifePlannerStorage
+      crmPlannerStorage
         .getTodos()
         .then((existing) => (Array.isArray(existing) ? existing : []))
-        .then((existing) => lifePlannerStorage.saveTodos([...existing, todo as any]))
+        .then((existing) => crmPlannerStorage.saveTodos([...existing, todo as any]))
         .catch(() => {
           // ignore
         });
@@ -478,10 +477,10 @@ export default function EnhancedCalendar() {
         updatedAt: nowIso,
       };
 
-      lifePlannerStorage
+      crmPlannerStorage
         .getReminders()
         .then((existing) => (Array.isArray(existing) ? existing : []))
-        .then((existing) => lifePlannerStorage.saveReminders([...existing, reminder as any]))
+        .then((existing) => crmPlannerStorage.saveReminders([...existing, reminder as any]))
         .catch(() => {
           // ignore
         });
