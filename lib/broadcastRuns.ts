@@ -2,7 +2,7 @@ import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
-import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -295,9 +295,10 @@ export async function processDueBroadcastRuns(options?: {
             const runUserId = String((run as any).createdByUserId || '');
             // Load user's permanentTenantId so the bridge routes to the right WhatsApp session
             const userSettings = runUserId
-              ? await CRMUserSettings.findOne({ userId: runUserId }, { permanentTenantId: 1, qrBridgeUrl: 1 }).lean()
+              ? await CRMUserSettings.findOne({ userId: runUserId }, { permanentTenantId: 1, qrBridgeUrl: 1, qrConnectedPhoneNumber: 1 }).lean()
               : null;
             const sessionKey = (userSettings as any)?.permanentTenantId || runUserId;
+            const connectedPhone = String((userSettings as any)?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, '');
             const resolvedBridgeUrl = (userSettings as any)?.qrBridgeUrl?.trim() || bridgeUrl;
             // Headers required by the bridge to route to the correct session
             const sessionHeaders: Record<string, string> = {
@@ -305,6 +306,7 @@ export async function processDueBroadcastRuns(options?: {
               'x-bridge-secret': bridgeSecret,
               'x-user-id': runUserId,
               'x-session-key': sessionKey,
+              'x-tenant-id': sessionKey,
             };
             
             // Build template message content with header, body, footer
@@ -416,10 +418,46 @@ export async function processDueBroadcastRuns(options?: {
             
             const bridgeData = await bridgeResponse.json();
             console.log('[Broadcast QR] Bridge response:', bridgeData);
+            const waMessageId = bridgeData?.id || bridgeData?.messageId || bridgeData?.key?.id || `qr_${Date.now()}`;
             apiResult = {
-              waMessageId: bridgeData?.id || bridgeData?.messageId || bridgeData?.key?.id || `qr_${Date.now()}`,
+              waMessageId,
               raw: { provider: 'qr' },
             };
+
+            // Save to qr_whatsapp_messages so the stats/history page shows this send
+            if (connectedPhone) {
+              try {
+                const QrMsg = getQrWhatsAppMessage();
+                const chatJid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+                await QrMsg.updateOne(
+                  { messageId: waMessageId, chatJid },
+                  {
+                    $set: {
+                      userId: runUserId,
+                      connectedPhone,
+                      chatJid,
+                      messageId: waMessageId,
+                      direction: 'outbound',
+                      fromMe: true,
+                      text: String((template as any).templateContent || '').trim(),
+                      type: hasImage ? 'image' : 'text',
+                      participant: '',
+                      pushName: '',
+                      timestamp: Math.floor(Date.now() / 1000),
+                      status: 1,
+                      hasMedia: hasImage,
+                      mediaUrl: hasImage ? (mediaUrl || '') : '',
+                      mediaMimetype: '',
+                      mediaFileName: '',
+                    },
+                    $setOnInsert: { createdAt: new Date() },
+                  },
+                  { upsert: true }
+                );
+              } catch (qrSaveErr) {
+                console.warn('[Broadcast QR] Warning: failed to save to qr_whatsapp_messages:', qrSaveErr instanceof Error ? qrSaveErr.message : String(qrSaveErr));
+              }
+            }
           } else {
             // Send via Meta Cloud API (default)
             const { buildCloudTemplateSendInput, sendWhatsAppTemplate, sendWhatsAppText } = await import('@/lib/whatsapp');
