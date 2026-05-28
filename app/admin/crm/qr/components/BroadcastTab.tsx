@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 
 interface BroadcastTabProps { token: string | null; isConnected: boolean }
 
-export default function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
+export function BroadcastTab({ token, isConnected }: BroadcastTabProps) {
   const router = useRouter();
 
   useEffect(() => {
