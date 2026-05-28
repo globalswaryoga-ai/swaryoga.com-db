@@ -781,8 +781,12 @@ export default function QRLeadsPage() {
                           <a href={`mailto:${lead.email || ''}`} className="p-1 rounded hover:bg-indigo-50" title="Email">
                             <Mail className="w-3.5 h-3.5 text-gray-400 hover:text-indigo-600" />
                           </a>
-                          <button onClick={() => handleDeleteLead(lead._id)} className="p-1 rounded hover:bg-red-50" title="Delete">
-                            <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
+                          <button
+                            onClick={() => handleDeleteLead(lead._id)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 text-xs font-medium transition"
+                            title="Delete lead"
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
                           </button>
                         </div>
                       </td>
