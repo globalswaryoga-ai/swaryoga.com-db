@@ -118,7 +118,7 @@ export default function QRBroadcastPage() {
     setLoading(true);
     try {
       const [leadsRes, templatesRes, runsRes] = await Promise.all([
-        fetch('/api/admin/crm/leads?limit=5000&selectAll=true&fields=name,phoneNumber,status,workshopName,assignedToUserId,userName,labels', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/leads?qrOnly=1&limit=5000&selectAll=true&fields=name,phoneNumber,status,workshopName,assignedToUserId,userName,labels', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/templates?provider=qr&limit=100', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/broadcast-runs?provider=qr&limit=10', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
@@ -631,7 +631,7 @@ export default function QRBroadcastPage() {
               {loading ? (
                 <div className="text-center py-12 text-gray-500"><div className="animate-spin text-4xl mb-2">⏳</div>Loading leads...</div>
               ) : filteredLeads.length === 0 ? (
-                <div className="text-center py-12 text-gray-500"><span className="text-4xl">👤</span><p className="mt-2">No leads found</p></div>
+                <div className="text-center py-12 text-gray-500"><span className="text-4xl">👤</span><p className="mt-2">No QR contacts found</p><p className="text-xs mt-1">Only contacts who have chatted via QR WhatsApp appear here</p></div>
               ) : (
                 filteredLeads.map(lead => (
                   <label key={lead._id} className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all group ${

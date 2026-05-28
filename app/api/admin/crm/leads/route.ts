@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     const q = url.searchParams.get('q');
     const userIdParam = url.searchParams.get('userId');
     const metaOnly24h = url.searchParams.get('metaOnly24h') === '1';  // Filter for Meta messages in 24h
+    const qrOnly = url.searchParams.get('qrOnly') === '1';            // Filter for QR bridge contacts only
     // NOTE: Some admin screens (e.g., Broadcast) need a large dataset so client-side
     // segmentation/filtering is accurate.
     // We allow a higher cap when explicitly requested via selectAll=true.
@@ -143,6 +144,30 @@ export async function GET(request: NextRequest) {
 
     // Ensure leads and filter are valid before querying
     // Lead model is initialized above via getLead()
+
+    // ── Filter by QR bridge contacts (all-time) ──
+    if (qrOnly) {
+      const WhatsAppMessage = getWhatsAppMessage();
+      const qrLeadIds = await WhatsAppMessage.find({
+        provider: 'qr',
+        leadId: { $exists: true, $ne: null },
+      }).distinct('leadId').lean();
+
+      const qrIds = qrLeadIds.map((id: any) => String(id));
+
+      if (qrIds.length === 0) {
+        return NextResponse.json({ success: true, data: { leads: [], total: 0, limit, skip } }, { status: 200 });
+      }
+
+      if (filter.$and) {
+        filter.$and.push({ _id: { $in: qrIds } });
+      } else if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, { _id: { $in: qrIds } }];
+        delete filter.$or;
+      } else {
+        filter._id = { $in: qrIds };
+      }
+    }
 
     // ── Filter by Meta messages in 24-hour window ──
     if (metaOnly24h) {
