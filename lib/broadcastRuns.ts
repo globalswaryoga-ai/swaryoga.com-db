@@ -363,17 +363,17 @@ export async function processDueBroadcastRuns(options?: {
             let bridgeResponse: Response;
 
             if (hasImage) {
-              // Always use /send-template for image messages so image + text arrive together
-              console.log('[Broadcast QR] Using /send-template (image + text)');
-              bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send-template`, {
+              // Use /send with type:image — bridge does not have /send-template endpoint
+              console.log('[Broadcast QR] Using /send type:image (image + caption)');
+              bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                 method: 'POST',
                 headers: sessionHeaders,
                 body: JSON.stringify({
                   to,
+                  type: 'image',
                   imageUrl: mediaUrl,
-                  bodyText: templateContent,
+                  caption: templateContent,
                   ...(buttonTitles.length > 0 ? { buttons: buttonTitles } : {}),
-                  ...(footerText ? { footerText } : {}),
                 }),
                 cache: 'no-store',
               }, 20000);

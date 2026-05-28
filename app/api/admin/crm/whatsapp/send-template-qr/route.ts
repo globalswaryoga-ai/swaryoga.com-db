@@ -132,17 +132,15 @@ export async function POST(request: NextRequest) {
 
     // Send via QR Bridge ONLY
     try {
-      // Use standard /send endpoint (same as regular messages)
-      // The bridge will handle template-style messages the same way
-      // Use /send-template when image is present so image+text arrive together
-      const endpoint = finalImageUrl ? '/send-template' : '/send';
+      // Bridge only supports /send — use type:image when imageUrl present
+      const endpoint = '/send';
       const payload = finalImageUrl
         ? {
             to: normalizedPhone,
+            type: 'image',
             imageUrl: finalImageUrl,
-            bodyText: finalBodyText || 'Template message',
+            caption: finalBodyText || 'Template message',
             ...(finalButtons.length > 0 ? { buttons: finalButtons } : {}),
-            ...(finalFooterText ? { footerText: finalFooterText } : {}),
           }
         : {
             to: normalizedPhone,
