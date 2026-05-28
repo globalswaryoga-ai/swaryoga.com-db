@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { isSuperAdmin, getViewerUserId, getVisibleUserIds } from '@/lib/crm-handlers';
 import { BroadcastRun, BroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
@@ -29,8 +29,13 @@ export async function GET(request: NextRequest) {
 
     const baseFilter: any = { provider: 'qr' };
     if (!isSuperAdmin(decoded)) {
-      const uid = getViewerUserId(decoded);
-      if (uid) baseFilter.createdByUserId = uid;
+      const visibleIds = getVisibleUserIds(decoded);
+      if (visibleIds && visibleIds.length > 0) {
+        baseFilter.createdByUserId = { $in: visibleIds };
+      } else {
+        const uid = getViewerUserId(decoded);
+        if (uid) baseFilter.createdByUserId = uid;
+      }
     }
 
     // ── Overall run counts ────────────────────────────────────────────────────

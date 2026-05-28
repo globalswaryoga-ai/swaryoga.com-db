@@ -21,7 +21,11 @@ function toObjectId(id: string) {
   return new mongoose.Types.ObjectId(id);
 }
 
-async function resolveLeadIdsFromTarget(target: any): Promise<mongoose.Types.ObjectId[]> {
+async function resolveLeadIdsFromTarget(
+  target: any,
+  viewerUserId: string,
+  superAdmin: boolean,
+): Promise<mongoose.Types.ObjectId[]> {
   // Back-compat: some clients send { target: { leadIds: [...] } } without a `type`.
   // Prefer explicit leadIds when present.
   if (Array.isArray(target?.leadIds) && target.leadIds.length) {
@@ -39,9 +43,12 @@ async function resolveLeadIdsFromTarget(target: any): Promise<mongoose.Types.Obj
     return members.map((m: any) => toObjectId(String(m.leadId)));
   }
 
-  // filters
+  // filters — always scope to viewer's own leads
   const filters = target?.filters || {};
   const q: any = {};
+  if (!superAdmin) {
+    q.$or = [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }];
+  }
   if (filters.status) q.status = String(filters.status);
   if (filters.workshopName) q.workshopName = String(filters.workshopName);
   if (filters.assignedToUserId) q.assignedToUserId = String(filters.assignedToUserId);
@@ -119,13 +126,17 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const template = await WhatsAppTemplate.findById(templateId).lean();
+    const superAdmin = isSuperAdmin(decoded);
+    const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || 'admin');
+
+    // Verify template ownership — non-superadmins can only use their own templates
+    const templateQuery: any = { _id: toObjectId(templateId) };
+    if (!superAdmin) templateQuery.createdBy = viewerUserId;
+    const template = await WhatsAppTemplate.findOne(templateQuery).lean();
     if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
 
-    // Templates are chargeable and can be sent anytime - no approval check required
-
     const target = body?.target || { type: 'filters', filters: {} };
-    const leadIds = await resolveLeadIdsFromTarget(target);
+    const leadIds = await resolveLeadIdsFromTarget(target, viewerUserId, superAdmin);
 
     // Handle CSV contacts — create leads on-the-fly for new phone numbers
     const csvContacts: Array<{ name?: string; phoneNumber: string; email?: string }> = target?.csvContacts || [];
@@ -147,6 +158,8 @@ export async function POST(request: NextRequest) {
             email: c.email || undefined,
             status: 'csv-import',
             source: 'csv-broadcast',
+            createdByUserId: viewerUserId,
+            assignedToUserId: viewerUserId,
           });
           leadIds.push(toObjectId(String(newLead._id)));
         }
@@ -240,8 +253,8 @@ export async function POST(request: NextRequest) {
 
     const run = await BroadcastRun.create({
       name,
-      createdByUserId: String(decoded?.userId || 'admin'),
-      createdByLabel: String(decoded?.userId || 'admin'),
+      createdByUserId: viewerUserId,
+      createdByLabel: viewerUserId,
       mode,
       provider, // 'meta' or 'qr'
       scheduledAt,
