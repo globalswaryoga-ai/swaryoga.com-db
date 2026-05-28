@@ -321,8 +321,10 @@ export async function GET(request: NextRequest) {
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
     const status = url.searchParams.get('status');
+    const provider = url.searchParams.get('provider');
     const filter: any = {};
     if (status) filter.status = String(status);
+    if (provider && ['meta', 'qr'].includes(provider)) filter.provider = provider;
 
     // Non-superadmins only see their own broadcasts
     const superAdmin = isSuperAdmin(decoded);

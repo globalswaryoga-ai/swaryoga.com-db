@@ -1,750 +1,395 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useCRM } from '@/hooks/useCRM';
 import {
-  Clock, Send, Search, Users, Loader2, CheckCircle2, X, AlertCircle,
-  Plus, Edit2, Trash2, Pause, Play, Eye
+  Plus, RefreshCw, Loader2, AlertCircle, Send, Clock, CheckCircle2,
+  XCircle, Play, Pause, Trash2, ChevronDown, ChevronUp, Users,
+  MessageSquare, BarChart2, Calendar,
 } from 'lucide-react';
 
-type Schedule = {
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface RunStats {
+  total: number;
+  pending: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  delivered?: number;
+  read?: number;
+}
+
+interface BroadcastRun {
   _id: string;
   name: string;
-  messageText: string;
-  totalRecipients: number;
-  startTime: string;
-  endTime: string;
-  frequency: string;
-  maxMessagesPerDay: number;
-  isActive: boolean;
-  status: string;
-  stats?: { totalSent: number; totalFailed: number };
-  lastRunDate?: string;
+  status: 'draft' | 'scheduled' | 'running' | 'completed' | 'cancelled' | 'failed';
+  provider: string;
+  mode: string;
+  stats: RunStats;
+  scheduledAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  templateSnapshot?: { templateName?: string };
+  lastError?: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  draft:     { label: 'Draft',     color: 'bg-gray-100 text-gray-600',    icon: <Clock className="w-3 h-3" /> },
+  scheduled: { label: 'Scheduled', color: 'bg-blue-100 text-blue-700',    icon: <Calendar className="w-3 h-3" /> },
+  running:   { label: 'Running',   color: 'bg-yellow-100 text-yellow-700', icon: <Play className="w-3 h-3" /> },
+  completed: { label: 'Completed', color: 'bg-green-100 text-green-700',  icon: <CheckCircle2 className="w-3 h-3" /> },
+  cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-500',    icon: <XCircle className="w-3 h-3" /> },
+  failed:    { label: 'Failed',    color: 'bg-red-100 text-red-700',      icon: <XCircle className="w-3 h-3" /> },
 };
 
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
+function ProgressBar({ stats }: { stats: RunStats }) {
+  if (!stats?.total) return <div className="text-xs text-gray-400">No recipients</div>;
+  const sentPct = Math.round(((stats.sent || 0) / stats.total) * 100);
+  const failedPct = Math.round(((stats.failed || 0) / stats.total) * 100);
+  return (
+    <div className="space-y-1">
+      <div className="flex rounded-full overflow-hidden h-2 bg-gray-200">
+        <div className="bg-green-500 transition-all" style={{ width: `${sentPct}%` }} />
+        <div className="bg-red-400 transition-all" style={{ width: `${failedPct}%` }} />
+      </div>
+      <div className="flex gap-3 text-xs text-gray-500">
+        <span className="text-green-600 font-medium">{stats.sent || 0} sent</span>
+        {(stats.failed || 0) > 0 && <span className="text-red-500">{stats.failed} failed</span>}
+        <span className="ml-auto">{stats.total} total</span>
+      </div>
+    </div>
+  );
+}
+
+function fmtDate(d?: string) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 export default function QRBroadcastSchedulePage() {
   const token = useAuth();
+  const { fetch: crmFetch } = useCRM({ token });
+  const router = useRouter();
 
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [runs, setRuns] = useState<BroadcastRun[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedMessages, setExpandedMessages] = useState<any[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // Recipients state
-  const [recipientMode, setRecipientMode] = useState<'groups' | 'people'>('groups');
-  const [availableGroups, setAvailableGroups] = useState<Array<{id: string; subject: string; participants?: number}>>([]);
-  const [availableLeads, setAvailableLeads] = useState<Array<{_id: string; name: string; phoneNumber: string}>>([]);
-  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
-  const [recipientsLoading, setRecipientsLoading] = useState(false);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    messageText: '',
-    startTime: '05:00',
-    endTime: '22:30',
-    frequency: 'daily',
-    maxMessagesPerDay: 300,
-    description: '',
-    gapStrategy: {
-      preset: 'SAFE', // Default: 60 messages/hour
-      initialGapMs: 7000,
-      initialGapCount: 2,
-      minGapMs: 45000, // 45 seconds
-      maxGapMs: 120000, // 120 seconds
-      ensureVariation: true,
-    },
-  });
-
-  const loadRecipients = useCallback(async () => {
-    if (!token) return;
-    setRecipientsLoading(true);
-    try {
-      const [chatsRes, leadsRes] = await Promise.all([
-        fetch('/api/admin/crm/whatsapp/qr/chats', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/crm/leads?selectAll=true&limit=5000', { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      if (chatsRes.ok) {
-        const data = await chatsRes.json();
-        const chats = data?.chats || [];
-        const groups = chats
-          .filter((c: any) => c.id?.endsWith('@g.us') || c.isGroup || c.isGroupChat)
-          .map((c: any) => ({ id: c.id, subject: c.name || c.subject || 'Unnamed Group', participants: c.participants?.length || 0 }));
-        setAvailableGroups(groups);
-      }
-      if (leadsRes.ok) {
-        const data = await leadsRes.json();
-        setAvailableLeads(data?.data?.leads || []);
-      }
-    } catch (e) { console.error('Error loading recipients:', e); }
-    finally { setRecipientsLoading(false); }
-  }, [token]);
-
-  const loadSchedules = useCallback(async () => {
+  const loadRuns = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/admin/crm/qr-broadcast-schedule', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSchedules(data.data || []);
-      }
+      const params = new URLSearchParams({ provider: 'qr', limit: '50' });
+      if (filterStatus) params.set('status', filterStatus);
+      const res = await crmFetch(`/api/admin/crm/broadcast-runs?${params}`);
+      setRuns(Array.isArray(res?.data?.runs) ? res.data.runs : []);
     } catch (err) {
-      console.error('Error loading schedules:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load runs');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, filterStatus]);
 
+  useEffect(() => { loadRuns(); }, [loadRuns]);
+
+  // Auto-refresh every 15s when any run is active
   useEffect(() => {
-    loadSchedules();
-    loadRecipients();
-  }, [loadSchedules, loadRecipients]);
+    const hasActive = runs.some(r => r.status === 'running' || r.status === 'scheduled');
+    if (!hasActive) return;
+    const t = setInterval(loadRuns, 15000);
+    return () => clearInterval(t);
+  }, [runs, loadRuns]);
 
-  const handleSaveSchedule = async () => {
-    if (!token || !formData.name.trim() || !formData.messageText.trim()) {
-      alert('Please fill in all required fields');
-      return;
-    }
+  async function loadMessages(runId: string) {
+    setMessagesLoading(true);
+    const res = await crmFetch(`/api/admin/crm/broadcast-runs/${runId}?limit=200`).catch(() => null);
+    setExpandedMessages(Array.isArray(res?.data?.messages) ? res.data.messages : []);
+    setMessagesLoading(false);
+  }
 
+  function toggleExpand(id: string) {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    loadMessages(id);
+  }
+
+  async function runAction(runId: string, action: string) {
+    setActionLoading(runId + action);
     try {
-      const url = editingId
-        ? `/api/admin/crm/qr-broadcast-schedule/${editingId}`
-        : '/api/admin/crm/qr-broadcast-schedule';
-
-      const method = editingId ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          recipientChatIds: Array.from(selectedRecipients),
-          totalRecipients: selectedRecipients.size,
-          recipientType: recipientMode,
-          ...formData,
-          maxMessagesPerDay: Math.min(300, Math.max(1, formData.maxMessagesPerDay)),
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        alert(`Schedule ${editingId ? 'updated' : 'created'} successfully! Recipients: ${selectedRecipients.size}`);
-        setShowForm(false);
-        setEditingId(null);
-        setSelectedRecipients(new Set());
-        setFormData({
-          name: '',
-          messageText: '',
-          startTime: '05:00',
-          endTime: '22:30',
-          frequency: 'daily',
-          maxMessagesPerDay: 300,
-          description: '',
-          gapStrategy: {
-            preset: 'SAFE',
-            initialGapMs: 7000,
-            initialGapCount: 2,
-            minGapMs: 45000,
-            maxGapMs: 120000,
-            ensureVariation: true,
-          },
+      if (action === 'start') {
+        await crmFetch('/api/admin/crm/broadcast-runs/run', {
+          method: 'POST',
+          body: JSON.stringify({ runId }),
         });
-        await loadSchedules();
       } else {
-        alert('Error: ' + data.error);
+        await crmFetch(`/api/admin/crm/broadcast-runs/${runId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action }),
+        });
       }
-    } catch (err) {
-      console.error('Error saving schedule:', err);
-      alert('Error saving schedule');
+      await loadRuns();
+    } catch {
+      /* noop */
+    } finally {
+      setActionLoading(null);
     }
-  };
+  }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this schedule?')) return;
-
+  async function deleteRun(runId: string) {
+    setActionLoading(runId + 'delete');
     try {
-      const res = await fetch(`/api/admin/crm/qr-broadcast-schedule/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        await loadSchedules();
-      }
-    } catch (err) {
-      console.error('Error deleting schedule:', err);
+      await crmFetch(`/api/admin/crm/broadcast-runs/${runId}`, { method: 'DELETE' });
+      setRuns(prev => prev.filter(r => r._id !== runId));
+      if (expandedId === runId) setExpandedId(null);
+    } catch {
+      /* noop */
+    } finally {
+      setActionLoading(null);
+      setDeleteConfirm(null);
     }
-  };
+  }
 
-  const handleToggleActive = async (id: string, isActive: boolean) => {
-    try {
-      const res = await fetch(`/api/admin/crm/qr-broadcast-schedule/${id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !isActive }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        await loadSchedules();
-      }
-    } catch (err) {
-      console.error('Error toggling schedule:', err);
-    }
-  };
-
-  const filteredSchedules = schedules.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.messageText.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+      <div className="max-w-5xl mx-auto">
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="w-8 h-8 text-blue-600" />
-              Scheduled Broadcasts
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <BarChart2 className="w-6 h-6 text-green-600" />
+              QR Broadcast Runs
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Messages send: 5 AM - 10:30 PM IST | Max 300/day | Random intervals to prevent bans
-            </p>
+            <p className="text-sm text-gray-500 mt-1">Manage scheduled and active QR WhatsApp broadcasts</p>
           </div>
-          <button
-            onClick={() => {
-              setEditingId(null);
-              setSelectedRecipients(new Set());
-              setRecipientMode('groups');
-              setFormData({
-                name: '',
-                messageText: '',
-                startTime: '05:00',
-                endTime: '22:30',
-                frequency: 'daily',
-                maxMessagesPerDay: 300,
-                description: '',
-                gapStrategy: {
-                  preset: 'SAFE',
-                  initialGapMs: 7000,
-                  initialGapCount: 2,
-                  minGapMs: 45000,
-                  maxGapMs: 120000,
-                  ensureVariation: true,
-                },
-              });
-              setShowForm(!showForm);
-            }}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            New Schedule
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={loadRuns} disabled={loading}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={() => router.push('/admin/crm/qr/broadcast')}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
+              <Plus className="w-4 h-4" /> New Broadcast
+            </button>
+          </div>
         </div>
 
-        {/* Form */}
-        {showForm && (
-          <div className="bg-white rounded-lg border shadow-sm p-6 mb-8">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              {editingId ? 'Edit Schedule' : 'Create New Schedule'}
-            </h2>
+        {/* Filter tabs */}
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {['', 'running', 'scheduled', 'completed', 'failed', 'cancelled'].map(s => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                filterStatus === s
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white border text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Schedule Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Daily 9 AM Reminder"
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Message *
-                </label>
-                <textarea
-                  value={formData.messageText}
-                  onChange={e => setFormData({ ...formData, messageText: e.target.value })}
-                  placeholder="Your message here..."
-                  rows={4}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-none"
-                  maxLength={4096}
-                />
-                <p className="text-xs text-gray-500 mt-1">{formData.messageText.length}/4096</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Start Time (IST)
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.startTime}
-                    onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Min: 5:00 AM</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    End Time (IST)
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.endTime}
-                    onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Max: 10:30 PM</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Frequency
-                  </label>
-                  <select
-                    value={formData.frequency}
-                    onChange={e => setFormData({ ...formData, frequency: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="once">Once</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Max Messages/Day
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="300"
-                    value={formData.maxMessagesPerDay}
-                    onChange={e => setFormData({
-                      ...formData,
-                      maxMessagesPerDay: Math.min(300, Math.max(1, parseInt(e.target.value) || 1))
-                    })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Max: 300/day</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  value={formData.description}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Optional notes..."
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* ── RECIPIENTS ── */}
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-green-600" />
-                    Recipients
-                    {selectedRecipients.size > 0 && (
-                      <span className="ml-2 text-xs font-bold text-white bg-green-600 px-2 py-0.5 rounded-full">
-                        {selectedRecipients.size} selected
-                      </span>
-                    )}
-                  </h3>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setRecipientMode('groups'); setSelectedRecipients(new Set()); }}
-                      className={`px-3 py-1 text-xs font-medium rounded-full transition ${recipientMode === 'groups' ? 'bg-purple-600 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      👥 Groups
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setRecipientMode('people'); setSelectedRecipients(new Set()); }}
-                      className={`px-3 py-1 text-xs font-medium rounded-full transition ${recipientMode === 'people' ? 'bg-green-600 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      🧑 People
-                    </button>
-                    <button
-                      type="button"
-                      onClick={loadRecipients}
-                      className="px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
-                    >
-                      🔄 Sync
-                    </button>
-                  </div>
-                </div>
-
-                {recipientsLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-500">Loading...</span>
-                  </div>
-                ) : recipientMode === 'groups' ? (
-                  <>
-                    <div className="flex gap-2 mb-2">
-                      <button type="button" onClick={() => setSelectedRecipients(new Set(availableGroups.map(g => g.id)))}
-                        className="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded font-medium hover:bg-purple-700">
-                        ✓ Select All ({availableGroups.length})
-                      </button>
-                      <button type="button" onClick={() => setSelectedRecipients(new Set())}
-                        className="flex-1 px-3 py-1.5 bg-gray-400 text-white text-xs rounded font-medium hover:bg-gray-500">
-                        ✕ Clear
-                      </button>
-                    </div>
-                    {availableGroups.length === 0 ? (
-                      <p className="text-sm text-gray-500 py-4 text-center">⚠️ No groups found. Make sure WhatsApp is connected and click Sync.</p>
-                    ) : (
-                      <div className="max-h-48 overflow-y-auto border rounded bg-white divide-y">
-                        {availableGroups.map(g => (
-                          <label key={g.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" className="rounded"
-                              checked={selectedRecipients.has(g.id)}
-                              onChange={e => {
-                                const next = new Set(selectedRecipients);
-                                e.target.checked ? next.add(g.id) : next.delete(g.id);
-                                setSelectedRecipients(next);
-                              }} />
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">{g.subject}</p>
-                              <p className="text-xs text-gray-500">{g.participants || 0} members</p>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="flex gap-2 mb-2">
-                      <button type="button" onClick={() => setSelectedRecipients(new Set(availableLeads.map(l => l.phoneNumber)))}
-                        className="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded font-medium hover:bg-green-700">
-                        ✓ Select All ({availableLeads.length})
-                      </button>
-                      <button type="button" onClick={() => setSelectedRecipients(new Set())}
-                        className="flex-1 px-3 py-1.5 bg-gray-400 text-white text-xs rounded font-medium hover:bg-gray-500">
-                        ✕ Clear
-                      </button>
-                    </div>
-                    {availableLeads.length === 0 ? (
-                      <p className="text-sm text-gray-500 py-4 text-center">No leads found.</p>
-                    ) : (
-                      <div className="max-h-48 overflow-y-auto border rounded bg-white divide-y">
-                        {availableLeads.slice(0, 200).map(l => (
-                          <label key={l._id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                            <input type="checkbox" className="rounded"
-                              checked={selectedRecipients.has(l.phoneNumber)}
-                              onChange={e => {
-                                const next = new Set(selectedRecipients);
-                                e.target.checked ? next.add(l.phoneNumber) : next.delete(l.phoneNumber);
-                                setSelectedRecipients(next);
-                              }} />
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">{l.name}</p>
-                              <p className="text-xs text-gray-500">{l.phoneNumber}</p>
-                            </div>
-                          </label>
-                        ))}
-                        {availableLeads.length > 200 && <p className="text-xs text-gray-400 px-3 py-2">Showing first 200 of {availableLeads.length}</p>}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Gap Strategy Settings (WhatsApp Compliance) */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                <h3 className="font-bold text-blue-900 mb-3">🛡️ Message Delivery Speed (WhatsApp-Safe)</h3>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Gap Strategy Preset
-                    </label>
-                    <select
-                      value={formData.gapStrategy.preset}
-                      onChange={(e) => {
-                        const preset = e.target.value;
-                        let settings: any = { preset };
-
-                        if (preset === 'ULTRA_SAFE') {
-                          settings = { ...settings, minGapMs: 100000, maxGapMs: 180000, initialGapMs: 10000 };
-                        } else if (preset === 'VERY_SAFE') {
-                          settings = { ...settings, minGapMs: 70000, maxGapMs: 150000, initialGapMs: 8000 };
-                        } else if (preset === 'SAFE') {
-                          settings = { ...settings, minGapMs: 45000, maxGapMs: 120000, initialGapMs: 7000 };
-                        } else if (preset === 'PROFESSIONAL') {
-                          settings = { ...settings, minGapMs: 40000, maxGapMs: 90000, initialGapMs: 7000 };
-                        } else if (preset === 'AGGRESSIVE') {
-                          settings = { ...settings, minGapMs: 25000, maxGapMs: 60000, initialGapMs: 5000 };
-                        }
-
-                        setFormData({
-                          ...formData,
-                          gapStrategy: { ...formData.gapStrategy, ...settings },
-                        });
-                      }}
-                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="ULTRA_SAFE">🟢 Ultra Safe (30/hour) - Minimum ban risk</option>
-                      <option value="VERY_SAFE">🟢 Very Safe (45/hour) - Very safe</option>
-                      <option value="SAFE">🟢 Safe (60/hour) - RECOMMENDED ✓</option>
-                      <option value="PROFESSIONAL">🟡 Professional (80/hour) - Medium risk</option>
-                      <option value="AGGRESSIVE">🔴 Aggressive (120/hour) - High risk</option>
-                      <option value="CUSTOM">⚙️ Custom - Configure manually</option>
-                    </select>
-                    <p className="text-xs text-blue-700 mt-1">
-                      Recommended: SAFE (60 messages/hour) - Perfect balance for any account
-                    </p>
-                  </div>
-
-                  {formData.gapStrategy.preset === 'CUSTOM' && (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Min Gap (seconds)
-                          </label>
-                          <input
-                            type="number"
-                            min="5"
-                            max="180"
-                            value={formData.gapStrategy.minGapMs / 1000}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                gapStrategy: {
-                                  ...formData.gapStrategy,
-                                  minGapMs: Math.max(5000, parseInt(e.target.value) * 1000 || 45000),
-                                },
-                              })
-                            }
-                            className="w-full px-2 py-1.5 border rounded text-xs focus:ring-2 focus:ring-blue-500"
-                          />
-                          <p className="text-xs text-gray-500 mt-0.5">Min: 5s | Safe: 45s+</p>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Max Gap (seconds)
-                          </label>
-                          <input
-                            type="number"
-                            min="10"
-                            max="300"
-                            value={formData.gapStrategy.maxGapMs / 1000}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                gapStrategy: {
-                                  ...formData.gapStrategy,
-                                  maxGapMs: Math.max(10000, parseInt(e.target.value) * 1000 || 120000),
-                                },
-                              })
-                            }
-                            className="w-full px-2 py-1.5 border rounded text-xs focus:ring-2 focus:ring-blue-500"
-                          />
-                          <p className="text-xs text-gray-500 mt-0.5">Safe: 120s max</p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">
-                          Initial Fixed Gap (seconds)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={formData.gapStrategy.initialGapMs / 1000}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              gapStrategy: {
-                                ...formData.gapStrategy,
-                                initialGapMs: parseInt(e.target.value) * 1000 || 7000,
-                              },
-                            })
-                          }
-                          className="w-full px-2 py-1.5 border rounded text-xs focus:ring-2 focus:ring-blue-500"
-                        />
-                        <p className="text-xs text-gray-500 mt-0.5">Default: 7s (quick start)</p>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="bg-white p-2 rounded text-xs border border-blue-100">
-                    <p className="font-semibold text-blue-900 mb-1">📊 Current Settings:</p>
-                    <p className="text-gray-700">
-                      • First 2 messages: {formData.gapStrategy.initialGapMs / 1000}s apart
-                    </p>
-                    <p className="text-gray-700">
-                      • Remaining: {formData.gapStrategy.minGapMs / 1000}s - {formData.gapStrategy.maxGapMs / 1000}s random
-                    </p>
-                    <p className="text-gray-700">
-                      • Estimated: ~{Math.round(3600 / ((formData.gapStrategy.minGapMs + formData.gapStrategy.maxGapMs) / 2 / 1000))} messages/hour
-                    </p>
-                    <p className="text-blue-700 font-semibold mt-1">
-                      ✅ 100% human-like (no gap ever repeats)
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSaveSchedule}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
-                >
-                  {editingId ? 'Update' : 'Create'} Schedule
-                </button>
-                <button
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-900 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm">
+            <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
 
-        {/* Schedules List */}
-        <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-4 border-b flex items-center gap-2">
-            <Search className="w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search schedules..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="flex-1 text-sm focus:outline-none"
-            />
+        {loading && runs.length === 0 ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
           </div>
+        ) : runs.length === 0 ? (
+          <div className="bg-white rounded-xl border shadow-sm p-12 text-center">
+            <Send className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <h3 className="text-gray-500 font-medium">No broadcasts yet</h3>
+            <p className="text-gray-400 text-sm mt-1">Create your first QR broadcast to get started.</p>
+            <button
+              onClick={() => router.push('/admin/crm/qr/broadcast')}
+              className="mt-4 px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> New Broadcast
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {runs.map(run => {
+              const isExpanded = expandedId === run._id;
+              const isActing = (id: string) => actionLoading === run._id + id;
 
-          {loading ? (
-            <div className="p-8 flex justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-            </div>
-          ) : filteredSchedules.length === 0 ? (
-            <div className="p-8 text-center">
-              <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No schedules found</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Message</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Freq</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Max/Day</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Stats</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSchedules.map(schedule => (
-                    <tr key={schedule._id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{schedule.name}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-gray-600 truncate text-xs max-w-xs">{schedule.messageText}</p>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600">
-                        {schedule.startTime} - {schedule.endTime}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-medium capitalize">{schedule.frequency}</span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600">
-                        {schedule.maxMessagesPerDay}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          schedule.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {schedule.isActive ? 'Active' : 'Paused'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600">
-                        ✓ {schedule.stats?.totalSent || 0} | ✕ {schedule.stats?.totalFailed || 0}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1">
+              return (
+                <div key={run._id} className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                  {/* Run header row */}
+                  <div className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-semibold text-gray-900 text-sm truncate max-w-xs">{run.name}</span>
+                          <StatusBadge status={run.status} />
+                          {run.mode === 'schedule' && run.scheduledAt && (
+                            <span className="text-xs text-blue-600 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {fmtDate(run.scheduledAt)}
+                            </span>
+                          )}
+                        </div>
+                        {run.templateSnapshot?.templateName && (
+                          <div className="text-xs text-gray-500 flex items-center gap-1 mb-2">
+                            <MessageSquare className="w-3 h-3" /> {run.templateSnapshot.templateName}
+                          </div>
+                        )}
+                        <ProgressBar stats={run.stats} />
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {run.status === 'draft' && (
                           <button
-                            onClick={() => handleToggleActive(schedule._id, schedule.isActive)}
-                            className="p-1.5 hover:bg-gray-200 rounded text-gray-600"
-                            title={schedule.isActive ? 'Pause' : 'Resume'}
+                            onClick={() => runAction(run._id, 'start')}
+                            disabled={!!actionLoading}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition"
+                            title="Start Now"
                           >
-                            {schedule.isActive ? (
-                              <Pause className="w-4 h-4" />
-                            ) : (
-                              <Play className="w-4 h-4" />
-                            )}
+                            {isActing('start') ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                           </button>
+                        )}
+                        {run.status === 'running' && (
                           <button
-                            onClick={() => handleDelete(schedule._id)}
-                            className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                            onClick={() => runAction(run._id, 'pause')}
+                            disabled={!!actionLoading}
+                            className="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded transition"
+                            title="Pause"
+                          >
+                            {isActing('pause') ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pause className="w-4 h-4" />}
+                          </button>
+                        )}
+                        {(run.status === 'running' || run.status === 'scheduled') && (
+                          <button
+                            onClick={() => runAction(run._id, 'cancel')}
+                            disabled={!!actionLoading}
+                            className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition"
+                            title="Cancel"
+                          >
+                            {isActing('cancel') ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                          </button>
+                        )}
+                        {deleteConfirm === run._id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => deleteRun(run._id)}
+                              disabled={!!actionLoading}
+                              className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              {isActing('delete') ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm'}
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm(null)}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteConfirm(run._id)}
+                            className="p-1.5 text-red-400 hover:bg-red-50 rounded transition"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                        )}
+                        <button
+                          onClick={() => toggleExpand(run._id)}
+                          className="p-1.5 text-gray-400 hover:bg-gray-100 rounded transition ml-1"
+                          title="Show recipients"
+                        >
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
 
-        {/* Info Panel */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-900">
-              <p className="font-semibold mb-2">Anti-Ban Protection Enabled</p>
-              <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>Random message intervals (3-15 seconds) between sends</li>
-                <li>30-second delays between batches</li>
-                <li>Random recipient order (shuffled each run)</li>
-                <li>Time window: 5:00 AM - 10:30 PM IST only</li>
-                <li>Daily limit: Max 300 messages per schedule</li>
-              </ul>
-            </div>
+                    {run.lastError && (
+                      <div className="mt-2 text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded">
+                        {run.lastError}
+                      </div>
+                    )}
+
+                    <div className="mt-2 text-xs text-gray-400">
+                      Created {fmtDate(run.createdAt)}
+                      {run.completedAt && ` · Completed ${fmtDate(run.completedAt)}`}
+                    </div>
+                  </div>
+
+                  {/* Expanded: per-recipient status */}
+                  {isExpanded && (
+                    <div className="border-t bg-gray-50 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                          <Users className="w-4 h-4" /> Recipients
+                        </h4>
+                        <span className="text-xs text-gray-400">{expandedMessages.length} records</span>
+                      </div>
+                      {messagesLoading ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                        </div>
+                      ) : expandedMessages.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-4">No message records yet.</p>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto rounded border bg-white divide-y text-xs">
+                          {expandedMessages.map((msg: any) => (
+                            <div key={msg._id} className="flex items-center gap-3 px-3 py-2">
+                              <span className={`w-16 px-1.5 py-0.5 rounded text-center font-medium ${
+                                msg.status === 'sent' || msg.status === 'delivered' || msg.status === 'read'
+                                  ? 'bg-green-100 text-green-700'
+                                  : msg.status === 'failed' ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}>
+                                {msg.status}
+                              </span>
+                              <span className="text-gray-500 flex-1 truncate">{msg.phoneNumber}</span>
+                              {msg.sentAt && (
+                                <span className="text-gray-400 flex-shrink-0">{fmtDate(msg.sentAt)}</span>
+                              )}
+                              {msg.failureReason && (
+                                <span className="text-red-500 truncate max-w-[8rem]" title={msg.failureReason}>
+                                  {msg.failureReason}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -464,7 +464,7 @@ export default function QRLeadsPage() {
                     .then(r => r.json())
                     .then(d => {
                       if (d.success && d.users) {
-                        setAdminUsersList(d.users.map((u: any) => ({ userId: u.userId || u._id, name: u.name || u.email || u.userId })));
+                        setAdminUsersList(d.users.map((u: any) => ({ userId: u.userId || u._id, name: u.name || u.email || u.userId, email: u.email, role: u.role })));
                       }
                     })
                     .catch(() => {});

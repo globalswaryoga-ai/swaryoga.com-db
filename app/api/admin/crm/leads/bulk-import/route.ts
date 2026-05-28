@@ -7,10 +7,23 @@ import {
   getViewerUserId,
   isSuperAdmin,
 } from '@/lib/crm-handlers';
-
-export const dynamic = 'force-dynamic';
 import { verifyToken } from '@/lib/auth';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+
+export const dynamic = 'force-dynamic';
+
+const VALID_STATUSES = new Set([
+  'new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation',
+  'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak',
+  'only_for_post', 'lead', 'hot', 'prospect', 'customer',
+]);
+
+const VALID_SOURCES = new Set([
+  'website', 'website-form', 'website-signup', 'form-link', 'import',
+  'csv-import', 'api', 'manual', 'whatsapp', 'qr_whatsapp',
+  'workshop_payment', 'meta_leadgen', 'referral', 'social', 'event',
+  'facebook', 'instagram', 'youtube', 'google', 'other',
+]);
 
 
 /**
@@ -96,8 +109,14 @@ export async function POST(request: NextRequest) {
         }
         seenPhones.add(phoneNumber);
 
-        // Check for existing lead - exact match only (no country code manipulation)
-        const existing = await Lead.findOne({ phoneNumber });
+        // Check for existing lead - scoped to current tenant (assignedTo or createdBy)
+        const existing = await Lead.findOne({
+          phoneNumber,
+          $or: [
+            { assignedToUserId: assignedToUserId },
+            { createdByUserId: viewerUserId },
+          ],
+        });
         if (existing) {
           const csvName = String(c.name || '').trim();
           const csvEmail = String(c.email || '').trim();
@@ -139,7 +158,8 @@ export async function POST(request: NextRequest) {
             if (csvName && csvName !== existing.name) existing.name = csvName;
             if (csvEmail && csvEmail !== existing.email) existing.email = csvEmail;
             if (csvWorkshop && csvWorkshop !== existing.workshopName) existing.workshopName = csvWorkshop;
-            if (csvSource && csvSource !== existing.source) existing.source = csvSource;
+            const validatedCsvSource = VALID_SOURCES.has(csvSource.toLowerCase()) ? csvSource.toLowerCase() : '';
+            if (validatedCsvSource && validatedCsvSource !== existing.source) existing.source = validatedCsvSource;
             if (csvAddress && csvAddress !== existing.address) existing.address = csvAddress;
             await existing.save();
             results.updated++;
@@ -173,8 +193,10 @@ export async function POST(request: NextRequest) {
 
         const name = String(c.name || '').trim();
         const email = String(c.email || '').trim();
-        const status = String(c.status || 'lead').trim().toLowerCase();
-        const source = String(c.source || 'csv-import').trim().toLowerCase();
+        const rawStatus = String(c.status || '').trim().toLowerCase();
+        const status = VALID_STATUSES.has(rawStatus) ? rawStatus : 'lead';
+        const rawSource = String(c.source || '').trim().toLowerCase();
+        const source = VALID_SOURCES.has(rawSource) ? rawSource : 'csv-import';
         const workshopName = String(c.workshopName || '').trim();
         const address = String(c.address || '').trim();
 

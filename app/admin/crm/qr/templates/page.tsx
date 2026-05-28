@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { Search, Plus, Pencil, Trash2, X, Eye, Copy, Bold, Italic, Strikethrough, Smile, ChevronLeft, Loader2, FileText, Image as ImageIcon, Video, Phone, ExternalLink, Tag, Upload, File, Play } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, Eye, Copy, Bold, Italic, Strikethrough, Smile, ChevronLeft, Loader2, FileText, Image as ImageIcon, Video, Phone, ExternalLink, Tag, Upload, File, Play, Send } from 'lucide-react';
 
 // ── WhatsApp Template Limits ──
 const LIMITS = {
@@ -80,6 +81,7 @@ const EMOJI_CATEGORIES: Record<string, string[]> = {
 export default function QRTemplatesPage() {
   const token = useAuth();
   const { fetch: crmFetch } = useCRM({ token });
+  const router = useRouter();
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
@@ -841,6 +843,7 @@ export default function QRTemplatesPage() {
                   </div>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
                     <button onClick={() => setPreviewOpen(previewOpen === t._id ? null : t._id)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Preview"><Eye className="w-3.5 h-3.5 text-gray-500" /></button>
+                    <button onClick={() => router.push(`/admin/crm/qr/broadcast?templateId=${t._id}`)} className="p-1.5 hover:bg-green-50 rounded-lg" title="Use in Broadcast"><Send className="w-3.5 h-3.5 text-green-600" /></button>
                     <button onClick={() => duplicateTemplate(t)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Duplicate"><Copy className="w-3.5 h-3.5 text-gray-500" /></button>
                     <button onClick={() => openEdit(t)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit"><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
                     <button onClick={() => deleteTemplate(t._id)} className="p-1.5 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-500" /></button>

@@ -1,565 +1,415 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useCRM } from '@/hooks/useCRM';
 import {
-  BarChart3, Radio, Send, CheckCircle2, XCircle,
-  Clock, Calendar, TrendingUp, Users, ArrowLeft,
-  Download, Loader2, AlertTriangle, PieChart,
-  ChevronDown, ChevronUp, Filter,
+  BarChart2, RefreshCw, Loader2, Send, CheckCircle2, XCircle,
+  TrendingUp, MessageSquare, Users, Clock, Plus,
 } from 'lucide-react';
 
-// ── Types (matches broadcast page) ──
-type BroadcastStatus = 'draft' | 'queued' | 'sending' | 'paused' | 'completed' | 'failed' | 'scheduled';
-
-type BroadcastRun = {
-  id: string;
-  message: string;
-  templateId?: string;
-  templateName?: string;
-  recipients: string[];
-  recipientNames: Record<string, string>;
-  status: BroadcastStatus;
-  sent: number;
-  failed: number;
-  total: number;
-  createdAt: number;
-  scheduledAt?: number;
-  batchesSent: number;
-  lastBatchAt?: number;
-  dailySentCount: number;
-  errors: string[];
-  log: Array<{ chatId: string; status: 'sent' | 'failed' | 'pending'; time: number; error?: string }>;
-};
-
-type TimePeriod = 'today' | 'week' | 'month' | 'year' | 'all';
-
-const STORAGE_KEY = 'qr_broadcast_runs';
-
-function loadRuns(): BroadcastRun[] {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return v ? JSON.parse(v) : [];
-  } catch {
-    return [];
-  }
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface Overview {
+  totalRuns: number;
+  completedRuns: number;
+  runningRuns: number;
+  failedRuns: number;
+  totalMessages: number;
+  totalSent: number;
+  totalFailed: number;
+  successRate: number;
 }
 
-function formatDate(ts: number) {
-  return new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+interface DayData { date: string; sent: number }
+interface TemplateUsage { name: string; runs: number; sent: number }
+interface RecentRun {
+  _id: string;
+  name: string;
+  status: string;
+  stats: { total: number; sent: number; failed: number };
+  createdAt: string;
+  completedAt?: string;
 }
 
-function formatDateTime(ts: number) {
-  return new Date(ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
-
-function getStartOfDay(date: Date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function getStartOfWeek(date: Date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - day);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function getStartOfMonth(date: Date) {
-  const d = new Date(date);
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function getStartOfYear(date: Date) {
-  const d = new Date(date);
-  d.setMonth(0, 1);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-export default function BroadcastReportPage() {
-  const token = useAuth();
-
-  const [allRuns, setAllRuns] = useState<BroadcastRun[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<TimePeriod>('all');
-  const [expandedRun, setExpandedRun] = useState<string | null>(null);
-
-  useEffect(() => {
-    // First load from localStorage for backward compatibility
-    const localRuns = loadRuns();
-    if (localRuns.length > 0) setAllRuns(localRuns);
-
-    // Then fetch scheduled broadcasts from MongoDB API
-    if (!token) { setLoading(false); return; }
-    fetch('/api/admin/crm/qr-broadcast-schedule', {
-      headers: { 'Authorization': `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
-          // Map MongoDB schedule docs to the BroadcastRun shape used by this page
-          const apiRuns: BroadcastRun[] = data.data.map((s: any) => ({
-            id: s._id,
-            message: s.messageText || '',
-            templateId: undefined,
-            templateName: s.name,
-            recipients: s.recipientChatIds || [],
-            recipientNames: {},
-            status: s.status || 'scheduled',
-            sent: s.stats?.totalSent || 0,
-            failed: s.stats?.totalFailed || 0,
-            total: s.totalRecipients || 0,
-            createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
-            scheduledAt: s.scheduledDate ? new Date(s.scheduledDate).getTime() : undefined,
-            batchesSent: 0,
-            dailySentCount: 0,
-            errors: [],
-            log: [],
-          }));
-          setAllRuns(apiRuns);
-        }
-      })
-      .catch(() => { /* keep localStorage data */ })
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  // Filter runs by period
-  const filteredRuns = useMemo(() => {
-    if (period === 'all') return allRuns;
-    const now = new Date();
-    let start: number;
-    switch (period) {
-      case 'today': start = getStartOfDay(now); break;
-      case 'week': start = getStartOfWeek(now); break;
-      case 'month': start = getStartOfMonth(now); break;
-      case 'year': start = getStartOfYear(now); break;
-      default: return allRuns;
-    }
-    return allRuns.filter(r => r.createdAt >= start);
-  }, [allRuns, period]);
-
-  // Compute stats from filtered runs
-  const stats = useMemo(() => {
-    const totalBroadcasts = filteredRuns.length;
-    const totalSent = filteredRuns.reduce((s, r) => s + r.sent, 0);
-    const totalFailed = filteredRuns.reduce((s, r) => s + r.failed, 0);
-    const totalRecipients = filteredRuns.reduce((s, r) => s + r.total, 0);
-    const completed = filteredRuns.filter(r => r.status === 'completed').length;
-    const inProgress = filteredRuns.filter(r => r.status === 'sending' || r.status === 'queued').length;
-    const paused = filteredRuns.filter(r => r.status === 'paused').length;
-    const scheduled = filteredRuns.filter(r => r.status === 'scheduled').length;
-    const failed = filteredRuns.filter(r => r.status === 'failed').length;
-    const successRate = totalSent + totalFailed > 0 ? ((totalSent / (totalSent + totalFailed)) * 100).toFixed(1) : '0';
-    const completionRate = totalBroadcasts > 0 ? ((completed / totalBroadcasts) * 100).toFixed(0) : '0';
-
-    // Unique recipients
-    const uniqueRecipients = new Set<string>();
-    filteredRuns.forEach(r => r.recipients.forEach(id => uniqueRecipients.add(id)));
-
-    // Template usage
-    const templateUsage: Record<string, number> = {};
-    filteredRuns.forEach(r => {
-      const name = r.templateName || 'Custom Message';
-      templateUsage[name] = (templateUsage[name] || 0) + 1;
-    });
-    const topTemplates = Object.entries(templateUsage)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5);
-
-    // Daily breakdown (for charts)
-    const dailyMap: Record<string, { sent: number; failed: number; broadcasts: number }> = {};
-    filteredRuns.forEach(r => {
-      const day = new Date(r.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-      if (!dailyMap[day]) dailyMap[day] = { sent: 0, failed: 0, broadcasts: 0 };
-      dailyMap[day].sent += r.sent;
-      dailyMap[day].failed += r.failed;
-      dailyMap[day].broadcasts++;
-    });
-    const dailyBreakdown = Object.entries(dailyMap).map(([day, data]) => ({ day, ...data }));
-
-    return {
-      totalBroadcasts,
-      totalSent,
-      totalFailed,
-      totalRecipients,
-      completed,
-      inProgress,
-      paused,
-      scheduled,
-      failed,
-      successRate,
-      completionRate,
-      uniqueRecipients: uniqueRecipients.size,
-      topTemplates,
-      dailyBreakdown,
-    };
-  }, [filteredRuns]);
-
-  // Export CSV
-  const exportCSV = () => {
-    const headers = ['Broadcast ID', 'Status', 'Template', 'Message', 'Recipients', 'Sent', 'Failed', 'Total', 'Created At', 'Batches'];
-    const rows = filteredRuns.map(r => [
-      r.id,
-      r.status,
-      r.templateName || 'Custom',
-      `"${r.message.replace(/"/g, '""').slice(0, 100)}"`,
-      r.total,
-      r.sent,
-      r.failed,
-      r.total,
-      formatDateTime(r.createdAt),
-      r.batchesSent,
-    ]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `broadcast-report-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-700',
-    queued: 'bg-yellow-100 text-yellow-700',
-    sending: 'bg-blue-100 text-blue-700',
-    paused: 'bg-amber-100 text-amber-700',
-    completed: 'bg-green-100 text-green-700',
-    failed: 'bg-red-100 text-red-700',
-    scheduled: 'bg-purple-100 text-purple-700',
-  };
-
-  const periodLabels: Record<TimePeriod, string> = {
-    today: 'Today',
-    week: 'This Week',
-    month: 'This Month',
-    year: 'This Year',
-    all: 'All Time',
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
-      </div>
-    );
-  }
+// ── SVG Bar Chart ──────────────────────────────────────────────────────────────
+function BarChart({ data, label }: { data: DayData[]; label: string }) {
+  const max = Math.max(...data.map(d => d.sent), 1);
+  const W = 600;
+  const H = 120;
+  const pad = { top: 10, bottom: 28, left: 4, right: 4 };
+  const innerW = W - pad.left - pad.right;
+  const innerH = H - pad.top - pad.bottom;
+  const barW = Math.floor(innerW / data.length) - 2;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/admin/crm/qr/broadcast" className="p-2 hover:bg-gray-100 rounded-lg transition">
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Broadcast Report</h1>
-              <p className="text-sm text-gray-500 mt-0.5">QR WhatsApp broadcast analytics & history</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Period Filter */}
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-              {(['today', 'week', 'month', 'year', 'all'] as TimePeriod[]).map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                    period === p ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                  }`}
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 300 }}>
+        {/* Gridlines */}
+        {[0, 0.5, 1].map(f => (
+          <line
+            key={f}
+            x1={pad.left} y1={pad.top + innerH * (1 - f)}
+            x2={W - pad.right} y2={pad.top + innerH * (1 - f)}
+            stroke="#e5e7eb" strokeWidth="1"
+          />
+        ))}
+        {/* Bars */}
+        {data.map((d, i) => {
+          const x = pad.left + i * (innerW / data.length) + 1;
+          const barH = Math.max(2, (d.sent / max) * innerH);
+          const y = pad.top + innerH - barH;
+          const showLabel = data.length <= 14 || i % Math.ceil(data.length / 14) === 0;
+          const day = d.date.slice(5); // MM-DD
+          return (
+            <g key={d.date}>
+              <rect
+                x={x} y={y} width={barW} height={barH}
+                fill={d.sent > 0 ? '#22c55e' : '#e5e7eb'}
+                rx="2"
+              />
+              {d.sent > 0 && barH > 16 && (
+                <text
+                  x={x + barW / 2} y={y + barH / 2 + 4}
+                  textAnchor="middle" fontSize="8" fill="white" fontWeight="600"
                 >
-                  {periodLabels[p]}
-                </button>
-              ))}
-            </div>
-            <button onClick={exportCSV} disabled={filteredRuns.length === 0} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5 transition">
-              <Download className="w-4 h-4" /> Export CSV
+                  {d.sent}
+                </text>
+              )}
+              {showLabel && (
+                <text
+                  x={x + barW / 2} y={H - 4}
+                  textAnchor="middle" fontSize="8" fill="#9ca3af"
+                >
+                  {day}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="text-xs text-gray-400 text-center mt-1">{label}</div>
+    </div>
+  );
+}
+
+// ── Success Rate Gauge (semi-circle SVG) ──────────────────────────────────────
+function GaugeChart({ rate }: { rate: number }) {
+  const r = 50;
+  const cx = 70;
+  const cy = 70;
+  const circumference = Math.PI * r; // semi-circle
+  const arc = (rate / 100) * circumference;
+  const color = rate >= 80 ? '#22c55e' : rate >= 60 ? '#eab308' : '#ef4444';
+
+  return (
+    <svg viewBox="0 0 140 80" className="w-full max-w-[160px] mx-auto">
+      <path
+        d={`M ${cx - r},${cy} A ${r},${r} 0 0,1 ${cx + r},${cy}`}
+        fill="none" stroke="#e5e7eb" strokeWidth="12" strokeLinecap="round"
+      />
+      <path
+        d={`M ${cx - r},${cy} A ${r},${r} 0 0,1 ${cx + r},${cy}`}
+        fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
+        strokeDasharray={`${arc} ${circumference}`}
+      />
+      <text x={cx} y={cy - 6} textAnchor="middle" fontSize="22" fontWeight="700" fill={color}>
+        {rate}%
+      </text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fontSize="9" fill="#6b7280">
+        Success Rate
+      </text>
+    </svg>
+  );
+}
+
+// ── Status badge ───────────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    completed: 'bg-green-100 text-green-700',
+    running:   'bg-yellow-100 text-yellow-700',
+    failed:    'bg-red-100 text-red-700',
+    cancelled: 'bg-gray-100 text-gray-500',
+    scheduled: 'bg-blue-100 text-blue-700',
+    draft:     'bg-gray-100 text-gray-500',
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-500'}`}>
+      {status}
+    </span>
+  );
+}
+
+function fmtDate(d?: string) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+export default function QRBroadcastReportPage() {
+  const token = useAuth();
+  const { fetch: crmFetch } = useCRM({ token });
+  const router = useRouter();
+
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [dailyActivity, setDailyActivity] = useState<DayData[]>([]);
+  const [templateUsage, setTemplateUsage] = useState<TemplateUsage[]>([]);
+  const [recentRuns, setRecentRuns] = useState<RecentRun[]>([]);
+  const [days, setDays] = useState(30);
+
+  const loadStats = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await crmFetch(`/api/admin/crm/qr-broadcast-stats?days=${days}`);
+      if (res?.success) {
+        setOverview(res.data.overview);
+        setDailyActivity(res.data.dailyActivity || []);
+        setTemplateUsage(res.data.templateUsage || []);
+        setRecentRuns(res.data.recentRuns || []);
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setLoading(false);
+    }
+  }, [token, days]);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-6xl mx-auto">
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <BarChart2 className="w-6 h-6 text-green-600" />
+              QR Broadcast Reports
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">Analytics for QR WhatsApp broadcasts</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={days}
+              onChange={e => setDays(Number(e.target.value))}
+              className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none"
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={14}>Last 14 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={60}>Last 60 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+            <button onClick={loadStats} disabled={loading}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={() => router.push('/admin/crm/qr/broadcast')}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
+              <Plus className="w-4 h-4" /> New Broadcast
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
-        {/* ── KPI Cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="bg-white rounded-xl p-4 border shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-indigo-50"><Radio className="w-4 h-4 text-indigo-600" /></div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.totalBroadcasts}</div>
-            <div className="text-xs text-gray-500">Total Broadcasts</div>
+        {loading && !overview ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
           </div>
+        ) : (
+          <>
+            {/* ── KPI Cards ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Send className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs text-gray-500 font-medium">Total Runs</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{overview?.totalRuns ?? 0}</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {overview?.completedRuns ?? 0} completed · {overview?.runningRuns ?? 0} active
+                </div>
+              </div>
 
-          <div className="bg-white rounded-xl p-4 border shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-green-50"><Send className="w-4 h-4 text-green-600" /></div>
+              <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-gray-500 font-medium">Total Messages</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{(overview?.totalMessages ?? 0).toLocaleString()}</div>
+                <div className="text-xs text-gray-400 mt-1">across all QR broadcasts</div>
+              </div>
+
+              <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-gray-500 font-medium">Messages Sent</span>
+                </div>
+                <div className="text-2xl font-bold text-green-600">{(overview?.totalSent ?? 0).toLocaleString()}</div>
+                <div className="text-xs text-red-400 mt-1">
+                  {(overview?.totalFailed ?? 0).toLocaleString()} failed
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="w-4 h-4 text-purple-500" />
+                  <span className="text-xs text-gray-500 font-medium">Success Rate</span>
+                </div>
+                <div className={`text-2xl font-bold ${
+                  (overview?.successRate ?? 0) >= 80 ? 'text-green-600'
+                  : (overview?.successRate ?? 0) >= 60 ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {overview?.successRate ?? 0}%
+                </div>
+                <div className="text-xs text-gray-400 mt-1">sent / (sent + failed)</div>
+              </div>
             </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.totalSent}</div>
-            <div className="text-xs text-gray-500">Messages Sent</div>
-          </div>
 
-          <div className="bg-white rounded-xl p-4 border shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-red-50"><XCircle className="w-4 h-4 text-red-600" /></div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.totalFailed}</div>
-            <div className="text-xs text-gray-500">Failed</div>
-          </div>
+            {/* ── Charts row ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
 
-          <div className="bg-white rounded-xl p-4 border shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-emerald-50"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.successRate}%</div>
-            <div className="text-xs text-gray-500">Success Rate</div>
-          </div>
+              {/* Daily activity bar chart */}
+              <div className="lg:col-span-2 bg-white rounded-xl border shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-green-500" />
+                  Messages Sent Per Day
+                </h3>
+                {dailyActivity.length > 0 ? (
+                  <BarChart
+                    data={dailyActivity}
+                    label={`Last ${days} days`}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-gray-400 text-sm">No message data yet.</div>
+                )}
+              </div>
 
-          <div className="bg-white rounded-xl p-4 border shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-blue-50"><Users className="w-4 h-4 text-blue-600" /></div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.uniqueRecipients}</div>
-            <div className="text-xs text-gray-500">Unique Recipients</div>
-          </div>
-
-          <div className="bg-white rounded-xl p-4 border shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-purple-50"><TrendingUp className="w-4 h-4 text-purple-600" /></div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.completionRate}%</div>
-            <div className="text-xs text-gray-500">Completion Rate</div>
-          </div>
-        </div>
-
-        {/* ── Status Breakdown + Template Usage ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Status Breakdown */}
-          <div className="bg-white rounded-xl border shadow-sm p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <PieChart className="w-4 h-4 text-gray-500" /> Status Breakdown
-            </h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Completed', value: stats.completed, color: 'bg-green-500', bg: 'bg-green-50' },
-                { label: 'In Progress', value: stats.inProgress, color: 'bg-blue-500', bg: 'bg-blue-50' },
-                { label: 'Paused', value: stats.paused, color: 'bg-amber-500', bg: 'bg-amber-50' },
-                { label: 'Scheduled', value: stats.scheduled, color: 'bg-purple-500', bg: 'bg-purple-50' },
-                { label: 'Failed', value: stats.failed, color: 'bg-red-500', bg: 'bg-red-50' },
-              ].map(item => {
-                const pct = stats.totalBroadcasts > 0 ? (item.value / stats.totalBroadcasts) * 100 : 0;
-                return (
-                  <div key={item.label} className="flex items-center gap-3">
-                    <div className="w-20 text-xs text-gray-600 font-medium">{item.label}</div>
-                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={`h-full ${item.color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="w-12 text-right text-xs font-bold text-gray-800">{item.value}</div>
+              {/* Success rate gauge */}
+              <div className="bg-white rounded-xl border shadow-sm p-5 flex flex-col">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-purple-500" />
+                  Delivery Rate
+                </h3>
+                <div className="flex-1 flex items-center justify-center">
+                  <GaugeChart rate={overview?.successRate ?? 0} />
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+                      Sent
+                    </span>
+                    <span className="font-semibold text-green-600">{overview?.totalSent ?? 0}</span>
                   </div>
-                );
-              })}
+                  <div className="flex justify-between text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />
+                      Failed
+                    </span>
+                    <span className="font-semibold text-red-500">{overview?.totalFailed ?? 0}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-gray-300 inline-block" />
+                      Pending
+                    </span>
+                    <span className="font-semibold text-gray-500">
+                      {Math.max(0, (overview?.totalMessages ?? 0) - (overview?.totalSent ?? 0) - (overview?.totalFailed ?? 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Template Usage */}
-          <div className="bg-white rounded-xl border shadow-sm p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-gray-500" /> Top Templates Used
-            </h3>
-            {stats.topTemplates.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">No broadcasts yet</p>
-            ) : (
-              <div className="space-y-3">
-                {stats.topTemplates.map(([name, count], idx) => {
-                  const maxCount = stats.topTemplates[0]?.[1] || 1;
-                  const pct = (count / maxCount) * 100;
-                  return (
-                    <div key={name} className="flex items-center gap-3">
-                      <span className="w-5 text-xs font-bold text-gray-400">#{idx + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-gray-800 font-medium truncate">{name}</div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
-                          <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+            {/* ── Template usage + Recent runs ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+              {/* Template usage */}
+              <div className="bg-white rounded-xl border shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-blue-500" />
+                  Template Usage
+                </h3>
+                {templateUsage.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-sm">No template data yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {templateUsage.map((t, i) => {
+                      const maxSent = Math.max(...templateUsage.map(x => x.sent), 1);
+                      const pct = Math.round((t.sent / maxSent) * 100);
+                      return (
+                        <div key={i}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-medium text-gray-700 truncate max-w-[60%]">{t.name}</span>
+                            <span className="text-gray-500">{t.sent} sent · {t.runs} run{t.runs !== 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Recent runs */}
+              <div className="bg-white rounded-xl border shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-orange-500" />
+                  Recent Broadcasts
+                </h3>
+                {recentRuns.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-sm">
+                    No broadcasts yet.
+                    <button
+                      onClick={() => router.push('/admin/crm/qr/broadcast')}
+                      className="block mx-auto mt-2 text-green-600 hover:underline"
+                    >
+                      Create your first →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recentRuns.map(run => (
+                      <div
+                        key={run._id}
+                        className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition"
+                        onClick={() => router.push('/admin/crm/qr/broadcast-schedule')}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-800 truncate">{run.name}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{fmtDate(run.createdAt)}</div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <StatusBadge status={run.status} />
+                          {run.stats && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              {run.stats.sent}/{run.stats.total}
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="text-sm font-bold text-gray-800">{count}x</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Daily Activity Chart (simple bar) ── */}
-        {stats.dailyBreakdown.length > 0 && (
-          <div className="bg-white rounded-xl border shadow-sm p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-500" /> Daily Activity
-            </h3>
-            <div className="flex items-end gap-1.5 h-32">
-              {stats.dailyBreakdown.slice(-14).map((day, idx) => {
-                const maxVal = Math.max(...stats.dailyBreakdown.map(d => d.sent + d.failed), 1);
-                const sentH = (day.sent / maxVal) * 100;
-                const failedH = (day.failed / maxVal) * 100;
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center gap-0.5 group relative">
-                    <div className="w-full flex flex-col justify-end h-24">
-                      {day.failed > 0 && (
-                        <div className="w-full bg-red-400 rounded-t-sm transition-all" style={{ height: `${failedH}%`, minHeight: day.failed > 0 ? '2px' : 0 }} />
-                      )}
-                      <div className="w-full bg-green-500 rounded-t-sm transition-all" style={{ height: `${sentH}%`, minHeight: day.sent > 0 ? '4px' : 0 }} />
-                    </div>
-                    <span className="text-[9px] text-gray-400 whitespace-nowrap">{day.day}</span>
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap z-10">
-                      {day.day}: {day.sent} sent, {day.failed} failed, {day.broadcasts} broadcast{day.broadcasts !== 1 ? 's' : ''}
-                    </div>
+                    ))}
+                    <button
+                      onClick={() => router.push('/admin/crm/qr/broadcast-schedule')}
+                      className="w-full text-center text-xs text-blue-600 hover:underline py-1"
+                    >
+                      View all broadcasts →
+                    </button>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-500">
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-500" /> Sent</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400" /> Failed</span>
-            </div>
-          </div>
+          </>
         )}
-
-        {/* ── Detailed Broadcast History ── */}
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b flex items-center justify-between">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-500" /> Broadcast History
-            </h3>
-            <span className="text-xs text-gray-500">{filteredRuns.length} broadcast{filteredRuns.length !== 1 ? 's' : ''} in {periodLabels[period].toLowerCase()}</span>
-          </div>
-
-          {filteredRuns.length === 0 ? (
-            <div className="px-5 py-12 text-center">
-              <Radio className="w-10 h-10 mx-auto text-gray-300 mb-3" />
-              <p className="text-sm text-gray-500 mb-1">No broadcasts found for {periodLabels[period].toLowerCase()}</p>
-              <p className="text-xs text-gray-400">Send a broadcast from the <Link href="/admin/crm/qr/broadcast" className="text-green-600 hover:underline">Broadcast page</Link></p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {/* Table Header */}
-              <div className="grid grid-cols-12 px-5 py-2 bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="col-span-1">Status</div>
-                <div className="col-span-3">Message</div>
-                <div className="col-span-2">Template</div>
-                <div className="col-span-1 text-center">Sent</div>
-                <div className="col-span-1 text-center">Failed</div>
-                <div className="col-span-1 text-center">Total</div>
-                <div className="col-span-2">Date</div>
-                <div className="col-span-1 text-center">Details</div>
-              </div>
-
-              {filteredRuns.map(run => {
-                const isExpanded = expandedRun === run.id;
-                const progress = run.total > 0 ? ((run.sent + run.failed) / run.total) * 100 : 0;
-                return (
-                  <React.Fragment key={run.id}>
-                    <div className="grid grid-cols-12 px-5 py-3 items-center hover:bg-gray-50 transition text-sm">
-                      <div className="col-span-1">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[run.status] || 'bg-gray-100 text-gray-600'}`}>
-                          {run.status === 'completed' ? '✓' : run.status === 'failed' ? '✗' : run.status === 'sending' ? '⟳' : '●'} {run.status.slice(0, 4).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="col-span-3 text-gray-700 truncate pr-2">{run.message.slice(0, 60)}</div>
-                      <div className="col-span-2 text-xs text-gray-500 truncate">{run.templateName || <span className="italic text-gray-400">Custom</span>}</div>
-                      <div className="col-span-1 text-center font-semibold text-green-600">{run.sent}</div>
-                      <div className="col-span-1 text-center font-semibold text-red-500">{run.failed}</div>
-                      <div className="col-span-1 text-center text-gray-600">{run.total}</div>
-                      <div className="col-span-2 text-xs text-gray-500">{formatDateTime(run.createdAt)}</div>
-                      <div className="col-span-1 text-center">
-                        <button onClick={() => setExpandedRun(isExpanded ? null : run.id)} className="p-1 hover:bg-gray-100 rounded-lg transition">
-                          {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Expanded row */}
-                    {isExpanded && (
-                      <div className="bg-gray-50 px-5 py-4 border-t border-gray-100">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {/* Message Preview */}
-                          <div>
-                            <p className="text-[11px] font-semibold text-gray-500 uppercase mb-1">Full Message</p>
-                            <div className="bg-white rounded-lg border p-3 text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">{run.message}</div>
-                          </div>
-
-                          {/* Stats */}
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-1">Progress</p>
-                              <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: run.failed > 0 ? `linear-gradient(90deg, #22c55e ${((run.sent / (run.sent + run.failed)) * 100)}%, #ef4444 0%)` : '#22c55e' }} />
-                              </div>
-                              <div className="flex justify-between mt-1 text-[10px] text-gray-500">
-                                <span>{run.sent} sent</span>
-                                {run.failed > 0 && <span>{run.failed} failed</span>}
-                                <span>{run.total - run.sent - run.failed} pending</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-xs text-gray-500">
-                              <span>Batches: <strong className="text-gray-700">{run.batchesSent}</strong></span>
-                              {run.lastBatchAt && <span>Last: <strong className="text-gray-700">{formatDateTime(run.lastBatchAt)}</strong></span>}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Recipient Log */}
-                        <div className="mt-4">
-                          <p className="text-[11px] font-semibold text-gray-500 uppercase mb-2">Recipient Log ({run.total})</p>
-                          <div className="bg-white rounded-lg border max-h-48 overflow-y-auto divide-y">
-                            {run.log.map((entry, idx) => (
-                              <div key={idx} className="flex items-center gap-3 px-3 py-1.5">
-                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${entry.status === 'sent' ? 'bg-green-500' : entry.status === 'failed' ? 'bg-red-500' : 'bg-gray-300'}`} />
-                                <span className="text-sm text-gray-700 flex-1 truncate">{run.recipientNames[entry.chatId] || entry.chatId}</span>
-                                <span className={`text-[10px] font-medium ${entry.status === 'sent' ? 'text-green-600' : entry.status === 'failed' ? 'text-red-600' : 'text-gray-400'}`}>
-                                  {entry.status === 'sent' ? `Sent ${entry.time ? formatDateTime(entry.time) : ''}` : entry.status === 'failed' ? `Failed${entry.error ? `: ${entry.error.slice(0, 30)}` : ''}` : 'Pending'}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Errors */}
-                        {run.errors.length > 0 && (
-                          <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
-                            <p className="text-[11px] font-semibold text-red-700 uppercase mb-1 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" /> Errors ({run.errors.length})
-                            </p>
-                            <div className="space-y-0.5 max-h-24 overflow-y-auto">
-                              {run.errors.map((err, i) => (
-                                <p key={i} className="text-[11px] text-red-600">{err}</p>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Summary Footer */}
-        <div className="text-center text-xs text-gray-400 pb-6">
-          Showing data for <strong>{periodLabels[period].toLowerCase()}</strong> · {filteredRuns.length} broadcast{filteredRuns.length !== 1 ? 's' : ''} · {stats.totalSent} messages sent
-        </div>
       </div>
     </div>
   );
