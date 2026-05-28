@@ -277,7 +277,7 @@ export default function QRLeadsPage() {
   }, [token, fetchLeads]);
 
   const handleDeleteLead = async (leadId: string) => {
-    if (!confirm('Are you sure you want to delete this lead?')) return;
+    if (!confirm('Move this lead to Deleted? You can view it at Leads → Deleted.')) return;
     try {
       const response = await fetch(`/api/admin/crm/leads/${leadId}`, {
         method: 'DELETE',
@@ -358,6 +358,35 @@ export default function QRLeadsPage() {
   };
 
   const clearSelection = () => setSelectedLeadIds(new Set());
+
+  const runBulkDelete = async () => {
+    if (!token) { setError('Please login again.'); return; }
+    const ids = Array.from(selectedLeadIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Move ${ids.length} selected lead${ids.length > 1 ? 's' : ''} to Deleted? You can view them at Leads → Deleted.`)) return;
+    try {
+      setBulkActionBusy(true);
+      setError(null);
+      const results = await Promise.allSettled(
+        ids.map(id =>
+          fetch(`/api/admin/crm/leads/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      );
+      const moved = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.length - moved;
+      alert(`Moved ${moved} lead${moved !== 1 ? 's' : ''} to Deleted.${failed ? ` ${failed} failed.` : ''}`);
+      clearSelection();
+      fetchLeads();
+      fetchMetadata();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk delete failed');
+    } finally {
+      setBulkActionBusy(false);
+    }
+  };
 
   const runBulkUpdate = async () => {
     if (!token) { setError('Please login again.'); return; }
@@ -480,6 +509,12 @@ export default function QRLeadsPage() {
             >
               <Plus className="w-3.5 h-3.5" /> Add Lead
             </button>
+            <a
+              href="/admin/crm/leads/deleted"
+              className="px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Deleted
+            </a>
           </div>
         </div>
       </div>
@@ -651,6 +686,14 @@ export default function QRLeadsPage() {
               className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-60"
             >
               {bulkActionBusy ? 'Updating…' : 'Apply'}
+            </button>
+            <button
+              onClick={runBulkDelete}
+              disabled={bulkActionBusy}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:opacity-60"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {bulkActionBusy ? 'Deleting…' : `Delete ${selectedLeadIds.size}`}
             </button>
           </div>
         </div>
