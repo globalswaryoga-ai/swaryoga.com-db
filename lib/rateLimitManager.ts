@@ -32,23 +32,30 @@ export class RateLimitManager {
     limit?: number;
   }> {
     await connectDB();
-    
+
+    // Reset any expired windows before checking — critical so stale counters don't block sends
+    await RateLimitManager.autoResetExpiredLimits();
+
     const now = new Date();
-    
+
     // Check hourly limit
     const hourlyLimit = await RateLimit.findOne({
       limitKey: `${userId}:hourly`,
       limitType: 'hourly',
     });
-    
+
     if (hourlyLimit && hourlyLimit.isPaused) {
       return {
         allowed: false,
         reason: `Messaging paused until ${hourlyLimit.resumeAt}`,
       };
     }
-    
-    if (hourlyLimit && hourlyLimit.messagesSent >= hourlyLimit.messagesLimit) {
+
+    if (
+      hourlyLimit &&
+      hourlyLimit.messagesSent >= hourlyLimit.messagesLimit &&
+      hourlyLimit.resetAt && hourlyLimit.resetAt > now
+    ) {
       return {
         allowed: false,
         reason: 'Hourly limit reached',
@@ -56,21 +63,25 @@ export class RateLimitManager {
         limit: hourlyLimit.messagesLimit,
       };
     }
-    
+
     // Check daily limit
     const dailyLimit = await RateLimit.findOne({
       limitKey: `${userId}:daily`,
       limitType: 'daily',
     });
-    
+
     if (dailyLimit && dailyLimit.isPaused) {
       return {
         allowed: false,
         reason: `Messaging paused until ${dailyLimit.resumeAt}`,
       };
     }
-    
-    if (dailyLimit && dailyLimit.messagesSent >= dailyLimit.messagesLimit) {
+
+    if (
+      dailyLimit &&
+      dailyLimit.messagesSent >= dailyLimit.messagesLimit &&
+      dailyLimit.resetAt && dailyLimit.resetAt > now
+    ) {
       return {
         allowed: false,
         reason: 'Daily limit reached',
@@ -78,7 +89,7 @@ export class RateLimitManager {
         limit: dailyLimit.messagesLimit,
       };
     }
-    
+
     return { allowed: true };
   }
 
@@ -102,13 +113,11 @@ export class RateLimitManager {
       { limitKey: `${userId}:hourly`, limitType: 'hourly' },
       {
         $inc: { messagesSent: 1 },
-        resetAt: hourlyReset,
-        messagesLimit: config.hourly,
-        warningThreshold: config.warningThreshold,
+        $set: { resetAt: hourlyReset, messagesLimit: config.hourly, warningThreshold: config.warningThreshold },
       },
       { upsert: true }
     );
-    
+
     // Update daily
     const dailyReset = new Date(now);
     dailyReset.setDate(dailyReset.getDate() + 1);
@@ -118,9 +127,7 @@ export class RateLimitManager {
       { limitKey: `${userId}:daily`, limitType: 'daily' },
       {
         $inc: { messagesSent: 1 },
-        resetAt: dailyReset,
-        messagesLimit: config.daily,
-        warningThreshold: config.warningThreshold,
+        $set: { resetAt: dailyReset, messagesLimit: config.daily, warningThreshold: config.warningThreshold },
       },
       { upsert: true }
     );
