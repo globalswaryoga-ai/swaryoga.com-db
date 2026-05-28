@@ -100,13 +100,11 @@ export default function MetaReportsPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/broadcast-runs', {
+      const res = await fetch('/api/admin/crm/broadcast-runs?provider=meta', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      const allRuns = data?.data?.runs || data?.runs || [];
-      // Filter only Meta runs
-      setRuns(allRuns.filter((r: BroadcastRun) => r.provider === 'meta'));
+      setRuns(data?.data?.runs || data?.runs || []);
     } catch (err) {
       console.error('Failed to load runs:', err);
     } finally {
