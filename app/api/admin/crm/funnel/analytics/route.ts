@@ -47,6 +47,8 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'daily'; // daily|weekly|monthly|yearly
     const assignedTo = url.searchParams.get('assignedTo') || '';
+    const source = url.searchParams.get('source') || '';
+    const excludeSource = url.searchParams.get('excludeSource') || '';
     const isSuper = isSuperAdmin(decoded);
     const viewerId = getViewerUserId(decoded);
 
@@ -66,6 +68,13 @@ export async function GET(request: NextRequest) {
       userFilter.$or = [{ assignedToUserId: assignedTo }, { createdByUserId: assignedTo }];
     }
     // else: super admin with no filter — no restriction, see all leads
+
+    // Source filter
+    if (source) userFilter.source = source;
+    if (excludeSource) {
+      const excluded = excludeSource.split(',').map((s: string) => s.trim()).filter(Boolean);
+      if (excluded.length) userFilter.source = { ...(typeof userFilter.source === 'object' ? userFilter.source : {}), $nin: excluded };
+    }
 
     // ── Stage Distribution (current snapshot) ──
     const stagePipeline: any[] = [];

@@ -103,6 +103,10 @@ export default function QRBroadcastReportPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [runningNow, setRunningNow] = useState(false);
+  const [actioning, setActioning] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
 
   const fetchRuns = useCallback(async () => {
     if (!token) return;
@@ -182,6 +186,89 @@ export default function QRBroadcastReportPage() {
     });
   };
 
+  const runNow = async () => {
+    if (!token || !selectedRun) return;
+    setRunningNow(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-runs/run', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: selectedRun._id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to start broadcast');
+      setSuccess('Broadcast started! Refresh in a minute to see progress.');
+      setTimeout(() => fetchRunDetail(selectedRun._id), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start broadcast');
+    } finally {
+      setRunningNow(false);
+    }
+  };
+
+  const patchAction = async (action: string, extra?: Record<string, unknown>) => {
+    if (!token || !selectedRun) return;
+    setActioning(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/crm/broadcast-runs/${selectedRun._id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Action failed');
+      setSuccess(json?.data?.message || 'Done');
+      setTimeout(() => fetchRunDetail(selectedRun._id), 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const cancelBroadcast = () => patchAction('cancel');
+
+  const restartBroadcast = async () => {
+    if (!token || !selectedRun) return;
+    setActioning(true);
+    setError(null);
+    try {
+      // Reset all messages to pending
+      const patchRes = await fetch(`/api/admin/crm/broadcast-runs/${selectedRun._id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset-all' }),
+      });
+      const patchJson = await patchRes.json();
+      if (!patchRes.ok) throw new Error(patchJson?.error || 'Reset failed');
+
+      // Immediately trigger processing
+      const runRes = await fetch('/api/admin/crm/broadcast-runs/run', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: selectedRun._id }),
+      });
+      const runJson = await runRes.json();
+      if (!runRes.ok) throw new Error(runJson?.error || 'Failed to start');
+
+      setSuccess('Broadcast restarted! Messages will send shortly.');
+      setTimeout(() => fetchRunDetail(selectedRun._id), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Restart failed');
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const rescheduleBroadcast = async () => {
+    if (!rescheduleDate) { setError('Please pick a date and time'); return; }
+    await patchAction('reschedule', { scheduledAt: new Date(rescheduleDate).toISOString() });
+    setShowRescheduleModal(false);
+    setRescheduleDate('');
+  };
+
   const exportCSV = () => {
     if (!selectedRun || messages.length === 0) return;
     const headers = ['Phone Number', 'Name', 'Status', 'Sent At', 'Delivered At', 'Read At', 'Failure Reason'];
@@ -227,6 +314,42 @@ export default function QRBroadcastReportPage() {
             <div className="flex items-center gap-2">
               {view === 'detail' && selectedRun && (
                 <>
+                  {/* Send Now — for scheduled/draft/running with pending messages */}
+                  {['scheduled', 'draft', 'running'].includes(selectedRun.status) && messageStats.pending > 0 && (
+                    <button
+                      onClick={runNow}
+                      disabled={runningNow || actioning}
+                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5"
+                    >
+                      {runningNow ? '⏳ Starting...' : '▶ Send Now'}
+                    </button>
+                  )}
+                  {/* Cancel — for active broadcasts */}
+                  {['scheduled', 'draft', 'running'].includes(selectedRun.status) && (
+                    <button
+                      onClick={cancelBroadcast}
+                      disabled={actioning}
+                      className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5"
+                    >
+                      {actioning ? '⏳' : '✕'} Cancel
+                    </button>
+                  )}
+                  {/* Restart — reset all & send immediately */}
+                  <button
+                    onClick={restartBroadcast}
+                    disabled={actioning || runningNow}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5"
+                  >
+                    {actioning ? '⏳' : '🔄'} Restart
+                  </button>
+                  {/* Reschedule — pick new time */}
+                  <button
+                    onClick={() => setShowRescheduleModal(true)}
+                    disabled={actioning}
+                    className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5"
+                  >
+                    📅 Reschedule
+                  </button>
                   <button onClick={() => fetchRunDetail(selectedRun._id)} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-semibold">
                     ↻ Refresh
                   </button>
@@ -513,6 +636,40 @@ export default function QRBroadcastReportPage() {
           </div>
         )}
       </div>
+
+      {/* Reschedule Modal */}
+      {showRescheduleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">📅 Reschedule Broadcast</h2>
+            <p className="text-sm text-gray-500 mb-6">Failed messages will be reset to pending and sent at the new time.</p>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">New Date & Time (IST)</label>
+              <input
+                type="datetime-local"
+                value={rescheduleDate}
+                onChange={e => setRescheduleDate(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowRescheduleModal(false); setRescheduleDate(''); }}
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-semibold text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={rescheduleBroadcast}
+                disabled={actioning || !rescheduleDate}
+                className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-xl font-semibold text-sm"
+              >
+                {actioning ? '⏳ Saving...' : '📅 Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

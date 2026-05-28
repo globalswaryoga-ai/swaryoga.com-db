@@ -190,21 +190,44 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
         );
         await BroadcastRun.updateOne(
           { _id: id, ...tf },
-          { 
-            $set: { 
-              status: 'scheduled', 
+          {
+            $set: {
+              status: 'scheduled',
               'stats.pending': resetAllResult.modifiedCount,
               'stats.sent': 0,
               'stats.failed': 0,
               'stats.skipped': 0,
-              updatedAt: now 
-            }, 
-            $unset: { lastError: 1, completedAt: 1, startedAt: 1 } 
+              updatedAt: now
+            },
+            $unset: { lastError: 1, completedAt: 1, startedAt: 1 }
           }
         );
         result.message = `Reset all ${resetAllResult.modifiedCount} messages to pending`;
         result.modifiedCount = resetAllResult.modifiedCount;
         break;
+
+      case 'reschedule': {
+        const newScheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+        if (!newScheduledAt || isNaN(newScheduledAt.getTime())) {
+          return NextResponse.json({ error: 'Invalid scheduledAt date' }, { status: 400 });
+        }
+        // Reset failed/sending messages to pending
+        const rescheduleReset = await BroadcastRunMessage.updateMany(
+          { runId: run._id, status: { $in: ['failed', 'sending'] }, ...tf },
+          { $set: { status: 'pending', failureReason: null, updatedAt: now } }
+        );
+        await BroadcastRun.updateOne(
+          { _id: id, ...tf },
+          {
+            $set: { status: 'scheduled', scheduledAt: newScheduledAt, updatedAt: now },
+            $unset: { lastError: 1, completedAt: 1 },
+          }
+        );
+        result.message = `Rescheduled to ${newScheduledAt.toISOString()}, reset ${rescheduleReset.modifiedCount} messages`;
+        result.modifiedCount = rescheduleReset.modifiedCount;
+        result.scheduledAt = newScheduledAt.toISOString();
+        break;
+      }
 
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });

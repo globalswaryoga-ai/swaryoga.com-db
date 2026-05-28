@@ -442,12 +442,21 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         },
         {
           icon: PieChart,
-          label: 'Sales Funnel',
+          label: 'Meta Sales Funnel',
           href: '/admin/crm/funnel',
           color: 'text-orange-400',
           module: 'payments',
           planModule: 'leads',
-          description: 'Visualize conversion pipeline',
+          description: 'Visualize Meta conversion pipeline',
+        },
+        {
+          icon: PieChart,
+          label: 'QR Sales Funnel',
+          href: '/admin/crm/qr/funnel',
+          color: 'text-teal-400',
+          module: 'payments',
+          planModule: 'leads',
+          description: 'Visualize QR WhatsApp conversion pipeline',
         },
         {
           icon: BarChart3,
