@@ -445,7 +445,7 @@ export default function QRBroadcastPage() {
               </h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
-              <Link href="/admin/crm/qr?tab=templates" className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-all text-sm font-medium flex items-center gap-1">
+              <Link href="/admin/crm/qr-templates" className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-all text-sm font-medium flex items-center gap-1">
                 📋 <span className="hidden sm:inline">Templates</span>
               </Link>
               <button
@@ -690,7 +690,7 @@ export default function QRBroadcastPage() {
                 <input type="text" placeholder="🔍 Search templates..." value={templateSearch}
                   onChange={e => setTemplateSearch(e.target.value)}
                   className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 w-48 text-sm" />
-                <Link href="/admin/crm/qr?tab=templates" className="text-green-600 hover:text-green-700 text-sm font-medium whitespace-nowrap">+ New Template</Link>
+                <Link href="/admin/crm/qr-templates" className="text-green-600 hover:text-green-700 text-sm font-medium whitespace-nowrap">+ New Template</Link>
               </div>
             </div>
 
@@ -699,7 +699,7 @@ export default function QRBroadcastPage() {
                 <div className="col-span-full text-center py-12 text-gray-500">
                   <span className="text-4xl">📝</span>
                   <p className="mt-2">No QR templates found.</p>
-                  <Link href="/admin/crm/qr?tab=templates" className="text-green-600 hover:underline mt-1 inline-block text-sm">Create a template →</Link>
+                  <Link href="/admin/crm/qr-templates" className="text-green-600 hover:underline mt-1 inline-block text-sm">Create a template →</Link>
                 </div>
               ) : filteredTemplates.map(t => (
                 <div key={t._id} onClick={() => setSelectedTemplate(t)}

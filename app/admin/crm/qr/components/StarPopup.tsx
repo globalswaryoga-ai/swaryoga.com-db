@@ -415,7 +415,7 @@ export function StarPopup({
               ) : filteredTemplates.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="text-gray-400 text-sm mb-2">No templates found</p>
-                  <a href="/admin/crm/qr/templates" className="text-xs text-green-600 hover:underline">Create templates →</a>
+                  <a href="/admin/crm/qr-templates" className="text-xs text-green-600 hover:underline">Create templates →</a>
                 </div>
               ) : (
                 filteredTemplates.map(tpl => (
