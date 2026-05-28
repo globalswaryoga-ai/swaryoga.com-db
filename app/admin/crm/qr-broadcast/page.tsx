@@ -124,8 +124,8 @@ export default function QRBroadcastPage() {
       ]);
       const [leadsData, templatesData, runsData] = await Promise.all([leadsRes.json(), templatesRes.json(), runsRes.json()]);
       setLeads(leadsData.data?.leads || leadsData.leads || []);
-      setTemplates(templatesData.data || templatesData.templates || []);
-      setRecentRuns(runsData.data?.runs || runsData.runs || []);
+      setTemplates(Array.isArray(templatesData.data) ? templatesData.data : (templatesData.data?.templates || templatesData.templates || []));
+      setRecentRuns(Array.isArray(runsData.data) ? runsData.data : (runsData.data?.runs || runsData.runs || []));
     } catch (err) {
       console.error('[QR Broadcast] fetch failed:', err);
     } finally {
