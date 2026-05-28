@@ -6,22 +6,9 @@ import mongoose from 'mongoose';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
-  );
-}
 
 /**
  * Bulk operations for leads
