@@ -367,17 +367,14 @@ export default function QRLeadsPage() {
     try {
       setBulkActionBusy(true);
       setError(null);
-      const results = await Promise.allSettled(
-        ids.map(id =>
-          fetch(`/api/admin/crm/leads/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
-          })
-        )
-      );
-      const moved = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.length - moved;
-      alert(`Moved ${moved} lead${moved !== 1 ? 's' : ''} to Deleted.${failed ? ` ${failed} failed.` : ''}`);
+      const res = await fetch('/api/admin/crm/leads/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Bulk delete failed');
+      alert(`Moved ${data?.data?.deleted ?? ids.length} lead${(data?.data?.deleted ?? ids.length) !== 1 ? 's' : ''} to Deleted.`);
       clearSelection();
       fetchLeads();
       fetchMetadata();
@@ -770,9 +767,13 @@ export default function QRLeadsPage() {
                           onClick={() => setSelectedLeadId(lead._id)}
                           className="text-left hover:text-green-700 font-medium text-gray-900"
                         >
-                          {(!lead.name || lead.name === 'Unknown' || lead.name === 'N/A' || lead.name === 'QR Lead' || String(lead.name).startsWith('QR Lead '))
-                            ? lead.phoneNumber
-                            : lead.name}
+                          {(() => {
+                            const n = lead.name || '';
+                            const isRawPhone = /^\d{10,15}$/.test(n.trim());
+                            return (!n || isRawPhone || n === 'Unknown' || n === 'N/A' || n.startsWith('QR Lead'))
+                              ? 'WhatsApp Contact'
+                              : n;
+                          })()}
                         </button>
                         {lead.email && <p className="text-xs text-gray-400 mt-0.5">{lead.email}</p>}
                       </td>
