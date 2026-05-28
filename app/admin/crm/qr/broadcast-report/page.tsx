@@ -1,9 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
 
@@ -88,7 +87,7 @@ export default function QRBroadcastReportPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
-  const crm = useCRM({ token });
+  const fetchingRef = useRef(false);
 
   const runId = searchParams.get('runId');
   const [view, setView] = useState<'list' | 'detail'>(runId ? 'detail' : 'list');
@@ -106,22 +105,30 @@ export default function QRBroadcastReportPage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const fetchRuns = useCallback(async () => {
+    if (!token) return;
     setLoadingRuns(true);
     try {
-      const res = await crm.fetch('/api/admin/crm/broadcast-runs?provider=qr', { method: 'GET' });
-      setRuns(res?.data?.runs || res?.runs || []);
+      const res = await fetch('/api/admin/crm/broadcast-runs?provider=qr', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setRuns(data?.data?.runs || data?.runs || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load broadcasts');
     } finally {
       setLoadingRuns(false);
     }
-  }, [crm]);
+  }, [token]);
 
   const fetchRunDetail = useCallback(async (id: string) => {
+    if (!token) return;
     setLoadingDetail(true);
     try {
-      const res = await crm.fetch(`/api/admin/crm/broadcast-runs/${id}?limit=500`, { method: 'GET' });
-      const data = res?.data || res;
+      const res = await fetch(`/api/admin/crm/broadcast-runs/${id}?limit=500`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      const data = json?.data || json;
       setSelectedRun(data?.run || null);
       setMessages(data?.messages || []);
     } catch (err) {
@@ -129,18 +136,20 @@ export default function QRBroadcastReportPage() {
     } finally {
       setLoadingDetail(false);
     }
-  }, [crm]);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     if (runId) {
       setView('detail');
-      fetchRunDetail(runId);
+      fetchRunDetail(runId).finally(() => { fetchingRef.current = false; });
     } else {
       setView('list');
-      fetchRuns();
+      fetchRuns().finally(() => { fetchingRef.current = false; });
     }
-  }, [token, runId, fetchRuns, fetchRunDetail]);
+  }, [token, runId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredMessages = useMemo(() => {
     if (messageFilter === 'all') return messages;
