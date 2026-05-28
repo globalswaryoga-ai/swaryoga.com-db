@@ -23,14 +23,13 @@ if (!global._crmModelCache) {
 }
 
 function getCrmDb() {
-  // Note: connectDB() should be called before using these models.
-  // useDb() is safe and will reuse the underlying connection.
-  // Use global cache to survive hot reloads
-  if (!global._crmDbCache) {
-    console.log('[enterpriseSchemas] Creating CRM DB connection to:', CRM_DB_NAME);
-    global._crmDbCache = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
-  }
-  return global._crmDbCache;
+  // Always derive from the live mongoose.connection so we never hold a reference
+  // to a stale/dropped connection. mongoose caches the useDb result internally
+  // via { useCache: true }, so repeated calls are cheap.
+  // Do NOT cache in global._crmDbCache — a reconnect creates a new Connection
+  // object and the old cache would point to the dead one, causing
+  // "Schema hasn't been registered for model X" errors in serverless.
+  return mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
 }
 
 /**
@@ -2868,28 +2867,24 @@ ScheduledMessageSchema.index({ isRecurring: 1, nextExecutionAt: 1 });
 // the model is actually used (guaranteed after connectDB() is called).
 
 function getModel(modelName: string, schema: any) {
-  // Return cached model if available (using global to survive hot reloads)
-  if (global._crmModelCache[modelName]) {
-    console.log(`[enterpriseSchemas] Using cached model: ${modelName}`);
-    return global._crmModelCache[modelName];
-  }
-  
-  // Initialize on first use (safe because this happens after connectDB)
+  // Always get the live DB — getCrmDb() is now cheap (no global cache).
+  // Using crmDb.models[name] for the model check ensures we get the model
+  // registered on THIS connection, not a stale one from a previous cold start.
   const crmDb = getCrmDb();
-  console.log(`[enterpriseSchemas] Creating new model: ${modelName} on db: ${crmDb.name}`);
 
-  // PROACTIVE REGISTRATION:
-  // If we are registering any CRM model other than Lead, ensure Lead is registered first on this connection.
-  // This prevents "Schema hasn't been registered for model 'Lead'" errors during population/ref lookup.
-  // LeadSchema is defined at the top of this file and is available here.
+  // Proactively register Lead first — prevents "Schema not registered for Lead"
+  // errors during populate/ref lookup on any other model.
   if (modelName !== 'Lead' && !crmDb.models['Lead']) {
     crmDb.model('Lead', LeadSchema);
   }
 
-  const model = crmDb.models[modelName] || crmDb.model(modelName, schema);
-  global._crmModelCache[modelName] = model;
-  console.log(`[enterpriseSchemas] Model ${modelName} created, db.name: ${model.db?.name}`);
-  return model;
+  // Proactively register BroadcastRun when registering BroadcastRunMessage
+  // so that .populate({ path: 'runId' }) can resolve the ref without error.
+  if (modelName === 'BroadcastRunMessage' && !crmDb.models['BroadcastRun']) {
+    crmDb.model('BroadcastRun', BroadcastRunSchema);
+  }
+
+  return crmDb.models[modelName] || crmDb.model(modelName, schema);
 }
 
 /**
