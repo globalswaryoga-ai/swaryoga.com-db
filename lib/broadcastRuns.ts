@@ -322,12 +322,22 @@ export async function processDueBroadcastRuns(options?: {
               ? `${templateContent}\n\n📲 Reply with number:\n${buttonTexts}` 
               : templateContent;
             
-            // Check for header media (image)
+            // Check for header media (image) — check imageFile (new) first, then headerMedia (legacy)
             const headerMedia = (template as any).headerMedia;
-            let mediaUrl = headerMedia?.url || headerMedia?.link || null;
-            const hasImage = mediaUrl && headerMedia?.kind === 'image';
-            
-            // Convert S3 URLs to signed URLs
+            const imageFile = (template as any).imageFile;
+            const headerFormat = String((template as any).headerFormat || '').toUpperCase();
+            let mediaUrl: string | null =
+              imageFile?.url ||
+              headerMedia?.url || headerMedia?.link ||
+              ((headerFormat === 'IMAGE' || headerFormat === 'VIDEO') ? (template as any).headerContent : null) ||
+              null;
+            const hasImage = !!(mediaUrl && (
+              headerFormat === 'IMAGE' ||
+              headerMedia?.kind === 'image' ||
+              imageFile?.url
+            ));
+
+            // Convert S3/private URLs to public signed URLs
             if (hasImage && mediaUrl) {
               mediaUrl = await getPublicMediaUrl(mediaUrl);
             }
@@ -337,46 +347,34 @@ export async function processDueBroadcastRuns(options?: {
             console.log('[Broadcast QR] Buttons:', buttonTitles.length, buttonTitles);
             
             let bridgeResponse: Response;
-            
-            // Use /send-template endpoint for templates with image + buttons (proper formatting)
-            if (hasImage && buttonTitles.length > 0) {
-              console.log('[Broadcast QR] Using /send-template for image + buttons');
+
+            if (hasImage) {
+              // Always use /send-template for image messages so image + text arrive together
+              console.log('[Broadcast QR] Using /send-template (image + text)');
               bridgeResponse = await fetchWithTimeout(`${bridgeUrl}/send-template`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                   'Content-Type': 'application/json',
                   'x-bridge-secret': bridgeSecret,
                 },
                 body: JSON.stringify({
-                  to: to,
+                  to,
                   imageUrl: mediaUrl,
                   bodyText: templateContent,
-                  buttons: buttonTitles,
-                  footerText: footerText || 'Swar Yoga'
+                  ...(buttonTitles.length > 0 ? { buttons: buttonTitles } : {}),
+                  ...(footerText ? { footerText } : {}),
                 }),
                 cache: 'no-store',
               }, 20000);
             } else {
-              // Build payload for regular /send endpoint
-              let bridgePayload: any = {
-                to: to,
-                type: hasImage ? 'media' : 'text',
-              };
-              
-              if (hasImage) {
-                bridgePayload.url = mediaUrl;
-                bridgePayload.caption = fullMessageWithButtonText;
-                bridgePayload.message = fullMessageWithButtonText;
+              // No image — text / buttons only
+              let bridgePayload: any = { to, type: 'text' };
+              if (buttonTitles.length > 0) {
+                bridgePayload.type = 'buttons';
+                bridgePayload.message = templateContent;
+                bridgePayload.buttons = buttonTitles;
               } else {
-                // Try native buttons if we have buttons and no image
-                if (buttonTitles.length > 0) {
-                  bridgePayload.type = 'buttons';
-                  bridgePayload.message = templateContent;
-                  bridgePayload.buttons = buttonTitles;
-                  bridgePayload.caption = 'Swar Yoga';
-                } else {
-                  bridgePayload.message = fullMessageWithButtonText;
-                }
+                bridgePayload.message = fullMessageWithButtonText;
               }
               
               console.log('[Broadcast QR] Payload:', JSON.stringify(bridgePayload, null, 2).substring(0, 500));

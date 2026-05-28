@@ -264,7 +264,11 @@ export async function POST(request: NextRequest) {
       templateSnapshot: {
         templateName: (template as any).templateName,
         language: (template as any).language,
+        headerFormat: (template as any).headerFormat || null,
+        headerContent: (template as any).headerContent || null,
+        imageFile: (template as any).imageFile || null,
         headerMedia: (template as any).headerMedia || null,
+        footerText: (template as any).footerText || null,
         buttons: (template as any).buttons || [],
         templateContent: (template as any).templateContent,
       },
