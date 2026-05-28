@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { getQRBroadcastSchedule, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getQRBroadcastSchedule, getWhatsAppMessage, getQrWhatsAppMessage, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { calculateVariableGaps, getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
@@ -82,11 +82,10 @@ async function resolveSessionInfo(
     if (!res.ok) return null;
     const data = await res.json();
     const sessions: any[] = data?.sessions || [];
+    // STRICT: only return a session owned by this specific user — never fall back to another user's session
     const own = sessions.find(s => s.userId === userId && s.status === 'connected');
-    const any = sessions.find(s => s.status === 'connected');
-    const s = own || any;
-    if (!s) return null;
-    return { sessionKey: String(s.sessionKey), tenantId: String(s.tenantId || s.sessionKey) };
+    if (!own) return null;
+    return { sessionKey: String(own.sessionKey), tenantId: String(own.tenantId || own.sessionKey) };
   } catch {
     return null;
   }
@@ -129,18 +128,18 @@ async function sendMessageWithGaps(
     let sendOk = false;
 
     if (hasMedia) {
-      // Send image with text — use /send-template endpoint for proper media handling
-      const mediaUrl = mediaUrls![0]; // Use first media URL
-      console.log(`[QR Broadcast V2] Sending image via /send-template: ${mediaUrl} to ${chatId}`);
+      // Send image with caption via /send (type:media) — bridge fetches URL and sends via Baileys
+      const mediaUrl = mediaUrls![0];
+      console.log(`[QR Broadcast V2] Sending image via /send type:media: ${mediaUrl} to ${chatId}`);
 
-      const res = await fetch(`${bridgeUrl}/send-template`, {
+      const res = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
         headers: bridgeHeaders,
         body: JSON.stringify({
           to: chatId,
-          imageUrl: mediaUrl,
-          bodyText: messageText || '',
-          footerText: 'Swar Yoga'
+          type: 'media',
+          media: mediaUrl,
+          caption: messageText || '',
         }),
       });
       const resData = await res.json().catch(() => ({}));
@@ -222,11 +221,30 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
   try {
     // CHECK 0: Resolve session info dynamically (bridge needs BOTH x-session-key AND x-tenant-id)
     const sessionInfo = await resolveSessionInfo(schedule.userId, bridgeUrl, bridgeSecret);
-    console.log(`[QR Broadcast V2] Session resolved: ${JSON.stringify(sessionInfo)}`);
+    console.log(`[QR Broadcast V2] Session resolved for userId=${schedule.userId}: ${JSON.stringify(sessionInfo)}`);
+
+    // If no connected session found for THIS user, pause — never send via another user's session
+    if (!sessionInfo) {
+      console.warn(`[QR Broadcast V2] ⚠️ No connected WhatsApp session for userId=${schedule.userId}. Pausing.`);
+      const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
+      await QRBroadcastSchedule.updateOne(
+        { _id: schedule._id },
+        {
+          status: 'paused',
+          lastError: 'No connected WhatsApp session — please reconnect your QR WhatsApp',
+          lastErrorAt: new Date(),
+        }
+      );
+      return {
+        status: 'paused',
+        reason: 'no_session',
+        message: 'No connected WhatsApp session for this user',
+      };
+    }
 
     const sessionHealth = await checkSessionHealth(
       schedule.userId,
-      sessionInfo?.sessionKey || '',
+      sessionInfo.sessionKey,
       bridgeUrl,
       bridgeSecret
     );
@@ -269,6 +287,14 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       console.log(`[QR Broadcast Processor V2] ✓ Already ran today at ${lastRunDate.toLocaleTimeString()}`);
       return { status: 'skipped', reason: 'already_ran_today' };
     }
+
+    // Look up the owner's connected WhatsApp phone number (needed for qr_whatsapp_messages save)
+    const CRMUserSettings = getCRMUserSettings();
+    const ownerSettings = await CRMUserSettings.findOne(
+      { userId: schedule.userId },
+      { qrConnectedPhoneNumber: 1 }
+    ).lean();
+    const connectedPhone = String((ownerSettings as any)?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, '');
 
     // Prepare recipients
     let recipients = [...schedule.recipientChatIds];
@@ -330,7 +356,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       if (heartbeatCheckCounter >= 10) {
         const heartbeat = await sendSessionHeartbeat(
           schedule.userId,
-          sessionInfo?.sessionKey || '',
+          sessionInfo.sessionKey,
           bridgeUrl,
           bridgeSecret
         );
@@ -390,28 +416,43 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         console.log(
           `[QR Broadcast V2] ✓ ${i + 1}/${recipients.length} sent (gap: ${(gap / 1000).toFixed(1)}s)`
         );
-        // Save to WhatsAppMessage (main DB, not CRM DB) so stats page shows real data
+        // Save directly to qr_whatsapp_messages (the collection the history/stats page reads).
+        // The bridge webhook also saves here when it fires, but this guarantees the record
+        // exists even if the webhook misfires or the phone isn't yet hydrated on the bridge.
         try {
-          const mainDb = mongoose.connection.db;
-          const waCollection = mainDb.collection('whatsapp_messages');
-          const phoneNum = chatId.includes('@') ? chatId.split('@')[0] : chatId.replace(/\D/g, '');
-          await waCollection.insertOne({
-            phoneNumber: phoneNum,
-            direction: 'outbound',
-            messageContent: schedule.messageText || '[media]',
-            messageType: (schedule.mediaUrls?.length > 0) ? 'media' : 'text',
-            media: schedule.mediaUrls?.length > 0 ? { kind: 'image', url: schedule.mediaUrls[0] } : undefined,
-            status: 'sent',
-            sentByUserId: schedule.userId,
-            sentByLabel: schedule.userId,
-            provider: 'whatsapp_web_bridge',
-            sentAt: new Date(),
-            recipientType: chatId.endsWith('@g.us') ? 'group' : 'individual',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-        } catch (waErr) {
-          console.warn(`[QR Broadcast V2] Warning: Failed to save message to WhatsAppMessage:`, waErr instanceof Error ? waErr.message : String(waErr));
+          const chatJid = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')}@s.whatsapp.net`;
+          const hasMedia = Array.isArray(schedule.mediaUrls) && schedule.mediaUrls.length > 0;
+          const QrMsg = getQrWhatsAppMessage();
+          const msgId = `broadcast-${schedule._id}-${chatId.replace(/\D/g, '')}-${Date.now()}`;
+          if (connectedPhone) {
+            await QrMsg.updateOne(
+              { messageId: msgId, chatJid },
+              {
+                $set: {
+                  userId: schedule.userId,
+                  connectedPhone,
+                  chatJid,
+                  messageId: msgId,
+                  direction: 'outbound',
+                  fromMe: true,
+                  text: schedule.messageText || (hasMedia ? '[media]' : ''),
+                  type: hasMedia ? 'image' : 'text',
+                  participant: '',
+                  pushName: '',
+                  timestamp: Math.floor(Date.now() / 1000),
+                  status: 1, // sent
+                  hasMedia,
+                  mediaUrl: hasMedia ? schedule.mediaUrls[0] : '',
+                  mediaMimetype: '',
+                  mediaFileName: '',
+                },
+                $setOnInsert: { createdAt: new Date() },
+              },
+              { upsert: true }
+            );
+          }
+        } catch (qrErr) {
+          console.warn(`[QR Broadcast V2] Warning: Failed to save message to qr_whatsapp_messages:`, qrErr instanceof Error ? qrErr.message : String(qrErr));
         }
       } else {
         failed++;
