@@ -266,7 +266,7 @@ function TemplatesContent() {
     setError(null);
     try {
       const res = await crmFetch('/api/admin/crm/templates', {
-        params: { limit: 200, skip: 0 },
+        params: { limit: 200, skip: 0, provider: 'meta' },
       });
       const templatesFromApi =
         (Array.isArray(res?.data?.templates) ? res.data.templates : null) ??

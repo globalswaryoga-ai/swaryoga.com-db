@@ -69,7 +69,7 @@ export default function TemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [providerFilter, setProviderFilter] = useState<'all' | 'meta'>('all');
+  const [providerFilter, setProviderFilter] = useState<'all' | 'meta'>('meta');
   const [statusFilter, setStatusFilter] = useState<'all' | Template['status']>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [page, setPage] = useState(1);
@@ -352,29 +352,11 @@ export default function TemplatesPage() {
             </div>
         </div>
 
-        {/* Provider Tabs */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
-          <button
-            onClick={() => { setProviderFilter('all'); setPage(1); }}
-            className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${
-              providerFilter === 'all'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            All Templates
-          </button>
-          <button
-            onClick={() => { setProviderFilter('meta'); setPage(1); }}
-            className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
-              providerFilter === 'meta'
-                ? 'bg-green-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-green-700'
-            }`}
-          >
-            <span>📱</span> Meta
-            <span className="text-[10px] opacity-80">(Approved)</span>
-          </button>
+        {/* Provider Label */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl w-fit">
+          <span>📱</span>
+          <span className="font-bold text-sm text-green-800">Meta Templates</span>
+          <span className="text-[10px] text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Approval Required</span>
         </div>
 
         {/* Info Banner */}

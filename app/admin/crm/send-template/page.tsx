@@ -59,7 +59,7 @@ export default function SendTemplatePage() {
 
     const fetchTemplates = async () => {
       try {
-        const res = await fetch('/api/admin/crm/templates', {
+        const res = await fetch(`/api/admin/crm/templates?provider=${provider}&limit=200`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -72,8 +72,11 @@ export default function SendTemplatePage() {
       }
     };
 
+    setSelectedTemplate(null);
+    setTemplates([]);
+    setLoading(true);
     fetchTemplates();
-  }, [token]);
+  }, [token, provider]);
 
   // ============================================================================
   // FILTERED TEMPLATES
