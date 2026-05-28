@@ -406,12 +406,21 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       items: [
         {
           icon: Users,
-          label: 'Leads',
+          label: 'Meta Leads',
           href: '/admin/crm/leads',
           color: 'text-purple-400',
           module: 'payments',
           planModule: 'leads',
-          description: 'Capture, qualify & manage leads',
+          description: 'Capture, qualify & manage Meta leads',
+        },
+        {
+          icon: Users,
+          label: 'QR Leads',
+          href: '/admin/crm/qr/leads',
+          color: 'text-teal-400',
+          module: 'payments',
+          planModule: 'leads',
+          description: 'Leads from QR WhatsApp',
         },
         {
           icon: FileText,
@@ -442,12 +451,21 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         },
         {
           icon: BarChart3,
-          label: 'Funnel Manager',
+          label: 'Meta Funnel Manage',
           href: '/admin/crm/funnel/manage',
           color: 'text-amber-400',
           module: 'payments',
           planModule: 'leads',
-          description: 'Configure sales stages',
+          description: 'Manage Meta leads funnel stages',
+        },
+        {
+          icon: BarChart3,
+          label: 'QR Funnel Manage',
+          href: '/admin/crm/qr/manage',
+          color: 'text-orange-400',
+          module: 'payments',
+          planModule: 'leads',
+          description: 'Manage QR WhatsApp funnel stages',
         },
       ],
     },
@@ -533,16 +551,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'whatsapp',
           description: 'Text messaging',
           superAdminOnly: true,  // Hide from basic plan
-        },
-        // --- Lead Capture & Campaigns ---
-        {
-          icon: Users,
-          label: 'QR Leads',
-          href: '/admin/crm/qr/leads',
-          color: 'text-emerald-400',
-          module: 'whatsapp',
-          planModule: 'whatsapp',
-          description: 'QR code lead generation',
         },
         {
           icon: UsersRound,

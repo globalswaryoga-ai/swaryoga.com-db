@@ -55,14 +55,12 @@ export async function GET(request: NextRequest) {
       ];
     } else if (assignedTo) {
       // Super admin with specific user filter
-      query.assignedToUserId = assignedTo;
-    } else {
-      // Super admin without specific filter - show own leads only to prevent data leakage
       query.$or = [
-        { assignedToUserId: viewerId },
-        { createdByUserId: viewerId },
+        { assignedToUserId: assignedTo },
+        { createdByUserId: assignedTo },
       ];
     }
+    // else: super admin with no filter — no restriction, see all leads
 
     if (search) {
       const esc = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

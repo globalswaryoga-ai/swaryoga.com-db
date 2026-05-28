@@ -2334,7 +2334,16 @@ export default function QRWhatsAppPage() {
             <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5 transition" title="View Statuses">
               <Radio className="w-3.5 h-3.5" /> Stories
             </button>
-            <a href="/admin/crm/reports/qr" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 transition" title="QR Broadcast Reports">
+            <a href="/admin/crm/qr/leads" className="px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 border border-teal-200 flex items-center gap-1.5 transition" title="QR Leads">
+              👥 Leads
+            </a>
+            <a href="/admin/crm/qr/funnel-report" className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1.5 transition" title="QR Funnel Report">
+              🔻 Funnel
+            </a>
+            <a href="/admin/crm/qr/manage" className="px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 border border-orange-200 flex items-center gap-1.5 transition" title="Manage QR Funnel">
+              ⚙️ Manage
+            </a>
+            <a href="/admin/crm/qr/broadcast-report" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 transition" title="QR Broadcast Reports">
               📊 Reports
             </a>
           </div>

@@ -63,12 +63,9 @@ export async function GET(request: NextRequest) {
       userFilter.$or = [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }];
     } else if (assignedTo) {
       // Super admin with specific user filter
-      userFilter.assignedToUserId = assignedTo;
-    } else {
-      // Super admin without specific filter - only show leads created by them or assigned to them
-      // This prevents showing all data
-      userFilter.$or = [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }];
+      userFilter.$or = [{ assignedToUserId: assignedTo }, { createdByUserId: assignedTo }];
     }
+    // else: super admin with no filter — no restriction, see all leads
 
     // ── Stage Distribution (current snapshot) ──
     const stagePipeline: any[] = [];
