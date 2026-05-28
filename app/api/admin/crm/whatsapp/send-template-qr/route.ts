@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { getLead, getWhatsAppMessage, getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage, getWhatsAppTemplate, CRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
@@ -37,17 +37,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing phoneNumber' }, { status: 400 });
     }
 
-    const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
     const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
+    const callerUserId = String(decoded?.userId || decoded?.username || '');
+
+    await connectDB();
+
+    // Resolve per-user bridge URL and session key
+    const userSettings = callerUserId
+      ? await CRMUserSettings.findOne({ userId: callerUserId }, { permanentTenantId: 1, qrBridgeUrl: 1 }).lean()
+      : null;
+    const sessionKey = (userSettings as any)?.permanentTenantId || callerUserId;
+    const globalBridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
+    const bridgeUrl = (userSettings as any)?.qrBridgeUrl?.trim() || globalBridgeUrl;
 
     if (!bridgeUrl || !bridgeSecret) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'QR Bridge not configured. Set WHATSAPP_BRIDGE_HTTP_URL and WHATSAPP_BRIDGE_SECRET.' 
+      return NextResponse.json({
+        success: false,
+        error: 'QR Bridge not configured. Set WHATSAPP_BRIDGE_HTTP_URL and WHATSAPP_BRIDGE_SECRET.',
       }, { status: 500 });
     }
 
-    await connectDB();
+    const sessionHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-bridge-secret': bridgeSecret,
+      'x-user-id': callerUserId,
+      'x-session-key': sessionKey,
+    };
     
     const normalizedPhone = normalizePhone(String(phoneNumber));
     const Lead = getLead();
@@ -119,22 +134,29 @@ export async function POST(request: NextRequest) {
     try {
       // Use standard /send endpoint (same as regular messages)
       // The bridge will handle template-style messages the same way
-      const res = await fetch(`${bridgeUrl}/send`, {
+      // Use /send-template when image is present so image+text arrive together
+      const endpoint = finalImageUrl ? '/send-template' : '/send';
+      const payload = finalImageUrl
+        ? {
+            to: normalizedPhone,
+            imageUrl: finalImageUrl,
+            bodyText: finalBodyText || 'Template message',
+            ...(finalButtons.length > 0 ? { buttons: finalButtons } : {}),
+            ...(finalFooterText ? { footerText: finalFooterText } : {}),
+          }
+        : {
+            to: normalizedPhone,
+            type: finalButtons.length > 0 ? 'buttons' : 'text',
+            message: finalBodyText || 'Template message',
+            ...(finalButtons.length > 0 ? { buttons: finalButtons } : {}),
+          };
+
+      const res = await fetch(`${bridgeUrl}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bridge-secret': bridgeSecret,
-        },
-        body: JSON.stringify({
-          to: normalizedPhone,
-          // For template-style messages, send as formatted text with image if available
-          message: finalBodyText || 'Template message',
-          caption: finalImageUrl ? `[Image: ${finalImageUrl}]` : undefined,
-          imageUrl: finalImageUrl || undefined, // Baileys supports imageUrl in send payload
-          buttons: finalButtons.length > 0 ? finalButtons : undefined,
-        }),
+        headers: sessionHeaders,
+        body: JSON.stringify(payload),
         cache: 'no-store',
-        signal: AbortSignal.timeout(30000), // 30 second timeout
+        signal: AbortSignal.timeout(30000),
       });
 
       const data = await res.json().catch(() => ({}));

@@ -2,7 +2,7 @@ import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
-import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -290,8 +290,22 @@ export async function processDueBroadcastRuns(options?: {
           let apiResult: any;
           
           if (runProvider === 'qr') {
-            // Send via QR Bridge using /send endpoint (same as single message send)
+            // Send via QR Bridge — resolve per-user session headers
             const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
+            const runUserId = String((run as any).createdByUserId || '');
+            // Load user's permanentTenantId so the bridge routes to the right WhatsApp session
+            const userSettings = runUserId
+              ? await CRMUserSettings.findOne({ userId: runUserId }, { permanentTenantId: 1, qrBridgeUrl: 1 }).lean()
+              : null;
+            const sessionKey = (userSettings as any)?.permanentTenantId || runUserId;
+            const resolvedBridgeUrl = (userSettings as any)?.qrBridgeUrl?.trim() || bridgeUrl;
+            // Headers required by the bridge to route to the correct session
+            const sessionHeaders: Record<string, string> = {
+              'Content-Type': 'application/json',
+              'x-bridge-secret': bridgeSecret,
+              'x-user-id': runUserId,
+              'x-session-key': sessionKey,
+            };
             
             // Build template message content with header, body, footer
             // Clean templateContent - remove [QUICK_REPLY] markers and button lines
@@ -342,21 +356,18 @@ export async function processDueBroadcastRuns(options?: {
               mediaUrl = await getPublicMediaUrl(mediaUrl);
             }
             
-            console.log('[Broadcast QR] Sending to:', to, 'via', bridgeUrl);
+            console.log('[Broadcast QR] Sending to:', to, 'via', resolvedBridgeUrl, 'userId:', runUserId, 'sessionKey:', sessionKey);
             console.log('[Broadcast QR] Has image:', hasImage, 'URL:', mediaUrl?.substring(0, 80));
             console.log('[Broadcast QR] Buttons:', buttonTitles.length, buttonTitles);
-            
+
             let bridgeResponse: Response;
 
             if (hasImage) {
               // Always use /send-template for image messages so image + text arrive together
               console.log('[Broadcast QR] Using /send-template (image + text)');
-              bridgeResponse = await fetchWithTimeout(`${bridgeUrl}/send-template`, {
+              bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send-template`, {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-bridge-secret': bridgeSecret,
-                },
+                headers: sessionHeaders,
                 body: JSON.stringify({
                   to,
                   imageUrl: mediaUrl,
@@ -376,33 +387,21 @@ export async function processDueBroadcastRuns(options?: {
               } else {
                 bridgePayload.message = fullMessageWithButtonText;
               }
-              
-              console.log('[Broadcast QR] Payload:', JSON.stringify(bridgePayload, null, 2).substring(0, 500));
-              
-              bridgeResponse = await fetchWithTimeout(`${bridgeUrl}/send`, {
+
+              bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                 method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'x-bridge-secret': bridgeSecret,
-                },
+                headers: sessionHeaders,
                 body: JSON.stringify(bridgePayload),
                 cache: 'no-store',
               }, 20000);
-              
+
               // If native buttons failed, fallback to text format
               if (!bridgeResponse.ok && bridgePayload.type === 'buttons') {
                 console.log('[Broadcast QR] Native buttons failed, falling back to text format');
-                bridgePayload = {
-                  to: to,
-                  type: 'text',
-                  message: fullMessageWithButtonText,
-                };
-                bridgeResponse = await fetchWithTimeout(`${bridgeUrl}/send`, {
+                bridgePayload = { to, type: 'text', message: fullMessageWithButtonText };
+                bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                   method: 'POST',
-                  headers: { 
-                    'Content-Type': 'application/json',
-                    'x-bridge-secret': bridgeSecret,
-                  },
+                  headers: sessionHeaders,
                   body: JSON.stringify(bridgePayload),
                   cache: 'no-store',
                 }, 20000);
