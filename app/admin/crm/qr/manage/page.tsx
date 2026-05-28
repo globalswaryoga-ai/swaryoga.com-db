@@ -1048,7 +1048,11 @@ export default function QRManagePage() {
                       onClick={() => setSelectedLeadId(lead._id)}
                       className="text-sm font-semibold text-gray-800 hover:text-emerald-600 transition truncate text-left flex-shrink-0 max-w-[200px]"
                     >
-                      {lead.title ? `${lead.title}. ` : ''}{lead.name || lead.displayName || 'Unknown'}
+                      {(() => {
+                        const raw = lead.name || lead.displayName || '';
+                        const isRawPhone = /^\d{10,15}$/.test(raw.trim());
+                        return (lead.title ? `${lead.title}. ` : '') + (isRawPhone || !raw ? 'WhatsApp Contact' : raw);
+                      })()}
                     </button>
 
                     {/* Mobile */}

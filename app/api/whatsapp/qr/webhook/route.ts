@@ -232,12 +232,13 @@ async function ingestQRPayload(payload: any) {
 
     // Check for existing lead or match
     let lead = await Lead.findOne({ phoneNumber: normalizedPhone });
+    const senderName = !m.fromMe && m.pushName ? String(m.pushName).trim() : '';
     if (!lead) {
         // Auto-create lead for incoming messages if it doesn't exist
         const { leadNumber } = await allocateNextLeadNumber();
         lead = await Lead.create({
             phoneNumber: normalizedPhone,
-            name: normalizedPhone,
+            name: senderName || normalizedPhone,
             source: 'qr_whatsapp',
             labels: ['whatsapp', 'qr'],
             status: 'lead',
@@ -248,15 +249,14 @@ async function ingestQRPayload(payload: any) {
               createdByUserId: payload.bridgeUserId,
             }),
         });
-        console.log(`[QR WEBHOOK] Created lead for ${normalizedPhone}, assigned to: ${payload.bridgeUserId || 'UNASSIGNED'}`);
+        console.log(`[QR WEBHOOK] Created lead for ${normalizedPhone} (name: ${senderName || 'none'}), assigned to: ${payload.bridgeUserId || 'UNASSIGNED'}`);
     } else {
+        const updates: any = {};
         // Add 'whatsapp' label if not already there
-        if (!lead.labels || !lead.labels.includes('whatsapp')) {
-            await Lead.updateOne(
-                { _id: lead._id },
-                { $addToSet: { labels: 'whatsapp' } }
-            );
-        }
+        if (!lead.labels || !lead.labels.includes('whatsapp')) updates.$addToSet = { labels: 'whatsapp' };
+        // Update name if it's still the raw phone number and we now have a real name
+        if (senderName && (!lead.name || lead.name === normalizedPhone)) updates.$set = { name: senderName };
+        if (Object.keys(updates).length) await Lead.updateOne({ _id: lead._id }, updates);
         console.log(`[QR WEBHOOK] Found existing lead for ${normalizedPhone}, owned by: ${(lead as any).assignedToUserId || (lead as any).createdByUserId || 'UNASSIGNED'}`);
     }
     

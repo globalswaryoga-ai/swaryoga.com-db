@@ -16,6 +16,7 @@ export type NormalizedQRMessage = {
   hasMedia?: boolean;
   media?: NormalizedQRMedia;
   type?: string; // 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
+  pushName?: string; // WhatsApp display name of the sender
 };
 
 function asString(v: unknown): string | undefined {
@@ -130,6 +131,7 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
 
       const media = extractMediaInfo(m);
 
+      const pushName = asString(m.pushName || m.notifyName || m.senderName || m.contactName || m.name || m.contact?.name);
       return {
         from: asString(m.from || m.sender || m.phone || m?.contact?.id || m?.chatId) || '',
         to: asString(m.to || m.receiver),
@@ -140,6 +142,7 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         hasMedia: !!media,
         media,
         type: media ? media.kind : 'text',
+        ...(pushName ? { pushName } : {}),
       } as NormalizedQRMessage;
     })
     // Keep messages if they have: a valid from field, OR it's fromMe, OR it has a messageId (fallback for incoming messages without from)
