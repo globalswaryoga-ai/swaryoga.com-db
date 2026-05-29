@@ -50,6 +50,12 @@ function saveEnquiries(enquiries: any[]) {
 }
 
 // GET: Fetch all enquiries (SUPERADMIN ONLY)
+//
+// Sources data from BOTH:
+//   1. MongoDB Leads with label 'enquiry' (persistent, survives Vercel deploys)
+//   2. Legacy data/enquiries.json (kept for any old local entries)
+// MongoDB results take priority; JSON entries are merged in only if the same
+// phone number isn't already present from Mongo.
 export async function GET(request: NextRequest) {
   try {
     // Verify superadmin access
@@ -60,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     const token = authHeader.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    
+
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
     }
@@ -73,22 +79,57 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const enquiries = getEnquiries();
-    
-    // Support filtering by workshop
     const url = new URL(request.url);
     const workshopId = url.searchParams.get('workshopId');
-    
-    let filteredEnquiries = enquiries;
-    if (workshopId) {
-      filteredEnquiries = enquiries.filter((e: any) => e.workshopId === workshopId);
+
+    // ── Primary source: MongoDB Leads labelled as enquiry ──
+    let mongoEnquiries: any[] = [];
+    try {
+      await connectDB();
+      const Lead = getLead();
+      const query: any = { labels: 'enquiry' };
+      const leads = await Lead.find(query).sort({ createdAt: -1 }).limit(2000).lean();
+      mongoEnquiries = (leads as any[]).map((l: any) => {
+        const meta = l.metadata?.lastEnquiry || l.metadata || {};
+        return {
+          id: l.leadNumber || String(l._id),
+          leadId: String(l._id),
+          leadNumber: l.leadNumber,
+          workshopId: meta.workshopId || '',
+          workshopName: meta.workshopName || l.workshopName || 'Enquiry',
+          name: l.name || 'Unknown',
+          mobile: l.phoneNumber || '',
+          gender: meta.gender || '',
+          city: meta.city || '',
+          submittedAt: (meta.submittedAt || l.createdAt || new Date()).toString(),
+          status: l.status === 'registered' ? 'registered'
+            : l.status === 'contacted' ? 'contacted'
+            : 'new',
+          notes: l.notes || '',
+        };
+      });
+      if (workshopId) {
+        mongoEnquiries = mongoEnquiries.filter(e => e.workshopId === workshopId);
+      }
+    } catch (mongoErr) {
+      console.error('[enquiries GET] Mongo read failed (will fall back to JSON only):', mongoErr);
     }
+
+    // ── Legacy JSON file: merge in any rows whose phone isn't already in Mongo ──
+    const jsonEnquiries = getEnquiries();
+    const phonesInMongo = new Set(mongoEnquiries.map(e => String(e.mobile).replace(/\D/g, '')));
+    const extras = (jsonEnquiries as any[])
+      .filter((e: any) => !phonesInMongo.has(String(e.mobile || '').replace(/\D/g, '')))
+      .filter((e: any) => !workshopId || e.workshopId === workshopId);
+
+    const merged = [...mongoEnquiries, ...extras];
 
     return NextResponse.json(
       {
         message: 'Enquiries retrieved successfully',
-        data: filteredEnquiries,
-        count: filteredEnquiries.length,
+        data: merged,
+        count: merged.length,
+        sources: { mongo: mongoEnquiries.length, json: extras.length },
       },
       { status: 200 }
     );

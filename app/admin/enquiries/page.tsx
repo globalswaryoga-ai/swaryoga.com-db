@@ -26,6 +26,16 @@ export default function EnquiriesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+  // Helper: read the admin auth token from wherever the login flow stored it
+  const getAuthHeaders = (): Record<string, string> => {
+    if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  };
+
   // Fetch enquiries
   useEffect(() => {
     fetchEnquiries();
@@ -34,8 +44,11 @@ export default function EnquiriesPage() {
   const fetchEnquiries = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/enquiries');
-      if (!response.ok) throw new Error('Failed to fetch enquiries');
+      const response = await fetch('/api/admin/enquiries', { headers: getAuthHeaders() });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody?.error || errBody?.message || `Failed to fetch enquiries (${response.status})`);
+      }
       const data = await response.json();
       setEnquiries(data.data || []);
       setError(null);
@@ -52,6 +65,7 @@ export default function EnquiriesPage() {
     try {
       const response = await fetch(`/api/admin/enquiries?id=${id}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to delete enquiry');
       setEnquiries(enquiries.filter((e) => e.id !== id));
@@ -64,11 +78,11 @@ export default function EnquiriesPage() {
     try {
       const response = await fetch(`/api/admin/enquiries?id=${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus }),
       });
       if (!response.ok) throw new Error('Failed to update status');
-      
+
       const updated = enquiries.map((e) =>
         e.id === id ? { ...e, status: newStatus as Enquiry['status'] } : e
       );
