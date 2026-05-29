@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface Enquiry {
   id: string;
+  leadId?: string;
   workshopId: string;
   workshopName: string;
   name: string;
@@ -30,6 +32,7 @@ interface EnquiryForm {
 }
 
 export default function EnquiriesPage() {
+  const router = useRouter();
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +190,27 @@ export default function EnquiriesPage() {
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update status');
     }
+  };
+
+  // Open conversation in Meta inbox + tag lead as meta-contacted
+  const openInMeta = async (enquiry: Enquiry) => {
+    const digits = enquiry.mobile.replace(/\D/g, '');
+    // Ensure country code: if 10 digits, prepend 91
+    const phone = digits.length === 10 ? `91${digits}` : digits;
+
+    // Tag the lead in the background (non-blocking)
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+      if (token && enquiry.leadId) {
+        fetch(`/api/admin/crm/leads/${enquiry.leadId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ addLabels: ['meta-whatsapp', 'meta-contacted'] }),
+        }).catch(() => {});
+      }
+    } catch {}
+
+    router.push(`/admin/crm/meta?phone=${phone}`);
   };
 
   const workshops = Array.from(new Set(enquiries.map((e) => e.workshopName)));
@@ -388,6 +412,12 @@ export default function EnquiriesPage() {
                       <option value="contacted">Contacted</option>
                       <option value="registered">Registered</option>
                     </select>
+                    <button
+                      onClick={() => openInMeta(enquiry)}
+                      className="w-full flex items-center justify-center gap-1.5 text-sm text-white bg-[#25D366] hover:bg-[#1ebe5d] font-semibold py-2 rounded-lg mb-2 transition-colors"
+                    >
+                      <MessageCircle size={14} /> WhatsApp
+                    </button>
                     <button onClick={() => handleDelete(enquiry.id)} className="w-full text-sm text-red-600 hover:text-swar-primary font-medium py-1">Delete</button>
                   </div>
                 ))}
@@ -440,15 +470,24 @@ export default function EnquiriesPage() {
                             </select>
                           </td>
                           <td className="px-6 py-4">
-                            <button
-                              onClick={() => setExpandedRow(expandedRow === enquiry.id ? null : enquiry.id)}
-                              className="mr-2 text-swar-text-secondary hover:text-swar-text"
-                            >
-                              {expandedRow === enquiry.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                            <button onClick={() => handleDelete(enquiry.id)} className="text-red-600 hover:text-red-800">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => openInMeta(enquiry)}
+                                title="Open in Meta WhatsApp inbox"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg text-xs font-semibold transition-colors"
+                              >
+                                <MessageCircle size={13} /> Chat
+                              </button>
+                              <button
+                                onClick={() => setExpandedRow(expandedRow === enquiry.id ? null : enquiry.id)}
+                                className="text-swar-text-secondary hover:text-swar-text"
+                              >
+                                {expandedRow === enquiry.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                              <button onClick={() => handleDelete(enquiry.id)} className="text-red-600 hover:text-red-800">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                         {expandedRow === enquiry.id && (

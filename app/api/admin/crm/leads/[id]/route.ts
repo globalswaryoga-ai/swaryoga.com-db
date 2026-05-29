@@ -302,7 +302,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const lead = await Lead.findByIdAndUpdate(params.id, { $set: update }, { new: true }).lean();
+    // addLabels: append without replacing existing labels
+    let mongoOp: any = { $set: update };
+    if (Array.isArray(body.addLabels) && body.addLabels.length > 0) {
+      const labelsToAdd = body.addLabels.map((x: any) => String(x));
+      mongoOp.$addToSet = { labels: { $each: labelsToAdd } };
+    }
+
+    const lead = await Lead.findByIdAndUpdate(params.id, mongoOp, { new: true }).lean();
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
@@ -356,6 +363,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
             pinned: false
           });
        }
+    } else if (Array.isArray(body.addLabels) && body.addLabels.length > 0) {
+      notesToCreate.push({
+        leadId: existing._id,
+        note: `System: Labels added: ${body.addLabels.join(', ')}`,
+        createdByUserId: 'system',
+        pinned: false,
+      });
     }
 
     // 3. Assignment Change
