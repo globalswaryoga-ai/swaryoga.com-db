@@ -383,102 +383,144 @@ export async function processDueBroadcastRuns(options?: {
               'x-tenant-id': sessionKey,
             };
             
-            // Build template message content with header, body, footer
-            // Clean templateContent - remove [QUICK_REPLY] markers and button lines
-            const rawContent = String((template as any).templateContent || '').trim();
-            const templateContent = rawContent
-              .replace(/•\s*\[QUICK_REPLY\][^\n]*/gi, '') // Remove • [QUICK_REPLY] lines
-              .replace(/\[QUICK_REPLY\][^\n]*/gi, '')     // Remove [QUICK_REPLY] lines
-              .replace(/\n{3,}/g, '\n\n')                  // Collapse multiple newlines
+            // ── Build message text ────────────────────────────────────────────
+            const headerFormat = String((template as any).headerFormat || '').toUpperCase();
+
+            // Body text — strip [QUICK_REPLY] markers only
+            const bodyText = String((template as any).templateContent || '').trim()
+              .replace(/•\s*\[QUICK_REPLY\][^\n]*/gi, '')
+              .replace(/\[QUICK_REPLY\][^\n]*/gi, '')
+              .replace(/\n{3,}/g, '\n\n')
               .trim();
-            
-            const headerText = (template as any).headerContent ? String((template as any).headerContent).trim() : '';
-            const footerText = (template as any).footerText ? String((template as any).footerText).trim() : '';
+
+            // Header text (only when headerFormat is TEXT, not IMAGE/VIDEO/DOCUMENT)
+            const headerTextContent = (headerFormat === 'TEXT' && (template as any).headerContent)
+              ? String((template as any).headerContent).trim()
+              : '';
+
+            const footerText = (template as any).footerText
+              ? String((template as any).footerText).trim()
+              : '';
+
             const buttons = Array.isArray((template as any).buttons) ? (template as any).buttons : [];
-            
-            // Format message: Body only (header/footer already in template body for QR)
-            let fullMessage = templateContent;
-            
-            // Extract button titles for native buttons attempt
             const buttonTitles = buttons
               .filter((b: any) => b.title)
               .map((b: any) => String(b.title).substring(0, 20));
-            
-            // Prepare text fallback for buttons
             const buttonTexts = buttonTitles
-              .map((title: string, i: number) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} ${title}`)
+              .map((title: string, i: number) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i + 1}.`} ${title}`)
               .join('\n');
-            const fullMessageWithButtonText = buttonTexts 
-              ? `${templateContent}\n\n📲 Reply with number:\n${buttonTexts}` 
-              : templateContent;
-            
-            // Check for header media (image) — check imageFile (new) first, then headerMedia (legacy)
-            const headerMedia = (template as any).headerMedia;
+
+            // Compose full message: TEXT header + body + footer + buttons
+            const messageParts = [
+              headerTextContent,
+              bodyText,
+              footerText,
+              buttonTexts ? `📲 Reply with:\n${buttonTexts}` : '',
+            ].filter(Boolean);
+            const fullMessage = messageParts.join('\n\n');
+
+            // ── Resolve media URL ─────────────────────────────────────────────
             const imageFile = (template as any).imageFile;
-            const headerFormat = String((template as any).headerFormat || '').toUpperCase();
+            const headerMedia = (template as any).headerMedia;
             let mediaUrl: string | null =
               imageFile?.url ||
               headerMedia?.url || headerMedia?.link ||
-              ((headerFormat === 'IMAGE' || headerFormat === 'VIDEO') ? (template as any).headerContent : null) ||
+              (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? String((template as any).headerContent || '') : '') ||
               null;
-            const hasImage = !!(mediaUrl && (
-              headerFormat === 'IMAGE' ||
-              headerMedia?.kind === 'image' ||
-              imageFile?.url
-            ));
+            if (mediaUrl === '') mediaUrl = null;
 
-            // Convert S3/private URLs to public signed URLs
-            if (hasImage && mediaUrl) {
+            const hasMedia = !!(mediaUrl && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat));
+            const hasImage = hasMedia && (headerFormat === 'IMAGE' || !!imageFile?.url || headerMedia?.kind === 'image');
+            const hasDocument = hasMedia && headerFormat === 'DOCUMENT';
+            const hasVideo = hasMedia && headerFormat === 'VIDEO';
+
+            if (hasMedia && mediaUrl) {
               mediaUrl = await getPublicMediaUrl(mediaUrl);
             }
-            
-            console.log('[Broadcast QR] Sending to:', to, 'via', resolvedBridgeUrl, 'userId:', runUserId, 'sessionKey:', sessionKey);
-            console.log('[Broadcast QR] Has image:', hasImage, 'URL:', mediaUrl?.substring(0, 80));
-            console.log('[Broadcast QR] Buttons:', buttonTitles.length, buttonTitles);
 
+            // Detect mimetype from URL extension
+            const getMime = (url: string) => {
+              const u = url.toLowerCase().split('?')[0];
+              if (u.endsWith('.jpg') || u.endsWith('.jpeg')) return 'image/jpeg';
+              if (u.endsWith('.png')) return 'image/png';
+              if (u.endsWith('.gif')) return 'image/gif';
+              if (u.endsWith('.webp')) return 'image/webp';
+              if (u.endsWith('.mp4')) return 'video/mp4';
+              if (u.endsWith('.pdf')) return 'application/pdf';
+              if (u.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              if (u.endsWith('.doc')) return 'application/msword';
+              return hasImage ? 'image/jpeg' : hasVideo ? 'video/mp4' : 'application/octet-stream';
+            };
+            const getFileName = (url: string) => url.split('/').pop()?.split('?')[0] || 'file';
+
+            console.log('[Broadcast QR] Sending to:', to, 'via', resolvedBridgeUrl, 'userId:', runUserId);
+            console.log('[Broadcast QR] headerFormat:', headerFormat, 'hasMedia:', hasMedia, 'mediaUrl:', mediaUrl?.substring(0, 80));
+            console.log('[Broadcast QR] fullMessage length:', fullMessage.length, 'preview:', fullMessage.substring(0, 60));
+
+            // ── Send via bridge ───────────────────────────────────────────────
             let bridgeResponse: Response;
 
-            if (hasImage) {
-              // Use /send with type:image — bridge does not have /send-template endpoint
-              console.log('[Broadcast QR] Using /send type:image (image + caption)');
+            if (hasMedia && mediaUrl) {
+              // type:'media' is correct — bridge expects media/cdnUrl, NOT type:'image'/imageUrl
+              const mime = getMime(mediaUrl);
+              const fileName = getFileName(mediaUrl);
+              const caption = bodyText + (footerText ? `\n${footerText}` : '') + (buttonTexts ? `\n\n📲 Reply with:\n${buttonTexts}` : '');
+              console.log('[Broadcast QR] Sending media:', mime, fileName, 'caption length:', caption.length);
               bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                 method: 'POST',
                 headers: sessionHeaders,
                 body: JSON.stringify({
                   to,
-                  type: 'image',
-                  imageUrl: mediaUrl,
-                  caption: templateContent,
-                  ...(buttonTitles.length > 0 ? { buttons: buttonTitles } : {}),
+                  type: 'media',
+                  media: mediaUrl,
+                  cdnUrl: mediaUrl,
+                  mimetype: mime,
+                  caption: caption || undefined,
+                  fileName,
                 }),
                 cache: 'no-store',
-              }, 20000);
-            } else {
-              // No image — text / buttons only
-              let bridgePayload: any = { to, type: 'text' };
-              if (buttonTitles.length > 0) {
-                bridgePayload.type = 'buttons';
-                bridgePayload.message = templateContent;
-                bridgePayload.buttons = buttonTitles;
-              } else {
-                bridgePayload.message = fullMessageWithButtonText;
-              }
+              }, 30000);
 
+              // If media send failed, fall back to sending text only
+              if (!bridgeResponse.ok) {
+                console.warn('[Broadcast QR] Media send failed, falling back to text-only');
+                const fallbackMsg = fullMessage || `[Media: ${fileName}]\n\n${caption}`.trim();
+                bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
+                  method: 'POST',
+                  headers: sessionHeaders,
+                  body: JSON.stringify({ to, type: 'text', message: fallbackMsg }),
+                  cache: 'no-store',
+                }, 20000);
+              }
+            } else {
+              // Text only (with optional native buttons)
+              if (!fullMessage) {
+                console.error('[Broadcast QR] Template has no content — skipping send for', to);
+                await BroadcastRunMessage.updateOne(
+                  { _id: (item as any)._id },
+                  { $set: { status: 'skipped', failureReason: 'Template has no message content', updatedAt: now } }
+                );
+                stat.skipped++;
+                result.skipped++;
+                continue;
+              }
+              let bridgePayload: any = { to, type: 'text', message: fullMessage };
+              if (buttonTitles.length > 0) {
+                bridgePayload = { to, type: 'buttons', message: bodyText || fullMessage, buttons: buttonTitles };
+              }
               bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                 method: 'POST',
                 headers: sessionHeaders,
                 body: JSON.stringify(bridgePayload),
                 cache: 'no-store',
               }, 20000);
-
-              // If native buttons failed, fallback to text format
+              // Buttons fallback to text
               if (!bridgeResponse.ok && bridgePayload.type === 'buttons') {
-                console.log('[Broadcast QR] Native buttons failed, falling back to text format');
-                bridgePayload = { to, type: 'text', message: fullMessageWithButtonText };
+                console.log('[Broadcast QR] Native buttons failed, falling back to text');
                 bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                   method: 'POST',
                   headers: sessionHeaders,
-                  body: JSON.stringify(bridgePayload),
+                  body: JSON.stringify({ to, type: 'text', message: fullMessage }),
                   cache: 'no-store',
                 }, 20000);
               }
