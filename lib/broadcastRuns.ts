@@ -229,6 +229,19 @@ export async function processDueBroadcastRuns(options?: {
         // Rate limit guard
         const canSend = await RateLimitManager.canSendMessage(createdBy, to);
         if (!canSend.allowed) {
+          const isDailyLimit = canSend.reason?.toLowerCase().includes('daily');
+          if (isDailyLimit && runProvider === 'qr') {
+            // QR daily cap hit — reschedule remaining pending messages to tomorrow midnight
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { status: 'scheduled', scheduledAt: tomorrow, updatedAt: now } }
+            );
+            console.log(`[Broadcast QR] Daily limit hit (${canSend.currentCount}/${canSend.limit}). Auto-shifted remaining messages to ${tomorrow.toDateString()}`);
+            break;
+          }
           await BroadcastRunMessage.updateOne(
             { _id: (item as any)._id },
             { $set: { status: 'failed', failureReason: canSend.reason || 'Rate limit reached', updatedAt: now } }
@@ -241,13 +254,24 @@ export async function processDueBroadcastRuns(options?: {
         // Check daily bulk quota
         const quotaCheck = await BulkMessageManager.canSendToday(1);
         if (!quotaCheck.allowed) {
+          if (runProvider === 'qr') {
+            // QR bulk quota hit — reschedule remaining to tomorrow midnight
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { status: 'scheduled', scheduledAt: tomorrow, updatedAt: now } }
+            );
+            console.log(`[Broadcast QR] Bulk quota exhausted. Auto-shifted remaining messages to ${tomorrow.toDateString()}`);
+            break;
+          }
           await BroadcastRunMessage.updateOne(
             { _id: (item as any)._id },
             { $set: { status: 'failed', failureReason: quotaCheck.reason || 'Daily quota exhausted', updatedAt: now } }
           );
           stat.failed++;
           result.failed++;
-          // Stop processing this run if quota is exhausted
           console.log('[Broadcast] Daily quota exhausted, stopping run');
           break;
         }
@@ -512,9 +536,9 @@ export async function processDueBroadcastRuns(options?: {
             }
           );
 
-          // Use QR-specific hourly limit (60/hr) vs Meta (1000/hr)
+          // QR: 60/hr, 300/day. Meta uses defaults.
           const rateLimitConfig = runProvider === 'qr'
-            ? { hourly: 60, daily: 500, perPhone: 1, warningThreshold: 0.8 }
+            ? { hourly: 60, daily: 300, perPhone: 1, warningThreshold: 0.8 }
             : undefined;
           await RateLimitManager.incrementCount(createdBy, to, rateLimitConfig);
 
