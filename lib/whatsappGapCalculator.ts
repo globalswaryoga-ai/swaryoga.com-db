@@ -30,20 +30,25 @@ interface GapStrategy {
 }
 
 /**
- * Default WhatsApp-safe strategy for 60 messages/hour
+ * Default WhatsApp-safe strategy — TARGETS 20 messages/hour, 200/day
+ * (Tightened after Nov 2026 restriction incident where the account got
+ * re-banned at just 20 messages despite "safe" pacing.)
+ *
  * Pattern:
- * - Messages 1-2: 7 second gap (quick start)
- * - Messages 3-60: Random 45-90 second gaps (safe professional rate)
+ * - Messages 1-3: 20–40 second gap (a slow human warm-up, not a bot start)
+ * - Messages 4+: Random 120-240 sec gaps (~3 min avg = exactly 20/hr)
+ * - Every 7-12 messages: a 5-8 min "phone-down" break injected by
+ *   calculateVariableGapsWithBreaks() below
  * - No gap repeats (variation ensures human behavior)
  */
 export const DEFAULT_GAP_STRATEGY: GapStrategy = {
-  initialGapMs: 7000, // 7 seconds (initial quick messages)
-  initialGapCount: 2, // Only first 2 messages
-  minGapMs: 45000, // 45 seconds minimum (very safe)
-  maxGapMs: 120000, // 120 seconds maximum (2 minutes)
-  batchSize: 5, // 5 messages per batch
-  batchGapMs: 30000, // 30 seconds between batches
-  totalMessagesPerHour: 60,
+  initialGapMs: 30000,  // 30s warmup (was 7s — too bot-like)
+  initialGapCount: 3,
+  minGapMs: 120000,     // 2 min minimum
+  maxGapMs: 240000,     // 4 min maximum (avg 3 min = 20/hr)
+  batchSize: 8,
+  batchGapMs: 60000,
+  totalMessagesPerHour: 20,
   ensureVariation: true,
 };
 
@@ -58,9 +63,9 @@ export function validateGapStrategy(strategy: GapStrategy): { valid: boolean; er
     errors.push(`❌ Minimum gap too fast: ${strategy.minGapMs}ms. Must be ≥45000ms (45 sec) per WhatsApp rules`);
   }
 
-  // Rule 2: Maximum gap should not exceed 3 minutes (180 sec)
-  if (strategy.maxGapMs > 180000) {
-    errors.push(`⚠️  Maximum gap very large: ${strategy.maxGapMs}ms. Recommendation: ≤120000ms (2 min)`);
+  // Rule 2: Maximum gap should not exceed 6 minutes (long human breaks are added separately)
+  if (strategy.maxGapMs > 360000) {
+    errors.push(`⚠️  Maximum gap very large: ${strategy.maxGapMs}ms. Recommendation: ≤300000ms (5 min)`);
   }
 
   // Rule 3: Initial gap must be less than min gap (makes sense)
@@ -70,12 +75,13 @@ export function validateGapStrategy(strategy: GapStrategy): { valid: boolean; er
     );
   }
 
-  // Rule 4: For 60 messages/hour, average gap should be ~60 seconds
+  // Rule 4: throughput sanity check vs declared target
   const avgGapMs = (strategy.minGapMs + strategy.maxGapMs) / 2;
   const messagesPerHour = Math.floor(3600000 / avgGapMs);
-  if (messagesPerHour < 50) {
+  const targetTolerance = Math.max(5, strategy.totalMessagesPerHour * 0.3);
+  if (Math.abs(messagesPerHour - strategy.totalMessagesPerHour) > targetTolerance) {
     errors.push(
-      `⚠️  Gaps too large: Only ~${messagesPerHour} messages/hour possible. Need min gap < ${Math.floor(3600000 / 60)}ms`
+      `⚠️  Gap range yields ~${messagesPerHour}/hr but strategy targets ${strategy.totalMessagesPerHour}/hr`
     );
   }
   if (messagesPerHour > 80) {
@@ -98,6 +104,30 @@ export function validateGapStrategy(strategy: GapStrategy): { valid: boolean; er
     valid: errors.length === 0,
     errors,
   };
+}
+
+/**
+ * Same as calculateVariableGaps but ALSO injects realistic "phone-down"
+ * breaks (5–8 min) every 7–12 messages. Mimics a human putting the phone
+ * down to do something else mid-broadcast. This is the function the
+ * broadcast code paths should call.
+ */
+export function calculateVariableGapsWithBreaks(
+  totalMessages: number,
+  strategy: GapStrategy = DEFAULT_GAP_STRATEGY
+): number[] {
+  const baseGaps = calculateVariableGaps(totalMessages, strategy);
+  // Decide which message indices get a "long break" added on top of the regular gap
+  let nextBreakAt = 7 + Math.floor(Math.random() * 6); // 7..12
+  for (let i = 0; i < baseGaps.length; i++) {
+    if (i === nextBreakAt) {
+      // 5–8 min break on top of the normal gap
+      const breakMs = 5 * 60_000 + Math.floor(Math.random() * 3 * 60_000);
+      baseGaps[i] += breakMs;
+      nextBreakAt = i + 7 + Math.floor(Math.random() * 6); // 7..12 more
+    }
+  }
+  return baseGaps;
 }
 
 /**

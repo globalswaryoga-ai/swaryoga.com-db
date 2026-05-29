@@ -1080,7 +1080,7 @@ app.post('/send', async (req, res) => {
     return res.status(503).json({ error: 'WhatsApp not connected', status: session.connectionState });
   }
 
-  const { to, message, type, media, caption } = req.body;
+  const { to, message, type, media, caption, skipTyping } = req.body;
   if (!to) return res.status(400).json({ error: 'Missing "to" field' });
 
   const toStr = String(to);
@@ -1088,6 +1088,29 @@ app.post('/send', async (req, res) => {
   if (toStr.includes('@g.us') || toStr.includes('@lid') || toStr.includes('@s.whatsapp.net')) jid = toStr;
   else if (toStr.includes('@')) jid = toStr;
   else jid = `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+
+  // ── HUMAN-LIKE PRESENCE SIMULATION ────────────────────────────────────
+  // Before sending, show "online" + "typing..." for a realistic duration.
+  // Real humans don't fire messages instantly — they open the chat, type, then send.
+  // Skip only for media (caption typing is unnatural) or when caller explicitly opts out.
+  if (!skipTyping && type !== 'media') {
+    try {
+      // 1. Mark online (subscribe to presence so contact sees "online")
+      await session.sock.sendPresenceUpdate('available', jid).catch(() => {});
+      // 2. Brief pause as if "reading" the chat (300–900ms)
+      await new Promise(r => setTimeout(r, 300 + Math.random() * 600));
+      // 3. Show typing indicator
+      await session.sock.sendPresenceUpdate('composing', jid).catch(() => {});
+      // 4. Typing duration scaled to message length: ~50ms/char, capped at 1.5–4.5s
+      const msgLen = String(message || caption || '').length;
+      const typingMs = Math.min(4500, Math.max(1500, msgLen * 50 + Math.random() * 800));
+      await new Promise(r => setTimeout(r, typingMs));
+      // 5. Stop typing right before send
+      await session.sock.sendPresenceUpdate('paused', jid).catch(() => {});
+    } catch (e) {
+      // Presence is best-effort — never block the send
+    }
+  }
 
   try {
     let result;
@@ -1133,7 +1156,16 @@ app.post('/send', async (req, res) => {
     res.json({ success: true, id: sentMsgId, messageId: sentMsgId, key: result?.key, status: result?.status });
   } catch (e) {
     console.error(`[${req.userId}] Send error:`, e.message);
-    res.status(500).json({ error: e.message });
+    // Detect WhatsApp restriction/ban signals so the broadcast caller can STOP immediately
+    const msg = String(e?.message || '').toLowerCase();
+    const code = e?.output?.statusCode || e?.statusCode;
+    const isRestricted =
+      msg.includes('forbidden') || msg.includes('not-authorized') ||
+      msg.includes('rate-overlimit') || msg.includes('rate limit') ||
+      msg.includes('banned') || msg.includes('restricted') ||
+      msg.includes('blocked') || msg.includes('spam') ||
+      code === 401 || code === 403 || code === 405 || code === 429;
+    res.status(500).json({ error: e.message, restricted: isRestricted, code });
   }
 });
 

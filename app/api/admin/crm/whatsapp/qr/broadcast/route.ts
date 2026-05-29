@@ -17,6 +17,23 @@ import { getCRMUserSettings, getLead, getWhatsAppMessage } from '@/lib/schemas/e
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } from '@/lib/whatsappBridgeConfig';
 import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
+import { calculateVariableGapsWithBreaks, DEFAULT_GAP_STRATEGY } from '@/lib/whatsappGapCalculator';
+import { checkRateLimit, reserveSendSlot, DAILY_LIMIT, HOURLY_LIMIT } from '@/lib/qrSendRateLimit';
+
+// ── Human-like message variation ──────────────────────────────────────
+// WhatsApp's anti-spam fingerprints identical text sent to many recipients.
+// We add a tiny invisible variation (zero-width spaces / trailing space count)
+// so each outgoing payload differs slightly. Visible content is unchanged.
+const ZW_CHARS = ['​', '‌', '‍', '﻿']; // zero-width space/non-joiner/joiner/BOM
+function humanizeMessage(base: string, index: number): string {
+  if (!base) return base;
+  // Insert 0–2 invisible chars at end + occasional trailing space count
+  const zwCount = (index % 3); // 0, 1, or 2
+  let suffix = '';
+  for (let i = 0; i < zwCount; i++) suffix += ZW_CHARS[Math.floor(Math.random() * ZW_CHARS.length)];
+  if (index % 4 === 0) suffix += ' '; // trailing space some of the time
+  return base + suffix;
+}
 
 export const dynamic = 'force-dynamic';
 // Allow up to 60 seconds for bulk sends (Vercel Pro / hobby has 10s; this is best-effort)
@@ -264,36 +281,88 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[qr-broadcast] ▶ Starting broadcast to ${filteredRecipients.length} recipients via ${bridgeUrl}/send`);
-    console.log(`[qr-broadcast]   Message: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
-    console.log(`[qr-broadcast]   Type: ${imageUrl ? 'media' : 'text'}, Recipients: ${filteredRecipients.slice(0, 3).join(', ')}${filteredRecipients.length > 3 ? ` +${filteredRecipients.length - 3}` : ''}`);
+    // ── HUMAN-LIKE BROADCAST PACING ─────────────────────────────────────
+    // Shuffle recipient order so the send pattern isn't deterministic
+    for (let i = filteredRecipients.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [filteredRecipients[i], filteredRecipients[j]] = [filteredRecipients[j], filteredRecipients[i]];
+    }
 
-    // Send messages one by one (bridge has no /broadcast endpoint)
+    // ── RATE LIMIT CHECK: hard caps 200/day, 20/hour ────────────────────
+    const rate = await checkRateLimit(viewerUserId);
+    if (!rate.allowed) {
+      const resetIst = rate.resetAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      return NextResponse.json({
+        success: false,
+        rateLimited: true,
+        reason: rate.reason,
+        daySent: rate.daySent,
+        hourSent: rate.hourSent,
+        dailyLimit: DAILY_LIMIT,
+        hourlyLimit: HOURLY_LIMIT,
+        error: rate.reason === 'daily_cap'
+          ? `🛑 Daily cap of ${DAILY_LIMIT} reached. Resets at ${resetIst} IST.`
+          : `🛑 Hourly cap of ${HOURLY_LIMIT} reached (sent ${rate.hourSent} this hour). Try after ${resetIst} IST.`,
+      }, { status: 429 });
+    }
+    // Trim batch so neither cap is breached in this call
+    const remainingThisCall = Math.min(rate.dayRemaining, rate.hourRemaining);
+    if (filteredRecipients.length > remainingThisCall) {
+      console.log(`[qr-broadcast] Trimming batch ${filteredRecipients.length} -> ${remainingThisCall} (day ${rate.daySent}/${DAILY_LIMIT}, hour ${rate.hourSent}/${HOURLY_LIMIT})`);
+      filteredRecipients = filteredRecipients.slice(0, remainingThisCall);
+    }
+
+    // 120-240s gaps (avg 3 min = 20/hr) + occasional 5-8 min "phone-down" breaks.
+    // The bridge /send also adds 2-5s of typing simulation per message.
+    const gaps = calculateVariableGapsWithBreaks(filteredRecipients.length, DEFAULT_GAP_STRATEGY);
+
+    console.log(`[qr-broadcast] ▶ Human-paced broadcast to ${filteredRecipients.length} recipients`);
+    console.log(`[qr-broadcast]   Pacing target: ~20/hr (avg 3 min gap) + 5-8 min breaks every 7-12 msgs`);
+
     let sent = 0;
     let failed = 0;
+    let abortReason: string | null = null;
+    let queuedForCron = 0;
     const errors: string[] = [];
-    const MAX_SYNC = 20; // send first 20 synchronously, rest fire-and-forget
     const messageRecordsToSave: any[] = [];
 
-    // Connect DB once for message saving
     await connectDB();
     const WhatsAppMessage = getWhatsAppMessage();
 
-    for (let i = 0; i < filteredRecipients.length; i++) {
-      const recipient = filteredRecipients[i];
-      const isGroup = isGroupId(recipient);
+    // ── Send only the FIRST recipient synchronously (verification ping). ──
+    // Everything else gets auto-queued for the cron processor, which paces
+    // messages with the same 120-240s gaps + breaks and respects rate caps.
+    // (Vercel's 60s function limit makes synchronous bulk sending impossible
+    // at the safe 3-min gap anyway.)
+    if (filteredRecipients.length > 0) {
+      const firstRecipient = filteredRecipients[0];
+      const isGroup = isGroupId(firstRecipient);
+
+      // Reserve a rate-limit slot atomically before the actual send
+      const slot = await reserveSendSlot(viewerUserId);
+      if (!slot.allowed) {
+        const resetIst = slot.resetAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        return NextResponse.json({
+          success: false,
+          rateLimited: true,
+          reason: slot.reason,
+          error: slot.reason === 'daily_cap'
+            ? `🛑 Daily cap of ${DAILY_LIMIT} reached. Resets ${resetIst} IST.`
+            : `🛑 Hourly cap of ${HOURLY_LIMIT} reached. Try after ${resetIst} IST.`,
+        }, { status: 429 });
+      }
+
       try {
         const result = await sendOne(
           bridgeUrl, bridgeSecret, session,
-          recipient, message, imageUrl,
+          firstRecipient, humanizeMessage(message, 0), imageUrl,
           Array.isArray(buttons) ? buttons.map((b: any) => String(b?.title || b).slice(0, 20)) : undefined
         );
         if (result.success) {
           sent++;
-          console.log(`[qr-broadcast] ✅ ${i + 1}/${filteredRecipients.length} sent to ${recipient}`);
-          // Queue a message record for each successful send
+          console.log(`[qr-broadcast] ✅ 1/${filteredRecipients.length} sent to ${firstRecipient} (day ${slot.daySent}/${DAILY_LIMIT}, hour ${slot.hourSent}/${HOURLY_LIMIT})`);
           messageRecordsToSave.push({
-            phoneNumber: isGroup ? recipient : recipient,
+            phoneNumber: firstRecipient,
             direction: 'outbound',
             messageContent: message,
             messageType: imageUrl ? 'media' : 'text',
@@ -307,46 +376,88 @@ export async function POST(request: NextRequest) {
           });
         } else {
           failed++;
-          console.error(`[qr-broadcast] ❌ ${i + 1}/${filteredRecipients.length} failed to send to ${recipient}: ${result.error}`);
-          if (errors.length < 5) errors.push(`${recipient}: ${result.error}`);
+          errors.push(`${firstRecipient}: ${result.error}`);
+          const errLower = String(result.error || '').toLowerCase();
+          if (
+            errLower.includes('forbidden') || errLower.includes('rate') ||
+            errLower.includes('banned') || errLower.includes('restricted') ||
+            errLower.includes('not-authorized') || errLower.includes('blocked') ||
+            errLower.includes('spam')
+          ) {
+            abortReason = `WhatsApp signalled "${result.error}" — number may be restricted. NOT queueing remainder. Stop broadcasting for 24h.`;
+            console.error(`[qr-broadcast] 🚨 ${abortReason}`);
+          }
         }
       } catch (err: any) {
         failed++;
-        console.error(`[qr-broadcast] ❌ ${i + 1}/${filteredRecipients.length} exception sending to ${recipient}: ${err.message}`);
-        if (errors.length < 5) errors.push(`${recipient}: ${err.message}`);
-      }
-
-      // Small delay between messages to avoid rate-limiting
-      if (i < filteredRecipients.length - 1) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
-
-      // Stop synchronous sending after MAX_SYNC to avoid Vercel timeout
-      if (i + 1 >= MAX_SYNC && i < filteredRecipients.length - 1) {
-        failed += filteredRecipients.length - (i + 1);
-        errors.push(`Only first ${MAX_SYNC} messages sent synchronously.`);
-        break;
+        errors.push(`${firstRecipient}: ${err.message}`);
       }
     }
 
-    // Bulk-save all sent message records to MongoDB
     if (messageRecordsToSave.length > 0) {
+      try { await WhatsAppMessage.insertMany(messageRecordsToSave, { ordered: false }); }
+      catch (dbErr: any) { console.error('[qr-broadcast] DB save error:', dbErr.message); }
+    }
+
+    // ── Queue remaining recipients as a scheduled broadcast (cron-driven) ──
+    const remaining = filteredRecipients.slice(1);
+    if (remaining.length > 0 && !abortReason) {
       try {
-        await WhatsAppMessage.insertMany(messageRecordsToSave, { ordered: false });
-        console.log(`[qr-broadcast] ✅ Saved ${messageRecordsToSave.length} message records to DB`);
-      } catch (dbErr: any) {
-        console.error('[qr-broadcast] DB save error (non-fatal):', dbErr.message);
+        const { getQRBroadcastSchedule } = await import('@/lib/schemas/enterpriseSchemas');
+        const QRBroadcastSchedule = getQRBroadcastSchedule();
+        const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+        const startHH = String(nowIST.getHours()).padStart(2, '0');
+        const startMM = String(nowIST.getMinutes()).padStart(2, '0');
+        const endHH = String(Math.min(22, nowIST.getHours() + 10)).padStart(2, '0'); // up to 10h window
+        await QRBroadcastSchedule.create({
+          userId: viewerUserId,
+          tenantId: 'default',
+          name: `Auto-paced Broadcast — ${nowIST.toLocaleString('en-IN')}`,
+          messageText: message,
+          mediaUrls: imageUrl ? [imageUrl] : [],
+          recipientChatIds: remaining,
+          totalRecipients: remaining.length,
+          isActive: true,
+          startTime: `${startHH}:${startMM}`,
+          endTime: `${endHH}:30`,
+          timezone: 'Asia/Kolkata',
+          frequency: 'once',
+          status: 'scheduled',
+          createdBy: viewerUserId,
+          // Hand the safe defaults to the cron explicitly so they apply even if schema defaults drift
+          gapStrategy: {
+            initialGapMs: 30000,
+            initialGapCount: 3,
+            minGapMs: 120000,
+            maxGapMs: 240000,
+            ensureVariation: true,
+            ensureJitter: true,
+            jitterPercent: 15,
+          },
+          maxMessagesPerDay: DAILY_LIMIT,
+        });
+        queuedForCron = remaining.length;
+        console.log(`[qr-broadcast] 📅 Queued ${queuedForCron} recipients for cron-paced delivery`);
+      } catch (schedErr: any) {
+        console.error('[qr-broadcast] Auto-queue failed:', schedErr.message);
+        errors.push(`Auto-queue failed: ${schedErr.message}`);
       }
     }
 
     return NextResponse.json({
-      success: sent > 0,
+      success: sent > 0 || queuedForCron > 0,
       sent,
       failed,
+      queued: queuedForCron,
       totalRecipients: filteredRecipients.length,
       sessionKey: session.sessionKey,
       ...(errors.length > 0 ? { errors } : {}),
-      message: `Sent ${sent}/${filteredRecipients.length} messages`,
+      ...(abortReason ? { aborted: true, abortReason } : {}),
+      message: abortReason
+        ? `🚨 ${abortReason}`
+        : queuedForCron > 0
+          ? `✅ Sent 1 test message. ${queuedForCron} more queued — will deliver over ~${Math.ceil(queuedForCron * 3 / 60)}h at human pace (20/hr, 200/day max).`
+          : `✅ Sent ${sent}/${filteredRecipients.length}`,
     });
 
   } catch (error: any) {
