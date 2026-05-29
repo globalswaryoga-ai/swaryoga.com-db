@@ -4,7 +4,14 @@
       "Bash(MONGODB_URI_MAIN=\"mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority\" node scripts/check-elearning-duplicates.js)",
       "Bash(MONGODB_URI_MAIN=\"mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority\" MONGODB_MAIN_DB_NAME=\"swaryogaDB\" node scripts/check-elearning-duplicates.js)",
       "Bash(node /Users/mohankalburgi/swaryoga.com-db/scripts/list-collections.js)",
-      "Bash(PORT=3000 npm start)"
+      "Bash(PORT=3000 npm start)",
+      "Bash(wait)",
+      "Bash(tar -tzf /tmp/atlas-restore.tar.gz)",
+      "Bash(node -e ' *)",
+      "Bash(tar -xzf /tmp/atlas-restore.tar.gz -C /tmp/wt-extract)",
+      "Bash(mongod --dbpath /tmp/wt-extract/restore-6a19d406215a83df1547ea36 --port 27199 --logpath /tmp/mongod-log/mongod.log --noauth)",
+      "Bash(echo \"mongod PID: $!\")",
+      "Bash(kill 39299)"
     ]
   }
 }
