@@ -1520,7 +1520,9 @@ const ChatbotFlowSchema = new mongoose.Schema(
     description: { type: String, trim: true },
     enabled: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, trim: true, index: true },
-    
+    // 'meta' = sends via Meta Cloud API; 'qr' = sends via EC2 Baileys bridge
+    provider: { type: String, enum: ['meta', 'qr'], default: 'meta', index: true },
+
     // Trigger keywords: when a user sends any of these words, this flow auto-starts
     triggerKeywords: { type: [String], default: [] },
     

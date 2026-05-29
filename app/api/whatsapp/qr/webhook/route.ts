@@ -345,14 +345,22 @@ async function ingestQRPayload(payload: any) {
       }
     }
 
-    // SKIP automations for QR inbound messages.
-    // The automation system sends replies via Meta Cloud API, which creates
-    // provider:'meta' messages and pollutes the Meta inbox with QR contacts.
-    // QR bridge messages must stay completely separate from the Meta pipeline.
-    // If QR-specific automations are needed in the future, implement a
-    // separate handler that sends via the QR bridge (Baileys) instead.
-    // ──────────────────────────────────────────────────────────────────
-    // (previously: handleInboundWhatsAppAutomations was called here)
+    // Trigger QR-specific chatbot flows for inbound messages only.
+    // Sends via EC2 Baileys bridge — never touches Meta Cloud API.
+    if (!m.fromMe && bridgeUserId && lead?._id) {
+      try {
+        const { triggerQrChatbotFlow } = await import('@/lib/qrChatbotExecutor');
+        await triggerQrChatbotFlow({
+          userId: bridgeUserId,
+          leadId: String(lead._id),
+          phoneNumber: normalizedPhone,
+          messageText: text || messageContent,
+          connectedPhone: connectedPhone || '',
+        });
+      } catch (chatbotErr: any) {
+        console.warn('[QR WEBHOOK] QR chatbot trigger failed (non-fatal):', chatbotErr.message);
+      }
+    }
   }
 
   return { count: created, skippedInvalidPhone, mediaProcessed, mediaUrl: lastMediaUrl };

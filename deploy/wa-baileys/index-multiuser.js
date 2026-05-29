@@ -1137,6 +1137,72 @@ app.post('/send', async (req, res) => {
   }
 });
 
+// ── Send Buttons / List Message ─────────────────────────────────────────
+// Sends an interactive list message (button choices). Falls back to numbered
+// text if Baileys rejects the list format (personal accounts may have limits).
+app.post('/send-buttons', async (req, res) => {
+  const session = getOrCreateSession(req.userId);
+  if (session.connectionState !== 'connected') {
+    return res.status(503).json({ error: 'WhatsApp not connected', status: session.connectionState });
+  }
+
+  const { to, jid: rawJid, text, footer, buttons } = req.body;
+  const toStr = String(to || rawJid || '');
+  if (!toStr) return res.status(400).json({ error: 'Missing "to" field' });
+
+  const jid = toStr.includes('@') ? toStr : `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+  const btnArray = Array.isArray(buttons) ? buttons : [];
+
+  try {
+    let result;
+    // Try WhatsApp list message first (works on most clients)
+    const rows = btnArray.map((b, i) => ({
+      title: String(b.title || b.label || `Option ${i + 1}`).substring(0, 24),
+      rowId: String(b.id || b.value || `opt_${i}`).substring(0, 20),
+      description: '',
+    }));
+
+    if (rows.length > 0) {
+      result = await session.sock.sendMessage(jid, {
+        text: text || '',
+        footer: footer || '',
+        title: '',
+        buttonText: 'Choose an option',
+        sections: [{ title: 'Options', rows }],
+        listType: 1,
+      });
+    } else {
+      // No buttons — send as plain text
+      result = await session.sock.sendMessage(jid, { text: text || '' });
+    }
+
+    const sentMsgId = result?.key?.id;
+    if (sentMsgId) {
+      const labels = rows.map((r, i) => `${i + 1}. ${r.title}`).join('\n');
+      const displayText = text ? (rows.length ? `${text}\n\n${labels}` : text) : labels;
+      if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
+      const chatMsgs = session.messageMap.get(jid);
+      if (!chatMsgs.find(m => m.id === sentMsgId)) {
+        chatMsgs.push({ id: sentMsgId, from: session.sock.user?.id?.split(':')[0] || '', fromMe: true, text: displayText, type: 'list', timestamp: Math.floor(Date.now() / 1000) });
+        if (chatMsgs.length > MAX_MSGS_PER_CHAT) chatMsgs.shift();
+      }
+    }
+
+    res.json({ success: true, id: sentMsgId, messageId: sentMsgId });
+  } catch (e) {
+    // Graceful fallback: send numbered text
+    console.warn(`[${req.userId}] List message failed, sending as text: ${e.message}`);
+    try {
+      const labels = btnArray.map((b, i) => `${i + 1}. ${b.title || b.label || `Option ${i + 1}`}`).join('\n');
+      const fallbackText = text ? (labels ? `${text}\n\n${labels}` : text) : labels;
+      const result = await session.sock.sendMessage(jid, { text: fallbackText });
+      res.json({ success: true, id: result?.key?.id, messageId: result?.key?.id, fallback: true });
+    } catch (fallbackErr) {
+      res.status(500).json({ error: fallbackErr.message });
+    }
+  }
+});
+
 // ── Profile Picture ─────────────────────────────────────────────────────
 app.get('/profile-pic/:jid', async (req, res) => {
   const session = getOrCreateSession(req.userId);

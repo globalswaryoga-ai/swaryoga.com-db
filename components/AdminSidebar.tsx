@@ -570,6 +570,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'whatsapp',
           description: 'WhatsApp group members',
         },
+        {
+          icon: Bot,
+          label: 'QR Chatbot',
+          href: '/admin/crm/qr/chatbot',
+          color: 'text-emerald-400',
+          module: 'whatsapp',
+          planModule: 'chatbot',
+          description: 'QR WhatsApp chatbot flows',
+        },
       ],
     },
 
