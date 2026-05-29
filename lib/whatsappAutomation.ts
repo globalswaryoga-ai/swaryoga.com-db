@@ -1230,28 +1230,41 @@ export async function handleInboundWhatsAppAutomations(input: {
     const existingFlowState = md.chatbotFlowState;
     
     if (existingFlowState?.flowId) {
-      // Lead already has an active flow - continue it
-      const activeFlow = await ChatbotFlow.findById(existingFlowState.flowId).lean();
-      if (activeFlow && (activeFlow as any).enabled) {
-        console.log(`[Automation] Continuing active flow "${(activeFlow as any).name}" for ${fromPhone}`);
-        const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
-        if (reply) {
-          await Lead.updateOne({ _id: lead._id }, { $set: { 'metadata._chatbot_last_reply_at': now } });
-          if (reply.isTemplate && reply.templateId) {
-            await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
-              chatbot: { flowId: String((activeFlow as any)._id) }
-            });
-          } else if (reply.interactiveButtons?.length > 0) {
-            await sendOutboundInteractiveButtons(lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
-              chatbot: { flowId: String((activeFlow as any)._id), presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
-            });
-          } else if (reply.text) {
-            await sendOutboundText(lead, fromPhone, reply.text, {
-              chatbot: { flowId: String((activeFlow as any)._id), spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
-            });
+      // Before continuing the active flow, check if the message is an exact keyword
+      // automation rule match — keyword rules take priority over flow continuation.
+      const lowerBodyForKw = body.toLowerCase().trim();
+      const keywordRules = await WhatsAppAutomationRule.find({ enabled: true, triggerType: 'keyword' }).lean();
+      const keywordRuleMatched = keywordRules.some((r: any) => {
+        const kws: string[] = Array.isArray(r.keywords) ? r.keywords.map((k: any) => String(k).toLowerCase()) : [];
+        return kws.length > 0 && kws.some((k: string) => k && lowerBodyForKw.includes(k));
+      });
+
+      if (!keywordRuleMatched) {
+        // No keyword rule matches — continue the active chatbot flow
+        const activeFlow = await ChatbotFlow.findById(existingFlowState.flowId).lean();
+        if (activeFlow && (activeFlow as any).enabled) {
+          console.log(`[Automation] Continuing active flow "${(activeFlow as any).name}" for ${fromPhone}`);
+          const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
+          if (reply) {
+            await Lead.updateOne({ _id: lead._id }, { $set: { 'metadata._chatbot_last_reply_at': now } });
+            if (reply.isTemplate && reply.templateId) {
+              await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
+                chatbot: { flowId: String((activeFlow as any)._id) }
+              });
+            } else if (reply.interactiveButtons?.length > 0) {
+              await sendOutboundInteractiveButtons(lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
+                chatbot: { flowId: String((activeFlow as any)._id), presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
+              });
+            } else if (reply.text) {
+              await sendOutboundText(lead, fromPhone, reply.text, {
+                chatbot: { flowId: String((activeFlow as any)._id), spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
+              });
+            }
+            return; // Flow handled this message
           }
-          return; // Flow handled this message
         }
+      } else {
+        console.log(`[Automation] Keyword rule matched — skipping active chatbot flow for "${lowerBodyForKw}"`);
       }
     }
     
