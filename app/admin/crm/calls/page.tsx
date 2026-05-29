@@ -147,6 +147,13 @@ export default function CallWorkflowPage() {
   // Schedule call
   const [scheduleLeadId, setScheduleLeadId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState('');
+  const [schedulePurpose, setSchedulePurpose] = useState('follow_up');
+  const [scheduleNote, setScheduleNote] = useState('');
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleSuccess, setScheduleSuccess] = useState(false);
+
+  // PC Call dropdown
+  const [pcCallDropdownId, setPcCallDropdownId] = useState<string | null>(null);
 
   // Bulk calling
   const [bulkCalling, setBulkCalling] = useState(false);
@@ -304,6 +311,27 @@ export default function CallWorkflowPage() {
     const interval = setInterval(() => { if (token) fetchTodayCalls(); }, 15000);
     return () => clearInterval(interval);
   }, [token]);
+
+  const saveScheduledCall = async () => {
+    if (!token || !scheduleLeadId || !scheduleDate) return;
+    setScheduleSaving(true);
+    try {
+      await fetch('/api/admin/crm/calls', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: scheduleLeadId,
+          purpose: schedulePurpose,
+          language: 'hi',
+          scheduledAt: new Date(scheduleDate).toISOString(),
+          customPrompt: scheduleNote || undefined,
+        }),
+      });
+      setScheduleSuccess(true);
+      setTimeout(() => { setScheduleLeadId(null); setScheduleSuccess(false); setScheduleNote(''); setSchedulePurpose('follow_up'); }, 1500);
+    } catch (e) { console.error(e); }
+    setScheduleSaving(false);
+  };
 
   const moveLead = async (leadId: string, toStage: string) => {
     if (!token) return;
@@ -950,21 +978,32 @@ export default function CallWorkflowPage() {
                   </div>
                 </div>
 
-                {/* Right: Call Action Buttons */}
-                <div className="flex flex-col gap-1 px-2 py-1 border-l border-gray-100 flex-shrink-0">
-                  {/* Row 1 */}
-                  <div className="flex items-center gap-0.5">
-                    <button onClick={() => setSelectedLeadId(lead._id)} title="View" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition whitespace-nowrap"><Eye className="h-3 w-3" />View</button>
-                    <button onClick={() => setAiCallLeadId(lead._id)} title="AI Call" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}><Bot className="h-3 w-3" />AI Call</button>
-                    <a href={`tel:${lead.phoneNumber || ''}`} title="PC Call" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition whitespace-nowrap"><Phone className="h-3 w-3" />PC Call</a>
-                    <button onClick={() => router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`)} title="WA" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: '#25D366' }}><Send className="h-3 w-3" />WA</button>
+                {/* Right: Call Action Buttons — 2 clean rows */}
+                <div className="flex flex-col gap-1 px-2 py-1.5 border-l border-gray-100 flex-shrink-0 min-w-[200px]">
+                  {/* Row 1: Primary actions */}
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setAiCallLeadId(lead._id)} title="AI Call (Meera/Maira)" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white transition hover:opacity-90 whitespace-nowrap shadow-sm" style={{ background: 'linear-gradient(135deg, #F97316, #FB923C)' }}><Bot className="h-3.5 w-3.5" />AI Call</button>
+                    {/* PC Call dropdown */}
+                    <div className="relative">
+                      <button onClick={() => setPcCallDropdownId(pcCallDropdownId === lead._id ? null : lead._id)} title="PC / WhatsApp Call" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition whitespace-nowrap border border-emerald-200">
+                        <Phone className="h-3.5 w-3.5" />Call <ChevronDown className="h-2.5 w-2.5" />
+                      </button>
+                      {pcCallDropdownId === lead._id && (
+                        <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50" onClick={e => e.stopPropagation()}>
+                          <a href={`tel:${lead.phoneNumber || ''}`} onClick={() => setPcCallDropdownId(null)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition"><Phone className="h-3.5 w-3.5 text-emerald-600" /><div><div className="font-medium">Phone Call</div><div className="text-gray-400">Call via PC / mobile</div></div></a>
+                          <a href={`https://wa.me/919075358557?text=${encodeURIComponent(`Namaste ji! ${(lead.name || lead.displayName || '')} — ${(lead.phoneNumber || '')} se call kar raha hoon.`)}`} target="_blank" rel="noopener noreferrer" onClick={() => setPcCallDropdownId(null)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition"><Send className="h-3.5 w-3.5 text-green-500" /><div><div className="font-medium">WhatsApp Call</div><div className="text-gray-400">via +91 90753 58557</div></div></a>
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => router.push(`/admin/crm/meta?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`)} title="WhatsApp Message" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white transition hover:opacity-90 whitespace-nowrap shadow-sm" style={{ background: '#25D366' }}><Send className="h-3.5 w-3.5" />WA</button>
                   </div>
-                  {/* Row 2 */}
-                  <div className="flex items-center gap-0.5">
-                    <button onClick={() => openCallPanel(lead._id)} title="Call Log" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"><History className="h-3 w-3" />Call Log</button>
-                    <button onClick={() => { setScheduleLeadId(lead._id); setScheduleDate(''); }} title="Schedule" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"><CalendarClock className="h-3 w-3" />Schedule</button>
+                  {/* Row 2: Secondary actions */}
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setSelectedLeadId(lead._id)} title="View Lead" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition whitespace-nowrap"><Eye className="h-3.5 w-3.5" />View</button>
+                    <button onClick={() => openCallPanel(lead._id)} title="Call Log & Updates" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition whitespace-nowrap"><History className="h-3.5 w-3.5" />Log</button>
+                    <button onClick={() => { setScheduleLeadId(lead._id); setScheduleDate(''); setScheduleNote(''); setSchedulePurpose('follow_up'); setScheduleSuccess(false); }} title="Schedule AI Call" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition whitespace-nowrap"><CalendarClock className="h-3.5 w-3.5" />Schedule</button>
                     <div className="relative group">
-                      <button title="Move" className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[10px] font-medium bg-pink-50 text-pink-600 hover:bg-pink-100 transition whitespace-nowrap"><ArrowLeftRight className="h-3 w-3" />Move</button>
+                      <button title="Move to stage" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium bg-pink-50 text-pink-600 hover:bg-pink-100 transition whitespace-nowrap"><ArrowLeftRight className="h-3.5 w-3.5" />Move</button>
                       <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-40 hidden group-hover:block">
                         {stages.filter(s => s.key !== lead.funnelStage).map((s) => {
                           const c = getStageColor(stages.findIndex(st => st.key === s.key));
@@ -972,10 +1011,6 @@ export default function CallWorkflowPage() {
                         })}
                       </div>
                     </div>
-                  </div>
-                  {/* Row 3 - Updates */}
-                  <div className="flex justify-center mt-0.5">
-                    <button onClick={() => openCallPanel(lead._id)} title="Updates" className="flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold text-white transition hover:opacity-90 whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}><ListChecks className="h-3.5 w-3.5" />Updates</button>
                   </div>
                 </div>
               </div>
@@ -1057,21 +1092,53 @@ export default function CallWorkflowPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setScheduleLeadId(null)}>
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h3 className="text-sm font-bold text-gray-900">Schedule Call</h3>
+                <h3 className="text-sm font-bold text-gray-900">Schedule AI Call</h3>
                 <button onClick={() => setScheduleLeadId(null)} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-400" /></button>
               </div>
               <div className="px-5 py-4 space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-700">{sl.title ? `${sl.title}. ` : ''}{sl.name || sl.displayName || 'Unknown'}</p>
-                  <p className="text-xs text-gray-400">{sl.phoneNumber}</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0"><Bot className="h-4 w-4 text-orange-500" /></div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{sl.name || sl.displayName || 'Unknown'}</p>
+                    <p className="text-xs text-gray-400">{sl.phoneNumber}</p>
+                  </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">Date &amp; Time</label>
-                  <input type="datetime-local" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none" />
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">Call Purpose</label>
+                  <select value={schedulePurpose} onChange={e => setSchedulePurpose(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none bg-white">
+                    <optgroup label="── Info Call (2 min) ──">
+                      <option value="interest_thanks">🙏 Thanks for Interest</option>
+                      <option value="welcome_new">🎉 Welcome</option>
+                      <option value="batch_update">📢 New Batch Update</option>
+                      <option value="demo_invite">🎯 Demo Invite</option>
+                      <option value="seat_confirmed">✅ Seat Confirmed</option>
+                      <option value="payment_confirmed">💰 Payment Received</option>
+                      <option value="session_scheduled">📅 Session Scheduled</option>
+                    </optgroup>
+                    <optgroup label="── Interactive Call (3 min) ──">
+                      <option value="follow_up">📞 Follow-up</option>
+                      <option value="answer_questions">💬 Answer Back</option>
+                      <option value="collect_info">📋 Collect Info</option>
+                      <option value="payment_reminder">💳 Payment Reminder</option>
+                      <option value="workshop_reminder">🏫 Workshop Reminder</option>
+                    </optgroup>
+                  </select>
                 </div>
-                <button onClick={() => { if (scheduleDate) { alert(`Call scheduled for ${sl.name || 'lead'} at ${new Date(scheduleDate).toLocaleString('en-IN')}`); setScheduleLeadId(null); } }} disabled={!scheduleDate} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #F59E0B, #FBBF24)' }}>
-                  <CalendarClock className="h-4 w-4" /> Schedule Call
-                </button>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">Date &amp; Time</label>
+                  <input type="datetime-local" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">Note / Answers (optional)</label>
+                  <textarea value={scheduleNote} onChange={e => setScheduleNote(e.target.value)} rows={2} placeholder="e.g. Answer: batch starts June 10, fee is ₹2500..." className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none resize-none" />
+                </div>
+                {scheduleSuccess ? (
+                  <div className="flex items-center justify-center gap-2 py-2 text-emerald-600 text-sm font-semibold"><CheckCircle className="h-4 w-4" />Scheduled successfully!</div>
+                ) : (
+                  <button onClick={saveScheduledCall} disabled={!scheduleDate || scheduleSaving} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #F59E0B, #FBBF24)' }}>
+                    <CalendarClock className="h-4 w-4" />{scheduleSaving ? 'Saving...' : 'Schedule Call'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -62,13 +62,21 @@ interface AICallModalProps {
 }
 
 const DEFAULT_PURPOSE_OPTIONS = [
-  { value: 'welcome', label: '🙏 Welcome', desc: 'First call — introduce Swar Yoga' },
-  { value: 'follow_up', label: '📞 Follow-up', desc: 'Check in, collect questions' },
-  { value: 'answer_questions', label: '💬 Answer Back', desc: 'Call back with answers from Mohan Sir' },
-  { value: 'workshop_reminder', label: '📅 Workshop', desc: 'Remind about workshop enrollment' },
-  { value: 'collect_info', label: '📋 Collect Info', desc: 'Gather email, country, preferences' },
-  { value: 'payment_reminder', label: '💳 Payment', desc: 'Gentle payment follow-up' },
-  { value: 'custom', label: '✏️ Custom', desc: 'Write your own call instructions' },
+  // ── Info-only outbound (2 min) ──────────────────────────────────────────
+  { value: 'interest_thanks',   label: '🙏 Thanks for Interest',   desc: 'Thank them for showing interest in Swar Yoga' },
+  { value: 'welcome_new',       label: '🎉 Welcome',               desc: 'Welcome to the Swar Yoga family' },
+  { value: 'batch_update',      label: '📢 New Batch',             desc: 'New batch is starting soon — seats limited' },
+  { value: 'demo_invite',       label: '🎯 Demo Invite',           desc: 'Invite to free demo session' },
+  { value: 'seat_confirmed',    label: '✅ Seat Confirmed',        desc: 'Their seat in Swar Yoga is confirmed' },
+  { value: 'payment_confirmed', label: '💰 Payment Received',      desc: 'Payment successfully received' },
+  { value: 'session_scheduled', label: '📅 Session Scheduled',     desc: 'Live session with Mohan Sir is scheduled' },
+  // ── Interactive outbound (3 min) ────────────────────────────────────────
+  { value: 'follow_up',         label: '📞 Follow-up',            desc: 'Check in & collect questions (3 min)' },
+  { value: 'answer_questions',  label: '💬 Answer Back',          desc: 'Call back with answers from Mohan Sir (3 min)' },
+  { value: 'collect_info',      label: '📋 Collect Info',         desc: 'Gather email, country, preferences (2 min)' },
+  { value: 'payment_reminder',  label: '💳 Payment Reminder',     desc: 'Gentle payment follow-up (2 min)' },
+  { value: 'workshop_reminder', label: '🏫 Workshop Reminder',    desc: 'Remind about workshop enrollment (3 min)' },
+  { value: 'custom',            label: '✏️ Custom',               desc: 'Write your own call instructions' },
 ];
 
 interface SavedTemplate {
@@ -610,7 +618,7 @@ export default function AICallModal({ leadId, leadName, leadPhone, token, onClos
           <div className="px-6 pb-4">
             <button
               onClick={handleCall}
-              disabled={calling || !configured || ((purpose === 'custom' || purpose === 'answer_questions' || purpose.startsWith('tmpl_')) && !customPrompt.trim())}
+              disabled={calling || !configured || ((purpose === 'custom' || purpose.startsWith('tmpl_')) && !customPrompt.trim())}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #EA580C, #F97316)' }}
             >

@@ -5,13 +5,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyAdminToken } from '@/lib/adminAuth';
+import { verifyAdminJwt } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await verifyAdminToken(request);
+    const authResult = await verifyAdminJwt(request);
     if (!authResult.success) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
