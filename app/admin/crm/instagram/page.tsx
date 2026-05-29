@@ -29,6 +29,7 @@ interface Message {
   _id: string;
   direction: 'inbound' | 'outbound';
   messageContent?: string;
+  messageType?: string;
   mediaUrl?: string;
   mediaType?: string;
   sentAt?: string;
@@ -749,7 +750,14 @@ export default function InstagramInboxPage() {
                               ) : null}
                             </div>
                           )}
-                          {msg.messageContent || ''}
+                          {msg.messageContent && msg.messageContent !== '[unsupported message]'
+                            ? msg.messageContent
+                            : !msg.mediaUrl && msg.messageType === 'unsupported'
+                              ? <span className="italic opacity-60 text-[13px]">📎 Unsupported message type</span>
+                              : msg.messageContent === '[unsupported message]'
+                                ? <span className="italic opacity-60 text-[13px]">📎 Shared something</span>
+                                : null
+                          }
                           <div className={`text-[9px] mt-1 flex items-center gap-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-slate-400'}`}>
                             <span>
                               {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}

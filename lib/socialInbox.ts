@@ -158,16 +158,32 @@ export function getConversationKey(platform: SocialInboxPlatform, accountId: str
   return `${platform}:${cleanString(accountId)}:${cleanString(participantId)}`;
 }
 
-function pickFirstAttachment(message: any): { mediaUrl?: string; mediaType?: string; messageType: SocialInboxParsedEvent['messageType'] } {
+function pickFirstAttachment(message: any): { mediaUrl?: string; mediaType?: string; messageType: SocialInboxParsedEvent['messageType']; fallbackText?: string } {
   const firstAttachment = Array.isArray(message?.attachments) ? message.attachments[0] : undefined;
   const attachmentType = cleanString(firstAttachment?.type).toLowerCase();
   const payloadUrl = cleanString(firstAttachment?.payload?.url);
+  const stickerId = firstAttachment?.payload?.sticker_id || message?.sticker_id;
 
-  if (attachmentType === 'image') return { mediaUrl: payloadUrl || undefined, mediaType: 'image', messageType: 'image' };
+  if (attachmentType === 'image' && !stickerId) return { mediaUrl: payloadUrl || undefined, mediaType: 'image', messageType: 'image' };
+  if (attachmentType === 'image' && stickerId) return { mediaUrl: payloadUrl || undefined, mediaType: 'image', messageType: 'image', fallbackText: '🎭 Sent a sticker' };
   if (attachmentType === 'video') return { mediaUrl: payloadUrl || undefined, mediaType: 'video', messageType: 'video' };
   if (attachmentType === 'audio') return { mediaUrl: payloadUrl || undefined, mediaType: 'audio', messageType: 'audio' };
   if (attachmentType === 'file') return { mediaUrl: payloadUrl || undefined, mediaType: 'document', messageType: 'document' };
-  return { mediaUrl: payloadUrl || undefined, mediaType: attachmentType || undefined, messageType: 'unsupported' };
+  if (attachmentType === 'sticker') return { mediaUrl: payloadUrl || undefined, mediaType: 'image', messageType: 'image', fallbackText: '🎭 Sent a sticker' };
+  if (attachmentType === 'share') {
+    const title = cleanString(firstAttachment?.title);
+    const url = payloadUrl || cleanString(firstAttachment?.url);
+    return { mediaUrl: url || undefined, mediaType: 'share', messageType: 'unsupported', fallbackText: title ? `🔗 Shared: ${title}` : '🔗 Shared a post' };
+  }
+  if (attachmentType === 'fallback') {
+    const title = cleanString(firstAttachment?.title);
+    const url = payloadUrl || cleanString(firstAttachment?.url);
+    return { mediaUrl: url || undefined, mediaType: 'fallback', messageType: 'unsupported', fallbackText: title ? `📎 ${title}` : '📎 Shared something' };
+  }
+  if (attachmentType === 'template') return { mediaUrl: undefined, mediaType: 'template', messageType: 'unsupported', fallbackText: '📄 Sent a template message' };
+  if (attachmentType === 'location') return { mediaUrl: undefined, mediaType: 'location', messageType: 'unsupported', fallbackText: '📍 Shared a location' };
+  if (attachmentType === 'like_heart') return { mediaUrl: undefined, mediaType: 'like_heart', messageType: 'unsupported', fallbackText: '❤️' };
+  return { mediaUrl: payloadUrl || undefined, mediaType: attachmentType || undefined, messageType: 'unsupported', fallbackText: '📎 Sent a media message' };
 }
 
 export function parseMetaSocialWebhookPayload(payload: any): SocialInboxParsedEvent[] {
@@ -195,9 +211,12 @@ export function parseMetaSocialWebhookPayload(payload: any): SocialInboxParsedEv
       const accountId = direction === 'inbound' ? recipientId : senderId;
       const timestampMs = Number(item?.timestamp || 0);
       const sentAt = Number.isFinite(timestampMs) && timestampMs > 0 ? new Date(timestampMs) : new Date();
-      const messageText = cleanString(item?.message?.text || item?.postback?.title || item?.postback?.payload || item?.reaction?.emoji);
+      const rawMessageText = cleanString(item?.message?.text || item?.postback?.title || item?.postback?.payload || item?.reaction?.emoji);
+      // Meta sends the literal string "[unsupported message]" for some attachment types — replace with fallback text
+      const isMetaUnsupportedPlaceholder = rawMessageText === '[unsupported message]' || rawMessageText === 'unsupported message';
       const messageId = cleanString(item?.message?.mid || item?.postback?.mid || item?.reaction?.mid || item?.delivery?.mids?.[0]);
       const attachmentInfo = pickFirstAttachment(item?.message);
+      const messageText = isMetaUnsupportedPlaceholder ? (attachmentInfo.fallbackText || '') : rawMessageText;
 
       if (!platform || !participantId || !accountId || (!messageText && !attachmentInfo.mediaUrl && !messageId)) {
         continue;
@@ -213,7 +232,7 @@ export function parseMetaSocialWebhookPayload(payload: any): SocialInboxParsedEv
         messageId: messageId || undefined,
         direction,
         messageText: messageText || undefined,
-        messageType: messageText ? 'text' : attachmentInfo.messageType,
+        messageType: messageText && !isMetaUnsupportedPlaceholder ? 'text' : attachmentInfo.messageType,
         mediaUrl: attachmentInfo.mediaUrl,
         mediaType: attachmentInfo.mediaType,
         sentAt,
