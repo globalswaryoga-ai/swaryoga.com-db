@@ -1393,6 +1393,8 @@ const WhatsAppAutomationRuleSchema = new mongoose.Schema(
     enabled: { type: Boolean, default: true, index: true },
 
     createdByUserId: { type: String, trim: true, index: true },
+    // 'meta' = runs via Meta Cloud API; 'qr' = sends via EC2 Baileys bridge
+    provider: { type: String, enum: ['meta', 'qr'], default: 'meta', index: true },
 
     // Trigger types
     triggerType: {

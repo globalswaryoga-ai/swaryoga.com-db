@@ -579,6 +579,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'chatbot',
           description: 'QR WhatsApp chatbot flows',
         },
+        {
+          icon: Zap,
+          label: 'QR Automation',
+          href: '/admin/crm/qr/automation',
+          color: 'text-teal-400',
+          module: 'whatsapp',
+          planModule: 'chatbot',
+          description: 'QR welcome + keyword rules',
+        },
       ],
     },
 

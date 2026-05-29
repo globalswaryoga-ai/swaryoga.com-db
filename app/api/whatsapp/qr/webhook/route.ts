@@ -345,20 +345,37 @@ async function ingestQRPayload(payload: any) {
       }
     }
 
-    // Trigger QR-specific chatbot flows for inbound messages only.
-    // Sends via EC2 Baileys bridge — never touches Meta Cloud API.
+    // Trigger QR-specific chatbot flows + automation rules for inbound messages only.
+    // Both send via EC2 Baileys bridge — never touch Meta Cloud API.
     if (!m.fromMe && bridgeUserId && lead?._id) {
+      const msgText = text || messageContent;
+      const isFirstInbound = created === 1 && !m.fromMe; // rough heuristic: first message we stored
+
       try {
         const { triggerQrChatbotFlow } = await import('@/lib/qrChatbotExecutor');
         await triggerQrChatbotFlow({
           userId: bridgeUserId,
           leadId: String(lead._id),
           phoneNumber: normalizedPhone,
-          messageText: text || messageContent,
+          messageText: msgText,
           connectedPhone: connectedPhone || '',
         });
       } catch (chatbotErr: any) {
         console.warn('[QR WEBHOOK] QR chatbot trigger failed (non-fatal):', chatbotErr.message);
+      }
+
+      try {
+        const { handleQrInboundAutomations } = await import('@/lib/qrAutomationHandler');
+        await handleQrInboundAutomations({
+          userId: bridgeUserId,
+          leadId: String(lead._id),
+          phoneNumber: normalizedPhone,
+          messageText: msgText,
+          wasFirstInbound: isFirstInbound,
+          connectedPhone: connectedPhone || '',
+        });
+      } catch (autoErr: any) {
+        console.warn('[QR WEBHOOK] QR automation failed (non-fatal):', autoErr.message);
       }
     }
   }

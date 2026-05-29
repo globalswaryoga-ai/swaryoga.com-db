@@ -28,22 +28,49 @@ const QR_CHATBOT_TYPES = [
     features: ['Visual Flow Chart', 'Multiple Node Types', 'Button Choices', 'Delay & Timer'],
   },
   {
-    id: 'keyword-triggers',
-    icon: '🔑',
-    title: 'Keyword Triggers',
-    description: 'Auto-start a flow when a contact sends a specific word',
-    link: '/admin/crm/qr/chatbot/builder/new',
+    id: 'automation',
+    icon: '⚡',
+    title: 'QR Automation',
+    description: 'Welcome messages + keyword auto-replies sent via QR bridge',
+    link: '/admin/crm/qr/automation',
     color: 'from-teal-500 to-cyan-600',
-    features: ['Welcome Word', 'FAQ Shortcuts', 'Any Language', 'Exact Match'],
+    features: ['Welcome Messages', 'Keyword Triggers', 'Spintax Text', 'Throttle Control'],
+  },
+  {
+    id: 'knowledge-base',
+    icon: '📚',
+    title: 'Knowledge Base',
+    description: 'FAQ articles shared across Meta and QR WhatsApp channels',
+    link: '/admin/crm/knowledge-base',
+    color: 'from-emerald-500 to-green-700',
+    features: ['Auto FAQ Answers', 'Keyword Matching', 'Multi-language', 'Usage Analytics'],
+  },
+  {
+    id: 'quick-replies',
+    icon: '💬',
+    title: 'Quick Replies',
+    description: 'Saved message templates for fast manual replies in QR inbox',
+    link: '/admin/crm/templates',
+    color: 'from-sky-500 to-blue-600',
+    features: ['Canned Responses', 'Shortcuts', 'Categories', 'Usage Tracking'],
   },
   {
     id: 'qr-inbox',
     icon: '📥',
     title: 'QR Inbox',
-    description: 'View and reply to all QR WhatsApp conversations',
+    description: 'View and reply to all QR WhatsApp conversations manually',
     link: '/admin/crm/qr',
-    color: 'from-sky-500 to-blue-600',
+    color: 'from-indigo-500 to-violet-600',
     features: ['Live Inbox', 'Manual Replies', 'Chat History', 'Lead Context'],
+  },
+  {
+    id: 'settings',
+    icon: '⚙️',
+    title: 'Chatbot Settings',
+    description: 'Global chatbot config — office hours, after-hours message, escalation',
+    link: '/admin/crm/chatbot-settings',
+    color: 'from-gray-500 to-slate-600',
+    features: ['Office Hours', 'After-Hours Msg', 'Escalation Rules', 'Default Response'],
   },
 ];
 
@@ -189,7 +216,7 @@ export default function QrChatbotPage() {
         )}
 
         {/* Feature Cards */}
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {QR_CHATBOT_TYPES.map((type) => (
             <Link
               key={type.id}
