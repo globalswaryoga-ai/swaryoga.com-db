@@ -2,7 +2,7 @@ import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
-import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -572,6 +572,32 @@ export async function processDueBroadcastRuns(options?: {
                 );
               } catch (qrSaveErr) {
                 console.warn('[Broadcast QR] Warning: failed to save to qr_whatsapp_messages:', qrSaveErr instanceof Error ? qrSaveErr.message : String(qrSaveErr));
+              }
+
+              // Also upsert qr_whatsapp_chats so inbox persists when bridge restarts
+              try {
+                const QrChat = getQrWhatsAppChat();
+                const chatJidForChat = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+                const msgPreview = String((template as any).templateContent || '').trim().substring(0, 100);
+                await QrChat.findOneAndUpdate(
+                  { userId: runUserId, connectedPhone, chatJid: chatJidForChat },
+                  {
+                    $set: {
+                      userId: runUserId,
+                      connectedPhone,
+                      chatJid: chatJidForChat,
+                      isGroup: false,
+                      lastMessage: msgPreview,
+                      lastMessageTime: new Date(),
+                      lastMessageFromMe: true,
+                      conversationTimestamp: Math.floor(Date.now() / 1000),
+                    },
+                    $setOnInsert: { name: to, pinned: false, archived: false, profilePicUrl: '', unreadCount: 0, createdAt: new Date() },
+                  },
+                  { upsert: true }
+                );
+              } catch (chatSaveErr) {
+                console.warn('[Broadcast QR] Warning: failed to update qr_whatsapp_chats:', chatSaveErr instanceof Error ? chatSaveErr.message : String(chatSaveErr));
               }
             }
           } else {

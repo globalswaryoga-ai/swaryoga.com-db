@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getCRMUserSettings, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -90,20 +90,22 @@ export async function GET(req: NextRequest) {
     console.log('[QR Chats API] Calling bridge chats:', bridgeChatsUrl, '| sessionKey:', sessionKey);
 
     const [chatsRes, groupsRes] = await Promise.all([
-      fetch(bridgeChatsUrl, { method: 'GET', headers: sessionHeaders }),
+      fetch(bridgeChatsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
+        console.warn('[QR Chats API] Chats bridge unreachable:', err.message);
+        return null;
+      }),
       fetch(bridgeGroupsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
         console.warn('[QR Chats API] Groups endpoint failed:', err.message);
         return null;
       })
     ]);
 
-    if (!chatsRes.ok) {
-      const errorText = await chatsRes.text();
-      console.error('[QR Chats API] Chats endpoint error:', chatsRes.status, errorText);
-      return NextResponse.json({ success: false, error: 'Bridge error', details: errorText }, { status: chatsRes.status });
+    let chatsData: any = { chats: [] };
+    if (!chatsRes || !chatsRes.ok) {
+      console.warn('[QR Chats API] Bridge unavailable — serving from DB only');
+    } else {
+      chatsData = await chatsRes.json();
     }
-
-    const chatsData = await chatsRes.json();
     console.log('[QR Chats API] ✅ Chats endpoint:', {
       hasChats: !!chatsData?.chats,
       chatsCount: chatsData?.chats?.length || 0
@@ -187,6 +189,41 @@ export async function GET(req: NextRequest) {
     });
     console.log('[QR Chats API] ============ END BRIDGE CHATS ============');
 
+    // ── Merge DB-persisted chats (qr_whatsapp_chats) with bridge chats ──
+    // This ensures chats survive bridge restarts / PC off. Privacy: userId strictly isolates tenants.
+    try {
+      const QrChat = getQrWhatsAppChat();
+      const dbChatDocs = await QrChat.find({ userId: viewerUserId })
+        .sort({ conversationTimestamp: -1 })
+        .limit(500)
+        .lean();
+
+      const bridgeJidSet = new Set<string>(
+        data.chats.map((c: any) => {
+          const id = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+          return id;
+        })
+      );
+
+      for (const dc of dbChatDocs as any[]) {
+        if (!dc.chatJid || bridgeJidSet.has(dc.chatJid)) continue;
+        // Enrich name from Lead if only phone stored
+        let chatName = dc.name || dc.chatJid.split('@')[0];
+        data.chats.push({
+          id: dc.chatJid,
+          name: chatName,
+          lastMessage: dc.lastMessage || '',
+          lastMessageTime: dc.lastMessageTime ? new Date(dc.lastMessageTime).toISOString() : null,
+          conversationTimestamp: dc.conversationTimestamp || 0,
+          unreadCount: dc.unreadCount || 0,
+          isGroup: dc.isGroup || false,
+          fromDb: true,
+        });
+      }
+    } catch (dbMergeErr: any) {
+      console.warn('[QR Chats API] DB chat merge failed (non-fatal):', dbMergeErr.message);
+    }
+
     // 2. If Super Admin, return everything
     if (superAdmin) {
       return NextResponse.json({ success: true, chats: data.chats });
@@ -194,8 +231,8 @@ export async function GET(req: NextRequest) {
 
     // 3. Filter for regular admins: Show their assigned leads OR leads they created (user compartment).
     const Lead = getLead();
-    
-    // Extract phone numbers from bridge chats
+
+    // Extract phone numbers from all chats (bridge + DB merged)
     const phoneNumbers = data.chats.map((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
       return idStr.split('@')[0];
@@ -204,12 +241,13 @@ export async function GET(req: NextRequest) {
     // Find all leads for these numbers
     const leads = await Lead.find({
       phoneNumber: { $in: phoneNumbers }
-    }).select('phoneNumber assignedToUserId createdByUserId');
+    }).select('phoneNumber assignedToUserId createdByUserId name displayName');
 
     const leadMap = new Map();
-    leads.forEach(l => leadMap.set(l.phoneNumber, { 
-      assignedToUserId: l.assignedToUserId, 
-      createdByUserId: l.createdByUserId 
+    leads.forEach((l: any) => leadMap.set(l.phoneNumber, {
+      assignedToUserId: l.assignedToUserId,
+      createdByUserId: l.createdByUserId,
+      name: l.displayName || l.name,
     }));
 
     const filteredChats = data.chats.filter((c: any) => {
@@ -218,29 +256,20 @@ export async function GET(req: NextRequest) {
 
       // ALWAYS show groups (@g.us) - they are not filtered by lead records
       if (isGroup) {
-        console.log('[QR Chats API] Passing group:', idStr, c.name || c.subject);
         return true;
       }
 
       // For individual chats: filter by lead assignment (user compartment)
       const phone = idStr.split('@')[0];
       const leadInfo = leadMap.get(phone);
-      if (!leadInfo) {
-        console.log('[QR Chats API] Filtering out (no lead):', phone);
-        return false;
-      }
+      if (!leadInfo) return false;
 
       const passes = leadInfo.assignedToUserId === viewerUserId || leadInfo.createdByUserId === viewerUserId;
-      if (passes) {
-        console.log('[QR Chats API] Passing people:', phone, c.name);
+      // Enrich name from lead record if available
+      if (passes && leadInfo.name && (!c.name || c.name === phone)) {
+        c.name = leadInfo.name;
       }
       return passes;
-    });
-
-    console.log('[QR Chats API] Final result:', {
-      totalBefore: data.chats.length,
-      totalAfter: filteredChats.length,
-      groups: filteredChats.filter(c => (typeof c.id === 'string' ? c.id : c.id?._serialized)?.endsWith('@g.us')).length,
     });
 
     return NextResponse.json({ success: true, chats: filteredChats });
