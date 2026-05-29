@@ -282,11 +282,12 @@ async function handleWebhookPayload(payload: any) {
     }
 
     console.log('[WEBHOOK DEBUG] Connected to DB');
-    const { getWhatsAppMessage, getLead, getBroadcastRunMessage, getBroadcastRun } = await import('@/lib/schemas/enterpriseSchemas');
+    const { getWhatsAppMessage, getLead, getBroadcastRunMessage, getBroadcastRun, getFunnelStageHistory } = await import('@/lib/schemas/enterpriseSchemas');
     const WhatsAppMessage = getWhatsAppMessage();
     const Lead = getLead();
     const BroadcastRunMessage = getBroadcastRunMessage();
     const BroadcastRun = getBroadcastRun();
+    const FunnelStageHistory = getFunnelStageHistory();
     console.log('[WEBHOOK DEBUG] Models loaded');
     
     if (!WhatsAppMessage || !Lead) {
@@ -348,18 +349,27 @@ async function handleWebhookPayload(payload: any) {
             const failedLead = await Lead.findOne({ phoneNumber: recipientPhone });
             if (failedLead && !failedLead.isBlocked) {
               const newCount = (failedLead.waFailCount || 0) + 1;
-              const leadUpdate: any = {
-                waFailCount: newCount,
-                waLastFailAt: now,
-                waLastFailCode: errorCode?.toString() || 'failed',
-              };
-              if (isBlockedError || newCount >= 3) {
-                leadUpdate.isBlocked = true;
-                leadUpdate.waBlockedAt = now;
-                leadUpdate.waBlockedReason = isBlockedError ? 'User blocked this number' : '3 consecutive delivery failures';
-                console.log(`🚫 [BLOCKED] Lead ${failedLead._id} (${recipientPhone}) auto-blocked after ${newCount} failures`);
+              const shouldAutoDelete = isBlockedError || newCount >= 3;
+
+              if (shouldAutoDelete) {
+                // Auto-delete: user blocked us OR 3 consecutive failures
+                const deleteReason = isBlockedError
+                  ? `Blocked by user (Meta error ${errorCode})`
+                  : '3 consecutive delivery failures';
+                console.log(`🗑️ [AUTO-DELETE] Lead ${failedLead._id} (${recipientPhone}) — ${deleteReason}`);
+
+                await Lead.deleteOne({ _id: failedLead._id });
+                if (FunnelStageHistory) {
+                  await FunnelStageHistory.deleteMany({ leadId: failedLead._id });
+                }
+              } else {
+                // Not enough failures yet — track the count
+                await Lead.updateOne({ _id: failedLead._id }, { $set: {
+                  waFailCount: newCount,
+                  waLastFailAt: now,
+                  waLastFailCode: errorCode?.toString() || 'failed',
+                }});
               }
-              await Lead.updateOne({ _id: failedLead._id }, { $set: leadUpdate });
             }
           }
 
@@ -647,21 +657,14 @@ async function handleWebhookPayload(payload: any) {
 
             // ================================================================
             // STOP / BLOCK KEYWORD DETECTION
-            // If user sends "stop", "unsubscribe", or "block" → auto-block lead
+            // If user sends "stop", "unsubscribe", "block" etc → auto-delete lead
             // ================================================================
             const stopKeywords = ['stop', 'unsubscribe', 'block', 'opt out', 'opt-out', 'cancel'];
             const normalizedBody = (body || '').toLowerCase().trim();
             if (stopKeywords.includes(normalizedBody)) {
-              console.log(`🚫 [STOP DETECTED] Auto-blocking lead ${lead._id} (phone: ${from}) — keyword: "${normalizedBody}"`);
-              await Lead.updateOne({ _id: lead._id }, {
-                $set: {
-                  isBlocked: true,
-                  blockedAt: now,
-                  blockedReason: 'stop_keyword',
-                  blockedBy: 'system',
-                }
-              });
-              // Skip automations for blocked leads
+              console.log(`🗑️ [AUTO-DELETE] Lead ${lead._id} (${from}) opted out — keyword: "${normalizedBody}"`);
+              await Lead.deleteOne({ _id: lead._id });
+              if (FunnelStageHistory) await FunnelStageHistory.deleteMany({ leadId: lead._id });
               continue;
             }
 
