@@ -78,6 +78,29 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
+// IST = UTC+5:30. Quiet window: 10:30 PM to 5:00 AM IST (QR only, no messages during this period).
+function getQrQuietHoursInfo(now: Date): { isQuiet: boolean; resumeAt: Date } {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const istTime = new Date(now.getTime() + IST_OFFSET_MS);
+  const istHours = istTime.getUTCHours();
+  const istMinutes = istTime.getUTCMinutes();
+  const istTotalMin = istHours * 60 + istMinutes;
+
+  // Quiet: 22:30 (1350 min) to 05:00 (300 min)
+  const isQuiet = istTotalMin >= 1350 || istTotalMin < 300;
+  if (!isQuiet) return { isQuiet: false, resumeAt: now };
+
+  // Resume at 5:00 AM IST — build in IST then convert back to UTC
+  const resumeIST = new Date(istTime);
+  resumeIST.setUTCHours(5, 0, 0, 0);
+  if (istTotalMin >= 1350) {
+    // Past 10:30 PM — 5 AM is on the next calendar day in IST
+    resumeIST.setUTCDate(resumeIST.getUTCDate() + 1);
+  }
+  const resumeAt = new Date(resumeIST.getTime() - IST_OFFSET_MS);
+  return { isQuiet: true, resumeAt };
+}
+
 export async function processDueBroadcastRuns(options?: {
   now?: Date;
   runLimit?: number;
@@ -143,6 +166,20 @@ export async function processDueBroadcastRuns(options?: {
     };
 
     try {
+      // Quiet hours check for QR: no sends 10:30 PM – 5:00 AM IST
+      if (String((run as any).provider || 'meta') === 'qr') {
+        const { isQuiet, resumeAt } = getQrQuietHoursInfo(now);
+        if (isQuiet) {
+          await BroadcastRun.updateOne(
+            { _id: (run as any)._id },
+            { $set: { status: 'scheduled', scheduledAt: resumeAt, updatedAt: now } }
+          );
+          console.log(`[Broadcast QR] Quiet hours (10:30 PM–5 AM IST). Paused. Resuming at ${resumeAt.toISOString()} UTC`);
+          result.runResults.push(stat);
+          continue;
+        }
+      }
+
       // Move to running state if not already.
       await BroadcastRun.updateOne(
         { _id: (run as any)._id, status: { $in: ['draft', 'scheduled', 'running'] } },
@@ -203,6 +240,19 @@ export async function processDueBroadcastRuns(options?: {
           stat.skipped++;
           result.skipped++;
           continue;
+        }
+
+        // Mid-batch quiet hours check — stop if we've crossed into 10:30 PM IST
+        if (runProvider === 'qr') {
+          const midCheck = getQrQuietHoursInfo(new Date());
+          if (midCheck.isQuiet) {
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { status: 'scheduled', scheduledAt: midCheck.resumeAt, updatedAt: new Date() } }
+            );
+            console.log(`[Broadcast QR] Quiet hours started mid-batch. Pausing. Resuming at ${midCheck.resumeAt.toISOString()} UTC`);
+            break;
+          }
         }
 
         // Skip duplicate phone numbers within the same run
