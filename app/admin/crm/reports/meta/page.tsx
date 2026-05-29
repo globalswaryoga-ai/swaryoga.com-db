@@ -39,12 +39,14 @@ type BroadcastRun = {
 type BroadcastMessage = {
   _id: string;
   phoneNumber: string;
+  leadId?: string;
   status: string;
   failureReason?: string;
   sentAt?: string;
   deliveredAt?: string;
   readAt?: string;
   lead?: {
+    _id?: string;
     name?: string;
   };
 };
@@ -222,6 +224,17 @@ export default function MetaReportsPage() {
     } else {
       setSelectedMessages(new Set(filteredMessages.map(m => m._id)));
     }
+  };
+
+  // Schedule a new broadcast to the selected recipients
+  const scheduleSelectedForBroadcast = () => {
+    const selected = filteredMessages.filter(m => selectedMessages.has(m._id));
+    const contacts = selected.map(m => ({
+      phoneNumber: m.phoneNumber,
+      name: m.lead?.name || '',
+    }));
+    sessionStorage.setItem('broadcast_preload_contacts', JSON.stringify(contacts));
+    router.push('/admin/crm/broadcast');
   };
 
   useEffect(() => {
@@ -560,8 +573,8 @@ export default function MetaReportsPage() {
 
             {/* Messages Table */}
             <div className="bg-white rounded-xl border shadow-sm">
-              <div className="p-4 border-b flex items-center justify-between">
-                <h3 className="font-semibold">
+              <div className="p-4 border-b flex items-center justify-between gap-3">
+                <h3 className="font-semibold shrink-0">
                   Messages ({filteredMessages.length})
                   {selectedMessages.size > 0 && (
                     <span className="ml-2 text-sm text-blue-600">
@@ -569,18 +582,28 @@ export default function MetaReportsPage() {
                     </span>
                   )}
                 </h3>
-                <select
-                  value={messageFilter}
-                  onChange={(e) => setMessageFilter(e.target.value)}
-                  className="border rounded-lg px-3 py-1.5 text-sm"
-                >
-                  <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="sent">Sent</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="read">Read</option>
-                  <option value="failed">Failed</option>
-                </select>
+                <div className="flex items-center gap-2 ml-auto">
+                  {selectedMessages.size > 0 && (
+                    <button
+                      onClick={scheduleSelectedForBroadcast}
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      📅 Schedule Broadcast ({selectedMessages.size})
+                    </button>
+                  )}
+                  <select
+                    value={messageFilter}
+                    onChange={(e) => setMessageFilter(e.target.value)}
+                    className="border rounded-lg px-3 py-1.5 text-sm"
+                  >
+                    <option value="all">All</option>
+                    <option value="pending">Pending</option>
+                    <option value="sent">Sent</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="read">Read</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                </div>
               </div>
 
               {loading ? (

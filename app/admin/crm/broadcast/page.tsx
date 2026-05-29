@@ -380,6 +380,39 @@ export default function BroadcastPage() {
     }
   }, [searchParams, leads]);
 
+  // Pre-load contacts from sessionStorage (from Reports page "Schedule Broadcast")
+  useEffect(() => {
+    if (leads.length === 0) return; // wait until leads are loaded
+    const raw = sessionStorage.getItem('broadcast_preload_contacts');
+    if (!raw) return;
+    sessionStorage.removeItem('broadcast_preload_contacts');
+    try {
+      const contacts: { phoneNumber: string; name?: string }[] = JSON.parse(raw);
+      if (!Array.isArray(contacts) || contacts.length === 0) return;
+      const csvList: CSVContact[] = contacts.map(c => ({
+        phoneNumber: c.phoneNumber,
+        name: c.name || '',
+        raw: { phone: c.phoneNumber, name: c.name || '' },
+      }));
+      setCSVContacts(csvList);
+      setShowCSVPreview(true);
+      // Auto-select each contact (match DB lead if exists, else use CSV virtual ID)
+      setSelectedLeads(prev => {
+        const next = new Set(prev);
+        csvList.forEach((c, idx) => {
+          const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
+          const dbLead = leads.find(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+          if (dbLead) next.add(dbLead._id);
+          else next.add(`csv_${idx}_${last10}`);
+        });
+        return next;
+      });
+      setStep(2); // Jump to template selection
+    } catch {
+      // ignore malformed data
+    }
+  }, [leads]);
+
   // Refresh progress every 5 seconds when there are active runs
   useEffect(() => {
     fetchActiveProgress();
