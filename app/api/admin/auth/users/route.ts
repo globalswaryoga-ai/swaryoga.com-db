@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { connectDB, getUser } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
@@ -44,8 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
 
-    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
-    if (!isSuperAdmin) {
+    if (!isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
