@@ -113,7 +113,8 @@ export class RateLimitManager {
       { limitKey: `${userId}:hourly`, limitType: 'hourly' },
       {
         $inc: { messagesSent: 1 },
-        $set: { resetAt: hourlyReset, messagesLimit: config.hourly, warningThreshold: config.warningThreshold },
+        $set: { resetAt: hourlyReset, warningThreshold: config.warningThreshold },
+        $setOnInsert: { messagesLimit: config.hourly },
       },
       { upsert: true }
     );
@@ -122,12 +123,13 @@ export class RateLimitManager {
     const dailyReset = new Date(now);
     dailyReset.setDate(dailyReset.getDate() + 1);
     dailyReset.setHours(0, 0, 0, 0);
-    
+
     await RateLimit.findOneAndUpdate(
       { limitKey: `${userId}:daily`, limitType: 'daily' },
       {
         $inc: { messagesSent: 1 },
-        $set: { resetAt: dailyReset, messagesLimit: config.daily, warningThreshold: config.warningThreshold },
+        $set: { resetAt: dailyReset, warningThreshold: config.warningThreshold },
+        $setOnInsert: { messagesLimit: config.daily },
       },
       { upsert: true }
     );

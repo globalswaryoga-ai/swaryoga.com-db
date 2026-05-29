@@ -512,29 +512,32 @@ export async function processDueBroadcastRuns(options?: {
             }
           );
 
-          await RateLimitManager.incrementCount(createdBy, to);
-          
+          // Use QR-specific hourly limit (60/hr) vs Meta (1000/hr)
+          const rateLimitConfig = runProvider === 'qr'
+            ? { hourly: 60, daily: 500, perPhone: 1, warningThreshold: 0.8 }
+            : undefined;
+          await RateLimitManager.incrementCount(createdBy, to, rateLimitConfig);
+
           // Increment daily bulk quota
           await BulkMessageManager.incrementDailyUsage(1);
 
           stat.sent++;
           result.sent++;
-          
-          // Add delay between messages (only when interval is enabled — typically QR provider)
+
+          // Add delay between messages (only when interval is enabled — QR provider only)
           const intervalEnabled = (run as any).messageInterval?.enabled !== false;
-          if (intervalEnabled) {
-            // ─── SMART BROADCAST SCHEDULING ───
-            // Default: 10-20 seconds between messages (prevents WhatsApp 24-hour blocks)
-            // WhatsApp blocks accounts that send >100 msgs rapidly to same group
-            // Delays are safety: 10-20s = ~180-360 msgs per hour (well within limits)
-            // Best practice: 10 msgs per 2 hours = 5 msgs every 60 mins (super safe)
-            const minSec = (run as any).messageInterval?.minSeconds ?? 10;   // Increased from 5
-            const maxSec = (run as any).messageInterval?.maxSeconds ?? 20;   // Increased from 15
-            const randomDelayMs = (Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec) * 1000;
-            console.log(`[Broadcast] Waiting ${randomDelayMs / 1000}s before next message (min: ${minSec}s, max: ${maxSec}s, prevents WhatsApp 24h blocks)`);
-            await new Promise(resolve => setTimeout(resolve, randomDelayMs));
-          } else {
-            // Minimal 2s gap to avoid hammering the API even without intervals
+          if (intervalEnabled && runProvider === 'qr') {
+            const minSec = (run as any).messageInterval?.minSeconds ?? 7;
+            const maxSec = (run as any).messageInterval?.maxSeconds ?? 120;
+            const range = maxSec - minSec;
+            // Use crypto-style randomness: combine Math.random with Date.now entropy
+            const seed = (Math.random() * 0xFFFF ^ (Date.now() & 0xFFFF)) >>> 0;
+            const delaySec = minSec + Math.floor((seed / 0xFFFF) * (range + 1));
+            const delayMs = delaySec * 1000;
+            console.log(`[Broadcast QR] Waiting ${delaySec}s before next message (range: ${minSec}-${maxSec}s, anti-ban)`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          } else if (!intervalEnabled) {
+            // Minimal 2s gap even without intervals
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           

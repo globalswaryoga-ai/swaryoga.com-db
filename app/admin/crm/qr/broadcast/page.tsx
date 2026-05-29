@@ -34,7 +34,7 @@ interface Lead {
 const GAP_PRESETS: Record<string, { label: string; minSeconds: number; maxSeconds: number; desc: string }> = {
   ULTRA_SAFE:   { label: '🟢 Ultra Safe (30/hr)',    minSeconds: 90,  maxSeconds: 180, desc: 'Minimum ban risk' },
   VERY_SAFE:    { label: '🟢 Very Safe (45/hr)',     minSeconds: 60,  maxSeconds: 120, desc: 'Very safe' },
-  SAFE:         { label: '🟢 Safe (60/hr)',           minSeconds: 45,  maxSeconds: 90,  desc: 'RECOMMENDED ✓' },
+  SAFE:         { label: '🟢 Safe (60/hr)',           minSeconds: 7,   maxSeconds: 120, desc: 'RECOMMENDED ✓' },
   PROFESSIONAL: { label: '🟡 Professional (90/hr)',  minSeconds: 30,  maxSeconds: 60,  desc: 'Faster, small risk' },
   AGGRESSIVE:   { label: '🔴 Aggressive (150/hr)',   minSeconds: 15,  maxSeconds: 30,  desc: 'High ban risk' },
 };
