@@ -2208,6 +2208,32 @@ export function getCRMSubscription() {
   return mongoose.models.CRMSubscription || mongoose.model('CRMSubscription', crmSubscriptionSchema);
 }
 
+// ============================================================================
+// Enquiry Forms — admin-created shareable forms with unique links
+// ============================================================================
+
+const enquiryFormSchema = new mongoose.Schema(
+  {
+    formId: { type: String, required: true, unique: true, index: true }, // short unique ID for URL
+    workshopName: { type: String, required: true },
+    workshopDate: { type: String, default: '' },     // human-readable date string
+    workshopTime: { type: String, default: '' },
+    workshopMode: { type: String, enum: ['online', 'offline', 'residential', 'recorded'], default: 'online' },
+    workshopId: { type: String, default: '' },        // optional slug reference
+    description: { type: String, default: '' },
+    isActive: { type: Boolean, default: true, index: true },
+    createdByUserId: { type: String, default: 'admin' },
+    submissionCount: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+
+export const EnquiryForm = mongoose.models.EnquiryForm || mongoose.model('EnquiryForm', enquiryFormSchema);
+
+export function getEnquiryForm() {
+  return mongoose.models.EnquiryForm || mongoose.model('EnquiryForm', enquiryFormSchema);
+}
+
 export function getLandingPage() {
   return mongoose.models.LandingPage || mongoose.model('LandingPage', landingPageSchema);
 }
