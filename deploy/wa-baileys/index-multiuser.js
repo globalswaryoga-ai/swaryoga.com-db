@@ -56,7 +56,8 @@ const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 const MAX_SESSIONS = 1000;
 const SESSION_IDLE_TIMEOUT = 24 * 60 * 60 * 1000; // 24h — cleanup idle sessions
 const SESSION_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Check every 1h
-const MAX_RETRIES = 50;
+const MAX_RETRIES = 8;          // Stop hammering WhatsApp after 8 attempts
+const MAX_RECONNECT_DELAY = 5 * 60 * 1000; // 5 min max backoff between retries
 const KEEP_ALIVE_INTERVAL = 60000;
 const STABILIZATION_THRESHOLD = 30000;
 const MAX_MSGS_PER_CHAT = 100;
@@ -581,27 +582,34 @@ async function startSocket(userId) {
 
           let delay;
           if (isQrTimeout) delay = 2000;
-          else if (isConnectionConflict) delay = Math.min(10000 + session.retryCount * 5000, 120000);
-          else if (isRateLimited) delay = Math.min(15000 + session.retryCount * 5000, 120000);
-          else if (isConnectionDrop) delay = 5000;
-          else delay = Math.min(1000 * Math.pow(2, Math.min(session.retryCount - 1, 5)), 60000);
+          else if (isConnectionConflict) delay = Math.min(15000 + session.retryCount * 10000, MAX_RECONNECT_DELAY);
+          else if (isRateLimited) delay = Math.min(30000 + session.retryCount * 15000, MAX_RECONNECT_DELAY);
+          else if (isConnectionDrop) delay = Math.min(5000 * session.retryCount, MAX_RECONNECT_DELAY);
+          else delay = Math.min(2000 * Math.pow(2, Math.min(session.retryCount - 1, 7)), MAX_RECONNECT_DELAY);
 
-          console.log(`[${userId}] Reconnect in ${delay}ms`);
+          console.log(`[${userId}] Reconnect in ${Math.round(delay / 1000)}s (retry ${session.retryCount})`);
           session.clearReconnectTimer();
           session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(userId); }, delay);
         } else if (statusCode === DisconnectReason.loggedOut) {
-          console.log(`[${userId}] Logged out — clearing auth`);
+          // WhatsApp forcibly logged out this session.
+          // CRITICAL: Do NOT auto-reconnect. Rapid reconnect attempts after forced logout
+          // look like bot activity and trigger account bans.
+          // The user must manually scan QR to re-establish the session.
+          console.log(`[${userId}] Logged out by WhatsApp — clearing auth. Waiting for manual QR scan.`);
           try {
             const client = await getMongoClient();
             if (client) {
               const keyPrefix = `${userId}:`;
               await client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION).deleteMany({ key: { $regex: `^${keyPrefix}` } });
-              console.log(`[${userId}] Cleared MongoDB auth`);
+              console.log(`[${userId}] Cleared MongoDB auth after logout`);
             }
           } catch (e) { console.error(`[${userId}] Auth clear failed:`, e.message); }
           session.retryCount = 0;
           session.clearReconnectTimer();
-          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(userId); }, 5000);
+          session.connectionState = 'logged_out'; // distinct state — UI shows "Scan QR to reconnect"
+          session.qrCode = null;
+          session.qrBase64 = null;
+          // NO automatic reconnect. User must manually call /start or scan QR from the UI.
         }
       }
     });
@@ -1010,8 +1018,9 @@ app.get('/sessions', (req, res) => {
 app.get('/status', async (req, res) => {
   const session = getOrCreateSession(req.userId);
 
-  // Auto-start socket if session hasn't been started yet
-  if (!session.sock && !session.isStarting && !session.intentionalDisconnect) {
+  // Auto-start socket if session hasn't been started yet.
+  // Do NOT auto-start after a forced logout — user must manually scan QR to reconnect.
+  if (!session.sock && !session.isStarting && !session.intentionalDisconnect && session.connectionState !== 'logged_out') {
     startSocket(req.userId).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
     // Give it a moment to initialize
     await new Promise(r => setTimeout(r, 1500));
@@ -1039,8 +1048,13 @@ app.get('/status', async (req, res) => {
 app.get('/qr', async (req, res) => {
   const session = getOrCreateSession(req.userId);
 
-  // Auto-start if needed
+  // Auto-start if needed. Also allow start after logout if user explicitly visits /qr
+  // (this is the manual reconnect path — user clicked "Connect" in the UI).
   if (!session.sock && !session.isStarting && !session.intentionalDisconnect) {
+    if (session.connectionState === 'logged_out') {
+      // User is manually requesting reconnect after forced logout — allow fresh start
+      session.connectionState = 'disconnected';
+    }
     startSocket(req.userId).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
     await new Promise(r => setTimeout(r, 2000));
   }
@@ -1303,7 +1317,7 @@ app.post('/reconnect', async (req, res) => {
   try {
     session.intentionalDisconnect = false;
     session.clearReconnectTimer();
-    session.connectionState = 'connecting';
+    session.connectionState = 'connecting'; // clears logged_out state too
     session.retryCount = 0;
     if (session.sock) {
       try { session.sock.ev.removeAllListeners(); session.sock.end(undefined); } catch {}
