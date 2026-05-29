@@ -2826,7 +2826,7 @@ export default function MetaInboxPage() {
                                   }
                                   const url = urlMatch[1];
                                   nodes.push(
-                                    <a key={`link-${lineIdx}-${k++}`} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{url}</a>
+                                    <a key={`link-${lineIdx}-${k++}`} href={url} target="_blank" rel="noopener noreferrer" className={`underline break-all ${msg.direction === 'inbound' ? 'text-white hover:text-white/80' : 'text-blue-600 hover:text-blue-800'}`}>{url}</a>
                                   );
                                   lastIdx = urlRegex.lastIndex;
                                 }
