@@ -32,10 +32,13 @@ interface RetellConfig {
   fromNumber: string;
 }
 
-function getConfig(): RetellConfig {
+function getConfig(language?: string): RetellConfig {
   const apiKey = process.env.RETELL_API_KEY || '';
-  const agentId = process.env.RETELL_AGENT_ID || '';
   const fromNumber = process.env.RETELL_FROM_NUMBER || '';
+  // Route English leads to the English agent, all others to Hindi agent
+  const agentId = (language === 'en')
+    ? (process.env.RETELL_AGENT_ID_EN || process.env.RETELL_AGENT_ID || '')
+    : (process.env.RETELL_AGENT_ID || '');
   return { apiKey, agentId, fromNumber };
 }
 
