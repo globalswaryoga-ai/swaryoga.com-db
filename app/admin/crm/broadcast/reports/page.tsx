@@ -172,6 +172,9 @@ export default function BroadcastReportsPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [actioning, setActioning] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
 
   // Fetch all broadcast runs
   const fetchRuns = useCallback(async () => {
@@ -213,6 +216,52 @@ export default function BroadcastReportsPage() {
       fetchRuns();
     }
   }, [token, runId, router, fetchRuns, fetchRunDetail]);
+
+  // ── Broadcast Run Actions ────────────────────────────────────────────
+  const patchAction = useCallback(async (id: string, body: object) => {
+    setActioning(true);
+    setError(null);
+    try {
+      await crm.fetch(`/api/admin/crm/broadcast-runs/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      await fetchRunDetail(id);
+      await fetchRuns();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setActioning(false);
+    }
+  }, [crm, fetchRunDetail, fetchRuns]);
+
+  const cancelBroadcast = async () => {
+    if (!selectedRun) return;
+    if (!confirm('Cancel this broadcast? Pending messages will not be sent.')) return;
+    await patchAction(selectedRun._id, { action: 'cancel' });
+    setSuccess('Broadcast cancelled');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  const restartBroadcast = async () => {
+    if (!selectedRun) return;
+    if (!confirm('Restart broadcast? All failed/pending messages will be retried.')) return;
+    await patchAction(selectedRun._id, { action: 'retry-failed' });
+    setSuccess('Broadcast restarted — failed messages queued for retry');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  const rescheduleBroadcast = async () => {
+    if (!selectedRun || !rescheduleDate) return;
+    await patchAction(selectedRun._id, { action: 'reschedule', scheduledAt: new Date(rescheduleDate).toISOString() });
+    setShowRescheduleModal(false);
+    setSuccess('Broadcast rescheduled');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  // Auto-refresh detail view every 15s when broadcast is running
+  useEffect(() => {
+    if (!selectedRun || !['running', 'draft'].includes(selectedRun.status)) return;
+    const id = setInterval(() => fetchRunDetail(selectedRun._id), 15000);
+    return () => clearInterval(id);
+  }, [selectedRun?._id, selectedRun?.status, fetchRunDetail]);
 
   // Filter messages
   const filteredMessages = useMemo(() => {
@@ -363,10 +412,11 @@ export default function BroadcastReportsPage() {
             </div>
             
             {view === 'detail' && selectedRun && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => fetchRunDetail(selectedRun._id)}
                   className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-semibold"
+                  disabled={actioning}
                 >
                   ↻ Refresh
                 </button>
@@ -375,6 +425,31 @@ export default function BroadcastReportsPage() {
                   className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold"
                 >
                   📥 Export CSV
+                </button>
+                {!['cancelled', 'completed'].includes(selectedRun.status) && (
+                  <button
+                    onClick={cancelBroadcast}
+                    disabled={actioning}
+                    className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                )}
+                {['completed', 'failed', 'cancelled', 'running'].includes(selectedRun.status) && (
+                  <button
+                    onClick={restartBroadcast}
+                    disabled={actioning}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                  >
+                    Retry Failed
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowRescheduleModal(true)}
+                  disabled={actioning}
+                  className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                >
+                  Reschedule
                 </button>
               </div>
             )}
@@ -749,6 +824,32 @@ export default function BroadcastReportsPage() {
           </div>
         )}
       </div>
+
+      {/* Reschedule Modal */}
+      {showRescheduleModal && selectedRun && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold mb-4">Reschedule Broadcast</h3>
+            <p className="text-sm text-gray-500 mb-4">Failed/pending messages will send at the new time.</p>
+            <input
+              type="datetime-local"
+              value={rescheduleDate}
+              onChange={e => setRescheduleDate(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 mb-4 text-sm"
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setShowRescheduleModal(false)} className="px-4 py-2 bg-gray-100 rounded-lg text-sm">Cancel</button>
+              <button
+                onClick={rescheduleBroadcast}
+                disabled={!rescheduleDate || actioning}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                Reschedule
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

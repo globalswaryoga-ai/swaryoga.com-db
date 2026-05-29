@@ -111,7 +111,7 @@ export async function processDueBroadcastRuns(options?: {
   const now = options?.now || new Date();
   const runLimit = Math.min(Math.max(1, options?.runLimit ?? 5), 50);
   // Reduced default batch to 30 messages per cron run for reliability
-  const perRunMessageLimit = Math.min(Math.max(1, options?.perRunMessageLimit ?? 30), 1000);
+  const perRunMessageLimit = Math.min(Math.max(1, options?.perRunMessageLimit ?? 50), 1000);
 
   console.log('[Broadcast] Processing with runLimit:', runLimit, 'perRunMessageLimit:', perRunMessageLimit);
 
@@ -123,9 +123,9 @@ export async function processDueBroadcastRuns(options?: {
     .limit(runLimit)
     .lean();
 
-  // Reset messages stuck in 'sending' for more than 5 minutes back to 'pending'
-  // This handles cases where the process crashed or timed out mid-send
-  const staleThreshold = new Date(now.getTime() - 5 * 60 * 1000);
+  // Reset messages stuck in 'sending' for more than 2 minutes back to 'pending'
+  // (cron timeout is 60s; 2 min gives one full extra cron cycle before recovery)
+  const staleThreshold = new Date(now.getTime() - 2 * 60 * 1000);
   for (const run of due) {
     const resetResult = await BroadcastRunMessage.updateMany(
       {
@@ -240,6 +240,19 @@ export async function processDueBroadcastRuns(options?: {
           continue;
         }
       }
+
+      // Auto-retry transient failures: reset rate-limited / timeout messages back to pending
+      // so they are picked up in the same or next cron run (do NOT retry permanent failures like invalid_number)
+      const retryablePattern = /rate_limit|rate limit|too many|throttle|timeout|network|econnreset|socket|503|529/i;
+      await BroadcastRunMessage.updateMany(
+        {
+          runId: (run as any)._id,
+          status: 'failed',
+          failureReason: { $regex: retryablePattern },
+          updatedAt: { $lt: new Date(now.getTime() - 3 * 60 * 1000) }, // only retry if failed >3 min ago
+        },
+        { $set: { status: 'pending', failureReason: null, updatedAt: now } }
+      );
 
       // Fetch pending messages
       const pending = await BroadcastRunMessage.find({ runId: (run as any)._id, status: 'pending' })
@@ -711,20 +724,21 @@ export async function processDueBroadcastRuns(options?: {
           stat.sent++;
           result.sent++;
 
-          // Add delay between messages (only when interval is enabled — QR provider only)
+          // Delay between messages
           const intervalEnabled = (run as any).messageInterval?.enabled !== false;
-          if (intervalEnabled && runProvider === 'qr') {
+          if (runProvider === 'qr' && intervalEnabled) {
+            // QR: use configured random delay (7-120s default) to mimic human behaviour
             const minSec = (run as any).messageInterval?.minSeconds ?? 7;
             const maxSec = (run as any).messageInterval?.maxSeconds ?? 120;
             const range = maxSec - minSec;
-            // Use crypto-style randomness: combine Math.random with Date.now entropy
             const seed = (Math.random() * 0xFFFF ^ (Date.now() & 0xFFFF)) >>> 0;
             const delaySec = minSec + Math.floor((seed / 0xFFFF) * (range + 1));
-            const delayMs = delaySec * 1000;
-            console.log(`[Broadcast QR] Waiting ${delaySec}s before next message (range: ${minSec}-${maxSec}s, anti-ban)`);
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+            console.log(`[Broadcast QR] Waiting ${delaySec}s (range: ${minSec}-${maxSec}s)`);
+            await new Promise(resolve => setTimeout(resolve, delaySec * 1000));
+          } else if (runProvider === 'meta') {
+            // Meta: 500ms between messages — prevents burst rate-limiting without slowing throughput
+            await new Promise(resolve => setTimeout(resolve, 500));
           } else if (!intervalEnabled) {
-            // Minimal 2s gap even without intervals
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           

@@ -21,7 +21,7 @@
       "maxDuration": 60
     },
     "app/api/admin/crm/broadcast-runs/run/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 120
     },
     "app/api/admin/crm/scheduled-messages/run/route.ts": {
       "maxDuration": 60
