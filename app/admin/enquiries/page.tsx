@@ -151,7 +151,7 @@ export default function EnquiriesPage() {
   };
 
   const copyLink = (formId: string) => {
-    const link = `${window.location.origin}/join/${formId}`;
+    const link = `${window.location.origin}/workshop-join/${formId}`;
     navigator.clipboard.writeText(link).then(() => {
       setCopiedId(formId);
       setTimeout(() => setCopiedId(null), 2000);
@@ -280,7 +280,7 @@ export default function EnquiriesPage() {
                         <span>{form.submissionCount || 0} submissions</span>
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5 font-mono truncate">
-                        {typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com'}/join/{form.formId}
+                        {typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com'}/workshop-join/{form.formId}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

@@ -36,7 +36,7 @@ export default function JoinFormPage() {
 
   useEffect(() => {
     if (!formId) return;
-    fetch(`/api/join/${formId}`)
+    fetch(`/api/workshop-join/${formId}`)
       .then((r) => r.json())
       .then((data) => {
         if (!data.success) throw new Error(data.error || 'Form not found');
@@ -51,7 +51,7 @@ export default function JoinFormPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/join/${formId}`, {
+      const res = await fetch(`/api/workshop-join/${formId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country }),
