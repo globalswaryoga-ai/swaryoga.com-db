@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -91,7 +91,9 @@ export default function MetaReportsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedRun, setSelectedRun] = useState<BroadcastRun | null>(null);
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
-  const [messageFilter, setMessageFilter] = useState<string>('all');
+  const [messageFilters, setMessageFilters] = useState<Set<string>>(new Set());
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showConfirm, setShowConfirm] = useState<{ action: string; label: string } | null>(null);
@@ -249,9 +251,29 @@ export default function MetaReportsPage() {
   }, [token, runId, fetchRuns, fetchRunDetail]);
 
   const filteredMessages = useMemo(() => {
-    if (messageFilter === 'all') return messages;
-    return messages.filter(m => m.status === messageFilter);
-  }, [messages, messageFilter]);
+    if (messageFilters.size === 0) return messages;
+    return messages.filter(m => messageFilters.has(m.status));
+  }, [messages, messageFilters]);
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggleFilter = (status: string) => {
+    setMessageFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -591,18 +613,43 @@ export default function MetaReportsPage() {
                       📅 Schedule Broadcast ({selectedMessages.size})
                     </button>
                   )}
-                  <select
-                    value={messageFilter}
-                    onChange={(e) => setMessageFilter(e.target.value)}
-                    className="border rounded-lg px-3 py-1.5 text-sm"
-                  >
-                    <option value="all">All</option>
-                    <option value="pending">Pending</option>
-                    <option value="sent">Sent</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="read">Read</option>
-                    <option value="failed">Failed</option>
-                  </select>
+                  {/* Multi-select status filter */}
+                  <div className="relative" ref={filterDropdownRef}>
+                    <button
+                      onClick={() => setFilterDropdownOpen(o => !o)}
+                      className="border rounded-lg px-3 py-1.5 text-sm flex items-center gap-2 bg-white hover:bg-gray-50 min-w-[120px]"
+                    >
+                      <span className="flex-1 text-left">
+                        {messageFilters.size === 0
+                          ? 'All'
+                          : Array.from(messageFilters).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}
+                      </span>
+                      <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    {filterDropdownOpen && (
+                      <div className="absolute right-0 mt-1 w-44 bg-white border rounded-xl shadow-lg z-50 py-1">
+                        {(['pending','sent','delivered','read','failed'] as const).map(status => (
+                          <label key={status} className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                            <input
+                              type="checkbox"
+                              checked={messageFilters.has(status)}
+                              onChange={() => toggleFilter(status)}
+                              className="w-4 h-4 rounded accent-green-600"
+                            />
+                            <span className="capitalize">{status}</span>
+                          </label>
+                        ))}
+                        {messageFilters.size > 0 && (
+                          <button
+                            onClick={() => setMessageFilters(new Set())}
+                            className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-t mt-1"
+                          >
+                            Clear filters
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
