@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon } from 'lucide-react';
 
 interface Enquiry {
   id: string;
@@ -50,6 +50,8 @@ export default function EnquiriesPage() {
   const [newWsTime, setNewWsTime] = useState('');
   const [newWsMode, setNewWsMode] = useState('online');
   const [newWsDesc, setNewWsDesc] = useState('');
+  const [newWsImage, setNewWsImage] = useState('');     // Bunny CDN URL after upload
+  const [imageUploading, setImageUploading] = useState(false);
   const [savingForm, setSavingForm] = useState(false);
   const [formSaveError, setFormSaveError] = useState('');
 
@@ -60,6 +62,28 @@ export default function EnquiriesPage() {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setImageUploading(true);
+    setFormSaveError('');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+      const res = await fetch('/api/admin/enquiry-forms/upload', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setNewWsImage(data.url);
+    } catch (e) {
+      setFormSaveError(e instanceof Error ? e.message : 'Image upload failed');
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   useEffect(() => {
@@ -111,13 +135,14 @@ export default function EnquiriesPage() {
           workshopTime: newWsTime,
           workshopMode: newWsMode,
           description: newWsDesc.trim(),
+          workshopImage: newWsImage,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create form');
       setForms((prev) => [data.form, ...prev]);
       setShowAddForm(false);
-      setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc('');
+      setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
     } catch (e) {
       setFormSaveError(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -537,6 +562,37 @@ export default function EnquiriesPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Workshop Image <span className="font-normal text-gray-400">(optional)</span></label>
+                {newWsImage ? (
+                  <div className="relative rounded-xl overflow-hidden">
+                    <img src={newWsImage} alt="preview" className="w-full h-40 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setNewWsImage('')}
+                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${imageUploading ? 'border-[#2d6a4f]/40 bg-green-50' : 'border-gray-200 hover:border-[#2d6a4f]/50 hover:bg-green-50/50'}`}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }}
+                    />
+                    {imageUploading ? (
+                      <><LoaderIcon className="animate-spin text-[#2d6a4f] mb-2" size={24} /><span className="text-sm text-[#2d6a4f]">Uploading…</span></>
+                    ) : (
+                      <><ImagePlus className="text-gray-400 mb-2" size={24} /><span className="text-sm text-gray-500">Click to upload image</span><span className="text-xs text-gray-400 mt-0.5">JPG, PNG, WebP</span></>
+                    )}
+                  </label>
+                )}
               </div>
 
               <div>

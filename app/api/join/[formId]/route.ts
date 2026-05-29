@@ -25,6 +25,7 @@ export async function GET(
       workshopTime: form.workshopTime,
       workshopMode: form.workshopMode,
       description: form.description,
+      workshopImage: form.workshopImage || '',
     },
   });
 }

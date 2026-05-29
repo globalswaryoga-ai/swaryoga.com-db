@@ -2221,6 +2221,7 @@ const enquiryFormSchema = new mongoose.Schema(
     workshopMode: { type: String, enum: ['online', 'offline', 'residential', 'recorded'], default: 'online' },
     workshopId: { type: String, default: '' },        // optional slug reference
     description: { type: String, default: '' },
+    workshopImage: { type: String, default: '' },     // banner image URL
     isActive: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, default: 'admin' },
     submissionCount: { type: Number, default: 0 },
