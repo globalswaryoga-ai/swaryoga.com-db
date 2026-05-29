@@ -230,13 +230,61 @@ export async function POST(request: NextRequest) {
     // Find the connected WhatsApp session (sessionKey + tenantId both needed)
     const session = await findConnectedSession(bridgeUrl, bridgeSecret, viewerUserId);
     if (!session) {
-      console.error(`[qr-broadcast] ❌ No connected session found for user=${viewerUserId} at ${bridgeUrl}/sessions`);
+      // ── NO SESSION → AUTO-QUEUE for cron to deliver once user re-scans QR ──
+      // Common cause: WhatsApp restriction has the number temporarily logged out.
+      // We park the broadcast as a scheduled job; the cron will start sending
+      // automatically the moment a fresh QR scan brings the session back online.
+      console.warn(`[qr-broadcast] No connected session for user=${viewerUserId} — auto-queueing for post-reconnect delivery`);
+      try {
+        const { getQRBroadcastSchedule } = await import('@/lib/schemas/enterpriseSchemas');
+        const QRBroadcastSchedule = getQRBroadcastSchedule();
+        const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+        const startHH = String(nowIST.getHours()).padStart(2, '0');
+        const startMM = String(nowIST.getMinutes()).padStart(2, '0');
+        const endHH = String(Math.min(22, nowIST.getHours() + 10)).padStart(2, '0');
+        const recipientList = Array.isArray(recipients) ? recipients : [];
+        await QRBroadcastSchedule.create({
+          userId: viewerUserId,
+          tenantId: 'default',
+          name: `Pending-reconnect Broadcast — ${nowIST.toLocaleString('en-IN')}`,
+          messageText: message || '',
+          mediaUrls: imageUrl ? [imageUrl] : [],
+          recipientChatIds: recipientList,
+          totalRecipients: recipientList.length,
+          isActive: true,
+          startTime: `${startHH}:${startMM}`,
+          endTime: `${endHH}:30`,
+          timezone: 'Asia/Kolkata',
+          frequency: 'once',
+          status: 'scheduled',
+          createdBy: viewerUserId,
+          gapStrategy: {
+            initialGapMs: 30000,
+            initialGapCount: 3,
+            minGapMs: 120000,
+            maxGapMs: 240000,
+            ensureVariation: true,
+            ensureJitter: true,
+            jitterPercent: 15,
+          },
+          maxMessagesPerDay: DAILY_LIMIT,
+          lastError: 'Awaiting QR session — will start sending once WhatsApp reconnects',
+          lastErrorAt: new Date(),
+        });
+      } catch (queueErr: any) {
+        console.error('[qr-broadcast] Auto-queue (no session) failed:', queueErr.message);
+        return NextResponse.json({
+          success: false,
+          error: `❌ WhatsApp is not connected and the broadcast could not be queued: ${queueErr.message}. Scan QR first and retry.`,
+        }, { status: 503 });
+      }
       return NextResponse.json({
-        success: false,
-        error: '❌ WhatsApp is not connected. Please open the QR WhatsApp page and scan the QR code to connect.',
-        bridgeUrl: bridgeUrl,
-        instruction: 'Visit the QR WhatsApp page → Scan QR code → Connection will establish',
-      }, { status: 503 });
+        success: true,
+        queued: true,
+        awaitingReconnect: true,
+        totalRecipients: Array.isArray(recipients) ? recipients.length : 0,
+        message: '📅 WhatsApp not connected (QR not scanned). Broadcast saved — it will start sending automatically once you scan the QR code on the QR WhatsApp page. Cap: 200/day, 20/hour, paced like a human.',
+      }, { status: 202 });
     }
 
     console.log(`[qr-broadcast] ✅ Session: key=${session.sessionKey} tenantId=${session.tenantId} user=${viewerUserId}`);
