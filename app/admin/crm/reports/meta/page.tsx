@@ -674,6 +674,7 @@ export default function MetaReportsPage() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sent At</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Delivered</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Read</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Error</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -698,6 +699,13 @@ export default function MetaReportsPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-500">
                             {msg.readAt ? new Date(msg.readAt).toLocaleString() : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-red-600 max-w-xs">
+                            {msg.failureReason ? (
+                              <span title={msg.failureReason} className="cursor-help">
+                                {msg.failureReason.length > 60 ? msg.failureReason.substring(0, 60) + '…' : msg.failureReason}
+                              </span>
+                            ) : '-'}
                           </td>
                         </tr>
                       ))}
