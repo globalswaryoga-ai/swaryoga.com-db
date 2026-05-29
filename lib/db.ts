@@ -38,15 +38,14 @@ export const connectDB = async () => {
     console.log(`📡 Connecting to MongoDB: ${MONGODB_URI?.split('@')[1] || 'URI hidden'}...`);
     const conn = await mongoose.connect(MONGODB_URI as string, {
       dbName: MAIN_DB_NAME,
-      serverSelectionTimeoutMS: 10000, // Increased timeout
-      socketTimeoutMS: 45000,
-      // tls: true is redundant for mongodb+srv and can cause 'alert internal error' in some environments.
-      // We'll keep it disabled but ensure it's not being overridden by the URI.
+      serverSelectionTimeoutMS: 8000,
+      socketTimeoutMS: 30000,
       retryWrites: true,
-      maxPoolSize: 10, 
-      minPoolSize: 1, // Keep at least one connection open
-      connectTimeoutMS: 10000,
-      // Force IPv4 if needed (some environments have broken IPv6 local/remote resolution affecting TLS)
+      maxPoolSize: 20,
+      minPoolSize: 2,
+      connectTimeoutMS: 8000,
+      maxIdleTimeMS: 60000,
+      waitQueueTimeoutMS: 5000,
       family: 4,
     });
     return conn;

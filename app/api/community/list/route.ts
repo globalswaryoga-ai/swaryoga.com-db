@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
           createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : '',
         })),
       },
-      { status: 200 }
+      { status: 200, headers: { 'Cache-Control': 's-maxage=120, stale-while-revalidate=300' } }
     );
   } catch (error) {
     console.error('Community list error:', error);

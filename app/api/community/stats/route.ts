@@ -4,39 +4,27 @@ import { COMMUNITY_DESIGNS } from '@/lib/communityColorSystem';
 
 export const dynamic = 'force-dynamic';
 
-export const revalidate = 0;
-
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    // Use canonical community IDs from the design system (single source of truth)
     const communityIds = COMMUNITY_DESIGNS.map(d => d.id);
-    
-    const stats = await Promise.all(
-      communityIds.map(async (id) => {
-        try {
-          // Count members from CommunityMember collection (actual members)
-          const memberCount = await CommunityMember.countDocuments({ 
-            communityId: id,
-            status: 'active'
-          });
-          return { id, count: memberCount };
-        } catch (err) {
-          console.error(`❌ Error counting members for ${id}:`, err);
-          return { id, count: 0 };
-        }
-      })
-    );
 
-    const data: Record<string, number> = {};
-    stats.forEach((stat) => {
-      data[stat.id] = stat.count;
-    });
+    // Single aggregation instead of N separate countDocuments calls
+    const rows = await CommunityMember.aggregate([
+      { $match: { communityId: { $in: communityIds }, status: 'active' } },
+      { $group: { _id: '$communityId', count: { $sum: 1 } } },
+    ]);
+
+    const data: Record<string, number> = Object.fromEntries(communityIds.map(id => [id, 0]));
+    rows.forEach((r: any) => { data[r._id] = r.count; });
 
     return NextResponse.json(
       { success: true, data },
-      { status: 200 }
+      {
+        status: 200,
+        headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+      }
     );
   } catch (error) {
     console.error('Failed to get community stats:', error);
