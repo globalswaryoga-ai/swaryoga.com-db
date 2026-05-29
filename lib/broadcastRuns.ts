@@ -736,8 +736,8 @@ export async function processDueBroadcastRuns(options?: {
             console.log(`[Broadcast QR] Waiting ${delaySec}s (range: ${minSec}-${maxSec}s)`);
             await new Promise(resolve => setTimeout(resolve, delaySec * 1000));
           } else if (runProvider === 'meta') {
-            // Meta: 500ms between messages — prevents burst rate-limiting without slowing throughput
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Meta: 3s between messages = ~20 messages/min
+            await new Promise(resolve => setTimeout(resolve, 3000));
           } else if (!intervalEnabled) {
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
