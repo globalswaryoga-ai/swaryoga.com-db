@@ -64,7 +64,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const fetchPlan = async () => {
       try {
-        const token = localStorage.getItem('token') || localStorage.getItem('crm_token') || localStorage.getItem('adminToken');
+        const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || localStorage.getItem('crm_token') || localStorage.getItem('adminToken');
         if (!token) return;
 
         const res = await fetch('/api/admin/crm/subscription', {

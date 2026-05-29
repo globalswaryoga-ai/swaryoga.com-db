@@ -500,7 +500,7 @@ export default function MetaReportsPage() {
                     {/* Retry Failed */}
                     {(selectedRun.stats?.failed || 0) > 0 && (
                       <button
-                        onClick={() => performAction('retry')}
+                        onClick={() => performAction('retry-failed')}
                         disabled={actionLoading}
                         className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 disabled:opacity-50"
                       >
@@ -510,7 +510,7 @@ export default function MetaReportsPage() {
 
                     {/* Reset All */}
                     <button
-                      onClick={() => performAction('reset')}
+                      onClick={() => performAction('reset-all')}
                       disabled={actionLoading}
                       className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
                     >
