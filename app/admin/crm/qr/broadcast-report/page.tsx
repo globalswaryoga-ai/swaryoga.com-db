@@ -25,6 +25,7 @@ type BroadcastRun = {
   };
   startedAt?: string;
   completedAt?: string;
+  scheduledAt?: string;
 };
 
 type BroadcastMessage = {
@@ -406,7 +407,13 @@ export default function QRBroadcastReportPage() {
                         <td className="px-4 py-4">
                           <div className="font-semibold text-gray-900">{run.name}</div>
                           <div className="text-xs text-gray-500">{run.templateSnapshot?.templateName || 'Unknown template'}</div>
-                          <div className="text-xs text-gray-400">{new Date(run.createdAt).toLocaleString()}</div>
+                          <div className="text-xs text-gray-400">Created: {new Date(run.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
+                          {run.scheduledAt && (
+                            <div className={`text-xs font-semibold mt-0.5 ${run.status === 'scheduled' ? 'text-blue-600' : 'text-gray-400'}`}>
+                              📅 {run.status === 'scheduled' ? 'Sends at: ' : 'Was: '}
+                              {new Date(run.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-4"><StatusBadge status={run.status} /></td>
                         <td className="px-4 py-4 text-center font-semibold">{run.stats?.total || 0}</td>
@@ -471,6 +478,34 @@ export default function QRBroadcastReportPage() {
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                           📲 QR Bridge (Free)
                         </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-400">Created:</span>{' '}
+                          <span className="font-medium text-gray-700">{new Date(selectedRun.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
+                        </div>
+                        {selectedRun.scheduledAt && (
+                          <div>
+                            <span className="text-gray-400">
+                              {selectedRun.status === 'scheduled' ? '📅 Scheduled for:' : '📅 Was scheduled:'}
+                            </span>{' '}
+                            <span className={`font-semibold ${selectedRun.status === 'scheduled' ? 'text-blue-600' : 'text-gray-700'}`}>
+                              {new Date(selectedRun.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST
+                            </span>
+                          </div>
+                        )}
+                        {selectedRun.startedAt && (
+                          <div>
+                            <span className="text-gray-400">Started:</span>{' '}
+                            <span className="font-medium text-gray-700">{new Date(selectedRun.startedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
+                          </div>
+                        )}
+                        {selectedRun.completedAt && (
+                          <div>
+                            <span className="text-gray-400">Completed:</span>{' '}
+                            <span className="font-medium text-green-600">{new Date(selectedRun.completedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
