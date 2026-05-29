@@ -201,6 +201,19 @@ export default function AdminWorkshopSchedulesPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    // DB-sourced workshops (merged with static catalog)
+    type DbWorkshop = { slug: string; name: string; category: string; modes?: string[]; languages?: string[]; duration?: string };
+    const [dbWorkshops, setDbWorkshops] = useState<DbWorkshop[]>([]);
+
+    // Add New Workshop modal
+    const [addWorkshopOpen, setAddWorkshopOpen] = useState(false);
+    const [newWsName, setNewWsName] = useState('');
+    const [newWsCategory, setNewWsCategory] = useState<string>('Health');
+    const [newWsModes, setNewWsModes] = useState<string[]>(['online']);
+    const [newWsLanguages, setNewWsLanguages] = useState<string[]>(['Hindi']);
+    const [newWsDuration, setNewWsDuration] = useState('');
+    const [savingNewWs, setSavingNewWs] = useState(false);
+
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<EditForm>(emptyEditForm());
     const [savingId, setSavingId] = useState<string | null>(null);
@@ -232,6 +245,25 @@ export default function AdminWorkshopSchedulesPage() {
       setAdminToken(storedToken);
     }, [router]);
 
+    const loadDbWorkshops = async (token: string) => {
+      try {
+        const res = await fetch('/api/admin/workshop-catalog', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json().catch(() => null);
+        if (res.ok && Array.isArray(json?.data)) {
+          setDbWorkshops(json.data.map((w: any) => ({
+            slug: w.slug,
+            name: w.name,
+            category: w.category,
+            modes: w.modes || [],
+            languages: w.languages || [],
+            duration: w.duration || '',
+          })));
+        }
+      } catch {}
+    };
+
     const loadAllSchedules = async (token: string) => {
       try {
         setLoading(true);
@@ -257,19 +289,43 @@ export default function AdminWorkshopSchedulesPage() {
     useEffect(() => {
       if (!adminToken) return;
       loadAllSchedules(adminToken);
+      loadDbWorkshops(adminToken);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [adminToken]);
 
     const grouped = useMemo(() => {
       const map: Record<string, typeof workshopCatalog> = {};
       for (const c of CATEGORY_ORDER) map[c] = [];
+
+      // Static catalog first
       for (const w of workshopCatalog) {
         const c = w.category || 'Health';
         if (!map[c]) map[c] = [];
         map[c].push(w);
       }
+
+      // Merge DB workshops — add any that aren't already in the static catalog
+      const staticSlugs = new Set(workshopCatalog.map((w) => w.slug));
+      for (const dw of dbWorkshops) {
+        if (staticSlugs.has(dw.slug)) continue;
+        const c = dw.category || 'Health';
+        if (!map[c]) map[c] = [];
+        map[c].push({
+          id: 0,
+          slug: dw.slug,
+          name: dw.name,
+          category: dw.category,
+          image: '',
+          description: '',
+          duration: dw.duration || '',
+          level: '',
+          mode: dw.modes || [],
+          language: dw.languages || [],
+        } as any);
+      }
+
       return map;
-    }, []);
+    }, [dbWorkshops]);
 
     const rows = useMemo(() => {
       const list = grouped[selectedCategory] || [];
@@ -684,6 +740,40 @@ export default function AdminWorkshopSchedulesPage() {
       }
     };
 
+    const saveNewWorkshop = async () => {
+      if (!newWsName.trim()) { setError('Workshop name is required'); return; }
+      setSavingNewWs(true);
+      setError('');
+      try {
+        const res = await fetch('/api/admin/workshop-catalog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify({
+            name: newWsName.trim(),
+            category: newWsCategory,
+            modes: newWsModes,
+            languages: newWsLanguages,
+            duration: newWsDuration.trim(),
+          }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Failed to create workshop');
+        await loadDbWorkshops(adminToken);
+        setSuccess(`✓ "${newWsName.trim()}" added. Select it from the list to add schedules.`);
+        setTimeout(() => setSuccess(''), 5000);
+        setAddWorkshopOpen(false);
+        setNewWsName('');
+        setNewWsCategory('Health');
+        setNewWsModes(['online']);
+        setNewWsLanguages(['Hindi']);
+        setNewWsDuration('');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSavingNewWs(false);
+      }
+    };
+
     return (
       <>
       <div className="flex h-screen bg-swar-primary-light">
@@ -703,6 +793,13 @@ export default function AdminWorkshopSchedulesPage() {
                   className="md:hidden rounded-lg bg-swar-primary-light px-3 py-2 text-sm font-bold"
                 >
                   Menu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddWorkshopOpen(true)}
+                  className="rounded-lg bg-swar-primary px-4 py-2 text-sm font-bold text-white hover:bg-swar-primary-hover"
+                >
+                  + New Workshop
                 </button>
                 <button
                   type="button"
@@ -1491,6 +1588,111 @@ export default function AdminWorkshopSchedulesPage() {
                   {savingNepalQr ? 'Saving…' : 'Save QR Code'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Add New Workshop Modal */}
+      {addWorkshopOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-swar-text mb-5">Add New Workshop</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Workshop Name *</label>
+                <input
+                  type="text"
+                  value={newWsName}
+                  onChange={(e) => setNewWsName(e.target.value)}
+                  placeholder="e.g. Pranayama Healing Program"
+                  className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-swar-primary/30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Category *</label>
+                <select
+                  value={newWsCategory}
+                  onChange={(e) => setNewWsCategory(e.target.value)}
+                  className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-swar-primary/30"
+                >
+                  {CATEGORY_ORDER.map((c) => <option key={c} value={c}>{getCategoryHeading(c)}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Mode(s)</label>
+                <div className="flex flex-wrap gap-2">
+                  {MODE_LABELS.map((m) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => setNewWsModes((prev) =>
+                        prev.includes(m.key) ? prev.filter((x) => x !== m.key) : [...prev, m.key]
+                      )}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold border-2 transition-all ${
+                        newWsModes.includes(m.key)
+                          ? 'bg-swar-primary text-white border-swar-primary'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-swar-primary/50'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Language(s)</label>
+                <div className="flex flex-wrap gap-2">
+                  {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => setNewWsLanguages((prev) =>
+                        prev.includes(lang) ? prev.filter((x) => x !== lang) : [...prev, lang]
+                      )}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold border-2 transition-all ${
+                        newWsLanguages.includes(lang)
+                          ? 'bg-swar-primary text-white border-swar-primary'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-swar-primary/50'
+                      }`}
+                    >
+                      {lang}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Duration</label>
+                <input
+                  type="text"
+                  value={newWsDuration}
+                  onChange={(e) => setNewWsDuration(e.target.value)}
+                  placeholder="e.g. 2 days, 30 days, 6 months"
+                  className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-swar-primary/30"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setAddWorkshopOpen(false)}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveNewWorkshop}
+                disabled={savingNewWs || !newWsName.trim()}
+                className="rounded-lg bg-swar-primary px-5 py-2 text-sm font-bold text-white hover:bg-swar-primary-hover disabled:opacity-60"
+              >
+                {savingNewWs ? 'Saving…' : 'Add Workshop'}
+              </button>
             </div>
           </div>
         </div>
