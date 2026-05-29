@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
@@ -161,6 +161,29 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .select('name phoneNumber email status labels source workshopName funnelStage assignedToUserId createdByUserId leadNumber lastMessageAt chatStatus createdAt updatedAt sales.payment.status title displayName country countryCode language languageCode region state city firstTouchedAt')
         .lean();
+    }
+
+    // Attach lastInboundQrAt for QR source leads — powers the 24h window feature
+    if (source === 'qr_whatsapp' && leads.length > 0) {
+      try {
+        const QrMsg = getQrWhatsAppMessage();
+        const jids = leads.map((l: any) => `${l.phoneNumber}@s.whatsapp.net`);
+        const inboundAgg = await QrMsg.aggregate([
+          { $match: { chatJid: { $in: jids }, fromMe: false } },
+          { $sort: { timestamp: -1 } },
+          { $group: { _id: '$chatJid', lastInboundTs: { $first: '$timestamp' } } },
+        ]);
+        const inboundMap = new Map(inboundAgg.map((r: any) => [
+          String(r._id).replace('@s.whatsapp.net', ''),
+          Number(r.lastInboundTs) * 1000, // seconds → ms
+        ]));
+        leads = leads.map((l: any) => ({
+          ...l,
+          lastInboundQrAt: inboundMap.get(String(l.phoneNumber)) || null,
+        }));
+      } catch (e) {
+        console.warn('[Funnel] lastInboundQrAt lookup failed:', e);
+      }
     }
 
     // Distinct values for filters

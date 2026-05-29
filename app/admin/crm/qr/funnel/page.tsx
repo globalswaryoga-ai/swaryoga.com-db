@@ -74,6 +74,7 @@ interface Lead {
   funnelStage: string;
   assignedToUserId?: string;
   lastMessageAt?: string;
+  lastInboundQrAt?: number | null;
   chatStatus?: string;
   createdAt: string;
   updatedAt: string;
@@ -439,6 +440,30 @@ export default function QRFunnelDashboardPage() {
   const [editFunnelName, setEditFunnelName] = useState('QR Funnel');
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick every 30s so countdown timers stay fresh
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+  const getWindowMs = (lead: Lead) => {
+    if (!lead.lastInboundQrAt) return null;
+    const remaining = lead.lastInboundQrAt + WINDOW_MS - now;
+    return remaining > 0 ? remaining : null;
+  };
+
+  const fmtCountdown = (ms: number) => {
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  const windowLeads = leads.filter(l => getWindowMs(l) !== null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -606,6 +631,11 @@ export default function QRFunnelDashboardPage() {
                 <TrendingUp className="h-5 w-5 text-white" />
               </div>
               QR Sales Funnel
+              {windowLeads.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-400 text-yellow-900 animate-pulse">
+                  ⚡ {windowLeads.length} in 24h window
+                </span>
+              )}
             </h1>
             <p className="text-sm text-gray-500 mt-1">Track QR WhatsApp leads through your funnel pipeline</p>
           </div>
@@ -789,6 +819,48 @@ export default function QRFunnelDashboardPage() {
 
         {/* ── Admin Activity (Super admin only) ── */}
         {isSuperAdmin && admins.length > 0 && <AdminActivityCard admins={admins} />}
+
+        {/* ── 24h Active Window Banner ── */}
+        {windowLeads.length > 0 && (
+          <div className="rounded-2xl border-2 border-yellow-300 bg-yellow-50 overflow-hidden shadow-sm">
+            <div className="px-5 py-3 bg-yellow-400/30 flex items-center gap-2">
+              <span className="text-lg">⚡</span>
+              <span className="font-bold text-yellow-900">24h Reply Window — {windowLeads.length} lead{windowLeads.length !== 1 ? 's' : ''} waiting</span>
+              <span className="text-xs text-yellow-700 ml-1">Reply now before the window closes!</span>
+            </div>
+            <div className="divide-y divide-yellow-100">
+              {windowLeads.map((lead) => {
+                const msLeft = getWindowMs(lead)!;
+                const urgent = msLeft < 3 * 3_600_000; // < 3 hours
+                const rawName = lead.name || lead.displayName || '';
+                const isRawPhone = /^\d{10,15}$/.test(rawName.trim());
+                const displayName = (lead.title ? `${lead.title}. ` : '') + (isRawPhone || !rawName ? 'WhatsApp Contact' : rawName);
+                return (
+                  <div key={lead._id} className="px-5 py-3 flex items-center gap-3 hover:bg-yellow-100/50 transition">
+                    <button onClick={() => setSelectedLeadId(lead._id)} className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-gray-900">{displayName}</span>
+                        {lead.leadNumber && <span className="text-xs text-gray-400">#{lead.leadNumber}</span>}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${urgent ? 'bg-red-100 text-red-700' : 'bg-yellow-200 text-yellow-800'}`}>
+                          <Clock className="h-3 w-3" /> {fmtCountdown(msLeft)} left
+                        </span>
+                        {lead.language && <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600">{lead.language}</span>}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">{lead.phoneNumber} · {stages.find(s => s.key === lead.funnelStage)?.name || lead.funnelStage || 'New Lead'}</div>
+                    </button>
+                    <button
+                      onClick={() => router.push(`/admin/crm/qr?phone=${encodeURIComponent(lead.phoneNumber?.replace(/\D/g, '') || '')}`)}
+                      className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition hover:opacity-90"
+                      style={{ background: '#25D366' }}
+                    >
+                      💬 Reply
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Leads in selected stage ── */}
         {activeStage && (
