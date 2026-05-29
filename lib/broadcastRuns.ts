@@ -196,6 +196,51 @@ export async function processDueBroadcastRuns(options?: {
       // Templates are chargeable and can be sent anytime - no approval check required
       const runProvider = String((run as any).provider || 'meta');
 
+      // ── QR: Verify bridge is connected BEFORE touching any messages ──
+      // If WhatsApp is logged out, we must NOT keep retrying — it triggers ban escalation.
+      if (runProvider === 'qr') {
+        const { url: _bridgeUrl, secret: _bridgeSecret } = getWhatsAppBridgeConfig();
+        const _runUserId = String((run as any).createdByUserId || '');
+        const _userSettings = _runUserId
+          ? await CRMUserSettings.findOne({ userId: _runUserId }, { permanentTenantId: 1, qrBridgeUrl: 1 }).lean()
+          : null;
+        const _sessionKey = (_userSettings as any)?.permanentTenantId || _runUserId;
+        const _resolvedBridgeUrl = (_userSettings as any)?.qrBridgeUrl?.trim() || _bridgeUrl;
+        const _statusHeaders: Record<string, string> = {
+          'x-bridge-secret': _bridgeSecret,
+          'x-user-id': _runUserId,
+          'x-session-key': _sessionKey,
+          'x-tenant-id': _sessionKey,
+        };
+        let bridgeOnline = false;
+        let whatsappConnected = false;
+        try {
+          const statusRes = await fetchWithTimeout(`${_resolvedBridgeUrl}/status`, { method: 'GET', headers: _statusHeaders, cache: 'no-store' }, 8000);
+          if (statusRes.ok) {
+            const statusData = await statusRes.json().catch(() => ({}));
+            bridgeOnline = true;
+            whatsappConnected = statusData?.connected === true;
+          }
+        } catch (_) { /* bridge unreachable */ }
+
+        if (!bridgeOnline) {
+          // Bridge process down — pause 15 min and try later
+          const resumeAt = new Date(now.getTime() + 15 * 60 * 1000);
+          await BroadcastRun.updateOne({ _id: (run as any)._id }, { $set: { status: 'scheduled', scheduledAt: resumeAt, lastError: 'QR bridge unreachable — auto-paused 15 min', updatedAt: now } });
+          console.log(`[Broadcast QR] Bridge unreachable — paused run ${runId} for 15 min`);
+          result.runResults.push(stat);
+          continue;
+        }
+        if (!whatsappConnected) {
+          // WhatsApp session logged out — pause 2 hours. Do NOT retry fast — that escalates ban risk.
+          const resumeAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+          await BroadcastRun.updateOne({ _id: (run as any)._id }, { $set: { status: 'scheduled', scheduledAt: resumeAt, lastError: 'WhatsApp disconnected — auto-paused 2 hrs to reduce ban risk', updatedAt: now } });
+          console.log(`[Broadcast QR] WhatsApp not connected — paused run ${runId} for 2 hrs`);
+          result.runResults.push(stat);
+          continue;
+        }
+      }
+
       // Fetch pending messages
       const pending = await BroadcastRunMessage.find({ runId: (run as any)._id, status: 'pending' })
         .sort({ createdAt: 1 })
