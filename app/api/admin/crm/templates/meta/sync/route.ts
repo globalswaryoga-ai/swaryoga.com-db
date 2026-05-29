@@ -65,19 +65,24 @@ export async function GET(request: NextRequest) {
       if (existing) {
         // Update ONLY status fields - preserve local content (headerUrl, etc.)
         const localStatus = mapMetaStatusToLocal(metaTemplate.status);
-        await WhatsAppTemplate.findOneAndUpdate({ _id: existing._id, ...tf }, {
-          $set: {
-            metaTemplateId: metaTemplate.id,
-            metaTemplateName: metaTemplate.name,
-            status: localStatus,
-            metaStatus: metaTemplate.status,
-            metaRejectionReason: metaTemplate.rejected_reason || null,
-            metaQualityScore: metaTemplate.quality_score?.score || null,
-            lastMetaSyncAt: new Date(),
-            // NOTE: Don't overwrite templateContent, headerUrl, buttons, etc.
-            // Those are managed locally and Meta doesn't return media URLs
-          },
-        });
+        const headerComponent = metaTemplate.components?.find(c => c.type === 'HEADER');
+        const headerHandleUrl = headerComponent?.example?.header_handle?.[0] || null;
+        const headerFmt = String(headerComponent?.format || '').toUpperCase();
+        // Update headerMedia from Meta's header_handle only if not already set locally
+        const mediaUpdate: any = {
+          metaTemplateId: metaTemplate.id,
+          metaTemplateName: metaTemplate.name,
+          status: localStatus,
+          metaStatus: metaTemplate.status,
+          metaRejectionReason: metaTemplate.rejected_reason || null,
+          metaQualityScore: metaTemplate.quality_score?.score || null,
+          lastMetaSyncAt: new Date(),
+        };
+        if (headerHandleUrl && (headerFmt === 'IMAGE' || headerFmt === 'VIDEO') && !(existing as any).headerMedia?.url) {
+          mediaUpdate.headerMedia = { kind: headerFmt === 'VIDEO' ? 'video' : 'image', url: headerHandleUrl };
+          mediaUpdate.headerFormat = headerFmt;
+        }
+        await WhatsAppTemplate.findOneAndUpdate({ _id: existing._id, ...tf }, { $set: mediaUpdate });
 
         syncResults.push({
           name: metaTemplate.name,
@@ -92,6 +97,12 @@ export async function GET(request: NextRequest) {
         const footerComponent = metaTemplate.components?.find(c => c.type === 'FOOTER');
         const buttonsComponent = metaTemplate.components?.find(c => c.type === 'BUTTONS');
 
+        const importHeaderFmt = String(headerComponent?.format || 'NONE').toUpperCase();
+        const importHeaderHandle = headerComponent?.example?.header_handle?.[0] || null;
+        const importHeaderMedia = importHeaderHandle && (importHeaderFmt === 'IMAGE' || importHeaderFmt === 'VIDEO')
+          ? { kind: importHeaderFmt === 'VIDEO' ? 'video' : 'image', url: importHeaderHandle }
+          : undefined;
+
         const newTemplate = await WhatsAppTemplate.create({
           templateName: metaTemplate.name,
           metaTemplateId: metaTemplate.id,
@@ -99,10 +110,11 @@ export async function GET(request: NextRequest) {
           category: mapMetaCategoryToLocal(metaTemplate.category),
           language: metaTemplate.language || 'en',
           templateContent: bodyComponent?.text || '',
-          headerFormat: headerComponent?.format || 'NONE',
+          headerFormat: importHeaderFmt,
           headerContent: headerComponent?.text || '',
           footerText: footerComponent?.text || '',
           buttons: buttonsComponent?.buttons?.map(b => ({ title: b.text })) || [],
+          headerMedia: importHeaderMedia,
           status: mapMetaStatusToLocal(metaTemplate.status),
           metaStatus: metaTemplate.status,
           metaRejectionReason: metaTemplate.rejected_reason || null,

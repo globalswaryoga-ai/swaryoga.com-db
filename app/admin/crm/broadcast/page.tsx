@@ -216,6 +216,7 @@ export default function BroadcastPage() {
   
   // Meta submission state
   const [metaSubmitting, setMetaSubmitting] = useState<string | null>(null);
+  const [overrideImageUrl, setOverrideImageUrl] = useState('');
 
   // Submit template to Meta for approval
   const submitToMeta = useCallback(async (templateId: string, event: React.MouseEvent) => {
@@ -794,7 +795,7 @@ export default function BroadcastPage() {
         }).filter(Boolean);
       }
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: broadcastName.trim() || `Broadcast - ${new Date().toLocaleString('en-IN')}`,
         templateId: selectedTemplate._id,
         mode,
@@ -803,6 +804,10 @@ export default function BroadcastPage() {
         delayMins,
         target,
       };
+      // Pass override image URL for IMAGE-header templates
+      if (overrideImageUrl.trim()) {
+        payload.overrideImageUrl = overrideImageUrl.trim();
+      }
 
       console.log('[Broadcast] Creating run with payload:', payload);
 
@@ -1806,21 +1811,42 @@ export default function BroadcastPage() {
                       WhatsApp {provider === 'meta' ? 'Meta (Native)' : 'QR (Text)'}
                     </p>
 
+                    {/* Image URL override for IMAGE-header templates */}
+                    {selectedTemplate.headerFormat === 'IMAGE' && (
+                      <div className="mb-3">
+                        <label className="block text-xs text-gray-400 mb-1">
+                          🖼️ Image URL {selectedTemplate.headerMedia?.url ? '(override optional)' : '(required for this template)'}
+                        </label>
+                        <input
+                          type="url"
+                          value={overrideImageUrl || selectedTemplate.headerMedia?.url || ''}
+                          onChange={e => setOverrideImageUrl(e.target.value)}
+                          placeholder="https://example.com/image.jpg"
+                          className="w-full px-3 py-2 bg-[#1a2933] border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                    )}
+
                     {/* WhatsApp Card Style */}
                     <div className="bg-[#025c4c] rounded-2xl overflow-hidden max-w-xs mx-auto shadow-xl">
                       {/* Header Image */}
-                      {selectedTemplate.headerMedia?.url && (
+                      {(overrideImageUrl || selectedTemplate.headerMedia?.url) ? (
                         <div className="relative">
                           <img
-                            src={selectedTemplate.headerMedia.url}
+                            src={overrideImageUrl || selectedTemplate.headerMedia!.url}
                             alt=""
                             className="w-full h-40 object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                           />
                           <div className="absolute bottom-2 right-2 bg-black/50 px-2 py-0.5 rounded text-xs text-white">
                             📷 Image
                           </div>
                         </div>
-                      )}
+                      ) : selectedTemplate.headerFormat === 'IMAGE' ? (
+                        <div className="h-24 bg-gray-700 flex items-center justify-center text-gray-400 text-sm">
+                          🖼️ Image (enter URL above)
+                        </div>
+                      ) : null}
                       
                       {/* Body Content */}
                       <div className="bg-[#005c4b] p-4">

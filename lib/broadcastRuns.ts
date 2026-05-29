@@ -663,13 +663,13 @@ export async function processDueBroadcastRuns(options?: {
             const { buildCloudTemplateSendInput, sendWhatsAppTemplate, sendWhatsAppText } = await import('@/lib/whatsapp');
 
             try {
-              // Log template details for debugging
-              console.log('[Broadcast Meta] Template name:', (template as any).templateName);
-              console.log('[Broadcast Meta] Template headerMedia:', JSON.stringify((template as any).headerMedia));
-              console.log('[Broadcast Meta] Template buttons:', JSON.stringify((template as any).buttons));
-              console.log('[Broadcast Meta] Template imageFile:', JSON.stringify((template as any).imageFile));
-              
-              const cloudInput = buildCloudTemplateSendInput(template, to);
+              // Merge snapshot headerMedia override into template (set at broadcast creation time)
+              const snapshotMedia = (run as any).templateSnapshot?.headerMedia;
+              const effectiveTemplate = snapshotMedia?.url && !(template as any).headerMedia?.url
+                ? { ...(template as any), headerMedia: snapshotMedia }
+                : template;
+
+              const cloudInput = buildCloudTemplateSendInput(effectiveTemplate, to);
               console.log('[Broadcast Meta] Cloud input:', JSON.stringify(cloudInput, null, 2));
               apiResult = await sendWhatsAppTemplate(cloudInput);
               console.log('[Broadcast Meta] Send result:', apiResult);

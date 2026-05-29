@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
 
     const templateId = String(body?.templateId || '').trim();
     if (!templateId) return NextResponse.json({ error: 'templateId required' }, { status: 400 });
+    const overrideImageUrl = String(body?.overrideImageUrl || '').trim();
 
     const mode = String(body?.mode || 'now');
     const allowed = new Set(['now', 'schedule', 'delay']);
@@ -267,7 +268,9 @@ export async function POST(request: NextRequest) {
         headerFormat: (template as any).headerFormat || null,
         headerContent: (template as any).headerContent || null,
         imageFile: (template as any).imageFile || null,
-        headerMedia: (template as any).headerMedia || null,
+        headerMedia: overrideImageUrl
+          ? { kind: 'image', url: overrideImageUrl }
+          : ((template as any).headerMedia || null),
         footerText: (template as any).footerText || null,
         buttons: (template as any).buttons || [],
         templateContent: (template as any).templateContent,
