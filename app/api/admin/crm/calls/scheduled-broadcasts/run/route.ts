@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
     for (const [batchName, logs] of batches) {
       try {
         const callMode = logs[0].callMode || 'interactive';
-        const callProvider = logs[0].callProvider || (callMode === 'info_only' ? 'exotel' : 'retell');
+        const storedProvider = logs[0].callProvider || 'retell';
         const logIds = logs.map((l: any) => l._id);
 
-        // ── Info Only → Exotel TTS ──
-        if (callMode === 'info_only' && isExotelConfigured()) {
+        // ── Exotel TTS (stored as exotel provider OR info_only mode) ──
+        if ((storedProvider === 'exotel' || callMode === 'info_only') && isExotelConfigured()) {
           const exoTasks = logs.map((log: any) => ({
             toNumber: `+${(log.phoneNumber || '').replace(/\D/g, '')}`,
             leadId: String(log.leadId),

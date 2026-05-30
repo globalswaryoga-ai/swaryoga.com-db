@@ -236,9 +236,15 @@ export async function POST(request: NextRequest) {
 
     if (!tasks.length) return apiError('VALIDATION_ERROR', 'No valid phone numbers found');
 
-    // Create AICallLog entries
+    // Determine provider from callingNumber or callMode
     const callMode = template.callMode || 'interactive';
-    const callProvider = (callMode === 'info_only' && isExotelConfigured()) ? 'exotel' : 'retell';
+    const templateCallingNumber = (template.callingNumber || '').replace(/\D/g, '');
+    const exotelFrom = (process.env.EXOTEL_FROM_NUMBER || '').replace(/\D/g, '');
+    const useExotel = isExotelConfigured() && (
+      callMode === 'info_only' ||
+      (templateCallingNumber && exotelFrom && templateCallingNumber === exotelFrom)
+    );
+    const callProvider = useExotel ? 'exotel' : 'retell';
 
     const logEntries = tasks.map(t => ({
       leadId: t.leadId,
@@ -261,8 +267,8 @@ export async function POST(request: NextRequest) {
 
     // If not scheduled, fire immediately
     if (!isScheduled) {
-      // ── Info Only → Exotel TTS (cheap: ~₹1-2/call) ──
-      if (callMode === 'info_only' && isExotelConfigured()) {
+      // ── Exotel TTS (Info Only mode OR Indian number selected) ──
+      if (useExotel) {
         const appBase = process.env.NEXT_PUBLIC_APP_URL
           || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://swaryoga.com');
 

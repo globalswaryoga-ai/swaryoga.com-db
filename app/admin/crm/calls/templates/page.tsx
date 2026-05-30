@@ -130,6 +130,7 @@ export default function CallTemplatesPage() {
   const [editStage3, setEditStage3] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [editCallMode, setEditCallMode] = useState<'info_only' | 'interactive' | 'qa_interactive'>('interactive');
+  const [editCallingNumber, setEditCallingNumber] = useState('');
   const [approvalNote, setApprovalNote] = useState('');
 
   // Test call
@@ -482,6 +483,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
     setEditStage2(stage2);
     setEditStage3(stage3);
     setEditCallMode((t.callMode as any) || 'interactive');
+    setEditCallingNumber((t as any).callingNumber || '');
     setEditMode(openEdit);
     setApprovalNote('');
     setActiveCategory(t.category);
@@ -566,7 +568,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
       const res = await fetch('/api/admin/crm/calls/templates', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selected._id, promptText: combinedPrompt, callMode: editCallMode }),
+        body: JSON.stringify({ id: selected._id, promptText: combinedPrompt, callMode: editCallMode, callingNumber: editCallingNumber }),
       });
       const data = await res.json();
       if (data.success) {
@@ -720,6 +722,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
           stageOrder,
           description: guidelines,
           promptText,
+          callingNumber: formCallingNumber || '',
           voiceRecordingUrl: formVoiceUrl || '',
           voiceRecordingName: formVoiceName || '',
         }),
@@ -2399,6 +2402,36 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                             </button>
                           ))}
                         </div>
+                      </div>
+
+                      {/* Calling Number */}
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Calling Number (From)</label>
+                        <div className="relative">
+                          <select
+                            value={editCallingNumber}
+                            onChange={e => {
+                              setEditCallingNumber(e.target.value);
+                              // Auto-set Info Only when Exotel number selected
+                              if (e.target.value === '09513886363') setEditCallMode('info_only');
+                            }}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none appearance-none pr-8"
+                          >
+                            <option value="">Select calling number...</option>
+                            {CALLING_NUMBERS.map(n => (
+                              <option key={n.value + n.tag} value={n.value}>
+                                {n.verified ? '✅' : '⏳'} {n.label} — {n.tag}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+                        </div>
+                        {editCallingNumber === '09513886363' && (
+                          <p className="text-[10px] text-emerald-600 mt-1">📢 Exotel TTS selected — auto-set to Info Only mode (~₹1-2/call)</p>
+                        )}
+                        {editCallingNumber === '+19562537676' && (
+                          <p className="text-[10px] text-indigo-600 mt-1">🤖 Retell AI selected — use Interactive or Q&A mode</p>
+                        )}
                       </div>
 
                       {/* Stage 1: Opening */}

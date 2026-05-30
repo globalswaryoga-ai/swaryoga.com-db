@@ -3062,6 +3062,7 @@ const AICallTemplateSchema = new mongoose.Schema(
       enum: ['info_only', 'interactive', 'qa_interactive'],
       default: 'interactive',
     },
+    callingNumber: { type: String, default: '' }, // From-number used for outbound calls
     voiceRecordingUrl: { type: String, default: '' }, // URL to voice recording
     voiceRecordingName: { type: String, default: '' }, // Filename
     approvalStatus: {
