@@ -748,11 +748,15 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
       const num = t.toNumber.startsWith('+') ? t.toNumber : `+${t.toNumber}`;
       const taskVars: Record<string, string> = {
         lead_name: t.leadName || 'there',
-        call_purpose: input.purpose,
+        purpose: input.purpose,          // matches {{purpose}} in agent prompt → triggers OUTBOUND flow
+        call_purpose: input.purpose,     // legacy alias
         language: lang,
         ...(t.dynamicVars || {}),
       };
-      if (input.customPrompt) taskVars.custom_instructions = input.customPrompt;
+      // Wrap custom script so agent knows to read it verbatim and NOT ask questions
+      if (input.customPrompt) {
+        taskVars.custom_instructions = `INFORMATION-ONLY CALL — READ SCRIPT BELOW AND HANG UP. DO NOT ASK ANY QUESTIONS.\n\n${input.customPrompt}`;
+      }
 
       return {
         to_number: num,
