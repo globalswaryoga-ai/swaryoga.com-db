@@ -679,6 +679,7 @@ export interface CreateBatchCallInput {
   purpose: string;             // welcome, follow_up, etc.
   language: string;            // 'hi', 'en', 'ne', 'mr', etc.
   customPrompt?: string;
+  callMode?: 'info_only' | 'interactive' | 'qa_interactive';
   fromNumber?: string;
   overrideAgentId?: string;
   overrideVoiceId?: string;    // Force a specific voice_id (e.g. female voice)
@@ -753,9 +754,15 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
         language: lang,
         ...(t.dynamicVars || {}),
       };
-      // Wrap custom script so agent knows to read it verbatim and NOT ask questions
+      // Set custom_instructions based on callMode
       if (input.customPrompt) {
-        taskVars.custom_instructions = `INFORMATION-ONLY CALL — READ SCRIPT BELOW AND HANG UP. DO NOT ASK ANY QUESTIONS.\n\n${input.customPrompt}`;
+        const mode = input.callMode || 'interactive';
+        if (mode === 'info_only') {
+          taskVars.custom_instructions = `INFORMATION-ONLY CALL — READ SCRIPT BELOW AND HANG UP. DO NOT ASK ANY QUESTIONS.\n\n${input.customPrompt}`;
+        } else if (mode === 'qa_interactive') {
+          taskVars.custom_instructions = `QA-INTERACTIVE CALL — ANSWER ALL QUESTIONS THE CALLER ASKS, THEN HAVE AN INTERACTIVE CONVERSATION.\n\n${input.customPrompt}`;
+        }
+        // interactive mode: no custom_instructions, agent follows standard flow
       }
 
       return {

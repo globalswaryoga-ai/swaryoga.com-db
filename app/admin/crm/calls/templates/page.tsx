@@ -91,6 +91,7 @@ interface Template {
   language: string;
   stageOrder: number;
   promptText: string;
+  callMode: 'info_only' | 'interactive' | 'qa_interactive';
   voiceRecordingUrl: string;
   voiceRecordingName: string;
   approvalStatus: 'draft' | 'pending' | 'approved' | 'rejected';
@@ -128,6 +129,7 @@ export default function CallTemplatesPage() {
   const [editStage2, setEditStage2] = useState('');
   const [editStage3, setEditStage3] = useState('');
   const [editMode, setEditMode] = useState(false);
+  const [editCallMode, setEditCallMode] = useState<'info_only' | 'interactive' | 'qa_interactive'>('interactive');
   const [approvalNote, setApprovalNote] = useState('');
 
   // Add new head modal
@@ -472,6 +474,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
     setEditStage1(stage1);
     setEditStage2(stage2);
     setEditStage3(stage3);
+    setEditCallMode((t.callMode as any) || 'interactive');
     setEditMode(openEdit);
     setApprovalNote('');
     setActiveCategory(t.category);
@@ -533,7 +536,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
       const res = await fetch('/api/admin/crm/calls/templates', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selected._id, promptText: combinedPrompt }),
+        body: JSON.stringify({ id: selected._id, promptText: combinedPrompt, callMode: editCallMode }),
       });
       const data = await res.json();
       if (data.success) {
@@ -2336,6 +2339,28 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                 <div className="p-5">
                   {editMode ? (
                     <div className="space-y-4">
+                      {/* Call Mode Selector */}
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Call Behaviour</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { value: 'info_only',      icon: '📢', label: 'Info Only',        desc: 'Reads script & hangs up — no questions asked',          color: 'bg-blue-50 border-blue-400 text-blue-700' },
+                            { value: 'interactive',    icon: '💬', label: 'Interactive',       desc: 'Full conversation — greets, asks questions, listens',    color: 'bg-indigo-50 border-indigo-400 text-indigo-700' },
+                            { value: 'qa_interactive', icon: '🤝', label: 'Q&A + Interactive', desc: 'Answers caller questions AND has interactive conversation', color: 'bg-violet-50 border-violet-400 text-violet-700' },
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setEditCallMode(opt.value as any)}
+                              className={`text-left px-3 py-2.5 rounded-xl border-2 transition ${editCallMode === opt.value ? opt.color + ' shadow-sm' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
+                            >
+                              <div className="text-base mb-0.5">{opt.icon}</div>
+                              <div className="text-xs font-bold leading-tight">{opt.label}</div>
+                              <div className="text-[10px] leading-snug mt-0.5 opacity-70">{opt.desc}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       {/* Stage 1: Opening */}
                       <div>
                         <div className="flex items-center gap-2 mb-2">
@@ -2382,6 +2407,20 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
                     </div>
                   ) : selected.promptText ? (
                     <div className="space-y-3">
+                      {/* Call mode badge */}
+                      {(() => {
+                        const modeMap: Record<string, { icon: string; label: string; color: string }> = {
+                          info_only:      { icon: '📢', label: 'Info Only',        color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                          interactive:    { icon: '💬', label: 'Interactive',       color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                          qa_interactive: { icon: '🤝', label: 'Q&A + Interactive', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+                        };
+                        const mode = modeMap[selected.callMode || 'interactive'] || modeMap.interactive;
+                        return (
+                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${mode.color}`}>
+                            <span>{mode.icon}</span> {mode.label}
+                          </div>
+                        );
+                      })()}
                       {(() => {
                         const { stage1, stage2, stage3 } = parseStages(selected.promptText);
                         const hasStages = selected.promptText.includes('--- STAGE 1:');

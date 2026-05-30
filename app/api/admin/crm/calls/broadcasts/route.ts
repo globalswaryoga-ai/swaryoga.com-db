@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
         purpose: purpose || 'custom',
         language: callLang as 'hi' | 'en',
         customPrompt: template.promptText,
+        callMode: (template.callMode || 'interactive') as 'info_only' | 'interactive' | 'qa_interactive',
         maxConcurrency: concurrency || 5,
       });
 

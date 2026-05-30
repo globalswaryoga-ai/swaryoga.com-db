@@ -3055,6 +3055,11 @@ const AICallTemplateSchema = new mongoose.Schema(
     language: { type: String, enum: ['hi', 'en', 'mr', 'ne', 'other'], required: true },
     stageOrder: { type: Number, default: 1 }, // 1-6 stage within category
     promptText: { type: String, default: '' }, // The full prompt script
+    callMode: {
+      type: String,
+      enum: ['info_only', 'interactive', 'qa_interactive'],
+      default: 'interactive',
+    },
     voiceRecordingUrl: { type: String, default: '' }, // URL to voice recording
     voiceRecordingName: { type: String, default: '' }, // Filename
     approvalStatus: {
