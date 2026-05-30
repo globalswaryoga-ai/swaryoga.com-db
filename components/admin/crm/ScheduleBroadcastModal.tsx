@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   X, Search, Calendar, Loader2, CheckCircle, AlertTriangle,
   Phone, Users, DollarSign, ChevronDown, CalendarClock, Check,
+  Upload, FileSpreadsheet, List,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { autoDetectColumns, normalizePhoneCSV } from '@/lib/utils/csvParser';
 
 const LANGUAGES = [
   { code: 'hi', label: 'Hindi', flag: '🇮🇳' },
@@ -59,12 +62,20 @@ function getMinTime(date: string) {
 
 export default function ScheduleBroadcastModal({ token, onClose, onComplete }: Props) {
   const [step, setStep] = useState<'leads' | 'config' | 'schedule' | 'confirm' | 'result'>('leads');
+  const [leadsTab, setLeadsTab] = useState<'browse' | 'upload'>('browse');
 
-  // All leads
+  // Browse tab
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+
+  // Upload tab
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedLeads, setUploadedLeads] = useState<Lead[]>([]);
+  const [uploadStats, setUploadStats] = useState<{ total: number; matched: number; unmatched: number } | null>(null);
+  const [uploadError, setUploadError] = useState('');
+  const [resolving, setResolving] = useState(false);
 
   // Config
   const [language, setLanguage] = useState('hi');
@@ -120,7 +131,7 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
     })();
   }, [language, token]);
 
-  // Client-side filter
+  // Client-side filter for browse tab
   const filteredLeads = useMemo(() => {
     if (!searchQuery.trim()) return allLeads;
     const q = searchQuery.toLowerCase();
@@ -131,28 +142,106 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
     );
   }, [allLeads, searchQuery]);
 
-  const toggleLead = (lead: Lead) => {
+  const toggleLead = (id: string) => {
     const next = new Set(selectedLeadIds);
-    if (next.has(lead._id)) next.delete(lead._id);
-    else next.add(lead._id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelectedLeadIds(next);
   };
 
   const toggleSelectAll = () => {
-    if (selectedLeadIds.size === filteredLeads.length && filteredLeads.length > 0) {
-      // Deselect all visible
+    const source = leadsTab === 'browse' ? filteredLeads : uploadedLeads;
+    if (source.every(l => selectedLeadIds.has(l._id))) {
       const next = new Set(selectedLeadIds);
-      filteredLeads.forEach(l => next.delete(l._id));
+      source.forEach(l => next.delete(l._id));
       setSelectedLeadIds(next);
     } else {
-      // Select all visible
       const next = new Set(selectedLeadIds);
-      filteredLeads.forEach(l => next.add(l._id));
+      source.forEach(l => next.add(l._id));
       setSelectedLeadIds(next);
     }
   };
 
-  const allVisibleSelected = filteredLeads.length > 0 && filteredLeads.every(l => selectedLeadIds.has(l._id));
+  const allVisibleSelected = (leads: Lead[]) =>
+    leads.length > 0 && leads.every(l => selectedLeadIds.has(l._id));
+
+  // Parse uploaded file and resolve phones to leads
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadError('');
+    setUploadedLeads([]);
+    setUploadStats(null);
+    setResolving(true);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (!rows.length) {
+        setUploadError('File is empty or could not be read.');
+        setResolving(false);
+        return;
+      }
+
+      // Auto-detect phone column
+      const headers = Object.keys(rows[0]);
+      const colMap = autoDetectColumns(headers);
+      const phoneCol = colMap.phone;
+
+      if (!phoneCol) {
+        setUploadError('Could not detect a phone number column. Make sure your file has a column named "Phone", "Mobile", or "WhatsApp".');
+        setResolving(false);
+        return;
+      }
+
+      // Extract and normalize phone numbers
+      const rawPhones = rows.map(r => String(r[phoneCol] || '')).filter(Boolean);
+      const normalized = [...new Set(rawPhones.map(normalizePhoneCSV).filter(p => p.length >= 6))];
+
+      if (!normalized.length) {
+        setUploadError('No valid phone numbers found in the file.');
+        setResolving(false);
+        return;
+      }
+
+      // Resolve phones to leads
+      const res = await fetch('/api/admin/crm/calls/broadcasts/resolve-phones', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumbers: normalized }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        setUploadError(json.error?.message || 'Failed to resolve leads from phone numbers.');
+        setResolving(false);
+        return;
+      }
+
+      const leads: Lead[] = json.data?.leads || [];
+      setUploadedLeads(leads);
+      setUploadStats({
+        total: rawPhones.length,
+        matched: json.data?.matched || leads.length,
+        unmatched: json.data?.unmatched || 0,
+      });
+
+      // Auto-select all matched leads
+      const next = new Set(selectedLeadIds);
+      leads.forEach((l: Lead) => next.add(l._id));
+      setSelectedLeadIds(next);
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to parse file.');
+    }
+
+    setResolving(false);
+    // Reset file input so same file can be re-uploaded
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleTemplateChange = (id: string) => {
     setSelectedTemplateId(id);
@@ -260,80 +349,183 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
           {/* ── Step 1: Lead Selection ── */}
           {step === 'leads' && (
             <div className="flex flex-col h-full">
-              {/* Search + select all bar */}
-              <div className="px-4 pt-3 pb-2 space-y-2 flex-shrink-0">
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                  <input
-                    autoFocus
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search by name, phone or stage..."
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
-                  />
-                </div>
+              {/* Tab switcher */}
+              <div className="flex gap-1 px-4 pt-3 flex-shrink-0">
+                <button
+                  onClick={() => setLeadsTab('browse')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition ${leadsTab === 'browse' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                >
+                  <List className="h-3.5 w-3.5" /> Browse Leads
+                </button>
+                <button
+                  onClick={() => setLeadsTab('upload')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition ${leadsTab === 'upload' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Upload Excel / CSV
+                </button>
+              </div>
 
-                {/* Select all row */}
-                {!leadsLoading && allLeads.length > 0 && (
-                  <div className="flex items-center justify-between px-1">
-                    <label
-                      className="flex items-center gap-2 cursor-pointer select-none"
-                      onClick={toggleSelectAll}
-                    >
-                      <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${allVisibleSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
-                        {allVisibleSelected && <Check className="h-2.5 w-2.5 text-white" />}
+              {/* ── Browse tab ── */}
+              {leadsTab === 'browse' && (
+                <>
+                  <div className="px-4 pt-2 pb-2 space-y-2 flex-shrink-0">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                      <input
+                        autoFocus
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Search by name, phone or stage..."
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                      />
+                    </div>
+                    {!leadsLoading && allLeads.length > 0 && (
+                      <div className="flex items-center justify-between px-1">
+                        <label className="flex items-center gap-2 cursor-pointer select-none" onClick={toggleSelectAll}>
+                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${allVisibleSelected(filteredLeads) ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                            {allVisibleSelected(filteredLeads) && <Check className="h-2.5 w-2.5 text-white" />}
+                          </div>
+                          <span className="text-xs font-semibold text-gray-600">Select all ({filteredLeads.length})</span>
+                        </label>
+                        {selectedLeadIds.size > 0 && (
+                          <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                            {selectedLeadIds.size} selected
+                          </span>
+                        )}
                       </div>
-                      <span className="text-xs font-semibold text-gray-600">
-                        Select all {filteredLeads.length > 0 ? `(${filteredLeads.length})` : ''}
-                      </span>
-                    </label>
-                    {selectedLeadIds.size > 0 && (
-                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                        {selectedLeadIds.size} selected
-                      </span>
                     )}
                   </div>
-                )}
-              </div>
 
-              {/* Leads list */}
-              <div className="flex-1 overflow-y-auto px-4 pb-2 min-h-0" style={{ maxHeight: '340px' }}>
-                {leadsLoading ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
-                    <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
-                    <span className="text-sm">Loading leads...</span>
+                  <div className="flex-1 overflow-y-auto px-4 pb-2 min-h-0" style={{ maxHeight: '300px' }}>
+                    {leadsLoading ? (
+                      <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+                        <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+                        <span className="text-sm">Loading leads...</span>
+                      </div>
+                    ) : filteredLeads.length === 0 ? (
+                      <div className="text-center py-8 text-sm text-gray-400">
+                        {searchQuery ? 'No leads match your search.' : 'No leads found.'}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-gray-200 overflow-hidden">
+                        {filteredLeads.map((lead, idx) => {
+                          const isSelected = selectedLeadIds.has(lead._id);
+                          return (
+                            <div
+                              key={lead._id}
+                              onClick={() => toggleLead(lead._id)}
+                              className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition ${idx !== filteredLeads.length - 1 ? 'border-b border-gray-50' : ''} ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                            >
+                              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                                {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{lead.displayName || lead.name}</p>
+                                <p className="text-xs text-gray-400">{lead.phoneNumber || 'No phone'}{lead.funnelStage ? ` · ${lead.funnelStage}` : ''}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ) : filteredLeads.length === 0 ? (
-                  <div className="text-center py-8 text-sm text-gray-400">
-                    {searchQuery ? 'No leads match your search.' : 'No leads found.'}
+                </>
+              )}
+
+              {/* ── Upload tab ── */}
+              {leadsTab === 'upload' && (
+                <div className="px-4 pt-3 pb-2 space-y-3 flex-shrink-0">
+                  {/* Drop zone */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-indigo-200 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition"
+                  >
+                    <FileSpreadsheet className="h-8 w-8 text-indigo-400 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-gray-700">Click to upload Excel or CSV</p>
+                    <p className="text-xs text-gray-400 mt-1">Must have a Phone / Mobile column</p>
+                    <p className="text-[10px] text-gray-300 mt-1">.xlsx · .xls · .csv · .tsv</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv,.tsv,.txt"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-gray-200 overflow-hidden">
-                    {filteredLeads.map((lead, idx) => {
-                      const isSelected = selectedLeadIds.has(lead._id);
-                      return (
-                        <div
-                          key={lead._id}
-                          onClick={() => toggleLead(lead)}
-                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition ${idx !== filteredLeads.length - 1 ? 'border-b border-gray-50' : ''} ${isSelected ? 'bg-indigo-50 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
-                        >
-                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
-                            {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+
+                  {resolving && (
+                    <div className="flex items-center justify-center gap-2 py-3 text-indigo-600 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Matching phone numbers to leads...
+                    </div>
+                  )}
+
+                  {uploadError && (
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                      <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-600">{uploadError}</p>
+                    </div>
+                  )}
+
+                  {uploadStats && (
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-xl bg-gray-50 border border-gray-100 px-2 py-2">
+                        <p className="text-lg font-bold text-gray-800">{uploadStats.total}</p>
+                        <p className="text-[10px] text-gray-400 font-medium uppercase">In File</p>
+                      </div>
+                      <div className="rounded-xl bg-green-50 border border-green-100 px-2 py-2">
+                        <p className="text-lg font-bold text-green-700">{uploadStats.matched}</p>
+                        <p className="text-[10px] text-green-500 font-medium uppercase">Matched</p>
+                      </div>
+                      <div className="rounded-xl bg-amber-50 border border-amber-100 px-2 py-2">
+                        <p className="text-lg font-bold text-amber-600">{uploadStats.unmatched}</p>
+                        <p className="text-[10px] text-amber-500 font-medium uppercase">Not Found</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {uploadedLeads.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between px-1 mb-1.5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none" onClick={toggleSelectAll}>
+                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${allVisibleSelected(uploadedLeads) ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                            {allVisibleSelected(uploadedLeads) && <Check className="h-2.5 w-2.5 text-white" />}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 truncate">{lead.displayName || lead.name}</p>
-                            <p className="text-xs text-gray-400">{lead.phoneNumber || 'No phone'}{lead.funnelStage ? ` · ${lead.funnelStage}` : ''}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                          <span className="text-xs font-semibold text-gray-600">Select all ({uploadedLeads.length})</span>
+                        </label>
+                        {selectedLeadIds.size > 0 && (
+                          <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                            {selectedLeadIds.size} selected
+                          </span>
+                        )}
+                      </div>
+                      <div className="rounded-xl border border-gray-200 overflow-hidden max-h-44 overflow-y-auto">
+                        {uploadedLeads.map((lead, idx) => {
+                          const isSelected = selectedLeadIds.has(lead._id);
+                          return (
+                            <div
+                              key={lead._id}
+                              onClick={() => toggleLead(lead._id)}
+                              className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition ${idx !== uploadedLeads.length - 1 ? 'border-b border-gray-50' : ''} ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                            >
+                              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                                {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{lead.displayName || lead.name}</p>
+                                <p className="text-xs text-gray-400">{lead.phoneNumber}{lead.funnelStage ? ` · ${lead.funnelStage}` : ''}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Continue button */}
-              <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
+              <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0 mt-auto">
                 <button
                   onClick={() => setStep('config')}
                   disabled={selectedLeadIds.size === 0}
@@ -350,7 +542,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
           {/* ── Step 2: Template & Config ── */}
           {step === 'config' && (
             <div className="px-5 py-4 space-y-4">
-              {/* Cost estimate */}
               <div className="rounded-xl p-3 border border-indigo-100" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.06), rgba(16,185,129,0.04))' }}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -362,7 +553,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                 </div>
               </div>
 
-              {/* Language */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Language</label>
                 <div className="flex gap-2">
@@ -378,7 +568,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                 </div>
               </div>
 
-              {/* Template */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">
                   AI Calling Template <span className="text-red-400">*</span>
@@ -408,7 +597,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                 )}
               </div>
 
-              {/* Purpose */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Call Purpose</label>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -424,7 +612,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                 </div>
               </div>
 
-              {/* Batch Name */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Batch Name (Optional)</label>
                 <input
@@ -436,7 +623,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                 />
               </div>
 
-              {/* Concurrency */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">
                   Concurrency <span className="text-gray-400 font-normal normal-case">(simultaneous calls)</span>
@@ -622,7 +808,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                     {result.scheduled ? 'Broadcast Scheduled!' : 'Broadcast Started!'}
                   </p>
                   <p className="text-xs text-gray-500">{result.message}</p>
-
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-xl bg-green-50 p-3 border border-green-100">
                       <p className="text-[10px] text-green-500 uppercase font-semibold">Queued</p>
@@ -641,7 +826,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                   </div>
                 </div>
               ) : null}
-
               <button
                 onClick={() => { onComplete(); onClose(); }}
                 className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
