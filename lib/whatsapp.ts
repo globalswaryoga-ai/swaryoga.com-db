@@ -167,6 +167,42 @@ export function getWhatsAppEnv() {
 }
 
 /**
+ * Pre-upload a media file to Meta's servers and return a media_id.
+ * Using media_id is more reliable than link — Meta doesn't need to download from CDN.
+ */
+export async function uploadMediaToMeta(imageUrl: string, mimeType = 'image/jpeg'): Promise<string | null> {
+  const env = getWhatsAppEnv();
+  if (!env) return null;
+
+  try {
+    // Download the image
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) return null;
+    const imgBuffer = await imgRes.arrayBuffer();
+
+    const { accessToken, phoneNumberId, appSecret } = env;
+    const proof = appSecret ? `&appsecret_proof=${generateAppSecretProof(accessToken, appSecret)}` : '';
+
+    // Upload to Meta
+    const formData = new FormData();
+    formData.append('messaging_product', 'whatsapp');
+    formData.append('type', mimeType);
+    formData.append('file', new Blob([imgBuffer], { type: mimeType }), 'media.jpg');
+
+    const res = await fetch(
+      `https://graph.facebook.com/v24.0/${phoneNumberId}/media?${proof}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: formData }
+    );
+    const data = await res.json().catch(() => ({}));
+    console.log('[uploadMediaToMeta] Response:', res.status, data);
+    return data?.id || null;
+  } catch (err) {
+    console.error('[uploadMediaToMeta] Failed:', err);
+    return null;
+  }
+}
+
+/**
  * Get the media URL from Meta using a media ID
  */
 export async function getWhatsAppMediaUrl(mediaId: string): Promise<string> {
@@ -672,16 +708,14 @@ function buildTemplateComponents(input: WhatsAppSendTemplateInput): any[] {
   const components: any[] = [];
 
   if (input.headerMedia?.url) {
-    // Meta expects uppercase format names inside the template definition.
     const format = input.headerMedia.kind === 'video' ? 'VIDEO' : 'IMAGE';
+    const isMetaId = input.headerMedia.url.startsWith('meta:id:');
+    const mediaParam = isMetaId
+      ? { id: input.headerMedia.url.replace('meta:id:', '') }
+      : { link: input.headerMedia.url };
     components.push({
       type: 'header',
-      parameters: [
-        {
-          type: format.toLowerCase(),
-          [format.toLowerCase()]: { link: input.headerMedia.url },
-        },
-      ],
+      parameters: [{ type: format.toLowerCase(), [format.toLowerCase()]: mediaParam }],
     });
   }
 
@@ -761,19 +795,23 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
         
-        // Convert S3 URLs to signed URLs for header media
+        // Pre-upload header media to Meta (use media_id — more reliable than link)
         let processedInput = { ...input };
         if (input.headerMedia?.url) {
           const signedUrl = await getPublicMediaUrl(input.headerMedia.url);
-          processedInput = {
-            ...input,
-            headerMedia: {
-              ...input.headerMedia,
-              url: signedUrl,
-            },
-          };
-          console.log('[sendWhatsAppTemplate] Header media URL:', input.headerMedia.url.substring(0, 50));
-          console.log('[sendWhatsAppTemplate] Signed URL:', signedUrl.substring(0, 80));
+          const mimeType = input.headerMedia.kind === 'video' ? 'video/mp4' : 'image/jpeg';
+          const mediaId = await uploadMediaToMeta(signedUrl, mimeType);
+          if (mediaId) {
+            console.log('[sendWhatsAppTemplate] Pre-uploaded media, got media_id:', mediaId);
+            processedInput = {
+              ...input,
+              headerMedia: { ...input.headerMedia, url: `meta:id:${mediaId}` },
+            };
+          } else {
+            // Fallback: use link directly
+            console.log('[sendWhatsAppTemplate] Media pre-upload failed, using link fallback');
+            processedInput = { ...input, headerMedia: { ...input.headerMedia, url: signedUrl } };
+          }
         }
 
         const language = String(input.language || 'en').trim() || 'en';
