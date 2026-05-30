@@ -49,15 +49,28 @@ interface Props {
   onComplete: () => void;
 }
 
+// All times are in IST (UTC+5:30)
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function nowIST() {
+  return new Date(Date.now() + IST_OFFSET_MS);
+}
+
 function getMinDate() {
-  return new Date(Date.now() + 5 * 60 * 1000).toISOString().split('T')[0];
+  const ist = new Date(Date.now() + 5 * 60 * 1000 + IST_OFFSET_MS);
+  return ist.toISOString().split('T')[0];
 }
 
 function getMinTime(date: string) {
-  const now = new Date(Date.now() + 5 * 60 * 1000);
-  const today = now.toISOString().split('T')[0];
-  if (date === today) return now.toTimeString().slice(0, 5);
+  const ist = new Date(Date.now() + 5 * 60 * 1000 + IST_OFFSET_MS);
+  const today = ist.toISOString().split('T')[0];
+  if (date === today) return ist.toISOString().slice(11, 16);
   return '00:00';
+}
+
+function toISO(date: string, time: string) {
+  // Parse user input as IST and convert to UTC ISO string
+  return new Date(`${date}T${time}:00+05:30`).toISOString();
 }
 
 export default function ScheduleBroadcastModal({ token, onClose, onComplete }: Props) {
@@ -268,7 +281,7 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
     setError('');
     try {
       const scheduledAt = !sendNow && scheduleDate && scheduleTime
-        ? new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
+        ? toISO(scheduleDate, scheduleTime)
         : undefined;
 
       const res = await fetch('/api/admin/crm/calls/broadcasts', {
@@ -904,9 +917,10 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                   <div>
                     <p className="text-xs font-semibold text-indigo-600">Scheduled for</p>
                     <p className="text-sm font-bold text-indigo-800">
-                      {new Date(`${scheduleDate}T${scheduleTime}`).toLocaleDateString('en-IN', {
+                      {new Date(`${scheduleDate}T${scheduleTime}:00+05:30`).toLocaleDateString('en-IN', {
                         day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-                      })}
+                        timeZone: 'Asia/Kolkata',
+                      })} IST
                     </p>
                   </div>
                 </div>

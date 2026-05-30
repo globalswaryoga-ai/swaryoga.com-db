@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
           createdAt: { $min: '$createdAt' },
           lastCallAt: { $max: '$createdAt' },
           statuses: { $push: '$status' },
-          failureReason: { $first: '$callEndedReason' },
+          callEndedReasons: { $push: '$callEndedReason' },
         },
       },
       { $sort: { createdAt: -1 } },
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         createdAt: b.createdAt,
         lastCallAt: b.lastCallAt,
         overallStatus,
-        failureReason: b.failureReason || null,
+        failureReason: (b.callEndedReasons || []).find((r: any) => r && r.trim()) || null,
       };
     });
 

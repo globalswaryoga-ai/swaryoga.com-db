@@ -216,7 +216,10 @@ export default function BroadcastsPage() {
 
   const fmtDate = (d: string | null) => {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      timeZone: 'Asia/Kolkata',
+    });
   };
 
   /* ── Render ── */
@@ -455,7 +458,7 @@ export default function BroadcastsPage() {
                     className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none" />
                 </div>
                 <button
-                  onClick={() => newScheduleDate && newScheduleTime && rescheduleBroadcast(managingBroadcast.batchName, new Date(`${newScheduleDate}T${newScheduleTime}`).toISOString())}
+                  onClick={() => newScheduleDate && newScheduleTime && rescheduleBroadcast(managingBroadcast.batchName, new Date(`${newScheduleDate}T${newScheduleTime}:00+05:30`).toISOString())}
                   disabled={rescheduling || !newScheduleDate || !newScheduleTime}
                   className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
                   style={{ background: 'linear-gradient(135deg, #8B5CF6, #6366F1)' }}
