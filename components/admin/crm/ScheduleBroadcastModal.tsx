@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   X, Search, Calendar, Loader2, CheckCircle, AlertTriangle,
   Phone, Users, DollarSign, ChevronDown, CalendarClock, Check,
@@ -60,12 +60,11 @@ function getMinTime(date: string) {
 export default function ScheduleBroadcastModal({ token, onClose, onComplete }: Props) {
   const [step, setStep] = useState<'leads' | 'config' | 'schedule' | 'confirm' | 'result'>('leads');
 
-  // Lead selection
+  // All leads
+  const [allLeads, setAllLeads] = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Lead[]>([]);
-  const [searching, setSearching] = useState(false);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
-  const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
 
   // Config
   const [language, setLanguage] = useState('hi');
@@ -86,27 +85,22 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
 
-  // Debounced lead search
+  // Load all leads on mount
   useEffect(() => {
-    if (!searchQuery.trim() || searchQuery.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setSearching(true);
+    (async () => {
+      setLeadsLoading(true);
       try {
-        const res = await fetch(`/api/admin/crm/funnel/leads?search=${encodeURIComponent(searchQuery)}&limit=20`, {
+        const res = await fetch('/api/admin/crm/funnel/leads?limit=500&all=1', {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const json = await res.json();
-          setSearchResults(json.data?.leads || []);
+          setAllLeads(json.data?.leads || []);
         }
       } catch { /* ignore */ }
-      setSearching(false);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchQuery, token]);
+      setLeadsLoading(false);
+    })();
+  }, [token]);
 
   // Fetch templates when language changes
   useEffect(() => {
@@ -126,24 +120,39 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
     })();
   }, [language, token]);
 
+  // Client-side filter
+  const filteredLeads = useMemo(() => {
+    if (!searchQuery.trim()) return allLeads;
+    const q = searchQuery.toLowerCase();
+    return allLeads.filter(l =>
+      (l.displayName || l.name || '').toLowerCase().includes(q) ||
+      (l.phoneNumber || '').includes(q) ||
+      (l.funnelStage || '').toLowerCase().includes(q)
+    );
+  }, [allLeads, searchQuery]);
+
   const toggleLead = (lead: Lead) => {
     const next = new Set(selectedLeadIds);
-    if (next.has(lead._id)) {
-      next.delete(lead._id);
-      setSelectedLeads(prev => prev.filter(l => l._id !== lead._id));
-    } else {
-      next.add(lead._id);
-      setSelectedLeads(prev => [...prev, lead]);
-    }
+    if (next.has(lead._id)) next.delete(lead._id);
+    else next.add(lead._id);
     setSelectedLeadIds(next);
   };
 
-  const removeLead = (id: string) => {
-    const next = new Set(selectedLeadIds);
-    next.delete(id);
-    setSelectedLeadIds(next);
-    setSelectedLeads(prev => prev.filter(l => l._id !== id));
+  const toggleSelectAll = () => {
+    if (selectedLeadIds.size === filteredLeads.length && filteredLeads.length > 0) {
+      // Deselect all visible
+      const next = new Set(selectedLeadIds);
+      filteredLeads.forEach(l => next.delete(l._id));
+      setSelectedLeadIds(next);
+    } else {
+      // Select all visible
+      const next = new Set(selectedLeadIds);
+      filteredLeads.forEach(l => next.add(l._id));
+      setSelectedLeadIds(next);
+    }
   };
+
+  const allVisibleSelected = filteredLeads.length > 0 && filteredLeads.every(l => selectedLeadIds.has(l._id));
 
   const handleTemplateChange = (id: string) => {
     setSelectedTemplateId(id);
@@ -246,78 +255,95 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
 
           {/* ── Step 1: Lead Selection ── */}
           {step === 'leads' && (
-            <div className="px-5 py-4 space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                <input
-                  autoFocus
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search leads by name or phone..."
-                  className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
-                />
-                {searching && <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-indigo-400" />}
+            <div className="flex flex-col h-full">
+              {/* Search + select all bar */}
+              <div className="px-4 pt-3 pb-2 space-y-2 flex-shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  <input
+                    autoFocus
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search by name, phone or stage..."
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                  />
+                </div>
+
+                {/* Select all row */}
+                {!leadsLoading && allLeads.length > 0 && (
+                  <div className="flex items-center justify-between px-1">
+                    <label
+                      className="flex items-center gap-2 cursor-pointer select-none"
+                      onClick={toggleSelectAll}
+                    >
+                      <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${allVisibleSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                        {allVisibleSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                      </div>
+                      <span className="text-xs font-semibold text-gray-600">
+                        Select all {filteredLeads.length > 0 ? `(${filteredLeads.length})` : ''}
+                      </span>
+                    </label>
+                    {selectedLeadIds.size > 0 && (
+                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                        {selectedLeadIds.size} selected
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {searchQuery.length === 1 && (
-                <p className="text-xs text-gray-400 text-center py-1">Type at least 2 characters to search</p>
-              )}
-
-              {searchResults.length > 0 && (
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                  {searchResults.map(lead => {
-                    const isSelected = selectedLeadIds.has(lead._id);
-                    return (
-                      <div
-                        key={lead._id}
-                        onClick={() => toggleLead(lead)}
-                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b last:border-0 border-gray-50 hover:bg-gray-50 transition ${isSelected ? 'bg-indigo-50' : ''}`}
-                      >
-                        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
-                          {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{lead.displayName || lead.name}</p>
-                          <p className="text-xs text-gray-400">{lead.phoneNumber || 'No phone'}{lead.funnelStage ? ` · ${lead.funnelStage}` : ''}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {selectedLeads.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                    {selectedLeads.length} lead{selectedLeads.length !== 1 ? 's' : ''} selected
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                    {selectedLeads.map(lead => (
-                      <div key={lead._id} className="flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-medium text-indigo-700">
-                        {lead.displayName || lead.name}
-                        <button onClick={() => removeLead(lead._id)} className="ml-0.5 text-indigo-400 hover:text-indigo-600 transition">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
+              {/* Leads list */}
+              <div className="flex-1 overflow-y-auto px-4 pb-2 min-h-0" style={{ maxHeight: '340px' }}>
+                {leadsLoading ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+                    <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+                    <span className="text-sm">Loading leads...</span>
                   </div>
-                </div>
-              )}
+                ) : filteredLeads.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-gray-400">
+                    {searchQuery ? 'No leads match your search.' : 'No leads found.'}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    {filteredLeads.map((lead, idx) => {
+                      const isSelected = selectedLeadIds.has(lead._id);
+                      return (
+                        <div
+                          key={lead._id}
+                          onClick={() => toggleLead(lead)}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition ${idx !== filteredLeads.length - 1 ? 'border-b border-gray-50' : ''} ${isSelected ? 'bg-indigo-50 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+                        >
+                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                            {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{lead.displayName || lead.name}</p>
+                            <p className="text-xs text-gray-400">{lead.phoneNumber || 'No phone'}{lead.funnelStage ? ` · ${lead.funnelStage}` : ''}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-              <button
-                onClick={() => setStep('config')}
-                disabled={selectedLeadIds.size === 0}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition hover:opacity-90 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}
-              >
-                <Users className="h-4 w-4" />
-                Continue with {selectedLeadIds.size} lead{selectedLeadIds.size !== 1 ? 's' : ''}
-              </button>
+              {/* Continue button */}
+              <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
+                <button
+                  onClick={() => setStep('config')}
+                  disabled={selectedLeadIds.size === 0}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition hover:opacity-90 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}
+                >
+                  <Users className="h-4 w-4" />
+                  Continue with {selectedLeadIds.size} lead{selectedLeadIds.size !== 1 ? 's' : ''}
+                </button>
+              </div>
             </div>
           )}
 
@@ -453,7 +479,6 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                   <p className="text-sm font-semibold text-indigo-800">When to run this broadcast?</p>
                 </div>
 
-                {/* Send now toggle */}
                 <label className="flex items-center gap-3 cursor-pointer select-none">
                   <div
                     onClick={() => setSendNow(v => !v)}
