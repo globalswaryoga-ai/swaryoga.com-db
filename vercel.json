@@ -65,6 +65,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/admin/crm/calls/scheduled-broadcasts/run",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/admin/crm/sadhana-scheduler/run",
       "schedule": "* * * * *"
     },
