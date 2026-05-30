@@ -10,6 +10,7 @@ import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { getAICallLog, getAICallTemplate, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { createBatchCall, checkRetellConfig } from '@/lib/retellAI';
+import { makeExotelBatchTTS, isExotelConfigured } from '@/lib/exotelTTS';
 import { tenantFilter, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
@@ -253,35 +254,66 @@ export async function POST(request: NextRequest) {
 
     const createdLogs = await AICallLog.insertMany(logEntries);
 
-    // If not scheduled, fire immediately via Retell
+    // If not scheduled, fire immediately
     if (!isScheduled) {
-      const configStatus = checkRetellConfig();
-      if (!configStatus.configured) {
-        return apiError('SERVICE_UNAVAILABLE', `Retell AI not configured. Missing: ${configStatus.missing.join(', ')}`);
-      }
+      const callMode = template.callMode || 'interactive';
 
-      const result = await createBatchCall({
-        name: batchLabel,
-        tasks,
-        purpose: purpose || 'custom',
-        language: callLang as 'hi' | 'en',
-        customPrompt: template.promptText,
-        callMode: (template.callMode || 'interactive') as 'info_only' | 'interactive' | 'qa_interactive',
-        maxConcurrency: concurrency || 5,
-      });
+      // ── Info Only → Exotel TTS (cheap: ~₹1-2/call) ──
+      if (callMode === 'info_only' && isExotelConfigured()) {
+        const appBase = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : 'https://swaryoga.com';
 
-      if (!result.success) {
+        const exoTasks = (createdLogs as any[]).map((log: any, i: number) => ({
+          toNumber: tasks[i]?.toNumber || '',
+          leadId: tasks[i]?.leadId || '',
+          logId: String(log._id),
+        })).filter(t => t.toNumber);
+
+        const exoResult = await makeExotelBatchTTS(exoTasks, appBase);
+
         await AICallLog.updateMany(
-          { _id: { $in: createdLogs.map((l: any) => l._id) }, ...tf },
-          { $set: { status: 'failed', callEndedReason: result.error } }
+          { _id: { $in: (createdLogs as any[]).map((l: any) => l._id) }, ...tf },
+          { $set: { status: 'ringing', startedAt: new Date(), callProvider: 'exotel' } }
         );
-        return apiError('SERVER_ERROR', result.error || 'Batch call failed');
-      }
 
-      await AICallLog.updateMany(
-        { _id: { $in: createdLogs.map((l: any) => l._id) }, ...tf },
-        { $set: { retellBatchId: result.batchId, status: 'ringing', startedAt: new Date() } }
-      );
+        if (exoResult.failed > 0 && exoResult.queued === 0) {
+          await AICallLog.updateMany(
+            { _id: { $in: (createdLogs as any[]).map((l: any) => l._id) }, ...tf },
+            { $set: { status: 'failed', callEndedReason: exoResult.errors[0] } }
+          );
+          return apiError('SERVER_ERROR', exoResult.errors[0] || 'Exotel batch call failed');
+        }
+      } else {
+        // ── Interactive / Q&A → Retell AI ──
+        const configStatus = checkRetellConfig();
+        if (!configStatus.configured) {
+          return apiError('SERVICE_UNAVAILABLE', `Retell AI not configured. Missing: ${configStatus.missing.join(', ')}`);
+        }
+
+        const result = await createBatchCall({
+          name: batchLabel,
+          tasks,
+          purpose: purpose || 'custom',
+          language: callLang as 'hi' | 'en',
+          customPrompt: template.promptText,
+          callMode: callMode as 'info_only' | 'interactive' | 'qa_interactive',
+          maxConcurrency: concurrency || 5,
+        });
+
+        if (!result.success) {
+          await AICallLog.updateMany(
+            { _id: { $in: (createdLogs as any[]).map((l: any) => l._id) }, ...tf },
+            { $set: { status: 'failed', callEndedReason: result.error } }
+          );
+          return apiError('SERVER_ERROR', result.error || 'Batch call failed');
+        }
+
+        await AICallLog.updateMany(
+          { _id: { $in: (createdLogs as any[]).map((l: any) => l._id) }, ...tf },
+          { $set: { retellBatchId: result.batchId, status: 'ringing', startedAt: new Date() } }
+        );
+      }
     }
 
     const costPerMin = 0.07;
