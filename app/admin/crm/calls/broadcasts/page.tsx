@@ -45,7 +45,7 @@ interface Broadcast {
   active: number; totalDuration: number; totalCost: number; purpose: string;
   language: string; initiatedBy: string; retellBatchId: string;
   templateKey: string; scheduledAt: string | null; createdAt: string;
-  lastCallAt: string; overallStatus: string;
+  lastCallAt: string; overallStatus: string; failureReason: string | null;
 }
 
 interface Summary {
@@ -351,6 +351,14 @@ export default function BroadcastsPage() {
                         <span className="flex items-center gap-1"><Timer className="h-3 w-3" /> {fmtDuration(b.totalDuration)}</span>
                         <span className="flex items-center gap-1 text-pink-600"><DollarSign className="h-3 w-3" /> ${b.totalCost.toFixed(2)}</span>
                       </div>
+
+                      {/* Failure reason */}
+                      {b.overallStatus === 'failed' && b.failureReason && (
+                        <div className="flex items-start gap-1.5 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5 mb-2">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-red-600 break-all">{b.failureReason}</p>
+                        </div>
+                      )}
 
                       {/* Progress bar */}
                       <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden flex">
