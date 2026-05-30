@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
     const superAdmin = userId === 'admincrm' || userId === 'admin';
     const normalizedPhone = normalizePhone(String(phoneNumber));
 
-    // Find or create lead
-    let lead = leadId ? await Lead.findById(leadId) : null;
+    // Find or create lead — fallback to phone if leadId stale (DB migration)
+    let lead = leadId ? await Lead.findById(leadId).catch(() => null) : null;
     if (!lead) {
       lead = await Lead.findOne({ phoneNumber: normalizedPhone });
     }

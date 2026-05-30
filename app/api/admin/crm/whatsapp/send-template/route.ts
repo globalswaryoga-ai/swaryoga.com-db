@@ -73,24 +73,24 @@ export async function POST(request: NextRequest) {
     const superAdmin = userId === 'admincrm' || userId === 'admin';
     const normalizedPhone = normalizePhone(String(phoneNumber));
     
-    // Find or create lead
+    // Find or create lead — fallback to phone search if leadId not found (handles DB migration)
     let lead: any;
     if (leadId) {
-      lead = await Lead.findById(String(leadId));
-      if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    } else {
+      lead = await Lead.findById(String(leadId)).catch(() => null);
+    }
+    if (!lead) {
       lead = await Lead.findOne({ phoneNumber: normalizedPhone });
-      if (!lead) {
-        lead = await Lead.create({
-          phoneNumber: normalizedPhone,
-          name: `WhatsApp ${normalizedPhone}`,
-          source: 'whatsapp',
-          status: 'lead',
-          assignedToUserId: userId,
-          createdBy: userId,
-        });
-        console.log(`[send-template:${requestId}] Created new lead for phone: ${normalizedPhone}`);
-      }
+    }
+    if (!lead) {
+      lead = await Lead.create({
+        phoneNumber: normalizedPhone,
+        name: `WhatsApp ${normalizedPhone}`,
+        source: 'whatsapp',
+        status: 'lead',
+        assignedToUserId: userId,
+        createdBy: userId,
+      });
+      console.log(`[send-template:${requestId}] Created new lead for phone: ${normalizedPhone}`);
     }
 
     if (!superAdmin) {
