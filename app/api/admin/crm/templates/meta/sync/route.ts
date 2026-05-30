@@ -9,6 +9,7 @@ import {
   mapMetaStatusToLocal,
   MetaTemplate,
 } from '@/lib/meta-templates';
+import { ensurePermanentUrl } from '@/lib/migrateMetaImageToBunny';
 
 export const dynamic = 'force-dynamic';
 import mongoose from 'mongoose';
@@ -78,8 +79,10 @@ export async function GET(request: NextRequest) {
           metaQualityScore: metaTemplate.quality_score?.score || null,
           lastMetaSyncAt: new Date(),
         };
-        if (headerHandleUrl && (headerFmt === 'IMAGE' || headerFmt === 'VIDEO') && !(existing as any).headerMedia?.url) {
-          mediaUpdate.headerMedia = { kind: headerFmt === 'VIDEO' ? 'video' : 'image', url: headerHandleUrl };
+        if (headerHandleUrl && (headerFmt === 'IMAGE' || headerFmt === 'VIDEO')) {
+          // Migrate Meta CDN URL to Bunny CDN for permanent storage
+          const permanentUrl = await ensurePermanentUrl(headerHandleUrl);
+          mediaUpdate.headerMedia = { kind: headerFmt === 'VIDEO' ? 'video' : 'image', url: permanentUrl };
           mediaUpdate.headerFormat = headerFmt;
         }
         await WhatsAppTemplate.findOneAndUpdate({ _id: existing._id, ...tf }, { $set: mediaUpdate });
@@ -99,8 +102,12 @@ export async function GET(request: NextRequest) {
 
         const importHeaderFmt = String(headerComponent?.format || 'NONE').toUpperCase();
         const importHeaderHandle = headerComponent?.example?.header_handle?.[0] || null;
-        const importHeaderMedia = importHeaderHandle && (importHeaderFmt === 'IMAGE' || importHeaderFmt === 'VIDEO')
-          ? { kind: importHeaderFmt === 'VIDEO' ? 'video' : 'image', url: importHeaderHandle }
+        let importMediaUrl = importHeaderHandle;
+        if (importHeaderHandle && (importHeaderFmt === 'IMAGE' || importHeaderFmt === 'VIDEO')) {
+          importMediaUrl = await ensurePermanentUrl(importHeaderHandle);
+        }
+        const importHeaderMedia = importMediaUrl && (importHeaderFmt === 'IMAGE' || importHeaderFmt === 'VIDEO')
+          ? { kind: importHeaderFmt === 'VIDEO' ? 'video' : 'image', url: importMediaUrl }
           : undefined;
 
         const newTemplate = await WhatsAppTemplate.create({

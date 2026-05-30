@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getLead, getWhatsAppMessage, getWhatsAppTemplate, getAnalyticsEvent } from '@/lib/schemas/enterpriseSchemas';
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
+import { ensurePermanentUrl, isMetaCdnUrl } from '@/lib/migrateMetaImageToBunny';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -119,6 +120,21 @@ export async function POST(request: NextRequest) {
     console.log(`[send-template:${requestId}] Found template: ${t.templateName} (ID: ${t._id})`);
 
     const to = normalizedPhone;
+
+    // Auto-migrate Meta CDN URLs to Bunny CDN before sending
+    const headerUrl = t?.headerMedia?.url || t?.imageFile?.url || '';
+    if (headerUrl && isMetaCdnUrl(headerUrl)) {
+      const bunnyUrl = await ensurePermanentUrl(headerUrl);
+      if (bunnyUrl !== headerUrl) {
+        // Update the template in DB with permanent URL
+        const WhatsAppTemplateModel = getWhatsAppTemplate();
+        await WhatsAppTemplateModel.findByIdAndUpdate(t._id, {
+          $set: { 'headerMedia.url': bunnyUrl, ...(t?.imageFile?.url ? { 'imageFile.url': bunnyUrl } : {}) },
+        });
+        t = { ...t, headerMedia: { ...t.headerMedia, url: bunnyUrl } };
+        console.log(`[send-template:${requestId}] Migrated Meta CDN → Bunny: ${bunnyUrl.substring(0, 60)}`);
+      }
+    }
 
     // Build template input using shared helper
     const cloudInput = buildCloudTemplateSendInput(t, to);

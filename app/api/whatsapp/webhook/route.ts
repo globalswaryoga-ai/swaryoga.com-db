@@ -21,7 +21,7 @@ import {
   getWhatsAppMediaUrl, 
   downloadWhatsAppMedia 
 } from '@/lib/whatsapp';
-import { uploadToS3 } from '@/lib/bunny-storage';
+import { uploadToS3, uploadToBunnyStorage } from '@/lib/bunny-storage';
 
 // Safe verify of string
 function safeString(s: any): string {
@@ -502,16 +502,18 @@ async function handleWebhookPayload(payload: any) {
                   mimeType = contentType;
                   const extension = contentType.split('/')[1]?.split(';')[0] || 'bin';
                   const fileName = `whatsapp-inbound/${from}/${Date.now()}.${extension}`;
-                  
-                  s3MediaUrl = await uploadToS3(buffer, fileName, {
-                    metadata: {
-                      'wa-message-id': inboundWaMessageId || '',
-                      'phone-number': from,
-                      'media-type': type,
-                      'direction': 'inbound'
-                    }
-                  });
-                  console.log(`[WEBHOOK MEDIA] ✅ Uploaded to S3: ${s3MediaUrl}`);
+
+                  // Upload to Bunny CDN (permanent URL), fallback to S3
+                  try {
+                    s3MediaUrl = await uploadToBunnyStorage(buffer, fileName, { contentType });
+                    console.log(`[WEBHOOK MEDIA] ✅ Uploaded to Bunny CDN: ${s3MediaUrl}`);
+                  } catch (bunnyErr) {
+                    console.warn('[WEBHOOK MEDIA] Bunny upload failed, falling back to S3:', bunnyErr);
+                    s3MediaUrl = await uploadToS3(buffer, fileName, {
+                      metadata: { 'wa-message-id': inboundWaMessageId || '', 'phone-number': from }
+                    });
+                    console.log(`[WEBHOOK MEDIA] ✅ Uploaded to S3 fallback: ${s3MediaUrl}`);
+                  }
                 } catch (mediaErr: any) {
                   mediaError = mediaErr?.message || 'Unknown media error';
                   console.error('[WEBHOOK MEDIA ERROR] Failed to process media:', mediaError);
