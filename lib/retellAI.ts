@@ -771,7 +771,7 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
       body.max_concurrency = input.maxConcurrency;
     }
 
-    const result = await retellFetch('/v2/create-batch-call', {
+    const result = await retellFetch('/create-batch-call', {
       method: 'POST',
       body: JSON.stringify(body),
     });
