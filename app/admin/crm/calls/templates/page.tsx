@@ -241,6 +241,7 @@ We're excited to have you as part of the Swar Yoga family. Namaste! 🙏`);
     { value: '+19562537676', label: '+1 (956) 253-7676', tag: 'Retell AI — US', verified: true },
     { value: '+919779006820', label: '+91 97790 06820', tag: 'WhatsApp — India', verified: true },
     { value: '+919779006820', label: '+91 97790 06820', tag: 'PC Calling — India', verified: true },
+    { value: '09513886363', label: '095-138-86363', tag: 'Exotel TTS — India (Info Only)', verified: true },
   ];
 
   // AI Voice Agents (fetched from Retell AI + fallback defaults)
