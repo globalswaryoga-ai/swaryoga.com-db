@@ -9,7 +9,7 @@ import {
   Megaphone, Phone, CheckCircle, XCircle, Clock,
   Loader2, ChevronDown, ChevronRight, X, Play,
   Eye, BarChart3, DollarSign, Timer, Users,
-  AlertTriangle, Ban, CalendarClock, RotateCcw,
+  AlertTriangle, Ban, CalendarClock, RotateCcw, Pencil, Trash2, Calendar,
 } from 'lucide-react';
 import ScheduleBroadcastModal from '@/components/admin/crm/ScheduleBroadcastModal';
 
@@ -87,6 +87,13 @@ export default function BroadcastsPage() {
   // Retry queued
   const [retrying, setRetrying] = useState<string | null>(null);
 
+  // Edit / manage modal
+  const [managingBroadcast, setManagingBroadcast] = useState<Broadcast | null>(null);
+  const [newScheduleDate, setNewScheduleDate] = useState('');
+  const [newScheduleTime, setNewScheduleTime] = useState('');
+  const [rescheduling, setRescheduling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   // Schedule modal
   const [showSchedule, setShowSchedule] = useState(false);
 
@@ -162,6 +169,36 @@ export default function BroadcastsPage() {
       }, 2000);
     } catch (e) { console.error(e); }
     setRetrying(null);
+  };
+
+  const rescheduleBroadcast = async (batchName: string, newScheduledAt: string) => {
+    if (!token) return;
+    setRescheduling(true);
+    try {
+      await fetch('/api/admin/crm/calls/broadcasts', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchName, action: 'reschedule', scheduledAt: newScheduledAt }),
+      });
+      setManagingBroadcast(null);
+      fetchBroadcasts();
+    } catch (e) { console.error(e); }
+    setRescheduling(false);
+  };
+
+  const deleteBroadcast = async (batchName: string) => {
+    if (!token) return;
+    setDeleting(true);
+    try {
+      await fetch('/api/admin/crm/calls/broadcasts', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchName, action: 'delete' }),
+      });
+      setManagingBroadcast(null);
+      fetchBroadcasts();
+    } catch (e) { console.error(e); }
+    setDeleting(false);
   };
 
   const filtered = broadcasts.filter(b =>
@@ -344,6 +381,12 @@ export default function BroadcastsPage() {
                       {isActive && (
                         <>
                           <button
+                            onClick={() => { setManagingBroadcast(b); setNewScheduleDate(''); setNewScheduleTime(''); }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Edit
+                          </button>
+                          <button
                             onClick={() => retryBroadcast(b.batchName)}
                             disabled={retrying === b.batchName}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition disabled:opacity-50"
@@ -367,6 +410,82 @@ export default function BroadcastsPage() {
           </div>
         )}
       </div>
+
+      {/* ═══ Manage Broadcast Modal ═══ */}
+      {managingBroadcast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="px-5 py-4 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #8B5CF6, #6366F1)' }}>
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2"><Pencil className="h-4 w-4" /> Manage Broadcast</h2>
+                <p className="text-xs text-white/70 truncate max-w-[260px] mt-0.5">{managingBroadcast.batchName}</p>
+              </div>
+              <button onClick={() => setManagingBroadcast(null)} className="p-1.5 rounded-lg hover:bg-white/20 transition"><X className="h-5 w-5 text-white" /></button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              {/* Current scheduled time */}
+              {managingBroadcast.scheduledAt && (
+                <div className="flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-100 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="text-indigo-700 font-medium">Scheduled: {new Date(managingBroadcast.scheduledAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              )}
+
+              {/* Reschedule */}
+              <div className="rounded-xl border border-gray-100 p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> Reschedule</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={newScheduleDate} onChange={e => setNewScheduleDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none" />
+                  <input type="time" value={newScheduleTime} onChange={e => setNewScheduleTime(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none" />
+                </div>
+                <button
+                  onClick={() => newScheduleDate && newScheduleTime && rescheduleBroadcast(managingBroadcast.batchName, new Date(`${newScheduleDate}T${newScheduleTime}`).toISOString())}
+                  disabled={rescheduling || !newScheduleDate || !newScheduleTime}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
+                  style={{ background: 'linear-gradient(135deg, #8B5CF6, #6366F1)' }}
+                >
+                  {rescheduling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="h-3.5 w-3.5" />}
+                  {rescheduling ? 'Saving...' : 'Save New Schedule'}
+                </button>
+              </div>
+
+              {/* Fire now */}
+              <button
+                onClick={() => { retryBroadcast(managingBroadcast.batchName); setManagingBroadcast(null); }}
+                disabled={retrying === managingBroadcast.batchName}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold text-white transition hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Fire Calls Now
+              </button>
+
+              {/* Cancel pending */}
+              <button
+                onClick={() => { cancelBroadcast(managingBroadcast.batchName); setManagingBroadcast(null); }}
+                disabled={cancelling === managingBroadcast.batchName}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-700 border-2 border-amber-200 hover:bg-amber-50 transition disabled:opacity-50"
+              >
+                <Ban className="h-3.5 w-3.5" /> Cancel Pending Calls
+              </button>
+
+              {/* Delete broadcast */}
+              <button
+                onClick={() => deleteBroadcast(managingBroadcast.batchName)}
+                disabled={deleting}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-600 border-2 border-red-100 hover:bg-red-50 transition disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {deleting ? 'Deleting...' : 'Delete Broadcast'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ Schedule Broadcast Modal ═══ */}
       {showSchedule && token && (

@@ -313,22 +313,35 @@ export async function PUT(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
     const tf = tenantFilter(decoded, 'initiatedBy');
 
-    const { batchName, action } = await request.json();
+    const body2 = await request.json();
+    const { batchName, action, scheduledAt: newScheduledAt } = body2;
     if (!batchName) return apiError('VALIDATION_ERROR', 'batchName is required');
 
     await connectDB();
     const AICallLog = getAICallLog();
 
     if (action === 'cancel') {
-      // Cancel all queued/pending calls in this batch
       const result = await AICallLog.updateMany(
         { batchName, status: { $in: ['queued', 'ringing'] }, ...tf },
         { $set: { status: 'canceled', callEndedReason: 'Cancelled by admin' } }
       );
-      return apiSuccess({
-        cancelled: result.modifiedCount,
-        message: `Cancelled ${result.modifiedCount} pending calls in "${batchName}"`,
-      });
+      return apiSuccess({ cancelled: result.modifiedCount, message: `Cancelled ${result.modifiedCount} pending calls in "${batchName}"` });
+    }
+
+    if (action === 'reschedule') {
+      if (!newScheduledAt) return apiError('VALIDATION_ERROR', 'scheduledAt is required for reschedule');
+      const result = await AICallLog.updateMany(
+        { batchName, status: 'queued', ...tf },
+        { $set: { scheduledAt: new Date(newScheduledAt) } }
+      );
+      return apiSuccess({ updated: result.modifiedCount, message: `Rescheduled ${result.modifiedCount} calls in "${batchName}" to ${new Date(newScheduledAt).toLocaleString('en-IN')}` });
+    }
+
+    if (action === 'delete') {
+      const result = await AICallLog.deleteMany(
+        { batchName, status: { $in: ['queued', 'canceled'] }, ...tf }
+      );
+      return apiSuccess({ deleted: result.deletedCount, message: `Deleted ${result.deletedCount} call records from "${batchName}"` });
     }
 
     return apiError('VALIDATION_ERROR', 'Unknown action');
