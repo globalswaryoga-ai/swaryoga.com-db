@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       console.log(`[SEND:${requestId}] 📝 Creating lead (super admin)`);
       lead = await Lead.create({
         phoneNumber: normalizedPhone,
-        source: 'crm',
+        source: 'manual',
         status: 'lead',
         labels: [],
       });
