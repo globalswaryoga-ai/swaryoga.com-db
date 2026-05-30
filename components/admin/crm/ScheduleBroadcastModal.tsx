@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   X, Search, Calendar, Loader2, CheckCircle, AlertTriangle,
   Phone, Users, DollarSign, ChevronDown, CalendarClock, Check,
-  Upload, FileSpreadsheet, List,
+  Upload, FileSpreadsheet, List, Plus, Trash2, UserPlus,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { autoDetectColumns, normalizePhoneCSV } from '@/lib/utils/csvParser';
@@ -62,7 +62,7 @@ function getMinTime(date: string) {
 
 export default function ScheduleBroadcastModal({ token, onClose, onComplete }: Props) {
   const [step, setStep] = useState<'leads' | 'config' | 'schedule' | 'confirm' | 'result'>('leads');
-  const [leadsTab, setLeadsTab] = useState<'browse' | 'upload'>('browse');
+  const [leadsTab, setLeadsTab] = useState<'browse' | 'upload' | 'manual'>('browse');
 
   // Browse tab
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
@@ -76,6 +76,14 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
   const [uploadStats, setUploadStats] = useState<{ total: number; matched: number; unmatched: number } | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [resolving, setResolving] = useState(false);
+
+  // Manual entry tab
+  interface ManualContact { id: string; name: string; countryCode: string; phone: string }
+  const [manualContacts, setManualContacts] = useState<ManualContact[]>([]);
+  const [manualName, setManualName] = useState('');
+  const [manualCountryCode, setManualCountryCode] = useState('+91');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualError, setManualError] = useState('');
 
   // Config
   const [language, setLanguage] = useState('hi');
@@ -268,6 +276,10 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leadIds: Array.from(selectedLeadIds),
+          extraContacts: manualContacts.map(c => ({
+            name: c.name,
+            phoneNumber: `${c.countryCode}${c.phone}`.replace(/\D/g, ''),
+          })),
           templateId: selectedTemplateId,
           scheduledAt,
           language,
@@ -290,7 +302,8 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
   };
 
   const langLabel = LANGUAGES.find(l => l.code === language)?.label || language;
-  const estimatedCost = (selectedLeadIds.size * AVG_CALL_DURATION * COST_PER_MINUTE).toFixed(2);
+  const totalContacts = selectedLeadIds.size + manualContacts.length;
+  const estimatedCost = (totalContacts * AVG_CALL_DURATION * COST_PER_MINUTE).toFixed(2);
 
   const STEPS = ['leads', 'config', 'schedule', 'confirm'];
   const STEP_LABELS = ['Leads', 'Template', 'Schedule', 'Confirm'];
@@ -350,18 +363,24 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
           {step === 'leads' && (
             <div className="flex flex-col h-full">
               {/* Tab switcher */}
-              <div className="flex gap-1 px-4 pt-3 flex-shrink-0">
+              <div className="flex gap-1 px-4 pt-3 flex-shrink-0 flex-wrap">
                 <button
                   onClick={() => setLeadsTab('browse')}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition ${leadsTab === 'browse' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
                 >
-                  <List className="h-3.5 w-3.5" /> Browse Leads
+                  <List className="h-3.5 w-3.5" /> Browse
                 </button>
                 <button
                   onClick={() => setLeadsTab('upload')}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition ${leadsTab === 'upload' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
                 >
-                  <FileSpreadsheet className="h-3.5 w-3.5" /> Upload Excel / CSV
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Upload File
+                </button>
+                <button
+                  onClick={() => setLeadsTab('manual')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border-2 transition ${leadsTab === 'manual' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                >
+                  <UserPlus className="h-3.5 w-3.5" /> Add Manually
                 </button>
               </div>
 
@@ -524,16 +543,138 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                 </div>
               )}
 
+              {/* ── Manual entry tab ── */}
+              {leadsTab === 'manual' && (
+                <div className="px-4 pt-3 pb-2 space-y-3">
+                  {/* Entry form */}
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                      <Plus className="h-3.5 w-3.5" /> Add a contact
+                    </p>
+                    {/* Name */}
+                    <input
+                      type="text"
+                      value={manualName}
+                      onChange={e => setManualName(e.target.value)}
+                      placeholder="Full name"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                    />
+                    {/* Country code + phone */}
+                    <div className="flex gap-2">
+                      <div className="relative w-28 flex-shrink-0">
+                        <select
+                          value={manualCountryCode}
+                          onChange={e => setManualCountryCode(e.target.value)}
+                          className="w-full px-2 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none appearance-none pr-6"
+                        >
+                          {[
+                            { code: '+91', label: '🇮🇳 +91' },
+                            { code: '+1',  label: '🇺🇸 +1' },
+                            { code: '+44', label: '🇬🇧 +44' },
+                            { code: '+61', label: '🇦🇺 +61' },
+                            { code: '+971',label: '🇦🇪 +971' },
+                            { code: '+65', label: '🇸🇬 +65' },
+                            { code: '+60', label: '🇲🇾 +60' },
+                            { code: '+49', label: '🇩🇪 +49' },
+                            { code: '+33', label: '🇫🇷 +33' },
+                            { code: '+81', label: '🇯🇵 +81' },
+                            { code: '+82', label: '🇰🇷 +82' },
+                            { code: '+64', label: '🇳🇿 +64' },
+                            { code: '+27', label: '🇿🇦 +27' },
+                            { code: '+55', label: '🇧🇷 +55' },
+                            { code: '+86', label: '🇨🇳 +86' },
+                            { code: '+34', label: '🇪🇸 +34' },
+                            { code: '+39', label: '🇮🇹 +39' },
+                            { code: '+7',  label: '🇷🇺 +7' },
+                            { code: '+92', label: '🇵🇰 +92' },
+                            { code: '+880',label: '🇧🇩 +880' },
+                            { code: '+94', label: '🇱🇰 +94' },
+                            { code: '+977',label: '🇳🇵 +977' },
+                          ].map(c => (
+                            <option key={c.code} value={c.code}>{c.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-1.5 top-2.5 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                      </div>
+                      <input
+                        type="tel"
+                        value={manualPhone}
+                        onChange={e => setManualPhone(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Phone number"
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                      />
+                    </div>
+                    {manualError && <p className="text-xs text-red-500">{manualError}</p>}
+                    <button
+                      onClick={() => {
+                        setManualError('');
+                        if (!manualPhone || manualPhone.length < 5) { setManualError('Enter a valid phone number.'); return; }
+                        const fullNum = `${manualCountryCode}${manualPhone}`;
+                        const duplicate = manualContacts.some(c => `${c.countryCode}${c.phone}` === fullNum);
+                        if (duplicate) { setManualError('This number is already added.'); return; }
+                        setManualContacts(prev => [...prev, {
+                          id: Date.now().toString(),
+                          name: manualName.trim() || 'Unknown',
+                          countryCode: manualCountryCode,
+                          phone: manualPhone,
+                        }]);
+                        setManualName('');
+                        setManualPhone('');
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition hover:opacity-90"
+                      style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add Contact
+                    </button>
+                  </div>
+
+                  {/* Added contacts list */}
+                  {manualContacts.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                        {manualContacts.length} contact{manualContacts.length !== 1 ? 's' : ''} added
+                      </p>
+                      <div className="rounded-xl border border-gray-200 overflow-hidden max-h-44 overflow-y-auto">
+                        {manualContacts.map((c, idx) => (
+                          <div
+                            key={c.id}
+                            className={`flex items-center gap-3 px-3 py-2.5 ${idx !== manualContacts.length - 1 ? 'border-b border-gray-50' : ''}`}
+                          >
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                              <Phone className="h-3.5 w-3.5 text-indigo-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800">{c.name}</p>
+                              <p className="text-xs text-gray-400">{c.countryCode} {c.phone}</p>
+                            </div>
+                            <button
+                              onClick={() => setManualContacts(prev => prev.filter(x => x.id !== c.id))}
+                              className="p-1 text-gray-300 hover:text-red-400 transition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {manualContacts.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-4">No contacts added yet.</p>
+                  )}
+                </div>
+              )}
+
               {/* Continue button */}
               <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0 mt-auto">
                 <button
                   onClick={() => setStep('config')}
-                  disabled={selectedLeadIds.size === 0}
+                  disabled={totalContacts === 0}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white transition hover:opacity-90 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}
                 >
                   <Users className="h-4 w-4" />
-                  Continue with {selectedLeadIds.size} lead{selectedLeadIds.size !== 1 ? 's' : ''}
+                  Continue with {totalContacts} contact{totalContacts !== 1 ? 's' : ''}
                 </button>
               </div>
             </div>
@@ -547,7 +688,7 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-indigo-500" />
                     <span className="text-sm font-semibold text-gray-800">Est. Cost</span>
-                    <span className="text-xs text-gray-400">{selectedLeadIds.size} leads × 2 min avg</span>
+                    <span className="text-xs text-gray-400">{totalContacts} contacts × 2 min avg</span>
                   </div>
                   <span className="text-xl font-bold text-indigo-600">${estimatedCost}</span>
                 </div>
@@ -731,8 +872,8 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
                     <p className="text-sm font-semibold text-amber-800">Confirm Broadcast</p>
                     <p className="text-xs text-amber-600 mt-1">
                       {sendNow
-                        ? `This will immediately start ${selectedLeadIds.size} AI calls in ${langLabel}.`
-                        : `This will schedule ${selectedLeadIds.size} AI calls in ${langLabel} for ${scheduleDate} at ${scheduleTime}.`}
+                        ? `This will immediately start ${totalContacts} AI calls in ${langLabel}.`
+                        : `This will schedule ${totalContacts} AI calls in ${langLabel} for ${scheduleDate} at ${scheduleTime}.`}
                     </p>
                   </div>
                 </div>
@@ -740,8 +881,8 @@ export default function ScheduleBroadcastModal({ token, onClose, onComplete }: P
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-gray-50 p-3 border border-gray-100">
-                  <p className="text-[10px] text-gray-400 uppercase font-semibold">Leads</p>
-                  <p className="text-lg font-bold text-gray-800">{selectedLeadIds.size}</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-semibold">Contacts</p>
+                  <p className="text-lg font-bold text-gray-800">{totalContacts}</p>
                 </div>
                 <div className="rounded-xl bg-gray-50 p-3 border border-gray-100">
                   <p className="text-[10px] text-gray-400 uppercase font-semibold">Est. Cost</p>

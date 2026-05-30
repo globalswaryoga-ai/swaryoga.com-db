@@ -152,9 +152,9 @@ export async function POST(request: NextRequest) {
     const tfTpl = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json();
-    const { leadIds, templateId, scheduledAt, language, purpose, batchName: customName, concurrency } = body;
+    const { leadIds, extraContacts, templateId, scheduledAt, language, purpose, batchName: customName, concurrency } = body;
 
-    if (!leadIds?.length) return apiError('VALIDATION_ERROR', 'Select at least one lead');
+    if (!leadIds?.length && !extraContacts?.length) return apiError('VALIDATION_ERROR', 'Select at least one lead');
     if (!templateId) return apiError('VALIDATION_ERROR', 'Select a calling template');
 
     await connectDB();
@@ -166,13 +166,6 @@ export async function POST(request: NextRequest) {
     const template = await AICallTemplate.findOne({ _id: templateId, ...tfTpl }).lean() as any;
     if (!template) return apiError('NOT_FOUND', 'Template not found');
 
-    // Load leads
-    const leads = await Lead.find({ _id: { $in: leadIds } })
-      .select('name phoneNumber email funnelStage workshopName country labels source displayName')
-      .lean() as any[];
-
-    if (!leads.length) return apiError('NOT_FOUND', 'No leads found');
-
     const callLang = language === 'hi' ? 'hi' : 'en';
     const langLabel = callLang === 'hi' ? 'Hindi' : 'English';
     const adminId = decoded.userId || decoded.email || 'admin';
@@ -183,28 +176,62 @@ export async function POST(request: NextRequest) {
     const tasks: Array<{ toNumber: string; leadName: string; leadId: string; dynamicVars: Record<string, string> }> = [];
     const skippedIds: string[] = [];
 
-    for (const lead of leads) {
-      const phone = (lead.phoneNumber || '').replace(/\D/g, '');
-      if (!phone || phone.length < 8) {
-        skippedIds.push(String(lead._id));
-        continue;
+    // Tasks from existing leads
+    if (leadIds?.length) {
+      const leads = await Lead.find({ _id: { $in: leadIds } })
+        .select('name phoneNumber email funnelStage workshopName country labels source displayName')
+        .lean() as any[];
+
+      for (const lead of leads) {
+        const phone = (lead.phoneNumber || '').replace(/\D/g, '');
+        if (!phone || phone.length < 8) { skippedIds.push(String(lead._id)); continue; }
+        const fullPhone = phone.length === 10 ? `+91${phone}` : `+${phone}`;
+        tasks.push({
+          toNumber: fullPhone,
+          leadName: lead.displayName || lead.name || 'there',
+          leadId: String(lead._id),
+          dynamicVars: {
+            lead_email: lead.email || '',
+            lead_stage: lead.funnelStage || '',
+            workshop_name: lead.workshopName || 'Swar Yoga workshop',
+            lead_country: lead.country || '',
+            lead_source: lead.source || '',
+          },
+        });
       }
-      const fullPhone = phone.length === 10 ? `+91${phone}` : `+${phone}`;
-      tasks.push({
-        toNumber: fullPhone,
-        leadName: lead.displayName || lead.name || 'there',
-        leadId: String(lead._id),
-        dynamicVars: {
-          lead_email: lead.email || '',
-          lead_stage: lead.funnelStage || '',
-          workshop_name: lead.workshopName || 'Swar Yoga workshop',
-          lead_country: lead.country || '',
-          lead_source: lead.source || '',
-        },
-      });
     }
 
-    if (!tasks.length) return apiError('VALIDATION_ERROR', 'No leads have valid phone numbers');
+    // Tasks from manually entered contacts — create minimal lead records
+    if (extraContacts?.length) {
+      for (const contact of extraContacts as Array<{ name: string; phoneNumber: string }>) {
+        const phone = (contact.phoneNumber || '').replace(/\D/g, '');
+        if (!phone || phone.length < 8) { skippedIds.push(contact.phoneNumber); continue; }
+        const fullPhone = phone.length === 10 ? `+91${phone}` : `+${phone}`;
+
+        // Upsert a minimal lead so the call log has a real leadId
+        let lead = await Lead.findOne({ phoneNumber: phone }).lean() as any;
+        if (!lead) {
+          lead = await Lead.create({
+            name: contact.name || 'Unknown',
+            displayName: contact.name || 'Unknown',
+            phoneNumber: phone,
+            status: 'new_lead',
+            source: 'manual',
+            initiatedBy: adminId,
+            assignedToUserId: decoded.userId || undefined,
+          });
+        }
+
+        tasks.push({
+          toNumber: fullPhone,
+          leadName: contact.name || 'there',
+          leadId: String(lead._id),
+          dynamicVars: { lead_email: '', lead_stage: '', workshop_name: 'Swar Yoga workshop', lead_country: '', lead_source: 'manual' },
+        });
+      }
+    }
+
+    if (!tasks.length) return apiError('VALIDATION_ERROR', 'No valid phone numbers found');
 
     // Create AICallLog entries
     const logEntries = tasks.map(t => ({
