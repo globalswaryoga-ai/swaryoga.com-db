@@ -254,6 +254,17 @@ export async function processDueBroadcastRuns(options?: {
         { $set: { status: 'pending', failureReason: null, updatedAt: now } }
       );
 
+      // Safety guard: cancel stale pending messages if the run itself is cancelled/failed
+      const currentRun = await BroadcastRun.findOne({ _id: (run as any)._id }).lean() as any;
+      if (currentRun && ['cancelled', 'canceled', 'failed'].includes(currentRun.status)) {
+        await BroadcastRunMessage.updateMany(
+          { runId: (run as any)._id, status: { $in: ['pending', 'sending', 'retrying'] } },
+          { $set: { status: 'cancelled', failureReason: 'Parent run cancelled', updatedAt: now } }
+        );
+        console.log(`[Broadcast] ⚠️ Skipping cancelled/failed run ${(run as any)._id} — cleaned up stale messages`);
+        continue;
+      }
+
       // Fetch pending messages
       const pending = await BroadcastRunMessage.find({ runId: (run as any)._id, status: 'pending' })
         .sort({ createdAt: 1 })
