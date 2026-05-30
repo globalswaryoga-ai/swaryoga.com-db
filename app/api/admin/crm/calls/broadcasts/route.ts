@@ -330,9 +330,10 @@ export async function PUT(request: NextRequest) {
 
     if (action === 'reschedule') {
       if (!newScheduledAt) return apiError('VALIDATION_ERROR', 'scheduledAt is required for reschedule');
+      // Reset failed/canceled calls back to queued so the cron fires them
       const result = await AICallLog.updateMany(
-        { batchName, status: 'queued', ...tf },
-        { $set: { scheduledAt: new Date(newScheduledAt) } }
+        { batchName, status: { $in: ['queued', 'failed', 'canceled', 'no_answer', 'busy'] }, ...tf },
+        { $set: { scheduledAt: new Date(newScheduledAt), status: 'queued', callEndedReason: null, retellBatchId: null } }
       );
       return apiSuccess({ updated: result.modifiedCount, message: `Rescheduled ${result.modifiedCount} calls in "${batchName}" to ${new Date(newScheduledAt).toLocaleString('en-IN')}` });
     }

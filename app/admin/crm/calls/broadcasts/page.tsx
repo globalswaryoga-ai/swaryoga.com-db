@@ -378,14 +378,17 @@ export default function BroadcastsPage() {
                       <button onClick={() => openDrillDown(b.batchName)} className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
                         <Eye className="h-3.5 w-3.5" /> Details
                       </button>
+                      {/* Edit always visible for non-completed broadcasts */}
+                      {(isActive || b.overallStatus === 'failed' || b.overallStatus === 'partial') && (
+                        <button
+                          onClick={() => { setManagingBroadcast(b); setNewScheduleDate(''); setNewScheduleTime(''); }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </button>
+                      )}
                       {isActive && (
                         <>
-                          <button
-                            onClick={() => { setManagingBroadcast(b); setNewScheduleDate(''); setNewScheduleTime(''); }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
-                          >
-                            <Pencil className="h-3.5 w-3.5" /> Edit
-                          </button>
                           <button
                             onClick={() => retryBroadcast(b.batchName)}
                             disabled={retrying === b.batchName}
