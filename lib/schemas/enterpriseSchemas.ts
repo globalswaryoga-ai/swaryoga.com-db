@@ -2689,6 +2689,8 @@ const AICallLogSchema = new mongoose.Schema(
     scheduledAt: { type: Date, index: true },        // Scheduled call time (if scheduled)
     templateId: { type: String },                    // AICallTemplate ID used
     templateKey: { type: String },                   // Template key (e.g. ob_welcome)
+    callMode: { type: String, default: 'interactive' }, // info_only | interactive | qa_interactive
+    callProvider: { type: String, default: 'retell' }, // retell | exotel
   },
   { timestamps: true }
 );

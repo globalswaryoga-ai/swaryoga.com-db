@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getAICallLog } from '@/lib/schemas/enterpriseSchemas';
 import { createBatchCall, checkRetellConfig } from '@/lib/retellAI';
+import { makeExotelBatchTTS, isExotelConfigured } from '@/lib/exotelTTS';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -61,60 +62,77 @@ export async function POST(request: NextRequest) {
       batches.get(key)!.push(log);
     }
 
-    const configStatus = checkRetellConfig();
-    if (!configStatus.configured) {
-      return NextResponse.json({
-        ok: false,
-        error: `Retell AI not configured. Missing: ${configStatus.missing.join(', ')}`,
-      }, { status: 500 });
-    }
+    const results: Array<{ batchName: string; fired: number; provider: string; error?: string }> = [];
 
-    const results: Array<{ batchName: string; fired: number; error?: string }> = [];
+    const appBase = process.env.NEXT_PUBLIC_APP_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://swaryoga.com');
 
     for (const [batchName, logs] of batches) {
       try {
-        // Build tasks for this batch
-        const tasks = logs.map((log: any) => {
-          const phone = (log.phoneNumber || '').replace(/\D/g, '');
-          const fullPhone = phone.startsWith('+') ? phone : `+${phone}`;
-          return {
-            toNumber: fullPhone,
-            leadName: log.leadName || 'there',
-            leadId: String(log.leadId),
-            dynamicVars: {} as Record<string, string>,
-          };
-        });
-
-        const lang = logs[0].language?.startsWith('hi') ? 'hi' : 'en';
-        const purpose = logs[0].purpose || 'custom';
-        const customPrompt = logs[0].customPrompt || '';
-
-        const result = await createBatchCall({
-          name: batchName,
-          tasks,
-          purpose,
-          language: lang as 'hi' | 'en',
-          customPrompt,
-          maxConcurrency: 5,
-        });
-
+        const callMode = logs[0].callMode || 'interactive';
+        const callProvider = logs[0].callProvider || (callMode === 'info_only' ? 'exotel' : 'retell');
         const logIds = logs.map((l: any) => l._id);
 
-        if (result.success) {
+        // ── Info Only → Exotel TTS ──
+        if (callMode === 'info_only' && isExotelConfigured()) {
+          const exoTasks = logs.map((log: any) => ({
+            toNumber: `+${(log.phoneNumber || '').replace(/\D/g, '')}`,
+            leadId: String(log.leadId),
+            logId: String(log._id),
+          }));
+
+          const exoResult = await makeExotelBatchTTS(exoTasks, appBase);
+
           await AICallLog.updateMany(
             { _id: { $in: logIds } },
-            { $set: { retellBatchId: result.batchId, status: 'ringing', startedAt: new Date() } }
+            { $set: { status: 'ringing', startedAt: new Date(), callProvider: 'exotel' } }
           );
-          results.push({ batchName, fired: tasks.length });
+          results.push({ batchName, fired: exoResult.queued, provider: 'exotel',
+            error: exoResult.failed > 0 ? exoResult.errors[0] : undefined });
+
         } else {
-          await AICallLog.updateMany(
-            { _id: { $in: logIds } },
-            { $set: { status: 'failed', callEndedReason: result.error || 'Batch call failed' } }
-          );
-          results.push({ batchName, fired: 0, error: result.error });
+          // ── Interactive/Q&A → Retell AI ──
+          const configStatus = checkRetellConfig();
+          if (!configStatus.configured) {
+            results.push({ batchName, fired: 0, provider: 'retell',
+              error: `Retell not configured: ${configStatus.missing.join(', ')}` });
+            continue;
+          }
+
+          const tasks = logs.map((log: any) => ({
+            toNumber: `+${(log.phoneNumber || '').replace(/\D/g, '')}`,
+            leadName: 'there',
+            leadId: String(log.leadId),
+            dynamicVars: {} as Record<string, string>,
+          }));
+
+          const lang = logs[0].language?.startsWith('hi') ? 'hi' : 'en';
+          const result = await createBatchCall({
+            name: batchName,
+            tasks,
+            purpose: logs[0].purpose || 'custom',
+            language: lang as 'hi' | 'en',
+            customPrompt: logs[0].customPrompt || '',
+            callMode: callMode as any,
+            maxConcurrency: 5,
+          });
+
+          if (result.success) {
+            await AICallLog.updateMany(
+              { _id: { $in: logIds } },
+              { $set: { retellBatchId: result.batchId, status: 'ringing', startedAt: new Date() } }
+            );
+            results.push({ batchName, fired: tasks.length, provider: 'retell' });
+          } else {
+            await AICallLog.updateMany(
+              { _id: { $in: logIds } },
+              { $set: { status: 'failed', callEndedReason: result.error || 'Batch call failed' } }
+            );
+            results.push({ batchName, fired: 0, provider: 'retell', error: result.error });
+          }
         }
       } catch (err: any) {
-        results.push({ batchName, fired: 0, error: err.message });
+        results.push({ batchName, fired: 0, provider: 'unknown', error: err.message });
       }
     }
 

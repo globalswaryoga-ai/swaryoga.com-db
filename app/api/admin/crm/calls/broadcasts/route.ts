@@ -237,18 +237,23 @@ export async function POST(request: NextRequest) {
     if (!tasks.length) return apiError('VALIDATION_ERROR', 'No valid phone numbers found');
 
     // Create AICallLog entries
+    const callMode = template.callMode || 'interactive';
+    const callProvider = (callMode === 'info_only' && isExotelConfigured()) ? 'exotel' : 'retell';
+
     const logEntries = tasks.map(t => ({
       leadId: t.leadId,
       direction: 'outbound' as const,
       purpose: purpose || template.key || 'custom',
       customPrompt: template.promptText || '',
-      status: isScheduled ? 'queued' : 'queued',
+      status: 'queued',
       phoneNumber: t.toNumber.replace(/\+/g, ''),
       language: callLang === 'hi' ? 'hi-IN' : 'en-IN',
       initiatedBy: adminId,
       batchName: batchLabel,
       templateId: String(template._id),
       templateKey: template.key,
+      callMode,
+      callProvider,
       scheduledAt: isScheduled ? new Date(scheduledAt) : undefined,
     }));
 
@@ -256,8 +261,6 @@ export async function POST(request: NextRequest) {
 
     // If not scheduled, fire immediately
     if (!isScheduled) {
-      const callMode = template.callMode || 'interactive';
-
       // ── Info Only → Exotel TTS (cheap: ~₹1-2/call) ──
       if (callMode === 'info_only' && isExotelConfigured()) {
         const appBase = process.env.NEXT_PUBLIC_APP_URL
