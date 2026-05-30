@@ -45,6 +45,8 @@ export default function DeletedLeadsPage() {
   const [userOptions, setUserOptions] = useState<AdminUserOption[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -118,6 +120,26 @@ export default function DeletedLeadsPage() {
     fetchDeleted();
   }, [token, router, fetchDeleted]);
 
+  const handleRestore = async (row: DeletedLead) => {
+    if (!token) return;
+    setRestoring(row._id);
+    setRestoreMsg(null);
+    try {
+      const res = await fetch(`/api/admin/crm/leads/${row.leadId}/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Restore failed');
+      setRestoreMsg(`✅ ${data.message || 'Lead restored successfully!'}`);
+      fetchDeleted();
+    } catch (err) {
+      setRestoreMsg(`❌ ${err instanceof Error ? err.message : 'Restore failed'}`);
+    } finally {
+      setRestoring(null);
+    }
+  };
+
   const columns = [
     { key: 'leadNumber', label: 'Lead ID', render: (v: any) => <span className="font-mono text-purple-100">{v || '-'}</span> },
     { key: 'name', label: 'Name' },
@@ -127,9 +149,30 @@ export default function DeletedLeadsPage() {
     { key: 'assignedToUserId', label: 'User', render: (v: any) => <span className="text-purple-100">{v || '-'}</span> },
     { key: 'deletedByUserId', label: 'Deleted By', render: (v: any) => <span className="text-purple-100">{v || '-'}</span> },
     {
+      key: 'deletedReason',
+      label: 'Reason',
+      render: (v: any) => {
+        const color = v === 'meta_blocked' ? 'text-red-400' : v === 'bulk' ? 'text-amber-400' : 'text-gray-400';
+        return <span className={`text-xs font-medium ${color}`}>{v || 'manual'}</span>;
+      },
+    },
+    {
       key: 'deletedAt',
       label: 'Deleted At',
-      render: (v: any) => (v ? new Date(String(v)).toLocaleString() : '-'),
+      render: (v: any) => (v ? new Date(String(v)).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'),
+    },
+    {
+      key: '_id',
+      label: 'Action',
+      render: (_: any, row: any) => (
+        <button
+          onClick={() => handleRestore(row)}
+          disabled={restoring === row._id}
+          className="px-3 py-1 text-xs font-bold rounded-lg bg-emerald-600/30 hover:bg-emerald-600/60 text-emerald-300 transition-colors disabled:opacity-50"
+        >
+          {restoring === row._id ? '...' : '↩ Restore'}
+        </button>
+      ),
     },
   ];
 
@@ -153,6 +196,12 @@ export default function DeletedLeadsPage() {
         />
 
         {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
+        {restoreMsg && (
+          <div className={`px-4 py-3 rounded-lg text-sm font-medium ${restoreMsg.startsWith('✅') ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-500/30' : 'bg-red-900/40 text-red-300 border border-red-500/30'}`}>
+            {restoreMsg}
+            <button onClick={() => setRestoreMsg(null)} className="ml-3 text-xs opacity-60 hover:opacity-100">✕</button>
+          </div>
+        )}
 
         <div className="bg-slate-800/50 border border-purple-500/20 rounded-lg p-6 backdrop-blur space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">

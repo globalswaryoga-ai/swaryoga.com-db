@@ -266,6 +266,7 @@ const DeletedLeadSchema = new mongoose.Schema(
     updatedAtOriginal: { type: Date },
 
     deletedAt: { type: Date, default: Date.now, index: true },
+    deletedReason: { type: String, default: 'manual' }, // 'manual' | 'meta_blocked' | 'spam' | 'bulk'
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'deleted_leads' }

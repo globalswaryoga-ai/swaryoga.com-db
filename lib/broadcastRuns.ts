@@ -2,7 +2,7 @@ import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
-import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
+import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage, getQrWhatsAppChat, DeletedLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -759,27 +759,63 @@ export async function processDueBroadcastRuns(options?: {
           // Categorize error type for better reporting
           let errorCategory = 'unknown';
           const errorLower = errorMsg.toLowerCase();
-          
-          if (errorLower.includes('not a valid whatsapp') || 
+
+          if (errorLower.includes('not a valid whatsapp') ||
               errorLower.includes('recipient is not a valid') ||
               errorLower.includes('does not exist') ||
               errorLower.includes('invalid parameter') && errorLower.includes('phone')) {
             errorCategory = 'invalid_number';
-          } else if (errorLower.includes('not registered') || 
+          } else if (errorLower.includes('not registered') ||
                      errorLower.includes('number not on whatsapp') ||
                      errorLower.includes('wa_recipient_not_found')) {
             errorCategory = 'not_on_whatsapp';
           } else if (errorLower.includes('rate limit') || errorLower.includes('too many') || errorLower.includes('throttle')) {
-            // CRITICAL: Rate limit detected — pause sends temporarily
             errorCategory = 'rate_limited';
-            console.warn(`[Broadcast] ⚠️ RATE LIMIT DETECTED for ${to}. WhatsApp is throttling. Adding 30s safety pause to prevent account action.`);
-            // Additional safety pause to prevent account restrictions
-            await new Promise(resolve => setTimeout(resolve, 30000)); // 30s pause
+            console.warn(`[Broadcast] ⚠️ RATE LIMIT DETECTED for ${to}. Adding 30s pause.`);
+            await new Promise(resolve => setTimeout(resolve, 30000));
           } else if (errorLower.includes('blocked') || errorLower.includes('opt-out') || (errorLower.includes('account') && errorLower.includes('action'))) {
             errorCategory = 'blocked';
-            console.error(`[Broadcast] 🚫 ACCOUNT ACTION DETECTED. WhatsApp may be restricting this account. Pausing all sends.`);
+            console.error(`[Broadcast] 🚫 ACCOUNT ACTION DETECTED. WhatsApp may be restricting this account.`);
           } else if (errorLower.includes('template') && (errorLower.includes('paused') || errorLower.includes('rejected'))) {
             errorCategory = 'template_issue';
+          } else if (errorLower.includes('healthy ecosystem') || errorLower.includes('131026') || errorLower.includes('131031')) {
+            errorCategory = 'meta_blocked';
+          }
+
+          // ── Auto-delete lead if Meta permanently blocked them ──
+          const isMetaBlocked = errorCategory === 'meta_blocked' ||
+            errorLower.includes('healthy ecosystem') ||
+            errorLower.includes('131026');
+          if (isMetaBlocked && (item as any).leadId) {
+            try {
+              const blockedLead = await Lead.findById((item as any).leadId).lean() as any;
+              if (blockedLead) {
+                // Soft-delete: save to deleted_leads then remove
+                await DeletedLead.create({
+                  leadId: blockedLead._id,
+                  leadNumber: blockedLead.leadNumber,
+                  assignedToUserId: blockedLead.assignedToUserId,
+                  createdByUserId: blockedLead.createdByUserId,
+                  deletedByUserId: 'system',
+                  name: blockedLead.name,
+                  phoneNumber: blockedLead.phoneNumber,
+                  email: blockedLead.email,
+                  workshopName: blockedLead.workshopName,
+                  status: blockedLead.status,
+                  labels: blockedLead.labels || [],
+                  source: blockedLead.source,
+                  createdAtOriginal: blockedLead.createdAt,
+                  updatedAtOriginal: blockedLead.updatedAt,
+                  deletedAt: new Date(),
+                  deletedReason: 'meta_blocked',
+                  metadata: { ...blockedLead.metadata, autoDeleteReason: 'Meta 131026: healthy ecosystem' },
+                });
+                await Lead.findByIdAndDelete(blockedLead._id);
+                console.log(`[Broadcast] 🗑️ Auto-deleted Meta-blocked lead: ${blockedLead.phoneNumber}`);
+              }
+            } catch (delErr) {
+              console.warn('[Broadcast] Auto-delete failed:', delErr);
+            }
           }
           
           const failureReason = `[${errorCategory}] ${errorMsg}`;
