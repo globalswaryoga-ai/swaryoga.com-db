@@ -9,8 +9,9 @@ import {
   Megaphone, Phone, CheckCircle, XCircle, Clock,
   Loader2, ChevronDown, ChevronRight, X, Play,
   Eye, BarChart3, DollarSign, Timer, Users,
-  AlertTriangle, Ban,
+  AlertTriangle, Ban, CalendarClock,
 } from 'lucide-react';
+import ScheduleBroadcastModal from '@/components/admin/crm/ScheduleBroadcastModal';
 
 /* ── Colors ── */
 const COLORS = {
@@ -82,6 +83,9 @@ export default function BroadcastsPage() {
 
   // Cancel
   const [cancelling, setCancelling] = useState<string | null>(null);
+
+  // Schedule modal
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const fetchBroadcasts = useCallback(async () => {
     if (!token) return;
@@ -184,6 +188,13 @@ export default function BroadcastsPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link href="/admin/crm/calls" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><Phone className="h-4 w-4" /> Call Manager</Link>
+            <button
+              onClick={() => setShowSchedule(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white shadow-sm hover:shadow-md transition"
+              style={{ background: 'linear-gradient(135deg, #6366F1, #10B981)' }}
+            >
+              <CalendarClock className="h-4 w-4" /> Schedule
+            </button>
             <Link href="/admin/crm/calls/templates" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white shadow-sm hover:shadow-md transition" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}><FileText className="h-4 w-4" /> Templates</Link>
             <Link href="/admin/crm/calls/reports" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white shadow-sm hover:shadow-md transition" style={{ background: 'linear-gradient(135deg, #8B5CF6, #A78BFA)' }}><BarChart3 className="h-4 w-4" /> Reports</Link>
             <button onClick={fetchBroadcasts} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
@@ -326,6 +337,15 @@ export default function BroadcastsPage() {
           </div>
         )}
       </div>
+
+      {/* ═══ Schedule Broadcast Modal ═══ */}
+      {showSchedule && token && (
+        <ScheduleBroadcastModal
+          token={token}
+          onClose={() => setShowSchedule(false)}
+          onComplete={fetchBroadcasts}
+        />
+      )}
 
       {/* ═══ Drill-Down Modal ═══ */}
       {(drillDown || drillLoading) && (
