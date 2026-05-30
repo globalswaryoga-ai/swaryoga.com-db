@@ -260,9 +260,8 @@ export async function POST(request: NextRequest) {
 
       // ── Info Only → Exotel TTS (cheap: ~₹1-2/call) ──
       if (callMode === 'info_only' && isExotelConfigured()) {
-        const appBase = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : 'https://swaryoga.com';
+        const appBase = process.env.NEXT_PUBLIC_APP_URL
+          || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://swaryoga.com');
 
         const exoTasks = (createdLogs as any[]).map((log: any, i: number) => ({
           toNumber: tasks[i]?.toNumber || '',
