@@ -762,29 +762,11 @@ export async function createBatchCall(input: CreateBatchCallInput): Promise<Crea
 
     const body: any = {
       from_number: fromNumber.startsWith('+') ? fromNumber : `+${fromNumber}`,
+      agent_id: agentId,
       tasks,
       name: input.name || `Batch ${input.purpose} - ${lang}`,
     };
 
-    // Attach agent; use override if we have a custom prompt
-    if (generalPrompt) {
-      body.agent_id = agentId;
-      body.override_agent = {
-        agent_name: `Swar Yoga Batch - ${input.purpose}`,
-        general_prompt: generalPrompt,
-        general_tools: [],
-        ...(voiceId ? { voice_id: voiceId } : {}),
-      };
-    } else if (voiceId) {
-      body.agent_id = agentId;
-      body.override_agent = { voice_id: voiceId };
-    } else {
-      body.agent_id = agentId;
-    }
-
-    if (input.scheduledAt) {
-      body.scheduled_time = input.scheduledAt;
-    }
     if (input.maxConcurrency) {
       body.max_concurrency = input.maxConcurrency;
     }
