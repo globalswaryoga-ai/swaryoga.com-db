@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getAICallLog } from '@/lib/schemas/enterpriseSchemas';
 import { createBatchCall, checkRetellConfig } from '@/lib/retellAI';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,19 +22,32 @@ function verifyCronSecret(request: NextRequest): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  // Allow either cron secret OR valid admin JWT
   if (!verifyCronSecret(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const jwtToken = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(jwtToken);
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {
     await connectDB();
     const AICallLog = getAICallLog();
 
-    // Find all queued scheduled calls whose time has come
-    const dueLogs = await AICallLog.find({
+    // Find all queued calls whose scheduledAt has passed OR has no scheduledAt (stuck immediate)
+    const batchNameParam = new URL(request.url).searchParams.get('batchName');
+    const baseFilter: any = {
       status: 'queued',
-      scheduledAt: { $lte: new Date() },
-    }).lean() as any[];
+      $or: [
+        { scheduledAt: { $lte: new Date() } },
+        { scheduledAt: { $exists: false } },
+        { scheduledAt: null },
+      ],
+    };
+    if (batchNameParam) baseFilter.batchName = batchNameParam;
+
+    const dueLogs = await AICallLog.find(baseFilter).lean() as any[];
 
     if (!dueLogs.length) {
       return NextResponse.json({ ok: true, processed: 0, message: 'No due scheduled broadcasts' });

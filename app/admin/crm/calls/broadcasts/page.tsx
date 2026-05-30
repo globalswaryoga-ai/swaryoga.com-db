@@ -9,7 +9,7 @@ import {
   Megaphone, Phone, CheckCircle, XCircle, Clock,
   Loader2, ChevronDown, ChevronRight, X, Play,
   Eye, BarChart3, DollarSign, Timer, Users,
-  AlertTriangle, Ban, CalendarClock,
+  AlertTriangle, Ban, CalendarClock, RotateCcw,
 } from 'lucide-react';
 import ScheduleBroadcastModal from '@/components/admin/crm/ScheduleBroadcastModal';
 
@@ -84,6 +84,9 @@ export default function BroadcastsPage() {
   // Cancel
   const [cancelling, setCancelling] = useState<string | null>(null);
 
+  // Retry queued
+  const [retrying, setRetrying] = useState<string | null>(null);
+
   // Schedule modal
   const [showSchedule, setShowSchedule] = useState(false);
 
@@ -141,6 +144,24 @@ export default function BroadcastsPage() {
       if (drillDown?.batchName === batchName) openDrillDown(batchName);
     } catch (e) { console.error(e); }
     setCancelling(null);
+  };
+
+  const retryBroadcast = async (batchName: string) => {
+    if (!token) return;
+    setRetrying(batchName);
+    try {
+      const res = await fetch(`/api/admin/crm/calls/scheduled-broadcasts/run?batchName=${encodeURIComponent(batchName)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      console.log('[retry]', json);
+      setTimeout(() => {
+        fetchBroadcasts();
+        if (drillDown?.batchName === batchName) openDrillDown(batchName);
+      }, 2000);
+    } catch (e) { console.error(e); }
+    setRetrying(null);
   };
 
   const filtered = broadcasts.filter(b =>
@@ -321,13 +342,22 @@ export default function BroadcastsPage() {
                         <Eye className="h-3.5 w-3.5" /> Details
                       </button>
                       {isActive && (
-                        <button
-                          onClick={() => cancelBroadcast(b.batchName)}
-                          disabled={cancelling === b.batchName}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition disabled:opacity-50"
-                        >
-                          {cancelling === b.batchName ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />} Cancel
-                        </button>
+                        <>
+                          <button
+                            onClick={() => retryBroadcast(b.batchName)}
+                            disabled={retrying === b.batchName}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition disabled:opacity-50"
+                          >
+                            {retrying === b.batchName ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Retry
+                          </button>
+                          <button
+                            onClick={() => cancelBroadcast(b.batchName)}
+                            disabled={cancelling === b.batchName}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition disabled:opacity-50"
+                          >
+                            {cancelling === b.batchName ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />} Cancel
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
