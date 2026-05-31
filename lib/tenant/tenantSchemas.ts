@@ -196,6 +196,9 @@ const TenantPlanSchema = new mongoose.Schema(
     /** Free-trial length in days (0 = no trial). Applied to a tenant's
      *  subscription end date when this plan is chosen on onboarding. */
     trialDays: { type: Number, default: 0 },
+    /** Plan-level promo code + discount (offer attached to this tier). */
+    promoCode: { type: String, trim: true, default: '' },
+    discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     /** Display order in the reference grid. */
     order: { type: Number, default: 0 },
     /** Custom plans created by the admin (vs the 6 seeded tiers). */

@@ -87,6 +87,8 @@ interface Plan {
   monthlyPriceINR: number;
   annualPriceINR: number;
   trialDays?: number;
+  promoCode?: string;
+  discountPercent?: number;
   order?: number;
   isCustom?: boolean;
 }
@@ -398,6 +400,7 @@ export default function TenantsPage() {
   const [planForm, setPlanForm] = useState<Plan>({
     tier: '', name: '', description: '', limits: {}, enabledModules: [],
     defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0, trialDays: 0,
+    promoCode: '', discountPercent: 0,
   });
   const [planGroups, setPlanGroups] = useState<Set<string>>(new Set());
   const [savingPlan, setSavingPlan] = useState(false);
@@ -452,7 +455,7 @@ export default function TenantsPage() {
   // ── Plan tier CRUD ──
   const openPlanNew = () => {
     setPlanIsNew(true);
-    setPlanForm({ tier: '', name: '', description: '', limits: { maxLeads: 0, maxUsers: 1, maxStorageMB: 100 }, enabledModules: [], defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0, trialDays: 7 });
+    setPlanForm({ tier: '', name: '', description: '', limits: { maxLeads: 0, maxUsers: 1, maxStorageMB: 100 }, enabledModules: [], defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0, trialDays: 7, promoCode: '', discountPercent: 0 });
     setPlanGroups(new Set());
     setPlanModalOpen(true);
   };
@@ -479,6 +482,8 @@ export default function TenantsPage() {
         monthlyPriceINR: planForm.monthlyPriceINR,
         annualPriceINR: planForm.annualPriceINR,
         trialDays: planForm.trialDays ?? 0,
+        promoCode: (planForm.promoCode || '').trim().toUpperCase(),
+        discountPercent: planForm.discountPercent ?? 0,
       };
       const res = await fetch('/api/admin/tenants/plans', {
         method: planIsNew ? 'POST' : 'PATCH',
@@ -971,6 +976,9 @@ export default function TenantsPage() {
                     <li className={p.trialDays ? 'text-emerald-600 font-medium' : ''}>
                       {p.trialDays ? `🎁 ${p.trialDays}-day free trial` : 'No free trial'}
                     </li>
+                    {p.discountPercent ? (
+                      <li className="text-rose-600 font-medium">🏷️ {p.discountPercent}% off{p.promoCode ? ` · ${p.promoCode}` : ''}</li>
+                    ) : null}
                   </ul>
                   <div className="mt-auto flex items-center gap-2 pt-2 border-t border-gray-100">
                     <button
@@ -1059,6 +1067,38 @@ export default function TenantsPage() {
                   <label className="block text-[11px] font-medium text-gray-600 mb-1">Free trial (days)</label>
                   <input type="number" min={0} value={planForm.trialDays ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, trialDays: Math.max(0, Number(e.target.value) || 0) }))} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 7" />
                 </div>
+              </div>
+
+              {/* Promo & Discount */}
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-2">Promo &amp; Discount</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Promo code</label>
+                    <input
+                      value={planForm.promoCode || ''}
+                      onChange={(e) => setPlanForm((f) => ({ ...f, promoCode: e.target.value.toUpperCase() }))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm font-mono uppercase"
+                      placeholder="e.g. WELCOME50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Discount (%)</label>
+                    <input
+                      type="number" min={0} max={100}
+                      value={planForm.discountPercent ?? 0}
+                      onChange={(e) => setPlanForm((f) => ({ ...f, discountPercent: Math.max(0, Math.min(100, Number(e.target.value) || 0)) }))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                      placeholder="e.g. 20"
+                    />
+                  </div>
+                </div>
+                {Number(planForm.discountPercent) > 0 && Number(planForm.monthlyPriceINR) > 0 && (
+                  <p className="mt-2 text-xs text-emerald-700">
+                    After {planForm.discountPercent}% off: ₹{Math.round(Number(planForm.monthlyPriceINR) * (1 - Number(planForm.discountPercent) / 100)).toLocaleString()}/mo
+                    {planForm.promoCode ? ` · code ${planForm.promoCode}` : ''}
+                  </p>
+                )}
               </div>
 
               <div>

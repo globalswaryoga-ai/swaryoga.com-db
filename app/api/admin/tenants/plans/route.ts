@@ -91,6 +91,8 @@ export async function GET(_request: NextRequest) {
     monthlyPriceINR: p.monthlyPriceINR,
     annualPriceINR: p.annualPriceINR,
     trialDays: p.trialDays ?? 0,
+    promoCode: p.promoCode || '',
+    discountPercent: p.discountPercent ?? 0,
     order: p.order ?? 0,
     isCustom: !!p.isCustom,
   }));
@@ -126,6 +128,8 @@ export async function POST(request: NextRequest) {
     monthlyPriceINR: Number(body.monthlyPriceINR) || 0,
     annualPriceINR: Number(body.annualPriceINR) || 0,
     trialDays: Math.max(0, Number(body.trialDays) || 0),
+    promoCode: String(body.promoCode || '').trim().toUpperCase(),
+    discountPercent: Math.max(0, Math.min(100, Number(body.discountPercent) || 0)),
     order: ((maxOrder as any)?.order ?? 0) + 1,
     isCustom: true,
   });
@@ -155,6 +159,8 @@ export async function PATCH(request: NextRequest) {
   if (body.monthlyPriceINR !== undefined) $set.monthlyPriceINR = Number(body.monthlyPriceINR) || 0;
   if (body.annualPriceINR !== undefined) $set.annualPriceINR = Number(body.annualPriceINR) || 0;
   if (body.trialDays !== undefined) $set.trialDays = Math.max(0, Number(body.trialDays) || 0);
+  if (body.promoCode !== undefined) $set.promoCode = String(body.promoCode).trim().toUpperCase();
+  if (body.discountPercent !== undefined) $set.discountPercent = Math.max(0, Math.min(100, Number(body.discountPercent) || 0));
   if (body.order !== undefined) $set.order = Number(body.order) || 0;
 
   if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');
