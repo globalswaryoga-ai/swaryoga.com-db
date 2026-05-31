@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { PlanBadge, SidebarLock } from './admin/crm/PlanComponents';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
+import CrmSidebar from './admin/crm/CrmSidebar';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -110,6 +111,18 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
 
   const isCollapsed = onToggleCollapse ? collapsed : localCollapsed;
   const toggleCollapse = onToggleCollapse || (() => setLocalCollapsed(!localCollapsed));
+
+  // If we are inside the CRM admin area, delegate to the CRM-specific sidebar
+  if (pathname?.startsWith('/admin/crm')) {
+    return (
+      <CrmSidebar
+        isOpen={isOpen}
+        onClose={onClose}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+      />
+    );
+  }
 
   // Load persisted category expansion state
   useEffect(() => {

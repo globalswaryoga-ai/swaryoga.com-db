@@ -44,7 +44,7 @@ export const MODULE_CATALOG: ModuleGroup[] = [
   {
     key: 'lead_management',
     label: 'Lead Management',
-    description: 'Leads, sales pipeline & funnel',
+    description: 'Leads, Sales Pipeline, Funnel Manager',
     icon: '👥',
     children: [
       { key: 'lead_management.leads', label: 'Leads' },
@@ -57,7 +57,7 @@ export const MODULE_CATALOG: ModuleGroup[] = [
   {
     key: 'whatsapp_qr',
     label: 'QR WhatsApp',
-    description: 'Unofficial QR-linked WhatsApp',
+    description: 'QR-linked WhatsApp, Inbox, Broadcast, Groups, Templates, Schedule',
     icon: '🟢',
     children: [
       { key: 'whatsapp_qr.inbox', label: 'Inbox' },
@@ -71,7 +71,7 @@ export const MODULE_CATALOG: ModuleGroup[] = [
   {
     key: 'whatsapp_meta',
     label: 'Meta WhatsApp',
-    description: 'Official Meta Cloud API',
+    description: 'Official Meta Cloud API WhatsApp',
     icon: '🔵',
     children: [
       { key: 'whatsapp_meta.inbox', label: 'Inbox' },
@@ -84,56 +84,56 @@ export const MODULE_CATALOG: ModuleGroup[] = [
   {
     key: 'community',
     label: 'Community',
-    description: 'Member community & feed',
+    description: 'Member Community & Feed',
     icon: '🌐',
     children: [],
   },
   {
     key: 'planner',
     label: 'Planner',
-    description: 'Life / goal planner',
+    description: 'Life & Goal Planner',
     icon: '🗓️',
     children: [],
   },
   {
     key: 'landing_page',
     label: 'Landing Page',
-    description: 'Public landing & form builder',
+    description: 'Public Landing Page & Form Builder',
     icon: '📄',
     children: [],
   },
   {
     key: 'telegram',
     label: 'Telegram',
-    description: 'Telegram broadcasts & bot',
+    description: 'Telegram Broadcasts & Bot',
     icon: '✈️',
     children: [],
   },
   {
     key: 'email',
     label: 'Email',
-    description: 'Email campaigns & templates',
+    description: 'Email Campaigns & Templates',
     icon: '✉️',
     children: [],
   },
   {
     key: 'sms',
     label: 'SMS',
-    description: 'SMS campaigns',
+    description: 'SMS Campaigns',
     icon: '💬',
     children: [],
   },
   {
     key: 'ai_calling',
     label: 'AI Calling',
-    description: 'Voice AI / auto-dialer',
+    description: 'Voice AI & Auto Dialer',
     icon: '📞',
     children: [],
   },
   {
     key: 'chatbot',
     label: 'Chatbot & Automation',
-    description: 'Flows & automations',
+    description: 'Flows & Automations',
     icon: '🤖',
     children: [
       { key: 'chatbot.flows', label: 'Chat Flows' },
@@ -143,7 +143,7 @@ export const MODULE_CATALOG: ModuleGroup[] = [
   {
     key: 'elearning',
     label: 'E-Learning',
-    description: 'Courses, students & materials',
+    description: 'Courses, Students & Materials',
     icon: '🎓',
     children: [
       { key: 'elearning.courses', label: 'Courses' },
@@ -154,35 +154,35 @@ export const MODULE_CATALOG: ModuleGroup[] = [
   {
     key: 'sadhana_program',
     label: 'Sadhana Program',
-    description: 'Sadhana programs & participants',
+    description: 'Sadhana Programs & Participants',
     icon: '🧘',
     children: [],
   },
   {
     key: 'sadhana_schedule',
     label: 'Sadhana Schedule',
-    description: 'Daily sadhana scheduling',
+    description: 'Daily Sadhana Scheduling',
     icon: '⏰',
     children: [],
   },
   {
     key: 'report',
     label: 'Report',
-    description: 'Cross-module analytics',
+    description: 'Cross-Module Analytics',
     icon: '📊',
     children: [],
   },
   {
     key: 'tally',
     label: 'Tally',
-    description: 'Accounting / Tally sync',
+    description: 'Accounting & Tally Sync',
     icon: '🧾',
     children: [],
   },
   {
     key: 'settings',
     label: 'Settings',
-    description: 'Tenant configuration',
+    description: 'Tenant Configuration',
     icon: '⚙️',
     children: [],
   },
