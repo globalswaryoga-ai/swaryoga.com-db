@@ -416,6 +416,18 @@ export default function TenantsPage() {
       if (planFilter) params.set('plan', planFilter);
 
       const res = await fetch(`/api/admin/tenants?${params}`, { headers: headers() });
+      // Expired/invalid token → every authed call 401s. Clear the stale token
+      // and send the user to log in again instead of showing a dead page.
+      if (res.status === 401) {
+        try {
+          localStorage.removeItem('crm_token');
+          localStorage.removeItem('adminToken');
+          localStorage.removeItem('admin_token');
+        } catch {}
+        setError('Your session has expired. Redirecting to login…');
+        router.replace('/admin/login');
+        return;
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to load tenants');
       setTenants(data.data?.tenants || []);
@@ -425,7 +437,7 @@ export default function TenantsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, page, statusFilter, planFilter, headers]);
+  }, [token, page, statusFilter, planFilter, headers, router]);
 
   const fetchPlans = useCallback(() => {
     return fetch('/api/admin/tenants/plans')

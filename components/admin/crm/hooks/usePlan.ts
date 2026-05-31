@@ -17,6 +17,7 @@ import {
   formatLimit,
   PLAN_NAMES,
 } from '@/lib/crm-site/planConfig';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 // ============================================================================
 // PLAN CONTEXT (share plan state across entire CRM)
@@ -103,6 +104,14 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
 
       if (!token) {
         setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      // Super-admins are not CRM-site tenants and have no plan — the crm-site
+      // endpoints rightly 401 them. Treat them as full-access and skip the call
+      // to avoid noisy 401s / "Failed to fetch plan" errors in the console.
+      if (checkIsSuperAdmin()) {
+        setState(prev => ({ ...prev, isSuperAdmin: true, loading: false, error: null }));
         return;
       }
 
@@ -238,6 +247,12 @@ function usePlanStandalone(): PlanContextValue {
 
       if (!token) {
         setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      // Super-admins have no CRM-site plan — skip to avoid noisy 401s.
+      if (checkIsSuperAdmin()) {
+        setState(prev => ({ ...prev, isSuperAdmin: true, loading: false, error: null }));
         return;
       }
 
