@@ -63,10 +63,11 @@ export async function GET(request: NextRequest) {
       }
       // else: no filter — see everything
     } else {
-      // Regular admin: own records + all system-deleted records
+      // Regular admin: own records (assigned/created/deleted by them) + all system-deleted records
       filter.$or = [
         { assignedToUserId: viewerUserId },
         { createdByUserId: viewerUserId },
+        { deletedByUserId: viewerUserId },
         systemClause,
       ];
     }
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
       ? {}
       : superAdmin && userIdParam
         ? { $or: [{ assignedToUserId: String(userIdParam).trim() }, systemClause] }
-        : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }, systemClause] };
+        : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }, { deletedByUserId: viewerUserId }, systemClause] };
 
     if (q && String(q).trim()) {
       const query = String(q).trim();
