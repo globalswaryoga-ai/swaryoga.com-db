@@ -138,13 +138,15 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
   // A section is shown only if the tenant has at least one of the listed bundle keys.
   // Sections NOT listed here (dashboard) are always shown.
   const SECTION_TO_MODULE_KEYS: Record<string, string[]> = {
-    // Core — every plan with lead_management
-    'sales':          ['lead_management'],
+    // Sales & Funnel — only for Copper+ (whatsapp_meta needed for Meta leads pipeline)
+    'sales':          ['whatsapp_meta'],
+    // QR Leads Management — all plans with lead_management
     'qr-leads':       ['lead_management'],
     'reports':        ['lead_management', 'report'],
     // QR WhatsApp — whatsapp_qr bundle
     'qr':             ['whatsapp_qr'],
-    'broadcast':      ['whatsapp_qr', 'whatsapp_meta'],
+    // Broadcast WhatsApp — only for Copper+ (Meta broadcasts; QR broadcasts are inside QR WA section)
+    'broadcast':      ['whatsapp_meta'],
     // Meta WhatsApp — whatsapp_meta bundle (Copper+)
     'meta':           ['whatsapp_meta'],
     // Email — email bundle
