@@ -357,14 +357,16 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       return { status: isRecurring ? 'idle_until_next_occurrence' : 'completed', reason: 'all_recipients_sent', sent: 0, totalRecipients: allRecipients.length };
     }
 
-    // ── PER-TICK DRIP PACING (human-like) ──
-    // Cron fires every 5 min. Sending ~1 message per tick = ~1 msg / 5 min,
-    // which is the safe human target. Random skip/burst adds natural variation
-    // so gaps land anywhere from ~5 min to ~10+ min and never look robotic.
+    // ── PER-TICK DRIP PACING (human-like) — TARGET 15 messages/hour ──
+    // Cron fires every 4 min = 15 ticks/hour. Sending an average of 1 message
+    // per tick yields exactly 15/hr. Light skip/burst jitter keeps it human:
+    //   15% skip · 70% send 1 · 15% send 2  →  avg 1.0 msg/tick = 15/hr.
+    // The HOURLY_LIMIT (15) hard cap guarantees it never exceeds 15/hr, and the
+    // DAILY_LIMIT (150) ceiling pauses the run once 150 are sent (carry-over).
     const roll = Math.random();
     let perTickMax = 1;
-    if (roll < 0.18) perTickMax = 0;        // ~18% of ticks: skip (creates a longer human gap)
-    else if (roll > 0.90) perTickMax = 2;   // ~10% of ticks: small 2-message burst
+    if (roll < 0.15) perTickMax = 0;        // ~15% of ticks: skip (longer human gap)
+    else if (roll > 0.85) perTickMax = 2;   // ~15% of ticks: small 2-message burst
 
     if (perTickMax === 0) {
       await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, { status: 'in-progress' });
