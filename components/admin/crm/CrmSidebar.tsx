@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Home, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { sectionConfigs, findSectionForPath, type SectionConfig } from './crmNavConfig';
+import { usePlan } from './hooks/usePlan';
+import type { CrmModule } from '@/lib/crm-site/planConfig';
 
 interface CrmSidebarProps {
   isOpen: boolean;
@@ -16,6 +18,24 @@ interface CrmSidebarProps {
 
 // Sections only super-admins should see.
 const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'web-admin']);
+
+// Which plan module each module-section needs. Sections NOT listed here are
+// always shown (Dashboard, Settings, Connections, Tools, etc.). A section is
+// hidden when the tenant's plan does not grant its module.
+const SECTION_MODULE: Record<string, CrmModule> = {
+  sales: 'leads',
+  meta: 'whatsapp',
+  qr: 'whatsapp',
+  broadcast: 'broadcasting',
+  telegram: 'whatsapp',
+  email: 'emailMarketing',
+  messages: 'broadcasting',
+  community: 'community',
+  chatbot: 'chatbot',
+  automation: 'automation',
+  calls: 'aiCalls',
+  reports: 'reports',
+};
 
 // Landing route for a module = its first sub-page (header tab), else its prefix.
 function landingHref(s: SectionConfig): string {
@@ -33,10 +53,19 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
 
   const isSuper = typeof window !== 'undefined' ? checkIsSuperAdmin() : false;
   const activeKey = findSectionForPath(pathname)?.key;
+  const { canAccess } = usePlan();
 
   const modules = useMemo(
-    () => sectionConfigs.filter((s) => isSuper || !SUPER_ADMIN_KEYS.has(s.key)),
-    [isSuper],
+    () =>
+      sectionConfigs.filter((s) => {
+        // Super-admin-only sections.
+        if (SUPER_ADMIN_KEYS.has(s.key) && !isSuper) return false;
+        // Plan gating: hide a module the tenant's plan doesn't include.
+        const mod = SECTION_MODULE[s.key];
+        if (mod && !canAccess(mod)) return false;
+        return true;
+      }),
+    [isSuper, canAccess],
   );
 
   const width = collapsed ? 'w-[68px]' : 'w-60';
