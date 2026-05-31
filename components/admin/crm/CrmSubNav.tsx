@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 import {
   ChevronDown,
   Menu,
@@ -24,6 +25,12 @@ export interface SubNavItem {
   icon?: React.ElementType;
   /** Optional dropdown children — when present, the item becomes a dropdown trigger */
   children?: SubNavItem[];
+  /**
+   * Bundle(s) required to see this tab.
+   * If omitted the tab is always shown (within its section).
+   * If the tenant does not have any of the listed bundles, the tab is hidden.
+   */
+  bundle?: string | string[];
 }
 
 interface CrmSubNavProps {
@@ -251,6 +258,54 @@ export default function CrmSubNav({
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const dropdownBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
+  // Tenant module keys — used to filter header tabs by bundle
+  const [moduleKeys, setModuleKeys] = useState<Set<string> | null>(null);
+  const isSuper = typeof window !== 'undefined' ? checkIsSuperAdmin() : false;
+
+  useEffect(() => {
+    if (isSuper) { setModuleKeys(new Set(['__all__'])); return; }
+    async function load() {
+      try {
+        const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+        if (!token) return;
+        const accRes = await fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } });
+        if (!accRes.ok) return;
+        const acc = await accRes.json();
+        const slug = acc?.profile?.tenantSlug;
+        if (!slug) return;
+        const tRes = await fetch(`/api/tenants/${encodeURIComponent(slug)}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!tRes.ok) return;
+        const tj = await tRes.json();
+        let keys: string[] = tj?.tenant?.moduleKeys || tj?.tenant?.enabledModules || [];
+        if (!keys.length) {
+          const plan = tj?.tenant?.plan || '';
+          if (plan) {
+            const pr = await fetch('/api/admin/tenants/plans');
+            if (pr.ok) {
+              const pd = await pr.json();
+              const mp = (pd?.data?.plans || []).find((p: any) => p.tier === plan);
+              if (mp?.defaultGroups?.length) keys = mp.defaultGroups;
+            }
+          }
+        }
+        setModuleKeys(new Set(keys));
+      } catch {}
+    }
+    load();
+  }, [isSuper]);
+
+  // Filter a tab: show if no bundle required, super-admin, or tenant has the bundle
+  const canShow = useCallback((item: SubNavItem): boolean => {
+    if (!item.bundle) return true;
+    if (isSuper || moduleKeys?.has('__all__')) return true;
+    if (!moduleKeys) return true; // loading — show all (avoids empty header)
+    const bundles = Array.isArray(item.bundle) ? item.bundle : [item.bundle];
+    return bundles.some(b => moduleKeys.has(b));
+  }, [isSuper, moduleKeys]);
+
+  const visibleItems = useMemo(() => items.filter(canShow), [items, canShow]);
+  const visibleMore = useMemo(() => moreItems.filter(canShow), [moreItems, canShow]);
+
   // Close all dropdowns on outside click
   useEffect(() => {
     if (!moreOpen && !openDropdown) return;
@@ -280,7 +335,7 @@ export default function CrmSubNav({
   }, [pathname]);
 
   const isActive = (href: string) => pathname === href;
-  const moreHasActive = moreItems.some(i => isActive(i.href));
+  const moreHasActive = visibleMore.some(i => isActive(i.href));
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
@@ -313,9 +368,9 @@ export default function CrmSubNav({
         </div>
 
         {/* Center: Nav items + More dropdown — all inline */}
-        {(items.length > 0 || moreItems.length > 0) && (
+        {(visibleItems.length > 0 || visibleMore.length > 0) && (
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide mx-3">
-            {items.map(item => {
+            {visibleItems.map(item => {
               const active = isActive(item.href);
               const ItemIcon = item.icon;
               const hasChildren = item.children && item.children.length > 0;
@@ -385,7 +440,7 @@ export default function CrmSubNav({
             })}
 
             {/* More dropdown */}
-            {moreItems.length > 0 && (
+            {visibleMore.length > 0 && (
               <>
                 <button
                   ref={moreBtnRef}
@@ -402,7 +457,7 @@ export default function CrmSubNav({
                 {moreOpen && (
                   <DropdownPortal triggerRef={moreBtnRef} align="right">
                     <div data-subnav-dropdown>
-                      {moreItems.map(item => {
+                      {visibleMore.map(item => {
                         const active = isActive(item.href);
                         const ItemIcon = item.icon;
                         return (
