@@ -46,6 +46,8 @@ async function ensureSeeded(Plan: any) {
     defaultGroups: PLAN_DEFAULT_GROUPS[p.tier] || [],
     monthlyPriceINR: p.monthlyPriceINR,
     annualPriceINR: p.annualPriceINR,
+    quarterlyPriceINR: p.monthlyPriceINR * 3,
+    halfYearlyPriceINR: p.monthlyPriceINR * 6,
     trialDays: p.tier === 'free' ? 0 : 7, // sensible default: 7-day trial on paid tiers
     order: TIER_ORDER.indexOf(p.tier) === -1 ? i : TIER_ORDER.indexOf(p.tier),
     isCustom: false,
@@ -90,6 +92,8 @@ export async function GET(_request: NextRequest) {
     enabledModules: p.defaultGroups || [],
     monthlyPriceINR: p.monthlyPriceINR,
     annualPriceINR: p.annualPriceINR,
+    quarterlyPriceINR: p.quarterlyPriceINR || 0,
+    halfYearlyPriceINR: p.halfYearlyPriceINR || 0,
     trialDays: p.trialDays ?? 0,
     promoCode: p.promoCode || '',
     discountPercent: p.discountPercent ?? 0,
@@ -127,6 +131,8 @@ export async function POST(request: NextRequest) {
     defaultGroups: sanitizeGroups(body.defaultGroups),
     monthlyPriceINR: Number(body.monthlyPriceINR) || 0,
     annualPriceINR: Number(body.annualPriceINR) || 0,
+    quarterlyPriceINR: Number(body.quarterlyPriceINR) || 0,
+    halfYearlyPriceINR: Number(body.halfYearlyPriceINR) || 0,
     trialDays: Math.max(0, Number(body.trialDays) || 0),
     promoCode: String(body.promoCode || '').trim().toUpperCase(),
     discountPercent: Math.max(0, Math.min(100, Number(body.discountPercent) || 0)),
@@ -158,6 +164,8 @@ export async function PATCH(request: NextRequest) {
   if (body.defaultGroups !== undefined) $set.defaultGroups = sanitizeGroups(body.defaultGroups);
   if (body.monthlyPriceINR !== undefined) $set.monthlyPriceINR = Number(body.monthlyPriceINR) || 0;
   if (body.annualPriceINR !== undefined) $set.annualPriceINR = Number(body.annualPriceINR) || 0;
+  if (body.quarterlyPriceINR !== undefined) $set.quarterlyPriceINR = Number(body.quarterlyPriceINR) || 0;
+  if (body.halfYearlyPriceINR !== undefined) $set.halfYearlyPriceINR = Number(body.halfYearlyPriceINR) || 0;
   if (body.trialDays !== undefined) $set.trialDays = Math.max(0, Number(body.trialDays) || 0);
   if (body.promoCode !== undefined) $set.promoCode = String(body.promoCode).trim().toUpperCase();
   if (body.discountPercent !== undefined) $set.discountPercent = Math.max(0, Math.min(100, Number(body.discountPercent) || 0));

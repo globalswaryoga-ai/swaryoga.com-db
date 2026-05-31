@@ -156,6 +156,9 @@ function mapDbPlansToCards(dbPlans: any[]): PlanCard[] {
   );
   const cards = sorted.map((p): PlanCard => {
     const m = Number(p.monthlyPriceINR) || 0;
+    // Explicit per-cycle prices when the admin set them; else derive from monthly.
+    const q = Number(p.quarterlyPriceINR) || m * 3;
+    const h = Number(p.halfYearlyPriceINR) || m * 6;
     const annual = Number(p.annualPriceINR) || m * 12;
     const leadsN = Number(p?.limits?.maxLeads) || 0;
     const usersN = Number(p?.limits?.maxUsers) || 0;
@@ -164,8 +167,7 @@ function mapDbPlansToCards(dbPlans: any[]): PlanCard[] {
       tier: p.tier,
       name: p.name,
       desc: p.description || '',
-      // Derived cycle pricing from the admin's monthly + annual prices.
-      prices: { '1mo': m, '3mo': m * 3, '6mo': m * 6, '12mo': annual },
+      prices: { '1mo': m, '3mo': q, '6mo': h, '12mo': annual },
       leads: leadsN >= 999999 ? 'Unlimited' : leadsN.toLocaleString('en-IN'),
       users: usersN >= 999 ? 'Unlimited' : String(usersN),
       storage: storageN >= 1000 ? `${(storageN / 1000).toLocaleString('en-IN')} GB` : `${storageN} MB`,

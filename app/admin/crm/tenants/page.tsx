@@ -86,6 +86,8 @@ interface Plan {
   defaultGroups?: string[];
   monthlyPriceINR: number;
   annualPriceINR: number;
+  quarterlyPriceINR?: number;
+  halfYearlyPriceINR?: number;
   trialDays?: number;
   promoCode?: string;
   discountPercent?: number;
@@ -481,6 +483,8 @@ export default function TenantsPage() {
         defaultGroups: groupKeys,
         monthlyPriceINR: planForm.monthlyPriceINR,
         annualPriceINR: planForm.annualPriceINR,
+        quarterlyPriceINR: planForm.quarterlyPriceINR ?? 0,
+        halfYearlyPriceINR: planForm.halfYearlyPriceINR ?? 0,
         trialDays: planForm.trialDays ?? 0,
         promoCode: (planForm.promoCode || '').trim().toUpperCase(),
         discountPercent: planForm.discountPercent ?? 0,
@@ -1050,15 +1054,29 @@ export default function TenantsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Monthly ₹</label>
-                  <input type="number" value={planForm.monthlyPriceINR} onChange={(e) => setPlanForm((f) => ({ ...f, monthlyPriceINR: Number(e.target.value) || 0 }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-2">Pricing per cycle (₹) — leave 0 to auto-derive from monthly</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Monthly</label>
+                    <input type="number" value={planForm.monthlyPriceINR} onChange={(e) => setPlanForm((f) => ({ ...f, monthlyPriceINR: Number(e.target.value) || 0 }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">3-Month</label>
+                    <input type="number" value={planForm.quarterlyPriceINR ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, quarterlyPriceINR: Number(e.target.value) || 0 }))} placeholder={`${(planForm.monthlyPriceINR || 0) * 3}`} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">6-Month</label>
+                    <input type="number" value={planForm.halfYearlyPriceINR ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, halfYearlyPriceINR: Number(e.target.value) || 0 }))} placeholder={`${(planForm.monthlyPriceINR || 0) * 6}`} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">1-Year</label>
+                    <input type="number" value={planForm.annualPriceINR} onChange={(e) => setPlanForm((f) => ({ ...f, annualPriceINR: Number(e.target.value) || 0 }))} placeholder={`${(planForm.monthlyPriceINR || 0) * 12}`} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Annual ₹</label>
-                  <input type="number" value={planForm.annualPriceINR} onChange={(e) => setPlanForm((f) => ({ ...f, annualPriceINR: Number(e.target.value) || 0 }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
-                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-medium text-gray-600 mb-1">Leads</label>
                   <input type="number" value={planForm.limits.maxLeads ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, limits: { ...f.limits, maxLeads: Number(e.target.value) || 0 } }))} className="w-full border rounded-lg px-3 py-2 text-sm" />

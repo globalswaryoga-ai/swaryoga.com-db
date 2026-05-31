@@ -193,6 +193,9 @@ const TenantPlanSchema = new mongoose.Schema(
     defaultGroups: { type: [String], default: [] },
     monthlyPriceINR: { type: Number, default: 0 },
     annualPriceINR: { type: Number, default: 0 },
+    /** Explicit per-cycle prices (₹). 0/empty → derived from monthly. */
+    quarterlyPriceINR: { type: Number, default: 0 },   // 3 months
+    halfYearlyPriceINR: { type: Number, default: 0 },  // 6 months
     /** Free-trial length in days (0 = no trial). Applied to a tenant's
      *  subscription end date when this plan is chosen on onboarding. */
     trialDays: { type: Number, default: 0 },

@@ -42,12 +42,15 @@ function mapCheckoutPricing(dbPlans: any[]): Record<string, PlanPricing> {
   const out: Record<string, PlanPricing> = {};
   for (const p of dbPlans) {
     const m = Number(p.monthlyPriceINR) || 0;
+    // Explicit per-cycle prices when set; else derive from monthly.
+    const q = Number(p.quarterlyPriceINR) || m * 3;
+    const h = Number(p.halfYearlyPriceINR) || m * 6;
     const annual = Number(p.annualPriceINR) || m * 12;
     const disc = Math.max(0, Math.min(100, Number(p.discountPercent) || 0));
     const apply = (n: number) => Math.round(n * (1 - disc / 100));
     out[p.tier] = {
-      quarterly: apply(m * 3),
-      halfyearly: apply(m * 6),
+      quarterly: apply(q),
+      halfyearly: apply(h),
       annual: apply(annual),
       name: p.name,
     };
