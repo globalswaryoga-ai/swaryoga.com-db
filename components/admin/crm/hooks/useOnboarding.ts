@@ -141,10 +141,8 @@ export function useOnboarding(): UseOnboardingReturn {
 
       setStatus(statusData);
 
-      // Show compartment setup if not complete and not superadmin
-      if (!data.isSuperAdmin && !compartmentReady) {
-        setShowCompartmentSetup(true);
-      } else if (needsOnboarding && data.isFirstLogin) {
+      // Compartment setup popup disabled — no longer shown to any user
+      if (needsOnboarding && data.isFirstLogin) {
         setShowOnboarding(true);
       }
     } catch (err: any) {
