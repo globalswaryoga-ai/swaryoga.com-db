@@ -182,10 +182,32 @@ export async function POST(request: NextRequest) {
     });
     const duplicatesRemoved = leads.length - uniqueLeads.length;
 
+    // --- Skip Meta-blocked numbers ---
+    // Any number that was blocked by Meta (error 131026) is stored in deleted_leads
+    // with deletedReason='meta_blocked'. Sending to them again wastes quota and
+    // triggers more spam signals. Filter them out at schedule time automatically.
+    const { DeletedLead } = await import('@/lib/schemas/enterpriseSchemas');
+    const candidatePhones = uniqueLeads.map((l: any) => String(l.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean);
+    const blockedDocs = await DeletedLead.find(
+      { deletedReason: 'meta_blocked', phoneNumber: { $exists: true } },
+      { phoneNumber: 1 }
+    ).lean() as any[];
+    const blockedSet = new Set(
+      blockedDocs.map((d: any) => String(d.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean)
+    );
+    const blockedFiltered = uniqueLeads.filter((l: any) => {
+      const norm = String(l.phoneNumber || '').replace(/\D/g, '').slice(-10);
+      return !blockedSet.has(norm);
+    });
+    const blockedSkipped = uniqueLeads.length - blockedFiltered.length;
+    if (blockedSkipped > 0) {
+      console.log(`[Broadcast] 🚫 Skipped ${blockedSkipped} Meta-blocked number(s) from recipient list.`);
+    }
+
     // --- Check for recently sent same template to these numbers (last 24 hours) ---
     // Prevent re-sending the same template to the same number within 24h
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const uniquePhones = uniqueLeads.map((l: any) => String(l.phoneNumber || '').trim()).filter(Boolean);
+    const uniquePhones = blockedFiltered.map((l: any) => String(l.phoneNumber || '').trim()).filter(Boolean);
     const recentlySent = await BroadcastRunMessage.find({
       phoneNumber: { $in: uniquePhones },
       status: { $in: ['sent', 'delivered', 'read'] },
@@ -203,11 +225,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Filter out leads that already received this template recently
-    const finalLeads = uniqueLeads.filter((l: any) => {
+    const finalLeads = blockedFiltered.filter((l: any) => {
       const norm = String(l.phoneNumber || '').replace(/\D/g, '').slice(-10);
       return !alreadySentPhones.has(norm);
     });
-    const alreadySentCount = uniqueLeads.length - finalLeads.length;
+    const alreadySentCount = blockedFiltered.length - finalLeads.length;
 
     const runStatus = mode === 'now' ? 'draft' : 'scheduled';
 
@@ -318,6 +340,7 @@ export async function POST(request: NextRequest) {
       dedup: {
         originalCount: leads.length,
         duplicatesRemoved,
+        blockedSkipped,
         alreadySentRemoved: alreadySentCount,
         finalCount: finalLeads.length,
       },

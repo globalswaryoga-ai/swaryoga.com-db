@@ -828,6 +828,10 @@ export default function BroadcastPage() {
       }
 
       const runId = createData.data?._id;
+      const blockedSkipped = createData.dedup?.blockedSkipped || 0;
+      if (blockedSkipped > 0) {
+        console.log(`[Broadcast] 🚫 ${blockedSkipped} blocked number(s) auto-removed from recipient list.`);
+      }
       console.log('[Broadcast] Created run:', runId);
 
       // If sending now, trigger the run processor
@@ -861,9 +865,10 @@ export default function BroadcastPage() {
           });
         }
       } else {
+        const blockedNote = blockedSkipped > 0 ? ` (${blockedSkipped} blocked number${blockedSkipped > 1 ? 's' : ''} auto-skipped)` : '';
         setResult({
           success: true,
-          message: `✅ Broadcast ${mode === 'schedule' ? 'scheduled' : 'created'}! ${selectedLeads.size} recipients.`,
+          message: `✅ Broadcast ${mode === 'schedule' ? 'scheduled' : 'created'}! ${createData.dedup?.finalCount ?? selectedLeads.size} recipients${blockedNote}.`,
           runId,
         });
       }
