@@ -35,6 +35,12 @@ export default function CrmFooter() {
               The all-in-one CRM for wellness businesses. Manage leads, WhatsApp,
               AI voice calls, payments, and more — from one platform.
             </p>
+            <div className="space-y-1.5 mb-4 text-sm">
+              <a href="mailto:mohan@swaryoga.com" className="block hover:text-white transition">✉️ mohan@swaryoga.com</a>
+              <a href="tel:+919779006820" className="block hover:text-white transition">📞 +91 97790 06820</a>
+              <a href="https://wa.me/919779006820" target="_blank" rel="noopener noreferrer" className="block hover:text-white transition">💬 WhatsApp: +91 97790 06820</a>
+              <span className="block text-gray-500">📍 Maharashtra, India — 422605</span>
+            </div>
             <p className="text-xs text-gray-500">
               &copy; {new Date().getFullYear()} Swar Yoga. All rights reserved.
             </p>

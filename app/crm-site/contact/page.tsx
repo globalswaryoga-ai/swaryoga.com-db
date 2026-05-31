@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, MapPin, Phone, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, MapPin, Phone, Send, CheckCircle2, AlertCircle, MessageCircle } from 'lucide-react';
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
@@ -52,31 +52,40 @@ export default function ContactPage() {
           <div className="grid md:grid-cols-5 gap-12">
             {/* Contact Info */}
             <div className="md:col-span-2 space-y-8">
-              <div className="flex items-start gap-4">
+              <a href="mailto:mohan@swaryoga.com" className="flex items-start gap-4 group">
                 <div className="w-10 h-10 rounded-xl bg-swar-primary/10 flex items-center justify-center flex-shrink-0">
                   <Mail className="h-5 w-5 text-swar-primary" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 text-sm">Email</h3>
-                  <p className="text-gray-600 text-sm">mohan@swaryoga.com</p>
+                  <p className="text-gray-600 text-sm group-hover:text-swar-primary transition">mohan@swaryoga.com</p>
                 </div>
-              </div>
-              <div className="flex items-start gap-4">
+              </a>
+              <a href="tel:+919779006820" className="flex items-start gap-4 group">
                 <div className="w-10 h-10 rounded-xl bg-swar-primary/10 flex items-center justify-center flex-shrink-0">
                   <Phone className="h-5 w-5 text-swar-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 text-sm">Phone</h3>
-                  <p className="text-gray-600 text-sm">+91 80 XXXX XXXX</p>
+                  <h3 className="font-semibold text-gray-900 text-sm">Call</h3>
+                  <p className="text-gray-600 text-sm group-hover:text-swar-primary transition">+91 97790 06820</p>
                 </div>
-              </div>
+              </a>
+              <a href="https://wa.me/919779006820" target="_blank" rel="noopener noreferrer" className="flex items-start gap-4 group">
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <MessageCircle className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-sm">WhatsApp</h3>
+                  <p className="text-gray-600 text-sm group-hover:text-green-600 transition">+91 97790 06820</p>
+                </div>
+              </a>
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-xl bg-swar-primary/10 flex items-center justify-center flex-shrink-0">
                   <MapPin className="h-5 w-5 text-swar-primary" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 text-sm">Location</h3>
-                  <p className="text-gray-600 text-sm">Bangalore, India</p>
+                  <p className="text-gray-600 text-sm">Maharashtra, India — 422605</p>
                 </div>
               </div>
 
