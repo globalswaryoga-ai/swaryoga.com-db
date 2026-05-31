@@ -54,18 +54,26 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
   const isSuper = typeof window !== 'undefined' ? checkIsSuperAdmin() : false;
   const activeKey = findSectionForPath(pathname)?.key;
   const { canAccess } = usePlan();
+  const { plan } = usePlan();
+
+  // For Basic plan tenants we show a limited set of primary sections only.
+  const BASIC_WHITELIST = new Set(['qr-leads', 'qr', 'planner', 'reports', 'settings', 'dashboard', 'connections']);
 
   const modules = useMemo(
     () =>
       sectionConfigs.filter((s) => {
         // Super-admin-only sections.
         if (SUPER_ADMIN_KEYS.has(s.key) && !isSuper) return false;
+
+        // If tenant is on Basic plan, restrict to whitelist only.
+        if (plan === 'basic' && !BASIC_WHITELIST.has(s.key)) return false;
+
         // Plan gating: hide a module the tenant's plan doesn't include.
         const mod = SECTION_MODULE[s.key];
         if (mod && !canAccess(mod)) return false;
         return true;
       }),
-    [isSuper, canAccess],
+    [isSuper, canAccess, plan],
   );
 
   const width = collapsed ? 'w-[68px]' : 'w-60';
