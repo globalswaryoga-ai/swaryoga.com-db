@@ -346,17 +346,75 @@ async function handleWebhookPayload(payload: any) {
           }).lean();
 
           if ((isBlockedError || status === 'failed') && recipientPhone && metaMsg) {
-            const failedLead = await Lead.findOne({ phoneNumber: recipientPhone });
+            let failedLead = await Lead.findOne({ phoneNumber: recipientPhone });
+
+            // ── NUMBER NOT IN LEADS ──
+            // Blocked/failed for a number that was never a lead (e.g. direct API send,
+            // template sent before a lead record existed). Create a minimal lead so
+            // the archive record is complete and the number can be restored later.
+            if (!failedLead && isBlockedError) {
+              console.log(`🗑️ [AUTO-DELETE] Phone ${recipientPhone} not in leads — creating record before archiving`);
+              try {
+                const { allocateNextLeadNumber: allocLeadNum } = await import('@/lib/crm/leadNumber');
+                const newLeadNumber = await allocLeadNum().catch(() => null);
+                failedLead = await Lead.create({
+                  phoneNumber: recipientPhone,
+                  leadNumber: newLeadNumber,
+                  name: recipientPhone,
+                  source: 'meta_webhook_auto',
+                  status: 'blocked',
+                  isBlocked: true,
+                  waBlockedReason: `Auto-created from Meta error ${errorCode}`,
+                  waBlockedAt: now,
+                  createdAt: now,
+                  updatedAt: now,
+                });
+              } catch (createErr) {
+                console.warn('[AUTO-DELETE] Could not create lead record for blocked number:', createErr);
+              }
+            }
+
             if (failedLead && !failedLead.isBlocked) {
               const newCount = (failedLead.waFailCount || 0) + 1;
               const shouldAutoDelete = isBlockedError || newCount >= 3;
 
               if (shouldAutoDelete) {
-                // Auto-delete: user blocked us OR 3 consecutive failures
+                // Auto-delete: user blocked us OR 3 consecutive failures.
+                // Save full snapshot to deleted_leads FIRST so it appears on the
+                // Deleted Leads page and can be restored at any time.
                 const deleteReason = isBlockedError
                   ? `Blocked by user (Meta error ${errorCode})`
                   : '3 consecutive delivery failures';
                 console.log(`🗑️ [AUTO-DELETE] Lead ${failedLead._id} (${recipientPhone}) — ${deleteReason}`);
+
+                try {
+                  const { DeletedLead } = await import('@/lib/schemas/enterpriseSchemas');
+                  await DeletedLead.create({
+                    leadId: failedLead._id,
+                    leadNumber: (failedLead as any).leadNumber || String(failedLead._id),
+                    name: (failedLead as any).name || recipientPhone,
+                    phoneNumber: recipientPhone,
+                    email: (failedLead as any).email || '',
+                    workshopName: (failedLead as any).workshopName || (failedLead as any).workshop || '',
+                    assignedToUserId: (failedLead as any).assignedToUserId || (failedLead as any).userId || '',
+                    createdByUserId: (failedLead as any).createdByUserId || '',
+                    deletedByUserId: 'system',
+                    status: (failedLead as any).status || '',
+                    labels: (failedLead as any).labels || [],
+                    source: (failedLead as any).source || '',
+                    createdAtOriginal: (failedLead as any).createdAt,
+                    updatedAtOriginal: (failedLead as any).updatedAt,
+                    deletedAt: new Date(),
+                    deletedReason: isBlockedError ? 'meta_blocked' : 'delivery_failed',
+                    metadata: {
+                      autoDeleteReason: deleteReason,
+                      errorCode: errorCode?.toString(),
+                      waMessageId,
+                    },
+                  });
+                } catch (saveErr) {
+                  console.warn('[AUTO-DELETE] Failed to save DeletedLead snapshot:', saveErr);
+                }
 
                 await Lead.deleteOne({ _id: failedLead._id });
                 if (FunnelStageHistory) {
