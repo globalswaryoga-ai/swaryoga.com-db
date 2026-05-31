@@ -539,6 +539,9 @@ export default function TenantsPage() {
     const pricing: Pricing = {
       monthlyPriceINR: planDef?.monthlyPriceINR ?? undefined,
       billingCycle: 'monthly',
+      // Carry the plan-tier's promo/discount down to the tenant automatically.
+      promoCode: planDef?.promoCode || '',
+      promoDiscountPercent: Number(planDef?.discountPercent) || 0,
     };
     if (target === 'create') {
       setCreateModules(keys);
@@ -554,7 +557,12 @@ export default function TenantsPage() {
     } else {
       setEditModules(keys);
       setEditLimits(limits);
-      setEditPricing((p) => ({ ...p, monthlyPriceINR: pricing.monthlyPriceINR }));
+      setEditPricing((p) => ({
+        ...p,
+        monthlyPriceINR: pricing.monthlyPriceINR,
+        promoCode: pricing.promoCode,
+        promoDiscountPercent: pricing.promoDiscountPercent,
+      }));
     }
   };
 
