@@ -193,6 +193,9 @@ const TenantPlanSchema = new mongoose.Schema(
     defaultGroups: { type: [String], default: [] },
     monthlyPriceINR: { type: Number, default: 0 },
     annualPriceINR: { type: Number, default: 0 },
+    /** Free-trial length in days (0 = no trial). Applied to a tenant's
+     *  subscription end date when this plan is chosen on onboarding. */
+    trialDays: { type: Number, default: 0 },
     /** Display order in the reference grid. */
     order: { type: Number, default: 0 },
     /** Custom plans created by the admin (vs the 6 seeded tiers). */

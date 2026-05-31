@@ -46,6 +46,7 @@ async function ensureSeeded(Plan: any) {
     defaultGroups: PLAN_DEFAULT_GROUPS[p.tier] || [],
     monthlyPriceINR: p.monthlyPriceINR,
     annualPriceINR: p.annualPriceINR,
+    trialDays: p.tier === 'free' ? 0 : 7, // sensible default: 7-day trial on paid tiers
     order: TIER_ORDER.indexOf(p.tier) === -1 ? i : TIER_ORDER.indexOf(p.tier),
     isCustom: false,
   }));
@@ -89,6 +90,7 @@ export async function GET(_request: NextRequest) {
     enabledModules: p.defaultGroups || [],
     monthlyPriceINR: p.monthlyPriceINR,
     annualPriceINR: p.annualPriceINR,
+    trialDays: p.trialDays ?? 0,
     order: p.order ?? 0,
     isCustom: !!p.isCustom,
   }));
@@ -123,6 +125,7 @@ export async function POST(request: NextRequest) {
     defaultGroups: sanitizeGroups(body.defaultGroups),
     monthlyPriceINR: Number(body.monthlyPriceINR) || 0,
     annualPriceINR: Number(body.annualPriceINR) || 0,
+    trialDays: Math.max(0, Number(body.trialDays) || 0),
     order: ((maxOrder as any)?.order ?? 0) + 1,
     isCustom: true,
   });
@@ -151,6 +154,7 @@ export async function PATCH(request: NextRequest) {
   if (body.defaultGroups !== undefined) $set.defaultGroups = sanitizeGroups(body.defaultGroups);
   if (body.monthlyPriceINR !== undefined) $set.monthlyPriceINR = Number(body.monthlyPriceINR) || 0;
   if (body.annualPriceINR !== undefined) $set.annualPriceINR = Number(body.annualPriceINR) || 0;
+  if (body.trialDays !== undefined) $set.trialDays = Math.max(0, Number(body.trialDays) || 0);
   if (body.order !== undefined) $set.order = Number(body.order) || 0;
 
   if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');

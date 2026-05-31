@@ -86,6 +86,7 @@ interface Plan {
   defaultGroups?: string[];
   monthlyPriceINR: number;
   annualPriceINR: number;
+  trialDays?: number;
   order?: number;
   isCustom?: boolean;
 }
@@ -396,7 +397,7 @@ export default function TenantsPage() {
   const [planIsNew, setPlanIsNew] = useState(false);
   const [planForm, setPlanForm] = useState<Plan>({
     tier: '', name: '', description: '', limits: {}, enabledModules: [],
-    defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0,
+    defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0, trialDays: 0,
   });
   const [planGroups, setPlanGroups] = useState<Set<string>>(new Set());
   const [savingPlan, setSavingPlan] = useState(false);
@@ -451,7 +452,7 @@ export default function TenantsPage() {
   // ── Plan tier CRUD ──
   const openPlanNew = () => {
     setPlanIsNew(true);
-    setPlanForm({ tier: '', name: '', description: '', limits: { maxLeads: 0, maxUsers: 1, maxStorageMB: 100 }, enabledModules: [], defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0 });
+    setPlanForm({ tier: '', name: '', description: '', limits: { maxLeads: 0, maxUsers: 1, maxStorageMB: 100 }, enabledModules: [], defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0, trialDays: 7 });
     setPlanGroups(new Set());
     setPlanModalOpen(true);
   };
@@ -477,6 +478,7 @@ export default function TenantsPage() {
         defaultGroups: groupKeys,
         monthlyPriceINR: planForm.monthlyPriceINR,
         annualPriceINR: planForm.annualPriceINR,
+        trialDays: planForm.trialDays ?? 0,
       };
       const res = await fetch('/api/admin/tenants/plans', {
         method: planIsNew ? 'POST' : 'PATCH',
@@ -537,6 +539,13 @@ export default function TenantsPage() {
       setCreateModules(keys);
       setCreateLimits(limits);
       setCreatePricing(pricing);
+      // Pre-fill the subscription end date from the plan's free-trial length.
+      const trialDays = Number(planDef?.trialDays) || 0;
+      if (trialDays > 0) {
+        const d = new Date();
+        d.setDate(d.getDate() + trialDays);
+        setForm((f) => ({ ...f, subscriptionEndsAt: d.toISOString().slice(0, 10) }));
+      }
     } else {
       setEditModules(keys);
       setEditLimits(limits);
@@ -959,6 +968,9 @@ export default function TenantsPage() {
                     <li>Users: {p.limits.maxUsers}</li>
                     <li>Storage: {p.limits.maxStorageMB?.toLocaleString()} MB</li>
                     <li>Bundles: {bundleCount}</li>
+                    <li className={p.trialDays ? 'text-emerald-600 font-medium' : ''}>
+                      {p.trialDays ? `🎁 ${p.trialDays}-day free trial` : 'No free trial'}
+                    </li>
                   </ul>
                   <div className="mt-auto flex items-center gap-2 pt-2 border-t border-gray-100">
                     <button
@@ -1042,6 +1054,10 @@ export default function TenantsPage() {
                 <div>
                   <label className="block text-[11px] font-medium text-gray-600 mb-1">Storage MB</label>
                   <input type="number" value={planForm.limits.maxStorageMB ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, limits: { ...f.limits, maxStorageMB: Number(e.target.value) || 0 } }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Free trial (days)</label>
+                  <input type="number" min={0} value={planForm.trialDays ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, trialDays: Math.max(0, Number(e.target.value) || 0) }))} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 7" />
                 </div>
               </div>
 
