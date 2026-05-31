@@ -13,11 +13,8 @@ import { PlanProvider, usePlan } from './hooks/usePlan';
 import { TrialBanner, PlanGate } from './PlanComponents';
 import { PATH_TO_MODULE, CrmModule } from '@/lib/crm-site/planConfig';
 import { useOnboarding } from './hooks/useOnboarding';
-import BackupReminder from './BackupReminder';
-import PageGuide from './PageGuide';
-import PAGE_GUIDES from './pageGuideData';
 import { ToastProvider } from './ui/Toast';
-import AiGuideChat from '@/components/crm-site/AiGuideChat';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 /**
  * CrmShell wraps all CRM pages with:
@@ -96,18 +93,8 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     return match ? PATH_TO_MODULE[match] : null;
   })();
 
-  // Get page guide for current page
-  const pageGuideKey = (() => {
-    const p = pathname || '';
-    const suffix = p.replace('/admin/crm/', '').replace(/\/$/, '');
-    // Exact match
-    if (PAGE_GUIDES[suffix]) return suffix;
-    // First segment match (e.g. /admin/crm/broadcast/reports → broadcast)
-    const firstSeg = suffix.split('/')[0];
-    if (firstSeg && PAGE_GUIDES[firstSeg]) return firstSeg;
-    return null;
-  })();
-  const pageGuide = pageGuideKey ? PAGE_GUIDES[pageGuideKey] : null;
+  // Super-admin (owner) never sees onboarding/storage/compartment popups.
+  const isSuper = typeof window !== 'undefined' ? checkIsSuperAdmin() : false;
 
   const handleStoragePurchase = () => {
     setShowOnboarding(false);
@@ -126,7 +113,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     <ToastProvider>
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Compartment Setup Modal (blocks everything until setup complete) */}
-      {showCompartmentSetup && !loading && (
+      {showCompartmentSetup && !loading && !isSuper && (
         <CompartmentSetupModal
           isOpen={showCompartmentSetup}
           onClose={() => setShowCompartmentSetup(false)}
@@ -142,7 +129,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Tenant Onboarding Modal */}
-      {showOnboarding && !loading && !showCompartmentSetup && (
+      {showOnboarding && !loading && !showCompartmentSetup && !isSuper && (
         <TenantOnboarding
           userName={userName}
           userEmail={userEmail}
@@ -152,7 +139,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Storage Purchase Modal */}
-      {showStorageModal && (
+      {showStorageModal && !isSuper && (
         <StoragePurchaseModal
           isOpen={showStorageModal}
           onClose={() => setShowStorageModal(false)}
@@ -188,9 +175,6 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
 
         {/* Page content - scrollable, guarded by compartment + plan */}
         <main className="flex-1 overflow-y-auto">
-          {/* Page Guide — auto-detected from pathname */}
-          {pageGuide && <PageGuide guide={pageGuide} />}
-
           {/* Global loading skeleton while onboarding status is being resolved */}
           {loading ? (
             <div className="p-6 space-y-6 animate-pulse">
@@ -223,12 +207,6 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
-
-    {/* 7-day backup reminder popup */}
-    <BackupReminder />
-    
-    {/* AI Guide Chat support widget */}
-    <AiGuideChat />
     </ToastProvider>
     </PlanProvider>
   );
