@@ -2,22 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { DeletedLead } from '@/lib/schemas/enterpriseSchemas';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
-  );
-}
 
 /**
  * GET /api/admin/crm/leads/deleted
@@ -46,29 +33,23 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    // System-auto-deleted records (deletedByUserId = 'system' or 'system-backfill')
-    // must be visible to ALL admins — they are not "owned" by any one user.
-    const SYSTEM_DELETORS = ['system', 'system-backfill'];
-    const systemClause = { deletedByUserId: { $in: SYSTEM_DELETORS } };
-
     const filter: any = {};
 
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {
-        // Super-admin filtered to a specific user: their records + system records
         filter.$or = [
           { assignedToUserId: String(userIdParam).trim() },
-          systemClause,
+          { createdByUserId: String(userIdParam).trim() },
+          { deletedByUserId: String(userIdParam).trim() },
         ];
       }
-      // else: no filter — see everything
+      // else: super-admin sees everything — no filter
     } else {
-      // Regular admin: own records (assigned/created/deleted by them) + all system-deleted records
+      // Tenant admin: ONLY their own records — strict isolation
       filter.$or = [
         { assignedToUserId: viewerUserId },
         { createdByUserId: viewerUserId },
         { deletedByUserId: viewerUserId },
-        systemClause,
       ];
     }
 
@@ -78,12 +59,12 @@ export async function GET(request: NextRequest) {
       filter.deletedReason = String(reasonParam).trim();
     }
 
-    // Base filter for stat card counts (no search/reason sub-filter, just ownership)
+    // Base filter for stat card counts
     const baseFilter: any = superAdmin && !userIdParam
       ? {}
       : superAdmin && userIdParam
-        ? { $or: [{ assignedToUserId: String(userIdParam).trim() }, systemClause] }
-        : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }, { deletedByUserId: viewerUserId }, systemClause] };
+        ? { $or: [{ assignedToUserId: String(userIdParam).trim() }, { createdByUserId: String(userIdParam).trim() }] }
+        : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }, { deletedByUserId: viewerUserId }] };
 
     if (q && String(q).trim()) {
       const query = String(q).trim();
