@@ -37,12 +37,25 @@ export async function POST(
       return NextResponse.json({ error: 'Deleted lead not found' }, { status: 404 });
     }
 
-    // Check if lead already exists (was already restored)
-    const existing = await Lead.findById(deletionRecord.leadId).lean();
+    // Check if lead already exists by _id OR phone number (handles duplicate-key case)
+    const existingById = await Lead.findById(deletionRecord.leadId).lean();
+    const existingByPhone = deletionRecord.phoneNumber
+      ? await Lead.findOne({ phoneNumber: deletionRecord.phoneNumber }).lean()
+      : null;
+    const existing = existingById || existingByPhone;
+
     if (existing) {
-      // Already restored — just clean up the deletion record
+      // Already active — unblock it, clean up deletion record, done
+      await Lead.updateOne(
+        { _id: (existing as any)._id },
+        { $set: { isBlocked: false, waFailCount: 0 } }
+      );
       await DeletedLead.findByIdAndDelete(deletionRecord._id);
-      return NextResponse.json({ success: true, message: 'Lead was already active. Removal record cleaned up.', lead: existing });
+      return NextResponse.json({
+        success: true,
+        message: `Lead "${deletionRecord.name || deletionRecord.phoneNumber}" is already active — unblocked and restored.`,
+        lead: existing,
+      });
     }
 
     // Re-create the lead with original data
@@ -59,16 +72,16 @@ export async function POST(
       assignedToUserId: deletionRecord.assignedToUserId,
       createdByUserId: deletionRecord.createdByUserId,
       isBlocked: false,
+      waFailCount: 0,
       metadata: deletionRecord.metadata,
       createdAt: deletionRecord.createdAtOriginal,
     });
 
-    // Remove the deletion record
     await DeletedLead.findByIdAndDelete(deletionRecord._id);
 
     return NextResponse.json({
       success: true,
-      message: `Lead "${deletionRecord.name}" restored successfully.`,
+      message: `Lead "${deletionRecord.name || deletionRecord.phoneNumber}" restored successfully.`,
       lead: restoredLead,
     });
   } catch (err: any) {
