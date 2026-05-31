@@ -18,6 +18,33 @@ import { getTenantModel } from '@/lib/tenant/tenantSchemas';
 import { provisionTenantDb, tenantDbName } from '@/lib/tenant/tenantDb';
 import { PlanTier } from '@/lib/tenant/types';
 import type { CreateTenantRequest } from '@/lib/tenant/types';
+import { sanitizeModuleKeys, expandGroups, PLAN_DEFAULT_GROUPS } from '@/lib/tenant/moduleCatalog';
+
+// Coerce an incoming pricing object to a safe, typed shape.
+function sanitizePricing(p: any) {
+  if (!p || typeof p !== 'object') return undefined;
+  const num = (v: any) => (v === null || v === undefined || v === '' ? null : Number(v));
+  return {
+    monthlyPriceINR: num(p.monthlyPriceINR),
+    storageIncludedMB: num(p.storageIncludedMB),
+    extraStoragePriceINR: Number(p.extraStoragePriceINR) || 0,
+    promoCode: String(p.promoCode || '').trim().toUpperCase(),
+    promoDiscountPercent: Math.max(0, Math.min(100, Number(p.promoDiscountPercent) || 0)),
+    billingCycle: ['monthly', 'quarterly', 'half_yearly', 'annual'].includes(p.billingCycle)
+      ? p.billingCycle
+      : 'monthly',
+  };
+}
+
+// Keep only known numeric limit fields.
+function sanitizeLimits(l: any) {
+  if (!l || typeof l !== 'object') return undefined;
+  const out: any = {};
+  for (const k of ['maxLeads', 'maxUsers', 'maxStorageMB', 'maxWhatsAppTemplates', 'maxBroadcastsPerDay', 'maxApiRequestsPerDay']) {
+    if (l[k] !== undefined && l[k] !== null && l[k] !== '') out[k] = Number(l[k]);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -108,6 +135,12 @@ export async function POST(request: NextRequest) {
   // Plan defaults to FREE
   const plan = body.plan && Object.values(PlanTier).includes(body.plan) ? body.plan : PlanTier.FREE;
 
+  // Module keys: use explicit selection if provided, else expand the plan's default bundles.
+  const anyBody = body as any;
+  const moduleKeys = Array.isArray(anyBody.moduleKeys) && anyBody.moduleKeys.length
+    ? sanitizeModuleKeys(anyBody.moduleKeys)
+    : expandGroups(PLAN_DEFAULT_GROUPS[plan] || PLAN_DEFAULT_GROUPS.free);
+
   // Create tenant document
   const tenant = await Tenant.create({
     slug,
@@ -116,6 +149,10 @@ export async function POST(request: NextRequest) {
     ownerUserId: body.ownerUserId.trim(),
     plan,
     enabledModules: [],
+    moduleKeys,
+    pricing: sanitizePricing(anyBody.pricing),
+    customLimits: sanitizeLimits(anyBody.customLimits),
+    subscriptionEndsAt: anyBody.subscriptionEndsAt ? new Date(anyBody.subscriptionEndsAt) : undefined,
     dbName,
     subdomain: slug,
     status: 'active',
@@ -158,9 +195,8 @@ export async function PATCH(request: NextRequest) {
 
   // Allowlist of updatable fields
   const allowed = [
-    'name', 'plan', 'customLimits', 'enabledModules',
-    'customDomain', 'customDomainVerified', 'status',
-    'subscriptionEndsAt', 'ownerEmail', 'ownerUserId',
+    'name', 'plan', 'customDomain', 'customDomainVerified', 'status',
+    'subscriptionEndsAt', 'ownerEmail', 'ownerUserId', 'enabledModules',
   ];
 
   const $set: any = {};
@@ -169,6 +205,11 @@ export async function PATCH(request: NextRequest) {
       $set[key] = updates[key];
     }
   }
+
+  // Structured fields get sanitized before persisting.
+  if (updates.moduleKeys !== undefined) $set.moduleKeys = sanitizeModuleKeys(updates.moduleKeys);
+  if (updates.pricing !== undefined) $set.pricing = sanitizePricing(updates.pricing);
+  if (updates.customLimits !== undefined) $set.customLimits = sanitizeLimits(updates.customLimits);
 
   if (Object.keys($set).length === 0) {
     return apiError('VALIDATION_ERROR', 'No valid fields to update');

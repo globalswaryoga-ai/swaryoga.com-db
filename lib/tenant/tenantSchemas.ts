@@ -76,6 +76,27 @@ const TenantSchema = new mongoose.Schema(
       default: [],
     },
 
+    // Granular module catalog keys (groups + sub-pages) — see moduleCatalog.ts.
+    // This is the source of truth for which pages/bundles a tenant can access.
+    moduleKeys: {
+      type: [String],
+      default: [],
+    },
+
+    // Per-tenant pricing & promo (overrides plan defaults when set)
+    pricing: {
+      monthlyPriceINR: { type: Number, default: null },   // null = use plan price
+      storageIncludedMB: { type: Number, default: null },  // free storage allowance
+      extraStoragePriceINR: { type: Number, default: 0 },  // price per extra block / month
+      promoCode: { type: String, trim: true, default: '' },
+      promoDiscountPercent: { type: Number, default: 0, min: 0, max: 100 },
+      billingCycle: {
+        type: String,
+        enum: ['monthly', 'quarterly', 'half_yearly', 'annual'],
+        default: 'monthly',
+      },
+    },
+
     // Database isolation
     dbName: { type: String, required: true, unique: true, trim: true },
 
