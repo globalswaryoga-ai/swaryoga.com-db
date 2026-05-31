@@ -46,24 +46,59 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    // System-auto-deleted records (deletedByUserId = 'system' or 'system-backfill')
+    // must be visible to ALL admins — they are not "owned" by any one user.
+    const SYSTEM_DELETORS = ['system', 'system-backfill'];
+    const systemClause = { deletedByUserId: { $in: SYSTEM_DELETORS } };
+
     const filter: any = {};
 
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {
-        filter.assignedToUserId = String(userIdParam).trim();
+        // Super-admin filtered to a specific user: their records + system records
+        filter.$or = [
+          { assignedToUserId: String(userIdParam).trim() },
+          systemClause,
+        ];
       }
+      // else: no filter — see everything
     } else {
-      filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
+      // Regular admin: own records + all system-deleted records
+      filter.$or = [
+        { assignedToUserId: viewerUserId },
+        { createdByUserId: viewerUserId },
+        systemClause,
+      ];
     }
+
+    // Reason filter (from dropdown)
+    const reasonParam = url.searchParams.get('reason');
+    if (reasonParam && String(reasonParam).trim()) {
+      filter.deletedReason = String(reasonParam).trim();
+    }
+
+    // Base filter for stat card counts (no search/reason sub-filter, just ownership)
+    const baseFilter: any = superAdmin && !userIdParam
+      ? {}
+      : superAdmin && userIdParam
+        ? { $or: [{ assignedToUserId: String(userIdParam).trim() }, systemClause] }
+        : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }, systemClause] };
 
     if (q && String(q).trim()) {
       const query = String(q).trim();
-      filter.$or = [
+      // Merge search into existing $or by wrapping in $and
+      const searchOr = [
         { leadNumber: { $regex: query, $options: 'i' } },
         { name: { $regex: query, $options: 'i' } },
         { phoneNumber: { $regex: query, $options: 'i' } },
         { email: { $regex: query, $options: 'i' } },
       ];
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, { $or: searchOr }];
+        delete filter.$or;
+      } else {
+        filter.$or = searchOr;
+      }
     }
 
     const deletedLeads = await DeletedLead.find(filter)
@@ -74,18 +109,12 @@ export async function GET(request: NextRequest) {
 
     const total = await DeletedLead.countDocuments(filter);
 
-    // Reason counts use the base tenant filter (no search/reason sub-filter)
-    // so stat cards always show totals for this user, not just the current search.
-    const baseFilter: any = superAdmin
-      ? (filter.assignedToUserId ? { assignedToUserId: filter.assignedToUserId } : {})
-      : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] };
-
     const reasonAgg = await DeletedLead.aggregate([
       { $match: baseFilter },
       { $group: { _id: '$deletedReason', count: { $sum: 1 } } },
     ]);
     const reasonCounts: Record<string, number> = {};
-    for (const r of reasonAgg) reasonCounts[String(r._id || 'manual')] = Number(r.count);
+    for (const r of reasonAgg) reasonCounts[String(r._id ?? 'manual')] = Number(r.count);
 
     return NextResponse.json(
       { success: true, data: { deletedLeads, total, limit, skip, reasonCounts } },
