@@ -425,6 +425,22 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
+  // 8.55 Landing Pages (landing_page bundle — Silver plan and above)
+  {
+    key: 'landing-pages',
+    title: 'Landing Pages',
+    icon: FileText,
+    items: [
+      { label: 'Landing Pages', href: '/admin/crm/landing-pages', icon: FileText },
+      { label: 'Form Links', href: '/admin/crm/form-links', icon: Link2 },
+    ],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/landing-pages',
+      '/admin/crm/form-links',
+    ],
+  },
+
   // 8.6 Sadhana (sadhana_program bundle — Golden plan and above)
   {
     key: 'sadhana',

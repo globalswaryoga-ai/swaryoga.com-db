@@ -127,6 +127,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'calls':          ['ai_calling'],
     // Planner — planner bundle
     'planner':        ['planner'],
+    // Landing Pages — landing_page bundle (Silver+)
+    'landing-pages':  ['landing_page'],
     // E-Learning — elearning bundle (Silver+)
     'elearning':      ['elearning'],
     // Settings — always (ensured above via expanded.add('settings'))
@@ -141,21 +143,24 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
 
   const modules = useMemo(() => {
     return sectionConfigs.filter((s) => {
+      // Super-admin-only sections: hide from regular users
       if (SUPER_ADMIN_KEYS.has(s.key) && !isSuper) return false;
-      // dashboard is always visible
+      // Super-admin sees ALL sections — no module key gating
+      if (isSuper) return true;
+      // Dashboard always visible
       if (s.key === 'dashboard') return true;
 
       const required = SECTION_TO_MODULE_KEYS[s.key];
       if (!required) return true; // no mapping = always show
 
       if (tenantModuleKeys !== null) {
-        // Use tenant's actual module keys as single source of truth
+        // Tenant's actual module keys are the single source of truth
         return required.some((rk) =>
           tenantModuleKeys.has(rk) ||
           Array.from(tenantModuleKeys).some((k) => k.startsWith(rk + '.'))
         );
       }
-      // While loading (null), show nothing except dashboard (prevents flash)
+      // While loading (null) show nothing except dashboard — prevents wrong-page flash
       return false;
     });
   }, [isSuper, tenantModuleKeys]);
