@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, X, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { sectionConfigs, findSectionForPath, type SectionConfig } from './crmNavConfig';
 import { MODULE_CATALOG, expandGroups } from '@/lib/tenant/moduleCatalog';
@@ -204,6 +204,23 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
             );
           })}
         </nav>
+
+        {/* Upgrade Plan banner (non-super-admin only) */}
+        {!isSuper && (
+          <div className={`border-t border-gray-800 flex-shrink-0 ${collapsed ? 'p-2' : 'p-3'}`}>
+            <Link
+              href="/admin/crm/subscription"
+              onClick={onClose}
+              title={collapsed ? 'Upgrade Plan' : undefined}
+              className={`flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white transition font-medium ${
+                collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
+              }`}
+            >
+              <Zap className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span className="text-xs">Upgrade Plan</span>}
+            </Link>
+          </div>
+        )}
 
         {/* Collapse toggle (desktop) */}
         {onToggleCollapse && (
