@@ -104,14 +104,18 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
   const SECTION_TO_MODULE_KEYS: Record<string, string[]> = {
     'qr': ['whatsapp_qr'],
     'qr-leads': ['lead_management'],
+    'sales': ['lead_management'],
     'planner': ['planner'],
     'reports': ['report', 'lead_management'],
-    'broadcast': ['whatsapp_qr'],
+    'broadcast': ['whatsapp_qr', 'whatsapp_meta'],
     'email': ['email'],
     'community': ['community'],
     'chatbot': ['chatbot'],
     'telegram': ['telegram'],
     'settings': ['settings'],
+    'messages': ['sms'],
+    'calls': ['ai_calling'],
+    'automation': ['chatbot'],
   };
 
   const modules = useMemo(() => {
