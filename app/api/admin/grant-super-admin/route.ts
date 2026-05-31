@@ -25,11 +25,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Check if caller is super admin (or we'll allow anyone in emergency)
-    const isSuperAdmin = 
-      decoded.userId === 'admincrm' || 
+    // Only the CRM owner may run this maintenance endpoint.
+    const isSuperAdmin =
+      decoded.userId === 'admincrm' ||
       decoded.userId === 'admin' ||
-      decoded.isAdmin === true;
+      String(decoded.username || '').toLowerCase() === 'admin' ||
+      String(decoded.username || '').toLowerCase() === 'admincrm';
 
     console.log('[grant-super-admin] Called by:', decoded.userId, 'isAdmin:', decoded.isAdmin);
 

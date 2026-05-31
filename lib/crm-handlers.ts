@@ -122,17 +122,22 @@ export const getViewerUserId = (decoded: any): string => {
  *   Leads             = end-users / contacts (not admin users)
  */
 const SUPER_ADMIN_IDS = new Set(['admin', 'admincrm']);
-const SUPER_ADMIN_USERNAMES = new Set(['admin', 'admincrm']);
+const SUPER_ADMIN_USERNAMES = new Set(
+  ['admin', 'admincrm', String(process.env.ADMIN_USERNAME || '').trim().toLowerCase()].filter(Boolean),
+);
 
 export const isSuperAdmin = (decoded: any): boolean => {
+  // Super admin is ONLY the CRM owner — identified by a known userId/username.
   // Check userId (regular admin users stored in DB)
   const uid = String(decoded?.userId || '').trim();
   if (SUPER_ADMIN_IDS.has(uid)) return true;
   // Check username (admin-login tokens have username instead of userId)
   const uname = String(decoded?.username || '').trim().toLowerCase();
   if (SUPER_ADMIN_USERNAMES.has(uname)) return true;
-  // Check isAdmin flag (admin-login tokens set this)
-  if (decoded?.isAdmin === true) return true;
+  // NOTE: We deliberately do NOT treat `isAdmin === true` as super admin.
+  // Every CRM tenant's login token sets isAdmin:true (they ARE admins of their
+  // own tenant), so granting super-admin on that flag leaked all owner data to
+  // every tenant. Tenants are regular admins, scoped to their own records.
   return false;
 };
 
