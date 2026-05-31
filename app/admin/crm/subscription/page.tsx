@@ -228,13 +228,35 @@ export default function SubscriptionPage() {
 
         {/* Usage Meters */}
         <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <UsageMeterCard
-            icon={<HardDrive className="w-5 h-5 text-indigo-500" />}
-            label="Storage"
-            used={`${(data.storageUsedMB / 1024).toFixed(2)} GB`}
-            limit={`${(data.storageQuotaMB / 1024).toFixed(1)} GB`}
-            percent={storagePercent}
-          />
+          {/* Storage — MB format + Buy Now */}
+          <div className="relative overflow-hidden rounded-xl bg-gray-50 p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <HardDrive className="w-5 h-5 text-indigo-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900">Storage</p>
+                <p className="text-xs text-gray-500">{data.storageUsedMB} MB of {data.storageQuotaMB} MB</p>
+              </div>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  storagePercent > 90 ? 'bg-gradient-to-r from-red-400 to-red-600'
+                  : storagePercent > 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600'
+                  : 'bg-gradient-to-r from-emerald-400 to-emerald-600'
+                }`}
+                style={{ width: `${Math.max(2, storagePercent)}%` }}
+              />
+            </div>
+            <Link
+              href="/crm-site/checkout?storage=true"
+              className="block text-center py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition"
+            >
+              Buy Now
+            </Link>
+          </div>
+
           <UsageMeterCard
             icon={<MessageSquare className="w-5 h-5 text-emerald-500" />}
             label="Leads"
@@ -274,141 +296,99 @@ export default function SubscriptionPage() {
           </div>
         </div>
 
-        {/* Plan Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {PLAN_ORDER.map((plan) => {
-            const display = PLAN_DISPLAY[plan];
-            const db = dbByTier[plan];
-            // Limits: prefer the admin-edited plan, else static config.
-            const limits = db?.limits
-              ? {
-                  ...PLAN_LIMITS[plan],
-                  maxLeads: db.limits.maxLeads ?? PLAN_LIMITS[plan].maxLeads,
-                  maxUsers: db.limits.maxUsers ?? PLAN_LIMITS[plan].maxUsers,
-                  storageQuotaMB: db.limits.maxStorageMB ?? PLAN_LIMITS[plan].storageQuotaMB,
-                  maxBroadcastsPerDay: db.limits.maxBroadcastsPerDay ?? PLAN_LIMITS[plan].maxBroadcastsPerDay,
-                }
-              : PLAN_LIMITS[plan];
-            // Pricing: prefer the admin-edited per-cycle prices, else static config.
-            const m = db ? (Number(db.monthlyPriceINR) || 0) : (PLAN_PRICING[plan].monthly ?? 0);
-            const pricing = db
-              ? {
-                  monthly: m,
-                  quarterly: Number(db.quarterlyPriceINR) || m * 3,
-                  annual: Number(db.annualPriceINR) || m * 12,
-                }
-              : PLAN_PRICING[plan];
-            const planName = db?.name || display.name;
-            const isCurrent = plan === currentPlan;
-            const isUpgrade = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(currentPlan);
-            const price = billingCycle === 'annual'
-              ? Math.round(pricing.annual / 12)
-              : billingCycle === 'quarterly'
-                ? Math.round(pricing.quarterly / 3)
-                : (pricing.monthly ?? 0);
-            const originalPrice = pricing.monthly ?? 0;
+        {/* Plan Cards — driven by DB plans sorted by price */}
+        {(() => {
+          const dbPlans = Object.values(dbByTier).sort((a: any, b: any) => (a.monthlyPriceINR ?? 0) - (b.monthlyPriceINR ?? 0));
+          const currentIdx = dbPlans.findIndex((p: any) => p.tier === currentPlan);
+          const COLORS = [
+            { border: 'border-sky-200',    bg: 'bg-sky-50',    text: 'text-sky-700',    btn: 'bg-sky-600 hover:bg-sky-700' },
+            { border: 'border-orange-200', bg: 'bg-orange-50', text: 'text-orange-700', btn: 'bg-orange-500 hover:bg-orange-600' },
+            { border: 'border-indigo-200', bg: 'bg-indigo-50', text: 'text-indigo-700', btn: 'bg-indigo-600 hover:bg-indigo-700' },
+            { border: 'border-purple-200', bg: 'bg-purple-50', text: 'text-purple-700', btn: 'bg-purple-600 hover:bg-purple-700' },
+            { border: 'border-amber-200',  bg: 'bg-amber-50',  text: 'text-amber-700',  btn: 'bg-amber-500 hover:bg-amber-600' },
+          ];
+          return (
+            <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.min(5, dbPlans.length)} gap-3`}>
+              {dbPlans.map((p: any, idx: number) => {
+                const color = COLORS[idx % COLORS.length];
+                const isCurrent = p.tier === currentPlan;
+                const isUpgrade = idx > currentIdx;
+                const monthly = Number(p.monthlyPriceINR) || 0;
+                const price = billingCycle === 'annual'
+                  ? Math.round((Number(p.annualPriceINR) || monthly * 12) / 12)
+                  : billingCycle === 'quarterly'
+                    ? Math.round((Number(p.quarterlyPriceINR) || monthly * 3) / 3)
+                    : monthly;
+                const bundles: string[] = p.defaultGroups || [];
 
-            return (
-              <div
-                key={plan}
-                className={`relative bg-white rounded-2xl border-2 p-4 transition-all ${
-                  isCurrent
-                    ? `${display.borderColor} shadow-lg ring-2 ring-offset-2 ${display.borderColor.replace('border-', 'ring-')}`
-                    : display.popular
-                      ? 'border-purple-300 shadow-md'
-                      : 'border-gray-100 hover:border-gray-200 hover:shadow-sm'
-                }`}
-              >
-                {display.popular && !isCurrent && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="px-3 py-1 bg-purple-600 text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
-                      Most Popular
-                    </span>
-                  </div>
-                )}
-                {isCurrent && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className={`px-3 py-1 bg-gradient-to-r ${display.gradientFrom} ${display.gradientTo} text-white text-[10px] font-bold rounded-full uppercase tracking-wide`}>
-                      Current Plan
-                    </span>
-                  </div>
-                )}
-
-                <div className="text-center pt-2 pb-3">
-                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl mb-2 ${display.color}`}>
-                    {plan === 'professional' || plan === 'growth' ? (
-                      <Crown className={`w-5 h-5 ${display.textColor}`} />
-                    ) : (
-                      <Zap className={`w-5 h-5 ${display.textColor}`} />
-                    )}
-                  </div>
-                  <h3 className="font-bold text-gray-900">{planName}</h3>
-                  <p className="text-[11px] text-gray-500">{db?.description || display.tagline}</p>
-                </div>
-
-                <div className="text-center py-3 border-y border-gray-100">
-                  {plan === 'free' ? (
-                    <div className="text-2xl font-bold text-gray-900">Free</div>
-                  ) : (
-                    <>
-                      <div className="text-2xl font-bold text-gray-900">
-                        ₹{price.toLocaleString('en-IN')}
-                        <span className="text-xs font-normal text-gray-500">/mo</span>
-                      </div>
-                      {billingCycle !== 'monthly' && price < originalPrice && (
-                        <div className="text-xs text-gray-400 line-through">₹{originalPrice.toLocaleString('en-IN')}/mo</div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div className="py-3 space-y-2">
-                  <LimitRow label="Leads" value={formatLimit(limits.maxLeads)} />
-                  <LimitRow label="Users" value={formatLimit(limits.maxUsers)} />
-                  <LimitRow label="Storage" value={limits.storageQuotaMB >= 50000 ? '50GB' : `${(limits.storageQuotaMB / 1024).toFixed(0)}GB`} />
-                  <LimitRow label="Broadcasts" value={limits.maxBroadcastsPerDay >= 999 ? 'Unlimited' : `${limits.maxBroadcastsPerDay}/day`} />
-                </div>
-
-                <div className="py-3 border-t border-gray-100 space-y-1.5">
-                  {(['whatsapp', 'broadcasting', 'reports', 'aiCalls', 'community', 'automation'] as CrmModule[]).map((mod) => {
-                    const hasIt = PLAN_MODULES[plan][mod];
-                    return (
-                      <div key={mod} className="flex items-center gap-1.5 text-xs">
-                        {hasIt ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
-                        )}
-                        <span className={hasIt ? 'text-gray-700' : 'text-gray-400'}>
-                          {FEATURE_CATALOG.find(f => f.module === mod)?.name || mod}
+                return (
+                  <div
+                    key={p.tier}
+                    className={`relative bg-white rounded-2xl border-2 p-4 transition-all ${
+                      isCurrent ? `${color.border} shadow-lg` : 'border-gray-100 hover:border-gray-200 hover:shadow-sm'
+                    }`}
+                  >
+                    {isCurrent && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        <span className={`px-3 py-1 ${color.bg} ${color.text} border ${color.border} text-[10px] font-bold rounded-full uppercase tracking-wide`}>
+                          Current Plan
                         </span>
                       </div>
-                    );
-                  })}
-                </div>
+                    )}
 
-                <div className="pt-3">
-                  {isCurrent ? (
-                    <div className={`text-center py-2.5 px-4 rounded-xl font-semibold text-sm ${display.color} ${display.textColor}`}>
-                      Current Plan
+                    <div className="text-center pt-2 pb-3">
+                      <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl mb-2 ${color.bg}`}>
+                        <Zap className={`w-5 h-5 ${color.text}`} />
+                      </div>
+                      <h3 className="font-bold text-gray-900">{p.name}</h3>
+                      <p className="text-[11px] text-gray-500 mt-0.5">{p.description}</p>
                     </div>
-                  ) : isUpgrade ? (
-                    <Link
-                      href={`/crm-site/checkout?plan=${plan}&billing=${billingCycle}`}
-                      className={`block text-center py-2.5 px-4 rounded-xl font-semibold text-sm text-white bg-gradient-to-r ${display.gradientFrom} ${display.gradientTo} hover:shadow-lg transition-all`}
-                    >
-                      Upgrade
-                    </Link>
-                  ) : (
-                    <div className="text-center py-2.5 px-4 rounded-xl font-medium text-sm text-gray-400 bg-gray-50">
-                      Included
+
+                    <div className="text-center py-3 border-y border-gray-100">
+                      {monthly === 0 ? (
+                        <div className="text-2xl font-bold text-gray-900">Free</div>
+                      ) : (
+                        <div className="text-2xl font-bold text-gray-900">
+                          ₹{price.toLocaleString('en-IN')}
+                          <span className="text-xs font-normal text-gray-500">/mo</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+
+                    <div className="py-3 space-y-1.5 text-xs">
+                      <div className="flex justify-between"><span className="text-gray-500">Leads</span><span className="font-semibold">{(p.limits?.maxLeads ?? 0).toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Users</span><span className="font-semibold">{p.limits?.maxUsers ?? 1}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Storage</span><span className="font-semibold">{p.limits?.maxStorageMB ?? 0} MB</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Bundles</span><span className="font-semibold">{bundles.length}</span></div>
+                      {p.trialDays > 0 && (
+                        <div className="text-emerald-600 font-medium text-center mt-1">🎁 {p.trialDays}-day free trial</div>
+                      )}
+                    </div>
+
+                    <div className="pt-3">
+                      {isCurrent ? (
+                        <div className={`text-center py-2.5 px-4 rounded-xl font-semibold text-sm ${color.bg} ${color.text}`}>
+                          Current Plan
+                        </div>
+                      ) : isUpgrade ? (
+                        <Link
+                          href={`/crm-site/checkout?plan=${p.tier}&billing=${billingCycle}`}
+                          className={`block text-center py-2.5 px-4 rounded-xl font-semibold text-sm text-white ${color.btn} transition-all`}
+                        >
+                          Upgrade Now
+                        </Link>
+                      ) : (
+                        <div className="text-center py-2.5 px-4 rounded-xl font-medium text-sm text-gray-400 bg-gray-50">
+                          Previous Plan
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* All Features Comparison */}
