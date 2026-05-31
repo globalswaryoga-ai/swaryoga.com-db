@@ -160,23 +160,23 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/web-admin', '/admin/crm/planner/ritucharya', '/admin/crm/planner-dashboard/ritucharya/ritus-admin'],
   },
 
-  // 3. Sales & Funnel — lead_management bundle
+  // 3. Sales & Funnel — shown for Copper+ (whatsapp_meta), tabs filtered per plan
   {
     key: 'sales',
     title: 'Sales & Funnel',
     icon: DollarSign,
     items: [
-      { label: 'Leads',        href: '/admin/crm/leads',            icon: Users },
-      { label: 'Sales',        href: '/admin/crm/sales',            icon: DollarSign },
-      { label: 'Funnel',       href: '/admin/crm/funnel',           icon: Filter },
-      { label: 'Follow-up',    href: '/admin/crm/leads-followup',   icon: UserCheck },
-      { label: 'Funnel Manage',href: '/admin/crm/funnel/manage',    icon: Sliders },
+      { label: 'Leads',         href: '/admin/crm/leads',          icon: Users },
+      { label: 'Sales',         href: '/admin/crm/sales',          icon: DollarSign },
+      { label: 'Funnel',        href: '/admin/crm/funnel',         icon: Filter },
+      { label: 'Funnel Manage', href: '/admin/crm/funnel/manage',  icon: Sliders },
+      { label: 'Follow-up',     href: '/admin/crm/leads-followup', icon: UserCheck, bundle: 'whatsapp_meta' },
     ],
     moreItems: [
-      { label: 'Labels',          href: '/admin/crm/labels',                   icon: Tag },
-      { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Settings },
-      { label: 'Deleted Leads',   href: '/admin/crm/leads/deleted',            icon: Trash2 },
-      { label: 'Orders',          href: '/admin/crm/order-maintenance',        icon: ShoppingBag },
+      { label: 'Labels',          href: '/admin/crm/labels',                   icon: Tag,          bundle: 'whatsapp_meta' },
+      { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Settings,     bundle: 'whatsapp_meta' },
+      { label: 'Deleted Leads',   href: '/admin/crm/leads/deleted',            icon: Trash2,       bundle: 'whatsapp_meta' },
+      { label: 'Orders',          href: '/admin/crm/order-maintenance',        icon: ShoppingBag,  bundle: 'whatsapp_meta' },
     ],
     prefixes: [
       '/admin/crm/sales', '/admin/crm/leads', '/admin/crm/leads-followup',
@@ -271,9 +271,7 @@ export const sectionConfigs: SectionConfig[] = [
     ],
     moreItems: [],
     prefixes: [
-      '/admin/crm/qr/leads', '/admin/crm/leads',
-      '/admin/crm/sales', '/admin/crm/funnel',
-      '/admin/crm/qr/funnel', '/admin/crm/qr/manage',
+      '/admin/crm/qr/leads', '/admin/crm/qr/funnel', '/admin/crm/qr/manage', '/admin/crm/qr/funnel-report',
     ],
   },
 
