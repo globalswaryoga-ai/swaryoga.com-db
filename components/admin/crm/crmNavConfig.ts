@@ -54,6 +54,8 @@ import {
   CreditCard,
   Plug,
   Leaf,
+  GraduationCap,
+  MessageSquareDot,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -195,7 +197,27 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // NOTE: Meta WhatsApp section removed per request — QR & Broadcast sections cover WhatsApp flows
+  // 3b. Meta WhatsApp (whatsapp_meta bundle — Copper plan and above)
+  {
+    key: 'meta',
+    title: 'Meta WhatsApp',
+    icon: MessageSquareDot,
+    items: [
+      { label: 'Meta Inbox', href: '/admin/crm/meta', icon: Inbox },
+      { label: 'Templates', href: '/admin/crm/meta/templates', icon: FileText },
+      { label: 'Meta Reports', href: '/admin/crm/reports/meta', icon: BarChart3 },
+    ],
+    moreItems: [
+      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: Settings },
+      { label: 'Webhook Events', href: '/admin/crm/whatsapp/webhook-events', icon: Zap },
+    ],
+    prefixes: [
+      '/admin/crm/meta',
+      '/admin/crm/whatsapp/meta',
+      '/admin/crm/whatsapp-meta',
+      '/admin/crm/reports/meta',
+    ],
+  },
 
   // 4. Broadcast WhatsApp
   {
@@ -324,26 +346,32 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/analytics', '/admin/crm/reports', '/admin/crm/whatsapp-analytics'],
   },
 
-  // 11. Settings (repositioned)
+  // 11. Settings (always visible — every plan)
   {
     key: 'settings',
     title: 'Settings',
     icon: Settings,
     items: [
-      { label: 'Auto Config', href: '/admin/crm/settings', icon: Sliders },
-      { label: 'Connections', href: '/admin/crm/connections', icon: Plug },
-      { label: 'Integrations', href: '/admin/crm/integration-hub', icon: Zap },
-      { label: 'Devices', href: '/admin/crm/devices', icon: Smartphone },
+      { label: 'CRM Settings', href: '/admin/crm/settings', icon: Sliders },
+      { label: 'User Profile', href: '/admin/crm/users/profile', icon: User },
+      { label: 'Team', href: '/admin/crm/team', icon: Users },
     ],
     moreItems: [
-      { label: 'Tally', href: '/admin/crm/tally', icon: Calculator },
       { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: MessageCircle },
-      { label: 'User Profile', href: '/admin/crm/users/profile', icon: User },
       { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Users },
       { label: 'Media Settings', href: '/admin/crm/media/settings', icon: Image },
-      { label: 'Device Settings', href: '/admin/crm/devices/settings', icon: Settings },
+      { label: 'Custom Fields', href: '/admin/crm/custom-fields', icon: FileText },
+      { label: 'Branding', href: '/admin/crm/branding', icon: Image },
+      { label: 'Permissions', href: '/admin/crm/permissions', icon: Shield },
     ],
-    prefixes: ['/admin/crm/settings', '/admin/crm/tally', '/admin/crm/users/profile'],
+    prefixes: [
+      '/admin/crm/settings',
+      '/admin/crm/users/profile',
+      '/admin/crm/team',
+      '/admin/crm/custom-fields',
+      '/admin/crm/branding',
+      '/admin/crm/permissions',
+    ],
   },
 
   // 7b. Telegram Bot
@@ -381,21 +409,59 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 8.5 Automation
+  // 8.5 Automation (chatbot bundle only)
   {
     key: 'automation',
     title: 'Automation',
     icon: Zap,
     items: [
       { label: 'Automation', href: '/admin/crm/automation', icon: Zap },
-      { label: 'Sadhana Programs', href: '/admin/crm/sadhana-programs', icon: Video },
-      { label: 'Sadhana Scheduler', href: '/admin/crm/sadhana-scheduler', icon: Clock },
+      { label: 'Workflows', href: '/admin/crm/workflows', icon: Zap },
     ],
     moreItems: [],
     prefixes: [
       '/admin/crm/automation',
+      '/admin/crm/workflows',
+    ],
+  },
+
+  // 8.6 Sadhana (sadhana_program bundle — Golden plan and above)
+  {
+    key: 'sadhana',
+    title: 'Sadhana',
+    icon: Leaf,
+    items: [
+      { label: 'Programs', href: '/admin/crm/sadhana-programs', icon: Video },
+      { label: 'Scheduler', href: '/admin/crm/sadhana-scheduler', icon: Clock },
+      { label: 'Announcements', href: '/admin/crm/sadhana-announcements', icon: Megaphone },
+    ],
+    moreItems: [
+      { label: 'Sadhana Chat', href: '/admin/crm/sadhana-chat', icon: MessageCircle },
+    ],
+    prefixes: [
       '/admin/crm/sadhana-programs',
       '/admin/crm/sadhana-scheduler',
+      '/admin/crm/sadhana-announcements',
+      '/admin/crm/sadhana-chat',
+    ],
+  },
+
+  // 8.7 E-Learning (elearning bundle — Silver plan and above)
+  {
+    key: 'elearning',
+    title: 'E-Learning',
+    icon: GraduationCap,
+    items: [
+      { label: 'Dashboard', href: '/admin/crm/e-learning/dashboard', icon: LayoutDashboard },
+      { label: 'Courses', href: '/admin/crm/e-learning', icon: GraduationCap },
+      { label: 'Students', href: '/admin/crm/e-learning/users', icon: Users },
+    ],
+    moreItems: [
+      { label: 'Analytics', href: '/admin/crm/e-learning/analytics', icon: BarChart3 },
+      { label: 'Bulk Actions', href: '/admin/crm/e-learning/bulk-actions', icon: Sliders },
+    ],
+    prefixes: [
+      '/admin/crm/e-learning',
     ],
   },
 
