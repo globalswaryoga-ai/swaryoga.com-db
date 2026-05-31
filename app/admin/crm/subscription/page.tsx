@@ -79,11 +79,24 @@ export default function SubscriptionPage() {
   const [error, setError] = useState('');
   const [showAllFeatures, setShowAllFeatures] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'quarterly' | 'annual'>('monthly');
+  // Admin-edited plans (same source as Tenant Management), keyed by tier.
+  const [dbByTier, setDbByTier] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (!token) return;
     fetchSubscription();
   }, [token]);
+
+  useEffect(() => {
+    fetch('/api/admin/tenants/plans')
+      .then((r) => r.json())
+      .then((d) => {
+        const map: Record<string, any> = {};
+        for (const p of (d?.data?.plans || [])) map[p.tier] = p;
+        setDbByTier(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchSubscription = async () => {
     setLoading(true);
@@ -265,8 +278,27 @@ export default function SubscriptionPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {PLAN_ORDER.map((plan) => {
             const display = PLAN_DISPLAY[plan];
-            const limits = PLAN_LIMITS[plan];
-            const pricing = PLAN_PRICING[plan];
+            const db = dbByTier[plan];
+            // Limits: prefer the admin-edited plan, else static config.
+            const limits = db?.limits
+              ? {
+                  ...PLAN_LIMITS[plan],
+                  maxLeads: db.limits.maxLeads ?? PLAN_LIMITS[plan].maxLeads,
+                  maxUsers: db.limits.maxUsers ?? PLAN_LIMITS[plan].maxUsers,
+                  storageQuotaMB: db.limits.maxStorageMB ?? PLAN_LIMITS[plan].storageQuotaMB,
+                  maxBroadcastsPerDay: db.limits.maxBroadcastsPerDay ?? PLAN_LIMITS[plan].maxBroadcastsPerDay,
+                }
+              : PLAN_LIMITS[plan];
+            // Pricing: prefer the admin-edited per-cycle prices, else static config.
+            const m = db ? (Number(db.monthlyPriceINR) || 0) : (PLAN_PRICING[plan].monthly ?? 0);
+            const pricing = db
+              ? {
+                  monthly: m,
+                  quarterly: Number(db.quarterlyPriceINR) || m * 3,
+                  annual: Number(db.annualPriceINR) || m * 12,
+                }
+              : PLAN_PRICING[plan];
+            const planName = db?.name || display.name;
             const isCurrent = plan === currentPlan;
             const isUpgrade = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(currentPlan);
             const price = billingCycle === 'annual'
@@ -310,8 +342,8 @@ export default function SubscriptionPage() {
                       <Zap className={`w-5 h-5 ${display.textColor}`} />
                     )}
                   </div>
-                  <h3 className="font-bold text-gray-900">{display.name}</h3>
-                  <p className="text-[11px] text-gray-500">{display.tagline}</p>
+                  <h3 className="font-bold text-gray-900">{planName}</h3>
+                  <p className="text-[11px] text-gray-500">{db?.description || display.tagline}</p>
                 </div>
 
                 <div className="text-center py-3 border-y border-gray-100">
