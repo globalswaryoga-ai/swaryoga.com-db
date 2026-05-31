@@ -295,7 +295,7 @@ export default function CrmSubNav({
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-      <div className="flex items-center justify-between px-4 py-1.5">
+      <div className="flex items-center justify-between px-4 py-2">
         {/* Left: Menu + Title */}
         <div className="flex items-center gap-3 shrink-0">
           {onMenuClick && (
@@ -328,15 +328,15 @@ export default function CrmSubNav({
                     <button
                       ref={el => { dropdownBtnRefs.current[item.label] = el; }}
                       onClick={() => setOpenDropdown(isDropOpen ? null : item.label)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                         isDropOpen
-                          ? 'bg-indigo-600 text-white shadow-sm'
+                          ? 'bg-emerald-50 text-emerald-700'
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                     >
-                      {ItemIcon && <ItemIcon className="h-3 w-3" />}
+                      {ItemIcon && <ItemIcon className="h-4 w-4" />}
                       {item.label}
-                      <ChevronDown className={`h-3 w-3 transition-transform ${isDropOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isDropOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {isDropOpen && (
                       <DropdownPortal triggerRef={{ current: dropdownBtnRefs.current[item.label] || null }}>
@@ -372,13 +372,13 @@ export default function CrmSubNav({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     active
-                      ? 'bg-indigo-600 text-white shadow-sm'
+                      ? 'bg-emerald-50 text-emerald-700'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                 >
-                  {ItemIcon && <ItemIcon className="h-3 w-3" />}
+                  {ItemIcon && <ItemIcon className="h-4 w-4" />}
                   {item.label}
                 </Link>
               );
@@ -390,14 +390,14 @@ export default function CrmSubNav({
                 <button
                   ref={moreBtnRef}
                   onClick={() => setMoreOpen(!moreOpen)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     moreHasActive || moreOpen
-                      ? 'bg-indigo-100 text-indigo-700'
+                      ? 'bg-emerald-50 text-emerald-700'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                 >
                   More
-                  <ChevronDown className={`h-3 w-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {moreOpen && (
                   <DropdownPortal triggerRef={moreBtnRef} align="right">
