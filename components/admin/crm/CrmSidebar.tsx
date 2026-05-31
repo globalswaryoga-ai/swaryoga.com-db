@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { sectionConfigs, findSectionForPath, type SectionConfig } from './crmNavConfig';
+import { MODULE_CATALOG, expandGroups } from '@/lib/tenant/moduleCatalog';
 import { usePlan } from './hooks/usePlan';
 import type { CrmModule } from '@/lib/crm-site/planConfig';
 
@@ -56,25 +57,86 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
   const { canAccess } = usePlan();
   const { plan } = usePlan();
 
+  // Tenant-enabled module keys (expanded to include child keys).
+  const [tenantModuleKeys, setTenantModuleKeys] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    // Fetch current account -> tenant slug -> tenant details (enabledModules/moduleKeys)
+    async function loadTenantModules() {
+      try {
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token')) : null;
+        if (!token) return setTenantModuleKeys(null);
+
+        const accRes = await fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } });
+        if (!accRes.ok) return setTenantModuleKeys(null);
+        const acc = await accRes.json();
+        const tenantSlug = acc?.profile?.tenantSlug;
+        if (!tenantSlug) return setTenantModuleKeys(null);
+
+        const tRes = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!tRes.ok) return setTenantModuleKeys(null);
+        const tjson = await tRes.json();
+        const keys: string[] = tjson?.tenant?.enabledModules || tjson?.tenant?.moduleKeys || [];
+
+        // Partition into groups (no dot) and child keys (contain dot). Expand group keys.
+        const groupKeys = keys.filter((k) => typeof k === 'string' && !k.includes('.'));
+        const childKeys = keys.filter((k) => typeof k === 'string' && k.includes('.'));
+
+        const expanded = new Set<string>([...expandGroups(groupKeys), ...childKeys]);
+
+        // Ensure only valid catalog keys are kept (defensive)
+        const valid = new Set<string>(MODULE_CATALOG.flatMap((g) => [g.key, ...g.children.map((c) => c.key)]));
+        for (const k of Array.from(expanded)) if (!valid.has(k)) expanded.delete(k);
+
+        setTenantModuleKeys(expanded);
+      } catch (e) {
+        setTenantModuleKeys(null);
+      }
+    }
+
+    loadTenantModules();
+  }, []);
+
   // For Basic plan tenants we show a limited set of primary sections only.
   const BASIC_WHITELIST = new Set(['qr-leads', 'qr', 'planner', 'reports', 'settings', 'dashboard', 'connections']);
 
-  const modules = useMemo(
-    () =>
-      sectionConfigs.filter((s) => {
-        // Super-admin-only sections.
-        if (SUPER_ADMIN_KEYS.has(s.key) && !isSuper) return false;
+  // Map section keys to module-catalog group keys they depend on.
+  const SECTION_TO_MODULE_KEYS: Record<string, string[]> = {
+    'qr': ['whatsapp_qr'],
+    'qr-leads': ['lead_management'],
+    'planner': ['planner'],
+    'reports': ['report', 'lead_management'],
+    'broadcast': ['whatsapp_qr'],
+    'email': ['email'],
+    'community': ['community'],
+    'chatbot': ['chatbot'],
+    'telegram': ['telegram'],
+    'settings': ['settings'],
+  };
 
-        // If tenant is on Basic plan, restrict to whitelist only.
+  const modules = useMemo(() => {
+    return sectionConfigs.filter((s) => {
+      // Super-admin-only sections.
+      if (SUPER_ADMIN_KEYS.has(s.key) && !isSuper) return false;
+
+      // If we successfully loaded tenant module keys, use them as the source
+      // of truth: only show sections that map to enabled catalog keys.
+      const required = SECTION_TO_MODULE_KEYS[s.key];
+      if (tenantModuleKeys) {
+        if (required && !required.some((rk) => tenantModuleKeys.has(rk) || Array.from(tenantModuleKeys).some((k) => k.startsWith(rk + '.')))) {
+          return false;
+        }
+      } else {
+        // Fallback: If tenant modules not yet loaded, keep previous Basic whitelist behaviour.
         if (plan === 'basic' && !BASIC_WHITELIST.has(s.key)) return false;
+      }
 
-        // Plan gating: hide a module the tenant's plan doesn't include.
-        const mod = SECTION_MODULE[s.key];
-        if (mod && !canAccess(mod)) return false;
-        return true;
-      }),
-    [isSuper, canAccess, plan],
-  );
+      // Plan gating: hide a module the tenant's plan doesn't include.
+      const mod = SECTION_MODULE[s.key];
+      if (mod && !canAccess(mod)) return false;
+      return true;
+    });
+  }, [isSuper, canAccess, plan, tenantModuleKeys]);
 
   const width = collapsed ? 'w-[68px]' : 'w-60';
 

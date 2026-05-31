@@ -965,34 +965,57 @@ export default function TenantsPage() {
               + New Plan
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {plans.map((p) => {
-              const bundleCount = (p.defaultGroups?.length ?? (PLAN_DEFAULT_GROUPS[p.tier] || []).length);
+              const groups = p.defaultGroups || (PLAN_DEFAULT_GROUPS[p.tier] || []);
+              const groupModules = groups.flatMap((gk) => {
+                const grp = MODULE_CATALOG.find((g) => g.key === gk);
+                return grp ? [{ label: grp.label, icon: grp.icon }] : [];
+              });
+
               return (
                 <div
                   key={p.tier}
-                  className={`border rounded-xl p-4 flex flex-col ${p.tier === 'enterprise' ? 'border-rose-300 bg-rose-50/30' : 'bg-white'}`}
+                  className={`border rounded-xl p-5 flex flex-col ${p.tier === 'enterprise' ? 'border-rose-300 bg-rose-50/30' : 'bg-white'}`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${PLAN_COLORS[p.tier] || 'bg-gray-100 text-gray-700'}`}>{p.name}</span>
-                    <span className="text-xs text-gray-400">
-                      {p.monthlyPriceINR === 0 ? 'Free' : `₹${p.monthlyPriceINR.toLocaleString()}/mo`}
-                    </span>
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${PLAN_COLORS[p.tier] || 'bg-gray-100 text-gray-700'}`}>{p.name}</span>
+                      <span className="text-sm font-semibold text-gray-800">
+                        {p.monthlyPriceINR === 0 ? '₹0' : `₹${p.monthlyPriceINR.toLocaleString()}/mo`}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">{p.description}</p>
                   </div>
-                  <p className="text-xs text-gray-500 mb-2">{p.description}</p>
-                  <ul className="text-xs text-gray-600 space-y-0.5 mb-3">
-                    <li>Leads: {p.limits.maxLeads?.toLocaleString()}</li>
-                    <li>Users: {p.limits.maxUsers}</li>
-                    <li>Storage: {p.limits.maxStorageMB?.toLocaleString()} MB</li>
-                    <li>Bundles: {bundleCount}</li>
-                    <li className={p.trialDays ? 'text-emerald-600 font-medium' : ''}>
-                      {p.trialDays ? `🎁 ${p.trialDays}-day free trial` : 'No free trial'}
-                    </li>
-                    {p.discountPercent ? (
-                      <li className="text-rose-600 font-medium">🏷️ {p.discountPercent}% off{p.promoCode ? ` · ${p.promoCode}` : ''}</li>
-                    ) : null}
-                  </ul>
-                  <div className="mt-auto flex items-center gap-2 pt-2 border-t border-gray-100">
+
+                  {/* Basic info */}
+                  <div className="text-xs text-gray-600 mb-3 space-y-0.5 pb-3 border-b border-gray-200">
+                    <div>Leads: {p.limits.maxLeads?.toLocaleString()}</div>
+                    <div>Users: {p.limits.maxUsers}</div>
+                    <div>Storage: {p.limits.maxStorageMB?.toLocaleString()} MB</div>
+                    {p.trialDays ? <div className="text-emerald-600 font-medium">🎁 {p.trialDays}-day free trial</div> : null}
+                    {p.discountPercent ? <div className="text-rose-600 font-medium">🏷️ {p.discountPercent}% off{p.promoCode ? ` (${p.promoCode})` : ''}</div> : null}
+                  </div>
+
+                  {/* Bundles */}
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Bundles:</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {groupModules.length > 0 ? (
+                        groupModules.map((m, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-xs">
+                            <input type="checkbox" checked disabled className="h-4 w-4 rounded" />
+                            <span className="text-gray-700">{m.icon} {m.label}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-400 italic">No bundles included</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="mt-auto flex items-center gap-2 pt-3 border-t border-gray-100">
                     <button
                       onClick={() => openPlanEdit(p)}
                       className="flex-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded py-1.5 transition"
@@ -1005,6 +1028,61 @@ export default function TenantsPage() {
                     >
                       Delete
                     </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ====== All Tenants with Their Plans & Bundles ====== */}
+      {tenants.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">All Tenants — Plans & Bundles</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tenants.map((t) => {
+              const tenantPlan = plans.find((p) => p.tier === t.plan);
+              const moduleKeys = t.moduleKeys || [];
+              const groupKeys = moduleKeys.filter((k) => !k.includes('.'));
+              const tenantModules = groupKeys.flatMap((gk) => {
+                const grp = MODULE_CATALOG.find((g) => g.key === gk);
+                return grp ? [{ label: grp.label, icon: grp.icon }] : [];
+              });
+
+              return (
+                <div key={t._id} className="border rounded-xl p-4 bg-white">
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-semibold text-gray-800 text-sm">{t.name}</h3>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PLAN_COLORS[t.plan] || ''}`}>
+                        {t.plan}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 font-mono">{t.slug}</p>
+                  </div>
+
+                  <div className="text-xs text-gray-600 mb-3 pb-3 border-b border-gray-200">
+                    <div>Leads: {(t.currentLeadCount ?? 0).toLocaleString()}</div>
+                    <div>Users: {t.currentUserCount ?? 0}</div>
+                    <div>Status: <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[t.status] || ''}`}>{t.status}</span></div>
+                  </div>
+
+                  {/* Bundles for this tenant */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Enabled Bundles ({tenantModules.length}):</p>
+                    <div className="space-y-1">
+                      {tenantModules.length > 0 ? (
+                        tenantModules.map((m, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-xs">
+                            <input type="checkbox" checked disabled className="h-4 w-4 rounded" />
+                            <span className="text-gray-700">{m.icon} {m.label}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-400 italic">No bundles enabled</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
