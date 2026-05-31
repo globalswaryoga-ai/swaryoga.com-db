@@ -170,8 +170,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'landing-pages':  ['landing_page'],
     // E-Learning — elearning bundle (Silver+)
     'elearning':      ['elearning'],
-    // Settings — always (ensured above via expanded.add('settings'))
-    'settings':       ['settings'],
+    // Settings — only Copper+ (whatsapp_meta); Besic uses profile dropdown for settings
+    'settings':       ['whatsapp_meta'],
     // Connections — needs at least one channel API (Copper+)
     'connections':    ['whatsapp_meta', 'email', 'telegram', 'tally'],
     // Integrations — advanced features (Silver+)

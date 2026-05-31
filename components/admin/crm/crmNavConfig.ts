@@ -549,6 +549,19 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/integration-hub'],
   },
 
+  // Storage — always visible for all plans
+  {
+    key: 'storage',
+    title: 'Storage',
+    icon: HardDrive,
+    items: [
+      { label: 'Storage Usage', href: '/admin/crm/subscription', icon: HardDrive },
+      { label: 'Buy Storage',   href: '/crm-site/checkout?storage=true', icon: CreditCard },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/storage'],
+  },
+
   // Extensions — addons page
   {
     key: 'addons',

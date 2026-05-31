@@ -1,319 +1,292 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Check, X, Loader } from 'lucide-react';
 import Link from 'next/link';
+import {
+  ArrowLeft, HardDrive, Users, MessageSquare, Crown,
+  Zap, CheckCircle2, CreditCard, Calendar, TrendingUp,
+  Loader2, AlertCircle,
+} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+
+interface SubscriptionData {
+  plan: string;
+  billing: string;
+  subscriptionStatus: string;
+  subscriptionEndDate: string | null;
+  storageUsedMB: number;
+  storageQuotaMB: number;
+  leadsUsed: number;
+  leadsQuota: number;
+  usersCount: number;
+  usersQuota: number;
+  isTrialActive?: boolean;
+  trialDaysRemaining?: number;
+  lastPaymentDate?: string;
+  lastPaymentAmount?: number;
+}
+
+interface DbPlan {
+  tier: string;
+  name: string;
+  description: string;
+  monthlyPriceINR: number;
+  annualPriceINR: number;
+  quarterlyPriceINR: number;
+  limits: { maxLeads: number; maxUsers: number; maxStorageMB: number; maxBroadcastsPerDay: number };
+  defaultGroups: string[];
+  trialDays: number;
+  promoCode: string;
+  discountPercent: number;
+}
+
+const COLORS = [
+  { border: 'border-sky-300',    bg: 'bg-sky-50',    text: 'text-sky-700',    btn: 'bg-sky-600 hover:bg-sky-700',       badge: 'bg-sky-600' },
+  { border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-700', btn: 'bg-orange-500 hover:bg-orange-600', badge: 'bg-orange-500' },
+  { border: 'border-indigo-300', bg: 'bg-indigo-50', text: 'text-indigo-700', btn: 'bg-indigo-600 hover:bg-indigo-700', badge: 'bg-indigo-600' },
+  { border: 'border-purple-300', bg: 'bg-purple-50', text: 'text-purple-700', btn: 'bg-purple-600 hover:bg-purple-700', badge: 'bg-purple-600' },
+  { border: 'border-amber-300',  bg: 'bg-amber-50',  text: 'text-amber-700',  btn: 'bg-amber-500 hover:bg-amber-600',   badge: 'bg-amber-500' },
+];
 
 export default function BillingPage() {
   const token = useAuth();
-  const [subscription, setSubscription] = useState<any>(null);
+  const [sub, setSub] = useState<SubscriptionData | null>(null);
+  const [plans, setPlans] = useState<DbPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cycle, setCycle] = useState<'monthly' | 'quarterly' | 'annual'>('monthly');
 
   useEffect(() => {
     if (!token) return;
-    fetchSubscription();
+    Promise.all([
+      fetch('/api/crm-site/subscription', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => d?.subscription ? setSub(d.subscription) : null),
+      fetch('/api/admin/tenants/plans')
+        .then(r => r.json())
+        .then(d => {
+          const sorted = (d?.data?.plans || []).sort((a: DbPlan, b: DbPlan) => a.monthlyPriceINR - b.monthlyPriceINR);
+          setPlans(sorted);
+        }),
+    ])
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
   }, [token]);
 
-  const fetchSubscription = async () => {
-    try {
-      const res = await fetch('/api/admin/crm/subscription', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSubscription(data.subscription);
-      } else {
-        setError(data.error || 'Failed to load subscription');
-      }
-    } catch (err) {
-      setError('Failed to load subscription');
-    } finally {
-      setLoading(false);
-    }
+  const storagePercent = sub ? Math.min(100, (sub.storageUsedMB / Math.max(1, sub.storageQuotaMB)) * 100) : 0;
+  const leadsPercent   = sub && sub.leadsQuota < 999999 ? Math.min(100, (sub.leadsUsed / Math.max(1, sub.leadsQuota)) * 100) : 0;
+  const daysLeft = sub?.subscriptionEndDate
+    ? Math.max(0, Math.ceil((new Date(sub.subscriptionEndDate).getTime() - Date.now()) / 86400000))
+    : null;
+  const currentIdx = plans.findIndex(p => p.tier === sub?.plan);
+
+  const getPrice = (p: DbPlan) => {
+    if (cycle === 'annual') return Math.round((p.annualPriceINR || p.monthlyPriceINR * 12) / 12);
+    if (cycle === 'quarterly') return Math.round((p.quarterlyPriceINR || p.monthlyPriceINR * 3) / 3);
+    return p.monthlyPriceINR;
   };
 
-  const plans = [
-    {
-      id: 'basic',
-      name: 'Basic',
-      price: 499,
-      period: '/month',
-      description: 'Perfect for getting started',
-      badge: '15 days free',
-      limits: {
-        leads: 2000,
-        teamMembers: 1,
-        workflows: 5,
-        emailPerMonth: 2000,
-        storage: '1GB included, ₹50/1GB extra',
-      },
-      features: [
-        'Leads Management (2000 leads)',
-        'Team Members (1 user)',
-        'WhatsApp Messaging',
-        'Telegram Integration',
-        'Email (2000/month)',
-        'QR Code Generation',
-        'Broadcast Templates',
-        'Automation (5 workflows)',
-        'Basic Reports',
-        '1GB Storage',
-        '15 days free trial',
-      ],
-    },
-    {
-      id: 'copper',
-      name: 'Copper',
-      price: 999,
-      period: '/month',
-      description: 'For small teams',
-      limits: {
-        leads: 5000,
-        teamMembers: 3,
-        workflows: 10,
-        emailPerMonth: 5000,
-        storage: '5GB included, ₹50/1GB extra',
-      },
-      features: [
-        'Everything in Basic',
-        'Leads Management (5000 leads)',
-        'Team Members (3 users)',
-        'AI Chatbots',
-        'Advanced Automation (10 workflows)',
-        'Email (5000/month)',
-        'Advanced Analytics',
-        'Team Collaboration',
-        'Priority Support (24hr)',
-        '5GB Storage',
-      ],
-    },
-    {
-      id: 'silver',
-      name: 'Silver',
-      price: 1999,
-      period: '/month',
-      description: 'For growing teams',
-      limits: {
-        leads: 15000,
-        teamMembers: 10,
-        workflows: 'Unlimited',
-        emailPerMonth: 10000,
-        storage: '20GB included, ₹50/1GB extra',
-      },
-      features: [
-        'Everything in Copper',
-        'Leads Management (15000 leads)',
-        'Team Members (10 users)',
-        'Unlimited Workflows',
-        'Email (10000/month)',
-        'Voice AI Integration',
-        'Payment Processing',
-        'Certificates Module',
-        'Community Features',
-        '20GB Storage',
-        'API Access (50K req/month)',
-      ],
-    },
-    {
-      id: 'golden',
-      name: 'Golden',
-      price: 2999,
-      period: '/month',
-      description: 'For larger enterprises',
-      limits: {
-        leads: 50000,
-        teamMembers: 25,
-        workflows: 'Unlimited',
-        emailPerMonth: 50000,
-        storage: '50GB included, ₹50/1GB extra',
-      },
-      features: [
-        'Everything in Silver',
-        'Leads Management (50000 leads)',
-        'Team Members (25 users)',
-        'Email (50000/month)',
-        'Workshops Module',
-        'Life Planner',
-        'Advanced Analytics',
-        'Custom Domain',
-        'Dedicated Support',
-        '50GB Storage',
-        'API Access (500K req/month)',
-      ],
-    },
-    {
-      id: 'diamond',
-      name: 'Diamond',
-      price: 4999,
-      period: '/month',
-      description: 'Enterprise solutions',
-      badge: '50 users',
-      limits: {
-        leads: 'Unlimited',
-        teamMembers: 50,
-        workflows: 'Unlimited',
-        emailPerMonth: 'Unlimited',
-        storage: '500GB included, ₹50/1GB extra',
-      },
-      features: [
-        'Everything in Golden',
-        'Unlimited Leads',
-        'Team Members (50 users)',
-        'Unlimited Email',
-        'Unlimited Automation',
-        'Tally Integration',
-        'Full API Access',
-        'Dedicated Account Manager',
-        'Custom Solutions',
-        'SLA Guarantee (99.9%)',
-        '500GB Storage',
-        'Priority Support (1hr)',
-        'Training & Onboarding',
-      ],
-    },
-  ];
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="p-6 text-center">
+      <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+      <p className="text-red-600">{error}</p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Link href="/admin/crm" className="p-2 hover:bg-gray-100 rounded-lg">
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Plan & Billing</h1>
-          </div>
-          <p className="text-gray-600">Manage your subscription and billing</p>
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto pb-20 space-y-8">
+
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Link href="/admin/crm" className="p-2 hover:bg-gray-100 rounded-lg transition">
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Billing & Plans</h1>
+          <p className="text-sm text-gray-500">Manage your subscription, storage and billing</p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <Loader className="w-8 h-8 animate-spin text-blue-600" />
+      {/* Trial Banner */}
+      {sub?.isTrialActive && (
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 text-white flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <p className="font-bold text-lg">Free Trial Active</p>
+            <p className="text-white/80 text-sm">{sub.trialDaysRemaining} days remaining — upgrade to keep your data</p>
           </div>
-        ) : error ? (
-          <div className="mb-12 bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">
-            {error}
-          </div>
-        ) : subscription ? (
-          <div className="mb-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              Current Plan: {subscription.currentPlan?.charAt(0).toUpperCase() + subscription.currentPlan?.slice(1)}
-            </h2>
-            {subscription.status === 'trial' && subscription.trialDaysRemaining ? (
-              <p className="text-gray-600 mb-4">
-                Trial • {subscription.trialDaysRemaining} days remaining
-              </p>
-            ) : subscription.status === 'expired' ? (
-              <p className="text-red-600 mb-4 font-semibold">Trial Expired • Please select a plan to continue</p>
-            ) : (
-              <p className="text-gray-600 mb-4">₹{plans.find(p => p.id === subscription.currentPlan)?.price || 499}/month</p>
-            )}
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">
-              Manage Subscription
-            </button>
-          </div>
-        ) : null}
+          <Link href="/crm-site/checkout" className="px-5 py-2.5 bg-white text-indigo-700 font-semibold rounded-xl text-sm hover:bg-gray-100 transition">
+            Upgrade Now
+          </Link>
+        </div>
+      )}
 
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Choose Your Plan</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((plan) => {
-            const isActive = subscription?.currentPlan === plan.id;
-            return (
-            <div
-              key={plan.name}
-              className={`rounded-lg border-2 p-6 transition-all ${
-                isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'
-              }`}
-            >
-              {isActive && (
-                <span className="inline-block bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold mb-3">
-                  CURRENT PLAN
-                </span>
-              )}
-              {!isActive && (plan as any).badge && (
-                <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold mb-3">
-                  {(plan as any).badge}
-                </span>
-              )}
-              <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-              <p className="text-gray-600 text-sm mb-4">{plan.description}</p>
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-gray-900">₹{plan.price}</span>
-                <span className="text-gray-600">{plan.period}</span>
-              </div>
-              <button
-                className={`w-full py-2 rounded-lg font-medium transition-colors mb-6 ${
-                  isActive
-                    ? 'bg-gray-200 text-gray-600 cursor-default'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-                disabled={isActive}
-              >
-                {isActive ? 'Current Plan' : 'Upgrade'}
-              </button>
-              <div className="space-y-3">
-                {plan.features.map((feature, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Check className="w-5 h-5 text-green-600" />
-                    <span className="text-gray-700 text-sm">{feature}</span>
-                  </div>
-                ))}
+      {/* Usage Cards */}
+      {sub && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Storage — MB + Buy Now */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-indigo-50 rounded-xl"><HardDrive className="w-5 h-5 text-indigo-600" /></div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Storage</p>
+                <p className="text-xs text-gray-500">{sub.storageUsedMB} MB of {sub.storageQuotaMB} MB</p>
               </div>
             </div>
+            <div className="h-2 bg-gray-100 rounded-full mb-3 overflow-hidden">
+              <div className={`h-full rounded-full ${storagePercent > 90 ? 'bg-red-500' : storagePercent > 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                style={{ width: `${Math.max(2, storagePercent)}%` }} />
+            </div>
+            <Link href="/crm-site/checkout?storage=true"
+              className="block text-center py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">
+              Buy More Storage
+            </Link>
+          </div>
+
+          {/* Leads */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-emerald-50 rounded-xl"><MessageSquare className="w-5 h-5 text-emerald-600" /></div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Leads</p>
+                <p className="text-xs text-gray-500">{sub.leadsUsed.toLocaleString()} of {sub.leadsQuota >= 999999 ? 'Unlimited' : sub.leadsQuota.toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full mb-3 overflow-hidden">
+              <div className={`h-full rounded-full ${leadsPercent > 90 ? 'bg-red-500' : leadsPercent > 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                style={{ width: `${Math.max(2, leadsPercent)}%` }} />
+            </div>
+            <div className="text-xs text-gray-500 text-center">{leadsPercent.toFixed(0)}% used</div>
+          </div>
+
+          {/* Renewal */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-purple-50 rounded-xl"><Calendar className="w-5 h-5 text-purple-600" /></div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Next Renewal</p>
+                <p className="text-xs text-gray-500">{daysLeft !== null ? `${daysLeft} days remaining` : 'No active plan'}</p>
+              </div>
+            </div>
+            {sub.subscriptionEndDate && (
+              <p className="text-lg font-bold text-gray-800">
+                {new Date(sub.subscriptionEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+            )}
+            {sub.lastPaymentAmount && (
+              <p className="text-xs text-gray-500 mt-1">Last paid: ₹{sub.lastPaymentAmount.toLocaleString()}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Plan Comparison */}
+      <div>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+          <h2 className="text-lg font-bold text-gray-900">All Plans</h2>
+          <div className="flex items-center bg-gray-100 rounded-xl p-1">
+            {(['monthly', 'quarterly', 'annual'] as const).map(c => (
+              <button key={c} onClick={() => setCycle(c)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${cycle === c ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {c === 'monthly' ? 'Monthly' : c === 'quarterly' ? '3 Months' : 'Annual'}
+                {c === 'annual' && <span className="text-emerald-600 ml-1">Save 20%</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.min(5, plans.length)} gap-4`}>
+          {plans.map((p, idx) => {
+            const color = COLORS[idx % COLORS.length];
+            const isCurrent = p.tier === sub?.plan;
+            const isUpgrade = idx > currentIdx;
+            const price = getPrice(p);
+            const bundles = p.defaultGroups?.length ?? 0;
+
+            return (
+              <div key={p.tier} className={`relative bg-white rounded-2xl border-2 p-5 transition-all ${isCurrent ? `${color.border} shadow-lg` : 'border-gray-100 hover:shadow-sm'}`}>
+                {isCurrent && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className={`px-3 py-0.5 ${color.badge} text-white text-[10px] font-bold rounded-full uppercase tracking-wide`}>
+                      Current
+                    </span>
+                  </div>
+                )}
+                {p.trialDays > 0 && !isCurrent && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="px-3 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded-full">
+                      {p.trialDays}-day trial
+                    </span>
+                  </div>
+                )}
+
+                <div className="text-center pt-2 pb-3">
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl mb-2 ${color.bg}`}>
+                    <Zap className={`w-5 h-5 ${color.text}`} />
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-base">{p.name}</h3>
+                  <p className="text-xs text-gray-500">{p.description}</p>
+                </div>
+
+                <div className="text-center py-3 border-y border-gray-100 mb-3">
+                  {p.monthlyPriceINR === 0 ? (
+                    <span className="text-2xl font-bold text-gray-900">Free</span>
+                  ) : (
+                    <span className="text-2xl font-bold text-gray-900">
+                      ₹{price.toLocaleString()}<span className="text-xs font-normal text-gray-500">/mo</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 text-xs mb-4">
+                  <div className="flex justify-between"><span className="text-gray-500">Leads</span><span className="font-semibold">{(p.limits?.maxLeads ?? 0).toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Users</span><span className="font-semibold">{p.limits?.maxUsers ?? 1}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Storage</span><span className="font-semibold">{p.limits?.maxStorageMB ?? 0} MB</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Modules</span><span className="font-semibold">{bundles}</span></div>
+                  {p.discountPercent > 0 && (
+                    <div className="flex justify-between text-rose-600"><span>Discount</span><span className="font-semibold">{p.discountPercent}% off{p.promoCode ? ` (${p.promoCode})` : ''}</span></div>
+                  )}
+                </div>
+
+                {isCurrent ? (
+                  <div className={`text-center py-2 rounded-xl text-sm font-semibold ${color.bg} ${color.text}`}>Current Plan</div>
+                ) : isUpgrade ? (
+                  <Link href={`/crm-site/checkout?plan=${p.tier}&billing=${cycle}`}
+                    className={`block text-center py-2 rounded-xl text-sm font-semibold text-white ${color.btn} transition`}>
+                    Upgrade Now
+                  </Link>
+                ) : (
+                  <div className="text-center py-2 rounded-xl text-sm text-gray-400 bg-gray-50">Previous Plan</div>
+                )}
+              </div>
             );
           })}
         </div>
-
-        {subscription && (
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <p className="text-gray-600 text-sm mb-2">Storage Used</p>
-              <p className="text-3xl font-bold text-gray-900">{subscription.storageUsedGB} GB</p>
-              <p className="text-xs text-gray-600 mt-2">of {subscription.storageIncludedGB} GB included</p>
-              {subscription.storageUsedGB > 0 && (
-                <div className="mt-4 bg-gray-200 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-blue-600 h-full"
-                    style={{
-                      width: `${Math.min((subscription.storageUsedGB / subscription.storageIncludedGB) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <p className="text-gray-600 text-sm mb-2">Storage Cost</p>
-              <p className="text-3xl font-bold text-green-600">
-                ₹{Math.max(0, (subscription.storageUsedGB - subscription.storageIncludedGB) * 50)}/mo
-              </p>
-              <p className="text-xs text-gray-600 mt-2">₹50/GB for extra storage</p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <p className="text-gray-600 text-sm mb-2">
-                {subscription.status === 'trial' ? 'Trial Expires' : 'Next Billing'}
-              </p>
-              <p className="text-3xl font-bold text-blue-600">
-                {subscription.status === 'trial' && subscription.trialEndsAt
-                  ? new Date(subscription.trialEndsAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-                  : subscription.nextBillingDate
-                    ? new Date(subscription.nextBillingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-                    : '-'}
-              </p>
-              <p className="text-xs text-gray-600 mt-2">
-                {subscription.status === 'trial' && subscription.trialEndsAt
-                  ? new Date(subscription.trialEndsAt).getFullYear()
-                  : subscription.nextBillingDate
-                    ? new Date(subscription.nextBillingDate).getFullYear()
-                    : ''}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Billing History Link */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-center justify-between">
+        <div>
+          <p className="font-semibold text-gray-900">Billing History</p>
+          <p className="text-sm text-gray-500">View all invoices and payment records</p>
+        </div>
+        <Link href="/admin/crm/billing-history" className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
+          View History →
+        </Link>
+      </div>
+
+      {/* Help */}
+      <p className="text-center text-sm text-gray-400">
+        Need help?{' '}
+        <a href="https://wa.me/919779006820" className="text-indigo-600 hover:underline">WhatsApp us</a>
+        {' '}or{' '}
+        <a href="mailto:support@swaryoga.com" className="text-indigo-600 hover:underline">email support</a>
+      </p>
     </div>
   );
 }
