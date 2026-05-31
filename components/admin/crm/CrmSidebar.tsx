@@ -38,59 +38,96 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
   const activeKey = findSectionForPath(pathname)?.key;
   usePlan(); // keep provider alive for other components
 
-  // Tenant-enabled module keys (expanded to include child keys).
+  // Tenant module keys. null = still loading, Set = loaded (may be empty).
   const [tenantModuleKeys, setTenantModuleKeys] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     async function loadTenantModules() {
-      try {
-        const token = typeof window !== 'undefined'
-          ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
-          : null;
-        if (!token) return setTenantModuleKeys(null);
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+        : null;
 
+      // Helper: build a Set from raw key list + always add settings
+      const buildSet = (keys: string[]) => {
+        const groupKeys = keys.filter((k) => typeof k === 'string' && !k.includes('.'));
+        const childKeys = keys.filter((k) => typeof k === 'string' && k.includes('.'));
+        const s = new Set<string>([...expandGroups(groupKeys), ...childKeys]);
+        s.add('settings');
+        return s;
+      };
+
+      // Helper: fetch plan defaultGroups by tier slug
+      const keysFromPlan = async (tier: string): Promise<string[]> => {
+        try {
+          const r = await fetch('/api/admin/tenants/plans');
+          if (!r.ok) return [];
+          const d = await r.json();
+          const p = (d?.data?.plans || []).find((x: any) => x.tier === tier);
+          return p?.defaultGroups || [];
+        } catch { return []; }
+      };
+
+      // Helper: fetch plan tier from setup-status (fallback when no tenantSlug)
+      const tierFromSetupStatus = async (): Promise<string> => {
+        try {
+          const r = await fetch('/api/crm-site/setup-status', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (!r.ok) return '';
+          const d = await r.json();
+          return d?.planId || '';
+        } catch { return ''; }
+      };
+
+      if (!token) {
+        setTenantModuleKeys(buildSet([])); // show settings only
+        return;
+      }
+
+      try {
+        // Step 1: get account profile
         const accRes = await fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } });
-        if (!accRes.ok) return setTenantModuleKeys(null);
+        if (!accRes.ok) {
+          // No account → fall back via setup-status
+          const tier = await tierFromSetupStatus();
+          const keys = tier ? await keysFromPlan(tier) : [];
+          setTenantModuleKeys(buildSet(keys));
+          return;
+        }
         const acc = await accRes.json();
         const tenantSlug = acc?.profile?.tenantSlug;
-        if (!tenantSlug) return setTenantModuleKeys(null);
 
+        if (!tenantSlug) {
+          // Logged-in user has no tenant slug → use plan from setup-status
+          const tier = await tierFromSetupStatus();
+          const keys = tier ? await keysFromPlan(tier) : [];
+          setTenantModuleKeys(buildSet(keys));
+          return;
+        }
+
+        // Step 2: get tenant record
         const tRes = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}`, { headers: { Authorization: `Bearer ${token}` } });
-        if (!tRes.ok) return setTenantModuleKeys(null);
+        if (!tRes.ok) {
+          const tier = await tierFromSetupStatus();
+          const keys = tier ? await keysFromPlan(tier) : [];
+          setTenantModuleKeys(buildSet(keys));
+          return;
+        }
         const tjson = await tRes.json();
         let keys: string[] = tjson?.tenant?.moduleKeys || tjson?.tenant?.enabledModules || [];
 
-        // Empty moduleKeys bug fix: if tenant has a plan but no moduleKeys set,
-        // fall back to the plan's defaultGroups from the plans API.
+        // If moduleKeys empty, derive from plan's defaultGroups
         if (keys.length === 0) {
-          const tenantPlan: string = tjson?.tenant?.plan || '';
-          if (tenantPlan) {
-            try {
-              const plansRes = await fetch('/api/admin/tenants/plans');
-              if (plansRes.ok) {
-                const plansData = await plansRes.json();
-                const matchedPlan = (plansData?.data?.plans || []).find((p: any) => p.tier === tenantPlan);
-                if (matchedPlan?.defaultGroups?.length) {
-                  keys = matchedPlan.defaultGroups;
-                }
-              }
-            } catch {}
-          }
+          const tier = tjson?.tenant?.plan || await tierFromSetupStatus();
+          if (tier) keys = await keysFromPlan(tier);
         }
 
-        const groupKeys = keys.filter((k) => typeof k === 'string' && !k.includes('.'));
-        const childKeys = keys.filter((k) => typeof k === 'string' && k.includes('.'));
-        const expanded = new Set<string>([...expandGroups(groupKeys), ...childKeys]);
-
-        const valid = new Set<string>(MODULE_CATALOG.flatMap((g) => [g.key, ...g.children.map((c) => c.key)]));
-        for (const k of Array.from(expanded)) if (!valid.has(k)) expanded.delete(k);
-
-        // Always include settings so the Settings sidebar entry is always visible
-        expanded.add('settings');
-
-        setTenantModuleKeys(expanded);
+        setTenantModuleKeys(buildSet(keys));
       } catch {
-        setTenantModuleKeys(null);
+        // Complete failure — fail open with minimal set so sidebar isn't empty
+        const tier = await tierFromSetupStatus();
+        const keys = tier ? await keysFromPlan(tier) : [];
+        setTenantModuleKeys(buildSet(keys));
       }
     }
 
@@ -160,8 +197,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
           Array.from(tenantModuleKeys).some((k) => k.startsWith(rk + '.'))
         );
       }
-      // While loading (null) show nothing except dashboard — prevents wrong-page flash
-      return false;
+      // Still loading (null) — show section so sidebar isn't blank while fetching
+      return true;
     });
   }, [isSuper, tenantModuleKeys]);
 
