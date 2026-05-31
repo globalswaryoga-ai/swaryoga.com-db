@@ -225,6 +225,9 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
     }
     
     if (hidden) return;
+    // Don't call the API until we actually have a token, otherwise the request
+    // goes out as "Bearer undefined" and the server rightly returns 401.
+    if (!token) return;
 
     const fetchStorageUsage = async () => {
       try {
