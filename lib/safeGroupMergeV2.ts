@@ -59,11 +59,11 @@ interface MergeOperationGaps {
 }
 
 /**
- * Calculate variable gaps for group operations (60/hour = 1 per minute)
+ * Calculate variable gaps for group operations (~15/hour, matches QR send pace)
  * Pattern:
- * - Operations 1-2: 10 second gap (quick start)
- * - Operations 3-60: Random 60-90 second gaps (safe for group ops)
- * - No repeated gaps (ensures human-like behavior)
+ * - Operations 1-2: 30 second warm-up
+ * - Operations 3+: Random 120-360 second gaps (2–6 min, ~15/hr)
+ * - No repeated gaps (ensures human-like, non-robotic behavior)
  */
 export function calculateGroupOperationGaps(totalOperations: number): MergeOperationGaps {
   const gaps: number[] = [];
@@ -73,13 +73,13 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
     let gap: number;
 
     if (i < 2) {
-      // First 2 operations: 10 second gap (quick start)
-      gap = 10000;
+      // First 2 operations: 30 second warm-up
+      gap = 30000;
     } else {
-      // Rest: Random 60-90 second gaps (very safe for group ops)
+      // Rest: Random 120-360 second gaps (2–6 min, ~15/hr — matches message pace)
       let attempts = 0;
       do {
-        gap = Math.random() * (90000 - 60000) + 60000;
+        gap = Math.random() * (360000 - 120000) + 120000;
         attempts++;
       } while (gap === lastGap && attempts < 10);
     }
@@ -95,7 +95,7 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
     gaps,
     totalMs,
     totalMinutes,
-    strategy: `First 2: 10s | Rest: 60-90s random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
+    strategy: `First 2: 30s | Rest: 2–6 min random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
   };
 }
 
@@ -191,14 +191,16 @@ export function createMergeGroupV2Entry(
  */
 export function getNextGroupOperationGap(operationIndex: number, lastGap?: number): number {
   if (operationIndex < 2) {
-    return 10000; // First 2 operations: 10s
+    return 30000; // First 2 operations: 30s warm-up
   }
 
   let gap: number;
   let attempts = 0;
 
   do {
-    gap = Math.random() * (90000 - 60000) + 60000; // 60-90s random
+    // 120–360s random (mean 240s = 4 min) → ~15 operations/hour, matching the
+    // QR message-send pace. No repeated gaps keeps it human/non-robotic.
+    gap = Math.random() * (360000 - 120000) + 120000;
     attempts++;
   } while (lastGap && gap === lastGap && attempts < 10);
 

@@ -171,8 +171,8 @@ export async function POST(request: NextRequest) {
         timezone: schedule?.timezone || 'Asia/Kolkata',
       },
       mergeDurationMinutes: mergeDurationMinutes || 120,
-      minDelayBetweenOpsMs: minDelayBetweenOpsMs || 30000,
-      maxDelayBetweenOpsMs: maxDelayBetweenOpsMs || 120000,
+      minDelayBetweenOpsMs: minDelayBetweenOpsMs || 120000, // 2 min (~15/hr, matches QR send pace)
+      maxDelayBetweenOpsMs: maxDelayBetweenOpsMs || 360000, // 6 min
       userId: decoded.userId,
       tenantId: decoded.tenantId,
     });

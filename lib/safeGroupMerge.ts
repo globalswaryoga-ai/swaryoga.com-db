@@ -99,13 +99,13 @@ export function calculateMergeQueueSchedule(
     spreadMinutes,
     totalOperations,
     avgDelayPerOperationSeconds: Math.round(avgDelayPerOp),
-    minDelaySeconds: 45,
-    maxDelaySeconds: 180,
-    strategy: 'MAXIMUM SAFETY: 45-180s delays between EVERY operation (no ban risk)',
+    minDelaySeconds: 120,
+    maxDelaySeconds: 360,
+    strategy: 'MAXIMUM SAFETY: 120-360s delays between EVERY operation (~15/hr, no ban risk)',
     riskLevel: 'ZERO' as const,
     antiDetectionMeasures: [
       '✅ Single group processed at a time (no concurrent)',
-      '✅ 45-180 second random delays between operations (ultra-conservative)',
+      '✅ 120-360 second random delays between operations (~15/hr, ultra-conservative)',
       '✅ Connection checks before each batch',
       '✅ Auto-resume on disconnection',
       '✅ Graceful error recovery',
@@ -116,14 +116,12 @@ export function calculateMergeQueueSchedule(
 }
 
 /**
- * Get next safe operation delay (45-180 seconds for MAXIMUM SAFETY)
- * Varies to appear human-like
- * Range: 45-180 seconds (vs 30-120 for faster merges)
+ * Get next safe operation delay (120-360 seconds → ~15 operations/hour).
+ * Matches the QR message-send pace. Random each time to appear human-like.
  */
 export function getNextMergeOperationDelay(): number {
-  // 45-180 seconds for merge (ULTRA-CONSERVATIVE - maximum safety, no ban risk)
-  // This is 0.75-3 minutes per operation, appearing very human-like
-  return Math.floor(Math.random() * (180000 - 45000 + 1)) + 45000;
+  // 120-360 seconds per operation (2–6 min) = ~15/hr, very human-like, no ban risk
+  return Math.floor(Math.random() * (360000 - 120000 + 1)) + 120000;
 }
 
 /**

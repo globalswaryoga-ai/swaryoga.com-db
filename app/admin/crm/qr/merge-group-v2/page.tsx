@@ -147,15 +147,15 @@ export default function MergeGroupV2Page() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">🔄 Group Merge V2 (60/hour Safe)</h1>
+        <h1 className="text-3xl font-bold mb-8">🔄 Group Merge V2 (~15/hour Safe)</h1>
 
         {/* Info Box */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
           <h2 className="font-bold mb-2">📋 How It Works</h2>
           <ul className="text-sm space-y-1 text-gray-700">
-            <li>✅ <strong>Add 60 participants in 1 hour</strong> (10s × 2, then 60-90s random gaps)</li>
-            <li>✅ <strong>Remove same 60 in 1 hour</strong> (same safe gaps)</li>
-            <li>✅ <strong>No repeated gaps</strong> (100% human-like)</li>
+            <li>✅ <strong>~15 participants per hour</strong> (30s × 2 warm-up, then 2–6 min random gaps)</li>
+            <li>✅ <strong>Remove at the same safe ~15/hr pace</strong></li>
+            <li>✅ <strong>No repeated gaps, irregular timing</strong> (100% human-like)</li>
             <li>✅ <strong>Auto-stops on 20%+ failures</strong> (prevents bans)</li>
             <li>✅ <strong>Randomized participant order</strong> (not systematic)</li>
           </ul>
@@ -315,8 +315,8 @@ export default function MergeGroupV2Page() {
         <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <h3 className="font-bold mb-2">⚠️ Safety Notes</h3>
           <ul className="text-sm text-gray-700 space-y-1">
-            <li>• Gap strategy: First 2 at 10s, rest at 60-90s random (no repeats)</li>
-            <li>• Max rate: 60 operations per hour (1 per minute average)</li>
+            <li>• Gap strategy: First 2 at 30s warm-up, rest at 2–6 min random (no repeats, irregular)</li>
+            <li>• Max rate: ~15 operations per hour (matches QR message-send pace)</li>
             <li>• Auto-stops if 20%+ operations fail (prevents cascading bans)</li>
             <li>• Each operation fully isolated (not concurrent)</li>
             <li>• Participant order randomized (not systematic/bot-like)</li>
