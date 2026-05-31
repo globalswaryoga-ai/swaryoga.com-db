@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { getCrmLeadSettings, getCrmCounter } from '@/lib/schemas/enterpriseSchemas';
 import { LEAD_NUMBER_COUNTER_ID } from '@/lib/crm/leadNumber';
 
 export const dynamic = 'force-dynamic';
 
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
 
 /**
  * GET /api/admin/crm/leads/settings

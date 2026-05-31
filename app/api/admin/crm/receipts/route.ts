@@ -2,23 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { Lead, CrmReceipt } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
-
-function getViewerUserId(decoded: any): string {
-  return decoded?.userId || decoded?.email || '';
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  if (!decoded?.isAdmin && !decoded?.userId) return false;
-  if (decoded?.userId === 'admin') return true;
-  const perms: string[] = Array.isArray(decoded?.permissions) ? decoded.permissions : [];
-  return perms.includes('all');
-}
 
 function nextReceiptNumber(seq: number): string {
   // Example: R-000123

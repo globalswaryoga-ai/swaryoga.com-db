@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
-  );
-}
 
 /**
  * PATCH /api/admin/crm/leads/[id]/chat-status

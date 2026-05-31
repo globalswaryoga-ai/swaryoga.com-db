@@ -11,15 +11,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
-  );
-}
 
 export async function POST(request: NextRequest) {
   try {

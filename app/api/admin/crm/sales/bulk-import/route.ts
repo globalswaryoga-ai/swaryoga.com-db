@@ -2,23 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getLead, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
 import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) &&
-      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
-  );
-}
 
 function normalizePaymentMode(raw: any): 'payu' | 'card' | 'bank_transfer' | 'cash' | 'other' {
   const s = String(raw || '').trim().toLowerCase();

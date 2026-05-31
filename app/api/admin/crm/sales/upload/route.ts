@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { Lead, SalesReport } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
@@ -10,18 +11,6 @@ export const dynamic = 'force-dynamic';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && 
-      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
-  );
-}
 
 function normalizePaymentMode(raw: any): 'payu' | 'card' | 'bank_transfer' | 'cash' | 'other' {
   const s = String(raw || '').trim().toLowerCase();

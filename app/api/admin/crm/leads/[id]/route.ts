@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, WorkshopSeatInventory } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { DeletedLead, Lead, LeadNote, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
@@ -8,17 +9,6 @@ export const dynamic = 'force-dynamic';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
-  );
-}
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
