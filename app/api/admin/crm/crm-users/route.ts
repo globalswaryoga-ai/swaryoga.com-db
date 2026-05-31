@@ -11,6 +11,7 @@ import {
   sanitizeTenantCustomPricing,
   sanitizeTenantModuleOverrides,
 } from '@/lib/crm-site/tenantPlanAccess';
+import { sanitizeModuleKeys } from '@/lib/tenant/moduleCatalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,6 +124,7 @@ export async function GET(req: NextRequest) {
         customLimits: planAccess.customLimits,
         moduleOverrides: planAccess.moduleOverrides,
         channelAccess: planAccess.channelAccess,
+        moduleKeys: Array.isArray(tenant?.moduleKeys) ? tenant.moduleKeys : [],
         // Payment tracking
         receivedAmount: u.receivedAmount ?? 0,
         paymentNote: u.paymentNote || '',
@@ -177,6 +179,7 @@ export async function PUT(req: NextRequest) {
       customLimits,
       moduleOverrides,
       channelAccess,
+      moduleKeys,
     } = body;
 
     if (!targetUserId) {
@@ -227,6 +230,7 @@ export async function PUT(req: NextRequest) {
     const normalizedLimits = sanitizeTenantCustomLimits(customLimits);
     const normalizedPricing = sanitizeTenantCustomPricing(customPricing);
     const normalizedModuleOverrides = sanitizeTenantModuleOverrides(moduleOverrides);
+    const normalizedModuleKeys = moduleKeys !== undefined ? sanitizeModuleKeys(moduleKeys) : undefined;
 
     if (normalizedPlan !== undefined) {
       userUpdate.planId = normalizedPlan;
@@ -245,6 +249,7 @@ export async function PUT(req: NextRequest) {
         moduleOverrides: normalizedModuleOverrides,
         channelAccess: normalizedChannelAccess,
         'subscription.plan': normalizedPlan,
+        ...(normalizedModuleKeys !== undefined ? { moduleKeys: normalizedModuleKeys } : {}),
       };
 
       await Promise.all([

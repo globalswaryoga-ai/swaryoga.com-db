@@ -35,6 +35,8 @@ import {
   type CrmModule,
   type PlanTier,
 } from '@/lib/crm-site/planConfig';
+import ModuleBundlePicker from '@/components/admin/ModuleBundlePicker';
+import { legacyToModuleKeys, moduleKeysToLegacy } from '@/lib/tenant/moduleMapping';
 
 interface CrmUser {
   _id: string;
@@ -86,6 +88,8 @@ interface CrmUser {
     automation?: boolean;
     helpdesk?: boolean;
   };
+  /** New grouped module-catalog keys (groups + sub-pages). */
+  moduleKeys?: string[];
 }
 
 interface PlanAccessForm {
@@ -107,6 +111,8 @@ interface PlanAccessForm {
   community: boolean;
   automation: boolean;
   helpdesk: boolean;
+  /** New grouped module-catalog selection (groups + sub-pages). */
+  moduleKeys: string[];
 }
 
 const PLAN_COLORS: Record<string, string> = {
@@ -117,20 +123,6 @@ const PLAN_COLORS: Record<string, string> = {
   professional: 'bg-orange-100 text-orange-700',
   enterprise: 'bg-red-100 text-red-700',
 };
-
-const PLAN_ACCESS_CHECKBOXES: Array<{
-  key: keyof Pick<PlanAccessForm, 'metaWhatsApp' | 'qrWhatsApp' | 'emailMarketing' | 'landingPages' | 'community' | 'automation' | 'helpdesk'>;
-  label: string;
-  hint: string;
-}> = [
-  { key: 'metaWhatsApp', label: 'Meta WhatsApp', hint: 'Inbox, templates, and Meta sends' },
-  { key: 'qrWhatsApp', label: 'QR WhatsApp', hint: 'QR session and chat access' },
-  { key: 'emailMarketing', label: 'Email', hint: 'Campaigns, templates, and send queue' },
-  { key: 'landingPages', label: 'Landing Pages', hint: 'Lead capture pages and forms' },
-  { key: 'community', label: 'Community', hint: 'Community/course related access' },
-  { key: 'automation', label: 'Automation', hint: 'Workflow builder and triggers' },
-  { key: 'helpdesk', label: 'Help Desk', hint: 'Ticketing and support workflows' },
-];
 
 function normalizePlanTier(value: string): PlanTier {
   if (value === 'basic' || value === 'starter' || value === 'growth' || value === 'professional' || value === 'enterprise') {
@@ -239,6 +231,15 @@ export default function CrmUsersPage() {
     const metaWhatsApp = user.channelAccess?.metaWhatsApp ?? baseModules.whatsapp;
     const qrWhatsApp = user.channelAccess?.qrWhatsApp ?? user.qrWhatsappEnabled ?? baseModules.whatsapp;
 
+    // Seed the new bundle picker: prefer stored moduleKeys, else infer from
+    // the user's existing legacy flags so their current access shows correctly.
+    const moduleKeys = (user.moduleKeys && user.moduleKeys.length)
+      ? user.moduleKeys
+      : legacyToModuleKeys(
+          { ...user.channelAccess, qrWhatsApp, metaWhatsApp },
+          { ...user.moduleOverrides },
+        );
+
     setPlanUser(user);
     setPlanError('');
     setPlanForm({
@@ -260,6 +261,7 @@ export default function CrmUsersPage() {
       community: user.channelAccess?.community ?? (user.moduleOverrides?.community ?? baseModules.community),
       automation: user.channelAccess?.automation ?? (user.moduleOverrides?.automation ?? baseModules.automation),
       helpdesk: user.channelAccess?.helpdesk ?? (user.moduleOverrides?.helpdesk ?? baseModules.helpdesk),
+      moduleKeys,
     });
   };
 
@@ -271,10 +273,16 @@ export default function CrmUsersPage() {
       setPlanError('');
 
       const storageQuotaMB = Math.max(0, Number(planForm.storageQuotaGB) || 0) * 1024;
+
+      // Derive legacy gating flags from the selected catalog bundles so the
+      // runtime (which still reads moduleOverrides/channelAccess) stays correct.
+      const { moduleOverrides, channelAccess } = moduleKeysToLegacy(planForm.moduleKeys);
+
       const payload = {
         targetUserId: planUser.userId,
         plan: planForm.plan,
         customPlanName: planForm.customPlanName.trim(),
+        moduleKeys: planForm.moduleKeys,
         customPricing: {
           monthly: Number(planForm.monthlyPrice) || 0,
           quarterly: Number(planForm.quarterlyPrice) || 0,
@@ -288,23 +296,8 @@ export default function CrmUsersPage() {
           maxEmailsPerMonth: Number(planForm.maxEmailsPerMonth) || 0,
           maxAutomationWorkflows: Number(planForm.maxAutomationWorkflows) || 0,
         },
-        moduleOverrides: {
-          whatsapp: planForm.metaWhatsApp || planForm.qrWhatsApp,
-          emailMarketing: planForm.emailMarketing,
-          landingPages: planForm.landingPages,
-          community: planForm.community,
-          automation: planForm.automation,
-          helpdesk: planForm.helpdesk,
-        },
-        channelAccess: {
-          metaWhatsApp: planForm.metaWhatsApp,
-          qrWhatsApp: planForm.qrWhatsApp,
-          emailMarketing: planForm.emailMarketing,
-          landingPages: planForm.landingPages,
-          community: planForm.community,
-          automation: planForm.automation,
-          helpdesk: planForm.helpdesk,
-        },
+        moduleOverrides,
+        channelAccess,
       };
 
       const res = await fetch('/api/admin/crm/crm-users', {
@@ -963,23 +956,12 @@ export default function CrmUsersPage() {
               </div>
 
               <div>
-                <p className="text-xs font-medium text-gray-600 mb-2">Feature Access</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {PLAN_ACCESS_CHECKBOXES.map((item) => (
-                    <label key={item.key} className="flex items-start gap-3 rounded-lg border border-gray-200 p-3 hover:border-indigo-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={planForm[item.key]}
-                        onChange={(e) => setPlanForm((prev) => prev ? { ...prev, [item.key]: e.target.checked } : prev)}
-                        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-gray-900">{item.label}</span>
-                        <span className="block text-xs text-gray-500">{item.hint}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <ModuleBundlePicker
+                  selected={new Set(planForm.moduleKeys)}
+                  onChange={(next) =>
+                    setPlanForm((prev) => (prev ? { ...prev, moduleKeys: Array.from(next) } : prev))
+                  }
+                />
               </div>
 
               <div>
