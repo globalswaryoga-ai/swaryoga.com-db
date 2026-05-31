@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2, Link as LinkIcon, Calendar, Image, Play, X, Plus } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';

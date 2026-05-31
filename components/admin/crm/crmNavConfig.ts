@@ -56,6 +56,7 @@ import {
   Leaf,
   GraduationCap,
   MessageSquareDot,
+  HardDrive,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';

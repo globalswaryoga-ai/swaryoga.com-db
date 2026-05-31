@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn, LogOut, Menu, X, Download } from 'lucide-react';
