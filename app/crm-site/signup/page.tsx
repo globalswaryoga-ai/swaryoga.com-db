@@ -43,13 +43,37 @@ interface FieldError {
   message: string;
 }
 
-const PLANS_QUICK = [
-  { id: 'free', name: 'Free', priceINR: '₹0/mo', priceUSD: '$0/mo', desc: '100 leads · 1 chatbot flow', highlight: false },
-  { id: 'basic', name: 'Basic', priceINR: '₹999/mo', priceUSD: '$12/mo', desc: '2,000 leads · 5 chatbot flows', highlight: false },
-  { id: 'starter', name: 'Starter', priceINR: '₹1,999/mo', priceUSD: '$25/mo', desc: '5,000 leads · 10 chatbot flows', highlight: false },
-  { id: 'growth', name: 'Growth', priceINR: '₹4,999/mo', priceUSD: '$59/mo', desc: '25,000 leads · Unlimited chatbots', highlight: true },
-  { id: 'professional', name: 'Professional', priceINR: '₹9,999/mo', priceUSD: '$119/mo', desc: 'Unlimited leads · Unlimited chatbots', highlight: false },
+interface QuickPlan { id: string; name: string; priceINR: string; priceUSD: string; desc: string; highlight: boolean; }
+
+/* Fallback (used only if the live plans API is unreachable) */
+const FALLBACK_PLANS_QUICK: QuickPlan[] = [
+  { id: 'free', name: 'Free', priceINR: '₹0/mo', priceUSD: '$0/mo', desc: '100 leads', highlight: false },
+  { id: 'basic', name: 'Basic', priceINR: '₹999/mo', priceUSD: '$12/mo', desc: '2,000 leads', highlight: false },
+  { id: 'starter', name: 'Copper', priceINR: '₹1,999/mo', priceUSD: '$25/mo', desc: '5,000 leads', highlight: false },
+  { id: 'growth', name: 'Silver', priceINR: '₹4,999/mo', priceUSD: '$59/mo', desc: '25,000 leads', highlight: true },
+  { id: 'professional', name: 'Golden', priceINR: '₹9,999/mo', priceUSD: '$119/mo', desc: 'Unlimited leads', highlight: false },
 ];
+
+/* Map admin-edited tenant plans → signup quick-pick cards */
+function mapQuickPlans(dbPlans: any[]): QuickPlan[] {
+  const sorted = [...dbPlans].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.monthlyPriceINR ?? 0) - (b.monthlyPriceINR ?? 0));
+  const cards = sorted.map((p): QuickPlan => {
+    const m = Number(p.monthlyPriceINR) || 0;
+    const usd = m === 0 ? 0 : Math.round(m / 83);
+    const leadsN = Number(p?.limits?.maxLeads) || 0;
+    const leads = leadsN >= 999999 ? 'Unlimited' : leadsN.toLocaleString('en-IN');
+    return {
+      id: p.tier,
+      name: p.name,
+      priceINR: m === 0 ? '₹0/mo' : `₹${m.toLocaleString('en-IN')}/mo`,
+      priceUSD: usd === 0 ? '$0/mo' : `$${usd}/mo`,
+      desc: `${leads} leads${p.trialDays ? ` · ${p.trialDays}-day trial` : ''}${p.discountPercent ? ` · ${p.discountPercent}% off` : ''}`,
+      highlight: false,
+    };
+  });
+  if (cards.length >= 3) cards[Math.floor(cards.length / 2)].highlight = true;
+  return cards;
+}
 
 export default function CrmSignupPage() {
   const router = useRouter();
@@ -65,9 +89,21 @@ export default function CrmSignupPage() {
   });
   const [showPw, setShowPw] = useState(false);
   const [isINR, setIsINR] = useState(true);
+  const [quickPlans, setQuickPlans] = useState<QuickPlan[]>(FALLBACK_PLANS_QUICK);
   const [errors, setErrors] = useState<FieldError[]>([]);
 
   useEffect(() => { setIsINR(detectIsIndia()); }, []);
+
+  // Pull live, admin-edited plans (same source as Tenant Management).
+  useEffect(() => {
+    fetch('/api/admin/tenants/plans')
+      .then((r) => r.json())
+      .then((d) => {
+        const dbPlans = d?.data?.plans || [];
+        if (Array.isArray(dbPlans) && dbPlans.length) setQuickPlans(mapQuickPlans(dbPlans));
+      })
+      .catch(() => {});
+  }, []);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [apiError, setApiError] = useState('');
 
@@ -358,7 +394,7 @@ export default function CrmSignupPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {PLANS_QUICK.map((p) => (
+                    {quickPlans.map((p) => (
                       <label
                         key={p.id}
                         className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${

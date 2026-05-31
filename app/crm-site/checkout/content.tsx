@@ -25,13 +25,35 @@ const STORAGE_PRICING: Record<string, { minStorageMB: number; pricePerGB: number
   professional: { minStorageMB: 1000, pricePerGB: 35, minPrice: 35 },
 };
 
-const PLAN_PRICING: Record<string, { quarterly: number; halfyearly: number; annual: number; name: string }> = {
+type PlanPricing = { quarterly: number; halfyearly: number; annual: number; name: string };
+
+/* Fallback (used only if the live plans API is unreachable) */
+const FALLBACK_PLAN_PRICING: Record<string, PlanPricing> = {
   free: { quarterly: 0, halfyearly: 0, annual: 0, name: 'Free Plan' },
   basic: { quarterly: 2697, halfyearly: 5094, annual: 9590, name: 'Basic Plan' },
   starter: { quarterly: 5397, halfyearly: 10194, annual: 19190, name: 'Starter Plan' },
   growth: { quarterly: 13497, halfyearly: 25494, annual: 47990, name: 'Growth Plan' },
   professional: { quarterly: 26997, halfyearly: 50994, annual: 95990, name: 'Professional Plan' },
 };
+
+/* Map admin-edited tenant plans → checkout pricing (derive cycles from
+   monthly + annual; apply the plan's discount). */
+function mapCheckoutPricing(dbPlans: any[]): Record<string, PlanPricing> {
+  const out: Record<string, PlanPricing> = {};
+  for (const p of dbPlans) {
+    const m = Number(p.monthlyPriceINR) || 0;
+    const annual = Number(p.annualPriceINR) || m * 12;
+    const disc = Math.max(0, Math.min(100, Number(p.discountPercent) || 0));
+    const apply = (n: number) => Math.round(n * (1 - disc / 100));
+    out[p.tier] = {
+      quarterly: apply(m * 3),
+      halfyearly: apply(m * 6),
+      annual: apply(annual),
+      name: p.name,
+    };
+  }
+  return out;
+}
 
 const PAYMENT_METHODS = [
   {
@@ -62,6 +84,7 @@ export default function CheckoutContent() {
   const router = useRouter();
   
   const [plan, setPlan] = useState(searchParams.get('plan') || 'starter');
+  const [planPricingMap, setPlanPricingMap] = useState<Record<string, PlanPricing>>(FALLBACK_PLAN_PRICING);
   const [billing, setBilling] = useState<'quarterly' | 'halfyearly' | 'annual'>('quarterly');
   const [storageGB, setStorageGB] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState('upi');
@@ -97,8 +120,19 @@ export default function CheckoutContent() {
     } catch {}
   }, []);
 
+  // Pull live, admin-edited plans (same source as Tenant Management).
+  useEffect(() => {
+    fetch('/api/admin/tenants/plans')
+      .then((r) => r.json())
+      .then((d) => {
+        const dbPlans = d?.data?.plans || [];
+        if (Array.isArray(dbPlans) && dbPlans.length) setPlanPricingMap(mapCheckoutPricing(dbPlans));
+      })
+      .catch(() => {});
+  }, []);
+
   // Calculate costs
-  const planPricing = PLAN_PRICING[plan] || PLAN_PRICING.starter;
+  const planPricing = planPricingMap[plan] || planPricingMap.starter || FALLBACK_PLAN_PRICING.starter;
   const storagePricing = STORAGE_PRICING[plan] || STORAGE_PRICING.starter;
   
   const planCost = billing === 'annual' 
@@ -189,7 +223,7 @@ export default function CheckoutContent() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="font-semibold text-gray-900 mb-4">1. Select Plan</h2>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {Object.entries(PLAN_PRICING).map(([id, p]) => (
+                {Object.entries(planPricingMap).map(([id, p]) => (
                   <button
                     key={id}
                     onClick={() => setPlan(id)}

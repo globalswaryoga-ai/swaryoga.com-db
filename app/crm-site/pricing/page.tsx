@@ -38,7 +38,25 @@ const ALL_FEATURES = [
 /* ─── Plans with exact pricing per billing cycle ─── */
 type BillingCycle = '1mo' | '3mo' | '6mo' | '12mo';
 
-const PLANS = [
+interface PlanCard {
+  tier: string;
+  name: string;
+  desc: string;
+  prices: Record<BillingCycle, number>;
+  leads: string;
+  users: string;
+  storage?: string;
+  chatbots?: string;
+  trialDays?: number;
+  discountPercent?: number;
+  promoCode?: string;
+  cta: string;
+  highlight: boolean;
+  badge?: string;
+}
+
+/* Static fallback (used only if the live plans API is unreachable) */
+const FALLBACK_PLANS: PlanCard[] = [
   {
     tier: 'trial',
     name: 'Free Trial',
@@ -131,11 +149,55 @@ function fmtUSD(n: number) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
 }
 
+/* Map admin-edited tenant plans → pricing cards (source of truth) */
+function mapDbPlansToCards(dbPlans: any[]): PlanCard[] {
+  const sorted = [...dbPlans].sort(
+    (a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.monthlyPriceINR ?? 0) - (b.monthlyPriceINR ?? 0),
+  );
+  const cards = sorted.map((p): PlanCard => {
+    const m = Number(p.monthlyPriceINR) || 0;
+    const annual = Number(p.annualPriceINR) || m * 12;
+    const leadsN = Number(p?.limits?.maxLeads) || 0;
+    const usersN = Number(p?.limits?.maxUsers) || 0;
+    const storageN = Number(p?.limits?.maxStorageMB) || 0;
+    return {
+      tier: p.tier,
+      name: p.name,
+      desc: p.description || '',
+      // Derived cycle pricing from the admin's monthly + annual prices.
+      prices: { '1mo': m, '3mo': m * 3, '6mo': m * 6, '12mo': annual },
+      leads: leadsN >= 999999 ? 'Unlimited' : leadsN.toLocaleString('en-IN'),
+      users: usersN >= 999 ? 'Unlimited' : String(usersN),
+      storage: storageN >= 1000 ? `${(storageN / 1000).toLocaleString('en-IN')} GB` : `${storageN} MB`,
+      trialDays: Number(p.trialDays) || 0,
+      discountPercent: Number(p.discountPercent) || 0,
+      promoCode: p.promoCode || '',
+      cta: m === 0 ? 'Start Free Trial' : 'Get Started',
+      highlight: false,
+    };
+  });
+  // Flag the middle plan as "Most Popular".
+  if (cards.length >= 3) cards[Math.floor(cards.length / 2)].highlight = true;
+  return cards;
+}
+
 export default function PricingPage() {
   const [cycle, setCycle] = useState<BillingCycle>('3mo');
   const [isINR, setIsINR] = useState(true);
+  const [cards, setCards] = useState<PlanCard[]>(FALLBACK_PLANS);
 
   useEffect(() => { setIsINR(detectIsIndia()); }, []);
+
+  // Pull the live, admin-edited plans (same source as Tenant Management).
+  useEffect(() => {
+    fetch('/api/admin/tenants/plans')
+      .then((r) => r.json())
+      .then((d) => {
+        const dbPlans = d?.data?.plans || [];
+        if (Array.isArray(dbPlans) && dbPlans.length) setCards(mapDbPlansToCards(dbPlans));
+      })
+      .catch(() => {});
+  }, []);
 
   const sym = isINR ? '₹' : '$';
   const fmt = isINR ? fmtINR : fmtUSD;
@@ -211,9 +273,16 @@ export default function PricingPage() {
       <section className="pb-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
-            {PLANS.map((plan) => {
-              const totalBill = isINR ? (plan.prices as any)[cycle] : Math.round((plan.prices as any)[cycle] / 83);
+            {cards.map((plan) => {
+              const disc = plan.discountPercent || 0;
+              const baseINR = (plan.prices as any)[cycle] as number;
+              const discINR = Math.round(baseINR * (1 - disc / 100));
+              const totalBill = isINR ? discINR : Math.round(discINR / 83);
               const monthlyEquiv = cycle === '1mo' ? totalBill : Math.round(totalBill / (cycle === '3mo' ? 3 : cycle === '6mo' ? 6 : 12));
+              const stat3Label = plan.storage ? 'Storage' : 'Chatbot Flows';
+              const stat3Val = plan.storage ?? plan.chatbots ?? '—';
+              const showTrial = plan.trialDays ? plan.trialDays > 0 : (plan.tier === 'free' || plan.tier === 'basic');
+              const trialText = plan.trialDays ? `${plan.trialDays}-DAY FREE TRIAL` : '15-DAY FREE TRIAL';
 
               return (
                 <div
@@ -230,11 +299,19 @@ export default function PricingPage() {
                     </div>
                   )}
 
-                  {/* 15-day trial badge — only for Free & Basic */}
-                  {(plan.tier === 'free' || plan.tier === 'basic') && (
+                  {/* Free-trial badge (driven by the plan's trial days) */}
+                  {showTrial && (
                     <div className="mb-2">
                       <span className="inline-block px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-semibold rounded-full border border-green-200">
-                        15-DAY FREE TRIAL
+                        {trialText}
+                      </span>
+                    </div>
+                  )}
+                  {/* Discount / promo badge */}
+                  {disc > 0 && (
+                    <div className="mb-2">
+                      <span className="inline-block px-2 py-0.5 bg-rose-50 text-rose-700 text-[10px] font-semibold rounded-full border border-rose-200">
+                        🏷️ {disc}% OFF{plan.promoCode ? ` · ${plan.promoCode}` : ''}
                       </span>
                     </div>
                   )}
@@ -283,13 +360,13 @@ export default function PricingPage() {
                       )}
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Chatbot Flows</span>
-                      {plan.chatbots === 'Unlimited' ? (
+                      <span className="text-gray-500">{stat3Label}</span>
+                      {stat3Val === 'Unlimited' ? (
                         <span className="flex items-center gap-1 font-semibold text-swar-primary">
                           <Infinity className="h-4 w-4" /> Unlimited
                         </span>
                       ) : (
-                        <span className="font-semibold text-gray-900">{plan.chatbots}</span>
+                        <span className="font-semibold text-gray-900">{stat3Val}</span>
                       )}
                     </div>
                   </div>
