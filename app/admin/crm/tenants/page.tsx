@@ -83,8 +83,11 @@ interface Plan {
   description: string;
   limits: Record<string, number>;
   enabledModules: string[];
+  defaultGroups?: string[];
   monthlyPriceINR: number;
   annualPriceINR: number;
+  order?: number;
+  isCustom?: boolean;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -388,6 +391,16 @@ export default function TenantsPage() {
   const [editPricing, setEditPricing] = useState<Pricing>({ billingCycle: 'monthly' });
   const [saving, setSaving] = useState(false);
 
+  // Plan tier editor
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [planIsNew, setPlanIsNew] = useState(false);
+  const [planForm, setPlanForm] = useState<Plan>({
+    tier: '', name: '', description: '', limits: {}, enabledModules: [],
+    defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0,
+  });
+  const [planGroups, setPlanGroups] = useState<Set<string>>(new Set());
+  const [savingPlan, setSavingPlan] = useState(false);
+
   const headers = useCallback(
     () => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
     [token],
@@ -414,12 +427,76 @@ export default function TenantsPage() {
     }
   }, [token, page, statusFilter, planFilter, headers]);
 
-  useEffect(() => {
-    fetch('/api/admin/tenants/plans')
+  const fetchPlans = useCallback(() => {
+    return fetch('/api/admin/tenants/plans')
       .then((r) => r.json())
       .then((d) => setPlans(d.data?.plans || []))
       .catch(() => {});
   }, []);
+
+  useEffect(() => { fetchPlans(); }, [fetchPlans]);
+
+  // ── Plan tier CRUD ──
+  const openPlanNew = () => {
+    setPlanIsNew(true);
+    setPlanForm({ tier: '', name: '', description: '', limits: { maxLeads: 0, maxUsers: 1, maxStorageMB: 100 }, enabledModules: [], defaultGroups: [], monthlyPriceINR: 0, annualPriceINR: 0 });
+    setPlanGroups(new Set());
+    setPlanModalOpen(true);
+  };
+
+  const openPlanEdit = (p: Plan) => {
+    setPlanIsNew(false);
+    setPlanForm({ ...p });
+    setPlanGroups(new Set(expandGroups(p.defaultGroups || [])));
+    setPlanModalOpen(true);
+  };
+
+  const savePlan = async () => {
+    setSavingPlan(true);
+    setError('');
+    try {
+      // Group keys only (children are implied/expanded from groups).
+      const groupKeys = Array.from(planGroups).filter((k) => !k.includes('.'));
+      const payload = {
+        tier: planForm.tier,
+        name: planForm.name,
+        description: planForm.description,
+        limits: planForm.limits,
+        defaultGroups: groupKeys,
+        monthlyPriceINR: planForm.monthlyPriceINR,
+        annualPriceINR: planForm.annualPriceINR,
+      };
+      const res = await fetch('/api/admin/tenants/plans', {
+        method: planIsNew ? 'POST' : 'PATCH',
+        headers: headers(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to save plan');
+      setPlanModalOpen(false);
+      fetchPlans();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  const deletePlan = async (tier: string) => {
+    if (!confirm(`Delete the "${tier}" plan? Existing tenants keep their settings; this only removes the tier from the reference list.`)) return;
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/tenants/plans?tier=${encodeURIComponent(tier)}`, {
+        method: 'DELETE',
+        headers: headers(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to delete plan');
+      fetchPlans();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
   useEffect(() => {
     fetchTenants();
@@ -427,9 +504,12 @@ export default function TenantsPage() {
 
   // When the plan changes in the Create form, pre-fill module bundles + limits.
   const applyPlanDefaults = (plan: string, target: 'create' | 'edit') => {
-    const groups = PLAN_DEFAULT_GROUPS[plan] || PLAN_DEFAULT_GROUPS.free;
-    const keys = new Set(expandGroups(groups));
     const planDef = plans.find((p) => p.tier === plan);
+    // Prefer the (editable) plan's saved bundles; fall back to static defaults.
+    const groups = planDef?.defaultGroups?.length
+      ? planDef.defaultGroups
+      : (PLAN_DEFAULT_GROUPS[plan] || PLAN_DEFAULT_GROUPS.free);
+    const keys = new Set(expandGroups(groups));
     const limits: Limits = planDef
       ? {
           maxLeads: planDef.limits.maxLeads,
@@ -838,28 +918,137 @@ export default function TenantsPage() {
       {/* ====== Plans Reference Card ====== */}
       {plans.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Plan Tiers Reference</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">Plan Tiers Reference</h2>
+            <button
+              onClick={openPlanNew}
+              className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700"
+            >
+              + New Plan
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-            {plans.map((p) => (
-              <div
-                key={p.tier}
-                className={`border rounded-xl p-4 ${p.tier === 'enterprise' ? 'border-rose-300 bg-rose-50/30' : 'bg-white'}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${PLAN_COLORS[p.tier] || ''}`}>{p.name}</span>
-                  <span className="text-xs text-gray-400">
-                    {p.monthlyPriceINR === 0 ? 'Free' : `₹${p.monthlyPriceINR.toLocaleString()}/mo`}
-                  </span>
+            {plans.map((p) => {
+              const bundleCount = (p.defaultGroups?.length ?? (PLAN_DEFAULT_GROUPS[p.tier] || []).length);
+              return (
+                <div
+                  key={p.tier}
+                  className={`border rounded-xl p-4 flex flex-col ${p.tier === 'enterprise' ? 'border-rose-300 bg-rose-50/30' : 'bg-white'}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${PLAN_COLORS[p.tier] || 'bg-gray-100 text-gray-700'}`}>{p.name}</span>
+                    <span className="text-xs text-gray-400">
+                      {p.monthlyPriceINR === 0 ? 'Free' : `₹${p.monthlyPriceINR.toLocaleString()}/mo`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-2">{p.description}</p>
+                  <ul className="text-xs text-gray-600 space-y-0.5 mb-3">
+                    <li>Leads: {p.limits.maxLeads?.toLocaleString()}</li>
+                    <li>Users: {p.limits.maxUsers}</li>
+                    <li>Storage: {p.limits.maxStorageMB?.toLocaleString()} MB</li>
+                    <li>Bundles: {bundleCount}</li>
+                  </ul>
+                  <div className="mt-auto flex items-center gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => openPlanEdit(p)}
+                      className="flex-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded py-1.5 transition"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deletePlan(p.tier)}
+                      className="flex-1 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded py-1.5 transition"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mb-2">{p.description}</p>
-                <ul className="text-xs text-gray-600 space-y-0.5">
-                  <li>Leads: {p.limits.maxLeads?.toLocaleString()}</li>
-                  <li>Users: {p.limits.maxUsers}</li>
-                  <li>Storage: {p.limits.maxStorageMB?.toLocaleString()} MB</li>
-                  <li>Bundles: {(PLAN_DEFAULT_GROUPS[p.tier] || []).length}</li>
-                </ul>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ====== Plan Editor Modal ====== */}
+      {planModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
+            <div className="p-6 border-b sticky top-0 bg-white rounded-t-2xl z-10">
+              <h2 className="text-lg font-bold">{planIsNew ? 'New Plan Tier' : `Edit Plan — ${planForm.name}`}</h2>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Plan name</label>
+                  <input
+                    value={planForm.name}
+                    onChange={(e) => setPlanForm((f) => ({ ...f, name: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                    placeholder="Platinum"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tier slug</label>
+                  <input
+                    value={planForm.tier}
+                    disabled={!planIsNew}
+                    onChange={(e) => setPlanForm((f) => ({ ...f, tier: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm font-mono disabled:bg-gray-100 disabled:text-gray-400"
+                    placeholder="platinum"
+                  />
+                </div>
               </div>
-            ))}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                <input
+                  value={planForm.description}
+                  onChange={(e) => setPlanForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                  placeholder="For large teams — unlimited everything."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Monthly ₹</label>
+                  <input type="number" value={planForm.monthlyPriceINR} onChange={(e) => setPlanForm((f) => ({ ...f, monthlyPriceINR: Number(e.target.value) || 0 }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Annual ₹</label>
+                  <input type="number" value={planForm.annualPriceINR} onChange={(e) => setPlanForm((f) => ({ ...f, annualPriceINR: Number(e.target.value) || 0 }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Leads</label>
+                  <input type="number" value={planForm.limits.maxLeads ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, limits: { ...f.limits, maxLeads: Number(e.target.value) || 0 } }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Users</label>
+                  <input type="number" value={planForm.limits.maxUsers ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, limits: { ...f.limits, maxUsers: Number(e.target.value) || 0 } }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Storage MB</label>
+                  <input type="number" value={planForm.limits.maxStorageMB ?? 0} onChange={(e) => setPlanForm((f) => ({ ...f, limits: { ...f.limits, maxStorageMB: Number(e.target.value) || 0 } }))} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-2">Default module bundles</label>
+                <ModulePicker selected={planGroups} onChange={setPlanGroups} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t sticky bottom-0 bg-white rounded-b-2xl">
+              <button onClick={() => setPlanModalOpen(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button
+                onClick={savePlan}
+                disabled={savingPlan || !planForm.name || !planForm.tier}
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40"
+              >
+                {savingPlan ? 'Saving…' : planIsNew ? 'Create Plan' : 'Save Plan'}
+              </button>
+            </div>
           </div>
         </div>
       )}

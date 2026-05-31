@@ -173,6 +173,37 @@ const TenantUsageSchema = new mongoose.Schema(
 TenantUsageSchema.index({ tenantId: 1, date: -1 }, { unique: true });
 
 // ============================================================================
+// 4. TENANT PLAN SCHEMA (editable plan tiers — seeded from static config)
+// ============================================================================
+
+const TenantPlanSchema = new mongoose.Schema(
+  {
+    tier: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    name: { type: String, required: true, trim: true },
+    description: { type: String, default: '' },
+    limits: {
+      maxLeads: { type: Number, default: 0 },
+      maxUsers: { type: Number, default: 0 },
+      maxStorageMB: { type: Number, default: 0 },
+      maxWhatsAppTemplates: { type: Number, default: 0 },
+      maxBroadcastsPerDay: { type: Number, default: 0 },
+      maxApiRequestsPerDay: { type: Number, default: 0 },
+    },
+    /** Catalog GROUP keys unlocked by default for this plan. */
+    defaultGroups: { type: [String], default: [] },
+    monthlyPriceINR: { type: Number, default: 0 },
+    annualPriceINR: { type: Number, default: 0 },
+    /** Display order in the reference grid. */
+    order: { type: Number, default: 0 },
+    /** Custom plans created by the admin (vs the 6 seeded tiers). */
+    isCustom: { type: Boolean, default: false },
+  },
+  { timestamps: true, collection: 'tenant_plans' },
+);
+
+TenantPlanSchema.index({ order: 1 });
+
+// ============================================================================
 // LAZY GETTER FUNCTIONS (call after connectDB())
 // ============================================================================
 
@@ -188,4 +219,8 @@ export function getTenantUsageModel() {
   return getMainModel<ITenantUsage>('TenantUsage', TenantUsageSchema);
 }
 
-export { TenantSchema, TenantApiKeySchema, TenantUsageSchema };
+export function getTenantPlanModel() {
+  return getMainModel<any>('TenantPlan', TenantPlanSchema);
+}
+
+export { TenantSchema, TenantApiKeySchema, TenantUsageSchema, TenantPlanSchema };
