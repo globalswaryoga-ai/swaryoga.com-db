@@ -357,28 +357,32 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       return { status: isRecurring ? 'idle_until_next_occurrence' : 'completed', reason: 'all_recipients_sent', sent: 0, totalRecipients: allRecipients.length };
     }
 
-    // ── PER-TICK DRIP PACING (human-like) — TARGET 15 messages/hour ──
-    // Cron fires every 4 min = 15 ticks/hour. Sending an average of 1 message
-    // per tick yields exactly 15/hr. Light skip/burst jitter keeps it human:
-    //   15% skip · 70% send 1 · 15% send 2  →  avg 1.0 msg/tick = 15/hr.
-    // The HOURLY_LIMIT (15) hard cap guarantees it never exceeds 15/hr, and the
-    // DAILY_LIMIT (150) ceiling pauses the run once 150 are sent (carry-over).
-    const roll = Math.random();
-    let perTickMax = 1;
-    if (roll < 0.15) perTickMax = 0;        // ~15% of ticks: skip (longer human gap)
-    else if (roll > 0.85) perTickMax = 2;   // ~15% of ticks: small 2-message burst
-
-    if (perTickMax === 0) {
-      await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, { status: 'in-progress' });
-      console.log(`[QR Broadcast V2] ⏭️  Human-pacing skip this tick (${pending.length} pending).`);
-      return { status: 'skipped', reason: 'human_pacing_skip', pending: pending.length };
+    // ── HUMAN RANDOM-GAP PACING — TARGET ~15 messages/hour ──
+    // The cron fires every 1 min, but we only actually send when this schedule's
+    // randomized `nextSendAt` has arrived. After each send we set the next gap to
+    // a random 120–360s (mean 240s = 4 min = 15/hr). Because the gap is random,
+    // sends land on IRREGULAR minute marks (e.g. :03, :07, :12, :14, :19) instead
+    // of a fixed 4-min grid — so the pattern never looks robotic. No in-function
+    // sleeping, so the sequential multi-schedule loop stays inside the 300s budget.
+    const nowMs = Date.now();
+    const nextSendAtMs = schedule.nextSendAt ? new Date(schedule.nextSendAt).getTime() : 0;
+    if (nextSendAtMs && nowMs < nextSendAtMs) {
+      const waitS = Math.ceil((nextSendAtMs - nowMs) / 1000);
+      console.log(`[QR Broadcast V2] ⏳ Pacing: ${waitS}s until next human send (${pending.length} pending).`);
+      return { status: 'skipped', reason: 'pacing_wait', pending: pending.length, nextSendInS: waitS };
     }
+
+    // Eligible this tick — send exactly ONE message (1 per random gap = ~15/hr).
+    const perTickMax = 1;
+    // Random gap (ms) until the NEXT message after this one — drives the
+    // irregular, human-looking spacing. Persisted on the schedule below.
+    const nextGapMs = 120000 + Math.floor(Math.random() * 240000); // 120–360s, mean 240s
 
     // Shuffle pending (100% human randomization) and take just this tick's slice.
     const recipients = shuffleArray([...pending]).slice(0, perTickMax);
 
     // Small jitter between the 1-2 messages in a single tick so they aren't
-    // byte-for-byte simultaneous. The real ~5-min spacing comes from the cron.
+    // byte-for-byte simultaneous.
     const tickJitterMs = () => 2000 + Math.floor(Math.random() * 10000); // 2–12s
 
     // Check WhatsApp compliance (informational)
@@ -397,7 +401,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // Get database for deduplication
     const db = mongoose.connection.db;
 
-    // Send this tick's 1-2 recipients (real spacing comes from the 5-min cron)
+    // Send this tick's recipient (real spacing comes from the randomized nextSendAt gap)
     for (let i = 0; i < recipients.length; i++) {
       const chatId = recipients[i];
       const gap = i === 0 ? 0 : tickJitterMs(); // first is immediate, 2nd gets small jitter
@@ -601,7 +605,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // Everyone handled this tick (sent or already-delivered) is added so the
     // next tick continues with whoever is left. Schedule is only 'completed'
     // once the cursor covers EVERY recipient — otherwise it stays 'in-progress'
-    // and keeps dripping (~1 msg / 5 min) across this day and into tomorrow.
+    // and keeps dripping (~1 msg every 2–6 min, ~15/hr) across this day and into tomorrow.
     const totalDoneNow = alreadySent.size + newlySentIds.length;
     const allDone = totalDoneNow >= allRecipients.length;
 
@@ -616,6 +620,9 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
         'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
         'stats.averageDeliveryTimeMs': avgSendTimeMs,
+        // Arm the next human gap (random 120–360s) only if there's more to send.
+        // This is what makes the following send land on an irregular minute mark.
+        ...(allDone ? {} : { nextSendAt: new Date(Date.now() + nextGapMs) }),
       },
     };
     if (newlySentIds.length > 0) finalUpdate.$addToSet = { sentRecipientChatIds: { $each: newlySentIds } };

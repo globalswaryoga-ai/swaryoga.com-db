@@ -4081,6 +4081,11 @@ const QRBroadcastScheduleSchema = new mongoose.Schema(
     lastRunDate: { type: Date }, // When last sent
     nextRunDate: { type: Date, index: true }, // Calculated next run
 
+    // Human random-gap pacing: the next message only fires once "now" passes this
+    // randomized timestamp (set to now + 120–360s after each send). Drives the
+    // irregular, non-robotic send spacing (~15 msgs/hour). See qr-broadcast-processor-v2.
+    nextSendAt: { type: Date },
+
     // Execution stats
     stats: {
       totalAttempted: { type: Number, default: 0 },
