@@ -514,6 +514,28 @@ export default function CRMDashboard() {
                 <p className="text-sm text-gray-500 mt-1">Here&apos;s what&apos;s happening with your business today.</p>
               </div>
 
+              {/* Plan banner for non-super-admin tenants */}
+              {!isSuperAdmin && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-4 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-xl">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">Your CRM is ready</p>
+                      <p className="text-white/75 text-xs">Manage leads, send messages, track reports</p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/admin/crm/billing"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-white text-emerald-700 text-xs font-bold rounded-xl hover:bg-gray-100 transition whitespace-nowrap"
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    Upgrade Plan
+                  </Link>
+                </div>
+              )}
+
               {/* Main Stats — plan-aware */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* lead_management stats — always show if plan has it */}
