@@ -125,6 +125,8 @@ export async function GET(req: NextRequest) {
         moduleOverrides: planAccess.moduleOverrides,
         channelAccess: planAccess.channelAccess,
         moduleKeys: Array.isArray(tenant?.moduleKeys) ? tenant.moduleKeys : [],
+        promoCode: tenant?.promoCode || '',
+        discountPercent: typeof tenant?.discountPercent === 'number' ? tenant.discountPercent : 0,
         // Payment tracking
         receivedAmount: u.receivedAmount ?? 0,
         paymentNote: u.paymentNote || '',
@@ -180,6 +182,8 @@ export async function PUT(req: NextRequest) {
       moduleOverrides,
       channelAccess,
       moduleKeys,
+      promoCode,
+      discountPercent,
     } = body;
 
     if (!targetUserId) {
@@ -231,6 +235,10 @@ export async function PUT(req: NextRequest) {
     const normalizedPricing = sanitizeTenantCustomPricing(customPricing);
     const normalizedModuleOverrides = sanitizeTenantModuleOverrides(moduleOverrides);
     const normalizedModuleKeys = moduleKeys !== undefined ? sanitizeModuleKeys(moduleKeys) : undefined;
+    const normalizedPromoCode = promoCode !== undefined ? String(promoCode).trim().toUpperCase() : undefined;
+    const normalizedDiscount = discountPercent !== undefined
+      ? Math.max(0, Math.min(100, Number(discountPercent) || 0))
+      : undefined;
 
     if (normalizedPlan !== undefined) {
       userUpdate.planId = normalizedPlan;
@@ -250,6 +258,8 @@ export async function PUT(req: NextRequest) {
         channelAccess: normalizedChannelAccess,
         'subscription.plan': normalizedPlan,
         ...(normalizedModuleKeys !== undefined ? { moduleKeys: normalizedModuleKeys } : {}),
+        ...(normalizedPromoCode !== undefined ? { promoCode: normalizedPromoCode } : {}),
+        ...(normalizedDiscount !== undefined ? { discountPercent: normalizedDiscount } : {}),
       };
 
       await Promise.all([
@@ -308,5 +318,59 @@ export async function PUT(req: NextRequest) {
   } catch (err) {
     console.error('[crm-users PUT]', err);
     return apiError('Failed to update CRM user', 500);
+  }
+}
+
+/**
+ * DELETE /api/admin/crm/crm-users
+ * Super admin only: remove a CRM user's account + tenant records + settings.
+ * (Account-level removal — does NOT mass-delete their lead/message data.)
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const decoded = verifyToken(req.headers.get('authorization') || '');
+    if (!decoded?.isAdmin && !decoded?.userId) return apiError('Unauthorized', 401);
+    if (!isSuperAdmin(decoded)) return apiError('Super admin access required', 403);
+
+    const body = await req.json().catch(() => ({}));
+    const targetUserId = body?.targetUserId;
+    if (!targetUserId) return apiError('targetUserId is required', 400);
+
+    await connectDB();
+    const { default: mongoose } = await import('mongoose');
+    const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+
+    const targetUser = await db.collection('admin_users').findOne(
+      { $or: [{ userId: targetUserId }, { email: targetUserId }] },
+      { projection: { userId: 1, email: 1, tenantSlug: 1 } }
+    );
+    if (!targetUser) return apiError('Target CRM user not found', 404);
+
+    const uid = targetUser.userId || targetUser.email;
+    const email = targetUser.email || '__none__';
+    const slug = targetUser.tenantSlug || '__none__';
+    const tenantOr = {
+      $or: [
+        { slug }, { tenantSlug: slug },
+        { ownerEmail: email }, { ownerUserId: uid },
+        { adminEmail: email }, { adminUserId: uid },
+      ],
+    };
+
+    const results = await Promise.allSettled([
+      db.collection('admin_users').deleteOne({ $or: [{ userId: targetUserId }, { email: targetUserId }] }),
+      db.collection('crm_user_settings').deleteOne({ userId: uid }),
+      db.collection('user_compartments').deleteOne({ userId: uid }),
+      db.collection('tenants').deleteMany(tenantOr),
+      db.collection('crm_tenants').deleteMany(tenantOr),
+    ]);
+
+    console.log(`[crm-users DELETE] Super admin ${decoded.userId} deleted ${targetUserId}`,
+      results.map((r) => r.status));
+
+    return apiSuccess({ success: true, deleted: targetUserId });
+  } catch (err) {
+    console.error('[crm-users DELETE]', err);
+    return apiError('Failed to delete CRM user', 500);
   }
 }

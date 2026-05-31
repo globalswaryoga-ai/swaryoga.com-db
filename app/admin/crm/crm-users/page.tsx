@@ -25,6 +25,7 @@ import {
   HardDrive,
   Wallet,
   Pencil,
+  Trash2,
   Save,
   FileText,
 } from 'lucide-react';
@@ -90,6 +91,8 @@ interface CrmUser {
   };
   /** New grouped module-catalog keys (groups + sub-pages). */
   moduleKeys?: string[];
+  promoCode?: string;
+  discountPercent?: number;
 }
 
 interface PlanAccessForm {
@@ -113,6 +116,9 @@ interface PlanAccessForm {
   helpdesk: boolean;
   /** New grouped module-catalog selection (groups + sub-pages). */
   moduleKeys: string[];
+  /** Promo / discount for this user. */
+  promoCode: string;
+  discountPercent: string;
 }
 
 const PLAN_COLORS: Record<string, string> = {
@@ -262,6 +268,8 @@ export default function CrmUsersPage() {
       automation: user.channelAccess?.automation ?? (user.moduleOverrides?.automation ?? baseModules.automation),
       helpdesk: user.channelAccess?.helpdesk ?? (user.moduleOverrides?.helpdesk ?? baseModules.helpdesk),
       moduleKeys,
+      promoCode: user.promoCode || '',
+      discountPercent: user.discountPercent != null ? String(user.discountPercent) : '',
     });
   };
 
@@ -283,6 +291,8 @@ export default function CrmUsersPage() {
         plan: planForm.plan,
         customPlanName: planForm.customPlanName.trim(),
         moduleKeys: planForm.moduleKeys,
+        promoCode: planForm.promoCode.trim().toUpperCase(),
+        discountPercent: Math.max(0, Math.min(100, Number(planForm.discountPercent) || 0)),
         customPricing: {
           monthly: Number(planForm.monthlyPrice) || 0,
           quarterly: Number(planForm.quarterlyPrice) || 0,
@@ -321,6 +331,29 @@ export default function CrmUsersPage() {
       setPlanError(err.message || 'Failed to save plan access');
     } finally {
       setSavingPlan(false);
+    }
+  };
+
+  // Delete a CRM user (with confirmation)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const deleteUser = async (user: CrmUser) => {
+    if (!token) return;
+    const label = user.name || user.email || user.userId;
+    if (!confirm(`Delete CRM user "${label}"?\n\nThis removes their account, tenant record, QR settings and access. This cannot be undone.`)) return;
+    try {
+      setDeletingUserId(user.userId);
+      const res = await fetch('/api/admin/crm/crm-users', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: user.userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to delete user');
+      await fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete user');
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -613,10 +646,19 @@ export default function CrmUsersPage() {
                         <button
                           onClick={() => openPlanAccess(user)}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
-                          title="More Actions"
+                          title="Edit plan, offer & discount"
                         >
-                          <FileText className="w-3.5 h-3.5" />
-                          More
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteUser(user)}
+                          disabled={deletingUserId === user.userId}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition disabled:opacity-50"
+                          title="Delete user"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          {deletingUserId === user.userId ? '…' : 'Delete'}
                         </button>
                       </div>
                     </td>
@@ -986,6 +1028,41 @@ export default function CrmUsersPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Promo / discount */}
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-2">Promo &amp; Discount</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Promo code</label>
+                    <input
+                      type="text"
+                      value={planForm.promoCode}
+                      onChange={(e) => setPlanForm((prev) => prev ? { ...prev, promoCode: e.target.value.toUpperCase() } : prev)}
+                      placeholder="e.g. WELCOME50"
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Discount (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={planForm.discountPercent}
+                      onChange={(e) => setPlanForm((prev) => prev ? { ...prev, discountPercent: e.target.value } : prev)}
+                      placeholder="e.g. 20"
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                </div>
+                {Number(planForm.discountPercent) > 0 && Number(planForm.monthlyPrice) > 0 && (
+                  <p className="mt-2 text-xs text-emerald-700">
+                    After {planForm.discountPercent}% off: ₹{Math.round(Number(planForm.monthlyPrice) * (1 - Number(planForm.discountPercent) / 100)).toLocaleString()}/mo
+                    {planForm.promoCode ? ` · code ${planForm.promoCode}` : ''}
+                  </p>
+                )}
               </div>
 
               <div>
