@@ -4006,6 +4006,13 @@ const QRBroadcastScheduleSchema = new mongoose.Schema(
     groupIds: [{ type: String }], // Groups included
     individualIds: [{ type: String }], // Individual chats included
 
+    // ── CARRY-OVER CURSOR ──
+    // Recipients already successfully sent (cumulative across days). The cron
+    // sends only to recipients NOT in this list, so when the daily cap (150) is
+    // hit the remainder automatically carries over to the next day instead of
+    // being dropped. When sentRecipientChatIds covers every recipient → completed.
+    sentRecipientChatIds: [{ type: String }],
+
     // Scheduling parameters
     isActive: { type: Boolean, default: true, index: true },
 

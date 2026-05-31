@@ -2,18 +2,21 @@
  * QR WhatsApp Send Rate Limiter — HARD CAPS
  *
  * Enforces:
- *   - 200 messages per day (resets at 5:00 AM IST)
- *   - 20 messages per hour (rolling clock-hour in IST)
+ *   - 150 messages per day (resets at 5:00 AM IST)
+ *   - 15 messages per hour (rolling clock-hour in IST)
  *
  * Counters live in MongoDB so they survive Vercel cold starts and apply across
  * the manual broadcast endpoint AND the cron processor. Once a cap is hit,
  * NO MORE messages send until the next reset — no UI override possible.
+ *
+ * These caps + the 5 AM–10 PM IST send window + ~1 msg/5 min pacing keep a
+ * single number well under WhatsApp's spam-detection thresholds.
  */
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 
-export const DAILY_LIMIT = 200;
-export const HOURLY_LIMIT = 20;
+export const DAILY_LIMIT = 150;
+export const HOURLY_LIMIT = 15;
 
 const COLLECTION = 'qr_send_rate_counters';
 

@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import mongoose from 'mongoose';
 import { getNextGroupOperationGap, shouldStopDueToFailureRate, addErrorToLog } from '@/lib/safeGroupMergeV2';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
+import { isQRSendAllowed, getCurrentISTTime } from '@/lib/qrTimeGuard';
 import { ObjectId } from 'mongodb';
 
 export const dynamic = 'force-dynamic';
@@ -268,6 +269,22 @@ export async function GET(req: NextRequest) {
     const cronSecret = req.headers.get('authorization') || req.nextUrl.searchParams.get('secret');
     if (cronSecret !== process.env.CRON_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // ── TIME-WINDOW GUARD ──
+    // Group adds are even more ban-sensitive than messages. Never add people
+    // outside 5:00 AM – 10:00 PM IST — adding strangers to groups at 3 AM is the
+    // single most bot-like signal. In-progress merges resume automatically at
+    // 5 AM (currentParticipantIndex preserves exactly where we stopped).
+    if (!isQRSendAllowed()) {
+      console.log(`[Group Merge V2] ⏰ Outside allowed hours (5:00 AM – 10:00 PM IST), now ${getCurrentISTTime()}. Holding all merges.`);
+      return NextResponse.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        processedOperations: 0,
+        results: [],
+        note: 'Outside allowed merge window (5:00 AM – 10:00 PM IST) — resumes at 5 AM',
+      });
     }
 
     await connectDB();

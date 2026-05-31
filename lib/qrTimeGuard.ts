@@ -1,11 +1,11 @@
 /**
  * QR WhatsApp Time Guard
- * Allowed hours: 5:00 AM – 10:30 PM IST
+ * Allowed hours: 5:00 AM – 10:00 PM IST
  * Messages sent outside hours are QUEUED and auto-sent at 5:00 AM next morning.
  */
 
 const ALLOWED_START = { h: 5,  m: 0  }; // 5:00 AM IST
-const ALLOWED_END   = { h: 22, m: 30 }; // 10:30 PM IST
+const ALLOWED_END   = { h: 22, m: 0  }; // 10:00 PM IST
 const TIMEZONE = 'Asia/Kolkata';
 
 export function isQRSendAllowed(): boolean {

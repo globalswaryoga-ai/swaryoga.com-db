@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { getQRBroadcastSchedule, getWhatsAppMessage, getQrWhatsAppMessage, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
-import { calculateVariableGapsWithBreaks, getWhatsAppComplianceStatus, DEFAULT_GAP_STRATEGY } from '@/lib/whatsappGapCalculator';
+import { getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
 import { reserveMessageSend } from '@/lib/messageDeduplication';
 import { isQRSendAllowed } from '@/lib/qrTimeGuard';
@@ -201,18 +201,6 @@ async function sendMessageWithGaps(
 }
 
 /**
- * Calculate send time estimate
- */
-function estimateSendTime(totalMessages: number, gaps: number[]): string {
-  const totalMs = gaps.reduce((a, b) => a + b, 0);
-  const totalSec = totalMs / 1000;
-  if (totalSec < 60) return `${Math.round(totalSec)}s`;
-  const mins = Math.floor(totalSec / 60);
-  const secs = Math.round(totalSec % 60);
-  return `${mins}m ${secs}s`;
-}
-
-/**
  * Process schedule with WhatsApp-safe gaps
  */
 async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: string) {
@@ -297,20 +285,25 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       return { status: 'skipped', reason: 'outside_time_window' };
     }
 
-    // Check if should run today
-    if (!shouldRunToday(schedule.frequency, schedule.daysOfWeek, schedule.firstRunDate)) {
+    // A schedule that was already started but still has un-sent recipients is a
+    // carry-over in progress (its earlier day hit the 150 cap). It must be allowed
+    // to keep sending on following days regardless of frequency/date gates —
+    // otherwise a one-time 300-recipient blast would strand the overflow forever.
+    const totalCount = Array.isArray(schedule.recipientChatIds) ? schedule.recipientChatIds.length : 0;
+    const sentCount = Array.isArray(schedule.sentRecipientChatIds) ? schedule.sentRecipientChatIds.length : 0;
+    const hasCarryOver = totalCount > 0 && sentCount > 0 && sentCount < totalCount;
+
+    // Check if should run today (skipped when a carry-over is mid-flight)
+    if (!hasCarryOver && !shouldRunToday(schedule.frequency, schedule.daysOfWeek, schedule.firstRunDate)) {
       const today = new Date();
       console.log(`[QR Broadcast Processor V2] 📅 Not scheduled for today (frequency: ${schedule.frequency}, daysOfWeek: ${schedule.daysOfWeek}, today: ${today.getDay()}, firstRunDate: ${schedule.firstRunDate})`);
       return { status: 'skipped', reason: 'not_scheduled_for_today' };
     }
 
-    // Check if already ran today
-    const lastRunDate = schedule.lastRunDate ? new Date(schedule.lastRunDate) : null;
-    const today = new Date();
-    if (lastRunDate && lastRunDate.toDateString() === today.toDateString()) {
-      console.log(`[QR Broadcast Processor V2] ✓ Already ran today at ${lastRunDate.toLocaleTimeString()}`);
-      return { status: 'skipped', reason: 'already_ran_today' };
-    }
+    // NOTE: We intentionally do NOT skip on "already ran today". This processor
+    // now sends ~1 message per 5-min tick (drip pacing), so it must run many
+    // times per day. Cross-day progress is tracked by sentRecipientChatIds
+    // (carry-over cursor) + the 150/day rate cap, not by lastRunDate.
 
     // Look up the owner's connected WhatsApp phone number (needed for qr_whatsapp_messages save)
     const CRMUserSettings = getCRMUserSettings();
@@ -320,47 +313,78 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     ).lean();
     const connectedPhone = String((ownerSettings as any)?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, '');
 
-    // Prepare recipients
-    let recipients = [...schedule.recipientChatIds];
-    const maxMessages = schedule.maxMessagesPerDay;
+    const QRBroadcastScheduleModel = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
 
-    // Enforce daily limit
-    if (recipients.length > maxMessages) {
-      recipients = recipients.slice(0, maxMessages);
-      console.log(`[QR Broadcast Processor V2] Limited to ${maxMessages} recipients`);
+    const isRecurring = schedule.frequency !== 'once';
+
+    // ── RECURRING RESET ──
+    // For daily/weekly schedules, each new scheduled day is a FRESH pass to the
+    // whole list. If the last run was on a previous IST day, clear the cursor so
+    // everyone is messaged again today (one-time 'once' schedules never reset).
+    const istTodayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
+    const lastRunIstStr = schedule.lastRunDate
+      ? new Date(new Date(schedule.lastRunDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString()
+      : null;
+    const isNewDay = lastRunIstStr !== istTodayStr;
+    if (isRecurring && isNewDay && Array.isArray(schedule.sentRecipientChatIds) && schedule.sentRecipientChatIds.length > 0) {
+      await QRBroadcastScheduleModel.updateOne(
+        { _id: schedule._id },
+        { $set: { sentRecipientChatIds: [], status: 'in-progress' } }
+      );
+      schedule.sentRecipientChatIds = [];
+      console.log(`[QR Broadcast V2] 🔁 New ${schedule.frequency} occurrence — cursor reset, re-sending full list today.`);
     }
 
-    // Shuffle recipients (100% human randomization)
-    recipients = shuffleArray(recipients);
+    // ── CARRY-OVER CURSOR ──
+    // Pending = every recipient NOT yet successfully sent. When the 150/day cap
+    // pauses sending, the leftover stays in `pending` and is picked up on the
+    // next day automatically — nothing is dropped.
+    const allRecipients: string[] = Array.isArray(schedule.recipientChatIds) ? schedule.recipientChatIds : [];
+    const alreadySent: Set<string> = new Set(
+      Array.isArray(schedule.sentRecipientChatIds) ? schedule.sentRecipientChatIds : []
+    );
+    const pending = allRecipients.filter((id) => !alreadySent.has(id));
 
-    // Get gap strategy — safer defaults after Nov 2026 restriction incident
-    // Reduced max throughput from 60/hr to ~45/hr and slowed initial warmup.
-    const gapStrategy = schedule.gapStrategy || {
-      initialGapMs: 15000,   // 15s warmup (was 7s — too fast, triggered restrictions)
-      initialGapCount: 3,
-      minGapMs: 60000,       // 60s minimum (was 45s)
-      maxGapMs: 150000,      // 150s maximum (was 120s)
-      ensureVariation: true,
-      ensureJitter: true,
-      jitterPercent: 15,
-    };
+    // Nothing left for this pass.
+    if (pending.length === 0) {
+      // Recurring → re-arm as 'scheduled' so it fires again on the next day.
+      // One-time → terminal 'completed'.
+      await QRBroadcastScheduleModel.updateOne(
+        { _id: schedule._id },
+        { status: isRecurring ? 'scheduled' : 'completed', lastRunDate: new Date() }
+      );
+      console.log(`[QR Broadcast V2] ✅ Pass done — all ${allRecipients.length} sent. ${isRecurring ? 'Re-armed for next occurrence.' : 'Schedule complete.'}`);
+      return { status: isRecurring ? 'idle_until_next_occurrence' : 'completed', reason: 'all_recipients_sent', sent: 0, totalRecipients: allRecipients.length };
+    }
 
-    // Calculate variable gaps WITH human "phone-down" breaks
-    const gaps = calculateVariableGapsWithBreaks(recipients.length, {
-      ...gapStrategy,
-      batchSize: gapStrategy.batchSize || 8,
-      batchGapMs: gapStrategy.batchGapMs || 60000,
-      totalMessagesPerHour: 20, // 20/hr = 200/10h target
-    });
+    // ── PER-TICK DRIP PACING (human-like) ──
+    // Cron fires every 5 min. Sending ~1 message per tick = ~1 msg / 5 min,
+    // which is the safe human target. Random skip/burst adds natural variation
+    // so gaps land anywhere from ~5 min to ~10+ min and never look robotic.
+    const roll = Math.random();
+    let perTickMax = 1;
+    if (roll < 0.18) perTickMax = 0;        // ~18% of ticks: skip (creates a longer human gap)
+    else if (roll > 0.90) perTickMax = 2;   // ~10% of ticks: small 2-message burst
 
-    // Check WhatsApp compliance
-    const compliance = getWhatsAppComplianceStatus(recipients.length, 1);
-    console.log(`[QR Broadcast Processor V2] Compliance: ${compliance.riskLevel}`);
-    console.log(`[QR Broadcast Processor V2] ${compliance.recommendation}`);
+    if (perTickMax === 0) {
+      await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, { status: 'in-progress' });
+      console.log(`[QR Broadcast V2] ⏭️  Human-pacing skip this tick (${pending.length} pending).`);
+      return { status: 'skipped', reason: 'human_pacing_skip', pending: pending.length };
+    }
 
-    // Estimate time
-    const estimatedTime = estimateSendTime(recipients.length, gaps);
-    console.log(`[QR Broadcast Processor V2] Estimated send time: ${estimatedTime}`);
+    // Shuffle pending (100% human randomization) and take just this tick's slice.
+    const recipients = shuffleArray([...pending]).slice(0, perTickMax);
+
+    // Small jitter between the 1-2 messages in a single tick so they aren't
+    // byte-for-byte simultaneous. The real ~5-min spacing comes from the cron.
+    const tickJitterMs = () => 2000 + Math.floor(Math.random() * 10000); // 2–12s
+
+    // Check WhatsApp compliance (informational)
+    const compliance = getWhatsAppComplianceStatus(allRecipients.length, 1);
+    console.log(`[QR Broadcast V2] Drip: sending ${recipients.length} now, ${pending.length} pending of ${allRecipients.length} total. ${compliance.riskLevel}`);
+
+    // Recipients newly sent in THIS tick (added to the carry-over cursor at the end)
+    const newlySentIds: string[] = [];
 
     let sent = 0;
     let failed = 0;
@@ -371,10 +395,10 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // Get database for deduplication
     const db = mongoose.connection.db;
 
-    // Send with gaps
+    // Send this tick's 1-2 recipients (real spacing comes from the 5-min cron)
     for (let i = 0; i < recipients.length; i++) {
       const chatId = recipients[i];
-      const gap = gaps[i] || 60000; // Fallback to 60 sec
+      const gap = i === 0 ? 0 : tickJitterMs(); // first is immediate, 2nd gets small jitter
 
       // HEARTBEAT CHECK: Every 10 messages, verify session is still connected
       heartbeatCheckCounter++;
@@ -415,33 +439,39 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         console.log(`[QR Broadcast V2] ✅ Heartbeat OK - session still alive`);
       }
 
-      // ── ATOMIC RATE-LIMIT RESERVATION (200/day, 20/hr hard caps) ──
+      // ── ATOMIC RATE-LIMIT RESERVATION (150/day, 15/hr hard caps) ──
+      // Hitting a cap is NORMAL drip behaviour, not an error. We keep the
+      // schedule 'in-progress' so it auto-resumes after the cap resets
+      // (hourly cap → next hour, daily cap → 5 AM IST). The carry-over cursor
+      // (sentRecipientChatIds) preserves exactly who still needs the message,
+      // so the remainder is sent on following ticks/days — nothing is dropped.
       const slot = await reserveSendSlot(schedule.userId);
       if (!slot.allowed) {
-        const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
-        await QRBroadcastSchedule.updateOne(
-          { _id: schedule._id },
-          {
-            status: 'paused',
-            lastError: slot.reason === 'daily_cap'
-              ? `Daily cap ${DAILY_LIMIT} reached — resumes ${slot.resetAt.toISOString()}`
-              : `Hourly cap ${HOURLY_LIMIT} reached — resumes ${slot.resetAt.toISOString()}`,
-            lastErrorAt: new Date(),
-            'stats.totalAttempted': (schedule.stats?.totalAttempted || 0) + (sent + failed + skipped),
-            'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
-            'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
-            'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
-          }
-        );
-        console.log(`[QR Broadcast V2] 🛑 ${slot.reason} reached for user=${schedule.userId} after ${sent} sent. Pausing — will resume.`);
+        // Persist anyone already sent in this tick before we stop.
+        const update: any = {
+          status: 'in-progress',
+          lastError: slot.reason === 'daily_cap'
+            ? `Daily cap ${DAILY_LIMIT} reached — carries over, resumes ${slot.resetAt.toISOString()}`
+            : `Hourly cap ${HOURLY_LIMIT} reached — resumes ${slot.resetAt.toISOString()}`,
+          lastErrorAt: new Date(),
+          'stats.totalAttempted': (schedule.stats?.totalAttempted || 0) + (sent + failed + skipped),
+          'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
+          'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
+          'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
+        };
+        const capUpdateOp: any = { $set: update };
+        if (newlySentIds.length > 0) capUpdateOp.$addToSet = { sentRecipientChatIds: { $each: newlySentIds } };
+        await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, capUpdateOp);
+        console.log(`[QR Broadcast V2] 🛑 ${slot.reason} reached for user=${schedule.userId}. ${sent} sent this tick. ${pending.length - newlySentIds.length} carry over.`);
         return {
-          status: 'paused',
+          status: 'rate_capped',
           reason: slot.reason,
           sent,
           failed,
           skipped,
+          pending: pending.length - newlySentIds.length,
           resetAt: slot.resetAt.toISOString(),
-          message: `Paused — ${slot.reason === 'daily_cap' ? 'daily' : 'hourly'} cap reached. ${sent} sent this run.`,
+          message: `${slot.reason === 'daily_cap' ? 'Daily' : 'Hourly'} cap reached. ${pending.length - newlySentIds.length} carry over to next ${slot.reason === 'daily_cap' ? 'day' : 'hour'}.`,
         };
       }
 
@@ -490,11 +520,15 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
       if (result.skipped) {
         skipped++;
+        // Already delivered (dedup) → still counts as "done" for this recipient,
+        // so advance the carry-over cursor past them.
+        newlySentIds.push(chatId);
         console.log(
           `[QR Broadcast V2] ⊘ ${i + 1}/${recipients.length} skipped: ${result.error} (already sent today)`
         );
       } else if (result.success) {
         sent++;
+        newlySentIds.push(chatId);
         totalSendTimeMs += (result.sendTimeMs || 0);
         console.log(
           `[QR Broadcast V2] ✓ ${i + 1}/${recipients.length} sent (gap: ${(gap / 1000).toFixed(1)}s)`
@@ -561,34 +595,41 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // Calculate average send time
     const avgSendTimeMs = sent > 0 ? Math.round(totalSendTimeMs / sent) : 0;
 
-    // Update schedule stats
-    const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
+    // ── ADVANCE CARRY-OVER CURSOR ──
+    // Everyone handled this tick (sent or already-delivered) is added so the
+    // next tick continues with whoever is left. Schedule is only 'completed'
+    // once the cursor covers EVERY recipient — otherwise it stays 'in-progress'
+    // and keeps dripping (~1 msg / 5 min) across this day and into tomorrow.
+    const totalDoneNow = alreadySent.size + newlySentIds.length;
+    const allDone = totalDoneNow >= allRecipients.length;
 
-    await QRBroadcastSchedule.updateOne(
-      { _id: schedule._id },
-      {
+    const finalUpdate: any = {
+      $set: {
+        // Recurring schedules re-arm to 'scheduled' (fire again next occurrence);
+        // one-time schedules terminate as 'completed'.
+        status: allDone ? (isRecurring ? 'scheduled' : 'completed') : 'in-progress',
         lastRunDate: new Date(),
-        // 'failed' only if ZERO messages got through; 'completed' if at least 1 was sent
-        status: sent === 0 && failed > 0 ? 'failed' : 'completed',
         'stats.totalAttempted': (schedule.stats?.totalAttempted || 0) + recipients.length,
         'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
         'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
         'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
         'stats.averageDeliveryTimeMs': avgSendTimeMs,
-      }
-    );
+      },
+    };
+    if (newlySentIds.length > 0) finalUpdate.$addToSet = { sentRecipientChatIds: { $each: newlySentIds } };
 
-    console.log(`[QR Broadcast V2] ✅ Complete: ${sent} sent, ${skipped} skipped (duplicate), ${failed} failed (Avg: ${avgSendTimeMs}ms)`);
+    await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, finalUpdate);
+
+    const remaining = allRecipients.length - totalDoneNow;
+    console.log(`[QR Broadcast V2] ${allDone ? '✅ COMPLETE' : '⏳ Drip tick done'}: ${sent} sent, ${skipped} dup, ${failed} failed. ${remaining} pending of ${allRecipients.length}.`);
 
     return {
-      status: 'completed',
+      status: allDone ? 'completed' : 'in-progress',
       sent,
       skipped,
       failed,
-      total: recipients.length,
-      successRate: `${Math.round((sent / (sent + failed)) * 100)}%`,
-      deduplicateRate: `${Math.round((skipped / recipients.length) * 100)}%`,
-      averageSendTimeMs: avgSendTimeMs,
+      pending: remaining,
+      totalRecipients: allRecipients.length,
       compliance: compliance.riskLevel,
     };
   } catch (error) {
