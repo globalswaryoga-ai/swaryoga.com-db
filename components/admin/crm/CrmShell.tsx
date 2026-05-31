@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import AdminSidebar from '@/components/AdminSidebar';
+import CrmSidebar from './CrmSidebar';
 import CrmSubNav from './CrmSubNav';
 import { findSectionForPath } from './crmNavConfig';
 import TenantOnboarding from './TenantOnboarding';
@@ -162,8 +162,8 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar */}
-      <AdminSidebar
+      {/* Sidebar — flat module list (sub-pages live in the CrmSubNav header) */}
+      <CrmSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         collapsed={collapsed}
