@@ -88,6 +88,8 @@ export default function MetaReportsPage() {
   const [view, setView] = useState<'list' | 'detail'>(runId ? 'detail' : 'list');
 
   const [runs, setRuns] = useState<BroadcastRun[]>([]);
+  const [summary, setSummary] = useState<Record<string, number>>({});
+  const [allUsers, setAllUsers] = useState(true);
   const [loading, setLoading] = useState(true);
   const [selectedRun, setSelectedRun] = useState<BroadcastRun | null>(null);
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
@@ -99,16 +101,18 @@ export default function MetaReportsPage() {
   const [showConfirm, setShowConfirm] = useState<{ action: string; label: string } | null>(null);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
 
-  // Fetch Meta broadcast runs only
+  // Fetch Meta broadcast runs
   const fetchRuns = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/broadcast-runs?provider=meta', {
+      const params = new URLSearchParams({ provider: 'meta', limit: '100', allUsers: 'true' });
+      const res = await fetch('/api/admin/crm/broadcast-runs?' + params, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setRuns(data?.data?.runs || data?.runs || []);
+      setSummary(data?.data?.summary || {});
     } catch (err) {
       console.error('Failed to load runs:', err);
     } finally {
@@ -275,16 +279,17 @@ export default function MetaReportsPage() {
     });
   };
 
-  // Calculate totals
+  // Real totals from broadcast_run_messages (accurate, not stale run snapshots)
   const totals = useMemo(() => {
-    return runs.reduce((acc, run) => ({
-      total: acc.total + (run.stats?.total || 0),
-      sent: acc.sent + (run.stats?.sent || 0),
-      delivered: acc.delivered + (run.stats?.delivered || 0),
-      read: acc.read + (run.stats?.read || 0),
-      failed: acc.failed + (run.stats?.failed || 0),
-    }), { total: 0, sent: 0, delivered: 0, read: 0, failed: 0 });
-  }, [runs]);
+    const sent    = (summary['sent']      || 0) + (summary['delivered'] || 0) + (summary['read'] || 0);
+    const delivered = (summary['delivered'] || 0) + (summary['read']      || 0);
+    const read    = summary['read']      || 0;
+    const failed  = summary['failed']    || 0;
+    const blocked = summary['blocked']   || 0;
+    const cancelled = summary['cancelled'] || 0;
+    const total   = sent + failed + blocked + cancelled + (summary['pending'] || 0);
+    return { total, sent, delivered, read, failed, blocked, cancelled };
+  }, [summary]);
 
   if (token === null) {
     return <div className="min-h-screen bg-white flex items-center justify-center">Loading...</div>;
@@ -319,40 +324,37 @@ export default function MetaReportsPage() {
       <main className="max-w-7xl mx-auto p-6">
         {view === 'list' ? (
           <>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-              <div className="bg-white rounded-xl p-4 border shadow-sm">
-                <div className="text-sm text-gray-500">Total Messages</div>
-                <div className="text-2xl font-bold text-gray-800">{totals.total}</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border shadow-sm">
-                <div className="text-sm text-gray-500">Sent</div>
-                <div className="text-2xl font-bold text-green-600">{totals.sent}</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border shadow-sm">
-                <div className="text-sm text-gray-500">Delivered</div>
-                <div className="text-2xl font-bold text-emerald-600">{totals.delivered}</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border shadow-sm">
-                <div className="text-sm text-gray-500">Read</div>
-                <div className="text-2xl font-bold text-teal-600">{totals.read}</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border shadow-sm">
-                <div className="text-sm text-gray-500">Failed</div>
-                <div className="text-2xl font-bold text-red-600">{totals.failed}</div>
-              </div>
+            {/* Stats Cards — real counts from broadcast_run_messages */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+              {[
+                { label: 'Total',     value: totals.total,     color: 'text-gray-800',    bg: 'bg-white' },
+                { label: 'Sent',      value: totals.sent,      color: 'text-green-600',   bg: 'bg-white' },
+                { label: 'Delivered', value: totals.delivered, color: 'text-emerald-600', bg: 'bg-white' },
+                { label: 'Read',      value: totals.read,      color: 'text-teal-600',    bg: 'bg-white' },
+                { label: 'Failed',    value: totals.failed,    color: 'text-red-600',     bg: 'bg-white' },
+                { label: 'Blocked',   value: totals.blocked,   color: 'text-orange-600',  bg: 'bg-orange-50 border-orange-200' },
+                { label: 'Cancelled', value: totals.cancelled, color: 'text-slate-500',   bg: 'bg-gray-50' },
+              ].map(({ label, value, color, bg }) => (
+                <div key={label} className={`${bg} rounded-xl p-4 border shadow-sm`}>
+                  <div className="text-xs text-gray-500 mb-1">{label}</div>
+                  <div className={`text-2xl font-bold ${color}`}>{value.toLocaleString()}</div>
+                  {totals.total > 0 && label !== 'Total' && (
+                    <div className="text-xs text-gray-400 mt-1">{Math.round((value / totals.total) * 100)}%</div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* All Users toggle + runs count */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm text-gray-500">{runs.length} broadcast{runs.length !== 1 ? 's' : ''} — all users</div>
+              <button onClick={fetchRuns} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">🔄 Refresh</button>
             </div>
 
             {/* Runs List */}
             <div className="bg-white rounded-xl border shadow-sm">
-              <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-800">🟢 Meta Broadcasts</h2>
-                <button
-                  onClick={fetchRuns}
-                  className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50"
-                >
-                  🔄 Refresh
-                </button>
+              <div className="p-4 border-b">
+                <h2 className="font-semibold text-gray-800">🟢 Meta Broadcasts — All Users</h2>
               </div>
 
               {loading ? (
@@ -374,6 +376,7 @@ export default function MetaReportsPage() {
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Delivered</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Read</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Failed</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-orange-500 uppercase">Blocked</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
@@ -397,6 +400,7 @@ export default function MetaReportsPage() {
                           <td className="px-4 py-3 text-center text-emerald-600 font-medium">{run.stats?.delivered || 0}</td>
                           <td className="px-4 py-3 text-center text-teal-600 font-medium">{run.stats?.read || 0}</td>
                           <td className="px-4 py-3 text-center text-red-600 font-medium">{run.stats?.failed || 0}</td>
+                          <td className="px-4 py-3 text-center text-orange-600 font-medium">{run.stats?.blocked || 0}</td>
                           <td className="px-4 py-3 text-center">
                             <button
                               onClick={() => router.push(`/admin/crm/reports/meta?runId=${run._id}`)}

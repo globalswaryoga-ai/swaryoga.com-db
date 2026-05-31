@@ -342,14 +342,22 @@ export async function GET(request: NextRequest) {
 
     const status = url.searchParams.get('status');
     const provider = url.searchParams.get('provider');
+    const allUsers = url.searchParams.get('allUsers') === 'true';
+    const userIdParam = url.searchParams.get('userId');
     const filter: any = {};
     if (status) filter.status = String(status);
     if (provider && ['meta', 'qr'].includes(provider)) filter.provider = provider;
 
-    // Non-superadmins only see their own broadcasts
     const superAdmin = isSuperAdmin(decoded);
-    if (!superAdmin) {
-      const viewerUserId = getViewerUserId(decoded);
+    const viewerUserId = getViewerUserId(decoded);
+
+    if (superAdmin && allUsers) {
+      // Super-admin requesting all users — no userId filter
+      if (userIdParam) filter.createdByUserId = String(userIdParam);
+    } else if (superAdmin) {
+      // Super-admin default: show all (no filter) — same as allUsers for superadmin
+    } else {
+      // Regular admin: own broadcasts only
       filter.createdByUserId = viewerUserId;
     }
 
@@ -360,6 +368,29 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .lean();
 
+    // Aggregate real per-status counts from broadcast_run_messages for summary
+    const { BroadcastRunMessage } = await import('@/lib/schemas/enterpriseSchemas');
+    const runIds = rows.map((r: any) => r._id);
+    const msgAgg = runIds.length > 0
+      ? await BroadcastRunMessage.aggregate([
+          { $match: { runId: { $in: runIds } } },
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ])
+      : [];
+    const msgCounts: Record<string, number> = {};
+    for (const m of msgAgg) msgCounts[String(m._id)] = Number(m.count);
+
+    // All-time summary (all runs matching provider filter, not just this page)
+    const allFilter: any = provider ? { provider } : {};
+    if (!superAdmin) allFilter.createdByUserId = viewerUserId;
+    const summaryAgg = await BroadcastRunMessage.aggregate([
+      { $lookup: { from: 'broadcast_runs', localField: 'runId', foreignField: '_id', as: 'run' } },
+      { $match: provider ? { 'run.provider': provider } : {} },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]);
+    const summary: Record<string, number> = {};
+    for (const s of summaryAgg) summary[String(s._id)] = Number(s.count);
+
     return NextResponse.json(
       {
         success: true,
@@ -368,6 +399,7 @@ export async function GET(request: NextRequest) {
           total,
           limit,
           skip,
+          summary, // real per-status totals from broadcast_run_messages
         },
       },
       { status: 200 }
