@@ -116,6 +116,10 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'messages': ['sms'],
     'calls': ['ai_calling'],
     'automation': ['chatbot'],
+    // These require higher-tier bundles — not shown on Besic
+    'connections': ['whatsapp_meta', 'email', 'telegram'],
+    'integration-hub': ['chatbot', 'elearning', 'community'],
+    'addons': ['elearning', 'sadhana_program', 'tally', 'ai_calling'],
   };
 
   const modules = useMemo(() => {
