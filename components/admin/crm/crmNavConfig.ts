@@ -256,30 +256,94 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 7. QR (WhatsApp, Leads, Groups, Contacts)
+  // 7. QR Leads Management (Basic plan primary entry)
+  {
+    key: 'qr-leads',
+    title: 'QR Leads Management',
+    icon: Users,
+    items: [
+      { label: 'QR Leads', href: '/admin/crm/qr/leads', icon: Users },
+      { label: 'QR Funnel', href: '/admin/crm/qr/funnel', icon: Filter },
+      { label: 'QR Funnel Action', href: '/admin/crm/qr/manage', icon: Sliders },
+      { label: 'QR Seals', href: '/admin/crm/qr/seals', icon: Tag },
+      { label: 'Funnel Dashboard', href: '/admin/crm/qr/funnel-report', icon: BarChart3 },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/qr/leads', '/admin/crm/qr/funnel', '/admin/crm/qr/manage', '/admin/crm/qr/funnel-report'],
+  },
+
+  // 8. QR (WhatsApp inbox & messaging)
   {
     key: 'qr',
     title: 'QR WhatsApp',
     icon: QrCode,
     items: [
-      { label: 'Chats', href: '/admin/crm/qr', icon: Inbox },
-      { label: 'Leads', href: '/admin/crm/qr/leads', icon: Users },
-      { label: 'Broadcast', href: '/admin/crm/qr/broadcast', icon: Radio },
+      { label: 'Inbox', href: '/admin/crm/qr', icon: Inbox },
       { label: 'Templates', href: '/admin/crm/qr/templates', icon: FileEdit },
-      { label: 'Groups', href: '/admin/crm/qr/group-contacts', icon: Users },
+      { label: 'Broadcast', href: '/admin/crm/qr/broadcast', icon: Radio },
+      { label: 'Sent Messages', href: '/admin/crm/qr/sent-messages', icon: Send },
+      { label: 'Settings', href: '/admin/crm/whatsapp/settings', icon: Settings },
     ],
     moreItems: [
+      { label: 'Groups', href: '/admin/crm/qr/group-contacts', icon: Users },
       { label: 'Schedule', href: '/admin/crm/qr/broadcast-schedule', icon: Calendar },
       { label: 'Broadcast Report', href: '/admin/crm/qr/broadcast-report', icon: BarChart3 },
-      { label: 'Funnel', href: '/admin/crm/qr/funnel', icon: Filter },
-      { label: 'Funnel Report', href: '/admin/crm/qr/funnel-report', icon: BarChart3 },
-      { label: 'Manage Funnel', href: '/admin/crm/qr/manage', icon: Filter },
-      { label: 'Merge Groups', href: '/admin/crm/qr/merge-group-v2', icon: Users },
-      { label: 'Chatbot', href: '/admin/crm/qr/chatbot', icon: Bot },
-      { label: 'Automation', href: '/admin/crm/qr/automation', icon: Zap },
       { label: 'Health Report', href: '/admin/crm/qr/health-report', icon: Activity },
     ],
-    prefixes: ['/admin/crm/qr'],
+    prefixes: ['/admin/crm/qr', '/admin/crm/qr/templates', '/admin/crm/qr/broadcast', '/admin/crm/qr/sent-messages', '/admin/crm/whatsapp/settings'],
+  },
+
+  // 9. Planner (top-level)
+  {
+    key: 'planner',
+    title: 'Planner',
+    icon: Calendar,
+    items: [
+      { label: 'Planner Home', href: '/admin/crm/planner', icon: Calendar },
+      { label: 'Ritucharya', href: '/admin/crm/planner/ritucharya', icon: Leaf },
+      { label: 'Planner Dashboard', href: '/admin/crm/planner/dashboard', icon: LayoutDashboard },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/planner', '/admin/crm/planner/ritucharya', '/admin/crm/planner/dashboard'],
+  },
+
+  // 10. Reports (repositioned)
+  {
+    key: 'reports',
+    title: 'All Reports',
+    icon: BarChart3,
+    items: [
+      { label: 'Reports Center', href: '/admin/crm/reports', icon: BarChart3 },
+      { label: 'Analytics', href: '/admin/crm/analytics', icon: PieChart },
+      { label: 'WA Analytics', href: '/admin/crm/whatsapp-analytics', icon: BarChart2 },
+    ],
+    moreItems: [
+      { label: 'Zoom Analytics', href: '/admin/crm/zoom-analytics', icon: Video },
+      { label: 'Meta Reports', href: '/admin/crm/reports/meta', icon: FileText },
+    ],
+    prefixes: ['/admin/crm/analytics', '/admin/crm/reports', '/admin/crm/whatsapp-analytics'],
+  },
+
+  // 11. Settings (repositioned)
+  {
+    key: 'settings',
+    title: 'Settings',
+    icon: Settings,
+    items: [
+      { label: 'Auto Config', href: '/admin/crm/settings', icon: Sliders },
+      { label: 'Connections', href: '/admin/crm/connections', icon: Plug },
+      { label: 'Integrations', href: '/admin/crm/integration-hub', icon: Zap },
+      { label: 'Devices', href: '/admin/crm/devices', icon: Smartphone },
+    ],
+    moreItems: [
+      { label: 'Tally', href: '/admin/crm/tally', icon: Calculator },
+      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: MessageCircle },
+      { label: 'User Profile', href: '/admin/crm/users/profile', icon: User },
+      { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Users },
+      { label: 'Media Settings', href: '/admin/crm/media/settings', icon: Image },
+      { label: 'Device Settings', href: '/admin/crm/devices/settings', icon: Settings },
+    ],
+    prefixes: ['/admin/crm/settings', '/admin/crm/tally', '/admin/crm/users/profile'],
   },
 
   // 7b. Telegram Bot
@@ -364,26 +428,7 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/messages'],
   },
 
-  // 11. All Reports
-  {
-    key: 'reports',
-    title: 'All Reports',
-    icon: BarChart3,
-    items: [
-      { label: 'Reports Center', href: '/admin/crm/reports', icon: BarChart3 },
-      { label: 'Analytics', href: '/admin/crm/analytics', icon: PieChart },
-      { label: 'Meta Dashboard', href: '/admin/crm/meta-dashboard', icon: BarChart2 },
-    ],
-    moreItems: [
-      { label: 'WA Analytics', href: '/admin/crm/whatsapp-analytics', icon: BarChart2 },
-      { label: 'Zoom Analytics', href: '/admin/crm/zoom-analytics', icon: Video },
-      { label: 'Meta Reports', href: '/admin/crm/reports/meta', icon: FileText },
-    ],
-    prefixes: [
-      '/admin/crm/analytics',
-      '/admin/crm/reports',
-    ],
-  },
+
 
   // 12. Super Admin (superadmin only — full platform management)
   {
@@ -459,31 +504,7 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 15. Settings
-  {
-    key: 'settings',
-    title: 'Settings',
-    icon: Settings,
-    items: [
-      { label: 'Auto Config', href: '/admin/crm/settings', icon: Sliders },
-      { label: 'Connections', href: '/admin/crm/connections', icon: Plug },
-      { label: 'Integrations', href: '/admin/crm/integration-hub', icon: Zap },
-      { label: 'Devices', href: '/admin/crm/devices', icon: Smartphone },
-    ],
-    moreItems: [
-      { label: 'Tally', href: '/admin/crm/tally', icon: Calculator },
-      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: MessageCircle },
-      { label: 'User Profile', href: '/admin/crm/users/profile', icon: User },
-      { label: 'Lead Assignment', href: '/admin/crm/lead-assignment-settings', icon: Users },
-      { label: 'Media Settings', href: '/admin/crm/media/settings', icon: Image },
-      { label: 'Device Settings', href: '/admin/crm/devices/settings', icon: Settings },
-    ],
-    prefixes: [
-      '/admin/crm/settings',
-      '/admin/crm/tally',
-      '/admin/crm/users/profile',
-    ],
-  },
+
 
   // 16. Addons & Extensions
   {
