@@ -57,6 +57,7 @@ export default function DeletedLeadsPage() {
 
   const [rows, setRows] = useState<DeletedLead[]>([]);
   const [total, setTotal] = useState(0);
+  const [reasonCounts, setReasonCounts] = useState<Record<string, number>>({});
   const [limit] = useState(50);
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +104,7 @@ export default function DeletedLeadsPage() {
       if (!res.ok) throw new Error(data?.error || 'Failed to load');
       setRows(Array.isArray(data?.data?.deletedLeads) ? data.data.deletedLeads : []);
       setTotal(Number(data?.data?.total || 0));
+      setReasonCounts(data?.data?.reasonCounts || {});
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load deleted leads');
     } finally {
@@ -132,12 +134,10 @@ export default function DeletedLeadsPage() {
     }
   };
 
-  // Stats from current page
-  const statsByReason = rows.reduce<Record<string, number>>((acc, r) => {
-    const k = r.deletedReason || 'manual';
-    acc[k] = (acc[k] || 0) + 1;
-    return acc;
-  }, {});
+  // reasonCounts comes from API — full totals, not just current page
+  const totalMetaBlocked = (reasonCounts['meta_blocked'] || 0);
+  const totalDeliveryFailed = (reasonCounts['delivery_failed'] || 0);
+  const totalManual = (reasonCounts['manual'] || 0) + (reasonCounts['bulk'] || 0);
 
   const canPrev = skip > 0;
   const canNext = skip + limit < total;
@@ -169,15 +169,15 @@ export default function DeletedLeadsPage() {
             <div className="text-slate-400 text-xs mt-1">Total Archived</div>
           </div>
           <div className="bg-red-950/40 border border-red-500/20 rounded-xl p-4">
-            <div className="text-2xl font-bold text-red-400">{statsByReason['meta_blocked'] || 0}</div>
+            <div className="text-2xl font-bold text-red-400">{totalMetaBlocked}</div>
             <div className="text-slate-400 text-xs mt-1">Meta Blocked</div>
           </div>
           <div className="bg-orange-950/40 border border-orange-500/20 rounded-xl p-4">
-            <div className="text-2xl font-bold text-orange-400">{statsByReason['delivery_failed'] || 0}</div>
+            <div className="text-2xl font-bold text-orange-400">{totalDeliveryFailed}</div>
             <div className="text-slate-400 text-xs mt-1">Delivery Failed</div>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div className="text-2xl font-bold text-slate-300">{statsByReason['manual'] || 0}</div>
+            <div className="text-2xl font-bold text-slate-300">{totalManual}</div>
             <div className="text-slate-400 text-xs mt-1">Manual Delete</div>
           </div>
         </div>

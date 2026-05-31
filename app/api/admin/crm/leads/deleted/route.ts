@@ -74,8 +74,21 @@ export async function GET(request: NextRequest) {
 
     const total = await DeletedLead.countDocuments(filter);
 
+    // Reason counts use the base tenant filter (no search/reason sub-filter)
+    // so stat cards always show totals for this user, not just the current search.
+    const baseFilter: any = superAdmin
+      ? (filter.assignedToUserId ? { assignedToUserId: filter.assignedToUserId } : {})
+      : { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] };
+
+    const reasonAgg = await DeletedLead.aggregate([
+      { $match: baseFilter },
+      { $group: { _id: '$deletedReason', count: { $sum: 1 } } },
+    ]);
+    const reasonCounts: Record<string, number> = {};
+    for (const r of reasonAgg) reasonCounts[String(r._id || 'manual')] = Number(r.count);
+
     return NextResponse.json(
-      { success: true, data: { deletedLeads, total, limit, skip } },
+      { success: true, data: { deletedLeads, total, limit, skip, reasonCounts } },
       { status: 200 }
     );
   } catch (error) {
