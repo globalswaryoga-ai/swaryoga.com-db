@@ -52,6 +52,7 @@ export default function CRMDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [planBundles, setPlanBundles] = useState<Set<string>>(new Set());
 
   // Welcome & Setup state
   const [showWelcome, setShowWelcome] = useState(false);
@@ -79,6 +80,45 @@ export default function CRMDashboard() {
     pendingOrders: 0,
     currencyBreakdown: { INR: 0, USD: 0, NPR: 0 },
   });
+
+  // Load tenant plan bundles for plan-aware dashboard rendering
+  useEffect(() => {
+    async function loadPlanBundles() {
+      try {
+        const token = localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+        if (!token) return;
+        const accRes = await fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } });
+        if (!accRes.ok) return;
+        const acc = await accRes.json();
+        const slug = acc?.profile?.tenantSlug;
+        let keys: string[] = [];
+        if (slug) {
+          const tRes = await fetch(`/api/tenants/${encodeURIComponent(slug)}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (tRes.ok) {
+            const tj = await tRes.json();
+            keys = tj?.tenant?.moduleKeys || tj?.tenant?.enabledModules || [];
+          }
+        }
+        if (!keys.length) {
+          const ss = await fetch('/api/crm-site/setup-status', { headers: { Authorization: `Bearer ${token}` } });
+          if (ss.ok) {
+            const sd = await ss.json();
+            const tier = sd?.planId || '';
+            if (tier) {
+              const pr = await fetch('/api/admin/tenants/plans');
+              if (pr.ok) {
+                const pd = await pr.json();
+                const mp = (pd?.data?.plans || []).find((p: any) => p.tier === tier);
+                if (mp?.defaultGroups?.length) keys = mp.defaultGroups;
+              }
+            }
+          }
+        }
+        setPlanBundles(new Set(keys));
+      } catch {}
+    }
+    loadPlanBundles();
+  }, []);
 
   useEffect(() => {
     try {
@@ -474,44 +514,26 @@ export default function CRMDashboard() {
                 <p className="text-sm text-gray-500 mt-1">Here&apos;s what&apos;s happening with your business today.</p>
               </div>
 
-              {/* Main Stats - Flat Cards */}
+              {/* Main Stats — plan-aware */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <BigStatCard
-                  label="Total Leads"
-                  value={stats?.totalLeads || 0}
-                  icon={Users}
-                  color="blue"
-                  href="/admin/crm/leads"
-                />
-                <BigStatCard
-                  label="Total Sales"
-                  value={stats?.totalSales || 0}
-                  icon={DollarSign}
-                  color="green"
-                  href="/admin/crm/sales"
-                />
-                {/* Meta Messages - API returns 0 for non-superadmin */}
-                <BigStatCard
-                  label="Meta Messages"
-                  value={stats?.metaMessagesSent || 0}
-                  icon={MessageCircle}
-                  color="purple"
-                  href="/admin/crm/meta"
-                />
-                <BigStatCard
-                  label="QR Messages"
-                  value={stats?.qrWhatsappMessagesSent || 0}
-                  icon={QrCode}
-                  color="teal"
-                  href="/admin/crm/whatsapp"
-                />
-                <BigStatCard
-                  label="Conversion Rate"
-                  value={`${stats?.conversionRate || 0}%`}
-                  icon={TrendingUp}
-                  color="orange"
-                  href="/admin/crm/analytics"
-                />
+                {/* lead_management stats — always show if plan has it */}
+                {(isSuperAdmin || planBundles.has('lead_management')) && (
+                  <BigStatCard label="Total Leads" value={stats?.totalLeads || 0} icon={Users} color="blue" href="/admin/crm/leads" />
+                )}
+                {(isSuperAdmin || planBundles.has('lead_management')) && (
+                  <BigStatCard label="Total Sales" value={stats?.totalSales || 0} icon={DollarSign} color="green" href="/admin/crm/sales" />
+                )}
+                {(isSuperAdmin || planBundles.has('lead_management')) && (
+                  <BigStatCard label="Conversion Rate" value={`${stats?.conversionRate || 0}%`} icon={TrendingUp} color="orange" href="/admin/crm/analytics" />
+                )}
+                {/* whatsapp_qr stats */}
+                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
+                  <BigStatCard label="QR Messages" value={stats?.qrWhatsappMessagesSent || 0} icon={QrCode} color="teal" href="/admin/crm/qr" />
+                )}
+                {/* whatsapp_meta stats */}
+                {(isSuperAdmin || planBundles.has('whatsapp_meta')) && (
+                  <BigStatCard label="Meta Messages" value={stats?.metaMessagesSent || 0} icon={MessageCircle} color="purple" href="/admin/crm/meta" />
+                )}
               </div>
 
               {/* Super Admin Stats */}
@@ -536,17 +558,67 @@ export default function CRMDashboard() {
                 </>
               )}
 
-              {/* Quick Actions */}
+              {/* Quick Actions — plan-aware */}
               <h2 className="text-lg font-bold text-gray-900 mt-8">Quick Actions</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <QuickActionCard href="/admin/crm/leads?action=create" icon={UserPlus} label="Add Lead" color="blue" />
-                <QuickActionCard href="/admin/crm/meta" icon={MessageCircle} label="WhatsApp" color="green" />
-                <QuickActionCard href="/admin/crm/sales" icon={DollarSign} label="Sales" color="emerald" />
-                <QuickActionCard href="/admin/crm/broadcast" icon={Radio} label="Broadcast" color="pink" />
-                <QuickActionCard href="/admin/crm/calls" icon={UserPlus} label="Call Workflows" color="emerald" />
-                <QuickActionCard href="/admin/crm/templates" icon={FileText} label="Templates" color="orange" />
-                <QuickActionCard href="/admin/crm/analytics" icon={BarChart3} label="Analytics" color="purple" />
-                <QuickActionCard href="/admin/crm/settings" icon={Settings} label="Auto Config" color="gray" />
+                {/* Always visible */}
+                <QuickActionCard href="/admin/crm/settings" icon={Settings} label="Settings" color="gray" />
+                {/* lead_management */}
+                {(isSuperAdmin || planBundles.has('lead_management')) && (
+                  <QuickActionCard href="/admin/crm/leads?action=create" icon={UserPlus} label="Add Lead" color="blue" />
+                )}
+                {(isSuperAdmin || planBundles.has('lead_management')) && (
+                  <QuickActionCard href="/admin/crm/sales" icon={DollarSign} label="Sales" color="emerald" />
+                )}
+                {(isSuperAdmin || planBundles.has('lead_management')) && (
+                  <QuickActionCard href="/admin/crm/funnel" icon={TrendingUp} label="Funnel" color="orange" />
+                )}
+                {/* whatsapp_qr */}
+                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
+                  <QuickActionCard href="/admin/crm/qr" icon={QrCode} label="QR Inbox" color="teal" />
+                )}
+                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
+                  <QuickActionCard href="/admin/crm/qr/broadcast" icon={Radio} label="Broadcast" color="pink" />
+                )}
+                {(isSuperAdmin || planBundles.has('whatsapp_qr')) && (
+                  <QuickActionCard href="/admin/crm/send-template" icon={FileText} label="Send Message" color="orange" />
+                )}
+                {/* whatsapp_meta */}
+                {(isSuperAdmin || planBundles.has('whatsapp_meta')) && (
+                  <QuickActionCard href="/admin/crm/meta" icon={MessageCircle} label="Meta WA" color="green" />
+                )}
+                {/* planner */}
+                {(isSuperAdmin || planBundles.has('planner')) && (
+                  <QuickActionCard href="/admin/crm/planner" icon={Sparkles} label="Planner" color="purple" />
+                )}
+                {/* report */}
+                {(isSuperAdmin || planBundles.has('report') || planBundles.has('lead_management')) && (
+                  <QuickActionCard href="/admin/crm/reports" icon={BarChart3} label="Reports" color="purple" />
+                )}
+                {/* chatbot */}
+                {(isSuperAdmin || planBundles.has('chatbot')) && (
+                  <QuickActionCard href="/admin/crm/chatbots" icon={Sparkles} label="Chatbot" color="pink" />
+                )}
+                {/* community */}
+                {(isSuperAdmin || planBundles.has('community')) && (
+                  <QuickActionCard href="/admin/crm/community" icon={Users} label="Community" color="blue" />
+                )}
+                {/* elearning */}
+                {(isSuperAdmin || planBundles.has('elearning')) && (
+                  <QuickActionCard href="/admin/crm/e-learning" icon={BarChart3} label="E-Learning" color="emerald" />
+                )}
+                {/* ai_calling */}
+                {(isSuperAdmin || planBundles.has('ai_calling')) && (
+                  <QuickActionCard href="/admin/crm/calls" icon={UserPlus} label="Calls" color="teal" />
+                )}
+                {/* telegram */}
+                {(isSuperAdmin || planBundles.has('telegram')) && (
+                  <QuickActionCard href="/admin/crm/telegram" icon={Radio} label="Telegram" color="blue" />
+                )}
+                {/* email */}
+                {(isSuperAdmin || planBundles.has('email')) && (
+                  <QuickActionCard href="/admin/crm/email" icon={FileText} label="Email" color="orange" />
+                )}
               </div>
 
               {/* Footer */}
