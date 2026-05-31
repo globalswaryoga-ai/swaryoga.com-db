@@ -195,37 +195,7 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 3. Meta WhatsApp
-  {
-    key: 'meta',
-    title: 'Meta WhatsApp',
-    icon: MessageCircle,
-    items: [
-      { label: 'Inbox', href: '/admin/crm/meta', icon: Inbox },
-      { label: 'Dashboard', href: '/admin/crm/meta-dashboard', icon: BarChart3 },
-      { label: 'Templates', href: '/admin/crm/meta/templates', icon: FileText },
-      { label: 'New Template', href: '/admin/crm/meta/templates/new', icon: FileEdit },
-    ],
-    moreItems: [
-      { label: 'WA Settings', href: '/admin/crm/whatsapp/settings', icon: Settings },
-      { label: 'Webhook Events', href: '/admin/crm/whatsapp/webhook-events', icon: Webhook },
-      { label: 'WA Analytics', href: '/admin/crm/whatsapp-analytics', icon: BarChart2 },
-      { label: 'Groups', href: '/admin/crm/whatsapp-groups', icon: Users },
-      { label: 'Messages', href: '/admin/crm/whatsapp', icon: MessageCircle },
-      { label: 'Media', href: '/admin/crm/media', icon: Image },
-      { label: 'Inbound Media', href: '/admin/crm/inbound-media', icon: Inbox },
-    ],
-    prefixes: [
-      '/admin/crm/meta',
-      '/admin/crm/meta-dashboard',
-      '/admin/crm/whatsapp',
-      '/admin/crm/whatsapp-analytics',
-      '/admin/crm/whatsapp-groups',
-      '/admin/crm/whatsapp-meta',
-      '/admin/crm/media',
-      '/admin/crm/inbound-media',
-    ],
-  },
+  // NOTE: Meta WhatsApp section removed per request — QR & Broadcast sections cover WhatsApp flows
 
   // 4. Broadcast WhatsApp
   {

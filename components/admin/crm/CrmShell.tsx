@@ -162,8 +162,8 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         {/* Trial Banner */}
         <TrialBanner />
 
-        {/* Section Sub-Nav Header - Hidden for Basic Plan */}
-        {section && currentPlan !== 'basic' && (
+        {/* Section Sub-Nav Header - always show sub-nav for CRM pages */}
+        {section && (
           <CrmSubNav
             title={section.title}
             icon={section.icon}
