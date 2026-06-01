@@ -3,6 +3,7 @@
 // Lists tenants with subscription tier and enabledModules using raw MongoDB driver
 // Usage: node scripts/list-tenants-raw.js
 
+require('dotenv').config({ path: '.env.local' });
 const { MongoClient } = require('mongodb');
 
 const uri = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
