@@ -867,10 +867,32 @@ export default function LeadsPage() {
     );
   }
 
+  // Basic-plan tenants (non super-admin) get a light, Funnel-style theme.
+  // Super-admin keeps the original dark theme. A single scoped CSS block
+  // remaps the dark utility classes to light when `crm-light` is present.
+  const lightTheme = !isSuperAdmin;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a] flex p-4 md:p-6 lg:p-8">
+    <div className={`min-h-screen flex p-4 md:p-6 lg:p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : 'bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a]'}`}>
+      {lightTheme && (
+        <style jsx global>{`
+          .crm-light .text-white { color: #0f172a !important; }
+          .crm-light .text-gray-400 { color: #64748b !important; }
+          .crm-light .text-gray-500 { color: #64748b !important; }
+          .crm-light .text-gray-300 { color: #475569 !important; }
+          .crm-light .bg-white\\/5 { background-color: #ffffff !important; }
+          .crm-light .bg-white\\/10 { background-color: #f1f5f9 !important; }
+          .crm-light [class*="border-white/"] { border-color: #e2e8f0 !important; }
+          .crm-light .bg-\\[\\#1a1a1a\\] { background-color: #ffffff !important; color: #0f172a !important; }
+          .crm-light .bg-\\[\\#0a0a0a\\] { background-color: #f8fafc !important; }
+          .crm-light .bg-gradient-to-br.from-\\[\\#0a0a0a\\] { background: #ffffff !important; }
+          .crm-light input, .crm-light select, .crm-light textarea { color: #0f172a !important; }
+          .crm-light input::placeholder, .crm-light textarea::placeholder { color: #94a3b8 !important; }
+          .crm-light .shadow-lg, .crm-light .shadow-xl { box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04) !important; }
+        `}</style>
+      )}
       <div className="w-full max-w-full space-y-6">
-        {/* Page Header - Dark Theme */}
+        {/* Page Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3">

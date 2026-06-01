@@ -839,10 +839,31 @@ export default function SalesPage() {
     });
   };
 
+  // Basic-plan tenants (non super-admin) get a light, Funnel-style theme.
+  // Super-admin keeps the dark theme. Scoped CSS remaps dark utilities.
+  const lightTheme = !isSuperAdmin;
+
   return (
-    <div className="min-h-screen bg-black p-8">
+    <div className={`min-h-screen p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : 'bg-black'}`}>
+      {lightTheme && (
+        <style jsx global>{`
+          .crm-light .text-white { color: #0f172a !important; }
+          .crm-light .text-gray-400 { color: #64748b !important; }
+          .crm-light .text-gray-300 { color: #475569 !important; }
+          .crm-light .bg-black { background-color: #ffffff !important; }
+          .crm-light .bg-white\\/5 { background-color: #ffffff !important; }
+          .crm-light .bg-white\\/10 { background-color: #f1f5f9 !important; }
+          .crm-light [class*="border-white/"] { border-color: #e2e8f0 !important; }
+          .crm-light .text-emerald-400 { color: #059669 !important; }
+          .crm-light .text-yellow-400 { color: #d97706 !important; }
+          .crm-light .border-emerald-500 { border-color: #6366F1 !important; }
+          .crm-light .border-yellow-500 { border-color: #8B5CF6 !important; }
+          .crm-light input, .crm-light select, .crm-light textarea { color: #0f172a !important; }
+          .crm-light input::placeholder, .crm-light textarea::placeholder { color: #94a3b8 !important; }
+        `}</style>
+      )}
       <div className="w-full space-y-8">
-        {/* Page Header - Professional */}
+        {/* Page Header */}
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
