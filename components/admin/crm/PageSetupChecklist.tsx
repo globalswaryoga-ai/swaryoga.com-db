@@ -19,7 +19,6 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm': {
     title: 'Dashboard',
     requirements: [
-      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-dashboard-video',
@@ -29,7 +28,6 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/leads': {
     title: 'Lead Management',
     requirements: [
-      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-leads-video',
@@ -39,7 +37,6 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/meta': {
     title: 'WhatsApp Inbox',
     requirements: [
-      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'whatsappConnected', label: 'Connect WhatsApp Business API', required: true },
       { key: 'whatsappTemplates', label: 'Create message templates', required: false },
@@ -51,7 +48,6 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/calls': {
     title: 'AI Voice Calls',
     requirements: [
-      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'retellConnected', label: 'Connect Retell AI account', required: true },
     ],
@@ -62,7 +58,6 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/settings': {
     title: 'Settings',
     requirements: [
-      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
     ],
     tutorialVideo: 'https://www.youtube.com/embed/your-settings-video',
@@ -72,7 +67,6 @@ export const PAGE_SETUP_CONFIG: Record<string, PageSetupConfig> = {
   '/admin/crm/broadcasts': {
     title: 'Broadcasts',
     requirements: [
-      { key: 'compartmentReady', label: 'Complete data compartment setup', required: true },
       { key: 'setupPaid', label: 'Buy 500MB Storage (₹30)', required: true },
       { key: 'whatsappConnected', label: 'Connect WhatsApp Business API', required: true },
       { key: 'whatsappTemplates', label: 'Create approved templates', required: true },
@@ -118,7 +112,7 @@ export default function PageSetupChecklist({
   onPaymentClick,
   className = '',
 }: PageSetupChecklistProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [setupStatus, setSetupStatus] = useState<UserSetupStatus>({
@@ -187,42 +181,32 @@ export default function PageSetupChecklist({
         {/* Header */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-amber-100/50 transition"
+          className="w-full px-3 py-2 flex items-center justify-between hover:bg-amber-100/50 transition"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
-              {requiredMet ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
-              )}
-            </div>
-            <div className="text-left">
-              <p className="font-semibold text-gray-900">
-                {requiredMet ? 'Setup Complete' : 'Complete Setup to Use This Page'}
-              </p>
-              <p className="text-xs text-gray-500">
-                {completedCount} of {totalCount} steps completed
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            {requiredMet ? (
+              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+            )}
+            <p className="text-sm font-medium text-gray-800">
+              {requiredMet ? 'Setup complete' : 'Buy storage to unlock all features'}
+            </p>
+            <span className="text-xs text-gray-400">({completedCount}/{totalCount})</span>
           </div>
           <div className="flex items-center gap-2">
-            {pageConfig.tutorialVideo && (
+            {!requiredMet && onPaymentClick && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowVideo(true);
-                }}
-                className="p-2 rounded-lg bg-white border border-amber-200 hover:bg-amber-50 transition"
-                title="Watch Tutorial"
+                onClick={(e) => { e.stopPropagation(); onPaymentClick(); }}
+                className="px-2.5 py-1 bg-swar-primary text-white text-xs font-medium rounded-lg hover:bg-swar-primary-dark transition"
               >
-                <Play className="h-4 w-4 text-amber-600" />
+                Pay ₹30
               </button>
             )}
             {expanded ? (
-              <ChevronUp className="h-5 w-5 text-gray-400" />
+              <ChevronUp className="h-4 w-4 text-gray-400" />
             ) : (
-              <ChevronDown className="h-5 w-5 text-gray-400" />
+              <ChevronDown className="h-4 w-4 text-gray-400" />
             )}
           </div>
         </button>
@@ -306,35 +290,7 @@ export default function PageSetupChecklist({
         )}
       </div>
 
-      {/* Locked Overlay - show when required setup not complete */}
-      {!loading && !setupStatus.setupPaid && !dismissed && (
-        <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md mx-4 text-center pointer-events-auto relative">
-            <button
-              onClick={() => setDismissed(true)}
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition"
-              title="Close"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="h-8 w-8 text-amber-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              Buy Storage to Continue
-            </h3>
-            <p className="text-gray-500 mb-6">
-              To access {pageConfig.title}, please purchase minimum 500MB storage for ₹30 to use all pages and features.
-            </p>
-            <button
-              onClick={onPaymentClick}
-              className="w-full bg-gradient-to-r from-swar-primary to-emerald-500 text-white py-3 px-6 rounded-xl font-semibold hover:shadow-lg transition-all"
-            >
-              Buy Storage (₹30)
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Locked overlay removed — no blocking storage popup */}
 
       {/* Video Modal */}
       {showVideo && pageConfig.tutorialVideo && (

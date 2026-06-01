@@ -16,7 +16,7 @@ export default function CrmLoginPage() {
   useEffect(() => {
     const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
     if (token && token !== 'null' && token !== 'undefined') {
-      router.replace('/admin/crm/qr');
+      router.replace('/admin/crm');
     }
   }, [router]);
 
@@ -51,7 +51,7 @@ export default function CrmLoginPage() {
         // Use replace instead of push to prevent back button issues
         // Small delay to show success message
         setTimeout(() => {
-          window.location.href = '/admin/crm/qr';
+          window.location.href = '/admin/crm';
         }, 800);
       } else {
         setError(data.error || 'Invalid credentials. Please try again.');
