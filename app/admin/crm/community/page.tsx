@@ -262,6 +262,8 @@ export default function AdminCommunityPage() {
   const [recordingThumbnailUrl, setRecordingThumbnailUrl] = useState(''); // Custom thumbnail URL
   const [uploadStep, setUploadStep] = useState<'folder' | 'video'>('folder'); // 2-step upload
   const [uploadingRecording, setUploadingRecording] = useState(false);
+  const [recordingUploadProgress, setRecordingUploadProgress] = useState(0);
+  const [recordingResolution, setRecordingResolution] = useState<'1080p' | '1440p' | '2160p'>('2160p'); // max stored quality cap
 
   const [draftPosts, setDraftPosts] = useState(0);
   const [pendingMembers, setPendingMembers] = useState(0);
@@ -1409,14 +1411,17 @@ export default function AdminCommunityPage() {
             filetype: file.type,
             title: presigned.community?.name || 'Video',
           },
-          chunkSize: 50 * 1024 * 1024, // 50MB chunks
+          // No chunkSize: stream the whole file in one request so the connection
+          // stays saturated. Chunking (e.g. 50MB) forces a round-trip + Bunny ack
+          // after every chunk, which stalls the pipe and made uploads crawl.
+          // TUS still resumes from the server-acked offset on failure.
           onError: (error) => {
             console.error('TUS upload error:', error);
             reject(error);
           },
           onProgress: (bytesUploaded, bytesTotal) => {
             const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(1);
-            console.log(`Upload progress: ${percentage}%`);
+            setRecordingUploadProgress(Number(percentage));
           },
           onSuccess: () => {
             console.log('TUS upload complete');
@@ -1455,6 +1460,7 @@ export default function AdminCommunityPage() {
     }
 
     setUploadingRecording(true);
+    setRecordingUploadProgress(0);
     try {
       const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
 
@@ -1472,6 +1478,7 @@ export default function AdminCommunityPage() {
           folderName: recordingFolderName.trim(),
           playlistName: recordingPlaylistName.trim(),
           videoNumber: recordingVideoNumber.trim(),
+          maxResolution: recordingResolution,
         }),
       });
 
@@ -2545,13 +2552,39 @@ export default function AdminCommunityPage() {
                         className="w-full h-20 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all resize-none" />
                     </div>
                     <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">🎚️ Max Quality (stored)</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { value: '1080p', label: '1080p', hint: 'Full HD' },
+                          { value: '1440p', label: '1440p', hint: '2K' },
+                          { value: '2160p', label: '4K', hint: 'Ultra HD' },
+                        ] as const).map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setRecordingResolution(opt.value)}
+                            disabled={uploadingRecording}
+                            className={`py-2.5 px-3 rounded-xl text-sm font-bold transition-all border ${recordingResolution === opt.value ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-emerald-300'}`}
+                          >
+                            {opt.label}
+                            <span className="block text-[10px] font-medium opacity-70">{opt.hint}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-2">Caps the stored quality. Bunny never upscales — if your file is lower than this, it stays at the file's resolution.</p>
+                    </div>
+                    <div>
                       <label className="text-sm font-bold text-slate-700 mb-2 block">📹 Video File</label>
-                      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${uploadingRecording ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'}`}>
+                      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl transition-all ${uploadingRecording ? 'border-emerald-300 bg-emerald-50 cursor-wait' : !recordingVideoNumber.trim() ? 'border-amber-200 bg-amber-50/50 cursor-pointer hover:border-amber-300' : 'border-slate-200 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50'}`}>
                         {uploadingRecording ? (
-                          <>
-                            <Loader className="animate-spin text-emerald-600 mb-2" size={32} />
-                            <span className="text-sm font-bold text-emerald-600">Uploading...</span>
-                          </>
+                          <div className="w-full px-6 flex flex-col items-center">
+                            <Loader className="animate-spin text-emerald-600 mb-2" size={28} />
+                            <span className="text-sm font-bold text-emerald-600 mb-2">Uploading… {recordingUploadProgress}%</span>
+                            <div className="w-full h-2 bg-emerald-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${recordingUploadProgress}%` }} />
+                            </div>
+                            <span className="text-[11px] text-slate-400 mt-2">Keep this tab open until it finishes</span>
+                          </div>
                         ) : (
                           <>
                             <Upload className="text-slate-400 mb-2" size={32} />
@@ -2560,10 +2593,10 @@ export default function AdminCommunityPage() {
                           </>
                         )}
                         <input type="file" className="hidden" accept="video/*"
-                          onChange={e => { const file = e.target.files?.[0]; if (file) uploadNewRecording(file); }}
-                          disabled={uploadingRecording || !recordingVideoNumber} />
+                          onChange={e => { const file = e.target.files?.[0]; if (file) uploadNewRecording(file); e.target.value = ''; }}
+                          disabled={uploadingRecording} />
                       </label>
-                      {!recordingVideoNumber && <p className="text-xs text-amber-600 mt-2">⚠️ Enter video number first</p>}
+                      {!recordingVideoNumber.trim() && <p className="text-xs text-amber-600 mt-2">⚠️ Tip: enter a video number above first</p>}
                     </div>
                   </div>
                 )}

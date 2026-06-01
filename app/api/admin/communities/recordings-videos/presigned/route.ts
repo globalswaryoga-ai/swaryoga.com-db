@@ -29,9 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fileName, communityId, title, folderName, playlistName, videoNumber } = body;
+    const { fileName, communityId, title, folderName, playlistName, videoNumber, maxResolution } = body;
 
-    console.log('[presigned] Request received:', { fileName, communityId, title, folderName, playlistName, videoNumber });
+    console.log('[presigned] Request received:', { fileName, communityId, title, folderName, playlistName, videoNumber, maxResolution });
 
     if (!fileName || !communityId || !title) {
       return NextResponse.json(
@@ -97,6 +97,44 @@ export async function POST(request: NextRequest) {
         { error: 'Bunny Stream not configured. Missing BUNNY_STREAM_LIBRARY_ID or BUNNY_API_KEY' },
         { status: 500 }
       );
+    }
+
+    // Step 0: Apply resolution cap (library-wide setting on Bunny Stream).
+    // NOTE: EnabledResolutions is a single switch for the WHOLE library, shared by
+    // e-learning / Zoom / sadhana videos. Bunny reads it at TRANSCODE time (after the
+    // upload finishes), so only one upload should be in flight at a time to avoid a
+    // different cap being applied to another video mid-transcode. Requires an account-
+    // level API key (BUNNY_ACCOUNT_API_KEY); if absent we skip and use the library default.
+    const RESOLUTION_TIERS: Record<string, string> = {
+      '1080p': '240p,360p,480p,720p,1080p',
+      '1440p': '240p,360p,480p,720p,1080p,1440p',
+      '2160p': '240p,360p,480p,720p,1080p,1440p,2160p',
+    };
+    if (maxResolution && RESOLUTION_TIERS[maxResolution]) {
+      const accountApiKey = process.env.BUNNY_ACCOUNT_API_KEY;
+      if (!accountApiKey) {
+        console.warn('[presigned] maxResolution requested but BUNNY_ACCOUNT_API_KEY not set — using library default tiers');
+      } else {
+        const enabledResolutions = RESOLUTION_TIERS[maxResolution];
+        const capRes = await fetch(`https://api.bunny.net/videolibrary/${libraryId}`, {
+          method: 'POST',
+          headers: {
+            AccessKey: accountApiKey,
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify({ EnabledResolutions: enabledResolutions }),
+        }).catch((e) => { console.error('[presigned] Resolution cap request failed:', e); return null; });
+
+        if (capRes?.ok) {
+          console.log('[presigned] Resolution cap applied:', { maxResolution, enabledResolutions });
+        } else {
+          console.error('[presigned] Failed to apply resolution cap:', {
+            status: capRes?.status,
+            body: capRes ? await capRes.text().catch(() => '') : 'no response',
+          });
+        }
+      }
     }
 
     // Step 1: Create folder structure using Collections
