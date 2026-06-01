@@ -132,8 +132,26 @@ export async function GET(request: NextRequest) {
     const storageMB = (compartment as any)?.storage?.usedMB || 0;
 
     const planAccess = resolveTenantPlanAccess(tenant || { plan });
-    const limits = planAccess.limits || PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    let limits = planAccess.limits || PLAN_LIMITS[plan] || PLAN_LIMITS.free;
     const modules = planAccess.modules || PLAN_MODULES[plan] || PLAN_MODULES.free;
+
+    // Override limits from the admin-edited DB plan (tenant_plans) so values
+    // set in the Plan Editor (e.g. Besic = 1000 leads) take effect even when
+    // the tier slug maps to a different static config (e.g. slug 'free').
+    try {
+      const { getTenantPlanModel } = await import('@/lib/tenant/tenantSchemas');
+      const PlanModel = getTenantPlanModel();
+      const dbPlan: any = await PlanModel.findOne({ tier: String(plan).toLowerCase() }).lean();
+      if (dbPlan?.limits) {
+        limits = {
+          ...limits,
+          maxLeads: dbPlan.limits.maxLeads ?? limits.maxLeads,
+          maxUsers: dbPlan.limits.maxUsers ?? limits.maxUsers,
+          storageQuotaMB: dbPlan.limits.maxStorageMB ?? limits.storageQuotaMB,
+          maxBroadcastsPerDay: dbPlan.limits.maxBroadcastsPerDay ?? limits.maxBroadcastsPerDay,
+        };
+      }
+    } catch { /* fall back to static limits */ }
 
     return json({
       plan: planAccess.plan,

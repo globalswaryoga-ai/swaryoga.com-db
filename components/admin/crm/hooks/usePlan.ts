@@ -158,7 +158,8 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         plan,
         planName: PLAN_NAMES[plan] || 'Free',
         display: getPlanDisplay(plan),
-        limits: getPlanLimits(plan),
+        // Prefer DB-edited limits from the API (Plan Editor values); fall back to static.
+        limits: data.limits ? { ...getPlanLimits(plan), ...data.limits } : getPlanLimits(plan),
         isTrialActive: data.isTrialActive || false,
         trialDaysRemaining: data.trialDaysRemaining || 0,
         trialStartDate: data.trialStartDate || null,

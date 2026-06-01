@@ -294,11 +294,13 @@ export default function CrmSubNav({
     load();
   }, [isSuper]);
 
-  // Filter a tab: show if no bundle required, super-admin, or tenant has the bundle
+  // Filter a tab: show if no bundle required, super-admin, or tenant has the bundle.
+  // While moduleKeys is still loading, bundle-gated tabs stay HIDDEN (so plans
+  // like Basic never flash Follow-up/More that they shouldn't see).
   const canShow = useCallback((item: SubNavItem): boolean => {
-    if (!item.bundle) return true;
+    if (!item.bundle) return true;                       // no requirement → always show
     if (isSuper || moduleKeys?.has('__all__')) return true;
-    if (!moduleKeys) return true; // loading — show all (avoids empty header)
+    if (!moduleKeys) return false;                       // loading → hide gated tabs until confirmed
     const bundles = Array.isArray(item.bundle) ? item.bundle : [item.bundle];
     return bundles.some(b => moduleKeys.has(b));
   }, [isSuper, moduleKeys]);

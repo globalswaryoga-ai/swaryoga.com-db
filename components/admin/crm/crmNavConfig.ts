@@ -161,7 +161,7 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/web-admin', '/admin/crm/planner/ritucharya', '/admin/crm/planner-dashboard/ritucharya/ritus-admin'],
   },
 
-  // 3. Sales & Funnel — shown for Copper+ (whatsapp_meta), tabs filtered per plan
+  // 3. Sales & Funnel — clean lead tabs (Follow-up/extras only for Copper+)
   {
     key: 'sales',
     title: 'Sales & Funnel',
