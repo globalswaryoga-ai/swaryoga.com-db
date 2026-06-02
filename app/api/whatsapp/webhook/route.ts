@@ -449,7 +449,37 @@ async function handleWebhookPayload(payload: any) {
               { waMessageId },
               { $set: broadcastUpdate }
             );
-            
+
+            // ── Reconcile-by-phone fallback ───────────────────────────────────
+            // If we couldn't match by waMessageId but Meta confirms a POSITIVE status
+            // (sent/delivered/read), the original send likely succeeded but timed out
+            // before we stored the id — so it got wrongly marked 'failed' and would be
+            // re-sent. Trust Meta's confirmation: flip the most recent un-acked broadcast
+            // message for this phone to the confirmed status so the retry loop stops.
+            if (
+              broadcastMsgResult.matchedCount === 0 &&
+              recipientPhone &&
+              ['sent', 'delivered', 'read'].includes(status)
+            ) {
+              const last10 = recipientPhone.replace(/\D/g, '').slice(-10);
+              if (last10.length === 10) {
+                const reconUpdate: any = { status, waMessageId, failureReason: null, reconciledByPhone: true, updatedAt: now };
+                if (status === 'delivered') reconUpdate.deliveredAt = now;
+                if (status === 'read') { reconUpdate.deliveredAt = now; reconUpdate.readAt = now; }
+                await BroadcastRunMessage.findOneAndUpdate(
+                  {
+                    phoneNumber: { $regex: last10 + '$' },
+                    status: { $in: ['failed', 'sending', 'pending'] },
+                    $or: [{ waMessageId: { $exists: false } }, { waMessageId: null }, { waMessageId: '' }],
+                    createdAt: { $gte: new Date(now.getTime() - 30 * 60 * 1000) },
+                  },
+                  { $set: reconUpdate },
+                  { sort: { createdAt: -1 } }
+                );
+                console.log(`[WEBHOOK] Reconciled-by-phone broadcast message for ${last10} → ${status}`);
+              }
+            }
+
             // If a broadcast message was updated, also update the run stats
             if (broadcastMsgResult.modifiedCount > 0 && BroadcastRun) {
               const broadcastMsg = await BroadcastRunMessage.findOne({ waMessageId }).lean();

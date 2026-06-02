@@ -204,14 +204,17 @@ export async function POST(request: NextRequest) {
       console.log(`[Broadcast] 🚫 Skipped ${blockedSkipped} Meta-blocked number(s) from recipient list.`);
     }
 
-    // --- Check for recently sent same template to these numbers (last 24 hours) ---
-    // Prevent re-sending the same template to the same number within 24h
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // --- Check for recently sent same template to these numbers (dedup window) ---
+    // Prevent re-sending the same template to the same number within the window
+    // (default 48h, configurable via BROADCAST_DEDUP_HOURS). Send-time enforcement
+    // also runs in lib/broadcastRuns.ts to catch overlapping/re-scheduled runs.
+    const dedupHours = Number(process.env.BROADCAST_DEDUP_HOURS) || 48;
+    const dedupSince = new Date(Date.now() - dedupHours * 60 * 60 * 1000);
     const uniquePhones = blockedFiltered.map((l: any) => String(l.phoneNumber || '').trim()).filter(Boolean);
     const recentlySent = await BroadcastRunMessage.find({
       phoneNumber: { $in: uniquePhones },
       status: { $in: ['sent', 'delivered', 'read'] },
-      sentAt: { $gte: dayAgo },
+      sentAt: { $gte: dedupSince },
     }).populate({ path: 'runId', select: 'templateId' }).lean();
     
     // Build set of phones that already received this exact template in last 24h

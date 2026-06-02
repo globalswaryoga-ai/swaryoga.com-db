@@ -1360,7 +1360,10 @@ const BroadcastRunMessageSchema = new mongoose.Schema(
     // Failure details
     failureReason: String,
     failureCode: String, // e.g., 'invalid_number', 'blocked', 'rate_limit', 'network_error'
-    
+    errorCategory: String, // 'invalid_number' | 'rate_limited' | 'meta_blocked' | 'exhausted' | ...
+    retryCount: { type: Number, default: 0 }, // transient-failure retry attempts (capped at 24h / MAX_RETRY_ATTEMPTS)
+    reconciledByPhone: { type: Boolean, default: false }, // set when a delivery webhook reconciled this by phone (no waMessageId match)
+
     // WhatsApp message tracking
     waMessageId: String,
     provider: { type: String, enum: ['meta', 'qr'], default: 'meta' },

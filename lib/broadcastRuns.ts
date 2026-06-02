@@ -242,17 +242,43 @@ export async function processDueBroadcastRuns(options?: {
       }
 
       // Auto-retry transient failures: reset rate-limited / timeout messages back to pending
-      // so they are picked up in the same or next cron run (do NOT retry permanent failures like invalid_number)
+      // (do NOT retry permanent failures like invalid_number).
+      // POLICY: wait 8h between attempts, retry at most MAX_RETRY_ATTEMPTS times.
+      // => up to 3 sends total per recipient (1 original + 2 retries). After that the message
+      // stays permanently 'failed' for MANUAL resend — it is never auto-reset to pending again.
+      const MAX_RETRY_ATTEMPTS = 2;             // 2 retries (3 sends total)
+      const RETRY_GAP_MS = 8 * 60 * 60 * 1000;  // 8 hours between attempts
       const retryablePattern = /rate_limit|rate limit|too many|throttle|timeout|network|econnreset|socket|503|529/i;
       await BroadcastRunMessage.updateMany(
         {
           runId: (run as any)._id,
           status: 'failed',
           failureReason: { $regex: retryablePattern },
-          updatedAt: { $lt: new Date(now.getTime() - 3 * 60 * 1000) }, // only retry if failed >3 min ago
+          updatedAt: { $lt: new Date(now.getTime() - RETRY_GAP_MS) }, // only retry 8h after the last attempt
+          $or: [{ retryCount: { $exists: false } }, { retryCount: { $lt: MAX_RETRY_ATTEMPTS } }],
         },
-        { $set: { status: 'pending', failureReason: null, updatedAt: now } }
+        { $set: { status: 'pending', failureReason: null, updatedAt: now }, $inc: { retryCount: 1 } }
       );
+      // After 2 retries (3 sends total), stop auto-retrying — leave it permanently failed for manual resend.
+      await BroadcastRunMessage.updateMany(
+        {
+          runId: (run as any)._id,
+          status: 'failed',
+          failureReason: { $regex: retryablePattern },
+          retryCount: { $gte: MAX_RETRY_ATTEMPTS },
+        },
+        { $set: { failureReason: 'Failed after 2 retries — manual resend required', errorCategory: 'exhausted', updatedAt: now } }
+      );
+
+      // Helper: a run isn't truly "done" while it still has failed messages waiting for an
+      // 8h retry. Counts messages eligible for a future auto-retry so we can keep the run
+      // alive (scheduled) instead of marking it completed and never retrying them.
+      const countRetryEligible = () => BroadcastRunMessage.countDocuments({
+        runId: (run as any)._id,
+        status: 'failed',
+        failureReason: { $regex: retryablePattern },
+        $or: [{ retryCount: { $exists: false } }, { retryCount: { $lt: MAX_RETRY_ATTEMPTS } }],
+      });
 
       // Safety guard: cancel stale pending messages if the run itself is cancelled/failed
       const currentRun = await BroadcastRun.findOne({ _id: (run as any)._id }).lean() as any;
@@ -274,10 +300,18 @@ export async function processDueBroadcastRuns(options?: {
       if (pending.length === 0) {
         const counts = await markRunStats((run as any)._id);
         if (counts.pending === 0) {
-          await BroadcastRun.updateOne(
-            { _id: (run as any)._id },
-            { $set: { status: 'completed', completedAt: now, updatedAt: now } }
-          );
+          // Keep the run alive if failed messages are still due for an 8h retry.
+          if ((await countRetryEligible()) > 0) {
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { status: 'scheduled', scheduledAt: new Date(now.getTime() + RETRY_GAP_MS), updatedAt: now } }
+            );
+          } else {
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { status: 'completed', completedAt: now, updatedAt: now } }
+            );
+          }
         }
         result.runResults.push(stat);
         continue;
@@ -332,6 +366,29 @@ export async function processDueBroadcastRuns(options?: {
           continue;
         }
         processedPhones.add(to);
+
+        // ── Cross-run dedup: don't re-send the SAME template to the SAME number
+        // within the dedup window (default 48h, configurable via BROADCAST_DEDUP_HOURS).
+        // Checked at send time (not just run-creation) so it also catches overlapping/
+        // re-scheduled runs of the same template. Applies to both Meta and QR.
+        const dedupHours = Number(process.env.BROADCAST_DEDUP_HOURS) || 48;
+        const dedupSince = new Date(Date.now() - dedupHours * 60 * 60 * 1000);
+        const recentSameTemplate = await WhatsAppMessage.findOne({
+          phoneNumber: to,
+          templateId: (template as any)._id,
+          status: { $in: ['sent', 'delivered', 'read'] },
+          sentAt: { $gte: dedupSince },
+        }).select({ _id: 1 }).lean();
+        if (recentSameTemplate) {
+          await BroadcastRunMessage.updateOne(
+            { _id: (item as any)._id },
+            { $set: { status: 'skipped', failureReason: `Same template already sent to this number within ${dedupHours}h`, updatedAt: now } }
+          );
+          console.log(`[Broadcast] ⏭️  Dedup skip: ${to} already got template ${(template as any)._id} within ${dedupHours}h`);
+          stat.skipped++;
+          result.skipped++;
+          continue;
+        }
 
         // Consent / opt-out compliance
         const compliance = await ConsentManager.validateCompliance(to);
@@ -856,10 +913,19 @@ export async function processDueBroadcastRuns(options?: {
       // refresh run stats and maybe complete
       const counts = await markRunStats((run as any)._id);
       if (counts.pending === 0) {
-        await BroadcastRun.updateOne(
-          { _id: (run as any)._id },
-          { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } }
-        );
+        // Don't complete yet if failed messages are still due for an 8h retry —
+        // reschedule the run so the cron re-picks it when the retry window opens.
+        if ((await countRetryEligible()) > 0) {
+          await BroadcastRun.updateOne(
+            { _id: (run as any)._id },
+            { $set: { status: 'scheduled', scheduledAt: new Date(now.getTime() + RETRY_GAP_MS), updatedAt: new Date() } }
+          );
+        } else {
+          await BroadcastRun.updateOne(
+            { _id: (run as any)._id },
+            { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } }
+          );
+        }
       }
 
       result.runResults.push(stat);
