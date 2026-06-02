@@ -14,6 +14,7 @@ import { connectDB } from '@/lib/db';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
+import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
 
@@ -34,6 +35,30 @@ export async function POST(req: NextRequest) {
     const CRMUserSettings = getCRMUserSettings();
 
     let settings = await CRMUserSettings.findOne({ userId }).lean() as any;
+
+    // ── SHARED TEAM INBOX (checked FIRST) ──
+    // A team member always uses the tenant OWNER's session — even if they happen
+    // to have their own permanentTenantId — so the whole team shares one inbox.
+    // Returns null for owners / super-admins / unknowns → falls through to the
+    // normal per-account logic below (no cross-tenant routing).
+    if (!superAdmin) {
+      const ownerSessionKey = await resolveOwnerSessionKey({
+        userId,
+        tenantSlug: (decoded as any).tenantSlug,
+      });
+      if (ownerSessionKey) {
+        const bridgeSecret = settings?.qrBridgeSecret || randomBytes(16).toString('hex');
+        console.log(`[QR Auto-Provision] Team member ${userId} → shared owner session ${ownerSessionKey}`);
+        return apiSuccess({
+          success: true,
+          bridgeUrl: BRIDGE_BASE_URL,
+          bridgeSecret,
+          permanentTenantId: ownerSessionKey,
+          created: false,
+          sharedTeamInbox: true,
+        });
+      }
+    }
 
     // ── If settings exist with permanentTenantId ──
     if (settings?.permanentTenantId) {

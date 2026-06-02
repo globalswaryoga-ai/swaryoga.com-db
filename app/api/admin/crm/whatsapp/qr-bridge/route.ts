@@ -7,6 +7,7 @@ import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
+import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
@@ -113,24 +114,33 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
+      // ── SHARED TEAM INBOX ──
+      // A team member resolves to the tenant OWNER's session key so the whole
+      // team shares ONE WhatsApp number/inbox. resolveOwnerSessionKey returns
+      // null for the owner / super-admin / unknowns → we fall back to this
+      // user's OWN permanentTenantId (never another tenant's session).
+      const ownerSessionKey = superAdmin
+        ? null
+        : await resolveOwnerSessionKey({ userId: decoded.userId, tenantSlug: (decoded as any).tenantSlug });
+      const sessionKey = ownerSessionKey || permanentTenantId;
+
       // ── PERMANENT TENANT ID ──
-      // The live bridge isolates users by x-user-id header, not /tenant/{id} path.
-      // Users with permanentTenantId still get their own isolated session, but through
-      // the base bridge URL plus their unique user/session headers.
-      if (permanentTenantId) {
-        console.log(`[QR Bridge Resolve] User ${decoded.userId} has permanentTenantId=${permanentTenantId} → hasOwnBridge=true`);
+      // The live bridge isolates users by the x-session-key header.
+      if (sessionKey) {
+        const isTeamMember = !!ownerSessionKey;
+        console.log(`[QR Bridge Resolve] User ${decoded.userId} → session ${sessionKey}${isTeamMember ? ' (shared team inbox)' : ''}`);
         const tenantResult: BridgeResolution = {
           ok: true,
           url: FALLBACK_BRIDGE_URL,
           secret: FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
-          bridgeSessionId: permanentTenantId,
+          bridgeSessionId: sessionKey,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
           storedPhone,
           phoneChangedAt,
           senderDisplayName,
-          tenantId: permanentTenantId,
+          tenantId: sessionKey,
         };
         bridgeCache.set(cacheKey, { result: tenantResult, expiry: Date.now() + BRIDGE_CACHE_TTL_MS });
         if (bridgeCache.size > 50) evictStaleBridgeCache();
