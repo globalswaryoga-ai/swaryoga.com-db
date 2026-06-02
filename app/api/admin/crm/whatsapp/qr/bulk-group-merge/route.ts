@@ -111,6 +111,8 @@ async function startBackgroundMergeJob({
 
     // Export rate limiter functions
     const { getRandomMergeBatchSize, getRandomMergeDelay, sleepWithJitter } = await import('@/lib/whatsappRateLimiter');
+    // HARD CAP: 15 group ops/hour + 150/day (same model as bulk messages) — anti-ban.
+    const { reserveGroupOpSlot, checkGroupOpLimit, GROUP_OP_HOURLY_LIMIT } = await import('@/lib/qrGroupOpRateLimit');
 
     // Default bridge config
     const bridge = bridgeUrl || 'http://localhost:3333';
@@ -174,35 +176,52 @@ async function startBackgroundMergeJob({
       return;
     }
 
-    // ═══ STEP 2: Add members to target group with Option B pacing ═══
-    console.log(`➕ [${jobId}] Step 2: Adding members to target group (Option B: 2-3 per batch, 1-3 min delays)...`);
+    // ═══ STEP 2: Add members — HARD CAP 15 ops/hour + human pacing (anti-ban) ═══
+    console.log(`➕ [${jobId}] Step 2: Adding members (cap ${GROUP_OP_HOURLY_LIMIT}/hour, 2-3 per batch, 1-3 min gaps)...`);
     let addedCount = 0;
     let batchNum = 0;
     let errors: string[] = [];
 
-    for (let i = 0; i < membersToAdd.length; i += 1) {
-      // Get random micro-batch size (2-3)
-      const batchSize = getRandomMergeBatchSize();
-      const batch = membersToAdd.slice(i, Math.min(i + batchSize, membersToAdd.length));
+    let addIdx = 0;
+    while (addIdx < membersToAdd.length) {
+      // Check remaining hourly/daily budget BEFORE doing anything.
+      const chk = await checkGroupOpLimit(userId);
+      if (!chk.allowed) {
+        if (chk.reason === 'daily_cap') {
+          console.log(`🛑 [${jobId}] Daily group-op cap hit — stopping. ${membersToAdd.length - addIdx} members remain; resume after 5 AM IST.`);
+          break;
+        }
+        // Hourly cap: pause until the next clock hour, then continue (like a human).
+        const waitMs = Math.max(chk.resetAt.getTime() - Date.now(), 1000);
+        console.log(`⏸️  [${jobId}] Hourly cap (${GROUP_OP_HOURLY_LIMIT}) reached — pausing ${Math.round(waitMs / 60000)}m until next hour...`);
+        await sleepWithJitter(waitMs, 0.05);
+        continue;
+      }
 
-      if (batch.length === 0) break;
+      // Human micro-batch (2-3), but never exceed the remaining hourly budget.
+      const want = Math.min(getRandomMergeBatchSize(), chk.hourRemaining, membersToAdd.length - addIdx);
+      const candidate = membersToAdd.slice(addIdx, addIdx + want);
+
+      // Atomically reserve one slot per member; only send those actually reserved.
+      const batch: string[] = [];
+      for (const m of candidate) {
+        const r = await reserveGroupOpSlot(userId);
+        if (r.allowed) batch.push(m);
+        else break; // cap shifted under us — re-check on next loop
+      }
+      if (batch.length === 0) continue;
 
       batchNum++;
-      const progress = Math.min(i + batchSize, membersToAdd.length);
+      const progress = Math.min(addIdx + batch.length, membersToAdd.length);
       const percent = Math.round((progress / membersToAdd.length) * 100);
-
       console.log(`[${jobId}] Batch ${batchNum}: Adding ${batch.length} members (${progress}/${membersToAdd.length} • ${percent}%)`);
 
       try {
         const res = await fetch(`${bridge}/group-participants/${encodeURIComponent(targetGroupId)}`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({
-            action: 'add',
-            participants: batch,
-          }),
+          body: JSON.stringify({ action: 'add', participants: batch }),
         });
-
         if (res.ok) {
           addedCount += batch.length;
           console.log(`✅ [${jobId}] Batch ${batchNum}: Success (+${batch.length})`);
@@ -216,42 +235,62 @@ async function startBackgroundMergeJob({
         errors.push(`Batch ${batchNum}: ${errMsg}`);
       }
 
-      // OPTION B: 60-180 second delay between batches (1-3 minutes)
-      if (i + batchSize < membersToAdd.length) {
+      addIdx += batch.length;
+
+      // Human-like 1-3 min gap between batches (skip if done).
+      if (addIdx < membersToAdd.length) {
         const delayMs = getRandomMergeDelay();
-        const delaySec = delayMs / 1000;
-        console.log(`⏳ [${jobId}] Waiting ${delaySec.toFixed(0)}s before next batch...`);
-        await sleepWithJitter(delayMs, 0.2); // ±20% jitter
+        console.log(`⏳ [${jobId}] Waiting ${(delayMs / 1000).toFixed(0)}s before next batch...`);
+        await sleepWithJitter(delayMs, 0.2);
       }
     }
 
     console.log(`✅ [${jobId}] Added ${addedCount}/${membersToAdd.length} members to target group`);
 
-    // ═══ STEP 3: Remove from source groups (if requested) ═══
+    // ═══ STEP 3: Remove from source groups — SAME 15/hour cap + human pacing ═══
     if (removeFromSource) {
-      console.log(`🗑️  [${jobId}] Step 3: Removing members from source groups...`);
-      for (let i = 0; i < sourceGroupIds.length; i++) {
-        const sourceId = sourceGroupIds[i];
-        console.log(`[${jobId}] Removing from group ${i + 1}/${sourceGroupIds.length}...`);
-
-        try {
-          for (let j = 0; j < membersToAdd.length; j += 5) {
-            const batch = membersToAdd.slice(j, Math.min(j + 5, membersToAdd.length));
+      console.log(`🗑️  [${jobId}] Step 3: Removing members from source groups (cap ${GROUP_OP_HOURLY_LIMIT}/hour)...`);
+      removeLoop:
+      for (let s = 0; s < sourceGroupIds.length; s++) {
+        const sourceId = sourceGroupIds[s];
+        console.log(`[${jobId}] Removing from group ${s + 1}/${sourceGroupIds.length}...`);
+        let remIdx = 0;
+        while (remIdx < membersToAdd.length) {
+          const chk = await checkGroupOpLimit(userId);
+          if (!chk.allowed) {
+            if (chk.reason === 'daily_cap') {
+              console.log(`🛑 [${jobId}] Daily group-op cap hit during removes — stopping.`);
+              break removeLoop;
+            }
+            const waitMs = Math.max(chk.resetAt.getTime() - Date.now(), 1000);
+            console.log(`⏸️  [${jobId}] Hourly cap reached during removes — pausing ${Math.round(waitMs / 60000)}m...`);
+            await sleepWithJitter(waitMs, 0.05);
+            continue;
+          }
+          const want = Math.min(getRandomMergeBatchSize(), chk.hourRemaining, membersToAdd.length - remIdx);
+          const candidate = membersToAdd.slice(remIdx, remIdx + want);
+          const batch: string[] = [];
+          for (const m of candidate) {
+            const r = await reserveGroupOpSlot(userId);
+            if (r.allowed) batch.push(m);
+            else break;
+          }
+          if (batch.length === 0) continue;
+          try {
             const res = await fetch(`${bridge}/group-participants/${encodeURIComponent(sourceId)}`, {
               method: 'POST',
               headers,
-              body: JSON.stringify({
-                action: 'remove',
-                participants: batch,
-              }),
+              body: JSON.stringify({ action: 'remove', participants: batch }),
             });
-            if (!res.ok) {
-              console.warn(`[${jobId}] Remove batch ${j} from source failed: ${res.status}`);
-            }
-            await sleepWithJitter(3000, 0.3); // 3 sec ±30% between batches
+            if (!res.ok) console.warn(`[${jobId}] Remove batch from source failed: ${res.status}`);
+          } catch (err: any) {
+            console.error(`[${jobId}] Failed to remove from source group ${sourceId}:`, err.message);
           }
-        } catch (err: any) {
-          console.error(`[${jobId}] Failed to remove from source group ${sourceId}:`, err.message);
+          remIdx += batch.length;
+          if (remIdx < membersToAdd.length) {
+            const delayMs = getRandomMergeDelay();
+            await sleepWithJitter(delayMs, 0.2);
+          }
         }
       }
     }
