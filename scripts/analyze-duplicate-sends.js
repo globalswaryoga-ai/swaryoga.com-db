@@ -20,21 +20,15 @@ async function main() {
   const client = new MongoClient(uri, { maxPoolSize: 5 });
   await client.connect();
   const db = client.db(crmDbName);
-  const col = db.collection('broadcast_run_messages');
+  const col = db.collection('whatsapp_messages');
 
-  const total = await col.countDocuments({ status: { $in: SENT_STATUSES } });
-  console.log(`\n=== Duplicate-send analysis (DB: ${crmDbName}) ===`);
-  console.log(`Total successfully-sent broadcast messages: ${total}`);
+  // Each actually-transmitted message = one outbound template row that Meta accepted (has waMessageId).
+  const match = { direction: 'outbound', messageType: 'template', waMessageId: { $exists: true, $nin: [null, ''] } };
+  const total = await col.countDocuments(match);
+  console.log(`\n=== Duplicate-send analysis (DB: ${crmDbName}, source: whatsapp_messages) ===`);
+  console.log(`Total transmitted outbound template messages: ${total}`);
 
-  // Fetch sent messages with their template, then group in JS by (last-10-digit phone, templateId).
-  const rows = await col.aggregate([
-    { $match: { status: { $in: SENT_STATUSES } } },
-    { $lookup: { from: 'broadcast_runs', localField: 'runId', foreignField: '_id', as: 'run' } },
-    { $project: {
-        phoneNumber: 1, runId: 1, sentAt: 1,
-        templateId: { $arrayElemAt: ['$run.templateId', 0] },
-      } },
-  ], { allowDiskUse: true }).toArray();
+  const rows = await col.find(match, { projection: { phoneNumber: 1, templateId: 1, createdAt: 1, status: 1 } }).toArray();
 
   const groups = new Map();
   for (const r of rows) {
@@ -45,8 +39,7 @@ async function main() {
     let g = groups.get(key);
     if (!g) { g = { phone: phone10, templateId: tid, count: 0, runIds: new Set(), first: null, last: null }; groups.set(key, g); }
     g.count++;
-    if (r.runId) g.runIds.add(String(r.runId));
-    const t = r.sentAt ? new Date(r.sentAt) : null;
+    const t = r.createdAt ? new Date(r.createdAt) : null;
     if (t) { if (!g.first || t < g.first) g.first = t; if (!g.last || t > g.last) g.last = t; }
   }
   const dupes = [...groups.values()]

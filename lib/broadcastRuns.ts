@@ -452,8 +452,18 @@ export async function processDueBroadcastRuns(options?: {
           break;
         }
 
-        // Mark as sending
-        await BroadcastRunMessage.updateOne({ _id: (item as any)._id, status: 'pending' }, { $set: { status: 'sending', updatedAt: now } });
+        // Atomically CLAIM this message: flip pending -> sending only if still pending.
+        // This is the concurrency guard — if two cron runs overlap, only ONE wins the
+        // claim (modifiedCount === 1); the loser skips instead of sending a duplicate.
+        const claim = await BroadcastRunMessage.updateOne(
+          { _id: (item as any)._id, status: 'pending' },
+          { $set: { status: 'sending', updatedAt: now } }
+        );
+        if (claim.modifiedCount === 0) {
+          // Another concurrent run already claimed/sent this message — do NOT send again.
+          console.log(`[Broadcast] ⏭️  Claim lost for ${to} (msg ${(item as any)._id}) — another run is handling it; skipping to avoid duplicate`);
+          continue;
+        }
 
         // Route-level API stores WhatsAppMessage; we do it here to fully control tracking.
         const msg = await WhatsAppMessage.create({
