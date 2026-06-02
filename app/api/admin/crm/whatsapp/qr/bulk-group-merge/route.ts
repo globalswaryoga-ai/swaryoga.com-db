@@ -187,15 +187,13 @@ async function startBackgroundMergeJob({
       // Check remaining hourly/daily budget BEFORE doing anything.
       const chk = await checkGroupOpLimit(userId);
       if (!chk.allowed) {
-        if (chk.reason === 'daily_cap') {
-          console.log(`🛑 [${jobId}] Daily group-op cap hit — stopping. ${membersToAdd.length - addIdx} members remain; resume after 5 AM IST.`);
-          break;
-        }
-        // Hourly cap: pause until the next clock hour, then continue (like a human).
-        const waitMs = Math.max(chk.resetAt.getTime() - Date.now(), 1000);
-        console.log(`⏸️  [${jobId}] Hourly cap (${GROUP_OP_HOURLY_LIMIT}) reached — pausing ${Math.round(waitMs / 60000)}m until next hour...`);
-        await sleepWithJitter(waitMs, 0.05);
-        continue;
+        // Hourly/daily cap reached. On serverless (Vercel) we must NOT sleep until
+        // the reset — the function would just be killed at maxDuration. Stop
+        // gracefully: the MongoDB counter guarantees no >15/hour, and re-running
+        // the merge resumes safely (already-added members are skipped at Step 1).
+        const left = membersToAdd.length - addIdx;
+        console.log(`🛑 [${jobId}] ${chk.reason === 'daily_cap' ? 'Daily' : 'Hourly'} group-op cap reached — stopping with ${left} members left. They'll be added on the next run/hour (no ban risk).`);
+        break;
       }
 
       // Human micro-batch (2-3), but never exceed the remaining hourly budget.
@@ -258,14 +256,9 @@ async function startBackgroundMergeJob({
         while (remIdx < membersToAdd.length) {
           const chk = await checkGroupOpLimit(userId);
           if (!chk.allowed) {
-            if (chk.reason === 'daily_cap') {
-              console.log(`🛑 [${jobId}] Daily group-op cap hit during removes — stopping.`);
-              break removeLoop;
-            }
-            const waitMs = Math.max(chk.resetAt.getTime() - Date.now(), 1000);
-            console.log(`⏸️  [${jobId}] Hourly cap reached during removes — pausing ${Math.round(waitMs / 60000)}m...`);
-            await sleepWithJitter(waitMs, 0.05);
-            continue;
+            // Serverless-safe: stop instead of sleeping until reset (see Step 2).
+            console.log(`🛑 [${jobId}] ${chk.reason === 'daily_cap' ? 'Daily' : 'Hourly'} group-op cap reached during removes — stopping; resumes next run/hour.`);
+            break removeLoop;
           }
           const want = Math.min(getRandomMergeBatchSize(), chk.hourRemaining, membersToAdd.length - remIdx);
           const candidate = membersToAdd.slice(remIdx, remIdx + want);
