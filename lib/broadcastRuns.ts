@@ -166,6 +166,31 @@ export async function processDueBroadcastRuns(options?: {
     };
 
     try {
+      // ── EXPIRY: a scheduled broadcast that hasn't sent within BROADCAST_EXPIRY_HOURS
+      // (default 24h) of its scheduled/started time is expired — remaining unsent messages
+      // are skipped (NOT sent late) and the run is closed. Prevents stale messages firing
+      // days later after long pauses, retries, or cron downtime.
+      // Anchor on startedAt (immutable once set); fall back to scheduledAt for runs that
+      // never started (e.g. cron was down). Both are stable for an un-started run.
+      const expiryHours = Number(process.env.BROADCAST_EXPIRY_HOURS) || 24;
+      const expiryAnchor = (run as any).startedAt
+        ? new Date((run as any).startedAt)
+        : ((run as any).scheduledAt ? new Date((run as any).scheduledAt) : null);
+      if (expiryAnchor && expiryAnchor.getTime() < now.getTime() - expiryHours * 60 * 60 * 1000) {
+        await BroadcastRunMessage.updateMany(
+          { runId: (run as any)._id, status: { $in: ['pending', 'sending', 'retrying'] } },
+          { $set: { status: 'skipped', failureReason: `Expired — not sent within ${expiryHours}h of schedule`, errorCategory: 'expired', updatedAt: now } }
+        );
+        await markRunStats((run as any)._id);
+        await BroadcastRun.updateOne(
+          { _id: (run as any)._id },
+          { $set: { status: 'completed', completedAt: now, lastError: `Auto-expired after ${expiryHours}h`, updatedAt: now } }
+        );
+        console.log(`[Broadcast] ⌛ Run ${runId} expired (>${expiryHours}h since schedule) — remaining messages skipped, not sent`);
+        result.runResults.push(stat);
+        continue;
+      }
+
       // Quiet hours check for QR: no sends 10:30 PM – 5:00 AM IST
       if (String((run as any).provider || 'meta') === 'qr') {
         const { isQuiet, resumeAt } = getQrQuietHoursInfo(now);
