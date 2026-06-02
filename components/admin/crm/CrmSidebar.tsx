@@ -17,7 +17,31 @@ interface CrmSidebarProps {
 }
 
 // Sections only super-admins should see.
-const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'web-admin']);
+const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'web-admin', 'archive']);
+
+// Tenant CRM (crm.swaryoga.com) shows ONLY these module sections, in this order.
+// Owner-panel sections (web-admin / super-admin / tenants / archive) never appear here —
+// that work lives on the main domain (swaryoga.com/admin/crm/super-admin).
+const TENANT_SECTION_KEYS = [
+  'dashboard',
+  'qr-leads', 'qr',
+  'sales', 'meta',
+  'email', 'messages', 'telegram',
+  'elearning',
+  'sadhana', 'sadhana-schedule',
+  'community', 'zoom',
+  'planner', 'ritucharya',
+  'reports',
+  'automation', 'chatbot',
+  'landing-pages',
+  'settings', 'storage',
+];
+
+// True when running on the tenant CRM subdomain (crm.swaryoga.com / crm.localhost).
+function detectCrmDomain(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /^crm\./i.test(window.location.hostname);
+}
 
 
 // Landing route for a module = its first sub-page (header tab), else its prefix.
@@ -153,11 +177,13 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'email':          ['email'],
     // Community — community bundle
     'community':      ['community'],
+    'zoom':           ['community'],
     // AI / Chatbot / Automation — chatbot bundle
     'chatbot':        ['chatbot'],
     'automation':     ['chatbot'],
     // Sadhana — sadhana_program bundle (Golden+)
     'sadhana':        ['sadhana_program', 'sadhana_schedule'],
+    'sadhana-schedule': ['sadhana_schedule', 'sadhana_program'],
     // Telegram — telegram bundle
     'telegram':       ['telegram'],
     // SMS — sms bundle
@@ -166,6 +192,7 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'calls':          ['ai_calling'],
     // Planner — planner bundle
     'planner':        ['planner'],
+    'ritucharya':     ['planner'],
     // Landing Pages — landing_page bundle (Silver+)
     'landing-pages':  ['landing_page'],
     // E-Learning — elearning bundle (Silver+)
@@ -180,29 +207,44 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'addons':         ['elearning', 'sadhana_program', 'tally', 'ai_calling'],
   };
 
+  const isCrmDomain = detectCrmDomain();
+
+  // Does the tenant's plan include the module section? (Dashboard / unmapped = always.)
+  const hasModule = (key: string): boolean => {
+    if (key === 'dashboard') return true;
+    const required = SECTION_TO_MODULE_KEYS[key];
+    if (!required) return true; // no mapping = always show
+    if (tenantModuleKeys !== null) {
+      // Tenant's actual module keys are the single source of truth
+      return required.some((rk) =>
+        tenantModuleKeys.has(rk) ||
+        Array.from(tenantModuleKeys).some((k) => k.startsWith(rk + '.'))
+      );
+    }
+    // Still loading (null) — show section so sidebar isn't blank while fetching
+    return true;
+  };
+
   const modules = useMemo(() => {
+    // Tenant CRM domain (crm.swaryoga.com): only the curated tenant modules, in order.
+    // Super-admin here sees every tenant module; tenants are gated by their plan.
+    if (isCrmDomain) {
+      const ordered = TENANT_SECTION_KEYS
+        .map((k) => sectionConfigs.find((s) => s.key === k))
+        .filter((s): s is SectionConfig => Boolean(s));
+      return isSuper ? ordered : ordered.filter((s) => hasModule(s.key));
+    }
+
+    // Main domain (swaryoga.com): owner panel + everything for super-admin.
     return sectionConfigs.filter((s) => {
       // Super-admin-only sections: hide from regular users
       if (SUPER_ADMIN_KEYS.has(s.key) && !isSuper) return false;
       // Super-admin sees ALL sections — no module key gating
       if (isSuper) return true;
-      // Dashboard always visible
-      if (s.key === 'dashboard') return true;
-
-      const required = SECTION_TO_MODULE_KEYS[s.key];
-      if (!required) return true; // no mapping = always show
-
-      if (tenantModuleKeys !== null) {
-        // Tenant's actual module keys are the single source of truth
-        return required.some((rk) =>
-          tenantModuleKeys.has(rk) ||
-          Array.from(tenantModuleKeys).some((k) => k.startsWith(rk + '.'))
-        );
-      }
-      // Still loading (null) — show section so sidebar isn't blank while fetching
-      return true;
+      return hasModule(s.key);
     });
-  }, [isSuper, tenantModuleKeys]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuper, isCrmDomain, tenantModuleKeys]);
 
   const width = collapsed ? 'w-[68px]' : 'w-60';
 

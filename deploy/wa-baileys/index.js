@@ -213,6 +213,7 @@ class UserSession {
         `(max: ${this.maxConsecutiveFlaps}). Recent: ${this.disconnectHistory.slice(-3).map(d => d.reason).join(' → ')}`
       );
     }
+    return recentDisconnects;
   }
 
   touch() {
@@ -828,7 +829,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         const reason = lastDisconnect?.error?.message || 'unknown';
 
         // Record disconnect for flapping detection
-        session.recordDisconnect(reason, statusCode);
+        const recentDisconnects = session.recordDisconnect(reason, statusCode);
+        const isFlapping = recentDisconnects >= 3;
 
         console.log(`[${session.ownerUserId}] Disconnected session ${session.sessionKey}: ${statusCode} (${reason})`);
 
@@ -872,6 +874,14 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
             );
           }
 
+          // Ban prevention: a flapping session (3+ drops in 60s) must STOP
+          // hammering WhatsApp. Force a long cooldown so the number isn't flagged
+          // for abuse — far more important than fast recovery for one session.
+          if (isFlapping) {
+            baseDelay = Math.min(Math.max(baseDelay, 120000 + session.retryCount * 30000), 600000);
+            console.warn(`[${session.ownerUserId}] Flapping cooldown for session ${session.sessionKey}: ${Math.round(baseDelay / 1000)}s`);
+          }
+
           // Add ±20% jitter to prevent thundering herd
           const jitter = baseDelay * 0.2 * (Math.random() - 0.5);
           const delay = Math.max(1000, baseDelay + jitter);
@@ -904,7 +914,14 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
           } catch (e) { console.error(`[${session.ownerUserId}] Auth clear failed:`, e.message); }
           session.retryCount = 0;
           session.clearReconnectTimer();
-          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(session.sessionKey, session.ownerUserId, session.tenantId); }, 5000);
+          session.isStarting = false;
+          // CRITICAL: do NOT auto-reconnect after a forced logout (statusCode 401).
+          // Auto-restarting here regenerates a QR and hammers reconnects — exactly
+          // what produces the "scan → connected → suddenly logged out" loop and gets
+          // the number BANNED. The tenant must re-scan via the UI (POST /start or
+          // /reconnect), which starts a fresh session deliberately.
+          session.connectionState = 'logged_out';
+          console.log(`[${session.ownerUserId}] Session ${session.sessionKey} logged out — awaiting manual QR re-scan (no auto-reconnect).`);
         }
       }
     });

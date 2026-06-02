@@ -69,6 +69,8 @@ const nextConfig = {
   experimental: {
     // Keep server-only packages out of webpack bundle
     serverComponentsExternalPackages: ['@distube/ytdl-core', 'node-cron'],
+    // Run instrumentation.ts register() at server startup (TLS curve fix for Atlas).
+    instrumentationHook: true,
   },
   // CORS & security headers are handled by middleware.ts (Edge runtime)
   // with a strict origin allowlist. Do NOT add Access-Control-Allow-Origin: *

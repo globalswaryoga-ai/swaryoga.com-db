@@ -220,13 +220,13 @@ export function SettingsTab({
                   )}
                 </div>
               </div>
-              <p className="text-[10px] text-gray-400 mt-1">Auto-generated per user — guaranteed unique across all accounts</p>
+              <p className="text-[10px] text-gray-400 mt-1">Authenticates this account to the shared bridge — your chats are isolated server-side by your account</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <p className="text-xs text-gray-400">
               <Lock className="w-3 h-3 inline mr-1" />
-              Each user has their own unique secret — no data shared between accounts
+              Your messages are isolated server-side by your account session — no data is shared between accounts
             </p>
           </div>
         </div>
