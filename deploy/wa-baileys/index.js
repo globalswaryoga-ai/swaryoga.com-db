@@ -61,7 +61,7 @@ const MAX_SESSIONS = 1000;
 const SESSION_IDLE_TIMEOUT = 24 * 60 * 60 * 1000; // 24h — cleanup idle sessions
 const SESSION_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Check every 1h
 const MAX_RETRIES = 50;
-const KEEP_ALIVE_INTERVAL = 15000; // 15 seconds (AGGRESSIVE for long merges - ensures constant activity)
+const KEEP_ALIVE_INTERVAL = 60000;
 const STABILIZATION_THRESHOLD = 30000;
 const MAX_MSGS_PER_CHAT = 100;
 const MAX_RAW_CACHE = 500;
@@ -107,11 +107,6 @@ class UserSession {
     this.reconnectTimer = null;
     this.saveCreds = null;
 
-    // Connection stability tracking (detect flapping)
-    this.disconnectHistory = []; // { timestamp, reason, statusCode }
-    this.maxConsecutiveFlaps = 0; // Track rapid disconnect pattern
-    this.lastStableTime = Date.now(); // When was last stable connection
-
     // Per-user in-memory data
     this.chatMap = new Map();
     this.messageMap = new Map();
@@ -139,81 +134,17 @@ class UserSession {
   startKeepalive() {
     this.clearKeepaliveTimer();
     const self = this;
-    let heartbeatCounter = 0;
-    
-    // AGGRESSIVE: Every 15 seconds instead of 30
-    // WhatsApp timeout is ~5 minutes, so 15-sec intervals create constant pinging
-    this.keepaliveTimer = setInterval(async () => {
+    this.keepaliveTimer = setInterval(() => {
       if (self.connectionState === 'connected' && self.sock) {
-        try {
-          // ═══ MULTI-LAYER KEEPALIVE FOR LONG MERGES ═══
-          // Layer 1: WebSocket transport ping (always safe)
-          if (self.sock.ws && typeof self.sock.ws.ping === 'function') {
-            try {
-              self.sock.ws.ping();
-            } catch (e) {
-              // Silent fail
-            }
+        const timeSinceConnect = Date.now() - self.lastConnectedTime;
+        if (timeSinceConnect > STABILIZATION_THRESHOLD) {
+          if (!self.connectionStabilizedTime) {
+            self.connectionStabilizedTime = Date.now();
+            console.log(`[${self.userId}] Connection stabilized ✓`);
           }
-          
-          // Layer 2: WhatsApp-level heartbeat (every ~45 seconds = every 3rd interval at 15sec)
-          // This sends a SAFE typing indicator to our own status, which:
-          // - Resets WhatsApp session timeout (prevents auto-logout)
-          // - Does NOT trigger bot detection (very low-risk operation)
-          // - Looks like normal user activity
-          heartbeatCounter++;
-          if (heartbeatCounter % 3 === 0 && self.sock?.user?.id) {
-            try {
-              // Send "typing" indicator to own status (safest heartbeat possible)
-              // This resets WhatsApp's idle timer without sending suspicious presence updates
-              const myJid = self.sock.user.id;
-              await self.sock.sendTyping(myJid, false); // false = stop typing (less suspicious than start)
-              console.log(`[${self.userId}] ✓ Keepalive heartbeat #${heartbeatCounter} sent (safe typing indicator every 45s)`);
-            } catch (heartbeatErr) {
-              // Silent fail - non-critical if typing indicator fails
-              console.warn(`[${self.userId}] Heartbeat error (non-fatal):`, heartbeatErr.message?.substring(0, 40));
-            }
-          }
-          
-          // Update activity time
-          self.lastActivityTime = Date.now();
-          
-          const timeSinceConnect = Date.now() - self.lastConnectedTime;
-          if (timeSinceConnect > STABILIZATION_THRESHOLD) {
-            if (!self.connectionStabilizedTime) {
-              self.connectionStabilizedTime = Date.now();
-              console.log(`[${self.userId}] Connection stabilized ✓ (keepalive active)`);
-            }
-          }
-        } catch (e) {
-          console.warn(`[${self.userId}] Keepalive error (non-fatal):`, e.message);
         }
       }
     }, KEEP_ALIVE_INTERVAL);
-  }
-
-  recordDisconnect(reason = 'unknown', statusCode = null) {
-    const now = Date.now();
-    this.disconnectHistory.push({ timestamp: now, reason, statusCode });
-
-    // Keep only last 10 disconnects (5-minute window at typical reconnect times)
-    while (this.disconnectHistory.length > 10) {
-      this.disconnectHistory.shift();
-    }
-
-    // Detect connection flapping: 3+ disconnects in 60 seconds
-    const recentDisconnects = this.disconnectHistory.filter(
-      d => (now - d.timestamp) < 60000
-    ).length;
-
-    if (recentDisconnects >= 3) {
-      this.maxConsecutiveFlaps = Math.max(this.maxConsecutiveFlaps, recentDisconnects);
-      console.warn(
-        `[${this.userId}] ⚠️  CONNECTION FLAPPING: ${recentDisconnects} disconnects in 60s ` +
-        `(max: ${this.maxConsecutiveFlaps}). Recent: ${this.disconnectHistory.slice(-3).map(d => d.reason).join(' → ')}`
-      );
-    }
-    return recentDisconnects;
   }
 
   touch() {
@@ -448,114 +379,53 @@ async function loadChatsFromDB(session) {
     const client = await getMongoClient();
     if (!client) return;
     const db = client.db(AUTH_DB_NAME);
+    const col = db.collection('whatsapp_messages');
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    // Try to load only this user's messages if ownerId field exists
+    const filter = {
+      provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr', null] },
+      sentAt: { $gte: cutoff },
+    };
+    // Only load messages that belong to this specific user
+    // CRITICAL: Do NOT include legacy untagged messages for non-admin users
+    // as that would leak the super admin's chat data to other users.
+    if (session.ownerUserId !== 'default') {
+      filter.$or = [
+        { bridgeUserId: session.ownerUserId },
+        { ownerId: session.ownerUserId },
+      ];
+    }
+
+    const docs = await col.find(filter).sort({ sentAt: 1 }).limit(2000).toArray();
     let chatCount = 0, msgCount = 0;
 
-    // ── PRIMARY: Load from qr_whatsapp_messages (QR-specific, proper structure) ──
-    // This collection has userId, connectedPhone, chatJid, direction fields.
-    // CRITICAL: Always filter by userId (tenant isolation — never leak cross-user data).
-    if (session.ownerUserId && session.ownerUserId !== 'default') {
-      const qrCol = db.collection('qr_whatsapp_messages');
-      const qrDocs = await qrCol
-        .find({ userId: session.ownerUserId, timestamp: { $gte: Math.floor(cutoff.getTime() / 1000) } })
-        .sort({ timestamp: 1 })
-        .limit(3000)
-        .toArray();
-
-      for (const doc of qrDocs) {
-        const jid = doc.chatJid || '';
-        if (!jid) continue;
-        const isFromMe = doc.direction === 'outbound' || doc.fromMe === true;
-        const tsMs = (doc.timestamp || 0) * 1000; // stored in seconds
-        const tsIso = new Date(tsMs).toISOString();
-
-        // Update chatMap with latest message info
-        const existing = session.chatMap.get(jid);
-        if (!existing || tsMs > (existing._lastTs || 0)) {
-          session.chatMap.set(jid, {
-            id: jid,
-            name: doc.pushName || jid.split('@')[0],
-            isGroup: jid.endsWith('@g.us'),
-            unreadCount: 0,
-            lastMessageTime: tsIso,
-            lastMessage: doc.text || '',
-            _lastTs: tsMs,
-          });
-          if (!existing) chatCount++;
-        }
-
-        const msgEntry = {
-          id: doc.messageId || String(doc._id),
-          from: isFromMe ? (doc.connectedPhone || '') : jid.split('@')[0],
-          fromMe: isFromMe,
-          text: doc.text || '',
-          type: doc.type || 'text',
-          timestamp: doc.timestamp || 0,
-          status: doc.status || 0,
-          participant: doc.participant || '',
-          pushName: doc.pushName || '',
-          hasMedia: doc.hasMedia || false,
-          mediaUrl: doc.mediaUrl || null,
-          mediaMimetype: doc.mediaMimetype || null,
-          mediaFileName: doc.mediaFileName || null,
-        };
-        if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
-        const arr = session.messageMap.get(jid);
-        arr.push(msgEntry);
-        if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
-        msgCount++;
-      }
-      console.log(`[${session.ownerUserId}] QR hydration: ${chatCount} chats, ${msgCount} messages from qr_whatsapp_messages`);
-    }
-
-    // ── FALLBACK: Also scan whatsapp_messages for older bridged messages ──
-    // Only loads messages tagged with this user's bridgeUserId (tenant-safe).
-    if (session.ownerUserId && session.ownerUserId !== 'default') {
-      const col = db.collection('whatsapp_messages');
-      const filter = {
-        provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr'] },
-        sentAt: { $gte: cutoff },
-        $or: [{ bridgeUserId: session.ownerUserId }, { ownerId: session.ownerUserId }],
+    for (const doc of docs) {
+      const phone = (doc.phoneNumber || '').replace(/\D/g, '');
+      if (!phone || phone.length < 10) continue;
+      const jid = `${phone}@s.whatsapp.net`;
+      const isFromMe = doc.direction === 'outbound';
+      const ts = doc.sentAt ? new Date(doc.sentAt).toISOString() : new Date().toISOString();
+      if (!session.chatMap.has(jid)) chatCount++;
+      session.chatMap.set(jid, { id: jid, name: doc.senderDisplayName || phone, isGroup: false, unreadCount: 0, lastMessageTime: ts });
+      const msgEntry = {
+        id: doc.waMessageId || String(doc._id),
+        from: phone, fromMe: isFromMe,
+        text: doc.messageContent || (doc.media?.kind ? `[${doc.media.kind}]` : ''),
+        type: doc.media?.kind || doc.messageType || 'text',
+        timestamp: doc.sentAt ? Math.floor(new Date(doc.sentAt).getTime() / 1000) : 0,
+        status: doc.status, hasMedia: doc.hasMedia || !!doc.media?.url,
+        mediaUrl: doc.media?.url || null, mediaMimetype: doc.media?.mimeType || null, mediaFileName: doc.media?.fileName || null,
       };
-      const docs = await col.find(filter).sort({ sentAt: 1 }).limit(1000).toArray();
-
-      for (const doc of docs) {
-        const phone = (doc.phoneNumber || '').replace(/\D/g, '');
-        if (!phone || phone.length < 10) continue;
-        const jid = `${phone}@s.whatsapp.net`;
-        // Skip if already loaded from qr_whatsapp_messages (avoid duplicates)
-        if (session.messageMap.has(jid) && session.messageMap.get(jid).length > 0) continue;
-        // Support both 'direction' field and legacy senderDisplayName heuristic
-        let isFromMe = doc.direction === 'outbound';
-        // If direction is missing, fall back to checking if we're the sender (based on ownerUserId match)
-        if (!doc.direction && (doc.createdByUserId === session.ownerUserId || doc.ownerId === session.ownerUserId)) {
-          isFromMe = true;
-        }
-        const ts = doc.sentAt ? new Date(doc.sentAt).toISOString() : new Date().toISOString();
-        if (!session.chatMap.has(jid)) {
-          session.chatMap.set(jid, { id: jid, name: doc.senderDisplayName || phone, isGroup: false, unreadCount: 0, lastMessageTime: ts });
-          chatCount++;
-        }
-        const msgEntry = {
-          id: doc.waMessageId || String(doc._id),
-          from: phone, fromMe: isFromMe,
-          text: doc.messageContent || '',
-          type: doc.messageType || 'text',
-          timestamp: doc.sentAt ? Math.floor(new Date(doc.sentAt).getTime() / 1000) : 0,
-          status: doc.status || 0, hasMedia: doc.hasMedia || false,
-          mediaUrl: doc.media?.url || null, mediaMimetype: doc.media?.mimeType || null, mediaFileName: doc.media?.fileName || null,
-        };
-        if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
-        const arr = session.messageMap.get(jid);
-        arr.push(msgEntry);
-        if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
-        msgCount++;
-      }
+      if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
+      const arr = session.messageMap.get(jid);
+      arr.push(msgEntry);
+      if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
+      msgCount++;
     }
-
-    console.log(`[${session.userId}] DB hydration complete: ${chatCount} chats, ${msgCount} messages total`);
+    console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from DB`);
   } catch (err) {
-    console.error(`[${session.userId}] Failed to load chats from DB:`, err.message);
+    console.error(`[${session.userId}] Failed to load chats:`, err.message);
   }
 }
 
@@ -566,12 +436,6 @@ async function forwardToWebhook(session, payload) {
   payload.bridgeUserId = session.ownerUserId || session.userId;
   payload.bridgeSessionId = session.sessionKey || session.userId;
   payload.bridgeTenantId = session.tenantId || null;
-  // Include the connected phone so CRM can save to QrWhatsAppMessage/QrWhatsAppChat
-  // without relying on a separate DB lookup that may be empty
-  if (session.phoneInfo?.id) {
-    const rawPhone = session.phoneInfo.id.split(':')[0].split('@')[0].replace(/\D/g, '');
-    if (rawPhone) payload.connectedPhone = rawPhone;
-  }
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -730,7 +594,6 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
     const sock = makeWASocket({
       version,
       logger,
-      browser: ['Chrome', '120.0.6099.129', 'Linux'], // Chrome 120 on Linux — WhatsApp Web detection
       auth: {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, logger),
@@ -739,8 +602,6 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       syncFullHistory: false,
       shouldSyncHistoryMessage: () => false,
       markOnlineThrottleMs: 15000,
-      emitOwnEventsInFullPayload: true,
-      defaultQueryTimeoutMs: 60000, // 60s timeout for WhatsApp responses
     });
 
     session.sock = sock;
@@ -783,31 +644,11 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         session.retryCount = 0;
         session.intentionalDisconnect = false;
         session.phoneInfo = sock.user || null;
-        
-        // Reset flap counter on successful connection
-        if (session.maxConsecutiveFlaps > 0) {
-          console.log(
-            `[${session.ownerUserId}] ✓ Connection recovered after ${session.maxConsecutiveFlaps} flaps. ` +
-            `Session stabilizing for next 30s...`
-          );
-        }
-        session.lastStableTime = Date.now();
-        session.disconnectHistory = []; // Clear history on successful connection
-
         console.log(`[${session.ownerUserId}] Connected session ${session.sessionKey} as: ${sock.user?.id} ${sock.user?.name || ''}`);
 
         session.startKeepalive();
 
-        // IMPORTANT: Clear chatMap on reconnection to force fresh sync from WhatsApp
-        // This ensures any new messages received while offline are immediately synced
-        // The history sync event will repopulate chatMap with fresh data including new messages
-        if (session.chatMap.size > 0) {
-          console.log(`[${session.ownerUserId}] Clearing ${session.chatMap.size} cached chats to sync fresh data on reconnection...`);
-          session.chatMap.clear();
-        }
-
-        // Always hydrate from DB so message history survives bridge restarts
-        if (session.chatMap.size === 0) {
+        if (ENABLE_DB_CHAT_HYDRATION && session.chatMap.size === 0) {
           loadChatsFromDB(session).catch(e => console.error(`[${session.ownerUserId}] DB-LOAD error:`, e.message));
         }
 
@@ -827,10 +668,6 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         session.phoneInfo = null;
         const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
         const reason = lastDisconnect?.error?.message || 'unknown';
-
-        // Record disconnect for flapping detection
-        const recentDisconnects = session.recordDisconnect(reason, statusCode);
-        const isFlapping = recentDisconnects >= 3;
 
         console.log(`[${session.ownerUserId}] Disconnected session ${session.sessionKey}: ${statusCode} (${reason})`);
 
@@ -856,49 +693,16 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
             return;
           }
 
-          // Calculate delay with exponential backoff + jitter (prevents thundering herd)
-          let baseDelay;
-          if (isQrTimeout) {
-            baseDelay = 2000;
-          } else if (isConnectionConflict) {
-            baseDelay = Math.min(10000 + session.retryCount * 5000, 120000);
-          } else if (isRateLimited) {
-            baseDelay = Math.min(30000 + session.retryCount * 10000, 180000); // More patient for rate limits
-          } else if (isConnectionDrop) {
-            baseDelay = Math.min(8000 + session.retryCount * 3000, 90000); // Gradual backoff
-          } else {
-            // Standard exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s → 30s...
-            baseDelay = Math.min(
-              1000 * Math.pow(2, Math.min(session.retryCount - 1, 4)),
-              30000
-            );
-          }
+          let delay;
+          if (isQrTimeout) delay = 2000;
+          else if (isConnectionConflict) delay = Math.min(10000 + session.retryCount * 5000, 120000);
+          else if (isRateLimited) delay = Math.min(15000 + session.retryCount * 5000, 120000);
+          else if (isConnectionDrop) delay = 5000;
+          else delay = Math.min(1000 * Math.pow(2, Math.min(session.retryCount - 1, 5)), 60000);
 
-          // Ban prevention: a flapping session (3+ drops in 60s) must STOP
-          // hammering WhatsApp. Force a long cooldown so the number isn't flagged
-          // for abuse — far more important than fast recovery for one session.
-          if (isFlapping) {
-            baseDelay = Math.min(Math.max(baseDelay, 120000 + session.retryCount * 30000), 600000);
-            console.warn(`[${session.ownerUserId}] Flapping cooldown for session ${session.sessionKey}: ${Math.round(baseDelay / 1000)}s`);
-          }
-
-          // Add ±20% jitter to prevent thundering herd
-          const jitter = baseDelay * 0.2 * (Math.random() - 0.5);
-          const delay = Math.max(1000, baseDelay + jitter);
-
-          console.log(
-            `[${session.ownerUserId}] Reconnect session ${session.sessionKey} in ${Math.round(delay)}ms ` +
-            `(attempt ${session.retryCount}/${MAX_RETRIES}, reason: ${reason})`
-          );
-
+          console.log(`[${session.ownerUserId}] Reconnect session ${session.sessionKey} in ${delay}ms`);
           session.clearReconnectTimer();
-          session.reconnectTimer = setTimeout(
-            () => {
-              session.isStarting = false;
-              startSocket(session.sessionKey, session.ownerUserId, session.tenantId);
-            },
-            delay
-          );
+          session.reconnectTimer = setTimeout(() => { session.isStarting = false; startSocket(session.sessionKey, session.ownerUserId, session.tenantId); }, delay);
         } else if (statusCode === DisconnectReason.loggedOut) {
           console.log(`[${session.ownerUserId}] Logged out session ${session.sessionKey} — clearing auth`);
           try {
@@ -915,13 +719,11 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
           session.retryCount = 0;
           session.clearReconnectTimer();
           session.isStarting = false;
-          // CRITICAL: do NOT auto-reconnect after a forced logout (statusCode 401).
-          // Auto-restarting here regenerates a QR and hammers reconnects — exactly
-          // what produces the "scan → connected → suddenly logged out" loop and gets
-          // the number BANNED. The tenant must re-scan via the UI (POST /start or
-          // /reconnect), which starts a fresh session deliberately.
+          // FIX: do NOT auto-reconnect after a forced logout (401). Auto-restarting
+          // regenerates a QR and hammers reconnects -> "suddenly logged out" loop + ban.
+          // Tenant must re-scan QR from the UI (/start, /reconnect, /qr).
           session.connectionState = 'logged_out';
-          console.log(`[${session.ownerUserId}] Session ${session.sessionKey} logged out — awaiting manual QR re-scan (no auto-reconnect).`);
+          console.log('[' + session.ownerUserId + '] Session ' + session.sessionKey + ' logged out — awaiting manual QR re-scan (no auto-reconnect).');
         }
       }
     });
@@ -1893,45 +1695,6 @@ app.post('/reconnect', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Verify Connection After Long Operations ──────────────────────────────
-// Called after merge/long operations to ensure socket is healthy and prevent auto-logout
-// Returns 200 OK even if connection not ready (caller can check ok: true/false)
-app.get('/verify-connection', async (req, res) => {
-  const session = getSessionForRequest(req);
-  try {
-    if (session.connectionState !== 'connected' || !session.sock) {
-      return res.json({ 
-        ok: false, 
-        message: 'WhatsApp not connected',
-        status: session.connectionState,
-        chats_count: session.chatMap.size
-      });
-    }
-
-    // Test socket responsiveness (lightweight check)
-    let testResult = false;
-    try {
-      testResult = session.sock.user?.id !== undefined && session.chatMap.size >= 0;
-    } catch (e) {
-      console.warn(`[${session.ownerUserId}] Connection verify test error:`, e.message);
-    }
-
-    // Update last activity to prevent idle cleanup
-    session.lastActivityTime = Date.now();
-
-    res.json({ 
-      ok: testResult, 
-      message: testResult ? 'Connection verified healthy' : 'Socket test inconclusive',
-      status: 'connected',
-      socket_responsive: testResult,
-      chats_count: session.chatMap.size,
-      user: session.sock.user?.id?.split(':')[0] || 'unknown'
-    });
-  } catch (e) { 
-    res.json({ ok: false, error: e.message, status: 'error' }); 
-  }
-});
-
 // ── Media Download ───────────────────────────────────────────────────────
 app.get('/media/:messageId', async (req, res) => {
   const session = getSessionForRequest(req);
@@ -2130,168 +1893,6 @@ app.post('/group-leave/:jid', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── BATCH MOVE CONTACTS (2-3 random users per batch, ADD→REMOVE→WAIT) ──────
-// Prevents auto-signout with aggressive keepalive + health checks every 2 batches
-// Mimics human behavior: small random batches, short waits (3-10 sec)
-app.post('/group-move-batch', async (req, res) => {
-  const session = getSessionForRequest(req);
-  if (!session.sock || session.connectionState !== 'connected') {
-    return res.status(503).json({ error: 'Not connected', state: session.connectionState });
-  }
-
-  const { sourceGroupId, targetGroupId, participants } = req.body || {};
-  if (!sourceGroupId || !targetGroupId || !participants?.length) {
-    return res.status(400).json({ error: 'sourceGroupId, targetGroupId, and participants[] required' });
-  }
-
-  if (!sourceGroupId.endsWith('@g.us') || !targetGroupId.endsWith('@g.us')) {
-    return res.status(400).json({ error: 'Both sourceGroupId and targetGroupId must be group JIDs' });
-  }
-
-  // Deduplicate participants by phone number (JID)
-  const uniqueParticipants = Array.from(new Set(participants));
-  if (participants.length !== uniqueParticipants.length) {
-    console.log(`[${session.userId}] Deduplicating participants: ${participants.length} → ${uniqueParticipants.length}`);
-  }
-
-  // Shuffle array
-  const shuffle = (arr) => {
-    const copy = [...arr];
-    for (let i = copy.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-  };
-
-  // Get random batch size: 2-3 users (QR WhatsApp conservative rate)
-  const getRandomBatchSize = () => 2 + Math.floor(Math.random() * 2); // 2 or 3
-
-  // Get random wait: 3-10 seconds (QR WhatsApp safe rate, prevents auto-signout)
-  const getRandomWait = () => 3000 + Math.floor(Math.random() * 7000); // 3-10 seconds
-
-  // Health check: verify session is still connected
-  const healthCheck = async (batchNum) => {
-    try {
-      if (session.sock && session.connectionState === 'connected') {
-        // Silent check - just ensure socket is alive
-        if (session.sock.ws && session.sock.ws.readyState === 1) {
-          return true; // WebSocket open
-        }
-      }
-      return false;
-    } catch (e) {
-      console.warn(`[${session.userId}] Health check failed at batch ${batchNum}: ${e.message}`);
-      return false;
-    }
-  };
-
-  try {
-    const shuffled = shuffle(uniqueParticipants);
-    let movedCount = 0;
-    let batchNum = 0;
-    const results = {
-      totalRequested: participants.length,
-      totalUnique: uniqueParticipants.length,
-      movedCount: 0,
-      failedCount: 0,
-      batches: [],
-      warnings: uniqueParticipants.length < participants.length ? [`Removed ${participants.length - uniqueParticipants.length} duplicate numbers`] : [],
-    };
-
-    for (let i = 0; i < shuffled.length; i += getRandomBatchSize()) {
-      batchNum++;
-      const batchSize = getRandomBatchSize();
-      const batch = shuffled.slice(i, Math.min(i + batchSize, shuffled.length));
-
-      if (batch.length === 0) break;
-
-      const batchInfo = {
-        batchNum,
-        size: batch.length,
-        progress: `${Math.min(i + batchSize, shuffled.length)}/${shuffled.length}`,
-        success: false,
-        added: false,
-        removed: false,
-        error: null,
-      };
-
-      try {
-        // STEP 1: ADD to target group
-        try {
-          await session.sock.groupParticipantsUpdate(targetGroupId, batch, 'add');
-          batchInfo.added = true;
-          console.log(`[${session.userId}] Batch ${batchNum}: ✓ Added ${batch.length} users to target`);
-        } catch (addErr) {
-          batchInfo.error = `Add failed: ${addErr.message}`;
-          results.warnings.push(batchInfo.error);
-          console.warn(`[${session.userId}] Batch ${batchNum}: Add error:`, addErr.message);
-        }
-
-        // STEP 2: REMOVE from source group (only if add succeeded)
-        if (batchInfo.added) {
-          try {
-            await session.sock.groupParticipantsUpdate(sourceGroupId, batch, 'remove');
-            batchInfo.removed = true;
-            batchInfo.success = true;
-            movedCount += batch.length;
-            console.log(`[${session.userId}] Batch ${batchNum}: ✓ Removed ${batch.length} users from source`);
-          } catch (removeErr) {
-            batchInfo.error = `Remove failed: ${removeErr.message}`;
-            results.warnings.push(batchInfo.error);
-            console.warn(`[${session.userId}] Batch ${batchNum}: Remove error:`, removeErr.message);
-          }
-        }
-
-        results.batches.push(batchInfo);
-
-        // STEP 3: HEALTH CHECK every 2 batches (prevent auto-signout)
-        if (batchNum % 2 === 0) {
-          const isHealthy = await healthCheck(batchNum);
-          if (!isHealthy) {
-            // Reconnect if needed
-            if (session.sock) {
-              try {
-                // Trigger a safe ping to keep session alive
-                if (session.sock.user?.id) {
-                  await session.sock.sendTyping(session.sock.user.id, false);
-                  console.log(`[${session.userId}] Health recovery: Sent keepalive ping at batch ${batchNum}`);
-                }
-              } catch (e) {
-                console.warn(`[${session.userId}] Keepalive ping failed: ${e.message}`);
-              }
-            }
-          }
-        }
-
-        // STEP 4: WAIT 3-10 seconds before next batch
-        if (movedCount < shuffled.length) {
-          const waitMs = getRandomWait();
-          const waitSec = (waitMs / 1000).toFixed(1);
-          console.log(`[${session.userId}] Batch ${batchNum} complete. Waiting ${waitSec}s before next batch...`);
-          await new Promise((r) => setTimeout(r, waitMs));
-        }
-      } catch (err) {
-        batchInfo.error = err.message;
-        results.batches.push(batchInfo);
-        console.error(`[${session.userId}] Batch ${batchNum} error:`, err.message);
-      }
-    }
-
-    results.movedCount = movedCount;
-    results.failedCount = participants.length - movedCount;
-
-    console.log(`[${session.userId}] Move complete: ${movedCount}/${participants.length} users moved in ${batchNum} batches`);
-    res.json({
-      success: movedCount > 0,
-      ...results,
-    });
-  } catch (e) {
-    console.error(`[${session.userId}] Batch move error:`, e.message);
-    res.status(500).json({ error: e.message, state: session.connectionState });
-  }
-});
-
 // ── Reply ────────────────────────────────────────────────────────────────
 app.post('/reply', async (req, res) => {
   const session = getSessionForRequest(req);
@@ -2374,65 +1975,6 @@ app.get('/statuses', (req, res) => {
       grouped[s.senderJid].statuses.push(s);
     }
     res.json({ statuses: Object.values(grouped), total: session.statusStore.length });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════════════════════════
-// DIAGNOSTICS — Connection health monitoring
-// ═══════════════════════════════════════════════════════════════════════
-app.get('/diagnostics', (req, res) => {
-  const session = getSessionForRequest(req);
-  try {
-    const now = Date.now();
-    const uptime = session.connectionState === 'connected' ? (now - session.lastConnectedTime) : 0;
-    const connectionAge = now - session.createdAt;
-    const stableSince = session.lastStableTime ? (now - session.lastStableTime) : 0;
-
-    // Detect if currently flapping
-    const recentDisconnects = session.disconnectHistory.filter(d => (now - d.timestamp) < 60000).length;
-    const isFlapping = recentDisconnects >= 3;
-
-    res.json({
-      session: {
-        sessionKey: session.sessionKey,
-        ownerUserId: session.ownerUserId,
-        tenantId: session.tenantId,
-      },
-      connection: {
-        state: session.connectionState,
-        connectedPhone: session.phoneInfo?.id || null,
-        uptime: uptime,
-        uptimeSeconds: Math.round(uptime / 1000),
-        stableSince: stableSince,
-        connectionAge: connectionAge,
-        connectionAgeSeconds: Math.round(connectionAge / 1000),
-      },
-      stability: {
-        retryCount: session.retryCount,
-        maxRetriesSoFar: session.maxConsecutiveFlaps,
-        isFlapping: isFlapping,
-        recentDisconnects: {
-          last60s: recentDisconnects,
-          history: session.disconnectHistory.slice(-5).map(d => ({
-            secondsAgo: Math.round((now - d.timestamp) / 1000),
-            reason: d.reason,
-            statusCode: d.statusCode,
-          })),
-        },
-      },
-      qr: {
-        lastQrTime: session.lastQrTime ? new Date(session.lastQrTime).toISOString() : null,
-        hasQr: !!session.qrCode,
-      },
-      health: {
-        isHealthy: session.connectionState === 'connected' && !isFlapping,
-        recommendation: isFlapping
-          ? 'Connection is flapping. Try: (1) Scan new QR code (2) Check network stability (3) Restart bridge if persists'
-          : session.connectionState === 'disconnected'
-          ? 'Session disconnected. Scan QR code to reconnect.'
-          : 'Connection healthy ✓',
-      },
-    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
