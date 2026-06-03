@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
             },
             amount: {
               $sum: {
-                $cond: ['$course.pricing.INR', '$course.pricing.INR', 0],
+                $convert: { input: '$course.pricing.INR', to: 'double', onError: 0, onNull: 0 },
               },
             },
           },
@@ -190,8 +190,8 @@ export async function GET(request: NextRequest) {
         },
         {
           $bucket: {
-            groupBy: '$progress',
-            boundaries: [0, 25, 50, 75, 100],
+            groupBy: { $convert: { input: '$progress', to: 'double', onError: 0, onNull: 0 } },
+            boundaries: [0, 25, 50, 75, 100, 101],
             default: 'other',
             output: { count: { $sum: 1 } },
           },
@@ -229,7 +229,10 @@ export async function GET(request: NextRequest) {
             enrollments: { $first: '$enrollments' },
             revenue: {
               $sum: {
-                $cond: ['$course.pricing.INR', { $multiply: ['$enrollments', '$course.pricing.INR'] }, 0],
+                $multiply: [
+                  '$enrollments',
+                  { $convert: { input: '$course.pricing.INR', to: 'double', onError: 0, onNull: 0 } },
+                ],
               },
             },
           },

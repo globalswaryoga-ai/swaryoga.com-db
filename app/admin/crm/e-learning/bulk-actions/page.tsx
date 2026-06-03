@@ -102,9 +102,9 @@ export default function BulkActionsPage() {
     const csv = [
       ['Name', 'Email', 'Course', 'Status', 'Progress', 'Enrolled'],
       ...selectedEnrollments.map((e) => [
-        e.userId.name,
-        e.userId.email,
-        e.courseId.content.en.title,
+        e.userId?.name || 'Unknown user',
+        e.userId?.email || '',
+        e.courseId?.content?.en?.title || 'Untitled course',
         e.status,
         `${e.progress}%`,
         new Date(e.enrolledAt).toLocaleDateString(),
@@ -257,11 +257,11 @@ export default function BulkActionsPage() {
                     />
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-white font-medium">{enrollment.userId.name}</p>
-                    <p className="text-sm text-gray-400">{enrollment.userId.email}</p>
+                    <p className="text-white font-medium">{enrollment.userId?.name || 'Unknown user'}</p>
+                    <p className="text-sm text-gray-400">{enrollment.userId?.email || '—'}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-white">{enrollment.courseId.content.en.title}</p>
+                    <p className="text-white">{enrollment.courseId?.content?.en?.title || 'Untitled course'}</p>
                   </td>
                   <td className="px-6 py-4">
                     <span
