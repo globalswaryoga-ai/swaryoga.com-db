@@ -416,11 +416,10 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Dashboard', href: '/admin/crm/planner-dashboard/ritucharya/dashboard', icon: LayoutDashboard },
       { label: 'Guide',     href: '/admin/crm/planner-dashboard/ritucharya/guide',     icon: BookOpen },
     ],
-    moreItems: [
-      { label: 'Ritus Admin',      href: '/admin/crm/planner-dashboard/ritucharya/ritus-admin',      icon: Leaf },
-      { label: 'Recipes Admin',    href: '/admin/crm/planner-dashboard/ritucharya/recipes-admin',    icon: BookOpen },
-      { label: 'Variations Admin', href: '/admin/crm/planner-dashboard/ritucharya/variations-admin', icon: Sliders },
-    ],
+    // 'More' dropdown emptied — Ritus/Recipes/Variations Admin are super-admin
+    // correction pages (still reachable by direct URL / the /super-admin/crm alias),
+    // not shown in the user-facing Ritucharya header.
+    moreItems: [],
     prefixes: ['/admin/crm/planner-dashboard/ritucharya'],
   },
 
