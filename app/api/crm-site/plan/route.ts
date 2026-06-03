@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
 import {
   PlanTier,
@@ -47,12 +48,10 @@ export async function GET(request: NextRequest) {
       return json({ error: 'Unauthorized' }, 401);
     }
 
-    const isSuperAdmin = decoded.role === 'superadmin' ||
-                         decoded.userId === 'admincrm' ||
-                         decoded.userId === 'admin';
+    const superAdmin = isSuperAdmin(decoded);
 
     // Superadmin: full access, professional plan
-    if (isSuperAdmin) {
+    if (superAdmin) {
       return json({
         plan: 'professional',
         planName: 'Professional',

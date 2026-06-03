@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getUserCompartment } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
@@ -37,11 +38,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Superadmins bypass all setup requirements
-    const isSuperAdmin = decoded.role === 'superadmin' || 
-                         decoded.userId === 'admincrm' || 
-                         decoded.userId === 'admin';
+    const superAdmin = isSuperAdmin(decoded);
 
-    if (isSuperAdmin) {
+    if (superAdmin) {
       return jsonResponse({
         setupPaid: true,
         setupPaidAt: new Date().toISOString(),

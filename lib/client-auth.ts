@@ -18,6 +18,15 @@ export function getToken(): string | null {
   );
 }
 
+const normalizeAdminUserId = (value: unknown): string => {
+  return String(value || '').trim().toLowerCase();
+};
+
+const isSuperAdminId = (value: unknown): boolean => {
+  const normalized = normalizeAdminUserId(value);
+  return normalized === 'admin' || normalized === 'admincrm';
+};
+
 /**
  * Check if current user is a super admin based on localStorage data.
  * 
@@ -29,12 +38,22 @@ export function checkIsSuperAdmin(): boolean {
   if (typeof window === 'undefined') return false;
   try {
     const userStr = localStorage.getItem('admin_user');
-    if (!userStr) return false;
+    let userId = '';
 
-    const u = JSON.parse(userStr);
-    const userId = String(u?.userId || '').trim();
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      userId = String(u?.userId || '').trim();
+    }
 
-    return userId === 'admin' || userId === 'admincrm';
+    if (!userId) {
+      userId = String(
+        localStorage.getItem('adminUser') ||
+        localStorage.getItem('adminUserId') ||
+        ''
+      ).trim();
+    }
+
+    return isSuperAdminId(userId);
   } catch {
     return false;
   }
@@ -55,19 +74,19 @@ export function getStoredUser(): {
 
   try {
     const userStr = localStorage.getItem('admin_user');
-    if (!userStr) return defaults;
-
-    const u = JSON.parse(userStr);
-    const userId = (u?.userId as string) || localStorage.getItem('adminUser') || '';
+    const u = userStr ? JSON.parse(userStr) : null;
+    const userId =
+      (u?.userId as string) ||
+      localStorage.getItem('adminUser') ||
+      localStorage.getItem('adminUserId') ||
+      '';
     const role = u?.role || 'admin';
     const permissions: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
     const permissionsV2 = u?.permissionsV2 || null;
 
     // Super Admin = ONLY userId 'admin' or 'admincrm' (hardcoded).
     // Do NOT use role or permissions — those can be set on tenant users.
-    const isSuperAdmin =
-      userId === 'admin' ||
-      userId === 'admincrm';
+    const isSuperAdmin = isSuperAdminId(userId);
 
     return { userId, role, permissions, permissionsV2, isSuperAdmin };
   } catch {

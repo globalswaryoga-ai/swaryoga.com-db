@@ -105,12 +105,14 @@ interface PageSetupChecklistProps {
   currentPath: string;
   onPaymentClick?: () => void;
   className?: string;
+  isSuperAdmin?: boolean;
 }
 
 export default function PageSetupChecklist({
   currentPath,
   onPaymentClick,
   className = '',
+  isSuperAdmin = false,
 }: PageSetupChecklistProps) {
   const [expanded, setExpanded] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
@@ -165,6 +167,11 @@ export default function PageSetupChecklist({
     .every(r => isRequirementMet(r.key));
 
   const allMet = pageConfig.requirements.every(r => isRequirementMet(r.key));
+
+  // Super Admin should not see setup or storage prompts
+  if (isSuperAdmin) {
+    return null;
+  }
 
   // Don't show if all requirements are met
   if (!loading && allMet) {

@@ -27,8 +27,10 @@ export function useOwnerGuard() {
 
     try {
       const userStr = localStorage.getItem('admin_user');
-      const resolvedUserId = localStorage.getItem('adminUser') || '';
-
+        const resolvedUserId =
+          localStorage.getItem('adminUser') ||
+          localStorage.getItem('adminUserId') ||
+          '';
       if (userStr) {
         const u = JSON.parse(userStr);
         const userId = (u?.userId as string) || resolvedUserId;

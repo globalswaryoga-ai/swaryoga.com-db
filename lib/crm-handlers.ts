@@ -126,13 +126,17 @@ const SUPER_ADMIN_USERNAMES = new Set(
   ['admin', 'admincrm', String(process.env.ADMIN_USERNAME || '').trim().toLowerCase()].filter(Boolean),
 );
 
+const normalizeAdminIdentifier = (value: unknown): string => {
+  return String(value || '').trim().toLowerCase();
+};
+
 export const isSuperAdmin = (decoded: any): boolean => {
   // Super admin is ONLY the CRM owner — identified by a known userId/username.
   // Check userId (regular admin users stored in DB)
-  const uid = String(decoded?.userId || '').trim();
+  const uid = normalizeAdminIdentifier(decoded?.userId);
   if (SUPER_ADMIN_IDS.has(uid)) return true;
   // Check username (admin-login tokens have username instead of userId)
-  const uname = String(decoded?.username || '').trim().toLowerCase();
+  const uname = normalizeAdminIdentifier(decoded?.username);
   if (SUPER_ADMIN_USERNAMES.has(uname)) return true;
   // NOTE: We deliberately do NOT treat `isAdmin === true` as super admin.
   // Every CRM tenant's login token sets isAdmin:true (they ARE admins of their

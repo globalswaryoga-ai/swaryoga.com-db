@@ -154,10 +154,11 @@ export default function CRMDashboard() {
         
         if (res.ok) {
           const data = await res.json();
-          setSetupPaid(data.setupPaid);
+          const superAdmin = data.isSuperAdmin || checkIsSuperAdmin();
+          setSetupPaid(data.setupPaid || superAdmin);
           
           // Show welcome modal for first login or if setup param is present
-          if (data.isFirstLogin || searchParams.get('showSetup') === 'true') {
+          if (!superAdmin && (data.isFirstLogin || searchParams.get('showSetup') === 'true')) {
             setShowWelcome(true);
           }
           
@@ -321,18 +322,19 @@ export default function CRMDashboard() {
     <>
       {/* Welcome Modal for new users */}
       <WelcomeModal
-        isOpen={showWelcome && !setupPaid}
+        isOpen={showWelcome && !setupPaid && !isSuperAdmin}
         onClose={handleCloseWelcome}
         userName={userName}
         onProceedToPayment={handleProceedToPayment}
       />
 
       {/* Setup Checklist Banner */}
-      {!loading && !setupPaid && (
+      {!loading && !setupPaid && !isSuperAdmin && (
         <PageSetupChecklist
           currentPath="/admin/crm"
           onPaymentClick={() => setShowWelcome(true)}
           className="mx-4 mt-4 md:mx-6"
+          isSuperAdmin={isSuperAdmin}
         />
       )}
       {/* Add User Modal */}

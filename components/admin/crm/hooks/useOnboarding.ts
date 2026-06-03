@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
 
 interface CompartmentSteps {
   folderNameChosen: boolean;
@@ -116,6 +117,7 @@ export function useOnboarding(): UseOnboardingReturn {
 
       const data = await response.json();
       
+      const superAdmin = checkIsSuperAdmin();
       const onboardingSeen = localStorage.getItem('crm_onboarding_seen') === 'true';
       
       // Compartment status from API
@@ -123,7 +125,7 @@ export function useOnboarding(): UseOnboardingReturn {
       const compartmentReady = compartment.isComplete;
       
       // Needs onboarding if not superadmin and compartment is not setup
-      const needsOnboarding = !data.isSuperAdmin && !compartmentReady && !onboardingSeen;
+      const needsOnboarding = !superAdmin && !data.isSuperAdmin && !compartmentReady && !onboardingSeen;
       
       const statusData: OnboardingStatus = {
         setupPaid: data.setupPaid || false,
@@ -133,7 +135,7 @@ export function useOnboarding(): UseOnboardingReturn {
         storageLimitMB: data.storageLimitMB || 500,
         planName: data.planName || 'Free Trial',
         planId: data.planId || '',
-        isSuperAdmin: data.isSuperAdmin || false,
+        isSuperAdmin: superAdmin || data.isSuperAdmin || false,
         needsOnboarding,
         compartment,
         compartmentReady,
