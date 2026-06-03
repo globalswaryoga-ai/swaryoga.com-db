@@ -62,7 +62,7 @@ export const connectDB = async () => {
       throw new Error(msg);
     }
 
-    if (mongoose.connection.readyState === 1) {
+    if ((mongoose.connection.readyState as number) === 1) {
       // Trust an already-established connection. The driver's own heartbeat
       // (heartbeatFrequencyMS) + pool manage liveness and replace dead sockets.
       // NOTE: we deliberately do NOT ping+disconnect on every request — under
