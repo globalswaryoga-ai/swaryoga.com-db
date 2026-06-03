@@ -41,10 +41,13 @@ export const connectDB = async () => {
       serverSelectionTimeoutMS: 8000,
       socketTimeoutMS: 30000,
       retryWrites: true,
-      maxPoolSize: 20,
-      minPoolSize: 2,
+      // Serverless: many concurrent instances each open their own pool, so keep
+      // per-instance pools small and let idle ones fully release — avoids piling
+      // up connections on Atlas (which then refuses TLS handshakes / SSL alert 80).
+      maxPoolSize: 10,
+      minPoolSize: 0,
       connectTimeoutMS: 8000,
-      maxIdleTimeMS: 60000,
+      maxIdleTimeMS: 30000,
       waitQueueTimeoutMS: 5000,
       family: 4,
     });
@@ -60,18 +63,15 @@ export const connectDB = async () => {
     }
 
     if (mongoose.connection.readyState === 1) {
-      // Periodic health check: if established, verify it's still usable
-      try {
-        await mongoose.connection.db?.admin().ping();
-        console.log('✅ MongoDB connection is healthy (ping ok)');
-        lastConnectionStatus = 'Connected';
-        return mongoose.connection;
-      } catch (pingErr) {
-        console.warn('⚠️  MongoDB existing connection health check failed, reconnecting...');
-        try {
-          await mongoose.disconnect();
-        } catch (_) {}
-      }
+      // Trust an already-established connection. The driver's own heartbeat
+      // (heartbeatFrequencyMS) + pool manage liveness and replace dead sockets.
+      // NOTE: we deliberately do NOT ping+disconnect on every request — under
+      // concurrent load that caused reconnect storms and Atlas refusing TLS
+      // handshakes ("SSL routines ... SSL alert number 80"). A rare stale socket
+      // will surface on the query and be retried by the pool, which is far
+      // cheaper than tearing down the whole connection on every call.
+      lastConnectionStatus = 'Connected';
+      return mongoose.connection;
     }
 
     // Prefer a global singleton promise so concurrent requests don't create
