@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth, getLoginPath } from '@/hooks/useAuth';
-import { checkIsSuperAdmin } from '@/lib/client-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Users,
   RefreshCw,
@@ -74,15 +72,6 @@ function formatPhone(num: string): string {
 
 export default function QRGroupContactsPage() {
   const token = useAuth();
-  const router = useRouter();
-
-  // Block non-super-admins
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!checkIsSuperAdmin()) {
-      router.replace('/admin/crm');
-    }
-  }, [router]);
 
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [loading, setLoading] = useState(true);

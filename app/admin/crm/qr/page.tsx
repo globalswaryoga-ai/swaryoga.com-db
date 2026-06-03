@@ -2,7 +2,8 @@
 // Version: 2026-03-12 20:45 UTC — Composite deployment (useRef fix + delays + UI hides)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
@@ -2375,6 +2376,15 @@ export default function QRWhatsAppPage() {
               )}
             </button>
           ))}
+
+          {/* Group Contacts — separate page link */}
+          <Link
+            href="/admin/crm/qr/group-contacts"
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-green-700 hover:bg-gray-100 hover:border-green-400 transition-all whitespace-nowrap"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Group Contacts</span>
+          </Link>
 
           {/* Funnel pills — visible only on inbox tab */}
           {tab === 'inbox' && (
