@@ -205,7 +205,12 @@ const nextConfig = {
   pageExtensions: ['mdx', 'md', 'jsx', 'js', 'tsx', 'ts'],
   // Exclude src/pages from Next.js build since we're using app/ router
   rewrites: async () => ({
-    beforeFiles: [],
+    beforeFiles: [
+      // Super-admin alias: /super-admin/crm/* serves the existing /admin/crm/* pages.
+      // Tenants (crm.swaryoga.com/admin/crm) and /api/admin/crm are untouched.
+      { source: '/super-admin/crm', destination: '/admin/crm' },
+      { source: '/super-admin/crm/:path*', destination: '/admin/crm/:path*' },
+    ],
     afterFiles: [],
     fallback: [],
   }),
