@@ -27,6 +27,7 @@ function TabNav() {
   const base = 'px-4 py-2 rounded-lg text-sm font-medium transition';
   return (
     <div className="flex gap-2 mb-6 flex-wrap">
+      <Link href="/admin/crm/planner-dashboard/ritucharya" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>🌿 Ritucharya</Link>
       <Link href="/admin/crm/planner-dashboard/ritucharya/profile" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>📝 My Form</Link>
       <Link href="/admin/crm/planner-dashboard/ritucharya/today" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>📅 Today</Link>
       <Link href="/admin/crm/planner-dashboard/ritucharya/calendar" className={`${base} bg-emerald-600 text-white`}>🗓️ Year Calendar</Link>

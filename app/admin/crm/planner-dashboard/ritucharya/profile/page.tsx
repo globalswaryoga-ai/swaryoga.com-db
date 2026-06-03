@@ -33,6 +33,7 @@ function TabNav() {
   const base = 'px-4 py-2 rounded-lg text-sm font-medium transition';
   return (
     <div className="flex gap-2 mb-6 flex-wrap">
+      <Link href="/admin/crm/planner-dashboard/ritucharya" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>🌿 Ritucharya</Link>
       <Link href="/admin/crm/planner-dashboard/ritucharya/profile" className={`${base} bg-emerald-600 text-white`}>📝 My Form</Link>
       <Link href="/admin/crm/planner-dashboard/ritucharya/today" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>📅 Today</Link>
       <Link href="/admin/crm/planner-dashboard/ritucharya/calendar" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>🗓️ Year Calendar</Link>
@@ -196,8 +197,8 @@ export default function RitucharyaProfilePage() {
       {saved && <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm">✓ Saved. Diet plan recalculated for your weather.</div>}
 
       {/* Location */}
-      <section className="bg-white border rounded-xl p-5 mb-5">
-        <h2 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><MapPin size={18} /> Location</h2>
+      <section className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5 md:p-6 mb-5">
+        <h2 className="text-xl font-bold text-emerald-800 mb-4 flex items-center gap-2"><MapPin size={20} /> Location</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <select disabled={ro} value={country} onChange={e => { setCountry(e.target.value); setStateName(''); setCity(''); }} className={inputCls()}>
             <option value="">Country</option>
@@ -219,29 +220,38 @@ export default function RitucharyaProfilePage() {
         )}
       </section>
 
-      {/* Weather (correctable) */}
-      <section className="bg-white border rounded-xl p-5 mb-5">
-        <h2 className="font-semibold text-gray-800 mb-1">Weather <span className="text-xs font-normal text-gray-500">(correct any value — the diet plan recalculates from this)</span></h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-          {([['temp','🌡️ Temp °C'],['tempMin','Min °C'],['tempMax','Max °C'],['humidity','💧 Humidity %'],['windSpeed','🌬️ Wind km/h'],['aqi','AQI']] as const).map(([k,label]) => (
-            <label key={k} className="text-sm">
-              <span className="block text-gray-500 mb-1">{label}</span>
-              <input type="number" disabled={ro} value={(w as any)[k]}
-                onChange={e => setW(p => ({ ...p, [k]: Number(e.target.value), manuallyCorrected: true }))}
-                className={inputCls()} />
-            </label>
+      {/* Weather (correctable) — colorful cards matching the public Ritucharya page */}
+      <section className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-5 md:p-6 mb-5">
+        <h2 className="text-xl font-bold text-blue-800 mb-1 flex items-center gap-2">☁️ Weather Details</h2>
+        <p className="text-xs text-gray-500 mb-4">Correct any value — the diet plan recalculates from this.</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {([
+            { k: 'temp',      label: '🌡️ Current Temp (°C)', card: 'bg-blue-100 border-blue-300' },
+            { k: 'tempMin',   label: '❄️ Min Temp (°C)',      card: 'bg-blue-100 border-blue-300' },
+            { k: 'tempMax',   label: '🔥 Max Temp (°C)',      card: 'bg-blue-100 border-blue-300' },
+            { k: 'humidity',  label: '💧 Humidity (%)',        card: 'bg-cyan-100 border-cyan-300' },
+            { k: 'windSpeed', label: '💨 Wind Speed (km/h)',  card: 'bg-yellow-100 border-yellow-300' },
+            { k: 'aqi',       label: '🌫️ Air Quality (AQI)',  card: 'bg-red-100 border-red-300' },
+          ] as const).map(item => (
+            <div key={item.k} className={`rounded-xl p-3 border ${item.card}`}>
+              <p className="text-[11px] text-gray-600 mb-1">{item.label}</p>
+              <input type="number" disabled={ro} value={(w as any)[item.k]}
+                onChange={e => setW(p => ({ ...p, [item.k]: Number(e.target.value), manuallyCorrected: true }))}
+                className={`w-full px-2 py-1.5 rounded-lg text-lg font-bold text-gray-900 border ${ro ? 'bg-white/60' : 'bg-white'}`} />
+            </div>
           ))}
-          <label className="text-sm col-span-2">
-            <span className="block text-gray-500 mb-1">Sky</span>
+          <div className="rounded-xl p-3 border bg-purple-100 border-purple-300 col-span-2">
+            <p className="text-[11px] text-gray-600 mb-1">📝 Sky Condition</p>
             <input type="text" disabled={ro} value={w.description}
-              onChange={e => setW(p => ({ ...p, description: e.target.value, manuallyCorrected: true }))} className={inputCls()} />
-          </label>
+              onChange={e => setW(p => ({ ...p, description: e.target.value, manuallyCorrected: true }))}
+              className={`w-full px-2 py-1.5 rounded-lg font-semibold text-gray-900 border ${ro ? 'bg-white/60' : 'bg-white'}`} />
+          </div>
         </div>
       </section>
 
       {/* Personal profile */}
-      <section className="bg-white border rounded-xl p-5 mb-5">
-        <h2 className="font-semibold text-gray-800 mb-3">Personal Profile</h2>
+      <section className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 md:p-6 mb-5">
+        <h2 className="text-xl font-bold text-amber-800 mb-4 flex items-center gap-2">🧘 Personal Profile</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="text-sm"><span className="block text-gray-500 mb-1">Name</span>
             <input disabled={ro} value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} className={inputCls()} /></label>
@@ -264,8 +274,8 @@ export default function RitucharyaProfilePage() {
 
       {/* Resolved ritu + diet preview */}
       {resolvedRitu && (
-        <section className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
-          <h2 className="font-semibold text-emerald-900 mb-2">{resolvedRitu.emoji} Your Ritu: {resolvedRitu.nameEn} ({resolvedRitu.nameHi})</h2>
+        <section className="rounded-2xl border-2 border-green-300 bg-green-50 p-5 md:p-6">
+          <h2 className="text-xl font-bold text-green-800 mb-2">{resolvedRitu.emoji} Your Ritu: {resolvedRitu.nameEn} ({resolvedRitu.nameHi})</h2>
           <p className="text-sm text-emerald-800 mb-3">{resolvedRitu.monthsEn} · {resolvedRitu.tempRange}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
