@@ -342,20 +342,28 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Send Message', href: '/admin/crm/send-template',        icon: Send },
       { label: 'Reports',      href: '/admin/crm/qr/broadcast-report',  icon: BarChart3 },
     ],
-    moreItems: [
-      { label: 'Groups',        href: '/admin/crm/qr/group-contacts',     icon: Users },
-      { label: 'Schedule',      href: '/admin/crm/qr/broadcast-schedule', icon: Calendar },
-      { label: 'Automation',    href: '/admin/crm/qr/automation',         icon: Zap },
-      { label: 'QR Chatbot',    href: '/admin/crm/qr/chatbot',            icon: Bot },
-      { label: 'Health Report', href: '/admin/crm/qr/health-report',      icon: Activity },
-    ],
+    // 'More' dropdown removed. Groups moved to its own sidebar entry (below).
+    // Schedule/Automation/QR Chatbot/Health Report still exist as routes.
+    moreItems: [],
     prefixes: [
       '/admin/crm/qr', '/admin/crm/qr/templates', '/admin/crm/qr/broadcast',
       '/admin/crm/qr/sent-messages', '/admin/crm/send-template',
-      '/admin/crm/qr/broadcast-report', '/admin/crm/qr/group-contacts',
+      '/admin/crm/qr/broadcast-report',
       '/admin/crm/qr/broadcast-schedule', '/admin/crm/qr/automation',
       '/admin/crm/qr/chatbot', '/admin/crm/qr/health-report',
     ],
+  },
+
+  // 8b. QR Group — group contacts (own sidebar entry)
+  {
+    key: 'qr-group',
+    title: 'QR Group',
+    icon: Users,
+    items: [
+      { label: 'Groups', href: '/admin/crm/qr/group-contacts', icon: Users },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/qr/group-contacts'],
   },
 
   // 9. Planner — planner bundle
