@@ -15,7 +15,6 @@ export default function RitucharyaCRMHubPage() {
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-4xl mx-auto px-4 pt-4 flex gap-2 flex-wrap">
         <Link href="/admin/crm/planner-dashboard/ritucharya" className={`${base} bg-emerald-600 text-white`}>🌿 Ritucharya</Link>
-        <Link href="/admin/crm/planner-dashboard/ritucharya/profile" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>📝 My Form</Link>
         <Link href="/admin/crm/planner-dashboard/ritucharya/today" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>📅 Today</Link>
         <Link href="/admin/crm/planner-dashboard/ritucharya/calendar" className={`${base} bg-white text-gray-700 border hover:bg-gray-50`}>🗓️ Year Calendar</Link>
       </div>

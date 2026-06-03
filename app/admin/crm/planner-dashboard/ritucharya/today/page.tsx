@@ -360,7 +360,6 @@ export default function CRMRitucharyaTodayPage() {
         {/* Tab nav across the 3 Ritucharya views */}
         <div className="flex gap-2 mb-6 flex-wrap">
           <Link href="/admin/crm/planner-dashboard/ritucharya" className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border hover:bg-gray-50">🌿 Ritucharya</Link>
-          <Link href="/admin/crm/planner-dashboard/ritucharya/profile" className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border hover:bg-gray-50">📝 My Form</Link>
           <Link href="/admin/crm/planner-dashboard/ritucharya/today" className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white">📅 Today</Link>
           <Link href="/admin/crm/planner-dashboard/ritucharya/calendar" className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border hover:bg-gray-50">🗓️ Year Calendar</Link>
         </div>
