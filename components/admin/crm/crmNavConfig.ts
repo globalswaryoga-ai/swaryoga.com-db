@@ -403,32 +403,16 @@ export const sectionConfigs: SectionConfig[] = [
           { label: 'Notes',      href: '/admin/crm/planner-dashboard/notes',      icon: StickyNote },
           { label: 'Words',      href: '/admin/crm/planner-dashboard/words',      icon: BookOpen },
           { label: 'Accounting', href: '/admin/crm/planner-dashboard/accounting', icon: Calculator },
+          { label: 'Ritucharya', href: '/admin/crm/planner-dashboard/ritucharya',  icon: Leaf },
         ],
       },
     ],
-    moreItems: [
-      { label: 'Ritucharya', href: '/admin/crm/planner/ritucharya', icon: Leaf },
-    ],
+    // Ritucharya now lives inside the Planner section (after Accounting), so it is
+    // no longer a standalone sidebar entry. Legacy /admin/crm/planner/ritucharya dropped.
+    moreItems: [],
     prefixes: [
       '/admin/crm/planner', '/admin/crm/planner-dashboard',
     ],
-  },
-
-  // 9b. Ritucharya — seasonal regimen (planner bundle)
-  {
-    key: 'ritucharya',
-    title: 'Ritucharya',
-    icon: Leaf,
-    items: [
-      { label: 'Today',     href: '/admin/crm/planner-dashboard/ritucharya/today',     icon: Clock },
-      { label: 'Dashboard', href: '/admin/crm/planner-dashboard/ritucharya/dashboard', icon: LayoutDashboard },
-      { label: 'Guide',     href: '/admin/crm/planner-dashboard/ritucharya/guide',     icon: BookOpen },
-    ],
-    // 'More' dropdown emptied — Ritus/Recipes/Variations Admin are super-admin
-    // correction pages (still reachable by direct URL / the /super-admin/crm alias),
-    // not shown in the user-facing Ritucharya header.
-    moreItems: [],
-    prefixes: ['/admin/crm/planner-dashboard/ritucharya'],
   },
 
   // 10. Reports — report bundle (tab-level bundle tags for cross-bundle tabs)

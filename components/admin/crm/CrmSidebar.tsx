@@ -24,13 +24,13 @@ const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'web-admin', 'archiv
 // that work lives on the main domain (swaryoga.com/admin/crm/super-admin).
 const TENANT_SECTION_KEYS = [
   'dashboard',
-  'qr-leads', 'qr',
+  'qr-leads', 'qr', 'qr-group',
   'sales', 'meta',
   'email', 'messages', 'telegram',
   'elearning',
   'sadhana', 'sadhana-schedule',
   'community', 'zoom',
-  'planner', 'ritucharya',
+  'planner',
   'reports',
   'automation', 'chatbot',
   'landing-pages',
@@ -169,6 +169,7 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'reports':        ['lead_management', 'report'],
     // QR WhatsApp — whatsapp_qr bundle
     'qr':             ['whatsapp_qr'],
+    'qr-group':       ['whatsapp_qr'],
     // Broadcast WhatsApp — only for Copper+ (Meta broadcasts; QR broadcasts are inside QR WA section)
     'broadcast':      ['whatsapp_meta'],
     // Meta WhatsApp — whatsapp_meta bundle (Copper+)
@@ -192,7 +193,6 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     'calls':          ['ai_calling'],
     // Planner — planner bundle
     'planner':        ['planner'],
-    'ritucharya':     ['planner'],
     // Landing Pages — landing_page bundle (Silver+)
     'landing-pages':  ['landing_page'],
     // E-Learning — elearning bundle (Silver+)
