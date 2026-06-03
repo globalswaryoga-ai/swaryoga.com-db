@@ -354,18 +354,6 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 8b. QR Group — group contacts (own sidebar entry)
-  {
-    key: 'qr-group',
-    title: 'QR Group',
-    icon: Users,
-    items: [
-      { label: 'Groups', href: '/admin/crm/qr/group-contacts', icon: Users },
-    ],
-    moreItems: [],
-    prefixes: ['/admin/crm/qr/group-contacts'],
-  },
-
   // 9. Planner — planner bundle
   {
     key: 'planner',
