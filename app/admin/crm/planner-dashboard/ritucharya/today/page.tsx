@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { MapPin, Loader, Plus, X, Save, Trash2, Calendar, AlertCircle, Zap } from 'lucide-react';
 import { locationData } from '@/lib/locationData';
 import { getClimateRitu, getRituBySeason, getCurrentSeasonByDate, validateSeasonByWeather } from '@/lib/ritucharya/seasons';
 import { foodDatabase, searchFood, RASAS } from '@/lib/ritucharya/foodDatabase';
 import { analyzeWeatherAndRecommendRasas, getSeasonalDetails } from '@/lib/ritucharya/seasonalAnalysis';
+import { getToken } from '@/lib/client-auth';
 
 interface MealInput {
   foodNames: string[];
@@ -293,7 +295,7 @@ export default function CRMRitucharyaTodayPage() {
     try {
       const response = await fetch('/api/ritucharya/daily-plans', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
         body: JSON.stringify({
           date: today,
           location,
@@ -355,6 +357,12 @@ export default function CRMRitucharyaTodayPage() {
   return (
     <main className="min-h-screen pt-24 pb-16 bg-white">
       <div className="container mx-auto px-4 max-w-6xl">
+        {/* Tab nav across the 3 Ritucharya views */}
+        <div className="flex gap-2 mb-6 flex-wrap">
+          <Link href="/admin/crm/planner-dashboard/ritucharya/profile" className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border hover:bg-gray-50">📝 My Form</Link>
+          <Link href="/admin/crm/planner-dashboard/ritucharya/today" className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white">📅 Today</Link>
+          <Link href="/admin/crm/planner-dashboard/ritucharya/calendar" className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-700 border hover:bg-gray-50">🗓️ Year Calendar</Link>
+        </div>
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 text-gray-900">

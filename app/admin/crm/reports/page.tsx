@@ -176,6 +176,7 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     try {
       const slug = localStorage.getItem('tenantSlug') || '';
+      if (!slug) return; // no tenant slug (e.g. super admin) — skip to avoid 400
       const res = await fetch(`/api/crm-site/reports?tenant=${slug}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -187,6 +188,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const slug = localStorage.getItem('tenantSlug') || '';
+      if (!slug) { setLoading(false); return; } // no tenant slug yet — skip
       const res = await fetch(`/api/crm-site/analytics?tenant=${slug}&period=${timeRange}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -199,6 +201,7 @@ export default function ReportsPage() {
     setReportLoading(true);
     try {
       const slug = localStorage.getItem('tenantSlug') || '';
+      if (!slug) { setReportLoading(false); return; } // no tenant slug yet — skip
       const res = await fetch(`/api/crm-site/reports?tenant=${slug}&id=${reportId}&timeRange=${timeRange}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
