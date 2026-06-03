@@ -26,6 +26,15 @@ function isWithinTimeWindow(startTime: string, endTime: string, timezone: string
   return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
 }
 
+// ── Hard global bulk-send curfew: 05:00–22:00 IST (night off). ──────────────
+// Applies to BULK/broadcast sends only. Single/inbox chat replies go through a
+// different route (qr/send + qr-bridge proxy) and are intentionally 24/7.
+const BULK_WINDOW_START = '05:00';
+const BULK_WINDOW_END = '22:00';
+function isWithinBulkHours(): boolean {
+  return isWithinTimeWindow(BULK_WINDOW_START, BULK_WINDOW_END, 'Asia/Kolkata');
+}
+
 /**
  * Check if schedule should run today
  */
@@ -84,7 +93,13 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
   console.log(`[QR Broadcast Processor] Processing schedule: ${schedule._id}`);
 
   try {
-    // Check time window
+    // Hard curfew: bulk only 05:00–22:00 IST. Single/inbox messages unaffected.
+    if (!isWithinBulkHours()) {
+      console.log(`[QR Broadcast Processor] Schedule ${schedule._id} skipped — outside bulk hours (05:00–22:00 IST)`);
+      return { status: 'skipped', reason: 'outside_bulk_hours' };
+    }
+
+    // Check per-schedule time window
     if (!isWithinTimeWindow(schedule.startTime, schedule.endTime, schedule.timezone)) {
       console.log(`[QR Broadcast Processor] Schedule ${schedule._id} outside time window`);
       return { status: 'skipped', reason: 'outside_time_window' };
@@ -131,6 +146,12 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
 
     for (let i = 0; i < recipients.length; i += batchSize) {
       const batch = recipients.slice(i, i + batchSize);
+
+      // Stop mid-broadcast if we cross the 22:00 IST curfew; rest resumes at 05:00
+      if (!isWithinBulkHours()) {
+        console.log(`[QR Broadcast Processor] Bulk curfew reached (22:00 IST) — stopping after ${sent} sent, ${recipients.length - i} deferred to next window`);
+        break;
+      }
 
       // Send batch
       for (const chatId of batch) {
