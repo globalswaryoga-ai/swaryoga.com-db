@@ -176,7 +176,7 @@ export default function QRLeadsPage() {
     if (!token) return;
     try {
       setLoadingMetadata(true);
-      const params: Record<string, any> = {};
+      const params: Record<string, any> = { source: QR_SOURCE };
       if (isSuperAdmin && userFilter) params.userId = userFilter;
       const response = await fetch('/api/admin/crm/leads/metadata?' + new URLSearchParams(params), {
         headers: { Authorization: `Bearer ${token}` },
@@ -195,20 +195,20 @@ export default function QRLeadsPage() {
     }
   }, [token, isSuperAdmin, userFilter]);
 
-  // Fetch leads
-  const fetchLeads = useCallback(async () => {
+  // Fetch leads — bypasses rate limit when called with force=true (e.g. after import)
+  const fetchLeads = useCallback(async (force = false) => {
     if (!token) return;
     const now = Date.now();
-    if (now - lastFetchTimeRef.current < MIN_FETCH_INTERVAL_MS) return;
+    if (!force && now - lastFetchTimeRef.current < MIN_FETCH_INTERVAL_MS) return;
     lastFetchTimeRef.current = now;
 
     try {
-      const params: Record<string, any> = { limit, skip };
+      const params: Record<string, any> = { limit, skip, source: QR_SOURCE };
       if (filterStatus) params.status = filterStatus;
       if (filterWorkshop) params.workshop = filterWorkshop;
       if (search.query) params.q = search.query;
       if (isSuperAdmin && userFilter) params.userId = userFilter;
-      if (metaOnly24h) params.metaOnly24h = '1';  // Pass filter param
+      if (metaOnly24h) params.metaOnly24h = '1';
 
       const response = await fetch('/api/admin/crm/leads?' + new URLSearchParams(params), {
         headers: { Authorization: `Bearer ${token}` },
@@ -444,7 +444,7 @@ export default function QRLeadsPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => { fetchLeads(); fetchMetadata(); }}
+              onClick={() => { fetchLeads(true); fetchMetadata(); }}
               className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
@@ -1087,7 +1087,7 @@ export default function QRLeadsPage() {
                       setCsvSourceOverride(QR_SOURCE);
                       setCsvAssignAdmin('');
                       fetchMetadata();
-                      fetchLeads();
+                      fetchLeads(true); // force=true bypasses the 2s rate limiter
                     } else {
                       alert(`Error: ${data.error || 'Import failed'}`);
                     }
