@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/hooks/useAuth';
+import { getToken } from '@/lib/client-auth';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -32,7 +33,7 @@ export default function AllReportsPage() {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(`/api/admin/crm/reports?range=${dateRange}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -51,7 +52,7 @@ export default function AllReportsPage() {
 
   const downloadReport = async (format: 'csv' | 'pdf') => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch(
         `/api/admin/crm/reports/download?range=${dateRange}&format=${format}`,
         {
