@@ -187,16 +187,20 @@ export default function AllReportsPage() {
                     <span className="font-semibold">{reports.leads?.new || 0}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-gray-700">Qualified</span>
-                    <span className="font-semibold">{reports.leads?.qualified || 0}</span>
+                    <span className="text-gray-700">Interested</span>
+                    <span className="font-semibold">{reports.leads?.interested || 0}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-gray-700">In Progress</span>
                     <span className="font-semibold">{reports.leads?.inProgress || 0}</span>
                   </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-gray-700">Won</span>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-gray-700">Won / Enrolled</span>
                     <span className="font-semibold text-green-600">{reports.leads?.won || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-700">Lost</span>
+                    <span className="font-semibold text-red-500">{reports.leads?.lost || 0}</span>
                   </div>
                 </div>
               </div>
@@ -235,20 +239,24 @@ export default function AllReportsPage() {
                 </div>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-gray-700">Total Sent</span>
-                    <span className="font-semibold">{reports.qrBroadcast?.sent || 0}</span>
+                    <span className="text-gray-700">Runs</span>
+                    <span className="font-semibold">{reports.qrBroadcast?.runs || 0}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-gray-700">Views</span>
-                    <span className="font-semibold">{(reports.qrBroadcast?.views || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-gray-700">Messages Sent</span>
+                    <span className="font-semibold">{(reports.qrBroadcast?.sent || 0).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-gray-700">Clicks</span>
-                    <span className="font-semibold text-green-600">{(reports.qrBroadcast?.clicks || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-gray-700">Delivered</span>
+                    <span className="font-semibold text-green-600">{(reports.qrBroadcast?.delivered || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-gray-700">Read</span>
+                    <span className="font-semibold text-blue-600">{(reports.qrBroadcast?.read || 0).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between items-center py-2">
-                    <span className="text-gray-700">Click Rate</span>
-                    <span className="font-semibold text-green-600">{(reports.qrBroadcast?.clickRate || 0).toFixed(1)}%</span>
+                    <span className="text-gray-700">Delivery Rate</span>
+                    <span className="font-semibold text-green-600">{(reports.qrBroadcast?.deliveryRate || 0).toFixed(1)}%</span>
                   </div>
                 </div>
               </div>
@@ -261,20 +269,20 @@ export default function AllReportsPage() {
                 </div>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-gray-700">Telegram Messages</span>
+                    <span className="text-gray-700">Meta WhatsApp (outbound)</span>
+                    <span className="font-semibold">{(reports.messaging?.whatsappMeta || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-gray-700">QR WhatsApp (outbound)</span>
+                    <span className="font-semibold">{(reports.messaging?.whatsappQR || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-gray-700">Telegram</span>
                     <span className="font-semibold">{(reports.messaging?.telegram || 0).toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-gray-700">WhatsApp Messages</span>
-                    <span className="font-semibold">{(reports.messaging?.whatsapp || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-gray-700">SMS Messages</span>
-                    <span className="font-semibold">{(reports.messaging?.sms || 0).toLocaleString('en-IN')}</span>
-                  </div>
                   <div className="flex justify-between items-center py-2">
-                    <span className="text-gray-700">Response Rate</span>
-                    <span className="font-semibold text-purple-600">{(reports.messaging?.responseRate || 0).toFixed(1)}%</span>
+                    <span className="text-gray-700">Total Messages</span>
+                    <span className="font-semibold text-purple-600">{(reports.messaging?.total || 0).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
