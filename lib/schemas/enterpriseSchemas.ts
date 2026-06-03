@@ -404,7 +404,7 @@ QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, timestamp: -1 });
 QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, direction: 1, timestamp: -1 }); // Per-user chats by direction
 QrWhatsAppMessageSchema.index({ chatJid: 1, timestamp: -1 }); // Messages in a chat
 QrWhatsAppMessageSchema.index({ userId: 1, fromMe: 1, timestamp: -1 }); // User's outbound messages
-QrWhatsAppMessageSchema.index({ messageId: 1, chatJid: 1 }, { unique: true, sparse: true }); // Dedupe
+QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, messageId: 1, chatJid: 1 }, { unique: true, sparse: true }); // Per-tenant dedupe — tenant-scoped so two tenants in the same WhatsApp group each keep their own copy (was global {messageId,chatJid} which collided)
 
 // ============================================================================
 // 1a-QR-CHATS. QR WHATSAPP CHATS — Persistent chat list with metadata

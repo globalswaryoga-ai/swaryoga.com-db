@@ -707,7 +707,7 @@ export async function processDueBroadcastRuns(options?: {
                 const QrMsg = getQrWhatsAppMessage();
                 const chatJid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
                 await QrMsg.updateOne(
-                  { messageId: waMessageId, chatJid },
+                  { userId: runUserId, connectedPhone, messageId: waMessageId, chatJid },
                   {
                     $set: {
                       userId: runUserId,

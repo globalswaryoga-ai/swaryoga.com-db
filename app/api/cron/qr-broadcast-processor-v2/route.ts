@@ -549,7 +549,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
           const msgId = `broadcast-${schedule._id}-${chatId.replace(/\D/g, '')}-${Date.now()}`;
           if (connectedPhone) {
             await QrMsg.updateOne(
-              { messageId: msgId, chatJid },
+              { userId: schedule.userId, connectedPhone, messageId: msgId, chatJid },
               {
                 $set: {
                   userId: schedule.userId,

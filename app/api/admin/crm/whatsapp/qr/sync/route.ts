@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       const QrMsg = getQrWhatsAppMessage();
       const ops = messages.map((m: any) => ({
         updateOne: {
-          filter: { messageId: m.messageId, chatJid: m.chatJid },
+          filter: { userId, connectedPhone, messageId: m.messageId, chatJid: m.chatJid },
           update: {
             $set: {
               userId,
