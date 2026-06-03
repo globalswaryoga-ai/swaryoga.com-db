@@ -236,7 +236,16 @@ function DayMealPanel({ dayNum, date, meals, dietPlan, total, hasPlan, onPrev, o
 
 const STORAGE_KEY = 'ritucharya_user_data_v1';
 
-export default function RitucharyaPage() {
+type RitucharyaPersist = 'local' | 'tenant';
+export function RitucharyaExperience({
+  persist = 'local',
+  showChrome = true,
+  getAuthToken,
+}: {
+  persist?: RitucharyaPersist;
+  showChrome?: boolean;
+  getAuthToken?: () => string | null;
+} = {}) {
 
   const [step, setStep]           = useState<1|2|3>(1);
   const [country, setCountry]     = useState('');
@@ -271,55 +280,87 @@ export default function RitucharyaPage() {
   const saveData = useCallback((w: WeatherState, loc: { country:string; state:string; city:string; aayan:string; season:string; humidityLevel?:string }) => {
     try {
       const data = { ...loc, weather: w, savedAt: new Date().toISOString() };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      if (persist === 'tenant') {
+        const token = getAuthToken?.() || '';
+        fetch('/api/admin/crm/ritucharya/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            country: loc.country, state: loc.state, city: loc.city,
+            weather: {
+              temp: w.temp, tempMin: w.tempMin, tempMax: w.tempMax,
+              humidity: w.humidity, windSpeed: w.windSpeed, aqi: w.aqi,
+              description: w.description, manuallyCorrected: true,
+            },
+            pageState: data,
+          }),
+        }).catch(() => {});
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
       setSavedAt(new Date());
       setSaveFlash(true);
       setTimeout(() => setSaveFlash(false), 2500);
     } catch { /* storage full / private mode */ }
-  }, []);
+  }, [persist, getAuthToken]);
 
   const clearSaved = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    if (persist === 'tenant') {
+      const token = getAuthToken?.() || '';
+      fetch('/api/admin/crm/ritucharya/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ pageState: {} }),
+      }).catch(() => {});
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
     setSavedAt(null);
     setCountry(''); setState(''); setCity(''); setAayan(''); setSeason(''); setHumidityLevel('');
     setStates([]); setCities([]);
     setWeather({ temp:28, tempMin:22, tempMax:35, humidity:55, windSpeed:12, aqi:60, description:'Partly cloudy' });
   };
 
-  // ── On mount: restore saved location + weather ───────────────────────
+  // ── On mount: restore saved location + weather (localStorage or per-tenant DB) ──
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (!data.country) return;
-
-      // Restore location dropdowns
-      const countryData = locationData.find(c => c.name === data.country);
-      if (!countryData) return;
-      setCountry(data.country);
-      setStates(countryData.states);
-
-      if (data.state) {
-        const stateData = countryData.states.find(s => s.name === data.state);
-        if (stateData) {
-          setState(data.state);
-          setCities(stateData.cities);
-          if (data.city) setCity(data.city);
+    const restore = (data: any) => {
+      try {
+        if (!data || !data.country) return;
+        const countryData = locationData.find(c => c.name === data.country);
+        if (!countryData) return;
+        setCountry(data.country);
+        setStates(countryData.states);
+        if (data.state) {
+          const stateData = countryData.states.find(s => s.name === data.state);
+          if (stateData) {
+            setState(data.state);
+            setCities(stateData.cities);
+            if (data.city) setCity(data.city);
+          }
         }
-      }
+        if (data.aayan) setAayan(data.aayan);
+        if (data.season) setSeason(data.season);
+        if (data.humidityLevel) setHumidityLevel(data.humidityLevel);
+        if (data.weather) setWeather(data.weather);
+        if (data.savedAt) setSavedAt(new Date(data.savedAt));
+      } catch { /* corrupted data */ }
+    };
 
-      // Restore aayan, season, and humidity level
-      if (data.aayan) setAayan(data.aayan);
-      if (data.season) setSeason(data.season);
-      if (data.humidityLevel) setHumidityLevel(data.humidityLevel);
-
-      // Restore weather
-      if (data.weather) setWeather(data.weather);
-      if (data.savedAt) setSavedAt(new Date(data.savedAt));
-    } catch { /* corrupted data */ }
+    if (persist === 'tenant') {
+      const token = getAuthToken?.() || '';
+      if (!token) return;
+      fetch('/api/admin/crm/ritucharya/profile', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(d => { if (d?.profile?.pageState) restore(d.profile.pageState); })
+        .catch(() => {});
+    } else {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) restore(JSON.parse(raw));
+      } catch { /* corrupted data */ }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [persist]);
 
   // ── Location handlers ────────────────────────────────────────────────
   const onCountry = (val: string) => {
@@ -536,8 +577,8 @@ export default function RitucharyaPage() {
   // ─────────────────────────────────────────────────────────────────────
   return (
     <>
-      <Navigation />
-      <main className="min-h-screen bg-gray-50 pt-24 pb-16">
+      {showChrome && <Navigation />}
+      <main className={showChrome ? 'min-h-screen bg-gray-50 pt-24 pb-16' : 'bg-gray-50 pb-16'}>
         <div className="container mx-auto px-4 max-w-4xl">
 
           {/* Header */}
@@ -1083,7 +1124,12 @@ export default function RitucharyaPage() {
 
         </div>
       </main>
-      <Footer />
+      {showChrome && <Footer />}
     </>
   );
+}
+
+// Public route — full chrome + browser-local persistence
+export default function RitucharyaPage() {
+  return <RitucharyaExperience persist="local" showChrome />;
 }

@@ -56,45 +56,53 @@ export async function POST(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const weather = body.weather || {};
-    const rituId = resolveRitu(weather);
+
+    // Partial/merge update — only set the fields actually provided, so the Form page
+    // and the shared <RitucharyaExperience> (which save different subsets) don't clobber
+    // each other on the single per-tenant document.
+    const set: any = { userId };
+    if (body.country !== undefined) set.country = body.country || '';
+    if (body.state !== undefined) set.state = body.state || '';
+    if (body.city !== undefined) set.city = body.city || '';
+    if (body.rituPhase !== undefined) set.rituPhase = body.rituPhase || '';
+    if (body.pageState !== undefined) set.pageState = body.pageState || {};
+
+    let rituId = '';
+    if (body.weather !== undefined) {
+      const weather = body.weather || {};
+      rituId = resolveRitu(weather);
+      set.weather = {
+        temp: Number(weather.temp ?? 25),
+        tempMin: Number(weather.tempMin ?? 20),
+        tempMax: Number(weather.tempMax ?? 30),
+        humidity: Number(weather.humidity ?? 50),
+        windSpeed: Number(weather.windSpeed ?? 15),
+        aqi: Number(weather.aqi ?? 50),
+        description: weather.description || '',
+        manuallyCorrected: !!weather.manuallyCorrected,
+        fetchedAt: weather.fetchedAt ? new Date(weather.fetchedAt) : new Date(),
+      };
+      set.rituId = rituId;
+    }
+    if (body.profile !== undefined) {
+      set.profile = {
+        name: body.profile?.name || '',
+        age: body.profile?.age != null ? Number(body.profile.age) : undefined,
+        gender: body.profile?.gender || '',
+        prakriti: body.profile?.prakriti || '',
+        healthConditions: Array.isArray(body.profile?.healthConditions) ? body.profile.healthConditions : [],
+        notes: body.profile?.notes || '',
+      };
+    }
 
     await connectDB();
-    const doc = await getRitucharyaProfile().findOneAndUpdate(
+    const doc: any = await getRitucharyaProfile().findOneAndUpdate(
       { userId },
-      {
-        $set: {
-          userId,
-          country: body.country || '',
-          state: body.state || '',
-          city: body.city || '',
-          weather: {
-            temp: Number(weather.temp ?? 25),
-            tempMin: Number(weather.tempMin ?? 20),
-            tempMax: Number(weather.tempMax ?? 30),
-            humidity: Number(weather.humidity ?? 50),
-            windSpeed: Number(weather.windSpeed ?? 15),
-            aqi: Number(weather.aqi ?? 50),
-            description: weather.description || '',
-            manuallyCorrected: !!weather.manuallyCorrected,
-            fetchedAt: weather.fetchedAt ? new Date(weather.fetchedAt) : new Date(),
-          },
-          rituId,
-          rituPhase: body.rituPhase || '',
-          profile: {
-            name: body.profile?.name || '',
-            age: body.profile?.age != null ? Number(body.profile.age) : undefined,
-            gender: body.profile?.gender || '',
-            prakriti: body.profile?.prakriti || '',
-            healthConditions: Array.isArray(body.profile?.healthConditions) ? body.profile.healthConditions : [],
-            notes: body.profile?.notes || '',
-          },
-        },
-      },
+      { $set: set },
       { upsert: true, new: true }
     ).lean();
 
-    const ritu = getRituBySeason(rituId);
+    const ritu = getRituBySeason(rituId || doc?.rituId || '');
     return NextResponse.json({ success: true, profile: doc, ritu: ritu || null });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

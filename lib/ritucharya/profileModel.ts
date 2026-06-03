@@ -35,6 +35,10 @@ const RitucharyaProfileSchema = new mongoose.Schema(
     rituId: { type: String, default: '' }, // grisham | varsha | sharad | hemant | shishir | vasant
     rituPhase: { type: String, default: '' }, // begin | peak | last
 
+    // ── Full public-experience page state (location/aayan/season/humidity/weather snapshot) ──
+    // Stored as-is so the shared <RitucharyaExperience> can restore the tenant's session.
+    pageState: { type: Object, default: {} },
+
     // ── Personal Ayurvedic profile ──
     profile: {
       name: { type: String, default: '' },
