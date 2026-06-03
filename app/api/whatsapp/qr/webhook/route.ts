@@ -48,6 +48,22 @@ export async function POST(req: NextRequest) {
       payload = { raw: bodyText };
     }
 
+    // Prefer bridge user identity from verified headers over body payload (defense-in-depth).
+    const headerUserId = req.headers.get('x-user-id')?.trim();
+    const headerSessionKey = req.headers.get('x-session-key')?.trim();
+    if (headerUserId) payload.bridgeUserId = headerUserId;
+    if (headerSessionKey && !payload.bridgeSessionId) payload.bridgeSessionId = headerSessionKey;
+
+    // ── Delivery / read receipts (ticks) ──
+    // The bridge forwards { type: 'status_update', messageId, status } whenever a sent
+    // message progresses (server_ack → delivery_ack → read). Persist it so ticks survive
+    // a bridge restart / PC off instead of reverting to a single grey tick. Handled before
+    // the forensic log below so high-frequency receipts don't flood the events collection.
+    if (payload?.type === 'status_update' || payload?.event === 'message_status') {
+      const result = await applyQrStatusUpdate(payload, payload.bridgeUserId);
+      return apiSuccess({ ok: true, ...result });
+    }
+
     // Store raw events first for forensics.
     await logQREvent({
       kind: 'unknown',
@@ -58,12 +74,6 @@ export async function POST(req: NextRequest) {
         payload,
       },
     });
-
-    // Prefer bridge user identity from verified headers over body payload (defense-in-depth).
-    const headerUserId = req.headers.get('x-user-id')?.trim();
-    const headerSessionKey = req.headers.get('x-session-key')?.trim();
-    if (headerUserId) payload.bridgeUserId = headerUserId;
-    if (headerSessionKey && !payload.bridgeSessionId) payload.bridgeSessionId = headerSessionKey;
 
     // Debug: Log webhook headers
     console.log(`[QR WEBHOOK] ════════════════════════════════════════`);
@@ -81,6 +91,48 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     return apiError('SERVER_ERROR', message);
   }
+}
+
+/**
+ * Persist a delivery/read receipt to the QR message stores, only ever upgrading the tick
+ * (receipts can arrive out of order). Status is the numeric Baileys code used by the inbox:
+ * 1=pending, 2=sent (server_ack), 3=delivered (delivery_ack), 4=read, 5=played.
+ */
+async function applyQrStatusUpdate(payload: any, bridgeUserId?: string) {
+  const messageId = String(payload.messageId || payload.id || '').trim();
+  if (!messageId) return { skipped: true, reason: 'no_messageId' };
+
+  const raw = payload.status ?? payload.ack;
+  let numeric: number | null = null;
+  if (typeof raw === 'number') {
+    numeric = raw;
+  } else if (typeof raw === 'string') {
+    const map: Record<string, number> = {
+      pending: 1, sent: 2, server_ack: 2, delivered: 3, delivery_ack: 3, read: 4, played: 5,
+    };
+    numeric = map[raw.toLowerCase()] ?? null;
+  }
+  // Only persist real progression (sent/delivered/read/played). 0/1 carry no tick info.
+  if (numeric == null || numeric < 2) return { skipped: true, reason: 'unmapped_status' };
+
+  await connectDB();
+  const { getQrWhatsAppMessage, getWhatsAppMessage } = await import('@/lib/schemas/enterpriseSchemas');
+  const QrWhatsAppMessage = getQrWhatsAppMessage();
+  const WhatsAppMessage = getWhatsAppMessage();
+
+  // qr_whatsapp_messages: numeric status, never downgrade.
+  const qrFilter: any = { messageId, status: { $lt: numeric } };
+  if (bridgeUserId) qrFilter.userId = bridgeUserId;
+  const qrRes = await QrWhatsAppMessage.updateMany(qrFilter, { $set: { status: numeric } });
+
+  // Mirror to the unified WhatsAppMessage store (string status) for the combined inbox.
+  const strStatus = numeric >= 4 ? 'read' : numeric === 3 ? 'delivered' : 'sent';
+  const waSet: any = { status: strStatus };
+  if (numeric >= 4) waSet.readAt = new Date();
+  else if (numeric === 3) waSet.deliveredAt = new Date();
+  await WhatsAppMessage.updateOne({ waMessageId: messageId }, { $set: waSet });
+
+  return { updated: qrRes.modifiedCount || 0, status: numeric };
 }
 
 async function ingestQRPayload(payload: any) {

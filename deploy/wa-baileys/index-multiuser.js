@@ -952,6 +952,28 @@ async function startSocket(userId) {
       }
     });
 
+    // ── Delivery / read receipts (ticks) ───────────────────────────────────
+    // Update the in-memory copy so /messages reflects fresh ticks, and forward to the
+    // CRM webhook so persisted ticks survive a bridge restart / PC off (otherwise the
+    // DB status stays at 2 = single grey tick forever).
+    sock.ev.on('messages.update', (updates) => {
+      for (const { key, update } of updates) {
+        try {
+          if (!key?.remoteJid || key.remoteJid === 'status@broadcast') continue;
+          const status = update?.status;
+          if (typeof status !== 'number') continue;
+          const arr = session.messageMap.get(key.remoteJid);
+          if (arr) {
+            const m = arr.find(x => x.id === key.id);
+            if (m) m.status = Math.max(m.status ?? 0, status);
+          }
+          if (status >= 2 && key.id) {
+            forwardToWebhook(session, { type: 'status_update', messageId: key.id, status });
+          }
+        } catch (e) { console.error(`[${userId}] status update error:`, e.message); }
+      }
+    });
+
   } catch (err) {
     console.error(`[${userId}] startSocket error:`, err.message);
     if (!session.intentionalDisconnect) {

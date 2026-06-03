@@ -935,6 +935,12 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
             chatMsgs[msgIdx].status = Math.max(chatMsgs[msgIdx].status ?? 0, update.status ?? 0);
           }
         }
+
+        // Persist delivery/read receipts so ticks survive a bridge restart / PC off.
+        // Without this the DB status stayed at 2 (single grey tick) forever.
+        if (typeof update.status === 'number' && update.status >= 2 && key.id) {
+          forwardToWebhook(session, { type: 'status_update', messageId: key.id, status: update.status });
+        }
       }
     });
 

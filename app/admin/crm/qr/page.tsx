@@ -1028,12 +1028,24 @@ export default function QRWhatsAppPage() {
   // ── Fetch chats (bridge + CRM leads merge) ──
   const fetchChats = useCallback(async () => {
     try {
-      // ── STEP 1: Fetch bridge chats (with error handling) ──
+      // ── STEP 1: Fetch chats from the DB-merged endpoint so older chats persist across
+      // bridge restarts / PC off. The bridge's in-memory chat list is empty on a cold start,
+      // so older conversations only reappeared after a manual refresh. /qr/chats merges the
+      // persisted qr_whatsapp_chats with the live bridge list. Falls back to a direct bridge
+      // call if the merged endpoint is unavailable (keeps NO_BRIDGE detection intact).
       let data: any = null;
       try {
-        data = await bridgeCall('/chats');
+        const res = await fetch('/api/admin/crm/whatsapp/qr/chats', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          data = { chats: Array.isArray(json?.chats) ? json.chats : [] };
+        } else {
+          data = await bridgeCall('/chats');
+        }
       } catch (bridgeErr: any) {
-        throw bridgeErr;
+        data = await bridgeCall('/chats');
       }
 
       // ── SESSION CHANGED: server may have filtered out stale old-session chats ──
@@ -1269,9 +1281,26 @@ export default function QRWhatsAppPage() {
       if (merged.length > 0) {
         setMessages(prev => {
           const optimisticMsgs = prev.filter(m => m.id?.startsWith('opt-'));
-          const serverIds = new Set(merged.map(m => m.id));
-          const filteredOptimistic = optimisticMsgs.filter(m => !serverIds.has(m.id?.replace(/^opt-/, '') || ''));
-          return [...merged, ...filteredOptimistic];
+          if (optimisticMsgs.length === 0) return merged;
+          // Drop optimistic placeholders once the real outbound message arrives from the
+          // bridge/DB. Optimistic ids are client-generated (`opt-…`) and never match the
+          // server's WhatsApp message id, so we reconcile by content instead: match outbound
+          // messages by text (ignoring any bold *attribution* the send pipeline may append)
+          // within a short send window — or by media type. This stops the "sent twice" bug.
+          const toSecs = (t: number) => (t > 1e12 ? Math.floor(t / 1000) : t);
+          const stripAttribution = (s?: string) =>
+            (s || '').trim().replace(/\n\n\*[^*]+\*\s*$/, '').trim();
+          const serverOutbound = merged.filter(m => m.fromMe);
+          const remainingOptimistic = optimisticMsgs.filter(opt => {
+            const optTs = toSecs(opt.timestamp || 0);
+            return !serverOutbound.some(sv => {
+              const svTs = toSecs(sv.timestamp || 0);
+              if (Math.abs(svTs - optTs) > 120) return false; // 2-minute window
+              if (opt.hasMedia) return !!sv.hasMedia;          // media: match by type + time
+              return stripAttribution(sv.text) === stripAttribution(opt.text);
+            });
+          });
+          return [...merged, ...remainingOptimistic];
         });
         setFailedInlineMediaIds(prev => {
           if (prev.size === 0) return prev;
