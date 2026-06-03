@@ -406,30 +406,25 @@ export function RitucharyaExperience({
     if (!cityObj) { setFetching(false); return; }
     setFetching(true);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || process.env.OPENWEATHER_API_KEY;
-      if (!apiKey) { console.warn('OpenWeatherMap API key not configured'); setFetching(false); return; }
-
-      const [wRes, aqiRes] = await Promise.allSettled([
-        fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${cityObj.latitude}&lon=${cityObj.longitude}&appid=${apiKey}&units=metric`),
-        fetch(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${cityObj.latitude}&lon=${cityObj.longitude}&appid=${apiKey}`),
-      ]);
+      // Keyless weather via Open-Meteo (forecast + air-quality). No API key required.
+      const fcUrl = `https://api.open-meteo.com/v1/forecast?latitude=${cityObj.latitude}&longitude=${cityObj.longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&temperature_unit=celsius`;
+      const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${cityObj.latitude}&longitude=${cityObj.longitude}&current=us_aqi`;
+      const [wRes, aqiRes] = await Promise.allSettled([fetch(fcUrl), fetch(aqUrl)]);
       const w = { ...weather };
       if (wRes.status === 'fulfilled' && wRes.value.ok) {
         const d = await wRes.value.json();
-        w.temp        = Math.round(d.main.temp);
-        w.humidity    = Math.round(d.main.humidity);
-        w.windSpeed   = Math.round(d.wind.speed);
-        w.tempMin     = d.main?.temp_min != null ? Math.round(d.main.temp_min) : w.temp - 4;
-        w.tempMax     = d.main?.temp_max != null ? Math.round(d.main.temp_max) : w.temp + 5;
-        const mainDesc = d.weather?.[0]?.main || 'Unknown';
-        w.description = mainDesc.includes('Clear')?'Clear sky':mainDesc.includes('Cloud')?'Partly cloudy':mainDesc.includes('Mist')||mainDesc.includes('Fog')?'Foggy':mainDesc.includes('Rain')?'Rainy':mainDesc.includes('Snow')?'Snowy':mainDesc.includes('Thunder')?'Thunderstorm':mainDesc;
+        const cur = d.current || {};
+        w.temp      = Math.round(cur.temperature_2m);
+        w.humidity  = Math.round(cur.relative_humidity_2m);
+        w.windSpeed = Math.round(cur.wind_speed_10m);
+        w.tempMin   = d.daily?.temperature_2m_min?.[0] != null ? Math.round(d.daily.temperature_2m_min[0]) : w.temp - 4;
+        w.tempMax   = d.daily?.temperature_2m_max?.[0] != null ? Math.round(d.daily.temperature_2m_max[0]) : w.temp + 5;
+        const code = cur.weather_code ?? 0;
+        w.description = code === 0 ? 'Clear sky' : code <= 3 ? 'Partly cloudy' : code <= 48 ? 'Foggy' : code <= 67 ? 'Rainy' : code <= 77 ? 'Snowy' : code <= 82 ? 'Rainy' : 'Thunderstorm';
       }
       if (aqiRes.status === 'fulfilled' && aqiRes.value.ok) {
         const a = await aqiRes.value.json();
-        if (a?.list?.[0]?.main?.aqi != null) {
-          const aqiValue = a.list[0].main.aqi;
-          w.aqi = aqiValue === 1 ? 30 : aqiValue === 2 ? 50 : aqiValue === 3 ? 100 : aqiValue === 4 ? 150 : 200;
-        }
+        if (a?.current?.us_aqi != null) w.aqi = Math.round(a.current.us_aqi);
       }
       // Auto-update humidity level based on fetched humidity value
       let newHumidityLevel = humidityLevel;
