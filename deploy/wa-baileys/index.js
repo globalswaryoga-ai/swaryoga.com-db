@@ -111,6 +111,7 @@ class UserSession {
     this.chatMap = new Map();
     this.messageMap = new Map();
     this.rawMessageCache = new Map();
+    this.sentMessageCache = new Map(); // id -> message proto, for getMessage() retry recovery
     this.groupSubjectCache = new Map();
     this.groupMembersCache = new Map();
     this.contactsCache = new Map();
@@ -602,6 +603,19 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       syncFullHistory: false,
       shouldSyncHistoryMessage: () => false,
       markOnlineThrottleMs: 15000,
+      // Resend message content when a recipient's device asks for a retry
+      // (otherwise their WhatsApp is stuck on "Waiting for this message").
+      getMessage: async (key) => {
+        try {
+          const id = key?.id;
+          if (!id) return undefined;
+          const cached = session.sentMessageCache.get(id);
+          if (cached) return cached;
+          const raw = session.rawMessageCache.get(id);
+          if (raw?.message) return raw.message;
+          return undefined;
+        } catch { return undefined; }
+      },
     });
 
     session.sock = sock;
@@ -1378,6 +1392,10 @@ app.post('/send', async (req, res) => {
 
     // Store outbound in memory
     const sentMsgId = result?.key?.id;
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
     if (sentMsgId) {
       const outboundEntry = {
         id: sentMsgId, from: session.sock.user?.id?.split(':')[0] || '', fromMe: true,
@@ -1912,6 +1930,10 @@ app.post('/reply', async (req, res) => {
     const quoted = { key: { remoteJid: jid, id: quotedId, ...(quotedParticipant && { participant: quotedParticipant }) } };
     const result = await session.sock.sendMessage(jid, { text: message }, { quoted });
     const sentMsgId = result?.key?.id;
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
     if (sentMsgId) {
       const entry = { id: sentMsgId, from: session.sock.user?.id?.split(':')[0] || '', fromMe: true, text: message, type: 'text', timestamp: Math.floor(Date.now() / 1000), status: result?.status, quotedId };
       if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
