@@ -179,14 +179,17 @@ export default function QRBroadcastWizard() {
       if (mode === 'schedule') body.scheduleAt = new Date(scheduledAt).toISOString();
       if (mode === 'delay') body.scheduleAt = new Date(Date.now() + delayMs).toISOString();
 
-      const res = await crmFetch('/api/admin/crm/broadcast-runs', { method: 'POST', body: JSON.stringify(body) });
-      if (!res?.success) throw new Error(res?.error || 'Failed to create broadcast run');
+      // crmFetch stringifies the body itself and unwraps the { success, data }
+      // envelope (returning the created run), and throws on any non-2xx — so we
+      // pass the raw object and read the run id off the result.
+      const run = await crmFetch('/api/admin/crm/broadcast-runs', { method: 'POST', body });
+      const runId = run?._id || run?.data?._id;
 
       // If mode=now, trigger immediate processing
-      if (mode === 'now') {
+      if (mode === 'now' && runId) {
         await crmFetch('/api/admin/crm/broadcast-runs/run', {
           method: 'POST',
-          body: JSON.stringify({ runId: res.data._id }),
+          body: { runId },
         }).catch(() => null);
       }
 
