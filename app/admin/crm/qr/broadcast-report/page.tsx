@@ -109,7 +109,7 @@ export default function QRBroadcastReportPage() {
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
   // Which recipients to resend to when rescheduling.
-  const [rescheduleTarget, setRescheduleTarget] = useState<'all' | 'failed' | 'pending'>('failed');
+  const [rescheduleTarget, setRescheduleTarget] = useState<'all' | 'failed' | 'pending' | 'sent'>('failed');
 
   const fetchRuns = useCallback(async () => {
     if (!token) return;
@@ -305,6 +305,7 @@ export default function QRBroadcastReportPage() {
     // First requeue the chosen recipients, then set the new time.
     const resetAction = rescheduleTarget === 'all' ? 'reset-all'
       : rescheduleTarget === 'pending' ? 'reset-pending'
+      : rescheduleTarget === 'sent' ? 'reset-sent'
       : 'retry-failed';
     await patchAction(resetAction);
     await patchAction('reschedule', { scheduledAt: new Date(rescheduleDate).toISOString() });
@@ -748,6 +749,7 @@ export default function QRBroadcastReportPage() {
               <div className="space-y-2">
                 {[
                   { key: 'failed' as const, label: 'Failed only', desc: `Retry the ${messageStats.failed + messageStats.blocked} failed/blocked` },
+                  { key: 'sent' as const, label: 'Sent only', desc: `Resend to the ${messageStats.sent} already sent` },
                   { key: 'pending' as const, label: 'Pending + failed', desc: 'Everyone not yet delivered' },
                   { key: 'all' as const, label: 'Everyone (resend all)', desc: `Resend to all ${messageStats.total} recipients` },
                 ].map(o => (

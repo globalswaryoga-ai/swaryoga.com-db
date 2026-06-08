@@ -182,6 +182,22 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
         result.modifiedCount = retryResult.modifiedCount;
         break;
 
+      case 'reset-sent':
+        // Resend to recipients who already RECEIVED it (sent/delivered/read) → pending
+        const resetSentResult = await BroadcastRunMessage.updateMany(
+          { runId: run._id, status: { $in: ['sent', 'delivered', 'read'] }, ...tf },
+          { $set: { status: 'pending', failureReason: null, provider: null, waMessageId: null, updatedAt: now } }
+        );
+        if (['completed', 'failed', 'cancelled'].includes(run.status)) {
+          await BroadcastRun.updateOne(
+            { _id: id, ...tf },
+            { $set: { status: 'scheduled', updatedAt: now }, $unset: { lastError: 1, completedAt: 1 } }
+          );
+        }
+        result.message = `Reset ${resetSentResult.modifiedCount} sent messages to pending`;
+        result.modifiedCount = resetSentResult.modifiedCount;
+        break;
+
       case 'reset-all':
         // Reset ALL messages back to pending (full restart)
         const resetAllResult = await BroadcastRunMessage.updateMany(
