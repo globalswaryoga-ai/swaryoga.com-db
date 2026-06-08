@@ -302,23 +302,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicates by email or phone number - WITHIN CURRENT TENANT ONLY
-    const existingLead = await Lead.findOne({
-      $and: [
-        {
-          $or: [
-            ...(email ? [{ email }] : []),
-            { phoneNumber },
-          ],
-        },
-        // CRITICAL: Filter by current user/tenant to prevent cross-tenant data exposure
-        {
-          $or: [
-            { assignedToUserId: viewerUserId },
-            { createdByUserId: viewerUserId },
-          ],
-        },
-      ],
-    });
+    const dupConditions: any[] = [
+      {
+        $or: [
+          ...(email ? [{ email }] : []),
+          { phoneNumber },
+        ],
+      },
+      // CRITICAL: Filter by current user/tenant to prevent cross-tenant data exposure
+      {
+        $or: [
+          { assignedToUserId: viewerUserId },
+          { createdByUserId: viewerUserId },
+        ],
+      },
+    ];
+    // Scope duplicate detection to the SAME source. QR and Meta are separate
+    // pipelines, so the same phone can legitimately exist as BOTH a Meta lead and
+    // a QR lead — a Meta lead must not block adding that number to QR leads.
+    if (source) dupConditions.push({ source });
+    const existingLead = await Lead.findOne({ $and: dupConditions });
 
     if (existingLead) {
       // Return existing lead info so UI can show it

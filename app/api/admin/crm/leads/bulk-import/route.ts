@@ -109,9 +109,16 @@ export async function POST(request: NextRequest) {
         }
         seenPhones.add(phoneNumber);
 
-        // Check for existing lead - scoped to current tenant (assignedTo or createdBy)
+        // Resolve this row's source (QR vs Meta etc.) up front so duplicate
+        // detection is SOURCE-SCOPED: the same phone can exist as both a Meta
+        // lead and a QR lead, so a Meta lead must not block a QR import.
+        const rowRawSource = String(c.source || '').trim().toLowerCase();
+        const rowSource = VALID_SOURCES.has(rowRawSource) ? rowRawSource : 'csv-import';
+
+        // Check for existing lead - scoped to current tenant (assignedTo or createdBy) AND source
         const existing = await Lead.findOne({
           phoneNumber,
+          source: rowSource,
           $or: [
             { assignedToUserId: assignedToUserId },
             { createdByUserId: viewerUserId },
