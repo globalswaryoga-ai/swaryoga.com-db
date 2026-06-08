@@ -440,6 +440,30 @@ export default function TenantsPage() {
     [token],
   );
 
+  // Tenant details drawer
+  const [detailTenant, setDetailTenant] = useState<Tenant | null>(null);
+  const [detailData, setDetailData] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const openDetails = useCallback(async (t: Tenant) => {
+    setDetailTenant(t);
+    setDetailData(null);
+    setDetailLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (t.ownerEmail) params.set('email', t.ownerEmail);
+      if (t.ownerUserId) params.set('ownerUserId', t.ownerUserId);
+      const res = await fetch(`/api/admin/tenants/details?${params}`, { headers: headers() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to load details');
+      setDetailData(data.data || null);
+    } catch (e) {
+      setDetailData({ error: e instanceof Error ? e.message : 'Failed to load details' });
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [headers]);
+
   // Super-admin: reset a tenant's login password (updates admin_users).
   const resetTenantPassword = useCallback(async (t: Tenant) => {
     const email = t.ownerEmail;
@@ -769,6 +793,9 @@ export default function TenantsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
+                          <button onClick={() => openDetails(t)} className="text-xs font-semibold text-emerald-600 border border-emerald-200 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition whitespace-nowrap" title="View full tenant details">
+                            👁 Details
+                          </button>
                           <button onClick={() => openEdit(t)} className="text-xs font-semibold text-indigo-600 border border-indigo-200 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition whitespace-nowrap">
                             Edit
                           </button>
@@ -1075,6 +1102,112 @@ export default function TenantsPage() {
         </div>
       )}
 
+      {/* ====== Tenant Details Drawer ====== */}
+      {detailTenant && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => { setDetailTenant(null); setDetailData(null); }}>
+          <div className="w-full max-w-md h-full bg-white shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b px-5 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">{detailTenant.name}</h2>
+                <p className="text-xs text-gray-400 font-mono">{detailTenant.slug}</p>
+              </div>
+              <button onClick={() => { setDetailTenant(null); setDetailData(null); }} className="text-gray-400 hover:text-gray-700 text-xl">×</button>
+            </div>
+
+            <div className="p-5 space-y-5 text-sm">
+              {detailLoading ? (
+                <p className="text-gray-400 py-8 text-center">Loading…</p>
+              ) : detailData?.error ? (
+                <p className="text-red-600">{detailData.error}</p>
+              ) : detailData ? (
+                <>
+                  {/* Plan / status */}
+                  <Section title="Account">
+                    <Row k="Plan" v={detailTenant.plan} />
+                    <Row k="Status" v={detailTenant.status} />
+                    <Row k="Created" v={detailTenant.createdAt ? new Date(detailTenant.createdAt).toLocaleString('en-IN') : '—'} />
+                    {detailTenant.subscriptionEndsAt && <Row k="Renews" v={new Date(detailTenant.subscriptionEndsAt).toLocaleDateString('en-IN')} />}
+                    {detailTenant.customDomain && <Row k="Domain" v={detailTenant.customDomain} />}
+                  </Section>
+
+                  {/* Login */}
+                  <Section title="Login">
+                    <Row k="Email" v={detailData.login?.email || detailTenant.ownerEmail || '—'} />
+                    <Row k="User ID" v={detailData.login?.userId || '—'} />
+                    <Row k="Role" v={detailData.login?.role || '—'} />
+                    <Row k="Password" v={detailData.login?.hasPassword ? '•••••••• (set — use Reset PW)' : 'not set'} />
+                    <Row k="Last login" v={detailData.login?.lastLoginAt ? new Date(detailData.login.lastLoginAt).toLocaleString('en-IN') : 'never'} />
+                    <button onClick={() => resetTenantPassword(detailTenant)} className="mt-1 text-xs font-semibold text-amber-600 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-50">🔑 Reset Password</button>
+                  </Section>
+
+                  {/* WhatsApp / QR */}
+                  <Section title="WhatsApp (QR)">
+                    <Row k="Number" v={detailData.whatsapp?.connectedNumber || '— not connected'} />
+                    <Row k="Tenant ID" v={detailData.whatsapp?.permanentTenantId || '—'} />
+                    <Row k="QR enabled" v={detailData.whatsapp?.qrEnabled ? 'Yes' : 'No'} />
+                    <Row k="Sender name" v={detailData.whatsapp?.senderName || '—'} />
+                    {detailData.whatsapp?.customBridgeUrl && <Row k="Bridge URL" v={detailData.whatsapp.customBridgeUrl} />}
+                  </Section>
+
+                  {/* Leads */}
+                  <Section title="Leads">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
+                      <Stat label="QR" value={detailData.leads?.qr ?? 0} color="text-emerald-600" />
+                      <Stat label="Meta" value={detailData.leads?.meta ?? 0} color="text-blue-600" />
+                      <Stat label="Total" value={detailData.leads?.total ?? 0} color="text-gray-800" />
+                    </div>
+                    {detailData.leads?.byStatus && Object.keys(detailData.leads.byStatus).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(detailData.leads.byStatus).map(([s, n]) => (
+                          <span key={s} className="text-[11px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{s}: {n as number}</span>
+                        ))}
+                      </div>
+                    )}
+                  </Section>
+
+                  {/* Activity */}
+                  <Section title="Activity">
+                    <Row k="Last login" v={detailData.activity?.lastLoginAt ? new Date(detailData.activity.lastLoginAt).toLocaleString('en-IN') : 'never'} />
+                    {detailData.activity?.lastLead ? (
+                      <Row k="Last lead" v={`${detailData.activity.lastLead.name || detailData.activity.lastLead.phoneNumber || '—'} · ${detailData.activity.lastLead.createdAt ? new Date(detailData.activity.lastLead.createdAt).toLocaleDateString('en-IN') : ''}`} />
+                    ) : <Row k="Last lead" v="—" />}
+                  </Section>
+
+                  <button onClick={() => openEdit(detailTenant)} className="w-full text-sm font-semibold text-indigo-600 border border-indigo-200 rounded-lg py-2 hover:bg-indigo-50">Edit plan, modules & limits →</button>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">{title}</h3>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-gray-500 shrink-0">{k}</span>
+      <span className="text-gray-900 font-medium text-right break-all">{v}</span>
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-2 text-center">
+      <div className={`text-xl font-bold ${color}`}>{value}</div>
+      <div className="text-[10px] uppercase text-gray-400 font-semibold">{label}</div>
     </div>
   );
 }
