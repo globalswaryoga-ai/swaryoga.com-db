@@ -440,6 +440,27 @@ export default function TenantsPage() {
     [token],
   );
 
+  // Super-admin: reset a tenant's login password (updates admin_users).
+  const resetTenantPassword = useCallback(async (t: Tenant) => {
+    const email = t.ownerEmail;
+    if (!email) { alert('This tenant has no owner email on record.'); return; }
+    const newPassword = window.prompt(`Set a new login password for ${email}\n(minimum 6 characters):`);
+    if (newPassword === null) return; // cancelled
+    if (newPassword.length < 6) { alert('Password must be at least 6 characters.'); return; }
+    try {
+      const res = await fetch('/api/admin/tenants/reset-password', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ email, newPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to reset password');
+      alert(`✅ Password reset for ${email}. They can now log in with the new password.`);
+    } catch (e) {
+      alert(`❌ ${e instanceof Error ? e.message : 'Failed to reset password'}`);
+    }
+  }, [headers]);
+
   const fetchTenants = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -747,9 +768,14 @@ export default function TenantsPage() {
                         {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <button onClick={() => openEdit(t)} className="text-xs font-semibold text-indigo-600 border border-indigo-200 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition whitespace-nowrap">
-                          Edit
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => openEdit(t)} className="text-xs font-semibold text-indigo-600 border border-indigo-200 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition whitespace-nowrap">
+                            Edit
+                          </button>
+                          <button onClick={() => resetTenantPassword(t)} className="text-xs font-semibold text-amber-600 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-50 transition whitespace-nowrap" title="Reset login password">
+                            🔑 Reset PW
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

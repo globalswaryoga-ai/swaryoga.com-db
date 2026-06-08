@@ -28,17 +28,20 @@ if (!global._tenantModelCache) {
 }
 
 /**
- * Lazily register a model on the *main* mongoose connection (swaryogaDB).
- * This mirrors the pattern used in enterpriseSchemas.ts but targets the
- * default connection instead of CRM useDb().
+ * Lazily register a tenant-registry model on the CRM database
+ * (swaryoga_admin_crm) — the SAME DB that crm-site signup writes tenants and
+ * admin_users to. Previously this used the default connection (swaryogaDB), so
+ * the Tenants page read an almost-empty `tenants` collection while all real
+ * tenants lived in swaryoga_admin_crm.tenants.
  */
 function getMainModel<T>(name: string, schema: mongoose.Schema): mongoose.Model<T> {
   if (global._tenantModelCache[name]) {
     return global._tenantModelCache[name] as mongoose.Model<T>;
   }
+  const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm', { useCache: true });
   const model =
-    mongoose.connection.models[name] ??
-    mongoose.connection.model<T>(name, schema);
+    crmDb.models[name] ??
+    crmDb.model<T>(name, schema);
   global._tenantModelCache[name] = model;
   return model;
 }
