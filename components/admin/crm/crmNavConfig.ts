@@ -318,13 +318,18 @@ export const sectionConfigs: SectionConfig[] = [
     key: 'qr-leads',
     title: 'Lead Management - QR',
     icon: Users,
+    // All QR-scoped: these pages read source='qr_whatsapp' only (kept separate
+    // from the Meta lead pages, which exclude qr_whatsapp).
     items: [
-      { label: 'Leads',            href: '/admin/crm/qr/leads',         icon: Users },
-      { label: 'Funnel',           href: '/admin/crm/qr/funnel',        icon: Filter },
-      { label: 'Funnel Management',href: '/admin/crm/qr/manage',        icon: Sliders },
-      { label: 'Funnel Report',    href: '/admin/crm/qr/funnel-report', icon: BarChart3 },
+      { label: 'QR Leads',       href: '/admin/crm/qr/leads',         icon: Users },
+      { label: 'QR Funnel',      href: '/admin/crm/qr/funnel',        icon: Filter },
+      { label: 'QR Manage',      href: '/admin/crm/qr/manage',        icon: Sliders },
+      { label: 'QR Report',      href: '/admin/crm/qr/funnel-report', icon: BarChart3 },
     ],
-    moreItems: [],
+    // Cross-link back to the QR WhatsApp inbox so the two QR menus connect.
+    moreItems: [
+      { label: 'QR WhatsApp', href: '/admin/crm/qr', icon: QrCode },
+    ],
     prefixes: [
       '/admin/crm/qr/leads', '/admin/crm/qr/funnel', '/admin/crm/qr/manage', '/admin/crm/qr/funnel-report',
     ],
@@ -335,20 +340,27 @@ export const sectionConfigs: SectionConfig[] = [
     key: 'qr',
     title: 'QR WhatsApp',
     icon: QrCode,
+    // QR-only nav. Every link stays inside /admin/crm/qr/* so QR WhatsApp never
+    // crosses into Meta data. (The old "Send Message" pointed at the generic
+    // /admin/crm/send-template page, which defaults to the Meta provider —
+    // removed to keep QR strictly separated. Sending happens from the inbox.)
     items: [
-      { label: 'Inbox',        href: '/admin/crm/qr',                   icon: Inbox },
-      { label: 'Template',     href: '/admin/crm/qr/templates',         icon: FileEdit },
-      { label: 'Broadcast',    href: '/admin/crm/qr/broadcast',         icon: Radio },
-      { label: 'Send Message', href: '/admin/crm/send-template',        icon: Send },
-      { label: 'Reports',      href: '/admin/crm/qr/broadcast-report',  icon: BarChart3 },
+      { label: 'Inbox',          href: '/admin/crm/qr',                   icon: Inbox },
+      { label: 'Templates',      href: '/admin/crm/qr/templates',         icon: FileEdit },
+      { label: 'Broadcast',      href: '/admin/crm/qr/broadcast',         icon: Radio },
+      { label: 'Group Contacts', href: '/admin/crm/qr/group-contacts',    icon: Users },
+      { label: 'Reports',        href: '/admin/crm/qr/broadcast-report',  icon: BarChart3 },
     ],
-    // 'More' dropdown removed. Groups moved to its own sidebar entry (below).
-    // Schedule/Automation/QR Chatbot/Health Report still exist as routes.
-    moreItems: [],
+    moreItems: [
+      { label: 'QR Leads',      href: '/admin/crm/qr/leads',               icon: Users },
+      { label: 'Automation',    href: '/admin/crm/qr/automation',          icon: Zap },
+      { label: 'QR Chatbot',    href: '/admin/crm/qr/chatbot',             icon: Bot },
+      { label: 'Schedule',      href: '/admin/crm/qr/broadcast-schedule',  icon: Clock },
+      { label: 'Health Report', href: '/admin/crm/qr/health-report',       icon: BarChart3 },
+    ],
     prefixes: [
       '/admin/crm/qr', '/admin/crm/qr/templates', '/admin/crm/qr/broadcast',
-      '/admin/crm/qr/sent-messages', '/admin/crm/send-template',
-      '/admin/crm/qr/broadcast-report',
+      '/admin/crm/qr/group-contacts', '/admin/crm/qr/broadcast-report',
       '/admin/crm/qr/broadcast-schedule', '/admin/crm/qr/automation',
       '/admin/crm/qr/chatbot', '/admin/crm/qr/health-report',
     ],

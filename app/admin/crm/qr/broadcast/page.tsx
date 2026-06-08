@@ -103,10 +103,12 @@ export default function QRBroadcastWizard() {
   const loadLeads = useCallback(async () => {
     if (!token) return;
     setLeadsLoading(true);
-    const params = new URLSearchParams({ limit: '500' });
+    const params = new URLSearchParams({ limit: '500', source: 'qr_whatsapp' });
     if (filterStatus) params.set('status', filterStatus);
     if (filterLabel) params.set('label', filterLabel);
     if (leadSearch) params.set('search', leadSearch);
+    // QR broadcast targets QR leads only (source=qr_whatsapp) — kept separate
+    // from Meta leads, which are excluded from this audience.
     const res = await crmFetch(`/api/admin/crm/leads?${params}`).catch(() => null);
     const items: Lead[] = Array.isArray(res?.data?.leads) ? res.data.leads : [];
     setLeads(items);

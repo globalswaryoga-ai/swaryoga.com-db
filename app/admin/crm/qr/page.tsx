@@ -1193,7 +1193,7 @@ export default function QRWhatsAppPage() {
   }, [status?.connected]);
 
   // ── Fetch messages ──
-  const fetchMessages = useCallback(async (jid: string) => {
+  const fetchMessages = useCallback(async (jid: string, opts?: { forceScroll?: boolean }) => {
     try {
       const phone = connectedPhoneNumber || savedPhoneRef.current || '';
 
@@ -1311,9 +1311,19 @@ export default function QRWhatsAppPage() {
           }
           return next;
         });
-        setTimeout(() => {
-          messengerRef.current?.scrollTo({ top: messengerRef.current.scrollHeight, behavior: 'smooth' });
-        }, 100);
+        // Only auto-scroll to the bottom on initial open / explicit refresh, or
+        // when the user is already near the bottom. If they have scrolled up to
+        // read older messages, the 3s poll must NOT yank them back down.
+        const el = messengerRef.current;
+        const nearBottom = el ? (el.scrollHeight - el.scrollTop - el.clientHeight < 150) : true;
+        if (opts?.forceScroll || nearBottom) {
+          setTimeout(() => {
+            messengerRef.current?.scrollTo({
+              top: messengerRef.current.scrollHeight,
+              behavior: opts?.forceScroll ? 'auto' : 'smooth',
+            });
+          }, 100);
+        }
       }
     } catch (e) {
       console.error('Failed to fetch messages:', e);
@@ -1325,7 +1335,7 @@ export default function QRWhatsAppPage() {
   useEffect(() => {
     if (selectedChat && status?.connected && isPageVisible) {
       // Immediately fetch messages on selection, then poll every 3s for near-real-time updates
-      fetchMessages(selectedChat);
+      fetchMessages(selectedChat, { forceScroll: true });
       msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 3000);
     } else {
       if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; }
@@ -1492,7 +1502,7 @@ export default function QRWhatsAppPage() {
     setShowMsgActions(null);
     setContactAbout(null);
     setChatPresence(null);
-    fetchMessages(jid);
+    fetchMessages(jid, { forceScroll: true });
     fetchProfilePic(jid);
     // Fetch contact about/bio for non-group chats
     if (!jid.endsWith('@g.us')) fetchContactAbout(jid);
@@ -1652,9 +1662,9 @@ export default function QRWhatsAppPage() {
       setComposerText('');
       setReplyingTo(null);
       // Refresh messages — longer delay for media (webhook needs time to upload & set CDN URL)
-      setTimeout(() => fetchMessages(selectedChat), hadMedia ? 1500 : 500);
+      setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), hadMedia ? 1500 : 500);
       // Double-refresh for media to catch async CDN URL updates from webhook
-      if (hadMedia) setTimeout(() => fetchMessages(selectedChat), 4000);
+      if (hadMedia) setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), 4000);
     } catch (e: any) {
       setError(e.message || 'Failed to send message');
       // Remove optimistic message on error
@@ -1900,7 +1910,7 @@ export default function QRWhatsAppPage() {
     setShowNewChat(false);
     setNewChatPhone('');
     // Try to fetch messages (might be empty for new chat)
-    fetchMessages(chatId);
+    fetchMessages(chatId, { forceScroll: true });
   }, [newChatPhone, fetchMessages]);
 
   // ── Leave group ──
@@ -2365,16 +2375,16 @@ export default function QRWhatsAppPage() {
               <Radio className="w-3.5 h-3.5" /> Stories
             </button>
             <a href="/admin/crm/qr/leads" className="px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 border border-teal-200 flex items-center gap-1.5 transition" title="QR Leads">
-              👥 Leads
+              👥 QR Leads
             </a>
             <a href="/admin/crm/qr/funnel-report" className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1.5 transition" title="QR Funnel Report">
-              🔻 Funnel
+              🔻 QR Funnel
             </a>
             <a href="/admin/crm/qr/manage" className="px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 border border-orange-200 flex items-center gap-1.5 transition" title="Manage QR Funnel">
-              ⚙️ Manage
+              ⚙️ QR Manage
             </a>
             <a href="/admin/crm/qr/broadcast-report" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 transition" title="QR Broadcast Reports">
-              📊 Reports
+              📊 QR Reports
             </a>
           </div>
         </div>
@@ -2384,8 +2394,6 @@ export default function QRWhatsAppPage() {
           {([
             { key: 'connection' as const, label: 'Connection', icon: <QrCode className="w-3.5 h-3.5" />, desc: 'QR & Status' },
             { key: 'inbox' as const, label: 'Inbox', icon: <MessageSquare className="w-3.5 h-3.5" />, desc: `${chats.length} chats`, badge: chats.filter(c => c.unreadCount > 0).length },
-            { key: 'templates' as const, label: 'Templates', icon: <FileText className="w-3.5 h-3.5" />, desc: 'Message templates' },
-            { key: 'broadcast' as const, label: 'Broadcast', icon: <Radio className="w-3.5 h-3.5" />, desc: 'Send to many' },
             { key: 'history' as const, label: 'Sent Messages', icon: <Calendar className="w-3.5 h-3.5" />, desc: 'Delivery history' },
             { key: 'settings' as const, label: 'Settings', icon: <Settings className="w-3.5 h-3.5" />, desc: 'Configure' },
           ]).map(t => (
@@ -2406,7 +2414,23 @@ export default function QRWhatsAppPage() {
             </button>
           ))}
 
-          {/* Group Contacts — separate page link */}
+          {/* Templates / Broadcast / Group Contacts — dedicated QR pages.
+              These link out (instead of in-page tabs) so the standalone pages
+              are the single source of truth and no duplicate copy is shown. */}
+          <Link
+            href="/admin/crm/qr/templates"
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-green-700 hover:bg-gray-100 hover:border-green-400 transition-all whitespace-nowrap"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Templates</span>
+          </Link>
+          <Link
+            href="/admin/crm/qr/broadcast"
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-green-700 hover:bg-gray-100 hover:border-green-400 transition-all whitespace-nowrap"
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span>Broadcast</span>
+          </Link>
           <Link
             href="/admin/crm/qr/group-contacts"
             className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-green-700 hover:bg-gray-100 hover:border-green-400 transition-all whitespace-nowrap"
@@ -3041,7 +3065,7 @@ export default function QRWhatsAppPage() {
                       <Info className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => fetchMessages(selectedChat)}
+                      onClick={() => fetchMessages(selectedChat, { forceScroll: true })}
                       className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500 flex-shrink-0"
                       title="Refresh messages"
                     >

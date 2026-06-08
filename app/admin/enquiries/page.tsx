@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Enquiry {
@@ -56,6 +56,7 @@ export default function EnquiriesPage() {
   const [newWsMode, setNewWsMode] = useState('online');
   const [newWsDesc, setNewWsDesc] = useState('');
   const [newWsImage, setNewWsImage] = useState('');     // Bunny CDN URL after upload
+  const [editingFormId, setEditingFormId] = useState<string | null>(null); // null = creating, else editing
   const [imageUploading, setImageUploading] = useState(false);
   const [savingForm, setSavingForm] = useState(false);
   const [formSaveError, setFormSaveError] = useState('');
@@ -126,28 +127,70 @@ export default function EnquiriesPage() {
     }
   };
 
+  // Reset all form fields and close the modal (shared by create + edit).
+  const closeFormModal = () => {
+    setShowAddForm(false);
+    setEditingFormId(null);
+    setFormSaveError('');
+    setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
+  };
+
+  // Open the modal in create mode (clears any leftover edit state/fields).
+  const openCreateForm = () => {
+    setEditingFormId(null);
+    setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
+    setFormSaveError('');
+    setShowAddForm(true);
+  };
+
+  // Open the modal pre-filled with an existing form's values for editing.
+  const openEditForm = (form: EnquiryForm) => {
+    setEditingFormId(form.formId);
+    setNewWsName(form.workshopName || '');
+    setNewWsDate(form.workshopDate || '');
+    setNewWsTime(form.workshopTime || '');
+    setNewWsMode(form.workshopMode || 'online');
+    setNewWsDesc(form.description || '');
+    setNewWsImage((form as any).workshopImage || '');
+    setFormSaveError('');
+    setShowAddForm(true);
+  };
+
   const saveNewForm = async () => {
     if (!newWsName.trim()) { setFormSaveError('Workshop name is required'); return; }
     setSavingForm(true);
     setFormSaveError('');
     try {
-      const res = await fetch('/api/admin/enquiry-forms', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          workshopName: newWsName.trim(),
-          workshopDate: newWsDate,
-          workshopTime: newWsTime,
-          workshopMode: newWsMode,
-          description: newWsDesc.trim(),
-          workshopImage: newWsImage,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create form');
-      setForms((prev) => [data.form, ...prev]);
-      setShowAddForm(false);
-      setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
+      const payload = {
+        workshopName: newWsName.trim(),
+        workshopDate: newWsDate,
+        workshopTime: newWsTime,
+        workshopMode: newWsMode,
+        description: newWsDesc.trim(),
+        workshopImage: newWsImage,
+      };
+      if (editingFormId) {
+        // ── Edit existing form (PATCH) ──
+        const res = await fetch(`/api/admin/enquiry-forms?id=${editingFormId}`, {
+          method: 'PATCH',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update form');
+        setForms((prev) => prev.map((f) => f.formId === editingFormId ? { ...f, ...(data.form || payload) } : f));
+      } else {
+        // ── Create new form (POST) ──
+        const res = await fetch('/api/admin/enquiry-forms', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create form');
+        setForms((prev) => [data.form, ...prev]);
+      }
+      closeFormModal();
     } catch (e) {
       setFormSaveError(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -261,7 +304,7 @@ export default function EnquiriesPage() {
               </p>
             </div>
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={openCreateForm}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold text-sm hover:bg-[#1b4332] transition-colors shadow-sm"
             >
               <Plus size={16} />
@@ -284,7 +327,7 @@ export default function EnquiriesPage() {
             ) : forms.length === 0 ? (
               <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
                 <p className="text-swar-text-secondary text-sm mb-2">No forms yet</p>
-                <button onClick={() => setShowAddForm(true)} className="text-[#2d6a4f] font-semibold text-sm hover:underline">
+                <button onClick={openCreateForm} className="text-[#2d6a4f] font-semibold text-sm hover:underline">
                   + Create your first form
                 </button>
               </div>
@@ -319,6 +362,13 @@ export default function EnquiriesPage() {
                         }`}
                       >
                         {copiedId === form.formId ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy Link</>}
+                      </button>
+                      <button
+                        onClick={() => openEditForm(form)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all"
+                        title="Edit form"
+                      >
+                        <Pencil size={12} /> Edit
                       </button>
                       {form.isActive && (
                         <button
@@ -535,8 +585,8 @@ export default function EnquiriesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-bold text-swar-text">Create Shareable Form</h2>
-              <button onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-gray-600">
+              <h2 className="text-xl font-bold text-swar-text">{editingFormId ? 'Edit Shareable Form' : 'Create Shareable Form'}</h2>
+              <button onClick={closeFormModal} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
@@ -650,7 +700,7 @@ export default function EnquiriesPage() {
 
             <div className="flex justify-end gap-3 mt-6">
               <button
-                onClick={() => setShowAddForm(false)}
+                onClick={closeFormModal}
                 className="px-4 py-2 rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200"
               >
                 Cancel
@@ -660,7 +710,9 @@ export default function EnquiriesPage() {
                 disabled={savingForm || !newWsName.trim()}
                 className="px-5 py-2 rounded-lg bg-[#2d6a4f] text-sm font-bold text-white hover:bg-[#1b4332] disabled:opacity-60 flex items-center gap-2"
               >
-                {savingForm ? 'Creating…' : <><Plus size={14} /> Create Form</>}
+                {savingForm
+                  ? (editingFormId ? 'Saving…' : 'Creating…')
+                  : (editingFormId ? <><Check size={14} /> Save Changes</> : <><Plus size={14} /> Create Form</>)}
               </button>
             </div>
           </div>
