@@ -26,40 +26,53 @@ export async function GET(req: NextRequest) {
 
     await connectDB();
 
-    // ── PRIVACY COMPARTMENT CHECK ──
-    // Non-super-admin users must have their own bridge OR be explicitly enabled
-    if (!superAdmin) {
-      const CRMUserSettings = getCRMUserSettings();
-      const userSettings = await CRMUserSettings.findOne(
-        { userId: viewerUserId },
-        { qrBridgeUrl: 1, qrWhatsappEnabled: 1 }
-      ).lean();
-      
-      if (!userSettings?.qrBridgeUrl && !userSettings?.qrWhatsappEnabled) {
-        return NextResponse.json({ 
-          success: false, 
-          error: 'QR WhatsApp access not configured. Contact your super admin or set up your own bridge.' 
-        }, { status: 403 });
-      }
-    }
+    // ── CANONICAL SESSION RESOLUTION ──
+    // Every QR user (super admin included) is isolated by a single stable session
+    // key = their permanentTenantId (same logic as the send & qr-bridge routes).
+    // We must NOT scan live bridge sessions and fall back to "any connected
+    // session" — that leaked one account's chats/groups into another's inbox.
+    const CRMUserSettings = getCRMUserSettings();
+    const userSettings = await CRMUserSettings.findOne(
+      { userId: viewerUserId },
+      { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1 }
+    ).lean() as any;
 
-    // Determine bridge URL for this user
     let bridgeUrl = BRIDGE_URL;
     let bridgeSecret = BRIDGE_SECRET;
-    if (!superAdmin) {
-      const CRMUserSettings = getCRMUserSettings();
-      const userSettings = await CRMUserSettings.findOne(
-        { userId: viewerUserId },
-        { qrBridgeUrl: 1, qrBridgeSecret: 1 }
-      ).lean();
-      if (userSettings?.qrBridgeUrl) {
-        bridgeUrl = userSettings.qrBridgeUrl;
-        bridgeSecret = userSettings.qrBridgeSecret || BRIDGE_SECRET;
-      }
+    let sessionKey: string | null = userSettings?.permanentTenantId || null;
+
+    // Legacy: user with their own custom bridge URL keys by userId.
+    if (!sessionKey && userSettings?.qrBridgeUrl) {
+      bridgeUrl = userSettings.qrBridgeUrl;
+      bridgeSecret = userSettings.qrBridgeSecret || BRIDGE_SECRET;
+      sessionKey = viewerUserId;
     }
 
-    // 0. Find the active session key — bridge requires it to return chats
-    let sessionKey: string | null = null;
+    // ── ACCESS GATE ──
+    // An isolated session (permanentTenantId or custom bridge) is required.
+    // Without it we cannot scope the bridge or DB safely, so deny rather than
+    // fall through to an unscoped query that would expose another account's data.
+    if (!sessionKey) {
+      if (!superAdmin && !userSettings?.qrWhatsappEnabled) {
+        return NextResponse.json({
+          success: false,
+          error: 'QR WhatsApp access not configured. Contact your super admin or set up your own bridge.'
+        }, { status: 403 });
+      }
+      console.warn(`[QR Chats API] No session key for user ${viewerUserId} (superAdmin: ${superAdmin}) — serving empty`);
+      return NextResponse.json({ success: true, chats: [] });
+    }
+
+    const sessionHeaders: Record<string, string> = {
+      'x-bridge-secret': bridgeSecret,
+      'x-user-id': viewerUserId,
+      'x-session-key': sessionKey,
+    };
+
+    // Authoritative "currently connected phone" for this session — used to scope
+    // the DB chat merge so OLD sessions/phones under the same userId never leak.
+    // Prefer the live bridge session phone; fall back to the stored phone.
+    let connectedPhone: string = String(userSettings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
     try {
       const sessionsRes = await fetch(`${bridgeUrl}/sessions`, {
         method: 'GET',
@@ -68,28 +81,22 @@ export async function GET(req: NextRequest) {
       if (sessionsRes.ok) {
         const sessionsData = await sessionsRes.json();
         const sessions: any[] = sessionsData?.sessions || [];
-        // Prefer session owned by this user
-        const ownSession = sessions.find(s => s.userId === viewerUserId && s.status === 'connected');
-        const anySession = sessions.find(s => s.status === 'connected');
-        sessionKey = ownSession?.sessionKey || anySession?.sessionKey || null;
-        console.log(`[QR Chats API] Session key resolved: ${sessionKey || 'NONE'} (user: ${viewerUserId})`);
+        const liveSession = sessions.find(s => s.sessionKey === sessionKey && s.status === 'connected');
+        const livePhone = String(liveSession?.phone?.id || '').split(':')[0].replace(/\D/g, '');
+        if (livePhone) connectedPhone = livePhone;
       }
     } catch (e: any) {
-      console.warn('[QR Chats API] Failed to resolve session key:', e.message);
+      console.warn('[QR Chats API] Failed to read live session phone:', e.message);
     }
 
-    const sessionHeaders: Record<string, string> = {
-      'x-bridge-secret': bridgeSecret,
-      'x-user-id': viewerUserId,
-    };
-    if (sessionKey) sessionHeaders['x-session-key'] = sessionKey;
+    console.log(`[QR Chats API] Resolved session ${sessionKey} | phone ${connectedPhone || 'UNKNOWN'} (user: ${viewerUserId}, superAdmin: ${superAdmin})`);
 
-    // 1. Fetch chats and groups from bridge
+    // 1. Fetch chats and groups from bridge (always scoped to x-session-key above)
     const bridgeChatsUrl = `${bridgeUrl}/chats`;
     const bridgeGroupsUrl = `${bridgeUrl}/groups`;
     console.log('[QR Chats API] Calling bridge chats:', bridgeChatsUrl, '| sessionKey:', sessionKey);
 
-    const [chatsRes, groupsRes] = await Promise.all([
+    const [chatsRes, groupsRes]: [Response | null, Response | null] = await Promise.all([
       fetch(bridgeChatsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
         console.warn('[QR Chats API] Chats bridge unreachable:', err.message);
         return null;
@@ -190,10 +197,18 @@ export async function GET(req: NextRequest) {
     console.log('[QR Chats API] ============ END BRIDGE CHATS ============');
 
     // ── Merge DB-persisted chats (qr_whatsapp_chats) with bridge chats ──
-    // This ensures chats survive bridge restarts / PC off. Privacy: userId strictly isolates tenants.
-    try {
+    // This ensures chats survive bridge restarts / PC off.
+    // ISOLATION: scope by userId AND the CURRENTLY connected phone. A single
+    // userId (e.g. the super admin's "admincrm") accumulates chats from every
+    // phone it ever connected; without the connectedPhone filter those OLD
+    // sessions leak into the current inbox. If we don't know the connected
+    // phone we skip the DB merge entirely rather than risk exposing other
+    // phones' chats. (Mirrors the messages route's connectedPhone isolation.)
+    if (!connectedPhone) {
+      console.warn('[QR Chats API] No connectedPhone known — skipping DB merge to avoid cross-session leak');
+    } else try {
       const QrChat = getQrWhatsAppChat();
-      const dbChatDocs = await QrChat.find({ userId: viewerUserId })
+      const dbChatDocs = await QrChat.find({ userId: viewerUserId, connectedPhone })
         .sort({ conversationTimestamp: -1 })
         .limit(500)
         .lean();
@@ -254,7 +269,10 @@ export async function GET(req: NextRequest) {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
       const isGroup = idStr.endsWith('@g.us');
 
-      // ALWAYS show groups (@g.us) - they are not filtered by lead records
+      // ALWAYS show groups (@g.us) - they are not filtered by lead records.
+      // Safe for tenant isolation because non-super-admins only ever reach the
+      // bridge with their OWN session key (see session resolution above), so any
+      // group here belongs to this tenant's own connected WhatsApp account.
       if (isGroup) {
         return true;
       }
