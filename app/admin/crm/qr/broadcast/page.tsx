@@ -31,13 +31,6 @@ interface Lead {
   labels?: string[];
 }
 
-const GAP_PRESETS: Record<string, { label: string; minSeconds: number; maxSeconds: number; desc: string }> = {
-  ULTRA_SAFE:   { label: '🟢 Ultra Safe (30/hr)',    minSeconds: 90,  maxSeconds: 180, desc: 'Minimum ban risk' },
-  VERY_SAFE:    { label: '🟢 Very Safe (45/hr)',     minSeconds: 60,  maxSeconds: 120, desc: 'Very safe' },
-  SAFE:         { label: '🟢 Safe (60/hr)',           minSeconds: 7,   maxSeconds: 120, desc: 'RECOMMENDED ✓' },
-  PROFESSIONAL: { label: '🟡 Professional (90/hr)',  minSeconds: 30,  maxSeconds: 60,  desc: 'Faster, small risk' },
-  AGGRESSIVE:   { label: '🔴 Aggressive (150/hr)',   minSeconds: 15,  maxSeconds: 30,  desc: 'High ban risk' },
-};
 
 const STEPS = ['Template', 'Recipients', 'Schedule'];
 
@@ -81,7 +74,6 @@ export default function QRBroadcastWizard() {
   const [delayDays, setDelayDays] = useState(0);
   const [delayHours, setDelayHours] = useState(0);
   const [delayMinutes, setDelayMinutes] = useState(10);
-  const [gapPreset, setGapPreset] = useState('SAFE');
 
   // Pre-select template from URL param (from "Use in Broadcast" button)
   useEffect(() => {
@@ -171,7 +163,6 @@ export default function QRBroadcastWizard() {
     setSubmitting(true);
     setError(null);
     try {
-      const preset = GAP_PRESETS[gapPreset] || GAP_PRESETS.SAFE;
       // 'delay' is sent to the server as a normal scheduled run (now + delay).
       const effectiveMode = mode === 'delay' ? 'schedule' : mode;
       const body: any = {
@@ -180,11 +171,10 @@ export default function QRBroadcastWizard() {
         provider: 'qr',
         mode: effectiveMode,
         target: { type: 'leadIds', leadIds: Array.from(selectedLeadIds) },
-        messageInterval: {
-          enabled: true,
-          minSeconds: preset.minSeconds,
-          maxSeconds: preset.maxSeconds,
-        },
+        // Fixed anti-ban pacing: ~15 messages/hour (mean 240s gap). The server
+        // also hard-caps at 15/hr and 150/day (qrSendRateLimit) and auto-shifts
+        // any overflow to the next day.
+        messageInterval: { enabled: true, minSeconds: 120, maxSeconds: 360 },
       };
       if (mode === 'schedule') body.scheduleAt = new Date(scheduledAt).toISOString();
       if (mode === 'delay') body.scheduleAt = new Date(Date.now() + delayMs).toISOString();
@@ -529,30 +519,20 @@ export default function QRBroadcastWizard() {
               )}
             </div>
 
-            {/* Gap strategy */}
+            {/* Send speed — fixed anti-ban policy (no other options) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Send Speed (Anti-ban Protection)
               </label>
-              <div className="space-y-2">
-                {Object.entries(GAP_PRESETS).map(([key, preset]) => (
-                  <label key={key} className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${
-                    gapPreset === key ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="gapPreset"
-                      value={key}
-                      checked={gapPreset === key}
-                      onChange={() => setGapPreset(key)}
-                      className="mt-0.5 flex-shrink-0"
-                    />
-                    <div>
-                      <div className="text-sm font-medium text-gray-800">{preset.label}</div>
-                      <div className="text-xs text-gray-500">{preset.desc} · {preset.minSeconds}–{preset.maxSeconds}s between messages</div>
-                    </div>
-                  </label>
-                ))}
+              <div className="flex items-start gap-3 p-4 rounded-lg border-2 border-green-500 bg-green-50">
+                <span className="text-lg leading-none mt-0.5">🛡️</span>
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">15 messages / hour · max 150 / day</div>
+                  <div className="text-xs text-gray-600 mt-0.5">
+                    Safe drip pacing (~1 message every 2–6 min). The system auto-stops at the hourly/daily
+                    cap and continues the rest the next day — protecting your number from bans.
+                  </div>
+                </div>
               </div>
             </div>
           </div>
