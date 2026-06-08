@@ -351,13 +351,10 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Group Contacts', href: '/admin/crm/qr/group-contacts',    icon: Users },
       { label: 'Reports',        href: '/admin/crm/qr/broadcast-report',  icon: BarChart3 },
     ],
-    moreItems: [
-      { label: 'QR Leads',      href: '/admin/crm/qr/leads',               icon: Users },
-      { label: 'Automation',    href: '/admin/crm/qr/automation',          icon: Zap },
-      { label: 'QR Chatbot',    href: '/admin/crm/qr/chatbot',             icon: Bot },
-      { label: 'Schedule',      href: '/admin/crm/qr/broadcast-schedule',  icon: Clock },
-      { label: 'Health Report', href: '/admin/crm/qr/health-report',       icon: BarChart3 },
-    ],
+    // No "More" dropdown — AI & Chatbot, Automation, Schedule etc. are reached
+    // from the sidebar. Keeps the QR top bar clean (Inbox/Templates/Broadcast/
+    // Group Contacts/Reports only).
+    moreItems: [],
     prefixes: [
       '/admin/crm/qr', '/admin/crm/qr/templates', '/admin/crm/qr/broadcast',
       '/admin/crm/qr/group-contacts', '/admin/crm/qr/broadcast-report',
