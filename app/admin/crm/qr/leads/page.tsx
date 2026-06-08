@@ -93,7 +93,7 @@ export default function QRLeadsPage() {
   const modal = useModal();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
-  const [limit, setLimit] = useState(1000); // Batch by 1K for better performance
+  const [limit, setLimit] = useState(100); // default page size (options: 50/100/200/300/500)
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -587,9 +587,11 @@ export default function QRLeadsPage() {
           onChange={e => { setLimit(Number(e.target.value)); setSkip(0); }}
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 bg-white"
         >
-          <option value={20}>20 / page</option>
           <option value={50}>50 / page</option>
           <option value={100}>100 / page</option>
+          <option value={200}>200 / page</option>
+          <option value={300}>300 / page</option>
+          <option value={500}>500 / page</option>
         </select>
 
         {/* Meta Only 24h filter toggle */}
