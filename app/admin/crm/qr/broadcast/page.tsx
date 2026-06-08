@@ -115,7 +115,10 @@ export default function QRBroadcastWizard() {
     // QR broadcast targets QR leads only (source=qr_whatsapp) — kept separate
     // from Meta leads, which are excluded from this audience.
     const res = await crmFetch(`/api/admin/crm/leads?${params}`).catch(() => null);
-    const items: Lead[] = Array.isArray(res?.data?.leads) ? res.data.leads : [];
+    // crmFetch unwraps the { success, data } envelope, so leads arrive at res.leads
+    // (res.data.leads is only there if it didn't unwrap). Handle both shapes.
+    const items: Lead[] = Array.isArray(res?.leads) ? res.leads
+      : (Array.isArray(res?.data?.leads) ? res.data.leads : []);
     setLeads(items);
     // Auto-connect: pre-select every loaded QR lead so the broadcast targets the
     // whole QR list by default (the admin can still deselect individuals).
