@@ -97,7 +97,9 @@ export default function QRBroadcastWizard() {
     if (!token) return;
     setTemplatesLoading(true);
     crmFetch('/api/admin/crm/templates?provider=qr&limit=100')
-      .then((res: any) => setTemplates(Array.isArray(res?.data) ? res.data : []))
+      // API shape: { success, templates, data: { templates, ... } }. The list
+      // lives at res.data.templates (or res.templates) — NOT res.data itself.
+      .then((res: any) => setTemplates(res?.data?.templates ?? res?.templates ?? []))
       .catch(() => setTemplates([]))
       .finally(() => setTemplatesLoading(false));
   }, [token]);
@@ -311,11 +313,13 @@ export default function QRBroadcastWizard() {
                           </div>
                         )}
                       </div>
-                      {selectedTemplate?._id === t._id && (
-                        <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Check className="w-3 h-3 text-white" />
-                        </div>
-                      )}
+                      <span className={`shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold mt-0.5 ${
+                        selectedTemplate?._id === t._id
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-blue-50 text-blue-600 border border-blue-200'
+                      }`}>
+                        {selectedTemplate?._id === t._id ? <><Check className="w-3 h-3" /> Selected</> : '+ Select'}
+                      </span>
                     </div>
                   </button>
                 ))}
