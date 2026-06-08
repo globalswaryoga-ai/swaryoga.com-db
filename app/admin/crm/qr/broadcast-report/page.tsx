@@ -108,6 +108,8 @@ export default function QRBroadcastReportPage() {
   const [actioning, setActioning] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
+  // Which recipients to resend to when rescheduling.
+  const [rescheduleTarget, setRescheduleTarget] = useState<'all' | 'failed' | 'pending'>('failed');
 
   const fetchRuns = useCallback(async () => {
     if (!token) return;
@@ -156,14 +158,27 @@ export default function QRBroadcastReportPage() {
     }
   }, [token, runId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // De-duplicate recipients by phone (keep the most-advanced status) so a
+  // repeated number never shows twice and never double-counts in the stats.
+  const dedupedMessages = useMemo(() => {
+    const rank: Record<string, number> = { pending: 0, sending: 1, skipped: 1, blocked: 2, failed: 2, sent: 3, delivered: 4, read: 5 };
+    const byPhone = new Map<string, BroadcastMessage>();
+    for (const m of messages) {
+      const key = (m.phoneNumber || '').replace(/\D/g, '') || m._id;
+      const existing = byPhone.get(key);
+      if (!existing || (rank[m.status] ?? 0) >= (rank[existing.status] ?? 0)) byPhone.set(key, m);
+    }
+    return Array.from(byPhone.values());
+  }, [messages]);
+
   const filteredMessages = useMemo(() => {
-    if (messageFilter === 'all') return messages;
-    return messages.filter(m => m.status === messageFilter);
-  }, [messages, messageFilter]);
+    if (messageFilter === 'all') return dedupedMessages;
+    return dedupedMessages.filter(m => m.status === messageFilter);
+  }, [dedupedMessages, messageFilter]);
 
   const messageStats = useMemo(() => {
-    const stats = { total: messages.length, sent: 0, delivered: 0, read: 0, failed: 0, blocked: 0, pending: 0 };
-    messages.forEach(m => {
+    const stats = { total: dedupedMessages.length, sent: 0, delivered: 0, read: 0, failed: 0, blocked: 0, pending: 0 };
+    dedupedMessages.forEach(m => {
       if (['sent', 'delivered', 'read'].includes(m.status)) stats.sent++;
       if (['delivered', 'read'].includes(m.status)) stats.delivered++;
       if (m.status === 'read') stats.read++;
@@ -172,12 +187,34 @@ export default function QRBroadcastReportPage() {
       if (['pending', 'sending'].includes(m.status)) stats.pending++;
     });
     return stats;
-  }, [messages]);
+  }, [dedupedMessages]);
 
   const successRatio = useMemo(() => {
     const attempted = messageStats.total - messageStats.pending;
     return attempted === 0 ? 0 : Math.round((messageStats.sent / attempted) * 100);
   }, [messageStats]);
+
+  // ── Sent-report dashboard: daily / weekly / monthly / total (across all runs) ──
+  const periodStats = useMemo(() => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfWeek = startOfDay - ((now.getDay() + 6) % 7) * 86400000; // Monday
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const blank = () => ({ runs: 0, sent: 0, delivered: 0, read: 0, failed: 0 });
+    const acc = { daily: blank(), weekly: blank(), monthly: blank(), total: blank() };
+    const add = (b: ReturnType<typeof blank>, s: any) => {
+      b.runs++; b.sent += s?.sent || 0; b.delivered += s?.delivered || 0;
+      b.read += s?.read || 0; b.failed += (s?.failed || 0) + (s?.blocked || 0);
+    };
+    for (const r of runs) {
+      const t = new Date(r.createdAt).getTime();
+      add(acc.total, r.stats);
+      if (t >= startOfMonth) add(acc.monthly, r.stats);
+      if (t >= startOfWeek) add(acc.weekly, r.stats);
+      if (t >= startOfDay) add(acc.daily, r.stats);
+    }
+    return acc;
+  }, [runs]);
 
   const toggleMessage = (id: string) => {
     setSelectedMessages(prev => {
@@ -265,15 +302,20 @@ export default function QRBroadcastReportPage() {
 
   const rescheduleBroadcast = async () => {
     if (!rescheduleDate) { setError('Please pick a date and time'); return; }
+    // First requeue the chosen recipients, then set the new time.
+    const resetAction = rescheduleTarget === 'all' ? 'reset-all'
+      : rescheduleTarget === 'pending' ? 'reset-pending'
+      : 'retry-failed';
+    await patchAction(resetAction);
     await patchAction('reschedule', { scheduledAt: new Date(rescheduleDate).toISOString() });
     setShowRescheduleModal(false);
     setRescheduleDate('');
   };
 
   const exportCSV = () => {
-    if (!selectedRun || messages.length === 0) return;
+    if (!selectedRun || dedupedMessages.length === 0) return;
     const headers = ['Phone Number', 'Name', 'Status', 'Sent At', 'Delivered At', 'Read At', 'Failure Reason'];
-    const rows = messages.map(m => [
+    const rows = dedupedMessages.map(m => [
       m.phoneNumber,
       m.lead?.name || '',
       m.status,
@@ -306,7 +348,7 @@ export default function QRBroadcastReportPage() {
                   ← All Broadcasts
                 </button>
               ) : (
-                <Link href="/admin/crm/qr-broadcast" className="text-gray-500 hover:text-gray-700 text-sm">
+                <Link href="/admin/crm/qr/broadcast" className="text-gray-500 hover:text-gray-700 text-sm">
                   ← QR Broadcast
                 </Link>
               )}
@@ -359,7 +401,7 @@ export default function QRBroadcastReportPage() {
                   </button>
                 </>
               )}
-              <Link href="/admin/crm/qr-broadcast" className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold text-sm">
+              <Link href="/admin/crm/qr/broadcast" className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold text-sm">
                 + New Broadcast
               </Link>
             </div>
@@ -382,15 +424,37 @@ export default function QRBroadcastReportPage() {
                 <div className="text-5xl mb-4">📭</div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">No QR broadcasts yet</h3>
                 <p className="text-gray-500 mb-6">Create your first QR broadcast to start messaging contacts</p>
-                <Link href="/admin/crm/qr-broadcast" className="inline-block px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold">
+                <Link href="/admin/crm/qr/broadcast" className="inline-block px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold">
                   Create Broadcast
                 </Link>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
+              <>
+                {/* ── Sent report dashboard: daily / weekly / monthly / total ── */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  {[
+                    { label: 'Today', d: periodStats.daily },
+                    { label: 'This Week', d: periodStats.weekly },
+                    { label: 'This Month', d: periodStats.monthly },
+                    { label: 'All Time', d: periodStats.total },
+                  ].map(p => (
+                    <div key={p.label} className="bg-white rounded-xl border border-gray-200 p-4">
+                      <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">{p.label}</div>
+                      <div className="text-3xl font-bold text-gray-900 leading-none">{p.d.sent}</div>
+                      <div className="text-xs text-gray-500 mb-2.5">sent · {p.d.runs} broadcasts</div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium">
+                        <span className="text-emerald-600">📬 {p.d.delivered}</span>
+                        <span className="text-teal-600">👁️ {p.d.read}</span>
+                        <span className="text-red-600">❌ {p.d.failed}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Broadcast</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Status</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Total</th>
@@ -436,6 +500,7 @@ export default function QRBroadcastReportPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         ) : (
@@ -677,7 +742,25 @@ export default function QRBroadcastReportPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4">
             <h2 className="text-xl font-bold text-gray-900 mb-2">📅 Reschedule Broadcast</h2>
-            <p className="text-sm text-gray-500 mb-6">Failed messages will be reset to pending and sent at the new time.</p>
+            <p className="text-sm text-gray-500 mb-5">The selected recipients will be requeued and sent at the new time.</p>
+            <div className="mb-5">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Resend to</label>
+              <div className="space-y-2">
+                {[
+                  { key: 'failed' as const, label: 'Failed only', desc: `Retry the ${messageStats.failed + messageStats.blocked} failed/blocked` },
+                  { key: 'pending' as const, label: 'Pending + failed', desc: 'Everyone not yet delivered' },
+                  { key: 'all' as const, label: 'Everyone (resend all)', desc: `Resend to all ${messageStats.total} recipients` },
+                ].map(o => (
+                  <label key={o.key} className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${rescheduleTarget === o.key ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input type="radio" name="rescheduleTarget" checked={rescheduleTarget === o.key} onChange={() => setRescheduleTarget(o.key)} className="mt-0.5" />
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">{o.label}</div>
+                      <div className="text-xs text-gray-500">{o.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">New Date & Time (IST)</label>
               <input

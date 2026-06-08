@@ -76,8 +76,11 @@ export default function QRBroadcastWizard() {
 
   // Step 3 — schedule
   const [runName, setRunName] = useState('');
-  const [mode, setMode] = useState<'now' | 'schedule'>('now');
+  const [mode, setMode] = useState<'now' | 'schedule' | 'delay'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
+  const [delayDays, setDelayDays] = useState(0);
+  const [delayHours, setDelayHours] = useState(0);
+  const [delayMinutes, setDelayMinutes] = useState(10);
   const [gapPreset, setGapPreset] = useState('SAFE');
 
   // Pre-select template from URL param (from "Use in Broadcast" button)
@@ -112,6 +115,9 @@ export default function QRBroadcastWizard() {
     const res = await crmFetch(`/api/admin/crm/leads?${params}`).catch(() => null);
     const items: Lead[] = Array.isArray(res?.data?.leads) ? res.data.leads : [];
     setLeads(items);
+    // Auto-connect: pre-select every loaded QR lead so the broadcast targets the
+    // whole QR list by default (the admin can still deselect individuals).
+    setSelectedLeadIds(new Set(items.map(l => l._id)));
     setLeadsLoading(false);
   }, [token, filterStatus, filterLabel, leadSearch]);
 
@@ -155,15 +161,19 @@ export default function QRBroadcastWizard() {
   async function handleSubmit() {
     if (!selectedTemplate) return;
     if (mode === 'schedule' && !scheduledAt) { setError('Please set a scheduled time'); return; }
+    const delayMs = ((delayDays * 24 + delayHours) * 60 + delayMinutes) * 60 * 1000;
+    if (mode === 'delay' && delayMs <= 0) { setError('Please set a delay greater than 0'); return; }
     setSubmitting(true);
     setError(null);
     try {
       const preset = GAP_PRESETS[gapPreset] || GAP_PRESETS.SAFE;
+      // 'delay' is sent to the server as a normal scheduled run (now + delay).
+      const effectiveMode = mode === 'delay' ? 'schedule' : mode;
       const body: any = {
         name: runName.trim() || `QR Broadcast – ${selectedTemplate.templateName} – ${new Date().toLocaleDateString('en-IN')}`,
         templateId: selectedTemplate._id,
         provider: 'qr',
-        mode,
+        mode: effectiveMode,
         target: { type: 'leadIds', leadIds: Array.from(selectedLeadIds) },
         messageInterval: {
           enabled: true,
@@ -172,6 +182,7 @@ export default function QRBroadcastWizard() {
         },
       };
       if (mode === 'schedule') body.scheduleAt = new Date(scheduledAt).toISOString();
+      if (mode === 'delay') body.scheduleAt = new Date(Date.now() + delayMs).toISOString();
 
       const res = await crmFetch('/api/admin/crm/broadcast-runs', { method: 'POST', body: JSON.stringify(body) });
       if (!res?.success) throw new Error(res?.error || 'Failed to create broadcast run');
@@ -462,6 +473,14 @@ export default function QRBroadcastWizard() {
                 >
                   🕐 Schedule Later
                 </button>
+                <button
+                  onClick={() => setMode('delay')}
+                  className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
+                    mode === 'delay' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  ⏳ Send After Delay
+                </button>
               </div>
               {mode === 'schedule' && (
                 <input
@@ -471,6 +490,35 @@ export default function QRBroadcastWizard() {
                   min={new Date().toISOString().slice(0, 16)}
                   className="mt-3 w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
+              )}
+              {mode === 'delay' && (
+                <div className="mt-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Days', value: delayDays, set: setDelayDays, max: 60 },
+                      { label: 'Hours', value: delayHours, set: setDelayHours, max: 23 },
+                      { label: 'Minutes', value: delayMinutes, set: setDelayMinutes, max: 59 },
+                    ].map(f => (
+                      <div key={f.label}>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={f.max}
+                          value={f.value}
+                          onChange={e => f.set(Math.max(0, Math.min(f.max, Number(e.target.value) || 0)))}
+                          className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Will send around{' '}
+                    <span className="font-semibold text-amber-700">
+                      {new Date(Date.now() + ((delayDays * 24 + delayHours) * 60 + delayMinutes) * 60000).toLocaleString('en-IN')}
+                    </span>
+                  </p>
+                </div>
               )}
             </div>
 

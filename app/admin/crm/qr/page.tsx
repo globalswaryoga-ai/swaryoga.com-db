@@ -2414,30 +2414,9 @@ export default function QRWhatsAppPage() {
             </button>
           ))}
 
-          {/* Templates / Broadcast / Group Contacts — dedicated QR pages.
-              These link out (instead of in-page tabs) so the standalone pages
-              are the single source of truth and no duplicate copy is shown. */}
-          <Link
-            href="/admin/crm/qr/templates"
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-green-700 hover:bg-gray-100 hover:border-green-400 transition-all whitespace-nowrap"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Templates</span>
-          </Link>
-          <Link
-            href="/admin/crm/qr/broadcast"
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-green-700 hover:bg-gray-100 hover:border-green-400 transition-all whitespace-nowrap"
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>Broadcast</span>
-          </Link>
-          <Link
-            href="/admin/crm/qr/group-contacts"
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-green-700 hover:bg-gray-100 hover:border-green-400 transition-all whitespace-nowrap"
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Group Contacts</span>
-          </Link>
+          {/* NOTE: Templates / Broadcast / Group Contacts intentionally live ONLY
+              in the top QR WhatsApp menu (CrmSubNav) — not here — to avoid the
+              duplicate header labels. */}
 
           {/* Funnel pills — visible only on inbox tab */}
           {tab === 'inbox' && (
