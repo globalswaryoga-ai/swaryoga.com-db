@@ -42,12 +42,16 @@ export async function GET(request: NextRequest) {
     const WhatsAppTemplate = getWhatsAppTemplate();
 
     const filter: any = {};
-    
-    // Non-superadmins only see their own templates
-    if (!superAdmin) {
+
+    // Ownership scoping:
+    //  • Regular admins/tenants only ever see their own templates.
+    //  • QR templates are ALWAYS owner-scoped — even for the super admin — because
+    //    QR is per-connected-account. Without this, the super admin's QR template
+    //    list leaks every tenant's QR templates. (Meta keeps super-admin "see all".)
+    if (!superAdmin || provider === 'qr') {
       filter.createdBy = viewerUserId;
     }
-    
+
     if (category) filter.category = category;
     if (status) filter.status = status;
     if (provider) filter.provider = provider;
