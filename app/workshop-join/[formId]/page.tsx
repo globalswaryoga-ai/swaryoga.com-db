@@ -1,9 +1,28 @@
 import { Metadata } from 'next';
-import { connectDB, EnquiryForm } from '@/lib/db';
+import { connectDB, EnquiryForm, Order } from '@/lib/db';
 import JoinFormClient from './JoinFormClient';
 
 interface Props {
   params: { formId: string };
+  searchParams?: { paid?: string; payfailed?: string };
+}
+
+/**
+ * Server-verify a ?paid=<cashfreeOrderId> param: it only counts as paid if there
+ * is a COMPLETED order for that Cashfree id whose item belongs to THIS form.
+ * This makes the group-link reveal tamper-proof (a guessed ?paid won't unlock it).
+ */
+async function verifyPaid(cashfreeOrderId: string | undefined, formId: string): Promise<boolean> {
+  if (!cashfreeOrderId) return false;
+  try {
+    await connectDB();
+    const order = await Order.findOne({ cashfreeOrderId: String(cashfreeOrderId), paymentStatus: 'completed' })
+      .select({ items: 1 }).lean() as any;
+    if (!order) return false;
+    return (order.items || []).some((it: any) => it.workshopSlug === formId);
+  } catch {
+    return false;
+  }
 }
 
 async function getForm(formId: string) {
@@ -83,8 +102,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /* ── Page renders client component with pre-fetched data ── */
-export default async function JoinFormPage({ params }: Props) {
+export default async function JoinFormPage({ params, searchParams }: Props) {
   const form = await getForm(params.formId);
+  const paid = await verifyPaid(searchParams?.paid, params.formId);
+  const payFailed = searchParams?.payfailed === '1';
 
   if (!form) {
     return (
@@ -98,5 +119,5 @@ export default async function JoinFormPage({ params }: Props) {
     );
   }
 
-  return <JoinFormClient formData={form} />;
+  return <JoinFormClient formData={form} paid={paid} payFailed={payFailed} />;
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
-import { CheckCircle, Loader, Calendar, Clock, Users, CreditCard, Clock3 } from 'lucide-react';
+import { CheckCircle, Loader, Calendar, Clock, Users, CreditCard, Clock3, Lock } from 'lucide-react';
 
 interface FormData {
   formId: string;
@@ -21,7 +21,7 @@ const MODE_ICONS: Record<string, string> = { online: '💻', offline: '📍', re
 const MODE_LABELS: Record<string, string> = { online: 'Online', offline: 'Offline', residential: 'Residential', recorded: 'Recorded' };
 const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', NPR: 'रू' };
 
-export default function JoinFormClient({ formData }: { formData: FormData }) {
+export default function JoinFormClient({ formData, paid = false, payFailed = false }: { formData: FormData; paid?: boolean; payFailed?: boolean }) {
   const price = Math.max(0, Number(formData.price) || 0);
   const currency = (formData.currency || 'INR').toUpperCase();
   const symbol = CURRENCY_SYMBOL[currency] || '';
@@ -117,6 +117,40 @@ export default function JoinFormClient({ formData }: { formData: FormData }) {
     setPayLaterState('sent');
   };
 
+  // ── Payment complete (returned from Cashfree, server-verified) ──
+  // This is the ONLY place the group link is revealed for a paid workshop.
+  if (paid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] px-4 py-10">
+        <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
+          {formData.workshopImage && (
+            <img src={formData.workshopImage} alt={formData.workshopName} className="w-full h-36 object-cover rounded-2xl mb-5" />
+          )}
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="text-green-600" size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Payment Complete! 🎉</h1>
+          <p className="text-gray-500 text-sm mb-5">
+            You&apos;re confirmed for <strong>{formData.workshopName}</strong>.
+          </p>
+          {formData.groupLink ? (
+            <a
+              href={formData.groupLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full h-12 bg-[#25D366] text-white rounded-xl font-bold text-sm hover:brightness-95 transition flex items-center justify-center gap-2"
+            >
+              <Users size={18} /> Join WhatsApp Group
+            </a>
+          ) : (
+            <p className="text-sm text-gray-500">We&apos;ll share the group details on WhatsApp shortly.</p>
+          )}
+          <p className="text-xs text-gray-400 mt-3">We&apos;ve also sent this link to your WhatsApp.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] px-4 py-10">
@@ -134,8 +168,10 @@ export default function JoinFormClient({ formData }: { formData: FormData }) {
             for <strong>{formData.workshopName}</strong>.
           </p>
 
-          {/* Step 1 — Join the WhatsApp group */}
-          {formData.groupLink && (
+          {/* Step 1 — Join the WhatsApp group.
+              For FREE workshops the link shows immediately. For PAID workshops it
+              stays LOCKED until payment completes (revealed on the paid screen). */}
+          {formData.groupLink && !isPaid && (
             <a
               href={formData.groupLink}
               target="_blank"
@@ -144,6 +180,11 @@ export default function JoinFormClient({ formData }: { formData: FormData }) {
             >
               <Users size={18} /> Join WhatsApp Group
             </a>
+          )}
+          {formData.groupLink && isPaid && (
+            <div className="w-full mb-3 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 text-sm flex items-center justify-center gap-2">
+              <Lock size={15} /> WhatsApp group unlocks after payment
+            </div>
           )}
 
           {/* Step 2 — Payment (only when the workshop has a price) */}
@@ -247,6 +288,11 @@ export default function JoinFormClient({ formData }: { formData: FormData }) {
         <form onSubmit={handleSubmit} className="px-8 py-6 space-y-4">
           <h2 className="text-base font-bold text-gray-800">Join Now — Fill Your Details</h2>
 
+          {payFailed && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
+              Your payment didn’t go through. Please fill the form and try again.
+            </div>
+          )}
           {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
 
           <div>

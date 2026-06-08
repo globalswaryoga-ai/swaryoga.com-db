@@ -3,10 +3,10 @@ import { connectDB, EnquiryForm, Order } from '@/lib/db';
 import {
   cashfreeCreateOrder,
   getCashfreeEnv,
-  getCashfreeReturnUrl,
   getCashfreeSdkUrl,
   getCashfreeWebhookUrl,
 } from '@/lib/payments/cashfree';
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 import { normalizePhone } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
@@ -52,7 +52,9 @@ export async function POST(
     const cashfreeOrderId = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 9);
     const userId = `guest:${phone}`;
 
-    const returnUrl = getCashfreeReturnUrl(req);
+    // Return to our own workshop handler so we can gate the group link behind a
+    // verified payment (and WhatsApp the link). Cashfree appends ?order_id=.
+    const returnUrl = `${getRequestBaseUrl(req)}/api/workshop-join/${params.formId}/pay-return`;
     const notifyUrl = getCashfreeWebhookUrl(req);
 
     // Create the Cashfree order (amount from the DB form — authoritative).

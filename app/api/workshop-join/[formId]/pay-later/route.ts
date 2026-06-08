@@ -2,52 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, EnquiryForm } from '@/lib/db';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
-import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
+import { sendTextViaQrBridge } from '@/lib/qrBridgeSend';
 
 export const dynamic = 'force-dynamic';
 
 const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', NPR: 'रू' };
-
-/**
- * Send a text message to a phone via the QR WhatsApp bridge (the connected
- * Swar Yoga account). Used to auto-deliver a payment link to a new lead — the
- * QR bridge can message any number, unlike Meta (which needs a 24h window).
- */
-async function sendWhatsAppViaBridge(phone: string, text: string): Promise<boolean> {
-  const { url, secret } = getWhatsAppBridgeConfig();
-  if (!url || !secret) return false;
-
-  // Resolve a connected session (the central Swar Yoga account).
-  let sessionKey: string | null = null;
-  let userId = 'admincrm';
-  try {
-    const r = await fetch(`${url}/sessions`, { headers: { 'x-bridge-secret': secret } });
-    if (r.ok) {
-      const d = await r.json();
-      const s = (d?.sessions || []).find((x: any) => x.status === 'connected');
-      if (s) { sessionKey = s.sessionKey; userId = s.userId || userId; }
-    }
-  } catch { /* bridge unreachable */ }
-  if (!sessionKey) return false;
-
-  const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-  try {
-    const res = await fetch(`${url}/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-bridge-secret': secret,
-        'x-user-id': userId,
-        'x-session-key': sessionKey,
-      },
-      body: JSON.stringify({ jid, type: 'text', text }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * POST /api/workshop-join/[formId]/pay-later
@@ -109,7 +69,7 @@ export async function POST(
     // Auto-send the pay link on WhatsApp.
     const message =
       `Namaste ${firstName}! 🙏\n\nTo confirm your seat for *${form.workshopName}*, please complete your payment of *${symbol}${price}*:\n${payLink}\n\nWe look forward to seeing you. — Swar Yoga`;
-    const sent = await sendWhatsAppViaBridge(phone, message);
+    const sent = await sendTextViaQrBridge(phone, message);
 
     return NextResponse.json({ success: true, whatsappSent: sent, payLink });
   } catch (err) {
