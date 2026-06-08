@@ -19,6 +19,9 @@ async function getForm(formId: string) {
       workshopMode: form.workshopMode || 'online',
       description: form.description || '',
       workshopImage: form.workshopImage || '',
+      price: form.price || 0,
+      currency: form.currency || 'INR',
+      groupLink: form.groupLink || '',
     };
   } catch {
     return null;

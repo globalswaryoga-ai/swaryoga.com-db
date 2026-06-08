@@ -28,6 +28,10 @@ interface EnquiryForm {
   workshopTime: string;
   workshopMode: string;
   description: string;
+  workshopImage?: string;
+  price?: number;
+  currency?: string;
+  groupLink?: string;
   isActive: boolean;
   submissionCount: number;
   createdAt: string;
@@ -56,6 +60,9 @@ export default function EnquiriesPage() {
   const [newWsMode, setNewWsMode] = useState('online');
   const [newWsDesc, setNewWsDesc] = useState('');
   const [newWsImage, setNewWsImage] = useState('');     // Bunny CDN URL after upload
+  const [newWsPrice, setNewWsPrice] = useState('');     // workshop price (empty/0 = free, no payment)
+  const [newWsCurrency, setNewWsCurrency] = useState('INR');
+  const [newWsGroupLink, setNewWsGroupLink] = useState(''); // WhatsApp group invite link
   const [editingFormId, setEditingFormId] = useState<string | null>(null); // null = creating, else editing
   const [imageUploading, setImageUploading] = useState(false);
   const [savingForm, setSavingForm] = useState(false);
@@ -133,12 +140,14 @@ export default function EnquiriesPage() {
     setEditingFormId(null);
     setFormSaveError('');
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
+    setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
   };
 
   // Open the modal in create mode (clears any leftover edit state/fields).
   const openCreateForm = () => {
     setEditingFormId(null);
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
+    setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
     setFormSaveError('');
     setShowAddForm(true);
   };
@@ -151,7 +160,10 @@ export default function EnquiriesPage() {
     setNewWsTime(form.workshopTime || '');
     setNewWsMode(form.workshopMode || 'online');
     setNewWsDesc(form.description || '');
-    setNewWsImage((form as any).workshopImage || '');
+    setNewWsImage(form.workshopImage || '');
+    setNewWsPrice(form.price ? String(form.price) : '');
+    setNewWsCurrency(form.currency || 'INR');
+    setNewWsGroupLink(form.groupLink || '');
     setFormSaveError('');
     setShowAddForm(true);
   };
@@ -168,6 +180,9 @@ export default function EnquiriesPage() {
         workshopMode: newWsMode,
         description: newWsDesc.trim(),
         workshopImage: newWsImage,
+        price: Math.max(0, Number(newWsPrice) || 0),
+        currency: newWsCurrency || 'INR',
+        groupLink: newWsGroupLink.trim(),
       };
       if (editingFormId) {
         // ── Edit existing form (PATCH) ──
@@ -346,6 +361,8 @@ export default function EnquiriesPage() {
                       <div className="text-xs text-swar-text-secondary mt-0.5 flex items-center gap-3">
                         {form.workshopDate && <span>📅 {form.workshopDate}</span>}
                         {form.workshopTime && <span>🕐 {form.workshopTime}</span>}
+                        {form.price ? <span className="font-semibold text-[#2d6a4f]">💰 {form.currency || 'INR'} {form.price}</span> : <span className="text-gray-400">Free</span>}
+                        {form.groupLink ? <span title="WhatsApp group link set">👥 Group</span> : null}
                         <span>{form.submissionCount || 0} submissions</span>
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5 font-mono truncate">
@@ -628,6 +645,44 @@ export default function EnquiriesPage() {
                     className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Price <span className="font-normal text-gray-400">(0 = free)</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newWsPrice}
+                    onChange={(e) => setNewWsPrice(e.target.value)}
+                    placeholder="e.g. 999"
+                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Currency</label>
+                  <select
+                    value={newWsCurrency}
+                    onChange={(e) => setNewWsCurrency(e.target.value)}
+                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 bg-white"
+                  >
+                    <option value="INR">₹ INR</option>
+                    <option value="USD">$ USD</option>
+                    <option value="NPR">रू NPR</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">WhatsApp Group Link <span className="font-normal text-gray-400">(optional)</span></label>
+                <input
+                  type="url"
+                  value={newWsGroupLink}
+                  onChange={(e) => setNewWsGroupLink(e.target.value)}
+                  placeholder="https://chat.whatsapp.com/…"
+                  className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                />
+                <p className="text-xs text-gray-400 mt-1">Shown as a “Join WhatsApp Group” button after the user submits.</p>
               </div>
 
               <div>

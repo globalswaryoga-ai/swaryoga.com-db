@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(decoded)) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
 
   const body = await req.json();
-  const { workshopName, workshopDate, workshopTime, workshopMode, workshopId, description, workshopImage } = body;
+  const { workshopName, workshopDate, workshopTime, workshopMode, workshopId, description, workshopImage, price, currency, groupLink } = body;
 
   if (!workshopName?.trim()) {
     return NextResponse.json({ error: 'Workshop name is required' }, { status: 400 });
@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
     workshopId: workshopId?.trim() || '',
     description: description?.trim() || '',
     workshopImage: workshopImage?.trim() || '',
+    price: Math.max(0, Number(price) || 0),
+    currency: (currency?.trim() || 'INR').toUpperCase(),
+    groupLink: groupLink?.trim() || '',
     isActive: true,
   });
 

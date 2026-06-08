@@ -2221,6 +2221,10 @@ const enquiryFormSchema = new mongoose.Schema(
     workshopId: { type: String, default: '' },        // optional slug reference
     description: { type: String, default: '' },
     workshopImage: { type: String, default: '' },     // banner image URL
+    // Payment (optional): when price > 0 the public form shows Pay Now / Pay Later.
+    price: { type: Number, default: 0 },               // 0 = free / no payment
+    currency: { type: String, default: 'INR' },
+    groupLink: { type: String, default: '' },          // WhatsApp group invite link shown after join
     isActive: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, default: 'admin' },
     submissionCount: { type: Number, default: 0 },

@@ -26,6 +26,9 @@ export async function GET(
       workshopMode: form.workshopMode,
       description: form.description,
       workshopImage: form.workshopImage || '',
+      price: form.price || 0,
+      currency: form.currency || 'INR',
+      groupLink: form.groupLink || '',
     },
   });
 }
