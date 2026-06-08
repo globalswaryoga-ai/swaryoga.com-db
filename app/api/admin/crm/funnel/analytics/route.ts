@@ -66,6 +66,9 @@ export async function GET(request: NextRequest) {
     } else if (assignedTo) {
       // Super admin with specific user filter
       userFilter.$or = [{ assignedToUserId: assignedTo }, { createdByUserId: assignedTo }];
+    } else if (source === 'qr_whatsapp') {
+      // QR per-tenant SaaS: scope super admin to OWN QR leads (no cross-tenant).
+      userFilter.$or = [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }];
     }
     // else: super admin with no filter — no restriction, see all leads
 

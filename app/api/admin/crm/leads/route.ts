@@ -66,6 +66,11 @@ export async function GET(request: NextRequest) {
 
     const filter: any = {};
 
+    // Read source early — QR data is tenant-isolated SaaS, so even the super
+    // admin must be scoped to their OWN qr_whatsapp leads (no cross-tenant view).
+    const source = url.searchParams.get('source');
+    const isQrSource = source === 'qr_whatsapp';
+
     // Multi-user access control (3-tier):
     // - Super-admin: see ALL leads, optionally filter by specific user
     // - Manager (MR Admin): see leads assigned to themselves OR their team members
@@ -82,6 +87,10 @@ export async function GET(request: NextRequest) {
         } else {
           accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
         }
+      } else if (isQrSource) {
+        // QR is per-tenant: scope the super admin to their OWN QR leads so other
+        // tenants' QR leads never leak into their list, broadcast, funnel, etc.
+        accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
       }
       // Otherwise no filter - show ALL leads
     } else if (visibleUserIds.length > 1) {
@@ -102,7 +111,6 @@ export async function GET(request: NextRequest) {
       accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
-    const source = url.searchParams.get('source');
     const excludeSource = url.searchParams.get('excludeSource');
     if (status) filter.status = status;
     if (workshop) filter.workshopName = workshop;

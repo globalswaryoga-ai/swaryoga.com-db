@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
 
     // Build base query - ALWAYS filter to prevent data leakage
     const query: any = {};
+    const qSource = url.searchParams.get('source') || '';
 
     // Non-super admins only see their own leads
     if (!isSuper) {
@@ -58,6 +59,15 @@ export async function GET(request: NextRequest) {
       query.$or = [
         { assignedToUserId: assignedTo },
         { createdByUserId: assignedTo },
+      ];
+    } else if (qSource === 'qr_whatsapp') {
+      // QR is per-tenant SaaS: scope the super admin to their OWN QR leads so
+      // other tenants' QR leads never leak into the QR funnel/manage views.
+      query.$and = [
+        { $or: [
+          { assignedToUserId: viewerId },
+          { createdByUserId: viewerId },
+        ] },
       ];
     }
     // else: super admin with no filter — no restriction, see all leads

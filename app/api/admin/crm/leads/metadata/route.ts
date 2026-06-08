@@ -50,6 +50,9 @@ export async function GET(request: NextRequest) {
         } else {
           baseFilter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
         }
+      } else if (sourceParam === 'qr_whatsapp') {
+        // QR is per-tenant: scope super-admin counts to their OWN QR leads too.
+        baseFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
       }
     } else {
       baseFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
