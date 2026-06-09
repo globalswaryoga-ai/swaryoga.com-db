@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
@@ -102,7 +103,7 @@ export async function GET(request: NextRequest) {
           gender: meta.gender || '',
           city: meta.city || '',
           submittedAt: (meta.submittedAt || l.createdAt || new Date()).toString(),
-          status: l.status === 'registered' ? 'registered'
+          status: ['registered', 'enrolled', 'completed', 'customer'].includes(l.status) ? 'registered'
             : l.status === 'contacted' ? 'contacted'
             : 'new',
           notes: l.notes || '',
@@ -306,53 +307,82 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+// Map the enquiry status (UI) → the underlying Lead status enum.
+const ENQUIRY_TO_LEAD_STATUS: Record<string, string> = {
+  new: 'new_lead',
+  contacted: 'contacted',
+  registered: 'enrolled',
+};
+
 // PATCH: Update enquiry status
+//
+// Enquiries are sourced primarily from MongoDB Leads (label 'enquiry'), where
+// the enquiry id is the lead's leadNumber (e.g. "007007"). So the update must
+// target the Lead in Mongo — not just the legacy data/enquiries.json file,
+// which doesn't contain Mongo-sourced rows (and isn't writable on Vercel).
 export async function PATCH(request: NextRequest) {
   try {
+    // Superadmin auth (parity with GET — enquiries are superadmin-only).
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const decoded = verifyToken(authHeader.slice('Bearer '.length));
+    if (!decoded?.isAdmin || !isSuperAdmin(decoded)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 401 });
+    }
+
     const url = new URL(request.url);
     const enquiryId = url.searchParams.get('id');
     const body = await request.json();
 
     if (!enquiryId) {
-      return NextResponse.json(
-        { message: 'Enquiry ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: 'Enquiry ID is required' }, { status: 400 });
     }
-
     if (!body.status) {
-      return NextResponse.json(
-        { message: 'Status is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: 'Status is required' }, { status: 400 });
     }
 
-    // Get existing enquiries
-    const enquiries = getEnquiries();
+    const leadStatus = ENQUIRY_TO_LEAD_STATUS[body.status] || body.status;
 
-    // Find and update enquiry
+    // ── Primary: update the MongoDB Lead this enquiry was sourced from ──
+    try {
+      await connectDB();
+      const Lead = getLead();
+      const or: any[] = [{ leadNumber: enquiryId }];
+      if (mongoose.Types.ObjectId.isValid(enquiryId)) or.push({ _id: enquiryId });
+
+      const lead =
+        (await Lead.findOne({ $or: or, labels: 'enquiry' })) ||
+        (await Lead.findOne({ $or: or }));
+
+      if (lead) {
+        lead.status = leadStatus;
+        if (body.notes) lead.notes = body.notes;
+        await lead.save();
+        return NextResponse.json(
+          { message: 'Enquiry updated successfully', data: { id: enquiryId, status: body.status } },
+          { status: 200 }
+        );
+      }
+    } catch (mongoErr) {
+      console.error('[enquiries PATCH] Mongo update failed, falling back to JSON:', mongoErr);
+    }
+
+    // ── Fallback: legacy JSON file (old local-only entries) ──
+    const enquiries = getEnquiries();
     const enquiry = enquiries.find((e: any) => e.id === enquiryId);
     if (!enquiry) {
-      return NextResponse.json(
-        { message: 'Enquiry not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ message: 'Enquiry not found' }, { status: 404 });
     }
 
     enquiry.status = body.status;
-    if (body.notes) {
-      enquiry.notes = body.notes;
-    }
+    if (body.notes) enquiry.notes = body.notes;
     enquiry.updatedAt = new Date().toISOString();
-
-    // Save enquiries
     saveEnquiries(enquiries);
 
     return NextResponse.json(
-      {
-        message: 'Enquiry updated successfully',
-        data: enquiry,
-      },
+      { message: 'Enquiry updated successfully', data: enquiry },
       { status: 200 }
     );
   } catch (error) {
