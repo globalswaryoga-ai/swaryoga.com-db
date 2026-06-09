@@ -8,13 +8,13 @@
  */
 
 import { NextRequest } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { apiSuccess, apiError } from '@/lib/api-error';
 import { PLAN_DEFINITIONS } from '@/lib/tenant/plans';
 import { PLAN_DEFAULT_GROUPS, ALL_GROUP_KEYS } from '@/lib/tenant/moduleCatalog';
-import { getTenantPlanModel } from '@/lib/tenant/tenantSchemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,34 +25,6 @@ function requireSuperAdmin(request: NextRequest) {
   const decoded = verifyToken(token);
   if (!decoded || !isSuperAdmin(decoded)) return null;
   return decoded;
-}
-
-// Seed the tenant_plans collection from static config on first use.
-async function ensureSeeded(Plan: any) {
-  const count = await Plan.countDocuments();
-  if (count > 0) return;
-  const docs = Object.values(PLAN_DEFINITIONS).map((p: any, i) => ({
-    tier: p.tier,
-    name: p.name,
-    description: p.description,
-    limits: {
-      maxLeads: p.limits.maxLeads,
-      maxUsers: p.limits.maxUsers,
-      maxStorageMB: p.limits.maxStorageMB,
-      maxWhatsAppTemplates: p.limits.maxWhatsAppTemplates,
-      maxBroadcastsPerDay: p.limits.maxBroadcastsPerDay,
-      maxApiRequestsPerDay: p.limits.maxApiRequestsPerDay,
-    },
-    defaultGroups: PLAN_DEFAULT_GROUPS[p.tier] || [],
-    monthlyPriceINR: p.monthlyPriceINR,
-    annualPriceINR: p.annualPriceINR,
-    quarterlyPriceINR: p.monthlyPriceINR * 3,
-    halfYearlyPriceINR: p.monthlyPriceINR * 6,
-    trialDays: p.tier === 'free' ? 0 : 7, // sensible default: 7-day trial on paid tiers
-    order: TIER_ORDER.indexOf(p.tier) === -1 ? i : TIER_ORDER.indexOf(p.tier),
-    isCustom: false,
-  }));
-  await Plan.insertMany(docs, { ordered: false }).catch(() => {});
 }
 
 function sanitizeLimits(l: any) {
@@ -75,6 +47,14 @@ function sanitizeGroups(g: any): string[] {
 // ---------------------------------------------------------------------------
 // GET — list plans (seeds on first call)
 // ---------------------------------------------------------------------------
+
+// Raw MongoDB collection for tenant plans (CRM DB) — used for writes to avoid
+// Mongoose model/index quirks that were causing 500s.
+function plansCollection() {
+  return mongoose.connection
+    .useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm')
+    .collection('tenant_plans');
+}
 
 function shapeDoc(p: any) {
   return {
@@ -128,8 +108,7 @@ export async function GET(_request: NextRequest) {
   const byTier = new Map(configPlans().map((p) => [p.tier, p]));
   try {
     await connectDB();
-    const Plan = getTenantPlanModel();
-    const dbPlans = await Plan.find({}).lean();
+    const dbPlans = await plansCollection().find({}).toArray();
     for (const d of dbPlans as any[]) byTier.set(d.tier, shapeDoc(d));
   } catch (e) {
     console.error('[plans GET] DB read failed, serving config defaults:', e);
@@ -146,18 +125,18 @@ export async function POST(request: NextRequest) {
   if (!requireSuperAdmin(request)) return apiError('UNAUTHORIZED');
   try {
     await connectDB();
-    const Plan = getTenantPlanModel();
+    const col = plansCollection();
 
     const body = await request.json();
     const tier = String(body.tier || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!tier) return apiError('VALIDATION_ERROR', 'tier (slug) is required');
     if (!body.name?.trim()) return apiError('VALIDATION_ERROR', 'name is required');
 
-    const existing = await Plan.findOne({ tier });
+    const existing = await col.findOne({ tier });
     if (existing) return apiError('DUPLICATE_ENTRY', `Plan "${tier}" already exists`);
 
-    const maxOrder = await Plan.findOne({}).sort({ order: -1 }).select('order').lean();
-    const created = await Plan.create({
+    const maxOrder = await col.find({}).sort({ order: -1 }).limit(1).toArray();
+    const doc = {
       tier,
       name: body.name.trim(),
       description: String(body.description || '').trim(),
@@ -170,11 +149,14 @@ export async function POST(request: NextRequest) {
       trialDays: Math.max(0, Number(body.trialDays) || 0),
       promoCode: String(body.promoCode || '').trim().toUpperCase(),
       discountPercent: Math.max(0, Math.min(100, Number(body.discountPercent) || 0)),
-      order: ((maxOrder as any)?.order ?? 0) + 1,
+      order: ((maxOrder[0] as any)?.order ?? 0) + 1,
       isCustom: true,
-    });
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await col.insertOne(doc);
 
-    return apiSuccess({ plan: created, message: 'Plan created.' }, 201);
+    return apiSuccess({ plan: doc, message: 'Plan created.' }, 201);
   } catch (e) {
     console.error('[plans POST]', e);
     return apiError('SERVER_ERROR', e instanceof Error ? e.message : 'Failed to create plan');
@@ -189,7 +171,6 @@ export async function PATCH(request: NextRequest) {
   if (!requireSuperAdmin(request)) return apiError('UNAUTHORIZED');
   try {
     await connectDB();
-    const Plan = getTenantPlanModel();
 
     const body = await request.json();
     const tier = String(body.tier || '').trim().toLowerCase();
@@ -211,35 +192,21 @@ export async function PATCH(request: NextRequest) {
 
     if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');
 
-    // Find-or-create (no upsert, to avoid index/insert quirks). If the tier
-    // hasn't been persisted yet (config-default tiers), create it from the
-    // config base merged with the edited fields.
-    const existing = await Plan.findOne({ tier });
-    if (existing) {
-      Object.assign(existing, $set);
-      await existing.save();
-      return apiSuccess({ plan: existing.toObject(), message: 'Plan saved.' });
-    }
-
+    // Write via the raw MongoDB driver — bypasses Mongoose model validation
+    // and unique-index auto-build, which was 500'ing on the tenant_plans
+    // collection. Upsert by tier so config-default tiers get created on edit.
     const base = configPlans().find((p) => p.tier === tier);
-    const created = await Plan.create({
-      tier,
-      name: $set.name ?? base?.name ?? tier,
-      description: $set.description ?? base?.description ?? '',
-      limits: $set.limits ?? base?.limits ?? {},
-      defaultGroups: $set.defaultGroups ?? base?.defaultGroups ?? [],
-      monthlyPriceINR: $set.monthlyPriceINR ?? base?.monthlyPriceINR ?? 0,
-      annualPriceINR: $set.annualPriceINR ?? base?.annualPriceINR ?? 0,
-      quarterlyPriceINR: $set.quarterlyPriceINR ?? base?.quarterlyPriceINR ?? 0,
-      halfYearlyPriceINR: $set.halfYearlyPriceINR ?? base?.halfYearlyPriceINR ?? 0,
-      trialDays: $set.trialDays ?? base?.trialDays ?? 0,
-      promoCode: $set.promoCode ?? base?.promoCode ?? '',
-      discountPercent: $set.discountPercent ?? base?.discountPercent ?? 0,
-      order: base?.order ?? 0,
-      isCustom: !base,
-    });
-
-    return apiSuccess({ plan: created.toObject(), message: 'Plan saved.' });
+    const col = plansCollection();
+    await col.updateOne(
+      { tier },
+      {
+        $set: { ...$set, updatedAt: new Date() },
+        $setOnInsert: { tier, order: base?.order ?? 0, isCustom: !base, createdAt: new Date() },
+      },
+      { upsert: true },
+    );
+    const doc = await col.findOne({ tier });
+    return apiSuccess({ plan: doc, message: 'Plan saved.' });
   } catch (e) {
     console.error('[plans PATCH]', e);
     return apiError('SERVER_ERROR', e instanceof Error ? e.message : 'Failed to save plan');
@@ -252,14 +219,17 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   if (!requireSuperAdmin(request)) return apiError('UNAUTHORIZED');
-  await connectDB();
-  const Plan = getTenantPlanModel();
+  try {
+    await connectDB();
+    const tier = new URL(request.url).searchParams.get('tier')?.trim().toLowerCase();
+    if (!tier) return apiError('VALIDATION_ERROR', 'tier query param is required');
 
-  const tier = new URL(request.url).searchParams.get('tier')?.trim().toLowerCase();
-  if (!tier) return apiError('VALIDATION_ERROR', 'tier query param is required');
+    const res = await plansCollection().deleteOne({ tier });
+    if (res.deletedCount === 0) return apiError('NOT_FOUND', `Plan "${tier}" not found`);
 
-  const res = await Plan.deleteOne({ tier });
-  if (res.deletedCount === 0) return apiError('NOT_FOUND', `Plan "${tier}" not found`);
-
-  return apiSuccess({ message: `Plan "${tier}" deleted.` });
+    return apiSuccess({ message: `Plan "${tier}" deleted.` });
+  } catch (e) {
+    console.error('[plans DELETE]', e);
+    return apiError('SERVER_ERROR', e instanceof Error ? e.message : 'Failed to delete plan');
+  }
 }
