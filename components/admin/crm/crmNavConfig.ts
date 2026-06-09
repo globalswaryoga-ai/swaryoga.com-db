@@ -608,10 +608,10 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/super-admin'],
   },
 
-  // 13. CRM Tenants Admin (Multi-Tenant SaaS — superadmin only)
+  // 13. CRM Tenants (Multi-Tenant SaaS — superadmin only)
   {
     key: 'tenants',
-    title: 'CRM Tenants Admin',
+    title: 'Tenants',
     icon: Building2,
     items: [
       { label: 'All Tenants', href: '/admin/crm/tenants', icon: Building2 },
@@ -619,6 +619,21 @@ export const sectionConfigs: SectionConfig[] = [
     moreItems: [],
     prefixes: [
       '/admin/crm/tenants',
+    ],
+  },
+
+  // 13b. Plans (Plan tiers — superadmin only). Same page, anchored to the
+  // Plan Tiers section so it reads as its own sidebar entry.
+  {
+    key: 'plans',
+    title: 'Plans',
+    icon: Layers,
+    items: [
+      { label: 'Plan Tiers', href: '/admin/crm/tenants#plans', icon: Layers },
+    ],
+    moreItems: [],
+    prefixes: [
+      '/admin/crm/tenants#plans',
     ],
   },
 

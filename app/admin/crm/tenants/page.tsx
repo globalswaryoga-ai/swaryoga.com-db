@@ -718,7 +718,7 @@ export default function TenantsPage() {
       )}
 
       {/* ── Plan Tiers ── */}
-      <section>
+      <section id="plans" className="scroll-mt-24">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">Plan Tiers</h2>
           <button onClick={openPlanNew} className="text-sm font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-xl hover:bg-indigo-700 transition">
