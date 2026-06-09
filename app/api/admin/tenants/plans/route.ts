@@ -211,16 +211,35 @@ export async function PATCH(request: NextRequest) {
 
     if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');
 
-    // Upsert: if the tier hasn't been seeded into tenant_plans yet, create it
-    // from this payload instead of failing — keeps the editor resilient.
-    if ($set.name === undefined) $set.name = tier;
-    const updated = await Plan.findOneAndUpdate(
-      { tier },
-      { $set, $setOnInsert: { tier } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
-    ).lean();
+    // Find-or-create (no upsert, to avoid index/insert quirks). If the tier
+    // hasn't been persisted yet (config-default tiers), create it from the
+    // config base merged with the edited fields.
+    const existing = await Plan.findOne({ tier });
+    if (existing) {
+      Object.assign(existing, $set);
+      await existing.save();
+      return apiSuccess({ plan: existing.toObject(), message: 'Plan saved.' });
+    }
 
-    return apiSuccess({ plan: updated, message: 'Plan saved.' });
+    const base = configPlans().find((p) => p.tier === tier);
+    const created = await Plan.create({
+      tier,
+      name: $set.name ?? base?.name ?? tier,
+      description: $set.description ?? base?.description ?? '',
+      limits: $set.limits ?? base?.limits ?? {},
+      defaultGroups: $set.defaultGroups ?? base?.defaultGroups ?? [],
+      monthlyPriceINR: $set.monthlyPriceINR ?? base?.monthlyPriceINR ?? 0,
+      annualPriceINR: $set.annualPriceINR ?? base?.annualPriceINR ?? 0,
+      quarterlyPriceINR: $set.quarterlyPriceINR ?? base?.quarterlyPriceINR ?? 0,
+      halfYearlyPriceINR: $set.halfYearlyPriceINR ?? base?.halfYearlyPriceINR ?? 0,
+      trialDays: $set.trialDays ?? base?.trialDays ?? 0,
+      promoCode: $set.promoCode ?? base?.promoCode ?? '',
+      discountPercent: $set.discountPercent ?? base?.discountPercent ?? 0,
+      order: base?.order ?? 0,
+      isCustom: !base,
+    });
+
+    return apiSuccess({ plan: created.toObject(), message: 'Plan saved.' });
   } catch (e) {
     console.error('[plans PATCH]', e);
     return apiError('SERVER_ERROR', e instanceof Error ? e.message : 'Failed to save plan');

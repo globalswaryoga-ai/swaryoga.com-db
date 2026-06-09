@@ -205,7 +205,7 @@ export default function TenantsPlanPage() {
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error?.message || data?.message || 'Failed to save plan');
+      if (!res.ok) throw new Error(data?.error?.message || data?.error || data?.message || 'Failed to save plan');
       setModalOpen(false);
       fetchPlans();
     } catch (e) {
@@ -221,7 +221,7 @@ export default function TenantsPlanPage() {
     try {
       const res = await fetch(`/api/admin/tenants/plans?tier=${encodeURIComponent(tier)}`, { method: 'DELETE', headers: headers() });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error?.message || data?.message || 'Failed to delete plan');
+      if (!res.ok) throw new Error(data?.error?.message || data?.error || data?.message || 'Failed to delete plan');
       fetchPlans();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete plan');
