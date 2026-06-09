@@ -464,6 +464,23 @@ export default function TenantsPage() {
     }
   }, [headers]);
 
+  // Super-admin: delete a tenant (registry record + login). Leads are kept.
+  const deleteTenant = useCallback(async (t: Tenant) => {
+    const typed = window.prompt(`⚠️ Delete tenant "${t.name}"?\nThis removes their account and login (their leads are kept).\n\nType DELETE to confirm:`);
+    if (typed === null) return;
+    if (typed.trim().toUpperCase() !== 'DELETE') { alert('Cancelled — you must type DELETE to confirm.'); return; }
+    try {
+      const res = await fetch(`/api/admin/tenants?slug=${encodeURIComponent(t.slug)}`, { method: 'DELETE', headers: headers() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error?.message || data?.error || 'Failed to delete');
+      alert(`✅ Deleted "${t.name}".`);
+      setDetailTenant(null);
+      fetchTenants();
+    } catch (e) {
+      alert(`❌ ${e instanceof Error ? e.message : 'Failed to delete tenant'}`);
+    }
+  }, [headers]);
+
   // Super-admin: reset a tenant's login password (updates admin_users).
   const resetTenantPassword = useCallback(async (t: Tenant) => {
     const email = t.ownerEmail;
@@ -801,6 +818,9 @@ export default function TenantsPage() {
                           </button>
                           <button onClick={() => resetTenantPassword(t)} className="text-xs font-semibold text-amber-600 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-50 transition whitespace-nowrap" title="Reset login password">
                             🔑 Reset PW
+                          </button>
+                          <button onClick={() => deleteTenant(t)} className="text-xs font-semibold text-rose-600 border border-rose-200 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition whitespace-nowrap" title="Delete tenant">
+                            🗑 Delete
                           </button>
                         </div>
                       </td>
@@ -1174,6 +1194,7 @@ export default function TenantsPage() {
                   </Section>
 
                   <button onClick={() => openEdit(detailTenant)} className="w-full text-sm font-semibold text-indigo-600 border border-indigo-200 rounded-lg py-2 hover:bg-indigo-50">Edit plan, modules & limits →</button>
+                  <button onClick={() => deleteTenant(detailTenant)} className="w-full text-sm font-semibold text-rose-600 border border-rose-200 rounded-lg py-2 hover:bg-rose-50">🗑 Delete tenant</button>
                 </>
               ) : null}
             </div>

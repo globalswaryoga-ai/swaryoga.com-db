@@ -10,6 +10,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiSuccess, apiError } from '@/lib/api-error';
@@ -222,4 +223,37 @@ export async function PATCH(request: NextRequest) {
   ).lean();
 
   return apiSuccess({ tenant: updated, message: 'Tenant updated.' });
+}
+
+/**
+ * DELETE /api/admin/tenants?slug=<slug>
+ * Super-admin only. Removes the tenant registry record AND its login account
+ * (admin_users). Does NOT drop the tenant's provisioned DB or delete their
+ * leads — those are left intact to avoid irreversible data loss.
+ */
+export async function DELETE(request: NextRequest) {
+  await connectDB();
+
+  const decoded = requireSuperAdmin(request);
+  if (!decoded) return apiError('UNAUTHORIZED');
+
+  const slug = new URL(request.url).searchParams.get('slug') || '';
+  if (!slug) return apiError('VALIDATION_ERROR', 'slug is required to identify the tenant');
+
+  const Tenant = getTenantModel();
+  const tenant = await Tenant.findOne({ slug }).lean() as any;
+  if (!tenant) return apiError('NOT_FOUND', `Tenant "${slug}" not found`);
+
+  await Tenant.deleteOne({ slug });
+
+  // Remove the login account so the tenant can no longer sign in.
+  let loginRemoved = 0;
+  const ownerEmail = String(tenant.ownerEmail || '').trim().toLowerCase();
+  if (ownerEmail) {
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const r = await crmDb.collection('admin_users').deleteOne({ email: ownerEmail });
+    loginRemoved = r.deletedCount || 0;
+  }
+
+  return apiSuccess({ deleted: true, slug, loginRemoved, message: `Tenant "${tenant.name || slug}" deleted. Their leads were kept.` });
 }
