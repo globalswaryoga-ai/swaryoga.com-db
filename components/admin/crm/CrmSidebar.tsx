@@ -115,47 +115,30 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
       }
 
       try {
-        // Step 1: get account profile
-        const accRes = await fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } });
-        if (!accRes.ok) {
-          // No account → fall back via setup-status (defaults to free plan)
-          const keys = await keysFromPlan(await tierFromSetupStatus());
+        // Primary source of truth: the registry tenant's moduleKeys, exactly
+        // as set by the super-admin in Tenant Management. Whatever modules are
+        // enabled there auto-appear as pages in this tenant's sidebar.
+        const r = await fetch('/api/crm-site/my-modules', { headers: { Authorization: `Bearer ${token}` } });
+        if (r.ok) {
+          const j = await r.json();
+          const d = j?.data || {};
+          let keys: string[] = Array.isArray(d.moduleKeys) ? d.moduleKeys : [];
+
+          // No explicit modules saved for this tenant → derive from its plan
+          // (registry plan if known, else setup-status; defaults to free).
+          if (keys.length === 0) {
+            keys = await keysFromPlan(d.plan || await tierFromSetupStatus());
+          }
+
           setTenantModuleKeys(buildSet(keys));
           return;
         }
-        const acc = await accRes.json();
-        const tenantSlug = acc?.profile?.tenantSlug;
 
-        if (!tenantSlug) {
-          // Logged-in user has no tenant slug → use plan from setup-status
-          const keys = await keysFromPlan(await tierFromSetupStatus());
-          setTenantModuleKeys(buildSet(keys));
-          return;
-        }
-
-        // Step 2: get tenant record
-        const tRes = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}`, { headers: { Authorization: `Bearer ${token}` } });
-        if (!tRes.ok) {
-          const keys = await keysFromPlan(await tierFromSetupStatus());
-          setTenantModuleKeys(buildSet(keys));
-          return;
-        }
-        const tjson = await tRes.json();
-        let keys: string[] = tjson?.tenant?.moduleKeys || tjson?.tenant?.enabledModules || [];
-
-        // If moduleKeys empty, derive from the plan's default bundles.
-        // tenant.plan (registry model) or tenant.subscriptionTier (legacy model),
-        // else setup-status; keysFromPlan() defaults to the free plan if unknown.
-        if (keys.length === 0) {
-          const tier = tjson?.tenant?.plan || tjson?.tenant?.subscriptionTier || await tierFromSetupStatus();
-          keys = await keysFromPlan(tier);
-        }
-
-        setTenantModuleKeys(buildSet(keys));
+        // Endpoint unavailable → fall back to the plan's default pages.
+        setTenantModuleKeys(buildSet(await keysFromPlan(await tierFromSetupStatus())));
       } catch {
         // Complete failure — fail open to the plan's pages so sidebar isn't empty
-        const keys = await keysFromPlan(await tierFromSetupStatus());
-        setTenantModuleKeys(buildSet(keys));
+        setTenantModuleKeys(buildSet(await keysFromPlan(await tierFromSetupStatus())));
       }
     }
 
