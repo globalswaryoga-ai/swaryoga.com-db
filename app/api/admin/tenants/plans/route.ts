@@ -108,8 +108,8 @@ export async function GET(request: NextRequest) {
     const out: any = {};
     try {
       await connectDB();
-      const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-      out.crmCollections = (await crmDb.listCollections().toArray()).map((c: any) => c.name).sort();
+      const crmDb: any = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+      out.crmCollections = (await crmDb.db.listCollections().toArray()).map((c: any) => c.name).sort();
       const col = plansCollection();
       out.count = await col.countDocuments();
       // Write test first (auto-creates the collection if missing).
