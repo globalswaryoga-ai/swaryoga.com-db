@@ -115,22 +115,17 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
       }
 
       try {
-        // Primary source of truth: the registry tenant's moduleKeys, exactly
-        // as set by the super-admin in Tenant Management. Whatever modules are
-        // enabled there auto-appear as pages in this tenant's sidebar.
+        // The sidebar shows the UNION of (a) the tenant's plan's current
+        // bundles and (b) any extra modules assigned to this specific tenant.
+        // So editing a plan's pages in Tenants Plan propagates to every tenant
+        // on that plan, while per-tenant extras still show.
         const r = await fetch('/api/crm-site/my-modules', { headers: { Authorization: `Bearer ${token}` } });
         if (r.ok) {
           const j = await r.json();
           const d = j?.data || {};
-          let keys: string[] = Array.isArray(d.moduleKeys) ? d.moduleKeys : [];
-
-          // No explicit modules saved for this tenant → derive from its plan
-          // (registry plan if known, else setup-status; defaults to free).
-          if (keys.length === 0) {
-            keys = await keysFromPlan(d.plan || await tierFromSetupStatus());
-          }
-
-          setTenantModuleKeys(buildSet(keys));
+          const tenantKeys: string[] = Array.isArray(d.moduleKeys) ? d.moduleKeys : [];
+          const planKeys = await keysFromPlan(d.plan || await tierFromSetupStatus());
+          setTenantModuleKeys(buildSet([...planKeys, ...tenantKeys]));
           return;
         }
 
