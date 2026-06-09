@@ -173,10 +173,16 @@ export async function PATCH(request: NextRequest) {
 
   if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');
 
-  const updated = await Plan.findOneAndUpdate({ tier }, { $set }, { new: true }).lean();
-  if (!updated) return apiError('NOT_FOUND', `Plan "${tier}" not found`);
+  // Upsert: if the tier hasn't been seeded into tenant_plans yet, create it
+  // from this payload instead of failing — keeps the editor resilient.
+  if ($set.name === undefined) $set.name = tier;
+  const updated = await Plan.findOneAndUpdate(
+    { tier },
+    { $set, $setOnInsert: { tier } },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  ).lean();
 
-  return apiSuccess({ plan: updated, message: 'Plan updated.' });
+  return apiSuccess({ plan: updated, message: 'Plan saved.' });
 }
 
 // ---------------------------------------------------------------------------

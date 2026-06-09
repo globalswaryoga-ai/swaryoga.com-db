@@ -116,6 +116,17 @@ const EMPTY_PLAN: Plan = {
   trialDays: 7, promoCode: '', discountPercent: 0,
 };
 
+// The full line-up always shown, so the grid is never empty even before the
+// DB tenant_plans collection has been seeded. DB values override these.
+const STATIC_DEFAULTS: Plan[] = [
+  { tier: 'free',         name: 'Free',    description: 'Explore everything — 100 leads.',          limits: { maxLeads: 100,    maxUsers: 1,  maxStorageMB: 100 },    defaultGroups: PLAN_DEFAULT_GROUPS['free'] || [],         monthlyPriceINR: 0,    annualPriceINR: 0,     quarterlyPriceINR: 0,    halfYearlyPriceINR: 0,    trialDays: 0, promoCode: '', discountPercent: 0 },
+  { tier: 'basic',        name: 'Basic',   description: 'Perfect for solo users getting started.', limits: { maxLeads: 1000,   maxUsers: 1,  maxStorageMB: 500 },    defaultGroups: PLAN_DEFAULT_GROUPS['basic'] || [],        monthlyPriceINR: 499,  annualPriceINR: 4500,  quarterlyPriceINR: 1350, halfYearlyPriceINR: 2400,  trialDays: 7, promoCode: '', discountPercent: 0 },
+  { tier: 'starter',      name: 'Copper',  description: 'For small teams — 3 users, 5K leads.',     limits: { maxLeads: 5000,   maxUsers: 3,  maxStorageMB: 1000 },   defaultGroups: PLAN_DEFAULT_GROUPS['starter'] || [],      monthlyPriceINR: 999,  annualPriceINR: 9000,  quarterlyPriceINR: 2700, halfYearlyPriceINR: 5400,  trialDays: 7, promoCode: '', discountPercent: 0 },
+  { tier: 'growth',       name: 'Silver',  description: 'Growing teams — 10 users, 15K leads.',     limits: { maxLeads: 15000,  maxUsers: 10, maxStorageMB: 5000 },   defaultGroups: PLAN_DEFAULT_GROUPS['growth'] || [],       monthlyPriceINR: 1999, annualPriceINR: 18000, quarterlyPriceINR: 5400, halfYearlyPriceINR: 10800, trialDays: 7, promoCode: '', discountPercent: 0 },
+  { tier: 'professional', name: 'Golden',  description: 'Larger teams — 25 users, 50K leads.',      limits: { maxLeads: 50000,  maxUsers: 25, maxStorageMB: 20000 },  defaultGroups: PLAN_DEFAULT_GROUPS['professional'] || [], monthlyPriceINR: 2999, annualPriceINR: 25999, quarterlyPriceINR: 8100, halfYearlyPriceINR: 16200, trialDays: 7, promoCode: '', discountPercent: 0 },
+  { tier: 'enterprise',   name: 'Diamond', description: 'Enterprise — 50 users, unlimited leads.',  limits: { maxLeads: 999999, maxUsers: 50, maxStorageMB: 100000 }, defaultGroups: PLAN_DEFAULT_GROUPS['enterprise'] || [],   monthlyPriceINR: 4999, annualPriceINR: 45000, quarterlyPriceINR: 14997, halfYearlyPriceINR: 29994, trialDays: 7, promoCode: '', discountPercent: 0 },
+];
+
 export default function TenantsPlanPage() {
   const router = useRouter();
   const token = useAuth();
@@ -141,9 +152,18 @@ export default function TenantsPlanPage() {
     try {
       const res = await fetch('/api/admin/tenants/plans');
       const data = await res.json().catch(() => ({}));
-      setPlans(data?.data?.plans || []);
+      const db: Plan[] = data?.data?.plans || [];
+      const byTier = new Map(db.map((p) => [p.tier, p]));
+      // Always show the full line-up; DB values override the static defaults.
+      const merged = STATIC_DEFAULTS.map((base) => {
+        const d = byTier.get(base.tier);
+        return d ? { ...base, ...d, limits: { ...base.limits, ...(d.limits || {}) } } : base;
+      });
+      // Plus any custom DB plans not in the static line-up.
+      const extras = db.filter((p) => !STATIC_DEFAULTS.some((b) => b.tier === p.tier));
+      setPlans([...merged, ...extras]);
     } catch {
-      setError('Failed to load plans');
+      setPlans(STATIC_DEFAULTS);
     } finally {
       setLoading(false);
     }
