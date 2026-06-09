@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Home, X, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { sectionConfigs, findSectionForPath, type SectionConfig } from './crmNavConfig';
-import { MODULE_CATALOG, expandGroups } from '@/lib/tenant/moduleCatalog';
+import { MODULE_CATALOG, expandGroups, PLAN_DEFAULT_GROUPS } from '@/lib/tenant/moduleCatalog';
 import { usePlan } from './hooks/usePlan';
 
 interface CrmSidebarProps {
@@ -80,15 +80,21 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
         return s;
       };
 
-      // Helper: fetch plan defaultGroups by tier slug
+      // Helper: resolve a plan tier → its default bundle groups.
+      // Prefers DB-configured plans, but falls back to the in-code
+      // PLAN_DEFAULT_GROUPS so the sidebar still reflects the plan even when
+      // no plans have been configured in the DB yet. Unknown tier → 'free'.
       const keysFromPlan = async (tier: string): Promise<string[]> => {
+        const t = (tier || '').toString().toLowerCase().trim();
         try {
           const r = await fetch('/api/admin/tenants/plans');
-          if (!r.ok) return [];
-          const d = await r.json();
-          const p = (d?.data?.plans || []).find((x: any) => x.tier === tier);
-          return p?.defaultGroups || [];
-        } catch { return []; }
+          if (r.ok) {
+            const d = await r.json();
+            const p = (d?.data?.plans || []).find((x: any) => x.tier === t);
+            if (p?.defaultGroups?.length) return p.defaultGroups;
+          }
+        } catch { /* fall through to in-code defaults */ }
+        return PLAN_DEFAULT_GROUPS[t] || PLAN_DEFAULT_GROUPS.free || [];
       };
 
       // Helper: fetch plan tier from setup-status (fallback when no tenantSlug)
@@ -112,9 +118,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
         // Step 1: get account profile
         const accRes = await fetch('/api/crm-site/account', { headers: { Authorization: `Bearer ${token}` } });
         if (!accRes.ok) {
-          // No account → fall back via setup-status
-          const tier = await tierFromSetupStatus();
-          const keys = tier ? await keysFromPlan(tier) : [];
+          // No account → fall back via setup-status (defaults to free plan)
+          const keys = await keysFromPlan(await tierFromSetupStatus());
           setTenantModuleKeys(buildSet(keys));
           return;
         }
@@ -123,8 +128,7 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
 
         if (!tenantSlug) {
           // Logged-in user has no tenant slug → use plan from setup-status
-          const tier = await tierFromSetupStatus();
-          const keys = tier ? await keysFromPlan(tier) : [];
+          const keys = await keysFromPlan(await tierFromSetupStatus());
           setTenantModuleKeys(buildSet(keys));
           return;
         }
@@ -132,25 +136,25 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
         // Step 2: get tenant record
         const tRes = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}`, { headers: { Authorization: `Bearer ${token}` } });
         if (!tRes.ok) {
-          const tier = await tierFromSetupStatus();
-          const keys = tier ? await keysFromPlan(tier) : [];
+          const keys = await keysFromPlan(await tierFromSetupStatus());
           setTenantModuleKeys(buildSet(keys));
           return;
         }
         const tjson = await tRes.json();
         let keys: string[] = tjson?.tenant?.moduleKeys || tjson?.tenant?.enabledModules || [];
 
-        // If moduleKeys empty, derive from plan's defaultGroups
+        // If moduleKeys empty, derive from the plan's default bundles.
+        // tenant.plan (registry model) or tenant.subscriptionTier (legacy model),
+        // else setup-status; keysFromPlan() defaults to the free plan if unknown.
         if (keys.length === 0) {
-          const tier = tjson?.tenant?.plan || await tierFromSetupStatus();
-          if (tier) keys = await keysFromPlan(tier);
+          const tier = tjson?.tenant?.plan || tjson?.tenant?.subscriptionTier || await tierFromSetupStatus();
+          keys = await keysFromPlan(tier);
         }
 
         setTenantModuleKeys(buildSet(keys));
       } catch {
-        // Complete failure — fail open with minimal set so sidebar isn't empty
-        const tier = await tierFromSetupStatus();
-        const keys = tier ? await keysFromPlan(tier) : [];
+        // Complete failure — fail open to the plan's pages so sidebar isn't empty
+        const keys = await keysFromPlan(await tierFromSetupStatus());
         setTenantModuleKeys(buildSet(keys));
       }
     }
