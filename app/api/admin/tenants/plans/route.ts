@@ -48,12 +48,28 @@ function sanitizeGroups(g: any): string[] {
 // GET — list plans (seeds on first call)
 // ---------------------------------------------------------------------------
 
-// Raw MongoDB collection for tenant plans (CRM DB) — used for writes to avoid
-// Mongoose model/index quirks that were causing 500s.
-function plansCollection() {
+// The cluster is at its 500-collection cap, so a dedicated tenant_plans
+// collection can't be created. Instead all plans live as ONE document inside
+// the existing `auto_config` collection: { key: 'tenant_plans', plans: [...] }.
+const PLANS_DOC_KEY = 'tenant_plans';
+
+function autoConfigCollection() {
   return mongoose.connection
     .useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm')
-    .collection('tenant_plans');
+    .collection('auto_config');
+}
+
+async function readStoredPlans(): Promise<any[]> {
+  const doc = await autoConfigCollection().findOne({ key: PLANS_DOC_KEY });
+  return Array.isArray((doc as any)?.plans) ? (doc as any).plans : [];
+}
+
+async function writeStoredPlans(plans: any[]) {
+  await autoConfigCollection().updateOne(
+    { key: PLANS_DOC_KEY },
+    { $set: { key: PLANS_DOC_KEY, plans, updatedAt: new Date() } },
+    { upsert: true },
+  );
 }
 
 function shapeDoc(p: any) {
@@ -102,46 +118,16 @@ function configPlans() {
   }));
 }
 
-export async function GET(request: NextRequest) {
-  // Temporary diagnostic: ?debug=1 inspects the collection + tests a write.
-  if (new URL(request.url).searchParams.get('debug') === '1') {
-    const out: any = {};
-    try {
-      await connectDB();
-      const crmDb: any = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-      out.crmCollections = (await crmDb.db.listCollections().toArray()).map((c: any) => c.name).sort();
-      const col = plansCollection();
-      out.count = await col.countDocuments();
-      // Write test first (auto-creates the collection if missing).
-      try {
-        await col.updateOne(
-          { tier: '__debug__' },
-          { $set: { name: 'dbg', updatedAt: new Date() }, $setOnInsert: { tier: '__debug__', order: 99, isCustom: true, createdAt: new Date() } },
-          { upsert: true },
-        );
-        out.writeOk = true;
-        await col.deleteOne({ tier: '__debug__' });
-      } catch (we: any) {
-        out.writeError = we?.message || String(we);
-        out.writeErrorName = we?.name;
-        out.writeErrorCode = we?.code;
-      }
-      try { out.indexes = await col.indexes(); } catch (ie: any) { out.indexesError = ie?.message; }
-    } catch (e: any) {
-      out.connError = e?.message || String(e);
-    }
-    return apiSuccess({ debug: out });
-  }
-
-  // Always serve the full line-up from config, overridden by any DB edits.
-  // Never 500 — a broken/empty tenant_plans collection still returns plans.
+export async function GET(_request: NextRequest) {
+  // Always serve the full line-up from config, overridden by any stored edits.
+  // Never 500 — an empty store still returns the config defaults.
   const byTier = new Map(configPlans().map((p) => [p.tier, p]));
   try {
     await connectDB();
-    const dbPlans = await plansCollection().find({}).toArray();
-    for (const d of dbPlans as any[]) byTier.set(d.tier, shapeDoc(d));
+    const stored = await readStoredPlans();
+    for (const d of stored) byTier.set(d.tier, shapeDoc(d));
   } catch (e) {
-    console.error('[plans GET] DB read failed, serving config defaults:', e);
+    console.error('[plans GET] store read failed, serving config defaults:', e);
   }
   const plans = [...byTier.values()].sort((a, b) => (a.order - b.order) || (a.monthlyPriceINR - b.monthlyPriceINR));
   return apiSuccess({ plans });
@@ -155,17 +141,18 @@ export async function POST(request: NextRequest) {
   if (!requireSuperAdmin(request)) return apiError('UNAUTHORIZED');
   try {
     await connectDB();
-    const col = plansCollection();
 
     const body = await request.json();
     const tier = String(body.tier || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!tier) return apiError('VALIDATION_ERROR', 'tier (slug) is required');
     if (!body.name?.trim()) return apiError('VALIDATION_ERROR', 'name is required');
 
-    const existing = await col.findOne({ tier });
-    if (existing) return apiError('DUPLICATE_ENTRY', `Plan "${tier}" already exists`);
+    const stored = await readStoredPlans();
+    if (stored.some((p) => p.tier === tier) || configPlans().some((p) => p.tier === tier)) {
+      return apiError('DUPLICATE_ENTRY', `Plan "${tier}" already exists`);
+    }
 
-    const maxOrder = await col.find({}).sort({ order: -1 }).limit(1).toArray();
+    const maxOrder = Math.max(0, ...stored.map((p) => p.order || 0), ...configPlans().map((p) => p.order || 0));
     const doc = {
       tier,
       name: body.name.trim(),
@@ -179,12 +166,12 @@ export async function POST(request: NextRequest) {
       trialDays: Math.max(0, Number(body.trialDays) || 0),
       promoCode: String(body.promoCode || '').trim().toUpperCase(),
       discountPercent: Math.max(0, Math.min(100, Number(body.discountPercent) || 0)),
-      order: ((maxOrder[0] as any)?.order ?? 0) + 1,
+      order: maxOrder + 1,
       isCustom: true,
-      createdAt: new Date(),
       updatedAt: new Date(),
     };
-    await col.insertOne(doc);
+    stored.push(doc);
+    await writeStoredPlans(stored);
 
     return apiSuccess({ plan: doc, message: 'Plan created.' }, 201);
   } catch (e) {
@@ -222,20 +209,20 @@ export async function PATCH(request: NextRequest) {
 
     if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');
 
-    // Write via the raw MongoDB driver — bypasses Mongoose model validation
-    // and unique-index auto-build, which was 500'ing on the tenant_plans
-    // collection. Upsert by tier so config-default tiers get created on edit.
-    const base = configPlans().find((p) => p.tier === tier);
-    const col = plansCollection();
-    await col.updateOne(
-      { tier },
-      {
-        $set: { ...$set, updatedAt: new Date() },
-        $setOnInsert: { tier, order: base?.order ?? 0, isCustom: !base, createdAt: new Date() },
-      },
-      { upsert: true },
-    );
-    const doc = await col.findOne({ tier });
+    // Update the plan inside the stored array. If this tier isn't stored yet
+    // (config-default tier), start from its config base and apply the edits.
+    const stored = await readStoredPlans();
+    const idx = stored.findIndex((p) => p.tier === tier);
+    let doc: any;
+    if (idx >= 0) {
+      doc = { ...stored[idx], ...$set, tier, updatedAt: new Date() };
+      stored[idx] = doc;
+    } else {
+      const base = configPlans().find((p) => p.tier === tier);
+      doc = { ...(base || {}), ...$set, tier, order: base?.order ?? 0, isCustom: !base, updatedAt: new Date() };
+      stored.push(doc);
+    }
+    await writeStoredPlans(stored);
     return apiSuccess({ plan: doc, message: 'Plan saved.' });
   } catch (e) {
     console.error('[plans PATCH]', e);
@@ -254,8 +241,10 @@ export async function DELETE(request: NextRequest) {
     const tier = new URL(request.url).searchParams.get('tier')?.trim().toLowerCase();
     if (!tier) return apiError('VALIDATION_ERROR', 'tier query param is required');
 
-    const res = await plansCollection().deleteOne({ tier });
-    if (res.deletedCount === 0) return apiError('NOT_FOUND', `Plan "${tier}" not found`);
+    const stored = await readStoredPlans();
+    const next = stored.filter((p) => p.tier !== tier);
+    if (next.length === stored.length) return apiError('NOT_FOUND', `Plan "${tier}" not found`);
+    await writeStoredPlans(next);
 
     return apiSuccess({ message: `Plan "${tier}" deleted.` });
   } catch (e) {
