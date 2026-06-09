@@ -71,7 +71,7 @@ export default function LeadsPage() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
-  const [limit, setLimit] = useState(20);
+  const [limit, setLimit] = useState(100);
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loadingLeads, setLoadingLeads] = useState(true);
@@ -1029,7 +1029,21 @@ export default function LeadsPage() {
 
         {/* Filters Section - Dark Glass Card */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 shadow-xl">
-          <h2 className="text-sm font-bold text-green-400 uppercase tracking-wider mb-6">Filters & Search</h2>
+          <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+            <h2 className="text-sm font-bold text-green-400 uppercase tracking-wider">Filters & Search</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500 text-sm">Show per page:</span>
+              <select
+                value={limit}
+                onChange={(e) => { setLimit(Number(e.target.value)); setSkip(0); }}
+                className="bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-sm text-white focus:outline-none focus:border-green-400 transition-all"
+              >
+                {[100, 200, 300, 500].map((n) => (
+                  <option key={n} value={n} className="bg-[#1a1a1a]">{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Status Filter */}
             <div>
@@ -1345,22 +1359,6 @@ export default function LeadsPage() {
                     Showing <span className="font-bold text-white">{skip + 1}</span> to{' '}
                     <span className="font-bold text-white">{Math.min(skip + limit, total)}</span> of{' '}
                     <span className="font-bold text-green-400">{total}</span> leads
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500 text-sm">Show:</span>
-                    <select
-                      value={limit}
-                      onChange={(e) => {
-                        const newLimit = Number(e.target.value);
-                        setLimit(newLimit);
-                        setSkip(0);
-                      }}
-                      className="bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-sm text-white focus:outline-none focus:border-green-400 transition-all"
-                    >
-                      <option value={20} className="bg-[#1a1a1a]">20</option>
-                      <option value={50} className="bg-[#1a1a1a]">50</option>
-                      <option value={100} className="bg-[#1a1a1a]">100</option>
-                    </select>
                   </div>
                 </div>
                 <div className="flex gap-3">
