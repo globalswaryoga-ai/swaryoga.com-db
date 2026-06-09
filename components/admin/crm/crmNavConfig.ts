@@ -622,18 +622,18 @@ export const sectionConfigs: SectionConfig[] = [
     ],
   },
 
-  // 13b. Plans (Plan tiers — superadmin only). Same page, anchored to the
-  // Plan Tiers section so it reads as its own sidebar entry.
+  // 13b. Tenants Plan (full bundle line-up — superadmin only).
+  // Basic / Copper / Silver / Golden / Diamond reference page.
   {
-    key: 'plans',
-    title: 'Plans',
+    key: 'tenants-plan',
+    title: 'Tenants Plan',
     icon: Layers,
     items: [
-      { label: 'Plan Tiers', href: '/admin/crm/tenants#plans', icon: Layers },
+      { label: 'Plan Bundles', href: '/admin/crm/tenants-plan', icon: Layers },
     ],
     moreItems: [],
     prefixes: [
-      '/admin/crm/tenants#plans',
+      '/admin/crm/tenants-plan',
     ],
   },
 
