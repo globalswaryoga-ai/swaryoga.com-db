@@ -171,8 +171,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
     // QR Leads Management — all plans with lead_management
     'qr-leads':       ['lead_management'],
     'reports':        ['lead_management', 'report'],
-    // QR WhatsApp — whatsapp_qr bundle
-    'qr':             ['whatsapp_qr'],
+    // QR WhatsApp — always visible for every tenant (no plan gating),
+    // like Dashboard/Storage. (Intentionally not mapped to a bundle.)
     // Broadcast WhatsApp — only for Copper+ (Meta broadcasts; QR broadcasts are inside QR WA section)
     'broadcast':      ['whatsapp_meta'],
     // Meta WhatsApp — whatsapp_meta bundle (Copper+)
