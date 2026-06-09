@@ -76,22 +76,16 @@ function sanitizeGroups(g: any): string[] {
 // GET — list plans (seeds on first call)
 // ---------------------------------------------------------------------------
 
-export async function GET(_request: NextRequest) {
-  await connectDB();
-  const Plan = getTenantPlanModel();
-  await ensureSeeded(Plan);
-
-  const plans = await Plan.find({}).sort({ order: 1, monthlyPriceINR: 1 }).lean();
-  // Keep response shape backwards-compatible (enabledModules from defaultGroups count).
-  const shaped = plans.map((p: any) => ({
+function shapeDoc(p: any) {
+  return {
     tier: p.tier,
     name: p.name,
-    description: p.description,
-    limits: p.limits,
-    defaultGroups: p.defaultGroups || [],
-    enabledModules: p.defaultGroups || [],
-    monthlyPriceINR: p.monthlyPriceINR,
-    annualPriceINR: p.annualPriceINR,
+    description: p.description || '',
+    limits: p.limits || {},
+    defaultGroups: p.defaultGroups || PLAN_DEFAULT_GROUPS[p.tier] || [],
+    enabledModules: p.defaultGroups || PLAN_DEFAULT_GROUPS[p.tier] || [],
+    monthlyPriceINR: p.monthlyPriceINR || 0,
+    annualPriceINR: p.annualPriceINR || 0,
     quarterlyPriceINR: p.quarterlyPriceINR || 0,
     halfYearlyPriceINR: p.halfYearlyPriceINR || 0,
     trialDays: p.trialDays ?? 0,
@@ -99,9 +93,49 @@ export async function GET(_request: NextRequest) {
     discountPercent: p.discountPercent ?? 0,
     order: p.order ?? 0,
     isCustom: !!p.isCustom,
-  }));
+  };
+}
 
-  return apiSuccess({ plans: shaped });
+// The 6 tiers derived from static config — always available even if the DB
+// tenant_plans collection is empty or unreachable.
+function configPlans() {
+  return Object.values(PLAN_DEFINITIONS).map((p: any) => shapeDoc({
+    tier: p.tier,
+    name: p.name,
+    description: p.description,
+    limits: {
+      maxLeads: p.limits.maxLeads,
+      maxUsers: p.limits.maxUsers,
+      maxStorageMB: p.limits.maxStorageMB,
+      maxWhatsAppTemplates: p.limits.maxWhatsAppTemplates,
+      maxBroadcastsPerDay: p.limits.maxBroadcastsPerDay,
+      maxApiRequestsPerDay: p.limits.maxApiRequestsPerDay,
+    },
+    defaultGroups: PLAN_DEFAULT_GROUPS[p.tier] || [],
+    monthlyPriceINR: p.monthlyPriceINR,
+    annualPriceINR: p.annualPriceINR,
+    quarterlyPriceINR: p.monthlyPriceINR * 3,
+    halfYearlyPriceINR: p.monthlyPriceINR * 6,
+    trialDays: p.tier === 'free' ? 0 : 7,
+    order: TIER_ORDER.indexOf(p.tier),
+    isCustom: false,
+  }));
+}
+
+export async function GET(_request: NextRequest) {
+  // Always serve the full line-up from config, overridden by any DB edits.
+  // Never 500 — a broken/empty tenant_plans collection still returns plans.
+  const byTier = new Map(configPlans().map((p) => [p.tier, p]));
+  try {
+    await connectDB();
+    const Plan = getTenantPlanModel();
+    const dbPlans = await Plan.find({}).lean();
+    for (const d of dbPlans as any[]) byTier.set(d.tier, shapeDoc(d));
+  } catch (e) {
+    console.error('[plans GET] DB read failed, serving config defaults:', e);
+  }
+  const plans = [...byTier.values()].sort((a, b) => (a.order - b.order) || (a.monthlyPriceINR - b.monthlyPriceINR));
+  return apiSuccess({ plans });
 }
 
 // ---------------------------------------------------------------------------
@@ -110,37 +144,41 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!requireSuperAdmin(request)) return apiError('UNAUTHORIZED');
-  await connectDB();
-  const Plan = getTenantPlanModel();
-  await ensureSeeded(Plan);
+  try {
+    await connectDB();
+    const Plan = getTenantPlanModel();
 
-  const body = await request.json();
-  const tier = String(body.tier || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
-  if (!tier) return apiError('VALIDATION_ERROR', 'tier (slug) is required');
-  if (!body.name?.trim()) return apiError('VALIDATION_ERROR', 'name is required');
+    const body = await request.json();
+    const tier = String(body.tier || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (!tier) return apiError('VALIDATION_ERROR', 'tier (slug) is required');
+    if (!body.name?.trim()) return apiError('VALIDATION_ERROR', 'name is required');
 
-  const existing = await Plan.findOne({ tier });
-  if (existing) return apiError('DUPLICATE_ENTRY', `Plan "${tier}" already exists`);
+    const existing = await Plan.findOne({ tier });
+    if (existing) return apiError('DUPLICATE_ENTRY', `Plan "${tier}" already exists`);
 
-  const maxOrder = await Plan.findOne({}).sort({ order: -1 }).select('order').lean();
-  const created = await Plan.create({
-    tier,
-    name: body.name.trim(),
-    description: String(body.description || '').trim(),
-    limits: sanitizeLimits(body.limits),
-    defaultGroups: sanitizeGroups(body.defaultGroups),
-    monthlyPriceINR: Number(body.monthlyPriceINR) || 0,
-    annualPriceINR: Number(body.annualPriceINR) || 0,
-    quarterlyPriceINR: Number(body.quarterlyPriceINR) || 0,
-    halfYearlyPriceINR: Number(body.halfYearlyPriceINR) || 0,
-    trialDays: Math.max(0, Number(body.trialDays) || 0),
-    promoCode: String(body.promoCode || '').trim().toUpperCase(),
-    discountPercent: Math.max(0, Math.min(100, Number(body.discountPercent) || 0)),
-    order: ((maxOrder as any)?.order ?? 0) + 1,
-    isCustom: true,
-  });
+    const maxOrder = await Plan.findOne({}).sort({ order: -1 }).select('order').lean();
+    const created = await Plan.create({
+      tier,
+      name: body.name.trim(),
+      description: String(body.description || '').trim(),
+      limits: sanitizeLimits(body.limits),
+      defaultGroups: sanitizeGroups(body.defaultGroups),
+      monthlyPriceINR: Number(body.monthlyPriceINR) || 0,
+      annualPriceINR: Number(body.annualPriceINR) || 0,
+      quarterlyPriceINR: Number(body.quarterlyPriceINR) || 0,
+      halfYearlyPriceINR: Number(body.halfYearlyPriceINR) || 0,
+      trialDays: Math.max(0, Number(body.trialDays) || 0),
+      promoCode: String(body.promoCode || '').trim().toUpperCase(),
+      discountPercent: Math.max(0, Math.min(100, Number(body.discountPercent) || 0)),
+      order: ((maxOrder as any)?.order ?? 0) + 1,
+      isCustom: true,
+    });
 
-  return apiSuccess({ plan: created, message: 'Plan created.' }, 201);
+    return apiSuccess({ plan: created, message: 'Plan created.' }, 201);
+  } catch (e) {
+    console.error('[plans POST]', e);
+    return apiError('SERVER_ERROR', e instanceof Error ? e.message : 'Failed to create plan');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -149,40 +187,44 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   if (!requireSuperAdmin(request)) return apiError('UNAUTHORIZED');
-  await connectDB();
-  const Plan = getTenantPlanModel();
-  await ensureSeeded(Plan);
+  try {
+    await connectDB();
+    const Plan = getTenantPlanModel();
 
-  const body = await request.json();
-  const tier = String(body.tier || '').trim().toLowerCase();
-  if (!tier) return apiError('VALIDATION_ERROR', 'tier is required');
+    const body = await request.json();
+    const tier = String(body.tier || '').trim().toLowerCase();
+    if (!tier) return apiError('VALIDATION_ERROR', 'tier is required');
 
-  const $set: any = {};
-  if (body.name !== undefined) $set.name = String(body.name).trim();
-  if (body.description !== undefined) $set.description = String(body.description).trim();
-  if (body.limits !== undefined) $set.limits = sanitizeLimits(body.limits);
-  if (body.defaultGroups !== undefined) $set.defaultGroups = sanitizeGroups(body.defaultGroups);
-  if (body.monthlyPriceINR !== undefined) $set.monthlyPriceINR = Number(body.monthlyPriceINR) || 0;
-  if (body.annualPriceINR !== undefined) $set.annualPriceINR = Number(body.annualPriceINR) || 0;
-  if (body.quarterlyPriceINR !== undefined) $set.quarterlyPriceINR = Number(body.quarterlyPriceINR) || 0;
-  if (body.halfYearlyPriceINR !== undefined) $set.halfYearlyPriceINR = Number(body.halfYearlyPriceINR) || 0;
-  if (body.trialDays !== undefined) $set.trialDays = Math.max(0, Number(body.trialDays) || 0);
-  if (body.promoCode !== undefined) $set.promoCode = String(body.promoCode).trim().toUpperCase();
-  if (body.discountPercent !== undefined) $set.discountPercent = Math.max(0, Math.min(100, Number(body.discountPercent) || 0));
-  if (body.order !== undefined) $set.order = Number(body.order) || 0;
+    const $set: any = {};
+    if (body.name !== undefined) $set.name = String(body.name).trim();
+    if (body.description !== undefined) $set.description = String(body.description).trim();
+    if (body.limits !== undefined) $set.limits = sanitizeLimits(body.limits);
+    if (body.defaultGroups !== undefined) $set.defaultGroups = sanitizeGroups(body.defaultGroups);
+    if (body.monthlyPriceINR !== undefined) $set.monthlyPriceINR = Number(body.monthlyPriceINR) || 0;
+    if (body.annualPriceINR !== undefined) $set.annualPriceINR = Number(body.annualPriceINR) || 0;
+    if (body.quarterlyPriceINR !== undefined) $set.quarterlyPriceINR = Number(body.quarterlyPriceINR) || 0;
+    if (body.halfYearlyPriceINR !== undefined) $set.halfYearlyPriceINR = Number(body.halfYearlyPriceINR) || 0;
+    if (body.trialDays !== undefined) $set.trialDays = Math.max(0, Number(body.trialDays) || 0);
+    if (body.promoCode !== undefined) $set.promoCode = String(body.promoCode).trim().toUpperCase();
+    if (body.discountPercent !== undefined) $set.discountPercent = Math.max(0, Math.min(100, Number(body.discountPercent) || 0));
+    if (body.order !== undefined) $set.order = Number(body.order) || 0;
 
-  if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');
+    if (Object.keys($set).length === 0) return apiError('VALIDATION_ERROR', 'No fields to update');
 
-  // Upsert: if the tier hasn't been seeded into tenant_plans yet, create it
-  // from this payload instead of failing — keeps the editor resilient.
-  if ($set.name === undefined) $set.name = tier;
-  const updated = await Plan.findOneAndUpdate(
-    { tier },
-    { $set, $setOnInsert: { tier } },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
-  ).lean();
+    // Upsert: if the tier hasn't been seeded into tenant_plans yet, create it
+    // from this payload instead of failing — keeps the editor resilient.
+    if ($set.name === undefined) $set.name = tier;
+    const updated = await Plan.findOneAndUpdate(
+      { tier },
+      { $set, $setOnInsert: { tier } },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    ).lean();
 
-  return apiSuccess({ plan: updated, message: 'Plan saved.' });
+    return apiSuccess({ plan: updated, message: 'Plan saved.' });
+  } catch (e) {
+    console.error('[plans PATCH]', e);
+    return apiError('SERVER_ERROR', e instanceof Error ? e.message : 'Failed to save plan');
+  }
 }
 
 // ---------------------------------------------------------------------------
