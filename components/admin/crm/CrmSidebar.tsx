@@ -80,20 +80,21 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
         return s;
       };
 
+      // Prefetch the plans list ONCE, in parallel with the other requests, so
+      // resolving the plan → bundles doesn't add an extra sequential round-trip.
+      const plansPromise = fetch('/api/admin/tenants/plans')
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+
       // Helper: resolve a plan tier → its default bundle groups.
-      // Prefers DB-configured plans, but falls back to the in-code
-      // PLAN_DEFAULT_GROUPS so the sidebar still reflects the plan even when
-      // no plans have been configured in the DB yet. Unknown tier → 'free'.
+      // Prefers DB-configured plans, falls back to the in-code PLAN_DEFAULT_GROUPS.
       const keysFromPlan = async (tier: string): Promise<string[]> => {
-        const t = (tier || '').toString().toLowerCase().trim();
-        try {
-          const r = await fetch('/api/admin/tenants/plans');
-          if (r.ok) {
-            const d = await r.json();
-            const p = (d?.data?.plans || []).find((x: any) => x.tier === t);
-            if (p?.defaultGroups?.length) return p.defaultGroups;
-          }
-        } catch { /* fall through to in-code defaults */ }
+        // Unknown/empty tier → 'free', so we still read the EDITED free plan
+        // from the DB (which includes any pages added in Tenants Plan).
+        const t = (tier || '').toString().toLowerCase().trim() || 'free';
+        const d = await plansPromise;
+        const p = (d?.data?.plans || []).find((x: any) => x.tier === t);
+        if (p?.defaultGroups?.length) return p.defaultGroups;
         return PLAN_DEFAULT_GROUPS[t] || PLAN_DEFAULT_GROUPS.free || [];
       };
 
@@ -202,8 +203,9 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
         Array.from(tenantModuleKeys).some((k) => k.startsWith(rk + '.'))
       );
     }
-    // Still loading (null) — show section so sidebar isn't blank while fetching
-    return true;
+    // Still loading (null) — HIDE gated sections so we don't flash every page
+    // and then collapse. Only the always-on sections (no mapping) show meanwhile.
+    return false;
   };
 
   const modules = useMemo(() => {
