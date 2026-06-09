@@ -102,7 +102,34 @@ function configPlans() {
   }));
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
+  // Temporary diagnostic: ?debug=1 inspects the collection + tests a write.
+  if (new URL(request.url).searchParams.get('debug') === '1') {
+    const out: any = {};
+    try {
+      await connectDB();
+      const col = plansCollection();
+      out.count = await col.countDocuments();
+      out.indexes = await col.indexes();
+      try {
+        await col.updateOne(
+          { tier: '__debug__' },
+          { $set: { name: 'dbg', updatedAt: new Date() }, $setOnInsert: { tier: '__debug__', order: 99, isCustom: true, createdAt: new Date() } },
+          { upsert: true },
+        );
+        out.writeOk = true;
+        await col.deleteOne({ tier: '__debug__' });
+      } catch (we: any) {
+        out.writeError = we?.message || String(we);
+        out.writeErrorName = we?.name;
+        out.writeErrorCode = we?.code;
+      }
+    } catch (e: any) {
+      out.connError = e?.message || String(e);
+    }
+    return apiSuccess({ debug: out });
+  }
+
   // Always serve the full line-up from config, overridden by any DB edits.
   // Never 500 — a broken/empty tenant_plans collection still returns plans.
   const byTier = new Map(configPlans().map((p) => [p.tier, p]));
