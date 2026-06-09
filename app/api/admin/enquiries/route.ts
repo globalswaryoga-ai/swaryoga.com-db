@@ -339,11 +339,12 @@ export async function PATCH(request: NextRequest) {
     if (!enquiryId) {
       return NextResponse.json({ message: 'Enquiry ID is required' }, { status: 400 });
     }
-    if (!body.status) {
-      return NextResponse.json({ message: 'Status is required' }, { status: 400 });
-    }
 
-    const leadStatus = ENQUIRY_TO_LEAD_STATUS[body.status] || body.status;
+    const hasName = typeof body.name === 'string' && body.name.trim() !== '';
+    const hasMobile = typeof body.mobile === 'string' && body.mobile.trim() !== '';
+    if (!body.status && !hasName && !hasMobile && !body.notes) {
+      return NextResponse.json({ message: 'Nothing to update (status, name, mobile or notes required)' }, { status: 400 });
+    }
 
     // ── Primary: update the MongoDB Lead this enquiry was sourced from ──
     try {
@@ -357,11 +358,16 @@ export async function PATCH(request: NextRequest) {
         (await Lead.findOne({ $or: or }));
 
       if (lead) {
-        lead.status = leadStatus;
+        if (body.status) lead.status = ENQUIRY_TO_LEAD_STATUS[body.status] || body.status;
+        if (hasName) lead.name = body.name.trim();
+        if (hasMobile) {
+          const cleaned = normalizePhone(body.mobile) || String(body.mobile).trim();
+          lead.phoneNumber = cleaned;
+        }
         if (body.notes) lead.notes = body.notes;
         await lead.save();
         return NextResponse.json(
-          { message: 'Enquiry updated successfully', data: { id: enquiryId, status: body.status } },
+          { message: 'Enquiry updated successfully', data: { id: enquiryId, name: lead.name, mobile: lead.phoneNumber, status: body.status } },
           { status: 200 }
         );
       }
@@ -376,7 +382,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ message: 'Enquiry not found' }, { status: 404 });
     }
 
-    enquiry.status = body.status;
+    if (body.status) enquiry.status = body.status;
+    if (hasName) enquiry.name = body.name.trim();
+    if (hasMobile) enquiry.mobile = String(body.mobile).trim();
     if (body.notes) enquiry.notes = body.notes;
     enquiry.updatedAt = new Date().toISOString();
     saveEnquiries(enquiries);

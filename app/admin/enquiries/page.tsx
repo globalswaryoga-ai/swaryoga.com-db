@@ -238,6 +238,42 @@ export default function EnquiriesPage() {
     }
   };
 
+  // Edit an enquiry's name / mobile number.
+  const [editEnquiry, setEditEnquiry] = useState<Enquiry | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editMobile, setEditMobile] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (enquiry: Enquiry) => {
+    setEditEnquiry(enquiry);
+    setEditName(enquiry.name || '');
+    setEditMobile(enquiry.mobile || '');
+  };
+
+  const handleEditSave = async () => {
+    if (!editEnquiry) return;
+    const name = editName.trim();
+    const mobile = editMobile.trim();
+    if (!name) { alert('Name cannot be empty.'); return; }
+    if (!mobile) { alert('Mobile number cannot be empty.'); return; }
+    setSavingEdit(true);
+    try {
+      const response = await fetch(`/api/admin/enquiries?id=${editEnquiry.id}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name, mobile }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.message || 'Failed to update enquiry');
+      setEnquiries(enquiries.map((e) => e.id === editEnquiry.id ? { ...e, name, mobile } : e));
+      setEditEnquiry(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update enquiry');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
       const response = await fetch(`/api/admin/enquiries?id=${id}`, {
@@ -487,6 +523,7 @@ export default function EnquiriesPage() {
                     >
                       <MessageCircle size={14} /> WhatsApp
                     </button>
+                    <button onClick={() => openEdit(enquiry)} className="w-full flex items-center justify-center gap-1.5 text-sm text-swar-primary font-medium py-1 mb-1"><Pencil size={14} /> Edit</button>
                     <button onClick={() => handleDelete(enquiry.id)} className="w-full text-sm text-red-600 hover:text-swar-primary font-medium py-1">Delete</button>
                   </div>
                 ))}
@@ -548,6 +585,13 @@ export default function EnquiriesPage() {
                                 <MessageCircle size={13} /> Chat
                               </button>
                               <button
+                                onClick={() => openEdit(enquiry)}
+                                title="Edit name / mobile"
+                                className="text-swar-text-secondary hover:text-swar-primary"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={() => setExpandedRow(expandedRow === enquiry.id ? null : enquiry.id)}
                                 className="text-swar-text-secondary hover:text-swar-text"
                               >
@@ -573,6 +617,45 @@ export default function EnquiriesPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── Edit Enquiry Modal (name / mobile) ── */}
+          {editEnquiry && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !savingEdit && setEditEnquiry(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-5 border-b border-swar-border">
+                  <h3 className="text-lg font-bold text-swar-text">Edit Enquiry</h3>
+                  <button onClick={() => setEditEnquiry(null)} className="text-swar-text-secondary hover:text-swar-text text-xl leading-none">×</button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-swar-text-secondary uppercase mb-1">Name</label>
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-swar-primary/40"
+                      placeholder="Full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-swar-text-secondary uppercase mb-1">Mobile Number</label>
+                    <input
+                      value={editMobile}
+                      onChange={(e) => setEditMobile(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-swar-primary/40"
+                      placeholder="919812345678"
+                    />
+                    <p className="text-[11px] text-swar-text-secondary mt-1">Include country code (e.g. 91 for India).</p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 p-5 border-t border-swar-border">
+                  <button onClick={() => setEditEnquiry(null)} disabled={savingEdit} className="px-4 py-2 text-sm border border-swar-border rounded-lg hover:bg-swar-bg font-medium disabled:opacity-40">Cancel</button>
+                  <button onClick={handleEditSave} disabled={savingEdit} className="px-4 py-2 text-sm bg-swar-primary text-white rounded-lg hover:bg-swar-primary-dark font-semibold disabled:opacity-40">
+                    {savingEdit ? 'Saving…' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
