@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       await connectDB();
       const col = plansCollection();
       out.count = await col.countDocuments();
-      out.indexes = await col.indexes();
+      // Write test first (auto-creates the collection if missing).
       try {
         await col.updateOne(
           { tier: '__debug__' },
@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
         out.writeErrorName = we?.name;
         out.writeErrorCode = we?.code;
       }
+      try { out.indexes = await col.indexes(); } catch (ie: any) { out.indexesError = ie?.message; }
     } catch (e: any) {
       out.connError = e?.message || String(e);
     }
