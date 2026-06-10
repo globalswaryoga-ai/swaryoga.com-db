@@ -111,30 +111,35 @@ export async function POST(request: NextRequest) {
       // ── Start the FREE TRIAL on the registry tenant ──
       // The data (storage) payment is the 1st payment; on success the tenant
       // enters a free trial. The SUBSCRIPTION payment is collected only after
-      // the trial ends. Wrapped so it can never break the payment flow.
+      // the trial ends. NOTE: setup-payment's planId is a STORAGE plan, not a
+      // subscription tier — so we do NOT touch tenant.plan here. Trial length
+      // comes from the tenant's actual subscription plan. Wrapped so it can
+      // never break the payment flow.
       try {
-        const planId = String(paymentRecord.planId || 'starter').toLowerCase();
-        let trialDays = 7;
-        try {
-          const cfgDoc = await crmDb.collection('auto_config').findOne({ key: 'tenant_plans' });
-          const plans = Array.isArray((cfgDoc as any)?.plans) ? (cfgDoc as any).plans : [];
-          const planCfg = plans.find((p: any) => p.tier === planId);
-          if (planCfg && Number.isFinite(Number(planCfg.trialDays))) trialDays = Number(planCfg.trialDays);
-        } catch { /* default 7 */ }
-
-        const now = new Date();
-        const trialEndsAt = new Date(now.getTime() + trialDays * 86_400_000);
         const email = String(paymentRecord.email || '').trim().toLowerCase();
         const or: any[] = [];
         if (email) or.push({ ownerEmail: email });
         if (paymentRecord.userId) or.push({ ownerUserId: paymentRecord.userId });
         if (paymentRecord.tenantSlug) or.push({ slug: paymentRecord.tenantSlug });
+
         if (or.length) {
+          const tenantDoc = await crmDb.collection('tenants').findOne({ $or: or });
+          const tier = String(tenantDoc?.plan || 'free').toLowerCase();
+          let trialDays = 14;
+          try {
+            const cfgDoc = await crmDb.collection('auto_config').findOne({ key: 'tenant_plans' });
+            const plans = Array.isArray((cfgDoc as any)?.plans) ? (cfgDoc as any).plans : [];
+            const planCfg = plans.find((p: any) => p.tier === tier);
+            const td = Number(planCfg?.trialDays);
+            if (Number.isFinite(td) && td > 0) trialDays = td;
+          } catch { /* default 14 */ }
+
+          const now = new Date();
+          const trialEndsAt = new Date(now.getTime() + trialDays * 86_400_000);
           await crmDb.collection('tenants').updateOne(
             { $or: or },
             {
               $set: {
-                plan: planId,
                 status: 'trial',
                 trialStartsAt: now,
                 trialEndsAt,
