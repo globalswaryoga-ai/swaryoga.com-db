@@ -96,6 +96,13 @@ export default function CheckoutContent() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
 
+  // Promo code — hidden by default; revealed only if the user has one.
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoInput, setPromoInput] = useState('');
+  const [promo, setPromo] = useState<{ code: string; discountPercent: number; duration: string } | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
+  const [promoError, setPromoError] = useState('');
+
   // Form fields
   const [form, setForm] = useState({
     name: '',
@@ -146,8 +153,34 @@ export default function CheckoutContent() {
       
   const storageCost = Math.max(storageGB * storagePricing.pricePerGB, storagePricing.minPrice);
   const subtotal = planCost + storageCost;
-  const gst = Math.ceil(subtotal * 0.18);
-  const total = subtotal + gst;
+  const promoPercent = promo?.discountPercent || 0;
+  const promoDiscount = Math.round(subtotal * promoPercent / 100);
+  const taxable = Math.max(0, subtotal - promoDiscount);
+  const gst = Math.ceil(taxable * 0.18);
+  const total = taxable + gst;
+
+  const applyPromo = async () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) return;
+    setPromoChecking(true);
+    setPromoError('');
+    try {
+      const res = await fetch(`/api/crm-site/promo/validate?code=${encodeURIComponent(code)}`);
+      const data = await res.json().catch(() => ({}));
+      const d = data?.data;
+      if (d?.valid) {
+        setPromo({ code: d.code, discountPercent: d.discountPercent, duration: d.duration });
+        setPromoError('');
+      } else {
+        setPromo(null);
+        setPromoError('Invalid or expired code');
+      }
+    } catch {
+      setPromoError('Could not check code');
+    } finally {
+      setPromoChecking(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.name || !form.email || !form.phone) {
@@ -174,6 +207,9 @@ export default function CheckoutContent() {
           paymentMethod,
           enableAutopay,
           upiId: paymentMethod === 'upi' ? upiId : undefined,
+          promoCode: promo?.code || undefined,
+          promoDiscountPercent: promo?.discountPercent || 0,
+          promoDuration: promo?.duration || undefined,
           ...form,
           tenantSlug: JSON.parse(localStorage.getItem('admin_user') || '{}')?.tenantSlug,
         }),
@@ -454,9 +490,43 @@ export default function CheckoutContent() {
                   <span className="text-gray-600">Subtotal</span>
                   <span className="font-medium">₹{subtotal}</span>
                 </div>
+                {promo && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Promo {promo.code} ({promo.discountPercent}% · {promo.duration === 'year' ? '1yr' : '1mo'})</span>
+                    <span>−₹{promoDiscount}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-500">
                   <span>GST (18%)</span>
                   <span>₹{gst}</span>
+                </div>
+
+                {/* Have a promo code? — hidden by default; only for those given one */}
+                <div className="pt-1">
+                  {!promoOpen && !promo && (
+                    <button type="button" onClick={() => setPromoOpen(true)} className="text-xs text-swar-primary hover:underline">
+                      Have a promo code?
+                    </button>
+                  )}
+                  {(promoOpen || promo) && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={promo ? promo.code : promoInput}
+                        onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                        disabled={!!promo}
+                        className="flex-1 border rounded-lg px-2.5 py-1.5 text-xs font-mono uppercase disabled:bg-gray-50"
+                        placeholder="ENTER CODE"
+                      />
+                      {promo ? (
+                        <button type="button" onClick={() => { setPromo(null); setPromoInput(''); }} className="text-xs text-rose-500 font-medium">Remove</button>
+                      ) : (
+                        <button type="button" onClick={applyPromo} disabled={promoChecking || !promoInput.trim()} className="text-xs font-semibold text-white bg-swar-primary rounded-lg px-3 py-1.5 disabled:opacity-40">
+                          {promoChecking ? '…' : 'Apply'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {promoError && <p className="text-[11px] text-rose-500 mt-1">{promoError}</p>}
                 </div>
                 <div className="border-t border-gray-200 pt-3 flex justify-between text-lg font-bold">
                   <span>Total</span>
