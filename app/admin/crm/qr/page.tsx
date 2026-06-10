@@ -1015,6 +1015,9 @@ export default function QRWhatsAppPage() {
 
   // ── Fetch profile picture for a JID ──
   const fetchProfilePic = useCallback(async (jid: string) => {
+    // Groups use a group icon and their profile-pic proxy is access-gated (401),
+    // so never spend a bridge round-trip on them.
+    if (jid.endsWith('@g.us')) return;
     if (profilePicLoadedRef.current.has(jid)) return;
     profilePicLoadedRef.current.add(jid);
     try {
@@ -1151,8 +1154,11 @@ export default function QRWhatsAppPage() {
         });
         setChats(sorted);
         setError(null);
-        // Lazy-load profile pictures for visible chats (groups + individuals)
-        sorted.slice(0, 30).forEach((c: ChatItem) => fetchProfilePic(c.id));
+        // Preload avatars only for the first individual chats actually in view.
+        // Groups render a group icon and their profile-pic proxy is access-gated
+        // (was 401-ing for member-only groups) — fetching ~686 of them on load was
+        // the main inbox slowdown, so we skip groups here.
+        sorted.filter((c: ChatItem) => !c.isGroup).slice(0, 15).forEach((c: ChatItem) => fetchProfilePic(c.id));
       }
     } catch (e: any) {
       console.error('Failed to fetch chats:', e);
