@@ -33,21 +33,14 @@ export async function GET(request: NextRequest) {
     const superAdmin = isSuperAdmin(decoded);
 
     const baseFilter: any = {};
-    // ── QR / Meta pipeline isolation (SaaS) ──────────────────────────────────
-    // QR leads only count toward the QR view (source=qr_whatsapp); every other
-    // view excludes them by default.
-    const sourceTrimmed = sourceParam && String(sourceParam).trim() ? String(sourceParam).trim() : '';
-    const excludeSourceParam = url.searchParams.get('excludeSource');
-    const mExcluded = new Set<string>();
-    if (excludeSourceParam) {
-      excludeSourceParam.split(',').map((s: string) => s.trim()).filter(Boolean).forEach((s: string) => mExcluded.add(s));
+    // Source filter (e.g. qr_whatsapp)
+    if (sourceParam && String(sourceParam).trim()) {
+      baseFilter.source = String(sourceParam).trim();
     }
-    if (sourceTrimmed !== 'qr_whatsapp') mExcluded.add('qr_whatsapp');
-
-    if (sourceTrimmed) {
-      baseFilter.source = sourceTrimmed;
-    } else if (mExcluded.size) {
-      baseFilter.source = { $nin: Array.from(mExcluded) };
+    const excludeSourceParam = url.searchParams.get('excludeSource');
+    if (excludeSourceParam) {
+      const excluded = excludeSourceParam.split(',').map((s: string) => s.trim()).filter(Boolean);
+      if (excluded.length) baseFilter.source = { ...(typeof baseFilter.source === 'object' ? baseFilter.source : {}), $nin: excluded };
     }
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {

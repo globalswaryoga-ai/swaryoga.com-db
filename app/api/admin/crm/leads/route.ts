@@ -114,23 +114,10 @@ export async function GET(request: NextRequest) {
     const excludeSource = url.searchParams.get('excludeSource');
     if (status) filter.status = status;
     if (workshop) filter.workshopName = workshop;
-
-    // ── QR / Meta pipeline isolation (SaaS) ──────────────────────────────────
-    // QR WhatsApp leads are a separate, isolated pipeline. They must appear ONLY
-    // when a caller explicitly asks for them (source=qr_whatsapp or qrOnly).
-    // Every other lead view (Leads, Funnel, Sales, Followup, Broadcast, Meta…)
-    // excludes them BY DEFAULT — so a QR lead can never leak into the Meta /
-    // general lists even if a page forgets to pass excludeSource.
-    const excludedSet = new Set<string>();
+    if (source) filter.source = source;
     if (excludeSource) {
-      excludeSource.split(',').map(s => s.trim()).filter(Boolean).forEach(s => excludedSet.add(s));
-    }
-    if (!isQrSource && !qrOnly) excludedSet.add('qr_whatsapp');
-
-    if (source) {
-      filter.source = source;                       // explicit source wins (incl. qr_whatsapp)
-    } else if (excludedSet.size) {
-      filter.source = { $nin: Array.from(excludedSet) };
+      const excluded = excludeSource.split(',').map(s => s.trim()).filter(Boolean);
+      if (excluded.length) filter.source = { ...(typeof filter.source === 'object' ? filter.source : {}), $nin: excluded };
     }
     
     // Build search conditions

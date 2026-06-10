@@ -176,7 +176,9 @@ export default function QRLeadsPage() {
     if (!token) return;
     try {
       setLoadingMetadata(true);
-      const params: Record<string, any> = { source: QR_SOURCE };
+      // Unified lead pool: QR view shows ALL of the tenant's leads (not only
+      // source=qr_whatsapp), so any lead added anywhere appears here too.
+      const params: Record<string, any> = {};
       if (isSuperAdmin && userFilter) params.userId = userFilter;
       const response = await fetch('/api/admin/crm/leads/metadata?' + new URLSearchParams(params), {
         headers: { Authorization: `Bearer ${token}` },
@@ -203,7 +205,7 @@ export default function QRLeadsPage() {
     lastFetchTimeRef.current = now;
 
     try {
-      const params: Record<string, any> = { limit, skip, source: QR_SOURCE };
+      const params: Record<string, any> = { limit, skip };
       if (filterStatus) params.status = filterStatus;
       if (filterWorkshop) params.workshop = filterWorkshop;
       if (search.query) params.q = search.query;

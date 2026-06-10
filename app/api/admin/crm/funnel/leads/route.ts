@@ -103,20 +103,10 @@ export async function GET(request: NextRequest) {
     if (state) query.state = state;
     if (label) query.labels = label;
     if (workshopName) query.workshopName = workshopName;
-
-    // ── QR / Meta pipeline isolation (SaaS) ──────────────────────────────────
-    // QR leads are a separate pipeline; exclude them from every funnel view
-    // unless explicitly requested via source=qr_whatsapp.
-    const fExcluded = new Set<string>();
+    if (source) query.source = source;
     if (excludeSource) {
-      excludeSource.split(',').map(s => s.trim()).filter(Boolean).forEach(s => fExcluded.add(s));
-    }
-    if (source !== 'qr_whatsapp') fExcluded.add('qr_whatsapp');
-
-    if (source) {
-      query.source = source;
-    } else if (fExcluded.size) {
-      query.source = { $nin: Array.from(fExcluded) };
+      const excluded = excludeSource.split(',').map(s => s.trim()).filter(Boolean);
+      query.source = { ...(typeof query.source === 'object' ? query.source : {}), $nin: excluded };
     }
     if (month) {
       const [y, m] = month.split('-').map(Number);
