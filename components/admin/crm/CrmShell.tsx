@@ -9,6 +9,7 @@ import TenantOnboarding from './TenantOnboarding';
 import StoragePurchaseModal from './StoragePurchaseModal';
 import CompartmentSetupModal from './CompartmentSetupModal';
 import CompartmentGuard from './CompartmentGuard';
+import TrialPaywall from './TrialPaywall';
 import { PlanProvider, usePlan } from './hooks/usePlan';
 import { TrialBanner, PlanGate } from './PlanComponents';
 import { PATH_TO_MODULE, CrmModule } from '@/lib/crm-site/planConfig';
@@ -156,6 +157,9 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
       />
+
+      {/* Read-only paywall when the free trial has ended (unpaid) */}
+      <TrialPaywall />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
