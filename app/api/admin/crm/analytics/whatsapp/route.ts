@@ -46,6 +46,47 @@ export async function GET(request: NextRequest) {
 
     const analytics: any = {};
 
+    // ── Tenant isolation ──────────────────────────────────────────────
+    // Super admin (CRM owner) sees ALL data. Every other admin is a tenant
+    // and must only see their own usage — otherwise a brand-new tenant would
+    // show the owner's month-to-date messages/spend in the header widget.
+    const superAdmin = isSuperAdmin(decoded);
+    const viewerId = getViewerUserId(decoded);
+
+    let messageScope: Record<string, any> = {};
+    let expenseScope: Record<string, any> = {};
+    if (!superAdmin) {
+      // Messages this tenant owns: tied to their leads, sent by them, or on
+      // their QR session (matches the scoping used in /messages route).
+      const accessibleLeads = await Lead.find({
+        $or: [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }],
+      })
+        .select('_id')
+        .lean();
+      const accessibleIds = accessibleLeads.map((l: any) => l._id);
+      messageScope = viewerId
+        ? {
+            $or: [
+              { leadId: { $in: accessibleIds } },
+              { sentByUserId: viewerId },
+              { bridgeUserId: viewerId },
+              { ownerId: viewerId },
+            ],
+          }
+        : { _id: '__never_match__' };
+      expenseScope = viewerId
+        ? { createdByUserId: viewerId }
+        : { _id: '__never_match__' };
+    }
+
+    // Combine a base query with a tenant scope without clobbering any existing
+    // $or in the base (e.g. the marketing-cost aggregation already uses $or).
+    const withScope = (
+      base: Record<string, any>,
+      scope: Record<string, any>,
+    ): Record<string, any> =>
+      Object.keys(scope).length === 0 ? base : { $and: [base, scope] };
+
     if (view === 'overview' || view === 'all') {
       // Get current month stats
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -61,43 +102,43 @@ export async function GET(request: NextRequest) {
         monthlyExpenses,
         marketingFromMessages,
       ] = await Promise.all([
-        WhatsAppMessage.countDocuments({
+        WhatsAppMessage.countDocuments(withScope({
           direction: 'outbound',
           sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        }),
-        WhatsAppMessage.countDocuments({
+        }, messageScope)),
+        WhatsAppMessage.countDocuments(withScope({
           direction: 'inbound',
           sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        }),
-        WhatsAppMessage.countDocuments({
+        }, messageScope)),
+        WhatsAppMessage.countDocuments(withScope({
           direction: 'outbound',
           status: 'delivered',
           sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        }),
-        WhatsAppMessage.countDocuments({
+        }, messageScope)),
+        WhatsAppMessage.countDocuments(withScope({
           direction: 'outbound',
           status: 'read',
           sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        }),
-        WhatsAppMessage.countDocuments({
+        }, messageScope)),
+        WhatsAppMessage.countDocuments(withScope({
           direction: 'outbound',
           status: 'failed',
           sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        }),
+        }, messageScope)),
         WhatsAppMessage.aggregate([
           {
-            $match: {
+            $match: withScope({
               direction: 'outbound',
               sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
-            },
+            }, messageScope),
           },
           { $group: { _id: '$provider', count: { $sum: 1 } } },
         ]),
         Expense.aggregate([
           {
-            $match: {
+            $match: withScope({
               expenseDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
-            },
+            }, expenseScope),
           },
           {
             $group: {
@@ -111,7 +152,7 @@ export async function GET(request: NextRequest) {
         // Include messages with metadata.cost OR messages with waMessageId (sent to Meta)
         WhatsAppMessage.aggregate([
           {
-            $match: {
+            $match: withScope({
               messageType: 'template',
               direction: 'outbound',
               provider: 'meta',
@@ -120,7 +161,7 @@ export async function GET(request: NextRequest) {
                 { waMessageId: { $exists: true, $ne: null, $regex: /^wamid\./ } },
               ],
               sentAt: { $gte: currentMonthStart, $lte: currentMonthEnd },
-            },
+            }, messageScope),
           },
           {
             $group: {
@@ -177,10 +218,10 @@ export async function GET(request: NextRequest) {
     if (view === 'daily' || view === 'all') {
       const daily = await WhatsAppMessage.aggregate([
         {
-          $match: {
+          $match: withScope({
             direction: 'outbound',
             sentAt: dateFilter,
-          },
+          }, messageScope),
         },
         {
           $group: {
@@ -206,10 +247,10 @@ export async function GET(request: NextRequest) {
     if (view === 'weekly' || view === 'all') {
       const weekly = await WhatsAppMessage.aggregate([
         {
-          $match: {
+          $match: withScope({
             direction: 'outbound',
             sentAt: dateFilter,
-          },
+          }, messageScope),
         },
         {
           $group: {
@@ -239,13 +280,13 @@ export async function GET(request: NextRequest) {
     if (view === 'monthly' || view === 'all') {
       const monthly = await WhatsAppMessage.aggregate([
         {
-          $match: {
+          $match: withScope({
             direction: 'outbound',
             sentAt: {
               $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1),
               $lte: now,
             },
-          },
+          }, messageScope),
         },
         {
           $group: {
@@ -265,12 +306,12 @@ export async function GET(request: NextRequest) {
       // Get monthly expenses too
       const monthlyExpenses = await Expense.aggregate([
         {
-          $match: {
+          $match: withScope({
             expenseDate: {
               $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1),
               $lte: now,
             },
-          },
+          }, expenseScope),
         },
         {
           $group: {
@@ -316,7 +357,7 @@ export async function GET(request: NextRequest) {
 
     if (view === 'yearly' || view === 'all') {
       const yearly = await WhatsAppMessage.aggregate([
-        { $match: { direction: 'outbound' } },
+        { $match: withScope({ direction: 'outbound' }, messageScope) },
         {
           $group: {
             _id: { $year: '$sentAt' },
@@ -342,10 +383,10 @@ export async function GET(request: NextRequest) {
       // Get messages sent by each admin (using sentByLabel or sentBy)
       const byAdmin = await WhatsAppMessage.aggregate([
         {
-          $match: {
+          $match: withScope({
             direction: 'outbound',
             sentAt: dateFilter,
-          },
+          }, messageScope),
         },
         {
           $group: {
