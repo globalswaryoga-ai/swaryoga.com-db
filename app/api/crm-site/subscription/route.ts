@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
+import { computeTrialState } from '@/lib/tenant/trial';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,6 +105,20 @@ export async function GET(request: NextRequest) {
       lastPaymentAmount: lastPayment?.amount || null,
       pricing: planAccess.pricing,
       channelAccess: planAccess.channelAccess,
+
+      // Trial / split-payment state
+      ...(() => {
+        const t = computeTrialState(tenant);
+        return {
+          isTrialActive: t.isTrialActive,
+          trialDaysRemaining: t.trialDaysRemaining,
+          trialEndDate: t.trialEndsAt,
+          dataPaid: t.dataPaid,
+          subscriptionPaid: t.subscriptionPaid,
+          isLocked: t.isLocked,
+          effectiveStatus: t.status,
+        };
+      })(),
     };
 
     return NextResponse.json({ success: true, subscription });

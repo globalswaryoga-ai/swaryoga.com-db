@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, X, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { Home, X, ChevronLeft, ChevronRight, Zap, Clock } from 'lucide-react';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { sectionConfigs, findSectionForPath, type SectionConfig } from './crmNavConfig';
 import { MODULE_CATALOG, expandGroups, PLAN_DEFAULT_GROUPS } from '@/lib/tenant/moduleCatalog';
@@ -64,6 +64,8 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
 
   // Tenant module keys. null = still loading, Set = loaded (may be empty).
   const [tenantModuleKeys, setTenantModuleKeys] = useState<Set<string> | null>(null);
+  // Trial / subscription state for the days-left badge.
+  const [trial, setTrial] = useState<{ isTrialActive?: boolean; trialDaysRemaining?: number; isLocked?: boolean; status?: string } | null>(null);
 
   useEffect(() => {
     async function loadTenantModules() {
@@ -124,6 +126,7 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
         if (r.ok) {
           const j = await r.json();
           const d = j?.data || {};
+          if (d.trial) setTrial(d.trial);
           const tenantKeys: string[] = Array.isArray(d.moduleKeys) ? d.moduleKeys : [];
           const planKeys = await keysFromPlan(d.plan || await tierFromSetupStatus());
           setTenantModuleKeys(buildSet([...planKeys, ...tenantKeys]));
@@ -292,9 +295,33 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
           })}
         </nav>
 
-        {/* Upgrade Plan banner (non-super-admin only) */}
+        {/* Trial / subscription status (non-super-admin only) */}
         {!isSuper && (
-          <div className={`border-t border-gray-800 flex-shrink-0 ${collapsed ? 'p-2' : 'p-3'}`}>
+          <div className={`border-t border-gray-800 flex-shrink-0 ${collapsed ? 'p-2' : 'p-3'} space-y-2`}>
+            {/* Trial days-left / expired badge */}
+            {trial?.isTrialActive && !collapsed && (
+              <Link href="/admin/crm/subscription" onClick={onClose} className="block rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-3 py-2 hover:bg-emerald-500/25 transition">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                  <div className="leading-tight">
+                    <div className="text-xs font-semibold text-emerald-300">Free trial</div>
+                    <div className="text-[11px] text-emerald-200/80">{trial.trialDaysRemaining} day{trial.trialDaysRemaining === 1 ? '' : 's'} left</div>
+                  </div>
+                </div>
+              </Link>
+            )}
+            {trial?.isTrialActive && collapsed && (
+              <Link href="/admin/crm/subscription" onClick={onClose} title={`Trial: ${trial.trialDaysRemaining} days left`} className="flex items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2 py-2 text-emerald-300 text-xs font-bold">
+                {trial.trialDaysRemaining}d
+              </Link>
+            )}
+            {trial?.isLocked && !collapsed && (
+              <Link href="/admin/crm/subscription" onClick={onClose} className="block rounded-lg bg-red-500/15 border border-red-500/40 px-3 py-2 hover:bg-red-500/25 transition">
+                <div className="text-xs font-semibold text-red-300">Trial ended</div>
+                <div className="text-[11px] text-red-200/80">Pay to continue</div>
+              </Link>
+            )}
+
             <Link
               href="/admin/crm/subscription"
               onClick={onClose}

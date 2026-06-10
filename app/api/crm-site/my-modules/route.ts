@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { getTenantModel } from '@/lib/tenant/tenantSchemas';
+import { computeTrialState } from '@/lib/tenant/trial';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
     ).lean();
 
     if (!tenant) {
-      return apiSuccess({ found: false, slug: '', plan: '', status: '', moduleKeys: [] });
+      return apiSuccess({ found: false, slug: '', plan: '', status: '', moduleKeys: [], trial: computeTrialState(null) });
     }
 
     return apiSuccess({
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
       plan: tenant.plan || 'free',
       status: tenant.status || 'active',
       moduleKeys: Array.isArray(tenant.moduleKeys) ? tenant.moduleKeys : [],
+      trial: computeTrialState(tenant),
     });
   } catch (err) {
     console.error('[my-modules GET]', err);

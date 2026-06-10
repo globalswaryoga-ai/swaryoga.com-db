@@ -111,10 +111,24 @@ const TenantSchema = new mongoose.Schema(
     // Lifecycle
     status: {
       type: String,
-      enum: ['active', 'suspended', 'pending', 'archived'],
+      // 'trial'         → in free-trial window (data paid, subscription not yet due)
+      // 'trial_expired' → trial ended, subscription unpaid → read-only paywall
+      // 'active'        → subscription paid & current
+      enum: ['active', 'trial', 'trial_expired', 'suspended', 'pending', 'archived'],
       default: 'pending',
     },
     subscriptionEndsAt: { type: Date },
+
+    // ── Free-trial window ──
+    trialStartsAt: { type: Date },
+    trialEndsAt: { type: Date },
+
+    // ── Split payments: data (1st, on upgrade) vs subscription (after trial) ──
+    dataPaid: { type: Boolean, default: false },
+    dataPaidAt: { type: Date },
+    dataPaymentAmount: { type: Number, default: 0 },
+    subscriptionPaid: { type: Boolean, default: false },
+    subscriptionPaidAt: { type: Date },
 
     // Cached usage counters (updated by periodic jobs)
     currentLeadCount: { type: Number, default: 0 },
