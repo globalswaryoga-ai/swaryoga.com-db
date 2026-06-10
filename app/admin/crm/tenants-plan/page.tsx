@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { MODULE_CATALOG, expandGroups, PLAN_DEFAULT_GROUPS } from '@/lib/tenant/moduleCatalog';
+import PromoCodesManager from '@/components/admin/crm/PromoCodesManager';
 
 // ---------------------------------------------------------------------------
 // Tenants Plan — full plan-tier manager. Every tier's name, description,
@@ -317,6 +318,11 @@ export default function TenantsPlanPage() {
           })}
         </div>
       )}
+
+      {/* ── Promo Codes (hidden from users, given out manually) ── */}
+      <div className="pt-2 border-t border-gray-200">
+        <PromoCodesManager token={token} />
+      </div>
 
       {/* ── Full Plan editor modal ── */}
       {modalOpen && (
