@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { isAdminAuthorized } from '@/lib/adminAuth';
 import { Community } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +17,24 @@ export async function GET(request: NextRequest) {
 
     await ensureDefaultCommunities();
 
-    const communities = await Community.find({})
+    // Tenant isolation (SaaS): super admin sees ALL communities (existing data
+    // preserved). Every other tenant sees only the communities they own plus the
+    // shared/default ones (no owner) — never another tenant's owned community.
+    // This matches getAccessibleCommunityIds() semantics used elsewhere.
+    const decoded = verifyToken(request.headers.get('authorization')?.replace('Bearer ', '') || '');
+    const viewerId = getViewerUserId(decoded);
+    const filter = isSuperAdmin(decoded)
+      ? {}
+      : {
+          $or: [
+            { createdByUserId: viewerId },
+            { createdByUserId: { $exists: false } },
+            { createdByUserId: null },
+            { createdByUserId: '' },
+          ],
+        };
+
+    const communities = await Community.find(filter)
       .select({ name: 1, members: 1, createdAt: 1 })
       .sort({ createdAt: 1 })
       .lean();

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleCrmError } from '@/lib/crm-handlers';
+import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { getProgramsCollection, slugify } from '@/lib/sadhanaPrograms';
 import { verifyToken } from '@/lib/auth';
 
@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
     }
 
     const col = await getProgramsCollection();
-    const programs = await col.find({}).sort({ createdAt: -1 }).toArray();
+    // Tenant isolation (SaaS): super admin sees ALL programs (existing data
+    // preserved); every other tenant sees only the programs they created.
+    const filter = isSuperAdmin(decoded) ? {} : { createdByUserId: getViewerUserId(decoded) };
+    const programs = await col.find(filter).sort({ createdAt: -1 }).toArray();
     return NextResponse.json({
       success: true,
       programs: programs.map((p: any) => ({
@@ -99,6 +102,7 @@ export async function POST(request: NextRequest) {
       playerMode: playerMode || 'player',
       playerUrl: playerUrl || '',
       active: true,
+      createdByUserId: getViewerUserId(decoded), // tenant owner (SaaS isolation)
       createdAt: now,
       updatedAt: now,
     };
