@@ -2208,6 +2208,13 @@ export default function QRWhatsAppPage() {
     });
   }, []);
 
+  // A chat counts as a real conversation if it has an actual message (1:1 or
+  // group), vs. a group the account is merely a member of with nothing in it.
+  const chatHasConversation = (c: ChatItem) => {
+    const lm = typeof c.lastMessage === 'string' ? c.lastMessage.trim() : '';
+    return Boolean(lm || c.lastMessageTime || (c.unreadCount || 0) > 0);
+  };
+
   // ── Filter chats by funnel + label + chatFilter + search ──
   const filteredChats = chats.filter(c => {
     // Apply funnel filter
@@ -2219,6 +2226,9 @@ export default function QRWhatsAppPage() {
     }
     // Apply chat filter (read/unread/groups/inbound/outbound)
     switch (chatFilter) {
+      // "All" = only chats with a real conversation (1:1 OR group with messages),
+      // not every group the account belongs to. Use the Groups tab to see all groups.
+      case 'all': if (!chatHasConversation(c)) return false; break;
       case 'unread': if (c.unreadCount <= 0) return false; break;
       case 'read': if (c.unreadCount !== 0) return false; break;
       case 'groups': if (!c.isGroup) return false; break;
@@ -2564,7 +2574,7 @@ export default function QRWhatsAppPage() {
             {/* Chat filter tabs: All | Unread | Read | Groups */}
             <div className="px-2 py-1 border-b flex items-center gap-0.5 bg-gray-50">
               {([
-                { key: 'all' as ChatFilter, label: 'All', icon: null, count: chats.filter(c => activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel).length },
+                { key: 'all' as ChatFilter, label: 'All', icon: null, count: chats.filter(c => chatHasConversation(c) && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
                 { key: 'unread' as ChatFilter, label: 'Unread', icon: <Mail className="w-2.5 h-2.5" />, count: chats.filter(c => c.unreadCount > 0 && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
                 { key: 'read' as ChatFilter, label: 'Read', icon: <MailOpen className="w-2.5 h-2.5" />, count: chats.filter(c => c.unreadCount === 0 && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
                 { key: 'groups' as ChatFilter, label: 'Groups', icon: <Users className="w-2.5 h-2.5" />, count: chats.filter(c => c.isGroup && (activeFunnel === 'all' || chatFunnels[c.id] === activeFunnel)).length },
