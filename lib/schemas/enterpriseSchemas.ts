@@ -58,9 +58,10 @@ const LeadSchema = new mongoose.Schema(
     createdByUserId: { type: String, trim: true, index: true },
 
     // Permanent, human-friendly CRM Lead ID.
-    // Stored as 6-digit string (e.g., "006999").
-    // NOTE: Sparse unique so existing older docs without leadNumber don't break index creation.
-    leadNumber: { type: String, trim: true, unique: true, sparse: true, index: true },
+    // Stored as 6-digit string (e.g., "010000").
+    // NOTE: uniqueness is PER-TENANT (compound index below on createdByUserId+leadNumber),
+    // not global — so each tenant can have its own sequence starting at 10000 (SaaS).
+    leadNumber: { type: String, trim: true, index: true },
 
     name: { type: String, trim: true },
 
@@ -224,6 +225,12 @@ LeadSchema.index({ assignedToUserId: 1, status: 1 }); // User's leads by status
 LeadSchema.index({ createdByUserId: 1, status: 1 }); // Creator's leads by status
 LeadSchema.index({ status: 1, createdAt: -1 }); // Recent leads by status
 LeadSchema.index({ phoneNumber: 1, createdByUserId: 1 }); // Duplicate detection per tenant
+// Per-tenant lead-number uniqueness (replaces the old global unique index on
+// leadNumber). Partial so only docs that actually have a leadNumber are indexed.
+LeadSchema.index(
+  { createdByUserId: 1, leadNumber: 1 },
+  { unique: true, partialFilterExpression: { leadNumber: { $type: 'string' } } },
+);
 LeadSchema.index({ source: 1, createdAt: -1 }); // Lead source analytics
 LeadSchema.index({ country: 1, funnelStage: 1 });
 LeadSchema.index({ languageCode: 1, funnelStage: 1 });

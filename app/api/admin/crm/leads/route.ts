@@ -352,7 +352,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Allocate permanent 6-digit lead number (e.g., 006999)
-    const { leadNumber } = await allocateNextLeadNumber();
+    const { leadNumber } = await allocateNextLeadNumber(viewerUserId);
 
     const lead = await Lead.create({
       leadNumber,

@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const { leadNumber } = await allocateNextLeadNumber();
+        const { leadNumber } = await allocateNextLeadNumber(viewerUserId);
 
         const leadData: any = {
           leadNumber,

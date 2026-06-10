@@ -2,44 +2,69 @@ import { getCrmCounter, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 
 export const LEAD_NUMBER_COUNTER_ID = 'leadNumber';
-// Start at 000699 unless an existing counter already exists in the DB.
-// Note: If crm_counters already has a higher seq, allocation will continue from there.
+// Legacy GLOBAL start (used only for system / non-tenant leads with no owner key).
 export const LEAD_NUMBER_START = 699; // "000699"
+// Per-tenant SaaS start: every NEW tenant's lead IDs begin at 10000. Existing
+// tenants continue from their current max (seeded below) so nothing is renumbered.
+export const TENANT_LEAD_NUMBER_START = 10000;
 
 export function formatLeadNumber(seq: number): string {
-  // Always 6 digits
+  // Always at least 6 digits (e.g. 10000 -> "010000").
   return String(seq).padStart(6, '0');
+}
+
+async function incrementCounter(counterId: string, fallbackStart: number): Promise<number> {
+  const CrmCounter = getCrmCounter();
+  // Update pipeline so we don't touch `seq` via multiple operators (avoids
+  // "Updating the path 'seq' would create a conflict at 'seq'").
+  const counter = await CrmCounter.findOneAndUpdate(
+    { _id: counterId },
+    [{ $set: { seq: { $add: [{ $ifNull: ['$seq', fallbackStart - 1] }, 1] } } }],
+    { new: true, upsert: true }
+  ).lean();
+  return Number((counter as any)?.seq || 0);
 }
 
 /**
  * Atomically allocate the next permanent CRM Lead Number.
  *
+ * - tenantKey given  → PER-TENANT counter (`leadNumber:<tenantKey>`). Brand-new
+ *   tenants start at TENANT_LEAD_NUMBER_START (10000); existing tenants are seeded
+ *   from their current max lead number so their IDs continue without collisions.
+ * - tenantKey absent → legacy GLOBAL counter (system / public-site leads).
+ *
  * IMPORTANT: caller must have ensured DB connection via connectDB().
  */
-export async function allocateNextLeadNumber(): Promise<{ seq: number; leadNumber: string }> {
-  const CrmCounter = getCrmCounter();
-  // Use an update pipeline so we don't update the same path (`seq`) via multiple operators,
-  // which causes: "Updating the path 'seq' would create a conflict at 'seq'".
-  //
-  // seq := ifNull(seq, START-1) + 1
-  const counter = await CrmCounter.findOneAndUpdate(
-    { _id: LEAD_NUMBER_COUNTER_ID },
-    [
-      {
-        $set: {
-          seq: {
-            $add: [
-              { $ifNull: ['$seq', LEAD_NUMBER_START - 1] },
-              1,
-            ],
-          },
-        },
-      },
-    ],
-    { new: true, upsert: true }
-  ).lean();
+export async function allocateNextLeadNumber(tenantKey?: string): Promise<{ seq: number; leadNumber: string }> {
+  const key = String(tenantKey || '').trim();
 
-  const seq = Number((counter as any)?.seq || 0);
+  if (!key) {
+    const seq = await incrementCounter(LEAD_NUMBER_COUNTER_ID, LEAD_NUMBER_START);
+    return { seq, leadNumber: formatLeadNumber(seq) };
+  }
+
+  const counterId = `${LEAD_NUMBER_COUNTER_ID}:${key}`;
+  const CrmCounter = getCrmCounter();
+
+  // First allocation for this tenant: seed the counter so we never collide with
+  // any lead numbers the tenant already has. New tenant → 10000; existing tenant
+  // → continue from its current max.
+  const existing = await CrmCounter.findOne({ _id: counterId }).select('_id').lean();
+  if (!existing) {
+    const Lead = getLead();
+    const top = await Lead.find({ createdByUserId: key, leadNumber: { $type: 'string' } })
+      .sort({ leadNumber: -1 })
+      .limit(1)
+      .select('leadNumber')
+      .lean();
+    const maxExisting = (top as any[])?.[0]?.leadNumber
+      ? (parseInt(String((top as any[])[0].leadNumber), 10) || 0)
+      : 0;
+    const seed = Math.max(TENANT_LEAD_NUMBER_START - 1, maxExisting);
+    await CrmCounter.updateOne({ _id: counterId }, { $setOnInsert: { seq: seed } }, { upsert: true });
+  }
+
+  const seq = await incrementCounter(counterId, TENANT_LEAD_NUMBER_START);
   return { seq, leadNumber: formatLeadNumber(seq) };
 }
 

@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const { leadNumber } = await allocateNextLeadNumber();
+        const { leadNumber } = await allocateNextLeadNumber(viewerUserId);
 
         const name = String(
           (row as any).Name || (row as any).name || ''
