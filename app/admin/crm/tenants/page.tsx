@@ -51,6 +51,8 @@ interface Tenant {
   name: string;
   ownerEmail: string;
   ownerUserId: string;
+  ownerName?: string;
+  ownerPhone?: string;
   plan: string;
   status: string;
   dbName: string;
@@ -645,7 +647,7 @@ export default function TenantsPage() {
 
   const openEdit = (t: Tenant) => {
     setEditTenant(t);
-    setEditForm({ plan: t.plan, status: t.status, customDomain: t.customDomain || '', subscriptionEndsAt: t.subscriptionEndsAt ? String(t.subscriptionEndsAt).slice(0, 10) : '' });
+    setEditForm({ plan: t.plan, status: t.status, customDomain: t.customDomain || '', subscriptionEndsAt: t.subscriptionEndsAt ? String(t.subscriptionEndsAt).slice(0, 10) : '', ownerEmail: t.ownerEmail || '', ownerName: t.ownerName || '', ownerPhone: t.ownerPhone || '' });
     setEditModules(new Set(t.moduleKeys || []));
     setEditLimits(t.customLimits || {});
     setEditPricing(t.pricing || { billingCycle: 'monthly' });
@@ -1003,6 +1005,27 @@ export default function TenantsPage() {
                   <div className="flex gap-1.5">
                     <input type="date" value={(editForm.subscriptionEndsAt || '').slice(0, 10)} onChange={(e) => setEditForm((f: any) => ({ ...f, subscriptionEndsAt: e.target.value }))} className="border rounded-xl px-3 py-2 text-sm flex-1" />
                     <button type="button" onClick={() => setEditForm((f: any) => ({ ...f, subscriptionEndsAt: renewalFromCycle(editPricing.billingCycle) }))} className="px-2 py-2 text-[11px] border rounded-xl hover:bg-gray-50 text-indigo-600 font-medium whitespace-nowrap">Auto</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Owner contact — login email + mobile. Updating the email also updates
+                  the login account; the data-scoping userId stays unchanged. */}
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Owner Contact &amp; Login</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Owner Name</label>
+                    <input value={editForm.ownerName || ''} onChange={(e) => setEditForm((f: any) => ({ ...f, ownerName: e.target.value }))} className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Full name" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Login Email</label>
+                    <input value={editForm.ownerEmail || ''} onChange={(e) => setEditForm((f: any) => ({ ...f, ownerEmail: e.target.value }))} className="w-full border rounded-xl px-3 py-2 text-sm" type="email" placeholder="owner@example.com" />
+                    <p className="text-[10px] text-gray-400 mt-1">Used to log in. Changing it updates their login.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Mobile Number</label>
+                    <input value={editForm.ownerPhone || ''} onChange={(e) => setEditForm((f: any) => ({ ...f, ownerPhone: e.target.value }))} className="w-full border rounded-xl px-3 py-2 text-sm" type="tel" placeholder="+91 98765 43210" />
                   </div>
                 </div>
               </div>

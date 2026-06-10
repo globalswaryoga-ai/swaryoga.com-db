@@ -63,6 +63,10 @@ const TenantSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     ownerEmail: { type: String, required: true, trim: true, lowercase: true },
     ownerUserId: { type: String, required: true, trim: true },
+    // Owner contact details (editable by super admin). ownerUserId stays immutable
+    // because it is the tenant-wide data-scoping key (createdByUserId, scope, etc.).
+    ownerName: { type: String, trim: true },
+    ownerPhone: { type: String, trim: true },
 
     // Plan & billing
     plan: {

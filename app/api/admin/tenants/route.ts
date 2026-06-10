@@ -194,16 +194,61 @@ export async function PATCH(request: NextRequest) {
   const tenant = await Tenant.findOne({ slug });
   if (!tenant) return apiError('NOT_FOUND', `Tenant "${slug}" not found`);
 
-  // Allowlist of updatable fields
+  // Allowlist of updatable fields.
+  // NOTE: ownerUserId is intentionally NOT updatable — it is the tenant-wide
+  // data-scoping key (createdByUserId / scope / ownerUserId on every record).
+  // Changing it would orphan all the tenant's data. We can change the login
+  // email/name/phone while keeping ownerUserId fixed (see admin_users sync below).
   const allowed = [
     'name', 'plan', 'customDomain', 'customDomainVerified', 'status',
-    'subscriptionEndsAt', 'ownerEmail', 'ownerUserId', 'enabledModules',
+    'subscriptionEndsAt', 'ownerEmail', 'ownerName', 'ownerPhone', 'enabledModules',
   ];
 
   const $set: any = {};
   for (const key of allowed) {
     if (updates[key] !== undefined) {
       $set[key] = updates[key];
+    }
+  }
+
+  // Normalize owner email.
+  if (typeof $set.ownerEmail === 'string') {
+    $set.ownerEmail = $set.ownerEmail.trim().toLowerCase();
+    if ($set.ownerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($set.ownerEmail)) {
+      return apiError('VALIDATION_ERROR', 'Invalid owner email');
+    }
+  }
+
+  // ── Sync the login account (admin_users) so the tenant can actually log in
+  // with the new email / see the new name / phone. The login identity (userId)
+  // is kept stable; only the email/name/phone fields change.
+  const wantsOwnerSync =
+    $set.ownerEmail !== undefined || $set.ownerName !== undefined || $set.ownerPhone !== undefined;
+  if (wantsOwnerSync) {
+    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    const stableUserId = String(tenant.ownerUserId || '').trim();
+    const currentEmail = String(tenant.ownerEmail || '').trim().toLowerCase();
+
+    const adminSet: Record<string, any> = {};
+    if ($set.ownerEmail !== undefined) adminSet.email = $set.ownerEmail;
+    if ($set.ownerName !== undefined) adminSet.name = $set.ownerName;
+    if ($set.ownerPhone !== undefined) adminSet.phone = $set.ownerPhone;
+
+    // Reject an email already taken by a different login account.
+    if (adminSet.email && adminSet.email !== currentEmail) {
+      const clash = await crmDb.collection('admin_users').findOne({
+        email: adminSet.email,
+        userId: { $ne: stableUserId },
+      });
+      if (clash) return apiError('VALIDATION_ERROR', 'That email is already used by another account');
+    }
+
+    if (Object.keys(adminSet).length > 0) {
+      adminSet.updatedAt = new Date();
+      await crmDb.collection('admin_users').updateOne(
+        { $or: [{ userId: stableUserId }, { email: currentEmail }] },
+        { $set: adminSet },
+      );
     }
   }
 
