@@ -263,7 +263,6 @@ export default function QRManagePage() {
       if (filterMonth) params.set('month', filterMonth);
       params.set('limit', String(LIMIT));
       params.set('skip', String(page * LIMIT));
-      params.set('source', 'qr_whatsapp');
 
       const res = await fetch(`/api/admin/crm/funnel/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {

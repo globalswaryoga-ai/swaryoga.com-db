@@ -495,7 +495,6 @@ export default function QRFunnelDashboardPage() {
       if (filterRegion) params.set('region', filterRegion);
       if (filterLanguage) params.set('language', filterLanguage);
       if (filterAdmin) params.set('assignedTo', filterAdmin);
-      params.set('source', 'qr_whatsapp');
       params.set('limit', '50');
 
       const res = await fetch(`/api/admin/crm/funnel/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -512,7 +511,6 @@ export default function QRFunnelDashboardPage() {
     try {
       const params = new URLSearchParams({ period });
       if (filterAdmin) params.set('assignedTo', filterAdmin);
-      params.set('source', 'qr_whatsapp');
       const res = await fetch(`/api/admin/crm/funnel/analytics?${params}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const json = await res.json();

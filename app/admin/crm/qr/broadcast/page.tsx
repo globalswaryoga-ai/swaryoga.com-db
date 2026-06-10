@@ -100,12 +100,12 @@ export default function QRBroadcastWizard() {
   const loadLeads = useCallback(async () => {
     if (!token) return;
     setLeadsLoading(true);
-    const params = new URLSearchParams({ limit: '500', source: 'qr_whatsapp' });
+    const params = new URLSearchParams({ limit: '500' });
     if (filterStatus) params.set('status', filterStatus);
     if (filterLabel) params.set('label', filterLabel);
     if (leadSearch) params.set('search', leadSearch);
-    // QR broadcast targets QR leads only (source=qr_whatsapp) — kept separate
-    // from Meta leads, which are excluded from this audience.
+    // Unified lead pool: QR broadcast can target ALL of the tenant's leads (not
+    // only source=qr_whatsapp). Still tenant-scoped server-side.
     const res = await crmFetch(`/api/admin/crm/leads?${params}`).catch(() => null);
     // crmFetch unwraps the { success, data } envelope, so leads arrive at res.leads
     // (res.data.leads is only there if it didn't unwrap). Handle both shapes.

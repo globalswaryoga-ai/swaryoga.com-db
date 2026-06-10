@@ -76,7 +76,7 @@ export default function QRFunnelReportPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ all: '1', source: QR_SOURCE });
+      const params = new URLSearchParams({ all: '1' });
       if (selectedStage) params.set('stage', selectedStage);
 
       const res = await fetch(`/api/admin/crm/funnel/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
