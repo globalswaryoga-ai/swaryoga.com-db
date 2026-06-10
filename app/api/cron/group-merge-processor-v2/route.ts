@@ -265,9 +265,11 @@ async function processMergeOperation(
  */
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret
-    const cronSecret = req.headers.get('authorization') || req.nextUrl.searchParams.get('secret');
-    if (cronSecret !== process.env.CRON_SECRET) {
+    // Verify cron secret — Vercel Cron sends "Authorization: Bearer {CRON_SECRET}",
+    // so strip the "Bearer " prefix before comparing (also accept ?secret=).
+    const rawAuth = req.headers.get('authorization') || '';
+    const cronSecret = rawAuth.replace(/^Bearer\s+/i, '').trim() || req.nextUrl.searchParams.get('secret') || '';
+    if (!process.env.CRON_SECRET || cronSecret !== process.env.CRON_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
