@@ -91,6 +91,9 @@ export default function MessengerInboxPage() {
   const [connectionRestricted, setConnectionRestricted] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [settingsScope, setSettingsScope] = useState<SettingsScopeInfo | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [pageOptions, setPageOptions] = useState<{ pageId: string; name: string; picture?: string | null; hasInstagram?: boolean }[] | null>(null);
+  const [pendingUserToken, setPendingUserToken] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const tabRoutes: Record<string, string> = {
@@ -107,28 +110,109 @@ export default function MessengerInboxPage() {
     if (href) router.push(href);
   };
 
-  const connectFacebookAccount = async () => {
+  // Ensure the Facebook JS SDK is loaded + initialised (mirrors SocialLoginButtons).
+  const ensureFacebookSdk = async (): Promise<any> => {
+    if (typeof window === 'undefined') throw new Error('Facebook SDK unavailable');
+    const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
+    if (!appId) throw new Error('Facebook App ID is not configured (NEXT_PUBLIC_FACEBOOK_APP_ID).');
+
+    if (!document.getElementById('facebook-sdk')) {
+      const script = document.createElement('script');
+      script.id = 'facebook-sdk';
+      script.src = 'https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v24.0';
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = 'anonymous';
+      document.head.appendChild(script);
+    }
+
+    let retries = 20;
+    while (!window.FB && retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      retries -= 1;
+    }
+    if (!window.FB) throw new Error('Facebook SDK failed to load. Disable blockers and retry.');
+
+    window.FB.init({ appId, xfbml: false, version: 'v24.0' });
+    return window.FB;
+  };
+
+  // Send the connect-page request for a specific Page id.
+  const connectSelectedPage = async (userAccessToken: string, pageId: string) => {
+    setConnecting(true);
+    setConnectionError(null);
     try {
-      const token = getStoredAdminToken();
-      const res = await fetch('/api/admin/crm/social-inbox/connect', {
+      const adminToken = getStoredAdminToken();
+      const res = await fetch('/api/admin/crm/social-inbox/oauth', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ platform: 'facebook' }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ action: 'connect-page', userAccessToken, pageId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to connect Facebook Page');
+      }
+      setPageOptions(null);
+      setPendingUserToken('');
+      await loadMessengerShell();
+    } catch (error) {
+      setConnectionError(error instanceof Error ? error.message : 'Failed to connect Facebook Page');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // Step 1: FB.login → fetch the Pages this user manages → pick one (or auto-pick).
+  const connectFacebookAccount = async () => {
+    setConnectionError(null);
+    setConnecting(true);
+    try {
+      const FB = await ensureFacebookSdk();
+      const authResponse: any = await new Promise((resolve) => {
+        FB.login(
+          (response: any) => resolve(response),
+          {
+            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management',
+            ...(process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID
+              ? { config_id: process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID }
+              : {}),
+          },
+        );
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        // Reload page to show connected account
-        window.location.reload();
-      } else {
-        alert(`Connection failed: ${data.error || 'Unknown error'}`);
+      const userAccessToken = authResponse?.authResponse?.accessToken;
+      if (!userAccessToken) {
+        setConnecting(false);
+        if (authResponse?.status !== 'connected') setConnectionError('Facebook login was cancelled.');
+        return;
       }
+
+      const adminToken = getStoredAdminToken();
+      const res = await fetch('/api/admin/crm/social-inbox/oauth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ action: 'list-pages', userAccessToken }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to read your Facebook Pages');
+      }
+
+      const pages = Array.isArray(data.pages) ? data.pages : [];
+      if (pages.length === 0) {
+        throw new Error('No Facebook Pages found on your account.');
+      }
+      if (pages.length === 1) {
+        await connectSelectedPage(userAccessToken, pages[0].pageId);
+        return;
+      }
+      // Multiple Pages — let the admin choose which one to connect.
+      setPendingUserToken(userAccessToken);
+      setPageOptions(pages);
+      setConnecting(false);
     } catch (error) {
-      console.error('Connection error:', error);
-      alert('Failed to connect Facebook account');
+      setConnectionError(error instanceof Error ? error.message : 'Failed to connect Facebook account');
+      setConnecting(false);
     }
   };
 
@@ -699,6 +783,29 @@ export default function MessengerInboxPage() {
                   )}
                 </div>
               )}
+
+              {/* How-to-connect helper — shown only before a Page is connected */}
+              {!facebookAccount && !connectionRestricted && (
+                <div className="mt-2 w-full max-w-sm rounded-2xl border border-indigo-100 bg-white/70 p-4 text-left shadow-sm">
+                  <div className="text-[11px] font-extrabold uppercase tracking-wider text-[#0078FF] mb-2">How to connect</div>
+                  <ol className="space-y-2">
+                    {[
+                      'Click “Connect Facebook Page” and log in with the Facebook account that manages your Page.',
+                      'Approve the permissions, then pick the Facebook Page you want to receive Messenger chats for.',
+                      'Done — your old conversations import and new messages start arriving automatically.',
+                    ].map((step, i) => (
+                      <li key={i} className="flex gap-2.5 items-start">
+                        <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-[#0078FF] text-white text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="text-[11px] leading-snug text-slate-600">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <div className="mt-3 flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200/60 px-2.5 py-1.5">
+                    <i className="ph-bold ph-info text-amber-500 text-xs mt-0.5"></i>
+                    <span className="text-[10px] leading-snug text-amber-700">You must be an <b>admin of a Facebook Page</b> — a personal profile alone won’t appear.</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
@@ -764,6 +871,50 @@ export default function MessengerInboxPage() {
           </aside>
         )}
       </div>
+
+      {/* Page picker modal — shown when the user manages more than one Facebook Page */}
+      {pageOptions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => { if (!connecting) { setPageOptions(null); setPendingUserToken(''); } }}>
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 text-white" style={{ background: 'linear-gradient(135deg, #0078FF, #00A3FF)' }}>
+              <div className="text-sm font-extrabold">Choose a Facebook Page</div>
+              <div className="text-[11px] text-white/80 mt-0.5">Connect the Page whose Messenger chats should land in this inbox.</div>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2">
+              {pageOptions.map((p) => (
+                <button
+                  key={p.pageId}
+                  disabled={connecting}
+                  onClick={() => connectSelectedPage(pendingUserToken, p.pageId)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 transition text-left disabled:opacity-50"
+                >
+                  {p.picture ? (
+                    <img src={p.picture} alt="" className="h-9 w-9 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold shrink-0" style={{ background: 'linear-gradient(135deg, #0078FF, #00A3FF)' }}>
+                      {p.name?.[0]?.toUpperCase() || 'P'}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-bold text-slate-900 truncate">{p.name}</div>
+                    <div className="text-[10px] text-slate-400">{p.hasInstagram ? 'Facebook + Instagram' : 'Facebook Page'}</div>
+                  </div>
+                  <i className="ph-bold ph-caret-right text-slate-300"></i>
+                </button>
+              ))}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-100 flex justify-end">
+              <button
+                disabled={connecting}
+                onClick={() => { setPageOptions(null); setPendingUserToken(''); }}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Phosphor Icons CDN + Font */}
       <style jsx global>{`
