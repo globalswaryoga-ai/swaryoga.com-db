@@ -71,6 +71,19 @@ async function ytUpload(access, srcUrl, size, title, desc) {
   return j.id;
 }
 
+// Move a meeting's cloud recording to Zoom trash (recoverable ~30 days).
+// Use action=trash (NOT delete) so it's never permanently removed.
+async function trashRecording(uuid, token) {
+  const enc = (uuid.startsWith('/') || uuid.includes('//'))
+    ? encodeURIComponent(encodeURIComponent(uuid))
+    : encodeURIComponent(uuid);
+  const r = await fetch(`https://api.zoom.us/v2/meetings/${enc}/recordings?action=trash`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+  });
+  if (r.status === 204 || r.ok) return true;
+  throw new Error('trash ' + r.status + ' ' + await r.text());
+}
+
 async function bunnyFetch(srcUrl, title) {
   const lib = process.env.BUNNY_STREAM_LIBRARY_ID;
   const key = process.env.BUNNY_API_KEY || process.env.BUNNY_STREAM_CDN_KEY;
@@ -131,7 +144,13 @@ async function bunnyFetch(srcUrl, title) {
     }
     // Only mark done if at least one YouTube upload succeeded (so failures retry next run).
     if (result.youtube.speaker || result.youtube.gallery) {
-      await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, topic: m.topic, startTime: m.start_time, youtube: result.youtube, bunny: result.bunny, at: new Date() } } });
+      // After a successful upload, move the cloud recording to Zoom trash
+      // (frees cloud storage; recoverable ~30 days). Disable with DELETE_AFTER_UPLOAD=off.
+      if ((process.env.DELETE_AFTER_UPLOAD || 'trash') !== 'off') {
+        try { await trashRecording(m.uuid, zt); result.trashed = true; log('  Zoom recording → trash ✓'); }
+        catch (e) { log('  Zoom trash FAIL:', e.message); }
+      }
+      await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, topic: m.topic, startTime: m.start_time, youtube: result.youtube, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
       processed++;
     }
   }
