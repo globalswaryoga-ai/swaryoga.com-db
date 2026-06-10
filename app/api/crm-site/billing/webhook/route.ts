@@ -244,9 +244,34 @@ export async function POST(request: NextRequest) {
       console.warn(`CRM Billing: Tenant not found for order ${cfOrderId}`);
     } else {
       console.log(`✅ CRM Billing: Upgraded tenant to ${plan} (${tier}) — Order: ${cfOrderId}`);
-      
+
       // Send confirmation email notification
       await sendPaymentConfirmationEmail(billingOrder, subscriptionEndDate);
+    }
+
+    // ── Complete the trial on the registry tenant (subscription payment) ──
+    // Mirrors the upgrade onto swaryoga_admin_crm.tenants (read by my-modules /
+    // the sidebar): subscription paid → status 'active', clears the paywall.
+    try {
+      const or: any[] = [];
+      if (tenantSlug) or.push({ slug: tenantSlug });
+      if (email) or.push({ ownerEmail: String(email).toLowerCase() });
+      if (or.length) {
+        await crmDb.collection('tenants').updateOne(
+          { $or: or },
+          {
+            $set: {
+              plan,
+              status: 'active',
+              subscriptionPaid: true,
+              subscriptionPaidAt: now,
+              subscriptionEndsAt: subscriptionEndDate,
+            },
+          },
+        );
+      }
+    } catch (e) {
+      console.error('Subscription activate (registry tenant) failed:', e);
     }
 
     // Record payment in subscription history
