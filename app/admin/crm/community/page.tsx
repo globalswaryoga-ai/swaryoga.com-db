@@ -251,6 +251,7 @@ export default function AdminCommunityPage() {
   const [privateYoutubeVideoTitle, setPrivateYoutubeVideoTitle] = useState('');
   const [privateYoutubeEmailVerified, setPrivateYoutubeEmailVerified] = useState(false);
   const [checkingPrivateYoutubeEmail, setCheckingPrivateYoutubeEmail] = useState(false);
+  const [recordingThumbnailUrlAdd, setRecordingThumbnailUrlAdd] = useState('');
   const PRIVATE_YOUTUBE_EMAIL = 'swarsakshi9@gmail.com';
   
   // Recording Upload Modal State (Folder > Playlist > Video structure)
@@ -2838,7 +2839,22 @@ export default function AdminCommunityPage() {
                   className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
                 />
               </div>
-              
+
+              {/* Thumbnail URL */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  🖼️ Thumbnail URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={recordingThumbnailUrlAdd}
+                  onChange={e => setRecordingThumbnailUrlAdd(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
+                />
+                <p className="text-xs text-slate-500 mt-1">💡 Leave empty to use default thumbnail</p>
+              </div>
+
               {/* Description */}
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
@@ -2899,6 +2915,7 @@ export default function AdminCommunityPage() {
                           videoSource: 'youtube',
                           youtubeVideoId: videoId,
                           videoUrl: youtubeRecordingUrl.trim(),
+                          thumbnailUrl: recordingThumbnailUrlAdd.trim() || undefined,
                           isPublic: true,
                           recordingType: 'private_youtube',
                         }),
@@ -2912,6 +2929,7 @@ export default function AdminCommunityPage() {
                       setRecordingPlaylistName('');
                       setRecordingVideoNumber('');
                       setRecordingDescription('');
+                      setRecordingThumbnailUrlAdd('');
                       setRecordingUrlMode('youtube');
                       fetchRecordings();
                     } catch (err: any) {
