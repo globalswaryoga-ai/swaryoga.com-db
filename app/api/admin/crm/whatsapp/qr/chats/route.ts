@@ -181,21 +181,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, chats: [] });
     }
 
-    // Log each chat BEFORE filtering to see what bridge returned
-    console.log('[QR Chats API] ============ ALL CHATS FROM BRIDGE ============');
-    data.chats.forEach((c: any, idx: number) => {
-      const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-      const isGroup = idStr.endsWith('@g.us');
-      console.log(`[QR Chats API] Chat ${idx}:`, {
-        id: idStr,
-        name: c.name,
-        isGroup,
-        isGroupChat: c.isGroupChat,
-        hasGroupMetadata: !!c.groupMetadata,
-      });
-    });
-    console.log('[QR Chats API] ============ END BRIDGE CHATS ============');
-
     // ── Merge DB-persisted chats (qr_whatsapp_chats) with bridge chats ──
     // This ensures chats survive bridge restarts / PC off.
     // ISOLATION: scope by userId AND the CURRENTLY connected phone. A single
@@ -205,11 +190,11 @@ export async function GET(req: NextRequest) {
     // phone we skip the DB merge entirely rather than risk exposing other
     // phones' chats. (Mirrors the messages route's connectedPhone isolation.)
     if (!connectedPhone) {
-      console.warn('[QR Chats API] No connectedPhone known — skipping DB merge to avoid cross-session leak');
+      console.debug('[QR Chats API] No connectedPhone known — skipping DB merge to avoid cross-session leak');
     } else try {
       const QrChat = getQrWhatsAppChat();
       const dbChatDocs = await QrChat.find({ userId: viewerUserId, connectedPhone })
-        .sort({ conversationTimestamp: -1 })
+        .sort({ conversationTimestamp: -1, createdAt: -1 })
         .limit(500)
         .lean();
 
@@ -245,25 +230,38 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Filter for regular admins: Show their assigned leads OR leads they created (user compartment).
+    // Optimization: Pre-extract phone numbers and batch query leads
     const Lead = getLead();
 
-    // Extract phone numbers from all chats (bridge + DB merged)
-    const phoneNumbers = data.chats.map((c: any) => {
+    // Cache phone extraction to avoid recomputing in filter
+    const chatPhones = new Map<string, string>();
+    const phoneNumbers = new Set<string>();
+
+    for (const c of data.chats) {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-      return idStr.split('@')[0];
-    }).filter(Boolean);
+      const isGroup = idStr.endsWith('@g.us');
+      if (isGroup) continue; // Skip groups early
+      
+      const phone = idStr.split('@')[0];
+      if (phone) {
+        chatPhones.set(idStr, phone);
+        phoneNumbers.add(phone);
+      }
+    }
 
-    // Find all leads for these numbers
-    const leads = await Lead.find({
-      phoneNumber: { $in: phoneNumbers }
-    }).select('phoneNumber assignedToUserId createdByUserId name displayName');
-
+    // Find all leads for these numbers in one batch query
     const leadMap = new Map();
-    leads.forEach((l: any) => leadMap.set(l.phoneNumber, {
-      assignedToUserId: l.assignedToUserId,
-      createdByUserId: l.createdByUserId,
-      name: l.displayName || l.name,
-    }));
+    if (phoneNumbers.size > 0) {
+      const leads = await Lead.find({
+        phoneNumber: { $in: Array.from(phoneNumbers) }
+      }).select('phoneNumber assignedToUserId createdByUserId displayName name').lean();
+
+      leads.forEach((l: any) => leadMap.set(l.phoneNumber, {
+        assignedToUserId: l.assignedToUserId,
+        createdByUserId: l.createdByUserId,
+        name: l.displayName || l.name,
+      }));
+    }
 
     const filteredChats = data.chats.filter((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
@@ -278,7 +276,9 @@ export async function GET(req: NextRequest) {
       }
 
       // For individual chats: filter by lead assignment (user compartment)
-      const phone = idStr.split('@')[0];
+      const phone = chatPhones.get(idStr);
+      if (!phone) return false;
+      
       const leadInfo = leadMap.get(phone);
       if (!leadInfo) return false;
 

@@ -435,7 +435,7 @@ const QrWhatsAppChatSchema = new mongoose.Schema(
   },
   { timestamps: true, collection: 'qr_whatsapp_chats' }
 );
-QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, conversationTimestamp: -1 });
+QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, conversationTimestamp: -1, createdAt: -1 }); // Primary sort with createdAt fallback
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1 }, { unique: true });
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, archived: 1, conversationTimestamp: -1 }); // Active chats
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, pinned: 1 }); // Pinned chats

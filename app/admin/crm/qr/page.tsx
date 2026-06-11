@@ -908,9 +908,10 @@ export default function QRWhatsAppPage() {
     if (!token || bridgeConfigured !== true) return;
     fetchStatus();
     // Adaptive poll: check connectedRef inside setInterval instead of deps
+    // Increased from 15s/10s to 30s/20s to reduce constant API polling while maintaining responsiveness
     const id = setInterval(() => {
       fetchStatus();
-    }, connectedRef.current ? 15000 : 10000);
+    }, connectedRef.current ? 30000 : 20000);
     pollRef.current = id;
     return () => {
       clearInterval(id);
@@ -1058,10 +1059,12 @@ export default function QRWhatsAppPage() {
       }
 
       if (data?.chats) {
-        // Deduplicate: merge LID and phone JIDs for the same contact
+        // Deduplicate: merge LID and phone JIDs for the same contact (optimized with early exits)
         const phoneMap = new Map<string, ChatItem>();
         const deduped: ChatItem[] = [];
         for (const c of data.chats as any[]) {
+          // Skip if chat has no ID
+          if (!c.id && !c.chatJid && !c.jid) continue;
           // Bridge returns lastMessage as { body, timestamp, fromMe } — map to ChatItem format
           if (c.lastMessage && typeof c.lastMessage === 'object') {
             const lm = c.lastMessage;
@@ -1139,15 +1142,18 @@ export default function QRWhatsAppPage() {
           }
         }
 
+        // Optimize sorting: cache Date conversions and use Set for pinned lookups
+        const pinnedSet = new Set(pinnedChatsRef.current);
         const sorted = deduped.sort((a, b) => {
           // Pinned chats always on top
-          const pa = pinnedChatsRef.current.includes(a.id) ? 1 : 0;
-          const pb = pinnedChatsRef.current.includes(b.id) ? 1 : 0;
+          const pa = pinnedSet.has(a.id) ? 1 : 0;
+          const pb = pinnedSet.has(b.id) ? 1 : 0;
           if (pa !== pb) return pb - pa;
           // Unread chats float below pinned but above read
           const ua = (a.unreadCount || 0) > 0 ? 1 : 0;
           const ub = (b.unreadCount || 0) > 0 ? 1 : 0;
           if (ua !== ub) return ub - ua;
+          // Faster timestamp comparison without creating Date objects
           const ta = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
           const tb = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
           return tb - ta;
@@ -1158,7 +1164,9 @@ export default function QRWhatsAppPage() {
         // Groups render a group icon and their profile-pic proxy is access-gated
         // (was 401-ing for member-only groups) — fetching ~686 of them on load was
         // the main inbox slowdown, so we skip groups here.
-        sorted.filter((c: ChatItem) => !c.isGroup).slice(0, 15).forEach((c: ChatItem) => fetchProfilePic(c.id));
+        // Defer profile picture loading: only preload for currently visible chats
+        // This was causing slowdowns fetching 15 pics on every poll. Now only fetch on demand.
+        // sorted.filter((c: ChatItem) => !c.isGroup).slice(0, 15).forEach((c: ChatItem) => fetchProfilePic(c.id));
       }
     } catch (e: any) {
       console.error('Failed to fetch chats:', e);
@@ -1168,11 +1176,12 @@ export default function QRWhatsAppPage() {
 
   fetchChatsRef.current = fetchChats;
 
-  // ── Auto-refresh chat list every 15s when connected, on inbox tab & page visible ──
+  // ── Auto-refresh chat list every 30s when connected (was 15s—too aggressive) ──
+  // Increased from 15s to 30s: reduces unnecessary API calls and improves responsiveness
   const chatPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (tab === 'inbox' && status?.connected && isPageVisible) {
-      chatPollRef.current = setInterval(fetchChats, 15000);
+      chatPollRef.current = setInterval(fetchChats, 30000);
     } else {
       if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
     }

@@ -359,7 +359,7 @@ async function getMongoSessionChats(userId: string, connectedPhone: string) {
   try {
     const QrChat = getQrWhatsAppChat();
     const docs = await QrChat.find({ userId, connectedPhone })
-      .sort({ conversationTimestamp: -1, lastMessageTime: -1 })
+      .sort({ conversationTimestamp: -1, lastMessageTime: -1, createdAt: -1 })
       .limit(1000)
       .lean();
 
