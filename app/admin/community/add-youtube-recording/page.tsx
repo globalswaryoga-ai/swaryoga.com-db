@@ -146,10 +146,10 @@ export default function AddYouTubeRecordingPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-800 flex items-center gap-3">
             <Video className="w-10 h-10 text-red-600" />
-            Add YouTube Recording to Community
+            Add Private YouTube Video to Community
           </h1>
           <p className="text-gray-600 mt-2">
-            Share YouTube unlisted videos with community members
+            Share YouTube private videos (with email-based access) to community members
           </p>
         </div>
 
@@ -302,12 +302,13 @@ export default function AddYouTubeRecordingPage() {
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
               <p className="font-medium">✅ Security & Features:</p>
               <ul className="mt-2 space-y-1 text-xs">
-                <li>🔒 Unlisted YouTube video (shared with community members only)</li>
-                <li>💵 Monetized (YouTube ads, channel membership)</li>
+                <li>🔒 Private YouTube video (swarsakshi9@gmail.com controls access)</li>
+                <li>🚫 No download, forward, or sharing (YouTube enforces)</li>
+                <li>💵 Monetized (YouTube ads, channel membership, YOU get revenue)</li>
                 <li>📊 Full YouTube analytics</li>
-                <li>👤 Requires community login</li>
+                <li>👤 Community login required + YouTube access control</li>
                 <li>📱 Works on all devices</li>
-                <li>✔️ Email verified & owner confirmed</li>
+                <li>💰 No CDN fees (YouTube infrastructure)</li>
               </ul>
             </div>
 
@@ -346,12 +347,13 @@ export default function AddYouTubeRecordingPage() {
         {/* Help Section */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="font-bold text-gray-800 mb-3">📺 How to Share Video with Community</h3>
+            <h3 className="font-bold text-gray-800 mb-3">📺 How to Share Private Video with Community</h3>
             <ol className="text-sm text-gray-600 space-y-2">
               <li>1. Upload video to YouTube (swarsakshi9@gmail.com account)</li>
-              <li>2. Set visibility to "Unlisted" (hidden from search, visible via link)</li>
-              <li>3. Copy the video URL</li>
-              <li>4. Paste here to add to community — we'll verify it's accessible</li>
+              <li>2. Set visibility to <strong>"Private"</strong></li>
+              <li>3. In YouTube Studio, go to <strong>Share settings</strong> and invite <strong>swarsakshi9@gmail.com</strong> as a viewer</li>
+              <li>4. Copy the video URL from YouTube</li>
+              <li>5. Paste the URL here — community members will watch via YouTube (YouTube enforces no download, no forward, no share)</li>
             </ol>
           </div>
 
