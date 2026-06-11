@@ -28,18 +28,24 @@ export async function GET(request: NextRequest) {
     await connectDB();
     const CommunityVideo = getCommunityVideo();
 
-    // Find all videos grouped by workshopName and batchName
+    // Find all videos with matching folder tag (stored as 'folder:workshopName')
+    const folderTag = `folder:${workshopName.trim()}`;
     const videos = await CommunityVideo.find({
-      workshopName: workshopName.trim(),
+      tags: folderTag,
     })
-      .select('workshopName batchName videoNumber createdAt')
-      .sort({ batchName: 1, videoNumber: 1 })
+      .select('tags createdAt')
+      .sort({ createdAt: 1 })
       .lean();
 
-    // Group by batchName and calculate stats
+    // Extract batch names from tags (stored as 'playlist:batchName')
     const batchMap = new Map<string, any>();
     for (const video of videos) {
-      const batch = video.batchName || 'Untitled Batch';
+      // Find the playlist tag
+      const playlistTag = video.tags?.find((t: string) => t.startsWith('playlist:'));
+      if (!playlistTag) continue;
+
+      const batch = playlistTag.substring('playlist:'.length); // Remove 'playlist:' prefix
+
       if (!batchMap.has(batch)) {
         batchMap.set(batch, {
           batchName: batch,
@@ -48,10 +54,15 @@ export async function GET(request: NextRequest) {
           lastUpdated: video.createdAt,
         });
       }
+
       const batchData = batchMap.get(batch)!;
       batchData.videoCount++;
-      const videoNum = parseInt(String(video.videoNumber), 10) || 0;
+
+      // Extract video number from tags (stored as 'video:N')
+      const videoTag = video.tags?.find((t: string) => t.startsWith('video:'));
+      const videoNum = videoTag ? parseInt(videoTag.substring('video:'.length), 10) : 0;
       batchData.videoNumbers.push(videoNum);
+
       if (new Date(video.createdAt) > new Date(batchData.lastUpdated)) {
         batchData.lastUpdated = video.createdAt;
       }
