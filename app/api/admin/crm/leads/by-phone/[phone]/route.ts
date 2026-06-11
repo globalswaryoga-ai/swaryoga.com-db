@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { tenantOrFilter } from '@/lib/crm-handlers';
+import { tenantOrFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,25 @@ export async function GET(
     if (!decoded || !decoded.userId) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    const tf = tenantOrFilter(decoded);
+    // SaaS isolation: scope the lookup for EVERYONE (super admin included) to
+    // own leads + unowned/global leads, so the same phone existing as another
+    // tenant's lead is never returned here.
+    let tf: Record<string, any> = tenantOrFilter(decoded);
+    if (Object.keys(tf).length === 0) {
+      const viewerId = getViewerUserId(decoded);
+      tf = {
+        $or: [
+          { assignedToUserId: viewerId },
+          { createdByUserId: viewerId },
+          {
+            $and: [
+              { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
+              { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
+            ],
+          },
+        ],
+      };
+    }
 
     // Connect to database
     await connectDB();
@@ -51,7 +69,7 @@ export async function GET(
 
     // Search for lead by phone number
     // We prioritize EXACT match on normalized phone first
-    let lead = await Lead.findOne({ phoneNumber: normalizedPhone, ...tf }).lean();
+    let lead: any = await Lead.findOne({ phoneNumber: normalizedPhone, ...tf }).lean();
     
     if (!lead) {
       // Fallback: search for variants if exact match fails
