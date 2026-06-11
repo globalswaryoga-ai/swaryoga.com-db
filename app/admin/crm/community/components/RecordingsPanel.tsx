@@ -10,6 +10,8 @@ interface Recording {
   thumbnailUrl?: string;
   s3Url?: string;
   youtubeId?: string;
+  youtubeVideoId?: string;
+  videoSource?: string;
   duration?: number;
   createdAt: string;
   views?: number;
@@ -309,9 +311,13 @@ export const RecordingsPanel: React.FC<RecordingsPanelProps> = ({
                       )}
 
                       {/* Play overlay */}
-                      {recording.s3Url && (
+                      {(recording.s3Url || recording.youtubeVideoId || recording.videoSource === 'youtube') && (
                         <a
-                          href={getProxiedMediaUrl(recording.s3Url, authToken)}
+                          href={
+                            recording.youtubeVideoId || recording.videoSource === 'youtube'
+                              ? `/api/community/videos/embed?v=${recording._id}&token=${authToken}`
+                              : getProxiedMediaUrl(recording.s3Url!, authToken)
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
