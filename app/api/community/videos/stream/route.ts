@@ -45,10 +45,19 @@ export async function GET(request: NextRequest) {
 
     // Membership check (skip for admins)
     const d = decoded as any;
-    if (!d.isAdmin) {
+    const trustedTemp = d.tempToken === true && d.communityId && d.communityId === video.communityId;
+    if (!d.isAdmin && !trustedTemp) {
+      const orConds: any[] = [
+        { userId: decoded.userId },
+        { mobile: decoded.userId },
+      ];
+      if (d.email) {
+        orConds.push({ email: d.email });
+        orConds.push({ userId: d.email });
+      }
       const membership = await CommunityMember.findOne({
         communityId: video.communityId,
-        $or: [{ userId: decoded.userId }, { mobile: decoded.userId }],
+        $or: orConds,
         status: 'active',
       });
       if (!membership) {
@@ -67,7 +76,12 @@ export async function GET(request: NextRequest) {
       mimeType = cached.mime;
     } else {
       const ytdl = (await import('@distube/ytdl-core')).default;
-      const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`);
+      const { getYouTubeAgent } = await import('@/lib/youtube-auth');
+      const agent = await getYouTubeAgent();
+      const watchUrl = `https://www.youtube.com/watch?v=${video.youtubeVideoId}`;
+      const info = agent
+        ? await ytdl.getInfo(watchUrl, { agent })
+        : await ytdl.getInfo(watchUrl);
       const fmt =
         ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' }) ||
         ytdl.chooseFormat(info.formats, { quality: 'highestvideo' });

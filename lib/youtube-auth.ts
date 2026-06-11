@@ -3,6 +3,47 @@ import { decryptCredential } from './encryption';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+// ── Cookie-based agent (the reliable way to access PRIVATE videos) ──
+// YouTube grants private-video access based on the invited account's logged-in
+// session COOKIES (swarsakshi9@gmail.com), not OAuth tokens. We pass those
+// cookies to ytdl-core so it can fetch the stream as that invited viewer.
+let cachedAgent: any = null;
+let cachedCookieRaw = '';
+
+/**
+ * Build a ytdl-core agent from the YOUTUBE_COOKIES env var.
+ * YOUTUBE_COOKIES should be the JSON cookie array exported from a browser
+ * logged in as the invited account (swarsakshi9@gmail.com).
+ * Returns null if no cookies are configured (caller falls back to anonymous).
+ */
+export async function getYouTubeAgent(): Promise<any | null> {
+  const raw = process.env.YOUTUBE_COOKIES;
+  if (!raw || !raw.trim()) return null;
+
+  // Reuse the same agent unless the cookie value changed
+  if (cachedAgent && cachedCookieRaw === raw) return cachedAgent;
+
+  try {
+    const ytdl = (await import('@distube/ytdl-core')).default;
+    let cookies: any;
+    try {
+      cookies = JSON.parse(raw);
+    } catch {
+      throw new Error('YOUTUBE_COOKIES is not valid JSON. Export cookies as JSON.');
+    }
+    if (!Array.isArray(cookies) || cookies.length === 0) {
+      throw new Error('YOUTUBE_COOKIES JSON must be a non-empty array of cookie objects.');
+    }
+    cachedAgent = ytdl.createAgent(cookies);
+    cachedCookieRaw = raw;
+    console.log(`[YouTube Auth] Cookie agent ready (${cookies.length} cookies)`);
+    return cachedAgent;
+  } catch (error: any) {
+    console.error('[YouTube Auth] Failed to build cookie agent:', error.message);
+    return null;
+  }
+}
+
 /**
  * Get valid access token for YouTube account
  * Priority: 1) Env refresh token (easiest) 2) Database account (admin UI connected)

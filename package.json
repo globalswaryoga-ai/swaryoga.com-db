@@ -2,6 +2,9 @@
   "name": "swar-yoga-web",
   "version": "1.0.0",
   "description": "Swar Yoga e-commerce website",
+  "overrides": {
+    "undici": "^7.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:no-check": "PORT=3000 next dev --port 3000",

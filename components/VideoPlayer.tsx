@@ -98,45 +98,49 @@ export default function VideoPlayer({
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
-  // Fetch temporary token for YouTube videos if needed
+  // Fetch token for YouTube videos.
+  // IMPORTANT: prefer the community tempToken (correct community identity).
+  // Only fall back to the general site token for admins, since a leftover
+  // e-commerce login token has the wrong identity for the community gate.
   useEffect(() => {
     if (videoSource !== 'youtube' || !communityId) return;
 
-    const existingToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (existingToken) {
-      setVideoToken(existingToken);
-      return;
-    }
+    const generalToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-    // Fetch temporary token for community video access
-    const fetchToken = async () => {
+    const run = async () => {
+      // 1) Try to mint a community tempToken using the member's community identity
       try {
         const communityUserStr = typeof window !== 'undefined' ? localStorage.getItem('community_user') : null;
         const communityUser = communityUserStr ? JSON.parse(communityUserStr) : null;
 
-        const res = await fetch('/api/community/auth/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            communityId,
-            userId: communityUser?.userId || communityUser?.id || communityUser?.mobile || '',
-            userEmail: communityUser?.email || '',
-            userName: communityUser?.name || communityUser?.firstName || '',
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.token) {
-            setVideoToken(data.token);
+        if (communityUser) {
+          const res = await fetch('/api/community/auth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              communityId,
+              userId: communityUser?.userId || communityUser?.id || communityUser?.mobile || '',
+              userEmail: communityUser?.email || '',
+              userName: communityUser?.name || communityUser?.firstName || '',
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.token) {
+              setVideoToken(data.token);
+              return;
+            }
           }
         }
       } catch (err) {
-        console.error('Failed to fetch video token:', err);
+        console.error('Failed to fetch community video token:', err);
       }
+
+      // 2) Fall back to the general site token (covers admins, who bypass the gate)
+      if (generalToken) setVideoToken(generalToken);
     };
 
-    fetchToken();
+    run();
   }, [videoSource, communityId]);
 
   // Bunny embed player URL (autoplay disabled - browsers require user interaction)

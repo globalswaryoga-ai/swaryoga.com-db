@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getYouTubeAccessToken, getYouTubeVideoWithAuth } from '@/lib/youtube-auth';
+import { getYouTubeAgent } from '@/lib/youtube-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,10 +40,23 @@ export async function GET(request: NextRequest) {
     }
 
     const d = decoded as any;
-    if (!d.isAdmin) {
+    // A community tempToken already had its membership verified when minted,
+    // and is scoped to a communityId — trust it for that same community.
+    const trustedTemp = d.tempToken === true && d.communityId && d.communityId === video.communityId;
+
+    if (!d.isAdmin && !trustedTemp) {
+      // Match the SAME way the token route does (by userId, mobile, OR email)
+      const orConds: any[] = [
+        { userId: decoded.userId },
+        { mobile: decoded.userId },
+      ];
+      if (d.email) {
+        orConds.push({ email: d.email });
+        orConds.push({ userId: d.email });
+      }
       const membership = await CommunityMember.findOne({
         communityId: video.communityId,
-        $or: [{ userId: decoded.userId }, { mobile: decoded.userId }],
+        $or: orConds,
         status: 'active',
       });
       if (!membership) return htmlRes(errorPage('Access denied'), 403);
@@ -67,44 +80,49 @@ export async function GET(request: NextRequest) {
 
     try {
       const ytdl = (await import('@distube/ytdl-core')).default;
+      const watchUrl = `https://www.youtube.com/watch?v=${video.youtubeVideoId}`;
       let info;
 
-      // Try unauthenticated first
+      // Use the invited account's session cookies (swarsakshi9@gmail.com) so
+      // ytdl can fetch PRIVATE videos. Falls back to anonymous for public videos.
+      const agent = await getYouTubeAgent();
+
       try {
-        info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`);
-      } catch (unauthError: any) {
-        const errMsg = (unauthError as Error).message || '';
+        info = agent
+          ? await ytdl.getInfo(watchUrl, { agent })
+          : await ytdl.getInfo(watchUrl);
+      } catch (firstError: any) {
+        const errMsg = (firstError as Error).message || '';
         const isPrivateError =
           errMsg.includes('Private video') ||
           errMsg.includes('private') ||
+          errMsg.includes('unavailable') ||
+          errMsg.includes('Sign in') ||
+          errMsg.includes('login') ||
           errMsg.includes('unauthorized') ||
           errMsg.includes('restricted');
 
-        // If private, try with YouTube OAuth token
-        if (isPrivateError) {
-          console.log(`[embed] Private video detected, attempting with OAuth token...`);
-          try {
-            const accessToken = await getYouTubeAccessToken('swarsakshi9999@gmail.com');
-            info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`, {
-              requestOptions: {
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                },
-              },
-            });
-            console.log(`[embed] Successfully fetched private video with OAuth token`);
-          } catch (authError: any) {
-            console.error('[embed] OAuth fetch also failed:', authError.message);
-            return htmlRes(
-              privateVideoErrorPage(
-                'YouTube account (swarsakshi9999@gmail.com) not connected. Admin must set up YouTube OAuth in settings to share private videos.'
-              ),
-              403
-            );
-          }
-        } else {
-          throw unauthError;
+        if (isPrivateError && !agent) {
+          // Private video but no cookies configured
+          console.error('[embed] Private video but YOUTUBE_COOKIES not set');
+          return htmlRes(
+            privateVideoErrorPage(
+              'This private video needs the invited YouTube account session. Admin must add YOUTUBE_COOKIES (cookies from swarsakshi9@gmail.com) to enable playback.'
+            ),
+            403
+          );
         }
+        if (isPrivateError && agent) {
+          // We had cookies but still blocked — likely expired or wrong account
+          console.error('[embed] Cookie agent failed on private video:', errMsg);
+          return htmlRes(
+            privateVideoErrorPage(
+              'Cannot access this private video. The saved YouTube session may have expired — admin needs to refresh YOUTUBE_COOKIES (re-export from swarsakshi9@gmail.com). Also confirm this account was invited to the video.'
+            ),
+            403
+          );
+        }
+        throw firstError;
       }
 
       // Collect video formats at different qualities

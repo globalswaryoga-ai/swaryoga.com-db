@@ -12,7 +12,30 @@
 const http = require('http');
 const url = require('url');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { spawn } = require('child_process');
+
+// Auto-load credentials from .env.local so they always match what the app uses
+function loadEnvLocal() {
+  try {
+    const envPath = path.join(__dirname, '..', '.env.local');
+    const content = fs.readFileSync(envPath, 'utf8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      const value = trimmed.slice(eq + 1).trim();
+      if (!process.env[key]) process.env[key] = value;
+    }
+  } catch {
+    // .env.local not found — fall back to process.env
+  }
+}
+
+loadEnvLocal();
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -26,7 +49,8 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
 
 console.log('🔐 YouTube Refresh Token Generator\n');
 console.log('This will open Google OAuth in your browser.');
-console.log('Sign in with swarsakshi9999@gmail.com and approve access.\n');
+console.log('⚠️  Sign in with swarsakshi9@gmail.com (the INVITED account) — NOT 9999.\n');
+console.log(`Using CLIENT_ID: ${CLIENT_ID ? CLIENT_ID.slice(0, 30) + '...' : 'MISSING'}\n`);
 
 // Generate state for CSRF protection
 const state = crypto.randomBytes(32).toString('hex');
