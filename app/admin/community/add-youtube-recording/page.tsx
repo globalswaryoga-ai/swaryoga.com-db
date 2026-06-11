@@ -146,10 +146,10 @@ export default function AddYouTubeRecordingPage() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-800 flex items-center gap-3">
             <Video className="w-10 h-10 text-red-600" />
-            Add Private YouTube Recording
+            Add YouTube Recording to Community
           </h1>
           <p className="text-gray-600 mt-2">
-            Add YouTube private videos to community recordings
+            Share YouTube unlisted videos with community members
           </p>
         </div>
 
@@ -229,7 +229,7 @@ export default function AddYouTubeRecordingPage() {
             {/* YouTube URL */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                YouTube Private URL *
+                YouTube URL *
               </label>
               <input
                 type="url"
@@ -302,7 +302,7 @@ export default function AddYouTubeRecordingPage() {
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
               <p className="font-medium">✅ Security & Features:</p>
               <ul className="mt-2 space-y-1 text-xs">
-                <li>🔒 Private YouTube video (only community members can access)</li>
+                <li>🔒 Unlisted YouTube video (shared with community members only)</li>
                 <li>💵 Monetized (YouTube ads, channel membership)</li>
                 <li>📊 Full YouTube analytics</li>
                 <li>👤 Requires community login</li>
@@ -346,12 +346,12 @@ export default function AddYouTubeRecordingPage() {
         {/* Help Section */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="font-bold text-gray-800 mb-3">📺 How to Create Private YouTube Video</h3>
+            <h3 className="font-bold text-gray-800 mb-3">📺 How to Share Video with Community</h3>
             <ol className="text-sm text-gray-600 space-y-2">
               <li>1. Upload video to YouTube (swarsakshi9@gmail.com account)</li>
-              <li>2. Set visibility to "Private"</li>
+              <li>2. Set visibility to "Unlisted" (hidden from search, visible via link)</li>
               <li>3. Copy the video URL</li>
-              <li>4. Paste here to add to community</li>
+              <li>4. Paste here to add to community — we'll verify it's accessible</li>
             </ol>
           </div>
 
