@@ -89,27 +89,42 @@ export async function PUT(
     }
 
     // Hash the new password
+    console.log('[Reset Password] Hashing new password...');
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
+    console.log('[Reset Password] Password hashed successfully');
 
     // Update password using the found user's _id
-    await User.findByIdAndUpdate(user._id, {
-      $set: { password: hashedPassword },
-    });
+    console.log('[Reset Password] Updating user password. User ID:', user._id);
+    const updateResult = await User.findByIdAndUpdate(
+      user._id,
+      { $set: { password: hashedPassword } },
+      { new: true }
+    );
+
+    if (!updateResult) {
+      console.error('[Reset Password] ✗ Password update failed - no result returned');
+      return NextResponse.json(
+        { error: 'Failed to update password' },
+        { status: 500 }
+      );
+    }
 
     console.log(
-      `[Admin Reset Password] Admin "${decoded.userId || decoded.email}" reset password for user "${user.email}" (${id})`
+      `[Admin Reset Password] ✓ Password reset successful for user "${user.email}" by admin "${decoded.userId || decoded.email}"`
     );
 
     // Send new password to user via email (fire-and-forget)
     let emailSent = false;
     if (user.email) {
       try {
+        console.log('[Reset Password] Sending email notification to:', user.email);
         const result = await notifyPasswordReset(
           { name: user.name || '', email: user.email, phone: user.phone },
           { newPassword, resetBy: decoded.userId || decoded.email || 'admin' },
         );
         emailSent = result.email.success;
+        console.log('[Reset Password] Email sent:', emailSent);
       } catch (emailErr) {
         console.error('[Admin Reset Password] Email notification failed:', emailErr);
       }
