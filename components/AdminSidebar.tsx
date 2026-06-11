@@ -510,6 +510,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           planModule: 'community',
           description: 'Forums, courses & communities',
         },
+        {
+          icon: Video,
+          label: 'Com Recording Setup',
+          href: '/admin/community/zoom-settings',
+          color: 'text-indigo-400',
+          module: 'community',
+          planModule: 'community',
+          description: 'Map Zoom meeting IDs → communities for auto-recording',
+        },
       ],
     },
 

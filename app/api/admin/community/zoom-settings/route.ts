@@ -61,8 +61,12 @@ export async function POST(request: NextRequest) {
     const ZoomMapping = getZoomCommunityMapping();
     const Community = getCommunity();
 
-    // Verify community exists
-    const community = await Community.findById(communityId).lean();
+    // Verify community exists. communityId may be a slug ('global', 'swar-aahar-shastra')
+    // or a Mongo ObjectId — resolve by either.
+    let community: any = await Community.findOne({ id: communityId }).lean();
+    if (!community && /^[0-9a-fA-F]{24}$/.test(communityId)) {
+      community = await Community.findById(communityId).lean();
+    }
     if (!community) {
       return NextResponse.json(
         { error: 'Community not found' },

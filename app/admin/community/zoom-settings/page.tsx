@@ -13,7 +13,6 @@ interface Mapping {
 }
 
 interface Community {
-  _id: string;
   id: string;
   name: string;
 }
@@ -40,7 +39,7 @@ export default function ZoomSettingsPage() {
           fetch('/api/admin/community/zoom-settings', {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch('/api/community/list', {
+          fetch('/api/admin/community/list', {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -128,7 +127,7 @@ export default function ZoomSettingsPage() {
   };
 
   const getCommunityName = (id: string) => {
-    return communities.find((c) => c._id === id)?.name || id;
+    return communities.find((c) => c.id === id)?.name || id;
   };
 
   return (
@@ -195,7 +194,7 @@ export default function ZoomSettingsPage() {
                 >
                   <option value="">-- Select Community --</option>
                   {communities.map((c) => (
-                    <option key={c._id} value={c._id}>
+                    <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
                   ))}

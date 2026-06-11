@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const enrichedCommunities = communities.map((community: any) => {
       const design = COMMUNITY_DESIGNS.find(d => d.id === community.id);
       return {
-        id: community.id,
+        id: community.id || community._id?.toString(),
         name: community.name || design?.name || 'Unnamed Community',
         isPublic: community.isPublic ?? design?.isPublic ?? false,
         category: community.category || design?.category || 'common',
