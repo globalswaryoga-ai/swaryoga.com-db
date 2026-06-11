@@ -26,11 +26,24 @@ async function resolveLeadIdsFromTarget(
   viewerUserId: string,
   superAdmin: boolean,
 ): Promise<mongoose.Types.ObjectId[]> {
+  // Tenant isolation: never let a tenant's run target leads they don't own.
+  // (Super admin keeps cross-tenant reach for Meta broadcasts; their QR pages are
+  // already scoped to their own leads via the leads API.)
+  const restrictToOwned = async (ids: mongoose.Types.ObjectId[]) => {
+    if (superAdmin || !ids.length) return ids;
+    const owned = await Lead.find({
+      _id: { $in: ids },
+      $or: [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }],
+    }).select({ _id: 1 }).lean();
+    return owned.map((l: any) => toObjectId(String(l._id)));
+  };
+
   // Back-compat: some clients send { target: { leadIds: [...] } } without a `type`.
-  // Prefer explicit leadIds when present.
+  // Prefer explicit leadIds when present — but verify ownership server-side so a
+  // tenant can't broadcast to another tenant's leads by passing arbitrary IDs.
   if (Array.isArray(target?.leadIds) && target.leadIds.length) {
-    const ids: any[] = target.leadIds;
-    return ids.filter(Boolean).map((x) => toObjectId(String(x)));
+    const ids = (target.leadIds as any[]).filter(Boolean).map((x) => toObjectId(String(x)));
+    return restrictToOwned(ids);
   }
 
   const type = String(target?.type || 'filters');
@@ -40,7 +53,8 @@ async function resolveLeadIdsFromTarget(
     if (!listId) return [];
 
     const members = await BroadcastListMember.find({ listId: toObjectId(listId) }).select({ leadId: 1 }).lean();
-    return members.map((m: any) => toObjectId(String(m.leadId)));
+    // List members may predate isolation enforcement — keep only owned leads.
+    return restrictToOwned(members.map((m: any) => toObjectId(String(m.leadId))));
   }
 
   // filters — always scope to viewer's own leads

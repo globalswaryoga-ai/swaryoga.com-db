@@ -100,7 +100,9 @@ export default function QRBroadcastWizard() {
   const loadLeads = useCallback(async () => {
     if (!token) return;
     setLeadsLoading(true);
-    const params = new URLSearchParams({ limit: '500' });
+    // scope=own: QR broadcast is tenant-isolated — only the viewer's own leads,
+    // even for the super admin.
+    const params = new URLSearchParams({ limit: '500', scope: 'own' });
     if (filterStatus) params.set('status', filterStatus);
     if (filterLabel) params.set('label', filterLabel);
     if (leadSearch) params.set('search', leadSearch);

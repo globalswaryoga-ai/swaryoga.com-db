@@ -282,12 +282,21 @@ async function ingestQRPayload(payload: any) {
       if (existing) continue;
     }
 
-    // Check for existing lead or match
-    let lead = await Lead.findOne({ phoneNumber: normalizedPhone });
+    // Check for existing lead — TENANT-SCOPED. The same phone number can be a
+    // lead for MANY tenants (SaaS): only match the bridge user's OWN lead, never
+    // attach this tenant's message to another tenant's lead.
+    const leadLookup: any = { phoneNumber: normalizedPhone };
+    if (bridgeUserId) {
+      leadLookup.$or = [
+        { assignedToUserId: bridgeUserId },
+        { createdByUserId: bridgeUserId },
+      ];
+    }
+    let lead = await Lead.findOne(leadLookup);
     const senderName = !m.fromMe && m.pushName ? String(m.pushName).trim() : '';
     if (!lead) {
         // Auto-create lead for incoming messages if it doesn't exist
-        const { leadNumber } = await allocateNextLeadNumber();
+        const { leadNumber } = await allocateNextLeadNumber(bridgeUserId || undefined);
         lead = await Lead.create({
             phoneNumber: normalizedPhone,
             name: senderName || normalizedPhone,
@@ -296,12 +305,12 @@ async function ingestQRPayload(payload: any) {
             status: 'lead',
             leadNumber,
             // Assign to the bridge user who received the message
-            ...(payload.bridgeUserId && {
-              assignedToUserId: payload.bridgeUserId,
-              createdByUserId: payload.bridgeUserId,
+            ...(bridgeUserId && {
+              assignedToUserId: bridgeUserId,
+              createdByUserId: bridgeUserId,
             }),
         });
-        console.log(`[QR WEBHOOK] Created lead for ${normalizedPhone} (name: ${senderName || 'none'}), assigned to: ${payload.bridgeUserId || 'UNASSIGNED'}`);
+        console.log(`[QR WEBHOOK] Created lead for ${normalizedPhone} (name: ${senderName || 'none'}), assigned to: ${bridgeUserId || 'UNASSIGNED'}`);
     } else {
         const updates: any = {};
         // Add 'whatsapp' label if not already there

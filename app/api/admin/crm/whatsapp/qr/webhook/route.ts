@@ -219,19 +219,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Find or create lead
-    let lead = await Lead.findOne({ phoneNumber });
+    // Find or create lead — TENANT-SCOPED when the bridge identifies the user.
+    // The same phone can be a lead for many tenants (SaaS): never attach this
+    // tenant's message to another tenant's lead.
+    const bridgeUserId = String(req.headers.get('x-user-id') || body.bridgeUserId || '').trim();
+    const leadLookup: any = { phoneNumber };
+    if (bridgeUserId) {
+      leadLookup.$or = [
+        { assignedToUserId: bridgeUserId },
+        { createdByUserId: bridgeUserId },
+      ];
+    }
+    let lead = await Lead.findOne(leadLookup);
     if (!lead) {
       // Create new lead from incoming message
-      const leadNumber = await allocateNextLeadNumber();
+      const { leadNumber } = await allocateNextLeadNumber(bridgeUserId || undefined);
       lead = await Lead.create({
         phoneNumber,
         name: `WhatsApp ${phoneNumber.slice(-4)}`,
         source: 'whatsapp',
         status: 'lead',
         leadNumber,
+        ...(bridgeUserId && {
+          assignedToUserId: bridgeUserId,
+          createdByUserId: bridgeUserId,
+        }),
       });
-      console.log('[QR WEBHOOK] Created new lead:', lead._id, 'Phone:', phoneNumber);
+      console.log('[QR WEBHOOK] Created new lead:', lead._id, 'Phone:', phoneNumber, 'assigned to:', bridgeUserId || 'UNASSIGNED');
     }
 
     // Handle media if present

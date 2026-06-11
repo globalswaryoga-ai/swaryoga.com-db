@@ -68,7 +68,10 @@ export async function GET(request: NextRequest) {
 
     // Read source early — QR data is tenant-isolated SaaS, so even the super
     // admin must be scoped to their OWN qr_whatsapp leads (no cross-tenant view).
+    // The QR pages use the unified lead pool (no source param), so they pass
+    // scope=own instead; qrOnly is also a QR context and must be own-scoped.
     const source = url.searchParams.get('source');
+    const scopeOwn = url.searchParams.get('scope') === 'own';
     const isQrSource = source === 'qr_whatsapp';
 
     // Multi-user access control (3-tier):
@@ -87,12 +90,19 @@ export async function GET(request: NextRequest) {
         } else {
           accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
         }
-      } else if (isQrSource) {
+      } else if (isQrSource || qrOnly || scopeOwn) {
         // QR is per-tenant: scope the super admin to their OWN QR leads so other
         // tenants' QR leads never leak into their list, broadcast, funnel, etc.
         accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
+      } else {
+        // General (non-QR) super-admin view: show all leads EXCEPT other tenants'
+        // QR leads — QR is a tenant-isolated SaaS pipeline even for the super admin.
+        accessControlConditions = [
+          { source: { $ne: 'qr_whatsapp' } },
+          { assignedToUserId: viewerUserId },
+          { createdByUserId: viewerUserId },
+        ];
       }
-      // Otherwise no filter - show ALL leads
     } else if (visibleUserIds.length > 1) {
       // Manager: can see their team's leads
       if (userIdParam && String(userIdParam).trim() && visibleUserIds.includes(userIdParam)) {

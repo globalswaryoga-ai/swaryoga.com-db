@@ -50,9 +50,17 @@ export async function GET(request: NextRequest) {
         } else {
           baseFilter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
         }
-      } else if (sourceParam === 'qr_whatsapp') {
+      } else if (sourceParam === 'qr_whatsapp' || url.searchParams.get('scope') === 'own') {
         // QR is per-tenant: scope super-admin counts to their OWN QR leads too.
         baseFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
+      } else {
+        // General super-admin counts: exclude other tenants' QR leads (QR is a
+        // tenant-isolated SaaS pipeline even for the super admin).
+        baseFilter.$or = [
+          { source: { $ne: 'qr_whatsapp' } },
+          { assignedToUserId: viewerUserId },
+          { createdByUserId: viewerUserId },
+        ];
       }
     } else {
       baseFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
