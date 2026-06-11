@@ -32,8 +32,12 @@ export async function PUT(
     }
 
     const { id } = params;
+
+    console.log('[Reset Password] Received ID:', id, 'Type:', typeof id, 'Valid ObjectId:', Types.ObjectId.isValid(id));
+
     if (!Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+      console.log('[Reset Password] Invalid ObjectId format:', id);
+      return NextResponse.json({ error: 'Invalid user ID format' }, { status: 400 });
     }
 
     const body = await request.json().catch(() => null);
@@ -52,9 +56,21 @@ export async function PUT(
     await connectDB();
 
     // Find the user (any user, not just admin)
-    const user = await User.findById(new Types.ObjectId(id));
+    const objectId = new Types.ObjectId(id);
+    console.log('[Reset Password] Searching for user with ObjectId:', objectId);
+
+    let user = await User.findById(objectId);
+    console.log('[Reset Password] User found by ID:', user ? `${user.email}` : 'null');
+
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      // Try searching by email as fallback
+      user = await User.findOne({ email: id });
+      if (user) {
+        console.log('[Reset Password] Found by email instead:', user.email);
+      } else {
+        console.log('[Reset Password] User not found by ID or email:', id);
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
     }
 
     // Hash the new password
