@@ -4,42 +4,36 @@ import { decryptCredential } from './encryption';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 /**
- * Get valid access token for YouTube account by email
- * Refreshes if expired
- * Default: swarsakshi9999@gmail.com (main YouTube channel)
+ * Get valid access token for YouTube account
+ * Priority: 1) Env refresh token (easiest) 2) Database account (admin UI connected)
  */
-export async function getYouTubeAccessToken(accountEmail: string = 'swarsakshi9999@gmail.com') {
+export async function getYouTubeAccessToken() {
   try {
+    // Try environment variable first (no database needed)
+    const envRefreshToken = process.env.YOUTUBE_REFRESH_TOKEN;
+    if (envRefreshToken) {
+      console.log('[YouTube Auth] Using refresh token from environment');
+      const accessToken = await refreshYouTubeTokenFromEnv(envRefreshToken);
+      return accessToken;
+    }
+
+    // Fallback to database (if admin connected via Social Media UI)
+    console.log('[YouTube Auth] No env token, trying database...');
     await connectDB();
 
-    // Find the YouTube account (prioritize by email or first connected account)
-    let account: any;
-    if (accountEmail) {
-      // Try to find by email in metadata or accountHandle
-      account = await SocialMediaAccount.findOne({
-        platform: 'youtube',
-        $or: [
-          { accountHandle: accountEmail },
-          { 'metadata.email': accountEmail },
-        ],
-      });
-    }
-
-    // Fallback to first connected YouTube account
-    if (!account) {
-      account = await SocialMediaAccount.findOne({
-        platform: 'youtube',
-        isConnected: true,
-      });
-    }
+    const account = await SocialMediaAccount.findOne({
+      platform: 'youtube',
+      isConnected: true,
+    });
 
     if (!account) {
-      throw new Error('No YouTube account connected. Connect account in admin settings.');
+      throw new Error(
+        'YouTube not configured. Set YOUTUBE_REFRESH_TOKEN in .env or connect via Settings → Social Media.'
+      );
     }
 
     // Check if token is expired
     if (account.tokenExpiresAt && new Date() > new Date(account.tokenExpiresAt)) {
-      // Token expired, try to refresh
       console.log('[YouTube Auth] Token expired, refreshing...');
       const refreshedToken = await refreshYouTubeToken(account);
       return refreshedToken;
@@ -54,6 +48,45 @@ export async function getYouTubeAccessToken(accountEmail: string = 'swarsakshi99
     return accessToken;
   } catch (error: any) {
     console.error('[YouTube Auth] Error getting token:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Refresh token using env refresh token
+ */
+async function refreshYouTubeTokenFromEnv(refreshToken: string) {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
+    }
+
+    const response = await fetch(GOOGLE_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.access_token) {
+      throw new Error(`Token refresh failed: ${data.error || 'unknown error'}`);
+    }
+
+    console.log('[YouTube Auth] Access token refreshed from refresh token');
+    return data.access_token;
+  } catch (error: any) {
+    console.error('[YouTube Auth] Env token refresh failed:', error.message);
     throw error;
   }
 }
