@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
 
     // --- Try to resolve direct CDN URL (zero YouTube reference to client) ---
     let cdnUrl = '';
+    let ytdlError = '';
     try {
       const ytdl = (await import('@distube/ytdl-core')).default;
       const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`);
@@ -69,7 +70,21 @@ export async function GET(request: NextRequest) {
         ytdl.chooseFormat(info.formats, { quality: 'highestvideo' });
       if (fmt?.url) cdnUrl = fmt.url;
     } catch (e) {
-      console.warn('[embed] ytdl resolve failed, using iframe fallback:', (e as Error).message);
+      const errMsg = (e as Error).message || '';
+      ytdlError = errMsg;
+      console.warn('[embed] ytdl resolve failed:', errMsg);
+      
+      // Check if this is a privacy/access error
+      const isPrivateError = 
+        errMsg.includes('Private video') ||
+        errMsg.includes('private') ||
+        errMsg.includes('unauthorized') ||
+        errMsg.includes('restricted') ||
+        errMsg.includes('unavailable');
+      
+      if (isPrivateError) {
+        return htmlRes(privacyErrorPage(), 403);
+      }
     }
 
     if (cdnUrl) {
@@ -77,6 +92,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback: YouTube iframe embed (if ytdl-core failed on server)
+    // Note: This will also fail for private videos
     const ytEmbed = `https://www.youtube-nocookie.com/embed/${video.youtubeVideoId}?autoplay=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=0&playsinline=1&controls=1`;
     return htmlRes(iframeFallbackHtml(ytEmbed, wm), 200);
   } catch (error: any) {
@@ -428,6 +444,47 @@ body{margin:0;height:100vh;display:flex;align-items:center;justify-content:cente
 <div class="m">
   <h2>🔒 ${msg}</h2>
   <p>This video is for Swar Yoga community members only.</p>
+</div>
+</body></html>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// ── Privacy Error Page (YouTube video is PRIVATE)
+// ══════════════════════════════════════════════════════════
+function privacyErrorPage(): string {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;font-family:system-ui,-apple-system,sans-serif;padding:20px}
+.container{max-width:500px;text-align:center;background:rgba(0,0,0,0.3);padding:40px;border-radius:12px;backdrop-filter:blur(10px)}
+h1{font-size:2rem;margin-bottom:1rem;color:#fff}
+.icon{font-size:3rem;margin-bottom:1rem}
+p{opacity:0.9;margin:0.5rem 0;line-height:1.6}
+.steps{text-align:left;background:rgba(0,0,0,0.2);padding:20px;border-radius:8px;margin-top:2rem}
+.steps h3{opacity:0.8;margin-top:0;font-size:0.9rem;text-transform:uppercase;letter-spacing:1px}
+.step{margin:0.8rem 0;font-size:0.9rem;opacity:0.85}
+.step strong{color:#4ade80;display:inline-block;min-width:30px}
+.youtube-link{display:inline-block;margin-top:1.5rem;padding:10px 20px;background:#ff0000;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;transition:background 0.2s}
+.youtube-link:hover{background:#cc0000}
+.note{font-size:0.8rem;opacity:0.7;margin-top:1rem}
+</style>
+</head><body>
+<div class="container">
+  <div class="icon">🔒</div>
+  <h1>Video is Private</h1>
+  <p>The YouTube video is set to <strong>PRIVATE</strong> and can't be shared with community members.</p>
+  <p>To fix this, change the video privacy to <strong>UNLISTED</strong> on YouTube.</p>
+  
+  <div class="steps">
+    <h3>How to Fix (3 steps)</h3>
+    <div class="step"><strong>1.</strong> Sign in to <a href="https://studio.youtube.com" target="_blank" style="color:#4ade80;text-decoration:underline">YouTube Studio</a></div>
+    <div class="step"><strong>2.</strong> Click your video and find the <strong>VISIBILITY</strong> section</div>
+    <div class="step"><strong>3.</strong> Change from <strong>PRIVATE</strong> → <strong>UNLISTED</strong> and save</div>
+  </div>
+  
+  <a href="https://studio.youtube.com" target="_blank" class="youtube-link">Open YouTube Studio</a>
+  
+  <p class="note">⏱ After changing, wait 1-2 minutes then refresh this page</p>
 </div>
 </body></html>`;
 }
