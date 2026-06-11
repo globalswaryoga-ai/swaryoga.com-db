@@ -73,6 +73,10 @@ export async function GET(req: NextRequest) {
     // the DB chat merge so OLD sessions/phones under the same userId never leak.
     // Prefer the live bridge session phone; fall back to the stored phone.
     let connectedPhone: string = String(userSettings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
+    // The bridge uses the OWNER's own push name as a fallback chat name when it
+    // never captured the contact's name — detect it so we can treat it as a
+    // placeholder (same as bare digits) during name enrichment below.
+    let ownerName = '';
     try {
       const sessionsRes = await fetch(`${bridgeUrl}/sessions`, {
         method: 'GET',
@@ -84,6 +88,7 @@ export async function GET(req: NextRequest) {
         const liveSession = sessions.find(s => s.sessionKey === sessionKey && s.status === 'connected');
         const livePhone = String(liveSession?.phone?.id || '').split(':')[0].replace(/\D/g, '');
         if (livePhone) connectedPhone = livePhone;
+        ownerName = String(liveSession?.phone?.name || '').trim();
       }
     } catch (e: any) {
       console.warn('[QR Chats API] Failed to read live session phone:', e.message);
@@ -185,15 +190,19 @@ export async function GET(req: NextRequest) {
     // This ensures chats survive bridge restarts / PC off.
     // Always merge historical chats for the user (don't skip based on connectedPhone).
     // Even without a known current phone, historical chats should be visible.
+    // Persisted chat names/markers by JID — used both to restore previously
+    // harvested contact names onto placeholder-named bridge chats and to skip
+    // re-harvesting chats we already checked recently.
+    const dbChatMeta = new Map<string, { name: string; nameCheckedAt?: Date }>();
     try {
       const QrChat = getQrWhatsAppChat();
-      
+
       // Build query: always include user's chats, optionally filtered by connectedPhone if known
       const query: any = { userId: viewerUserId };
       if (connectedPhone) {
         query.connectedPhone = connectedPhone;
       }
-      
+
       const dbChatDocs = await QrChat.find(query)
         .sort({ lastMessageTime: -1, conversationTimestamp: -1, createdAt: -1 })
         .limit(1000)  // Increased from 500 to include more historical
@@ -207,7 +216,14 @@ export async function GET(req: NextRequest) {
       );
 
       for (const dc of dbChatDocs as any[]) {
-        if (!dc.chatJid || bridgeJidSet.has(dc.chatJid)) continue;
+        if (!dc.chatJid) continue;
+        if (!dbChatMeta.has(dc.chatJid)) {
+          dbChatMeta.set(dc.chatJid, {
+            name: String(dc.name || ''),
+            nameCheckedAt: dc.metadata?.nameCheckedAt ? new Date(dc.metadata.nameCheckedAt) : undefined,
+          });
+        }
+        if (bridgeJidSet.has(dc.chatJid)) continue;
         // Enrich name from Lead if only phone stored
         let chatName = dc.name || dc.chatJid.split('@')[0];
         data.chats.push({
@@ -226,13 +242,13 @@ export async function GET(req: NextRequest) {
       console.warn('[QR Chats API] DB chat merge failed (non-fatal):', dbMergeErr.message);
     }
 
-    // 2. If Super Admin, return everything
-    if (superAdmin) {
-      return NextResponse.json({ success: true, chats: data.chats });
-    }
+    // A "placeholder" chat name carries no information about the contact:
+    // empty, bare digits, a JID, or the bridge's owner-name fallback.
+    const isPlaceholderName = (name: any): boolean => {
+      const v = String(name || '').trim();
+      return !v || /^\d+$/.test(v) || v.includes('@') || (!!ownerName && v === ownerName);
+    };
 
-    // 3. Filter for regular admins: Show their assigned leads OR leads they created (user compartment).
-    // Optimization: Pre-extract phone numbers and batch query leads
     const Lead = getLead();
 
     // Cache phone extraction to avoid recomputing in filter
@@ -243,7 +259,7 @@ export async function GET(req: NextRequest) {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
       const isGroup = idStr.endsWith('@g.us');
       if (isGroup) continue; // Skip groups early
-      
+
       const phone = idStr.split('@')[0];
       if (phone) {
         chatPhones.set(idStr, phone);
@@ -251,11 +267,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Find all leads for these numbers in one batch query
+    // Find leads for these numbers in one batch query — scoped to the viewer's
+    // own leads (super admin additionally matches unowned/global leads). The
+    // query MUST be ownership-scoped: an unscoped phone lookup could surface
+    // another tenant's lead for the same number.
+    const leadScope: any[] = [
+      { assignedToUserId: viewerUserId },
+      { createdByUserId: viewerUserId },
+    ];
+    if (superAdmin) {
+      leadScope.push({
+        $and: [
+          { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
+          { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
+        ],
+      });
+    }
     const leadMap = new Map();
     if (phoneNumbers.size > 0) {
       const leads = await Lead.find({
-        phoneNumber: { $in: Array.from(phoneNumbers) }
+        phoneNumber: { $in: Array.from(phoneNumbers) },
+        $or: leadScope,
       }).select('phoneNumber assignedToUserId createdByUserId displayName name').lean();
 
       leads.forEach((l: any) => leadMap.set(l.phoneNumber, {
@@ -264,6 +296,105 @@ export async function GET(req: NextRequest) {
         name: l.displayName || l.name,
       }));
     }
+
+    // ── NAME ENRICHMENT (all users, super admin included) ──
+    // Priority for placeholder-named individual chats:
+    //   1. CRM lead name (user-curated), 2. previously harvested name from DB.
+    for (const c of data.chats) {
+      const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+      if (!idStr || idStr.endsWith('@g.us') || c.isGroup) continue;
+      if (!isPlaceholderName(c.name)) continue;
+      const phone = chatPhones.get(idStr);
+      const leadName = phone ? leadMap.get(phone)?.name : '';
+      if (leadName && !isPlaceholderName(leadName)) { c.name = leadName; continue; }
+      const dbName = dbChatMeta.get(idStr)?.name;
+      if (dbName && !isPlaceholderName(dbName)) c.name = dbName;
+    }
+
+    // ── PUSH-NAME HARVEST ──
+    // For chats still showing just a number: the bridge's chat list has no name,
+    // but the contact's own WhatsApp display name (pushName) is present on their
+    // inbound messages. Fetch a few recent messages for the most recent unnamed
+    // chats, take the sender's pushName, and persist it so each chat is only
+    // harvested once (24h retry marker for contacts with no pushName).
+    try {
+      const candidates = (data.chats as any[])
+        .filter((c) => {
+          const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+          if (!idStr || idStr.endsWith('@g.us') || c.isGroup) return false;
+          if (!isPlaceholderName(c.name)) return false;
+          const checkedAt = dbChatMeta.get(idStr)?.nameCheckedAt;
+          return !(checkedAt && Date.now() - checkedAt.getTime() < 24 * 3600 * 1000);
+        })
+        .sort((a, b) => new Date(b.lastMessageTime || 0).getTime() - new Date(a.lastMessageTime || 0).getTime())
+        .slice(0, 12);
+
+      if (candidates.length) {
+        const QrChat = getQrWhatsAppChat();
+        await Promise.allSettled(candidates.map(async (c) => {
+          const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+          let resolved = '';
+          let fetchOk = false;
+          try {
+            const res = await fetch(`${bridgeUrl}/messages/${encodeURIComponent(idStr)}?limit=10`, {
+              headers: sessionHeaders,
+              signal: AbortSignal.timeout(5000),
+            });
+            if (res.ok) {
+              fetchOk = true;
+              const json = await res.json();
+              const msgs: any[] = Array.isArray(json) ? json : (json?.messages || []);
+              for (let i = msgs.length - 1; i >= 0; i--) {
+                const pn = String(msgs[i]?.pushName || '').trim();
+                if (!msgs[i]?.fromMe && pn && !isPlaceholderName(pn)) { resolved = pn; break; }
+              }
+            }
+          } catch { /* bridge slow/unreachable — no marker, retry on a later poll */ }
+
+          if (resolved) c.name = resolved;
+          // Persist the name (or just the checked-marker) — but only write the
+          // marker when the bridge actually answered, so transient bridge
+          // failures don't suppress retries for 24h.
+          if (connectedPhone && (resolved || fetchOk)) {
+            await QrChat.updateOne(
+              { userId: viewerUserId, connectedPhone, chatJid: idStr },
+              {
+                $set: { ...(resolved ? { name: resolved } : {}), 'metadata.nameCheckedAt': new Date() },
+                $setOnInsert: { isGroup: false },
+              },
+              { upsert: true }
+            ).catch(() => {});
+          }
+          // Propagate to the viewer's own lead when it still has the bare number as name.
+          if (resolved) {
+            const realPhone = String(
+              c.resolvedPhone ||
+              ((idStr.endsWith('@s.whatsapp.net') || idStr.endsWith('@c.us')) ? idStr.split('@')[0] : '')
+            ).replace(/\D/g, '');
+            if (realPhone) {
+              await Lead.updateOne(
+                {
+                  phoneNumber: realPhone,
+                  $and: [{ $or: [{ name: realPhone }, { name: '' }, { name: null }] }],
+                  $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }],
+                },
+                { $set: { name: resolved } }
+              ).catch(() => {});
+            }
+          }
+        }));
+        console.log(`[QR Chats API] Push-name harvest attempted for ${candidates.length} unnamed chat(s)`);
+      }
+    } catch (harvestErr: any) {
+      console.warn('[QR Chats API] Push-name harvest failed (non-fatal):', harvestErr.message);
+    }
+
+    // 2. If Super Admin, return everything
+    if (superAdmin) {
+      return NextResponse.json({ success: true, chats: data.chats });
+    }
+
+    // 3. Filter for regular admins: Show their assigned leads OR leads they created (user compartment).
 
     const filteredChats = data.chats.filter((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');

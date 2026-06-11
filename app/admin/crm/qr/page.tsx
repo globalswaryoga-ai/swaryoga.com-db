@@ -1167,13 +1167,15 @@ export default function QRWhatsAppPage() {
         });
         setChats(sorted);
         setError(null);
-        // Preload avatars only for the first individual chats actually in view.
-        // Groups render a group icon and their profile-pic proxy is access-gated
-        // (was 401-ing for member-only groups) — fetching ~686 of them on load was
-        // the main inbox slowdown, so we skip groups here.
-        // Defer profile picture loading: only preload for currently visible chats
-        // This was causing slowdowns fetching 15 pics on every poll. Now only fetch on demand.
-        // sorted.filter((c: ChatItem) => !c.isGroup).slice(0, 15).forEach((c: ChatItem) => fetchProfilePic(c.id));
+        // Preload avatars for the first individual chats (the visible sidebar).
+        // Groups are skipped inside fetchProfilePic (group icon + access-gated
+        // proxy, the original slowdown), and profilePicLoadedRef guarantees each
+        // JID is fetched at most once per session — polls don't refetch.
+        // Staggered so the burst never competes with the chat/message requests.
+        sorted
+          .filter((c: ChatItem) => !c.isGroup && !profilePicLoadedRef.current.has(c.id))
+          .slice(0, 30)
+          .forEach((c: ChatItem, i: number) => setTimeout(() => fetchProfilePic(c.id), i * 150));
       }
     } catch (e: any) {
       console.error('Failed to fetch chats:', e);
@@ -1299,6 +1301,22 @@ export default function QRWhatsAppPage() {
       const merged = Array.from(byId.values())
         .filter(m => m.id)
         .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      // For unsaved contacts the chat list only carries the bare number, but
+      // inbound messages carry the sender's own WhatsApp display name
+      // (pushName) — use it to name the chat as soon as messages load.
+      if (!jid.endsWith('@g.us')) {
+        const inboundNamed = [...merged].reverse().find(
+          m => !m.fromMe && m.pushName && !isPlaceholderChatName(m.pushName)
+        );
+        if (inboundNamed?.pushName) {
+          setChats(prev => prev.map(c =>
+            c.id === jid && isPlaceholderChatName(c.name)
+              ? { ...c, name: inboundNamed.pushName! }
+              : c
+          ));
+        }
+      }
 
       if (merged.length > 0) {
         setMessages(prev => {
@@ -2777,8 +2795,12 @@ export default function QRWhatsAppPage() {
                 </div>
               )}
               {filteredChats.map(chat => {
-                const avatarColor = getAvatarColor(chat.name);
-                const initials = getInitials(chat.name);
+                // Base the avatar on the DISPLAYED title, not the raw chat.name —
+                // the bridge's owner-name fallback ("Swar Yoga") was producing
+                // misleading "SY" initials for unknown contacts shown by number.
+                const sidebarTitle = getSidebarChatTitle(chat);
+                const avatarColor = getAvatarColor(sidebarTitle);
+                const initials = /^[+\d]/.test(sidebarTitle) ? '👤' : getInitials(sidebarTitle);
                 const lastMsgTime = chat.lastMessageTime ? new Date(chat.lastMessageTime) : null;
                 const timeStr = lastMsgTime ? (
                   lastMsgTime.toDateString() === new Date().toDateString()
@@ -2789,7 +2811,7 @@ export default function QRWhatsAppPage() {
                 const chatLabelList = chatLabels[chat.id] || [];
                 const isSelected = selectedChats.has(chat.id);
                 const stageInfo = funnelStages.find(s => s.key === chatStage);
-                const chatTitle = getSidebarChatTitle(chat);
+                const chatTitle = sidebarTitle;
                 const chatPhone = getSidebarChatPhone(chat);
 
                 return (

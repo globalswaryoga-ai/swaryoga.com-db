@@ -374,6 +374,10 @@ async function ingestQRPayload(payload: any) {
 
         // Update chat thread (only if messageId exists to avoid duplicates)
         if (m.messageId) {
+          // Only overwrite the chat name when the lead has a REAL name — never
+          // stomp a previously harvested contact name with bare phone digits.
+          const leadName = typeof lead.name === 'string' ? lead.name.trim() : '';
+          const hasRealLeadName = !!leadName && !/^\d+$/.test(leadName);
           await QrWhatsAppChat.findOneAndUpdate(
             { userId: bridgeUserId, connectedPhone, chatJid },
             {
@@ -381,7 +385,7 @@ async function ingestQRPayload(payload: any) {
                 userId: bridgeUserId,
                 connectedPhone,
                 chatJid,
-                name: typeof lead.name === 'string' ? lead.name : normalizedPhone,
+                ...(hasRealLeadName ? { name: leadName } : {}),
                 isGroup: chatJid.endsWith('@g.us'),
                 lastMessage: messageContent,
                 lastMessageTime: new Date(timestampMs),
@@ -391,6 +395,7 @@ async function ingestQRPayload(payload: any) {
               $setOnInsert: {
                 // Do NOT set unreadCount here — $inc below handles it
                 // (having both $setOnInsert.unreadCount + $inc.unreadCount causes MongoDB conflict)
+                ...(hasRealLeadName ? {} : { name: normalizedPhone }),
                 pinned: false,
                 archived: false,
                 profilePicUrl: '',
