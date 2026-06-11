@@ -33,12 +33,7 @@ export async function PUT(
 
     const { id } = params;
 
-    console.log('[Reset Password] Received ID:', id, 'Type:', typeof id, 'Valid ObjectId:', Types.ObjectId.isValid(id));
-
-    if (!Types.ObjectId.isValid(id)) {
-      console.log('[Reset Password] Invalid ObjectId format:', id);
-      return NextResponse.json({ error: 'Invalid user ID format' }, { status: 400 });
-    }
+    console.log('[Reset Password] Received ID:', id, 'Type:', typeof id);
 
     const body = await request.json().catch(() => null);
     if (!body || !body.password) {
@@ -55,30 +50,50 @@ export async function PUT(
 
     await connectDB();
 
-    // Find the user (any user, not just admin)
-    const objectId = new Types.ObjectId(id);
-    console.log('[Reset Password] Searching for user with ObjectId:', objectId);
+    let user = null;
 
-    let user = await User.findById(objectId);
-    console.log('[Reset Password] User found by ID:', user ? `${user.email}` : 'null');
+    // Try 1: Find by ObjectId
+    if (Types.ObjectId.isValid(id)) {
+      console.log('[Reset Password] Attempt 1: Searching by ObjectId');
+      try {
+        user = await User.findById(new Types.ObjectId(id));
+        if (user) {
+          console.log('[Reset Password] ✓ Found by ObjectId:', user.email);
+        }
+      } catch (err) {
+        console.log('[Reset Password] ObjectId lookup failed:', err);
+      }
+    }
 
+    // Try 2: Find by email
     if (!user) {
-      // Try searching by email as fallback
+      console.log('[Reset Password] Attempt 2: Searching by email');
       user = await User.findOne({ email: id });
       if (user) {
-        console.log('[Reset Password] Found by email instead:', user.email);
-      } else {
-        console.log('[Reset Password] User not found by ID or email:', id);
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        console.log('[Reset Password] ✓ Found by email:', user.email);
       }
+    }
+
+    // Try 3: Find by _id as string
+    if (!user) {
+      console.log('[Reset Password] Attempt 3: Searching by _id string');
+      user = await User.findOne({ _id: id });
+      if (user) {
+        console.log('[Reset Password] ✓ Found by _id string:', user.email);
+      }
+    }
+
+    if (!user) {
+      console.log('[Reset Password] ✗ User not found. ID tried:', id);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Hash the new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // Update password
-    await User.findByIdAndUpdate(new Types.ObjectId(id), {
+    // Update password using the found user's _id
+    await User.findByIdAndUpdate(user._id, {
       $set: { password: hashedPassword },
     });
 
