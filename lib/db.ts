@@ -613,6 +613,7 @@ const zoomCommunityMappingSchema = new mongoose.Schema({
   communityId: { type: String, required: true, index: true },
   communityName: { type: String }, // denormalized for display
   zoomTopic: { type: String }, // optional: the Zoom meeting title for reference
+  thumbnailUrl: { type: String }, // optional: thumbnail applied to this batch's auto-added recordings
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

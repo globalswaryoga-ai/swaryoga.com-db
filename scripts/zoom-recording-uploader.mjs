@@ -108,6 +108,7 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
 
   let communityId = 'global'; // default fallback
   let communityName = 'Global';
+  let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
   // Look up the zoom meeting ID in the mappings
   try {
@@ -115,6 +116,7 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
     if (mapping) {
       communityId = mapping.communityId;
       communityName = mapping.communityName || mapping.communityId;
+      if (mapping.thumbnailUrl) thumbnailUrl = mapping.thumbnailUrl; // batch-specific thumbnail
       log(`  Zoom mapping found: ${zoomMeetingId} → ${communityName}`);
     } else {
       // If no mapping, try to use the community by slug if it matches
@@ -131,7 +133,7 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
     youtubeUnlisted: false,
     title: `${topic} — ${dateLabel}`,
     description: `Zoom recording from ${dateLabel}\n\nPlease invite swarsakshi9@gmail.com and mohan@swaryoga.com in YouTube Studio so they receive shareable links.`,
-    thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+    thumbnailUrl,
     uploadedBy: 'zoom-uploader',
     isShareable: false,
     isCommon: true,

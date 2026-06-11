@@ -10,6 +10,7 @@ interface Mapping {
   communityId: string;
   communityName?: string;
   zoomTopic?: string;
+  thumbnailUrl?: string;
 }
 
 interface Community {
@@ -30,6 +31,7 @@ export default function ZoomSettingsPage() {
   const [zoomMeetingId, setZoomMeetingId] = useState('');
   const [selectedCommunity, setSelectedCommunity] = useState('');
   const [zoomTopic, setZoomTopic] = useState('');
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
 
   // Load mappings and communities
   useEffect(() => {
@@ -82,6 +84,7 @@ export default function ZoomSettingsPage() {
           zoomMeetingId,
           communityId: selectedCommunity,
           zoomTopic: zoomTopic || undefined,
+          thumbnailUrl: thumbnailUrl || undefined,
         }),
       });
 
@@ -96,6 +99,7 @@ export default function ZoomSettingsPage() {
       setZoomMeetingId('');
       setSelectedCommunity('');
       setZoomTopic('');
+      setThumbnailUrl('');
 
       setTimeout(() => setSuccess(null), 3000);
     } catch (e: any) {
@@ -160,7 +164,7 @@ export default function ZoomSettingsPage() {
         <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
           <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
             <Plus className="w-5 h-5" />
-            Add Zoom Meeting Mapping
+            Add New Batch — Zoom Meeting → Community
           </h2>
 
           <form onSubmit={handleAddMapping} className="space-y-4">
@@ -204,16 +208,42 @@ export default function ZoomSettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Zoom Meeting Title (Optional)
+                Batch / Workshop Name (Optional)
               </label>
               <input
                 type="text"
                 value={zoomTopic}
                 onChange={(e) => setZoomTopic(e.target.value)}
-                placeholder="e.g., Sadhana Level 1 Class"
+                placeholder="e.g., June Swar Yoga 7-day — Hindi"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <p className="text-xs text-gray-500 mt-1">For reference only</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Thumbnail URL (Optional)
+              </label>
+              <input
+                type="url"
+                value={thumbnailUrl}
+                onChange={(e) => setThumbnailUrl(e.target.value)}
+                placeholder="https://… (image shown for this batch's recordings)"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Applied to every speaker-view recording auto-added to this community.
+                Leave blank to use the default.
+              </p>
+              {thumbnailUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={thumbnailUrl}
+                  alt="Thumbnail preview"
+                  className="mt-2 h-24 rounded border border-gray-200 object-cover"
+                  onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
+                />
+              )}
             </div>
 
             <button
@@ -257,13 +287,24 @@ export default function ZoomSettingsPage() {
               {mappings.map((mapping) => (
                 <div key={mapping._id} className="p-6 hover:bg-gray-50 transition">
                   <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="font-mono text-sm text-indigo-600 font-bold">
-                        {mapping.zoomMeetingId}
-                      </p>
-                      {mapping.zoomTopic && (
-                        <p className="text-sm text-gray-600 mt-1">{mapping.zoomTopic}</p>
+                    <div className="flex gap-3">
+                      {mapping.thumbnailUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={mapping.thumbnailUrl}
+                          alt=""
+                          className="h-12 w-20 rounded border border-gray-200 object-cover flex-shrink-0"
+                          onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
+                        />
                       )}
+                      <div>
+                        <p className="font-mono text-sm text-indigo-600 font-bold">
+                          {mapping.zoomMeetingId}
+                        </p>
+                        {mapping.zoomTopic && (
+                          <p className="text-sm text-gray-600 mt-1">{mapping.zoomTopic}</p>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={() => handleDeleteMapping(mapping._id)}

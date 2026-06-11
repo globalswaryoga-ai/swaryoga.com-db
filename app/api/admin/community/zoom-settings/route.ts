@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { zoomMeetingId, communityId, zoomTopic } = body;
+    const { zoomMeetingId, communityId, zoomTopic, thumbnailUrl } = body;
 
     if (!zoomMeetingId || !communityId) {
       return NextResponse.json(
@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
       communityId,
       communityName: community.name,
       zoomTopic: zoomTopic || undefined,
+      thumbnailUrl: thumbnailUrl || undefined,
     });
 
     return NextResponse.json({
