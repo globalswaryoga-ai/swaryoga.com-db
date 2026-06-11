@@ -6,8 +6,9 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 /**
  * Get valid access token for YouTube account by email
  * Refreshes if expired
+ * Default: swarsakshi9999@gmail.com (main YouTube channel)
  */
-export async function getYouTubeAccessToken(accountEmail?: string) {
+export async function getYouTubeAccessToken(accountEmail: string = 'swarsakshi9999@gmail.com') {
   try {
     await connectDB();
 

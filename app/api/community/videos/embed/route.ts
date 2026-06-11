@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         if (isPrivateError) {
           console.log(`[embed] Private video detected, attempting with OAuth token...`);
           try {
-            const accessToken = await getYouTubeAccessToken('swarsakshi9@gmail.com');
+            const accessToken = await getYouTubeAccessToken('swarsakshi9999@gmail.com');
             info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`, {
               requestOptions: {
                 headers: {
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
             console.error('[embed] OAuth fetch also failed:', authError.message);
             return htmlRes(
               privateVideoErrorPage(
-                'YouTube account not connected. Admin must set up YouTube OAuth in settings to share private videos.'
+                'YouTube account (swarsakshi9999@gmail.com) not connected. Admin must set up YouTube OAuth in settings to share private videos.'
               ),
               403
             );

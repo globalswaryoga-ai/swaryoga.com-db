@@ -24,12 +24,12 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    // Find or create swarsakshi9@gmail.com admin user
-    const email = 'swarsakshi9@gmail.com';
+    // Find or create swarsakshi9999@gmail.com admin user
+    const email = 'swarsakshi9999@gmail.com';
     let user = await User.findOne({ email, isAdmin: true });
 
     if (!user) {
-      console.log('[Auto-login] Creating admin account for swarsakshi9@gmail.com');
+      console.log('[Auto-login] Creating admin account for swarsakshi9999@gmail.com');
       user = new User({
         name: 'Swar Sakshi',
         email,
