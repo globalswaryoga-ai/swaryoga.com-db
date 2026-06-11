@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { getYouTubeAccessToken, getYouTubeVideoWithAuth } from '@/lib/youtube-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,9 +64,48 @@ export async function GET(request: NextRequest) {
     let cdnUrl = '';
     let qualities: Array<{ label: string; url: string; height?: number }> = [];
     let ytdlError = '';
+
     try {
       const ytdl = (await import('@distube/ytdl-core')).default;
-      const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`);
+      let info;
+
+      // Try unauthenticated first
+      try {
+        info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`);
+      } catch (unauthError: any) {
+        const errMsg = (unauthError as Error).message || '';
+        const isPrivateError =
+          errMsg.includes('Private video') ||
+          errMsg.includes('private') ||
+          errMsg.includes('unauthorized') ||
+          errMsg.includes('restricted');
+
+        // If private, try with YouTube OAuth token
+        if (isPrivateError) {
+          console.log(`[embed] Private video detected, attempting with OAuth token...`);
+          try {
+            const accessToken = await getYouTubeAccessToken('swarsakshi9@gmail.com');
+            info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`, {
+              requestOptions: {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              },
+            });
+            console.log(`[embed] Successfully fetched private video with OAuth token`);
+          } catch (authError: any) {
+            console.error('[embed] OAuth fetch also failed:', authError.message);
+            return htmlRes(
+              privateVideoErrorPage(
+                'YouTube account not connected. Admin must set up YouTube OAuth in settings to share private videos.'
+              ),
+              403
+            );
+          }
+        } else {
+          throw unauthError;
+        }
+      }
 
       // Collect video formats at different qualities
       const qualityMap = new Map<number, { label: string; url: string; height: number }>();
@@ -73,7 +113,6 @@ export async function GET(request: NextRequest) {
       for (const fmt of info.formats) {
         if (!fmt.hasVideo || !fmt.hasAudio) continue;
         const height = fmt.height || 0;
-        const itag = fmt.itag;
 
         if (height && !qualityMap.has(height)) {
           const label = height >= 1080 ? '1080p' : height >= 720 ? '720p' : height >= 480 ? '480p' : height >= 360 ? '360p' : `${height}p`;
@@ -95,17 +134,8 @@ export async function GET(request: NextRequest) {
       ytdlError = errMsg;
       console.warn('[embed] ytdl resolve failed:', errMsg);
 
-      // Check if this is a privacy/access error
-      const isPrivateError =
-        errMsg.includes('Private video') ||
-        errMsg.includes('private') ||
-        errMsg.includes('unauthorized') ||
-        errMsg.includes('restricted') ||
-        errMsg.includes('unavailable');
-
-      if (isPrivateError) {
-        return htmlRes(privacyErrorPage(), 403);
-      }
+      // Generic error fallback
+      return htmlRes(errorPage('Failed to load video. Please try again.'), 500);
     }
 
     if (cdnUrl) {
@@ -538,9 +568,9 @@ body{margin:0;height:100vh;display:flex;align-items:center;justify-content:cente
 }
 
 // ══════════════════════════════════════════════════════════
-// ── Privacy Error Page (YouTube video is PRIVATE)
+// ── Private Video Error (needs OAuth setup)
 // ══════════════════════════════════════════════════════════
-function privacyErrorPage(): string {
+function privateVideoErrorPage(message: string): string {
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
@@ -549,31 +579,16 @@ body{margin:0;height:100vh;display:flex;align-items:center;justify-content:cente
 h1{font-size:2rem;margin-bottom:1rem;color:#fff}
 .icon{font-size:3rem;margin-bottom:1rem}
 p{opacity:0.9;margin:0.5rem 0;line-height:1.6}
-.steps{text-align:left;background:rgba(0,0,0,0.2);padding:20px;border-radius:8px;margin-top:2rem}
-.steps h3{opacity:0.8;margin-top:0;font-size:0.9rem;text-transform:uppercase;letter-spacing:1px}
-.step{margin:0.8rem 0;font-size:0.9rem;opacity:0.85}
-.step strong{color:#4ade80;display:inline-block;min-width:30px}
-.youtube-link{display:inline-block;margin-top:1.5rem;padding:10px 20px;background:#ff0000;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;transition:background 0.2s}
-.youtube-link:hover{background:#cc0000}
-.note{font-size:0.8rem;opacity:0.7;margin-top:1rem}
+.info{background:rgba(59,130,246,0.2);border-left:4px solid #3b82f6;padding:12px;border-radius:4px;margin-top:1.5rem;font-size:0.9rem}
 </style>
 </head><body>
 <div class="container">
-  <div class="icon">🔒</div>
-  <h1>Video is Private</h1>
-  <p>The YouTube video is set to <strong>PRIVATE</strong> and can't be shared with community members.</p>
-  <p>To fix this, change the video privacy to <strong>UNLISTED</strong> on YouTube.</p>
-  
-  <div class="steps">
-    <h3>How to Fix (3 steps)</h3>
-    <div class="step"><strong>1.</strong> Sign in to <a href="https://studio.youtube.com" target="_blank" style="color:#4ade80;text-decoration:underline">YouTube Studio</a></div>
-    <div class="step"><strong>2.</strong> Click your video and find the <strong>VISIBILITY</strong> section</div>
-    <div class="step"><strong>3.</strong> Change from <strong>PRIVATE</strong> → <strong>UNLISTED</strong> and save</div>
+  <div class="icon">🔐</div>
+  <h1>Private Video</h1>
+  <p>${message}</p>
+  <div class="info">
+    <strong>Admin Action:</strong> Connect your YouTube account in Settings → Social Media Setup → YouTube OAuth to enable private video sharing.
   </div>
-  
-  <a href="https://studio.youtube.com" target="_blank" class="youtube-link">Open YouTube Studio</a>
-  
-  <p class="note">⏱ After changing, wait 1-2 minutes then refresh this page</p>
 </div>
 </body></html>`;
 }
