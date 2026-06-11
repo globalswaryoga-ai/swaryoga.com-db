@@ -440,6 +440,7 @@ function RecordingsContent() {
                 youtubeVideoId={playingVideo.youtubeVideoId}
                 bunnyLibraryId={playingVideo.bunnyLibraryId}
                 bunnyVideoId={playingVideo.bunnyVideoId}
+                communityId={communityIdParam || playingVideo.communityId}
               />
               <div className="p-5 bg-gray-900">
                 <h3 className="text-white font-bold text-lg">{playingVideo.title?.split(' > ').pop()}</h3>

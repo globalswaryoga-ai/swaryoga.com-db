@@ -23,6 +23,7 @@ interface VideoPlayerProps {
   bunnyVideoId?: string;
   bunnyLibraryId?: string;
   title?: string;
+  communityId?: string;
 }
 
 export default function VideoPlayer({
@@ -33,11 +34,13 @@ export default function VideoPlayer({
   bunnyVideoId,
   bunnyLibraryId,
   title,
+  communityId,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState('');
+  const [videoToken, setVideoToken] = useState<string>('');
 
   const mode = detectMode(videoUrl, videoSource, youtubeVideoId, bunnyVideoId, bunnyLibraryId);
 
@@ -95,14 +98,55 @@ export default function VideoPlayer({
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
+  // Fetch temporary token for YouTube videos if needed
+  useEffect(() => {
+    if (videoSource !== 'youtube' || !communityId) return;
+
+    const existingToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (existingToken) {
+      setVideoToken(existingToken);
+      return;
+    }
+
+    // Fetch temporary token for community video access
+    const fetchToken = async () => {
+      try {
+        const communityUserStr = typeof window !== 'undefined' ? localStorage.getItem('community_user') : null;
+        const communityUser = communityUserStr ? JSON.parse(communityUserStr) : null;
+
+        const res = await fetch('/api/community/auth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            communityId,
+            userId: communityUser?.userId || communityUser?.id || communityUser?.mobile || '',
+            userEmail: communityUser?.email || '',
+            userName: communityUser?.name || communityUser?.firstName || '',
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            setVideoToken(data.token);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch video token:', err);
+      }
+    };
+
+    fetchToken();
+  }, [videoSource, communityId]);
+
   // Bunny embed player URL (autoplay disabled - browsers require user interaction)
   const bunnyEmbedUrl = bunnyVideoId && bunnyLibraryId
     ? `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${bunnyVideoId}?preload=true&responsive=true`
     : null;
 
   // YouTube proxy embed
-  const youtubeEmbedUrl = videoSource === 'youtube' && videoId
-    ? `/api/community/videos/embed?v=${videoId}&token=${typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''}`
+  const youtubeEmbedUrl = videoSource === 'youtube' && videoId && videoToken
+    ? `/api/community/videos/embed?v=${videoId}&token=${encodeURIComponent(videoToken)}`
     : null;
 
   return (
@@ -123,24 +167,32 @@ export default function VideoPlayer({
       )}
 
       {/* YouTube proxy */}
-      {mode === 'youtube' && youtubeEmbedUrl && (
+      {mode === 'youtube' && (
         <>
-          <iframe
-            src={youtubeEmbedUrl}
-            className="absolute inset-0 w-full h-full"
-            allow="accelerometer; autoplay; encrypted-media; gyroscope; fullscreen"
-            allowFullScreen
-            referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-presentation"
-            style={{ border: 'none' }}
-          />
-          <button
-            onClick={toggleFullscreen}
-            className="absolute bottom-2 right-2 z-20 w-9 h-8 flex items-center justify-center bg-black/80 hover:bg-white/20 text-white rounded transition"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-          >
-            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-          </button>
+          {!youtubeEmbedUrl ? (
+            <div className="absolute inset-0 flex items-center justify-center text-white text-sm">
+              Loading video...
+            </div>
+          ) : (
+            <>
+              <iframe
+                src={youtubeEmbedUrl}
+                className="absolute inset-0 w-full h-full"
+                allow="accelerometer; autoplay; encrypted-media; gyroscope; fullscreen"
+                allowFullScreen
+                referrerPolicy="no-referrer"
+                sandbox="allow-scripts allow-same-origin allow-presentation"
+                style={{ border: 'none' }}
+              />
+              <button
+                onClick={toggleFullscreen}
+                className="absolute bottom-2 right-2 z-20 w-9 h-8 flex items-center justify-center bg-black/80 hover:bg-white/20 text-white rounded transition"
+                title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              >
+                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              </button>
+            </>
+          )}
         </>
       )}
 

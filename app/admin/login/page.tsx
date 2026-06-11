@@ -1,11 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function AdminLogin() {
   const router = useRouter();
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('adminToken') || localStorage.getItem('admin_token')
+      : null;
+    if (token) {
+      router.replace('/admin/crm');
+    }
+  }, [router]);
   
   const [formData, setFormData] = useState({
     username: '',
