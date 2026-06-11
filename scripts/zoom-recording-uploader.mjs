@@ -5,7 +5,8 @@
  * Rule:
  *   • YouTube (Private): Speaker view + Gallery view.
  *       - Prefer the WITH-screen version when the class shared a screen, else plain.
- *   • Bunny Stream: Speaker view only (with or without screen share).
+ *   • Bunny Storage: Speaker view only (with or without screen share), saved as an
+ *     MP4 file under the `zoom-videos/` folder of the storage zone.
  *
  * Idempotent: tracks done meetings in `zoom_recording_uploads` (main DB) keyed by
  * the Zoom meeting UUID, so it never re-uploads. Safe to run as often as you like.
@@ -17,11 +18,25 @@
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
  *   MONGODB_URI_MAIN, MONGODB_MAIN_DB_NAME (default swaryogaDB)
  *   ENCRYPTION_KEY   (same key prod used to encrypt the YouTube refresh token)
- *   BUNNY_STREAM_LIBRARY_ID, BUNNY_API_KEY (or BUNNY_STREAM_CDN_KEY)
+ *   BUNNY_ZOOM_STORAGE_ZONE (default swaryogadb), BUNNY_ZOOM_STORAGE_KEY
  *   RECORDING_LOOKBACK_DAYS (default 2)
+ *
+ * Env is auto-loaded from .env.zoom-uploader next to the repo root (if present).
  */
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
+
+// Load env from .env.zoom-uploader at the repo root (best-effort, no dotenv dep).
+try {
+  const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env.zoom-uploader');
+  for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
+    const m = line.match(/^([A-Z_0-9]+)=(.*)$/);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^"|"$/g, '');
+  }
+} catch { /* no env file — rely on process env */ }
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const LOOKBACK = Number(process.env.RECORDING_LOOKBACK_DAYS || 2);
@@ -84,17 +99,24 @@ async function trashRecording(uuid, token) {
   throw new Error('trash ' + r.status + ' ' + await r.text());
 }
 
-async function bunnyFetch(srcUrl, title) {
-  const lib = process.env.BUNNY_STREAM_LIBRARY_ID;
-  const key = process.env.BUNNY_API_KEY || process.env.BUNNY_STREAM_CDN_KEY;
-  if (!lib || !key) { log('Bunny: missing lib/key, skip'); return null; }
-  const cr = await fetch(`https://video.bunnycdn.com/library/${lib}/videos`, { method: 'POST', headers: { AccessKey: key, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
-  const cj = await cr.json();
-  if (!cr.ok) throw new Error('bunny create ' + cr.status + ' ' + JSON.stringify(cj));
-  const fr = await fetch(`https://video.bunnycdn.com/library/${lib}/videos/${cj.guid}/fetch`, { method: 'POST', headers: { AccessKey: key, 'Content-Type': 'application/json' }, body: JSON.stringify({ url: srcUrl }) });
-  const fj = await fr.json();
-  if (!fr.ok) throw new Error('bunny fetch ' + fr.status + ' ' + JSON.stringify(fj));
-  return cj.guid;
+// Save the MP4 into the Bunny STORAGE zone under zoom-videos/ (a real folder),
+// streaming straight from Zoom — no temp file on disk.
+async function bunnyStorageSave(srcUrl, size, fileName) {
+  const zone = process.env.BUNNY_ZOOM_STORAGE_ZONE || 'swaryogadb';
+  const key = process.env.BUNNY_ZOOM_STORAGE_KEY;
+  if (!key) { log('Bunny Storage: missing BUNNY_ZOOM_STORAGE_KEY, skip'); return null; }
+  const safe = fileName.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 180);
+  const dest = `zoom-videos/${safe}`;
+  const src = await fetch(srcUrl);
+  if (!src.ok) throw new Error('zoom dl ' + src.status);
+  const put = await fetch(`https://storage.bunnycdn.com/${zone}/${encodeURI(dest)}`, {
+    method: 'PUT',
+    headers: { AccessKey: key, 'Content-Type': 'video/mp4', 'Content-Length': String(size) },
+    body: src.body,
+    duplex: 'half',
+  });
+  if (!put.ok) throw new Error('bunny storage put ' + put.status + ' ' + await put.text());
+  return dest;
 }
 
 (async () => {
@@ -139,7 +161,7 @@ async function bunnyFetch(srcUrl, title) {
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
     if (speaker) {
-      try { result.bunny = await bunnyFetch(dl(speaker), `${m.topic} — ${dateLabel}`); log('  Bunny OK guid:', result.bunny); }
+      try { result.bunny = await bunnyStorageSave(dl(speaker), speaker.file_size, `${dateLabel} ${m.topic} (speaker).mp4`); log('  Bunny Storage OK:', result.bunny); }
       catch (e) { log('  Bunny FAIL:', e.message); }
     }
     // Only mark done if at least one YouTube upload succeeded (so failures retry next run).
