@@ -61,34 +61,55 @@ export async function GET(request: NextRequest) {
 
     // --- Try to resolve direct CDN URL (zero YouTube reference to client) ---
     let cdnUrl = '';
+    let qualities: Array<{ label: string; url: string; height?: number }> = [];
     let ytdlError = '';
     try {
       const ytdl = (await import('@distube/ytdl-core')).default;
       const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${video.youtubeVideoId}`);
-      const fmt =
-        ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' }) ||
-        ytdl.chooseFormat(info.formats, { quality: 'highestvideo' });
-      if (fmt?.url) cdnUrl = fmt.url;
+
+      // Collect video formats at different qualities
+      const qualityMap = new Map<number, { label: string; url: string; height: number }>();
+
+      for (const fmt of info.formats) {
+        if (!fmt.hasVideo || !fmt.hasAudio) continue;
+        const height = fmt.height || 0;
+        const itag = fmt.itag;
+
+        if (height && !qualityMap.has(height)) {
+          const label = height >= 1080 ? '1080p' : height >= 720 ? '720p' : height >= 480 ? '480p' : height >= 360 ? '360p' : `${height}p`;
+          qualityMap.set(height, { label, url: fmt.url, height });
+        }
+      }
+
+      // Sort by height descending and create quality options
+      const sortedQualities = Array.from(qualityMap.values())
+        .sort((a, b) => b.height - a.height)
+        .slice(0, 5); // Limit to top 5 qualities
+
+      if (sortedQualities.length > 0) {
+        qualities = sortedQualities;
+        cdnUrl = sortedQualities[0].url; // Default to highest
+      }
     } catch (e) {
       const errMsg = (e as Error).message || '';
       ytdlError = errMsg;
       console.warn('[embed] ytdl resolve failed:', errMsg);
-      
+
       // Check if this is a privacy/access error
-      const isPrivateError = 
+      const isPrivateError =
         errMsg.includes('Private video') ||
         errMsg.includes('private') ||
         errMsg.includes('unauthorized') ||
         errMsg.includes('restricted') ||
         errMsg.includes('unavailable');
-      
+
       if (isPrivateError) {
         return htmlRes(privacyErrorPage(), 403);
       }
     }
 
     if (cdnUrl) {
-      return htmlRes(nativePlayerHtml(escJS(cdnUrl), wm, escJS(streamUrl)), 200);
+      return htmlRes(nativePlayerHtml(escJS(cdnUrl), wm, escJS(streamUrl), qualities), 200);
     }
 
     // Fallback: YouTube iframe embed (if ytdl-core failed on server)
@@ -125,7 +146,14 @@ function escJS(s: string): string {
 // ══════════════════════════════════════════════════════════
 // ── Native HTML5 Video Player (no YouTube reference)
 // ══════════════════════════════════════════════════════════
-function nativePlayerHtml(cdnSrc: string, watermark: string, streamFallback: string): string {
+interface Quality {
+  label: string;
+  url: string;
+  height?: number;
+}
+
+function nativePlayerHtml(cdnSrc: string, watermark: string, streamFallback: string, qualities: Quality[] = []): string {
+  const qualitiesJson = JSON.stringify(qualities.map(q => ({ label: q.label, url: escJS(q.url) })));
   return `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
@@ -173,6 +201,15 @@ video{width:100%;height:100%;object-fit:contain;background:#000;outline:none}
 .err button{padding:8px 20px;background:#10b981;color:#fff;border:none;border-radius:8px;cursor:pointer;font:600 13px/1 system-ui}
 .err button:hover{background:#059669}
 .hid{display:none!important}
+
+/* Quality selector */
+.qm{position:relative}
+.qb{position:relative}
+.qd{position:absolute;bottom:100%;right:0;background:rgba(0,0,0,0.95);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px;margin-bottom:8px;min-width:90px;display:none;z-index:11}
+.qd.show{display:block}
+.qd button{width:100%;text-align:right;padding:6px 12px;background:none;border:none;color:#fff;font:12px/1 system-ui;cursor:pointer;white-space:nowrap;transition:background 0.2s}
+.qd button:hover,.qd button.sel{background:rgba(16,185,129,0.3)}
+.qb::after{content:'';position:absolute;top:50%;right:2px;transform:translateY(-50%);width:4px;height:4px;background:#10b981;border-radius:50%}
 </style>
 </head>
 <body>
@@ -207,6 +244,12 @@ video{width:100%;height:100%;object-fit:contain;background:#000;outline:none}
         <span class="tm" id="tm">0:00 / 0:00</span>
       </div>
       <div class="row-r">
+        <div class="qm" id="qm" style="display:none">
+          <button class="btn qb" id="qb" title="Quality">
+            <svg viewBox="0 0 24 24"><path fill="#fff" d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.16.24-.41.12-.64l-2-3.46c-.12-.22-.37-.29-.59-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.52l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.47 0-.59.22L2.74 8.87c-.12.22-.07.47.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.16-.24.41-.12.64l2 3.46c.12.22.37.29.59.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.34.24.52.49.52h4c.25 0 .46-.18.49-.52l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.47 0 .59-.22l2-3.46c.12-.22.07-.47-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+          </button>
+          <div class="qd" id="qd"></div>
+        </div>
         <button class="btn" id="fs" title="Fullscreen">
           <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
         </button>
@@ -237,11 +280,16 @@ var sf = document.getElementById('sf');
 var sb = document.getElementById('sb');
 var fs = document.getElementById('fs');
 var wm = document.getElementById('wm');
+var qm = document.getElementById('qm');
+var qb = document.getElementById('qb');
+var qd = document.getElementById('qd');
 
-var SRC      = '${cdnSrc}';
-var FALLBACK = '${streamFallback}';
-var WM       = '${watermark}';
+var SRC       = '${cdnSrc}';
+var FALLBACK  = '${streamFallback}';
+var WM        = '${watermark}';
+var QUALITIES = ${qualitiesJson};
 var usedFallback = false;
+var currentTime = 0;
 
 /* ── Watermark generator ── */
 function mkWm(){
@@ -265,11 +313,43 @@ function ft(sec){
   return m+':'+(s<10?'0':'')+s;
 }
 
+/* ── Setup quality selector ── */
+function setupQualities(){
+  if(!QUALITIES || QUALITIES.length<2){
+    qm.style.display='none';
+    return;
+  }
+  qm.style.display='block';
+  qd.innerHTML='';
+  QUALITIES.forEach(function(q,i){
+    var btn=document.createElement('button');
+    btn.textContent=q.label;
+    if(i===0) btn.classList.add('sel');
+    btn.onclick=function(e){
+      e.stopPropagation();
+      switchQuality(q.url, btn);
+    };
+    qd.appendChild(btn);
+  });
+}
+
+function switchQuality(url, btn){
+  currentTime=V.currentTime;
+  var wasPlaying=!V.paused;
+  V.src=url;
+  V.currentTime=currentTime;
+  if(wasPlaying) V.play().catch(function(){});
+  document.querySelectorAll('.qd button').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  qd.classList.remove('show');
+}
+
 /* ── Load video ── */
 function go(){
   er.style.display='none';
   ld.classList.remove('hid');
   usedFallback=false;
+  setupQualities();
   V.src=SRC;
   V.load();
 }
@@ -329,6 +409,15 @@ sk.onclick = function(e){
   var r=sk.getBoundingClientRect();
   V.currentTime = ((e.clientX-r.left)/r.width) * V.duration;
 };
+
+/* ── Quality selector ── */
+qb.onclick = function(e){
+  e.stopPropagation();
+  qd.classList.toggle('show');
+};
+document.addEventListener('click', function(){
+  qd.classList.remove('show');
+});
 
 /* ── Fullscreen ── */
 fs.onclick = function(){
