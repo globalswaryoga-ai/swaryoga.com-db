@@ -99,6 +99,39 @@ async function trashRecording(uuid, token) {
   throw new Error('trash ' + r.status + ' ' + await r.text());
 }
 
+// Auto-add speaker view video to 'global' community.
+// User will manually invite swarsakshi9@gmail.com + mohan@swaryoga.com in YouTube Studio.
+async function autoAddToGlobalCommunity(videoId, topic, dateLabel, db) {
+  const Videos = db.collection('communityvideos');
+  const doc = {
+    communityId: 'global',
+    videoSource: 'youtube',
+    youtubeVideoId: videoId,
+    youtubeUnlisted: false,
+    title: `${topic} — ${dateLabel}`,
+    description: `Zoom recording from ${dateLabel}\n\nPlease invite swarsakshi9@gmail.com and mohan@swaryoga.com in YouTube Studio so they receive shareable links.`,
+    thumbnailUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+    uploadedBy: 'zoom-uploader',
+    isShareable: false,
+    isCommon: true,
+    source: 'zoom',
+    recordingType: 'speaker_view',
+    tags: ['zoom', 'recording'],
+    pendingEmailInvites: ['swarsakshi9@gmail.com', 'mohan@swaryoga.com'],
+    createdAt: new Date(),
+  };
+
+  try {
+    const existing = await Videos.findOne({ communityId: 'global', youtubeVideoId: videoId });
+    if (!existing) {
+      await Videos.insertOne(doc);
+      log(`  Community (global) OK: video added with pending email invites`);
+    }
+  } catch (e) {
+    log(`  Community FAIL:`, e.message);
+  }
+}
+
 // Save the MP4 into the Bunny STORAGE zone under zoom-videos/ (a real folder),
 // streaming straight from Zoom — no temp file on disk.
 async function bunnyStorageSave(srcUrl, size, fileName) {
@@ -158,6 +191,10 @@ async function bunnyStorageSave(srcUrl, size, fileName) {
         const id = await ytUpload(yt, dl(f), f.file_size, `${m.topic} — ${view} — ${dateLabel}`, `${m.topic}\nRecorded ${m.start_time}\n${view} (${f.recording_type})`);
         result.youtube[key] = id;
         log(`  YT OK ${view}: https://youtu.be/${id}`);
+        // Auto-add speaker view to 'global' community with pending email invites
+        if (key === 'speaker') {
+          await autoAddToGlobalCommunity(id, m.topic, dateLabel, mongoose.connection.db);
+        }
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
     if (speaker) {
