@@ -53,9 +53,15 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .lean();
 
+    // Convert ObjectIds to strings for JSON serialization
+    const signupsWithStringIds = signups.map((user: any) => ({
+      ...user,
+      _id: user._id?.toString() || String(user._id),
+    }));
+
     // Standard response structure and cache control
     return new NextResponse(
-      JSON.stringify({ success: true, data: signups }),
+      JSON.stringify({ success: true, data: signupsWithStringIds }),
       {
         status: 200,
         headers: {
