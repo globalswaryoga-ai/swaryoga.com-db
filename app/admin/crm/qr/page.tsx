@@ -1065,21 +1065,28 @@ export default function QRWhatsAppPage() {
         for (const c of data.chats as any[]) {
           // Skip if chat has no ID
           if (!c.id && !c.chatJid && !c.jid) continue;
-          // Bridge returns lastMessage as { body, timestamp, fromMe } — map to ChatItem format
-          if (c.lastMessage && typeof c.lastMessage === 'object') {
+          
+          // Ensure lastMessageTime is a valid ISO string or timestamp number
+          // If lastMessageTime is already a valid string (from bridge), keep it as-is
+          if (typeof c.lastMessageTime === 'string' && c.lastMessageTime.length > 0) {
+            // Already a valid ISO string from bridge, use as-is
+          } else if (c.lastMessage && typeof c.lastMessage === 'object') {
+            // Bridge sometimes returns lastMessage as { body, timestamp, fromMe }
             const lm = c.lastMessage;
-            // Extract lastMessageTime from the nested object's timestamp or fallback to conversationTimestamp
             const ts = lm.timestamp || c.conversationTimestamp;
             c.lastMessageTime = ts ? new Date((ts > 1e12 ? ts : ts * 1000)).toISOString() : null;
-            // Extract body text
+            // Extract body text for preview
             c.lastMessage = lm.body || lm.conversation || lm.extendedTextMessage?.text || '';
-          } else if (c.lastMessage && typeof c.lastMessage !== 'string') {
-            c.lastMessage = '';
-          }
-          // Set lastMessageTime from conversationTimestamp if not already set
-          if (!c.lastMessageTime && c.conversationTimestamp) {
+          } else if (typeof c.lastMessageTime === 'number') {
+            // Convert timestamp number to ISO string
+            c.lastMessageTime = new Date((c.lastMessageTime > 1e12 ? c.lastMessageTime : c.lastMessageTime * 1000)).toISOString();
+          } else if (c.conversationTimestamp && !c.lastMessageTime) {
+            // Fall back to conversationTimestamp if nothing else available
             const ts = c.conversationTimestamp;
             c.lastMessageTime = new Date((ts > 1e12 ? ts : ts * 1000)).toISOString();
+          } else if (c.lastMessage && typeof c.lastMessage !== 'string') {
+            // Clean up non-string lastMessage
+            c.lastMessage = '';
           }
           if (c.isGroup) {
             deduped.push(c);

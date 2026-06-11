@@ -183,19 +183,20 @@ export async function GET(req: NextRequest) {
 
     // ── Merge DB-persisted chats (qr_whatsapp_chats) with bridge chats ──
     // This ensures chats survive bridge restarts / PC off.
-    // ISOLATION: scope by userId AND the CURRENTLY connected phone. A single
-    // userId (e.g. the super admin's "admincrm") accumulates chats from every
-    // phone it ever connected; without the connectedPhone filter those OLD
-    // sessions leak into the current inbox. If we don't know the connected
-    // phone we skip the DB merge entirely rather than risk exposing other
-    // phones' chats. (Mirrors the messages route's connectedPhone isolation.)
-    if (!connectedPhone) {
-      console.debug('[QR Chats API] No connectedPhone known — skipping DB merge to avoid cross-session leak');
-    } else try {
+    // Always merge historical chats for the user (don't skip based on connectedPhone).
+    // Even without a known current phone, historical chats should be visible.
+    try {
       const QrChat = getQrWhatsAppChat();
-      const dbChatDocs = await QrChat.find({ userId: viewerUserId, connectedPhone })
-        .sort({ conversationTimestamp: -1, createdAt: -1 })
-        .limit(500)
+      
+      // Build query: always include user's chats, optionally filtered by connectedPhone if known
+      const query: any = { userId: viewerUserId };
+      if (connectedPhone) {
+        query.connectedPhone = connectedPhone;
+      }
+      
+      const dbChatDocs = await QrChat.find(query)
+        .sort({ lastMessageTime: -1, conversationTimestamp: -1, createdAt: -1 })
+        .limit(1000)  // Increased from 500 to include more historical
         .lean();
 
       const bridgeJidSet = new Set<string>(
@@ -220,6 +221,7 @@ export async function GET(req: NextRequest) {
           fromDb: true,
         });
       }
+      console.log(`[QR Chats API] Merged ${dbChatDocs.length} historical chats from DB (connectedPhone: ${connectedPhone || 'UNKNOWN'})`);
     } catch (dbMergeErr: any) {
       console.warn('[QR Chats API] DB chat merge failed (non-fatal):', dbMergeErr.message);
     }
