@@ -99,12 +99,33 @@ async function trashRecording(uuid, token) {
   throw new Error('trash ' + r.status + ' ' + await r.text());
 }
 
-// Auto-add speaker view video to 'global' community.
+// Auto-add speaker view video to the configured community.
 // User will manually invite swarsakshi9@gmail.com + mohan@swaryoga.com in YouTube Studio.
-async function autoAddToGlobalCommunity(videoId, topic, dateLabel, db) {
+async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeetingId, db) {
   const Videos = db.collection('communityvideos');
+  const Mappings = db.collection('zoom_community_mappings');
+  const Communities = db.collection('communities');
+
+  let communityId = 'global'; // default fallback
+  let communityName = 'Global';
+
+  // Look up the zoom meeting ID in the mappings
+  try {
+    const mapping = await Mappings.findOne({ zoomMeetingId });
+    if (mapping) {
+      communityId = mapping.communityId;
+      communityName = mapping.communityName || mapping.communityId;
+      log(`  Zoom mapping found: ${zoomMeetingId} → ${communityName}`);
+    } else {
+      // If no mapping, try to use the community by slug if it matches
+      log(`  No mapping for Zoom meeting ${zoomMeetingId}, using default 'global'`);
+    }
+  } catch (e) {
+    log(`  Zoom mapping lookup failed, falling back to 'global':`, e.message);
+  }
+
   const doc = {
-    communityId: 'global',
+    communityId,
     videoSource: 'youtube',
     youtubeVideoId: videoId,
     youtubeUnlisted: false,
@@ -122,10 +143,10 @@ async function autoAddToGlobalCommunity(videoId, topic, dateLabel, db) {
   };
 
   try {
-    const existing = await Videos.findOne({ communityId: 'global', youtubeVideoId: videoId });
+    const existing = await Videos.findOne({ communityId, youtubeVideoId: videoId });
     if (!existing) {
       await Videos.insertOne(doc);
-      log(`  Community (global) OK: video added with pending email invites`);
+      log(`  Community (${communityName}) OK: video added with pending email invites`);
     }
   } catch (e) {
     log(`  Community FAIL:`, e.message);
@@ -191,9 +212,9 @@ async function bunnyStorageSave(srcUrl, size, fileName) {
         const id = await ytUpload(yt, dl(f), f.file_size, `${m.topic} — ${view} — ${dateLabel}`, `${m.topic}\nRecorded ${m.start_time}\n${view} (${f.recording_type})`);
         result.youtube[key] = id;
         log(`  YT OK ${view}: https://youtu.be/${id}`);
-        // Auto-add speaker view to 'global' community with pending email invites
+        // Auto-add speaker view to configured community with pending email invites
         if (key === 'speaker') {
-          await autoAddToGlobalCommunity(id, m.topic, dateLabel, mongoose.connection.db);
+          await autoAddToConfiguredCommunity(id, m.topic, dateLabel, m.uuid, mongoose.connection.db);
         }
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }

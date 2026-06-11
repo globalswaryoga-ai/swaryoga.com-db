@@ -606,6 +606,25 @@ export function getCommunityMembership() {
 }
 
 // =====================================================
+// ZOOM COMMUNITY MAPPINGS - Link Zoom meetings to communities
+// =====================================================
+const zoomCommunityMappingSchema = new mongoose.Schema({
+  zoomMeetingId: { type: String, required: true, index: true, unique: true },
+  communityId: { type: String, required: true, index: true },
+  communityName: { type: String }, // denormalized for display
+  zoomTopic: { type: String }, // optional: the Zoom meeting title for reference
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+export const ZoomCommunityMapping =
+  mongoose.models.ZoomCommunityMapping || mongoose.model('ZoomCommunityMapping', zoomCommunityMappingSchema);
+
+export function getZoomCommunityMapping() {
+  return mongoose.models.ZoomCommunityMapping || mongoose.model('ZoomCommunityMapping', zoomCommunityMappingSchema);
+}
+
+// =====================================================
 // DEVICE CONTROL SYSTEM - For preventing credential sharing
 // =====================================================
 
