@@ -95,12 +95,19 @@ export async function GET(request: NextRequest) {
         // tenants' QR leads never leak into their list, broadcast, funnel, etc.
         accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
       } else {
-        // General (non-QR) super-admin view: show all leads EXCEPT other tenants'
-        // QR leads — QR is a tenant-isolated SaaS pipeline even for the super admin.
+        // SaaS isolation: the super admin's default view is their OWN leads plus
+        // unowned/global leads (public website signups). Other tenants' leads
+        // (CSV imports, QR, manual) never mix in — use the userId filter to
+        // inspect a specific tenant.
         accessControlConditions = [
-          { source: { $ne: 'qr_whatsapp' } },
           { assignedToUserId: viewerUserId },
           { createdByUserId: viewerUserId },
+          {
+            $and: [
+              { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
+              { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
+            ],
+          },
         ];
       }
     } else if (visibleUserIds.length > 1) {

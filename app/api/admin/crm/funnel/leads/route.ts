@@ -69,8 +69,23 @@ export async function GET(request: NextRequest) {
           { createdByUserId: viewerId },
         ] },
       ];
+    } else {
+      // SaaS isolation: super-admin default view is their OWN leads plus
+      // unowned/global leads (public website signups) — never other tenants'.
+      // Use the assignedTo filter to inspect a specific tenant.
+      query.$and = [
+        { $or: [
+          { assignedToUserId: viewerId },
+          { createdByUserId: viewerId },
+          {
+            $and: [
+              { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
+              { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
+            ],
+          },
+        ] },
+      ];
     }
-    // else: super admin with no filter — no restriction, see all leads
 
     if (search) {
       const esc = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
