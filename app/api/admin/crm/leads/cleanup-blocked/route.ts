@@ -1,18 +1,27 @@
 /**
  * POST /api/admin/crm/leads/cleanup-blocked
- * Deletes all leads with isBlocked=true from the database + their funnel history.
+ * Deletes the viewer's leads with isBlocked=true + their funnel history.
  * Cleans up existing blocked leads that accumulated before auto-delete was enabled.
+ * Tenant-isolated: only ever touches leads owned by the calling admin.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyAdminJwt } from '@/lib/adminAuth';
+import { verifyToken } from '@/lib/auth';
+import { getBearerToken } from '@/lib/adminAuth';
+import { getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
+function authorize(request: NextRequest) {
+  const decoded = verifyToken(getBearerToken(request));
+  if (!decoded?.isAdmin || !getViewerUserId(decoded)) return null;
+  return decoded;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await verifyAdminJwt(request);
-    if (!authResult.success) {
+    const decoded = authorize(request);
+    if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -21,8 +30,15 @@ export async function POST(request: NextRequest) {
     const Lead = getLead();
     const FunnelStageHistory = getFunnelStageHistory();
 
-    // Find all blocked leads
-    const blockedLeads = await Lead.find({ isBlocked: true }).select('_id phoneNumber waBlockedReason').lean();
+    // Find blocked leads — scoped to the viewer's own leads only. The super
+    // admin is scoped too: never delete another tenant's data from here.
+    const viewerId = getViewerUserId(decoded);
+    const ownScope = {
+      $or: [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }],
+    };
+    const blockedLeads = await Lead.find({ isBlocked: true, ...ownScope })
+      .select('_id phoneNumber waBlockedReason')
+      .lean();
     if (blockedLeads.length === 0) {
       return NextResponse.json({ success: true, deleted: 0, message: 'No blocked leads found' });
     }
@@ -39,7 +55,7 @@ export async function POST(request: NextRequest) {
       funnelDeleted = funnelResult.deletedCount;
     }
 
-    console.log(`🗑️ [CLEANUP-BLOCKED] Deleted ${leadResult.deletedCount} blocked leads + ${funnelDeleted} funnel records`);
+    console.log(`🗑️ [CLEANUP-BLOCKED] Deleted ${leadResult.deletedCount} blocked leads + ${funnelDeleted} funnel records for ${viewerId}`);
 
     return NextResponse.json({
       success: true,
@@ -55,8 +71,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await verifyAdminToken(request);
-    if (!authResult.success) {
+    const decoded = authorize(request);
+    if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -64,8 +80,12 @@ export async function GET(request: NextRequest) {
     const { getLead } = await import('@/lib/schemas/enterpriseSchemas');
     const Lead = getLead();
 
-    const count = await Lead.countDocuments({ isBlocked: true });
-    const sample = await Lead.find({ isBlocked: true })
+    const viewerId = getViewerUserId(decoded);
+    const ownScope = {
+      $or: [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }],
+    };
+    const count = await Lead.countDocuments({ isBlocked: true, ...ownScope });
+    const sample = await Lead.find({ isBlocked: true, ...ownScope })
       .select('phoneNumber name waBlockedReason waBlockedAt')
       .limit(10)
       .lean();
