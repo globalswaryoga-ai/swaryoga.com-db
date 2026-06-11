@@ -22,6 +22,7 @@ export default function AddYouTubeRecordingPage() {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [isPublic, setIsPublic] = useState(false);
 
   const [emailVerified, setEmailVerified] = useState(false);
@@ -109,6 +110,7 @@ export default function AddYouTubeRecordingPage() {
           videoSource: 'youtube',
           youtubeVideoId: videoId,
           videoUrl: youtubeUrl,
+          thumbnailUrl: thumbnailUrl || undefined,
           isPublic,
           recordingType: 'private_youtube', // Mark as private YouTube
         }),
@@ -125,6 +127,7 @@ export default function AddYouTubeRecordingPage() {
       setVideoTitle('');
       setVideoDescription('');
       setYoutubeUrl('');
+      setThumbnailUrl('');
       setIsPublic(false);
       setSelectedCommunity('');
 
@@ -238,6 +241,23 @@ export default function AddYouTubeRecordingPage() {
               />
               <p className="text-xs text-gray-500 mt-1">
                 ✅ Owned by: {YOUTUBE_EMAIL}
+              </p>
+            </div>
+
+            {/* Thumbnail URL */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Thumbnail URL (Optional)
+              </label>
+              <input
+                type="url"
+                value={thumbnailUrl}
+                onChange={(e) => setThumbnailUrl(e.target.value)}
+                placeholder="https://... (leave empty for auto-generated YouTube thumbnail)"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Leave empty to use YouTube's default thumbnail
               </p>
             </div>
 

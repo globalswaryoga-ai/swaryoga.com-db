@@ -48,6 +48,7 @@ export async function POST(
       description,
       youtubeVideoId,
       videoUrl,
+      thumbnailUrl,
       youtubeEmail = 'swarsakshi9@gmail.com',
     } = body;
 
@@ -133,7 +134,7 @@ export async function POST(
       videoSource: 'youtube',
       youtubeVideoId,
       youtubeUnlisted: true,
-      thumbnailUrl: `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`,
+      thumbnailUrl: thumbnailUrl || `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`,
       uploadedBy: decoded.userId || 'admin',
       isShareable: false,
       isCommon: true, // visible to all community members (no batch restriction)
