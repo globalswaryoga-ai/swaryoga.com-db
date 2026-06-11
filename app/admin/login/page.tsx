@@ -7,14 +7,55 @@ import { LogIn, AlertCircle, CheckCircle } from 'lucide-react';
 export default function AdminLogin() {
   const router = useRouter();
 
-  // Auto-redirect if already logged in
+  // Auto-login for swarsakshi9@gmail.com and auto-redirect if already logged in
   useEffect(() => {
-    const token = typeof window !== 'undefined'
-      ? localStorage.getItem('adminToken') || localStorage.getItem('admin_token')
-      : null;
-    if (token) {
-      router.replace('/admin/crm');
-    }
+    const checkAndAutoLogin = async () => {
+      // First check if already logged in
+      const token = typeof window !== 'undefined'
+        ? localStorage.getItem('adminToken') || localStorage.getItem('admin_token')
+        : null;
+
+      if (token) {
+        router.replace('/admin/crm');
+        return;
+      }
+
+      // Try auto-login with swarsakshi9@gmail.com
+      try {
+        const autoLoginKey = process.env.NEXT_PUBLIC_ADMIN_AUTO_LOGIN_KEY;
+        if (!autoLoginKey) {
+          console.log('[Login] Auto-login not configured');
+          return;
+        }
+
+        const response = await fetch('/api/admin/auth/auto-login', {
+          headers: {
+            'x-auto-login-key': autoLoginKey,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.token) {
+            // Store token and user info
+            localStorage.setItem('adminToken', data.token);
+            localStorage.setItem('admin_token', data.token);
+            localStorage.setItem('adminUser', data.user.userId);
+            localStorage.setItem(
+              'admin_user',
+              JSON.stringify(data.user)
+            );
+            console.log('[Login] Auto-login successful for swarsakshi9@gmail.com');
+            router.replace('/admin/crm');
+          }
+        }
+      } catch (err) {
+        console.log('[Login] Auto-login attempt failed (this is okay):', err);
+        // Silently fail - user will see login form
+      }
+    };
+
+    checkAndAutoLogin();
   }, [router]);
   
   const [formData, setFormData] = useState({
