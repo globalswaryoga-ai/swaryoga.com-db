@@ -258,6 +258,8 @@ export default function AdminCommunityPage() {
   const [recordingFolderName, setRecordingFolderName] = useState(''); // Workshop name
   const [recordingPlaylistName, setRecordingPlaylistName] = useState(''); // Batch name
   const [recordingVideoNumber, setRecordingVideoNumber] = useState(''); // Video number
+  const [existingBatches, setExistingBatches] = useState<Array<{ batchName: string; videoCount: number; nextVideoNumber: number }>>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
   const [recordingDescription, setRecordingDescription] = useState('');
   const [recordingThumbnailUrl, setRecordingThumbnailUrl] = useState(''); // Custom thumbnail URL
   const [uploadStep, setUploadStep] = useState<'folder' | 'video'>('folder'); // 2-step upload
@@ -1775,6 +1777,28 @@ export default function AdminCommunityPage() {
     fetchMembers();
    }, [selectedCommunity, token, router]);
 
+  // Fetch existing batches for the selected workshop
+  useEffect(() => {
+    if (!token || !recordingFolderName.trim()) {
+      setExistingBatches([]);
+      return;
+    }
+
+    setLoadingBatches(true);
+    fetch(
+      `/api/admin/community/batches?workshopName=${encodeURIComponent(recordingFolderName.trim())}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          setExistingBatches(data.batches || []);
+        }
+      })
+      .catch((err) => console.error('Fetch batches error:', err))
+      .finally(() => setLoadingBatches(false));
+  }, [recordingFolderName, token]);
+
   // filteredMembers is now calculated in MembersPanel component with useMemo for better performance
 
   const currentCommunity = communities.find(c => c.id === selectedCommunity);
@@ -2480,22 +2504,36 @@ export default function AdminCommunityPage() {
                       <p className="text-xs text-emerald-600 mt-1">💡 Select an existing batch below or type a new name</p>
                     </div>
 
-                    {/* Quick Select - Recent Batches */}
-                    <div className="p-3 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
-                      <p className="text-xs font-bold text-emerald-900 mb-2">📚 Or Select Existing Batch</p>
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                        <button
-                          onClick={() => {
-                            setRecordingFolderName('Swar Achar Shastra-Hindi');
-                            setRecordingPlaylistName('25th April Batch');
-                          }}
-                          className="w-full text-left p-2.5 bg-white hover:bg-emerald-100 rounded-lg border border-emerald-100 text-emerald-800 font-medium transition text-xs"
-                        >
-                          📁 Swar Achar Shastra-Hindi<br/>🎬 25th April Batch
-                        </button>
+                    {/* Existing Batches Dropdown */}
+                    {recordingFolderName.trim() && (
+                      <div className="p-3 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+                        <p className="text-xs font-bold text-emerald-900 mb-2">📚 Or Select Existing Batch</p>
+                        {loadingBatches ? (
+                          <p className="text-xs text-emerald-600">Loading batches...</p>
+                        ) : existingBatches.length === 0 ? (
+                          <p className="text-xs text-emerald-700">No existing batches. Enter a new batch name above.</p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                            {existingBatches.map((batch) => (
+                              <button
+                                key={batch.batchName}
+                                onClick={() => {
+                                  setRecordingPlaylistName(batch.batchName);
+                                  setRecordingVideoNumber(String(batch.nextVideoNumber));
+                                }}
+                                className="w-full text-left p-2.5 bg-white hover:bg-emerald-100 rounded-lg border border-emerald-100 text-emerald-800 font-medium transition text-xs"
+                              >
+                                🎬 {batch.batchName}
+                                <span className="block text-[10px] text-emerald-600 mt-0.5">
+                                  {batch.videoCount} video{batch.videoCount !== 1 ? 's' : ''} → Next: #{batch.nextVideoNumber}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[10px] text-emerald-700 mt-2">✨ Click to auto-fill batch and auto-sequence video number</p>
                       </div>
-                      <p className="text-[10px] text-emerald-700 mt-2">✨ Click to auto-fill and add more videos to this batch</p>
-                    </div>
+                    )}
 
                     <div>
                       <label className="text-sm font-bold text-slate-700 mb-2 block">🖼️ Thumbnail URL</label>
@@ -2756,25 +2794,36 @@ export default function AdminCommunityPage() {
                 </div>
               </div>
 
-              {/* Quick Select - Recent Batches */}
-              <div className="p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
-                <p className="text-xs font-bold text-blue-900 mb-2">📚 Quick Select Recent Batches</p>
-                <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                  {/* This would ideally fetch from database, for now showing pattern */}
-                  <div className="text-xs">
-                    <button
-                      onClick={() => {
-                        setRecordingFolderName('Swar Achar Shastra-Hindi');
-                        setRecordingPlaylistName('25th April Batch');
-                      }}
-                      className="block w-full text-left p-2 bg-white hover:bg-blue-100 rounded border border-blue-100 text-blue-800 font-medium transition"
-                    >
-                      📁 Swar Achar Shastra-Hindi → 🎬 25th April Batch
-                    </button>
-                  </div>
+              {/* Existing Batches Dropdown */}
+              {recordingFolderName.trim() && (
+                <div className="p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
+                  <p className="text-xs font-bold text-blue-900 mb-2">📚 Or Select Existing Batch</p>
+                  {loadingBatches ? (
+                    <p className="text-xs text-blue-600">Loading batches...</p>
+                  ) : existingBatches.length === 0 ? (
+                    <p className="text-xs text-blue-700">No existing batches. Enter a new batch name above.</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                      {existingBatches.map((batch) => (
+                        <button
+                          key={batch.batchName}
+                          onClick={() => {
+                            setRecordingPlaylistName(batch.batchName);
+                            setRecordingVideoNumber(String(batch.nextVideoNumber));
+                          }}
+                          className="block w-full text-left p-2 bg-white hover:bg-blue-100 rounded border border-blue-100 text-blue-800 font-medium transition text-xs"
+                        >
+                          🎬 {batch.batchName}
+                          <span className="block text-[10px] text-blue-600 mt-0.5">
+                            {batch.videoCount} video{batch.videoCount !== 1 ? 's' : ''} → Next: #{batch.nextVideoNumber}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-blue-700 mt-2">💡 Click to auto-fill batch and auto-sequence video number</p>
                 </div>
-                <p className="text-[10px] text-blue-700 mt-2">💡 Click above to auto-fill, or type new batch name above</p>
-              </div>
+              )}
 
               {/* Video Number */}
               <div>
