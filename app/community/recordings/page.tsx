@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Play, Lock, Video, Heart, MessageCircle, Send, X } from 'lucide-react';
+import { ArrowLeft, Play, Lock, Video, Heart, MessageCircle, Send, X, Edit2, Check, X as XIcon } from 'lucide-react';
 import VideoPlayer from '@/components/VideoPlayer';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +70,8 @@ function RecordingsContent() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likingVideoId, setLikingVideoId] = useState<string | null>(null);
   const [showAccessPopup, setShowAccessPopup] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<string | null>(null);
+  const [editingBatchValue, setEditingBatchValue] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -327,7 +329,52 @@ function RecordingsContent() {
               <div key={batchName} className="mb-10">
                 <div className="flex items-center gap-3 mb-5">
                   <span className="w-1 h-6 bg-emerald-500 rounded-full" />
-                  <h3 className="text-lg font-bold text-slate-900">{batchName}</h3>
+                  {editingBatch === batchName ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingBatchValue}
+                        onChange={(e) => setEditingBatchValue(e.target.value)}
+                        className="text-lg font-bold text-slate-900 border-b-2 border-emerald-500 px-2 py-1 outline-none"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => {
+                          setEditingBatch(null);
+                          setEditingBatchValue('');
+                          // TODO: Save batch name to database
+                        }}
+                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition"
+                        title="Save"
+                      >
+                        <Check size={18} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingBatch(null);
+                          setEditingBatchValue('');
+                        }}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded transition"
+                        title="Cancel"
+                      >
+                        <XIcon size={18} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-bold text-slate-900">{batchName}</h3>
+                      <button
+                        onClick={() => {
+                          setEditingBatch(batchName);
+                          setEditingBatchValue(batchName);
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition"
+                        title="Edit batch name"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                    </>
+                  )}
                   <span className="text-sm text-slate-400">{batchVideos.length} videos</span>
                 </div>
 
