@@ -61,8 +61,9 @@ buildWorkshopOverrides();
 
 const nextConfig = {
   reactStrictMode: true,
-  // Use SWC minify but disable for Vercel
-  swcMinify: false,
+  // SWC minifier (default). The legacy Terser fallback (swcMinify:false) cannot
+  // parse modern class syntax bundled by deps like @vercel/blob and fails the build.
+  swcMinify: true,
   compress: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,

@@ -108,7 +108,8 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
 
   let communityId = 'global'; // default fallback
   let communityName = 'Global';
-  let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  // hqdefault always exists; maxresdefault 404s for many recordings.
+  let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
   // Look up the zoom meeting ID in the mappings
   try {
