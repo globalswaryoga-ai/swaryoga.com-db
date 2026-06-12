@@ -101,10 +101,7 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Communities management is main website data - superadmin only
-    if (!isSuperAdmin(decoded)) {
-      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-    }
+    // Admins can create communities for their CRM workflows
 
     await connectDB();
     const body = await request.json();
@@ -185,10 +182,7 @@ export async function PUT(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Communities management is main website data - superadmin only
-    if (!isSuperAdmin(decoded)) {
-      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-    }
+    // Admins can edit communities for their CRM workflows
 
     await connectDB();
     const body = await request.json();
@@ -246,10 +240,7 @@ export async function DELETE(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Communities management is main website data - superadmin only
-    if (!isSuperAdmin(decoded)) {
-      return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-    }
+    // Admins can archive communities for their CRM workflows
 
     await connectDB();
     const { searchParams } = new URL(request.url);
