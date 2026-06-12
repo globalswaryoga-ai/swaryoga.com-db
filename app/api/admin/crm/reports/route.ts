@@ -48,8 +48,12 @@ export async function GET(request: NextRequest) {
     const rangeFilter = { ...scopeFilter, ...dateFilter };
 
     const { default: mongoose } = await import('mongoose');
-    const db = mongoose.connection.db;
-    if (!db) return NextResponse.json({ error: 'DB not connected' }, { status: 500 });
+
+    // Get the CRM database where all enterprise schemas live
+    const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
+    const crmDb = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
+
+    if (!crmDb) return NextResponse.json({ error: 'CRM DB not connected' }, { status: 500 });
 
     // ── Models ──
     const Lead = getLead();
@@ -58,8 +62,9 @@ export async function GET(request: NextRequest) {
     const QrMsg = getQrWhatsAppMessage();
     const TelegramMsg = getTelegramMessage();
 
-    // ── Revenue from main DB orders ──
-    const ordersCol = db.collection('orders');
+    // ── Get main database for orders ──
+    const mainDb = mongoose.connection.db;
+    const ordersCol = mainDb?.collection('orders');
 
     const [
       // Leads
@@ -112,10 +117,12 @@ export async function GET(request: NextRequest) {
       ),
 
       // Revenue: sum of completed orders in date range
-      ordersCol.aggregate([
-        { $match: { paymentStatus: 'completed', createdAt: { $gte: startDate, $lte: now } } },
-        { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } },
-      ]).toArray(),
+      ordersCol
+        ? ordersCol.aggregate([
+            { $match: { paymentStatus: 'completed', createdAt: { $gte: startDate, $lte: now } } },
+            { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } },
+          ]).toArray()
+        : Promise.resolve([]),
 
       // Email sent (all statuses except queued/failed)
       EmailLog.countDocuments({
@@ -139,7 +146,7 @@ export async function GET(request: NextRequest) {
       }),
 
       // QR broadcasts aggregate (sum stats from broadcast_runs)
-      db.collection('broadcast_runs').aggregate([
+      crmDb.collection('broadcast_runs').aggregate([
         {
           $match: {
             ...scopeFilter,
@@ -182,7 +189,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // ── Chatbot conversations (chatbot_flows collection) ──
-    const chatbotConversations = await db.collection('chatbot_flows')
+    const chatbotConversations = await crmDb.collection('chatbot_flows')
       .countDocuments({ ...scopeFilter, createdAt: { $gte: startDate, $lte: now } })
       .catch(() => 0);
 
