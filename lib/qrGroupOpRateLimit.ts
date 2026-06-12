@@ -11,14 +11,19 @@
  * survives restarts and applies across jobs), hard-capped, and paced with
  * human-like random delays in the caller. Once a cap is hit, NO more ops run
  * until the next reset.
+ *
+ * NOTE: counters are stored on the existing `crm_user_settings` doc
+ * (metadata.qrGroupOpRateCounter) rather than a dedicated collection — the
+ * Atlas cluster is at its 500-collection hard cap, so creating a brand-new
+ * `qr_group_op_rate_counters` collection would fail with "cannot create a
+ * new collection -- already using 500 collections of 500" (see
+ * [qrSendRateLimit.ts] for the same fix applied to message sends).
  */
-import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
+import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 
 export const GROUP_OP_DAILY_LIMIT = 150;
 export const GROUP_OP_HOURLY_LIMIT = 15;
-
-const COLLECTION = 'qr_group_op_rate_counters';
 
 /** Day key = YYYY-MM-DD in IST, with cutover at 5:00 AM (not midnight). */
 function getDayKeyIST(now = new Date()): string {
@@ -56,12 +61,14 @@ export type GroupOpCheck =
 /** Read remaining group-op budget without mutating — for pacing decisions. */
 export async function checkGroupOpLimit(userId: string): Promise<GroupOpCheck> {
   await connectDB();
-  const col = mongoose.connection.db!.collection(COLLECTION);
+  const CRMUserSettings = getCRMUserSettings();
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
-  const doc = await col.findOne({ userId, dayKey });
-  const daySent = (doc?.daySent as number) || 0;
-  const hourSent = doc?.hourKey === hourKey ? ((doc?.hourSent as number) || 0) : 0;
+  const doc: any = await CRMUserSettings.findOne({ userId }, { 'metadata.qrGroupOpRateCounter': 1 }).lean();
+  const counter = doc?.metadata?.qrGroupOpRateCounter;
+
+  const daySent = counter?.dayKey === dayKey ? (counter?.daySent || 0) : 0;
+  const hourSent = (counter?.dayKey === dayKey && counter?.hourKey === hourKey) ? (counter?.hourSent || 0) : 0;
 
   if (daySent >= GROUP_OP_DAILY_LIMIT) {
     return { allowed: false, reason: 'daily_cap', daySent, hourSent, resetAt: getNext5AMIST() };
@@ -84,39 +91,63 @@ export async function checkGroupOpLimit(userId: string): Promise<GroupOpCheck> {
  */
 export async function reserveGroupOpSlot(userId: string): Promise<GroupOpCheck> {
   await connectDB();
-  const col = mongoose.connection.db!.collection(COLLECTION);
+  const CRMUserSettings = getCRMUserSettings();
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
 
-  await col.updateOne(
-    { userId, dayKey },
-    { $setOnInsert: { userId, dayKey, daySent: 0, createdAt: new Date() }, $set: { lastUpdated: new Date() } },
+  // Reset the whole counter if we rolled into a new day (5 AM IST cutover).
+  await CRMUserSettings.updateOne(
+    {
+      userId,
+      $or: [
+        { 'metadata.qrGroupOpRateCounter.dayKey': { $ne: dayKey } },
+        { 'metadata.qrGroupOpRateCounter': { $exists: false } },
+        { metadata: { $exists: false } },
+      ],
+    },
+    {
+      $set: { 'metadata.qrGroupOpRateCounter': { dayKey, daySent: 0, hourKey, hourSent: 0, lastUpdated: new Date() } },
+      $setOnInsert: { userId },
+    },
     { upsert: true }
   );
-  await col.updateOne(
-    { userId, dayKey, hourKey: { $ne: hourKey } },
-    { $set: { hourKey, hourSent: 0 } }
+
+  // Reset the hour counter if we moved to a new clock-hour (same day).
+  await CRMUserSettings.updateOne(
+    { userId, 'metadata.qrGroupOpRateCounter.dayKey': dayKey, 'metadata.qrGroupOpRateCounter.hourKey': { $ne: hourKey } },
+    { $set: { 'metadata.qrGroupOpRateCounter.hourKey': hourKey, 'metadata.qrGroupOpRateCounter.hourSent': 0 } }
   );
 
-  const updated = await col.findOneAndUpdate(
-    { userId, dayKey, daySent: { $lt: GROUP_OP_DAILY_LIMIT }, hourSent: { $lt: GROUP_OP_HOURLY_LIMIT } },
-    { $inc: { daySent: 1, hourSent: 1 }, $set: { hourKey, lastUpdated: new Date() } },
-    { returnDocument: 'after' }
-  ) as any;
+  // Atomic check-and-increment: only increment if BOTH caps would still be respected.
+  const updated: any = await CRMUserSettings.findOneAndUpdate(
+    {
+      userId,
+      'metadata.qrGroupOpRateCounter.dayKey': dayKey,
+      'metadata.qrGroupOpRateCounter.hourKey': hourKey,
+      'metadata.qrGroupOpRateCounter.daySent': { $lt: GROUP_OP_DAILY_LIMIT },
+      'metadata.qrGroupOpRateCounter.hourSent': { $lt: GROUP_OP_HOURLY_LIMIT },
+    },
+    {
+      $inc: { 'metadata.qrGroupOpRateCounter.daySent': 1, 'metadata.qrGroupOpRateCounter.hourSent': 1 },
+      $set: { 'metadata.qrGroupOpRateCounter.lastUpdated': new Date() },
+    },
+    { new: true }
+  ).lean();
 
-  const doc: any = updated?.value ?? updated;
-  if (!doc) {
-    const current = await col.findOne({ userId, dayKey });
-    const daySent = (current?.daySent as number) || 0;
-    const hourSent = current?.hourKey === hourKey ? ((current?.hourSent as number) || 0) : 0;
+  if (!updated) {
+    const current: any = await CRMUserSettings.findOne({ userId }, { 'metadata.qrGroupOpRateCounter': 1 }).lean();
+    const counter = current?.metadata?.qrGroupOpRateCounter;
+    const daySent = (counter?.daySent as number) || 0;
+    const hourSent = counter?.hourKey === hourKey ? ((counter?.hourSent as number) || 0) : 0;
     if (daySent >= GROUP_OP_DAILY_LIMIT) {
       return { allowed: false, reason: 'daily_cap', daySent, hourSent, resetAt: getNext5AMIST() };
     }
     return { allowed: false, reason: 'hourly_cap', daySent, hourSent, resetAt: getNextHour() };
   }
 
-  const daySent = (doc.daySent as number) || 0;
-  const hourSent = (doc.hourSent as number) || 0;
+  const counter = updated.metadata.qrGroupOpRateCounter;
+  const daySent = (counter.daySent as number) || 0;
+  const hourSent = (counter.hourSent as number) || 0;
   return {
     allowed: true,
     daySent,

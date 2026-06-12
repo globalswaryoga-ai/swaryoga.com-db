@@ -11,14 +11,20 @@
  *
  * These caps + the 5 AM–10 PM IST send window + ~1 msg/5 min pacing keep a
  * single number well under WhatsApp's spam-detection thresholds.
+ *
+ * NOTE: counters are stored on the existing `crm_user_settings` doc
+ * (metadata.qrSendRateCounter) rather than a dedicated collection — the
+ * Atlas cluster is at its 500-collection hard cap, so creating a brand-new
+ * `qr_send_rate_counters` collection fails with "cannot create a new
+ * collection -- already using 500 collections of 500". That failure used to
+ * happen AFTER the WhatsApp send already succeeded, so every QR broadcast
+ * message was wrongly marked "failed".
  */
-import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
+import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 
 export const DAILY_LIMIT = 150;
 export const HOURLY_LIMIT = 15;
-
-const COLLECTION = 'qr_send_rate_counters';
 
 /** Day key = YYYY-MM-DD in IST, with cutover at 5:00 AM (not midnight). */
 function getDayKeyIST(now = new Date()): string {
@@ -60,15 +66,15 @@ function getNextHour(now = new Date()): Date {
  */
 export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
   await connectDB();
-  const db = mongoose.connection.db!;
-  const col = db.collection(COLLECTION);
+  const CRMUserSettings = getCRMUserSettings();
 
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
-  const doc = await col.findOne({ userId, dayKey });
+  const doc = await CRMUserSettings.findOne({ userId }, { 'metadata.qrSendRateCounter': 1 }).lean();
+  const counter: any = (doc as any)?.metadata?.qrSendRateCounter;
 
-  const daySent = (doc?.daySent as number) || 0;
-  const hourSent = doc?.hourKey === hourKey ? ((doc?.hourSent as number) || 0) : 0;
+  const daySent = counter?.dayKey === dayKey ? (counter?.daySent || 0) : 0;
+  const hourSent = (counter?.dayKey === dayKey && counter?.hourKey === hourKey) ? (counter?.hourSent || 0) : 0;
 
   if (daySent >= DAILY_LIMIT) {
     return { allowed: false, reason: 'daily_cap', daySent, hourSent, resetAt: getNext5AMIST() };
@@ -92,59 +98,65 @@ export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
  */
 export async function reserveSendSlot(userId: string): Promise<RateCheckResult> {
   await connectDB();
-  const db = mongoose.connection.db!;
-  const col = db.collection(COLLECTION);
+  const CRMUserSettings = getCRMUserSettings();
 
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
 
-  // First make sure the doc for today exists, and that hourKey is current
-  await col.updateOne(
-    { userId, dayKey },
+  // Reset the whole counter if we rolled into a new day (5 AM IST cutover).
+  await CRMUserSettings.updateOne(
     {
-      $setOnInsert: { userId, dayKey, daySent: 0, createdAt: new Date() },
-      $set: { lastUpdated: new Date() },
+      userId,
+      $or: [
+        { 'metadata.qrSendRateCounter.dayKey': { $ne: dayKey } },
+        { 'metadata.qrSendRateCounter': { $exists: false } },
+        { metadata: { $exists: false } },
+      ],
+    },
+    {
+      $set: { 'metadata.qrSendRateCounter': { dayKey, daySent: 0, hourKey, hourSent: 0, lastUpdated: new Date() } },
+      $setOnInsert: { userId },
     },
     { upsert: true }
   );
-  // Reset hour counter if we moved to a new hour
-  await col.updateOne(
-    { userId, dayKey, hourKey: { $ne: hourKey } },
-    { $set: { hourKey, hourSent: 0 } }
+
+  // Reset the hour counter if we moved to a new clock-hour (same day).
+  await CRMUserSettings.updateOne(
+    { userId, 'metadata.qrSendRateCounter.dayKey': dayKey, 'metadata.qrSendRateCounter.hourKey': { $ne: hourKey } },
+    { $set: { 'metadata.qrSendRateCounter.hourKey': hourKey, 'metadata.qrSendRateCounter.hourSent': 0 } }
   );
 
   // Atomic check-and-increment: only increment if BOTH caps would still be respected.
-  // Returns the document AFTER the update; null/undefined means no doc matched (cap hit).
-  const updated = await col.findOneAndUpdate(
+  const updated: any = await CRMUserSettings.findOneAndUpdate(
     {
       userId,
-      dayKey,
-      daySent: { $lt: DAILY_LIMIT },
-      hourSent: { $lt: HOURLY_LIMIT },
+      'metadata.qrSendRateCounter.dayKey': dayKey,
+      'metadata.qrSendRateCounter.hourKey': hourKey,
+      'metadata.qrSendRateCounter.daySent': { $lt: DAILY_LIMIT },
+      'metadata.qrSendRateCounter.hourSent': { $lt: HOURLY_LIMIT },
     },
     {
-      $inc: { daySent: 1, hourSent: 1 },
-      $set: { hourKey, lastUpdated: new Date() },
+      $inc: { 'metadata.qrSendRateCounter.daySent': 1, 'metadata.qrSendRateCounter.hourSent': 1 },
+      $set: { 'metadata.qrSendRateCounter.lastUpdated': new Date() },
     },
-    { returnDocument: 'after' }
-  ) as any;
+    { new: true }
+  ).lean();
 
-  // Driver-version compat: some return { value: doc }, others return doc directly
-  const doc: any = updated?.value ?? updated;
-
-  if (!doc) {
+  if (!updated) {
     // Reservation failed — figure out which cap blocked it
-    const current = await col.findOne({ userId, dayKey });
-    const daySent = (current?.daySent as number) || 0;
-    const hourSent = current?.hourKey === hourKey ? ((current?.hourSent as number) || 0) : 0;
+    const current: any = await CRMUserSettings.findOne({ userId }, { 'metadata.qrSendRateCounter': 1 }).lean();
+    const counter = current?.metadata?.qrSendRateCounter;
+    const daySent = (counter?.daySent as number) || 0;
+    const hourSent = counter?.hourKey === hourKey ? ((counter?.hourSent as number) || 0) : 0;
     if (daySent >= DAILY_LIMIT) {
       return { allowed: false, reason: 'daily_cap', daySent, hourSent, resetAt: getNext5AMIST() };
     }
     return { allowed: false, reason: 'hourly_cap', daySent, hourSent, resetAt: getNextHour() };
   }
 
-  const daySent = (doc.daySent as number) || 0;
-  const hourSent = (doc.hourSent as number) || 0;
+  const counter = updated.metadata.qrSendRateCounter;
+  const daySent = (counter.daySent as number) || 0;
+  const hourSent = (counter.hourSent as number) || 0;
   return {
     allowed: true,
     daySent,
@@ -157,12 +169,15 @@ export async function reserveSendSlot(userId: string): Promise<RateCheckResult> 
 /** Read current counts without mutating — for UI/status display. */
 export async function getCurrentCounts(userId: string): Promise<{ daySent: number; hourSent: number; dayRemaining: number; hourRemaining: number }> {
   await connectDB();
-  const db = mongoose.connection.db!;
+  const CRMUserSettings = getCRMUserSettings();
+
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
-  const doc = await db.collection(COLLECTION).findOne({ userId, dayKey });
-  const daySent = (doc?.daySent as number) || 0;
-  const hourSent = doc?.hourKey === hourKey ? ((doc?.hourSent as number) || 0) : 0;
+  const doc = await CRMUserSettings.findOne({ userId }, { 'metadata.qrSendRateCounter': 1 }).lean();
+  const counter: any = (doc as any)?.metadata?.qrSendRateCounter;
+
+  const daySent = counter?.dayKey === dayKey ? (counter?.daySent || 0) : 0;
+  const hourSent = (counter?.dayKey === dayKey && counter?.hourKey === hourKey) ? (counter?.hourSent || 0) : 0;
   return {
     daySent,
     hourSent,
