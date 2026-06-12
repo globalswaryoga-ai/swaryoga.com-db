@@ -1661,7 +1661,9 @@ const playlistVideoSchema = new mongoose.Schema({
   // For batch videos: day/session number
   sessionNumber: { type: Number }, // Day 1, Day 2, etc.
   sessionTitle: { type: String, trim: true }, // "Introduction", "Breathwork Basics", etc.
-  
+  batchNumber: { type: Number }, // Batch/cohort number (e.g., 5, 10, 15)
+  workshopName: { type: String, trim: true }, // Workshop name (e.g., "7 Days Swar Yoga Hindi")
+
   // Ordering within playlist
   sortOrder: { type: Number, default: 0 },
   

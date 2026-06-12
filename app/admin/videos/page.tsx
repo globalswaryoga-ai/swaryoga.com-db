@@ -454,6 +454,8 @@ export default function AdminVideosPage() {
         thumbnailUrl: videoForm.thumbnailUrl || undefined,
         videoType: videoForm.videoType, duration: videoForm.duration,
         sessionNumber: videoForm.sessionNumber, sessionTitle: videoForm.sessionTitle,
+        workshopName: videoForm.workshopName || undefined,
+        batchNumber: videoForm.batchNumber || undefined,
         tags: videoForm.tags ? videoForm.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       };
       if (editingVideo) {
@@ -2131,16 +2133,30 @@ export default function AdminVideosPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Day / Session #</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Workshop Name</label>
+                  <input value={videoForm.workshopName || ''} onChange={e => setVideoForm(v => ({ ...v, workshopName: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-yellow-500/40 outline-none"
+                    placeholder="e.g. 7 Days Swar Yoga Hindi" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Batch #</label>
+                  <input type="number" min={1} value={videoForm.batchNumber || 1}
+                    onChange={e => setVideoForm(v => ({ ...v, batchNumber: parseInt(e.target.value) || 1 }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-yellow-500/40 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Video Number</label>
                   <input type="number" min={1} value={videoForm.sessionNumber}
                     onChange={e => setVideoForm(v => ({ ...v, sessionNumber: parseInt(e.target.value) || 1 }))}
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-yellow-500/40 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Session Title</label>
-                  <input value={videoForm.sessionTitle} onChange={e => setVideoForm(v => ({ ...v, sessionTitle: e.target.value }))}
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Video Title</label>
+                  <input value={videoForm.sessionTitle || ''} onChange={e => setVideoForm(v => ({ ...v, sessionTitle: e.target.value }))}
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-yellow-500/40 outline-none"
-                    placeholder="Introduction" />
+                    placeholder="e.g. Introduction" />
                 </div>
               </div>
               <div>
