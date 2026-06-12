@@ -72,6 +72,7 @@ function RecordingsContent() {
   const [showAccessPopup, setShowAccessPopup] = useState(false);
   const [editingBatch, setEditingBatch] = useState<string | null>(null);
   const [editingBatchValue, setEditingBatchValue] = useState('');
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     checkAuth();
@@ -394,9 +395,13 @@ function RecordingsContent() {
                             className="aspect-video relative overflow-hidden cursor-pointer bg-slate-900"
                             onClick={() => canPlay ? handlePlayVideo(recording) : setShowAccessPopup(true)}
                           >
-                            {recording.thumbnailUrl ? (
+                            {recording.thumbnailUrl && !failedThumbnails.has(recording._id) ? (
                               <img src={recording.thumbnailUrl} alt={recording.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                onError={() => {
+                                  setFailedThumbnails(prev => new Set([...prev, recording._id]));
+                                }}
+                              />
                             ) : (
                               <div className={`w-full h-full bg-gradient-to-br ${GRADIENT_COLORS[idx % GRADIENT_COLORS.length]} flex items-center justify-center`}>
                                 <Video className="w-12 h-12 text-white/40" />
