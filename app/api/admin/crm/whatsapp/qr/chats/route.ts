@@ -188,20 +188,23 @@ export async function GET(req: NextRequest) {
 
     // ── Merge DB-persisted chats (qr_whatsapp_chats) with bridge chats ──
     // This ensures chats survive bridge restarts / PC off.
-    // Always merge historical chats for the user (don't skip based on connectedPhone).
-    // Even without a known current phone, historical chats should be visible.
     // Persisted chat names/markers by JID — used both to restore previously
     // harvested contact names onto placeholder-named bridge chats and to skip
     // re-harvesting chats we already checked recently.
     const dbChatMeta = new Map<string, { name: string; nameCheckedAt?: Date }>();
+    if (!connectedPhone) {
+      // FAIL CLOSED: isolation is keyed by (userId, connectedPhone). Without a
+      // known current phone we cannot scope this query — querying by userId
+      // alone would return chats from EVERY number ever connected on this
+      // account (including previously-banned/replaced numbers), leaking that
+      // history into whatever number is connected now.
+      console.warn(`[QR Chats API] connectedPhone unknown for user ${viewerUserId} — skipping DB chat history merge to avoid cross-number leak`);
+    } else {
     try {
       const QrChat = getQrWhatsAppChat();
 
-      // Build query: always include user's chats, optionally filtered by connectedPhone if known
-      const query: any = { userId: viewerUserId };
-      if (connectedPhone) {
-        query.connectedPhone = connectedPhone;
-      }
+      // Isolation: scoped to THIS user's THIS connected number only.
+      const query: any = { userId: viewerUserId, connectedPhone };
 
       const dbChatDocs = await QrChat.find(query)
         .sort({ lastMessageTime: -1, conversationTimestamp: -1, createdAt: -1 })
@@ -237,9 +240,10 @@ export async function GET(req: NextRequest) {
           fromDb: true,
         });
       }
-      console.log(`[QR Chats API] Merged ${dbChatDocs.length} historical chats from DB (connectedPhone: ${connectedPhone || 'UNKNOWN'})`);
+      console.log(`[QR Chats API] Merged ${dbChatDocs.length} historical chats from DB (userId: ${viewerUserId}, connectedPhone: ${connectedPhone})`);
     } catch (dbMergeErr: any) {
       console.warn('[QR Chats API] DB chat merge failed (non-fatal):', dbMergeErr.message);
+    }
     }
 
     const Lead = getLead();
@@ -260,9 +264,23 @@ export async function GET(req: NextRequest) {
       const leadFilter: any = {
         phoneNumber: { $exists: true, $nin: ['', ...Array.from(presentPhones)] },
       };
-      if (!superAdmin) {
-        leadFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
+      // Isolation: even super admins only see THEIR OWN leads (+ unowned leads)
+      // here — NOT every lead in the system. Without this, a lead owned by a
+      // different super-admin userId (e.g. "admin" vs "admincrm" — different
+      // QR sessions/numbers) would leak into this account's inbox.
+      const ownLeadScope: any[] = [
+        { assignedToUserId: viewerUserId },
+        { createdByUserId: viewerUserId },
+      ];
+      if (superAdmin) {
+        ownLeadScope.push({
+          $and: [
+            { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
+            { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
+          ],
+        });
       }
+      leadFilter.$or = ownLeadScope;
 
       const extraLeads = await Lead.find(leadFilter)
         .select('phoneNumber displayName name updatedAt')
@@ -273,8 +291,13 @@ export async function GET(req: NextRequest) {
       if (extraLeads.length > 0) {
         const WhatsAppMessage = getWhatsAppMessage();
         const extraPhones = extraLeads.map((l: any) => l.phoneNumber);
+        // Exclude provider:'qr' messages here — those are already covered by the
+        // connectedPhone-scoped qr_whatsapp_chats merge above. Including them
+        // would leak conversation history sent via a PREVIOUSLY-connected QR
+        // number (e.g. an old broadcast) into the CURRENTLY-connected number's
+        // inbox, since WhatsAppMessage doesn't record which QR phone sent it.
         const lastMsgs = await WhatsAppMessage.aggregate([
-          { $match: { phoneNumber: { $in: extraPhones } } },
+          { $match: { phoneNumber: { $in: extraPhones }, provider: { $ne: 'qr' } } },
           { $sort: { sentAt: -1 } },
           { $group: { _id: '$phoneNumber', lastMessage: { $first: '$messageContent' }, lastMessageTime: { $first: '$sentAt' } } },
         ]);
