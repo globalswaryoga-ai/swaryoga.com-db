@@ -27,6 +27,8 @@ import {
   BroadcastTab,
   HistoryTab,
 } from './components';
+import ChatSidebar from './components/ChatSidebar';
+import ChatArea from './components/ChatArea';
 
 function isPlaceholderChatName(name: string | undefined | null): boolean {
   const value = String(name || '').trim();
