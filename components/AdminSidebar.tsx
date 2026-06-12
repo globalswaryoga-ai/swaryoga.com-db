@@ -513,7 +513,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
         {
           icon: Video,
           label: 'Com Recording Setup',
-          href: '/admin/community/zoom-settings',
+          href: '/admin/crm/community/zoom-settings',
           color: 'text-indigo-400',
           module: 'community',
           planModule: 'community',
