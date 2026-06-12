@@ -166,10 +166,11 @@ export async function POST(request: NextRequest) {
         memberCount: 0,
       },
     });
-  } catch (error) {
-    console.error('Error creating community:', error);
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    console.error('[Community Create] Error:', message, error);
     return NextResponse.json(
-      { error: 'Failed to create community' },
+      { error: `Failed to create community: ${message}` },
       { status: 500 }
     );
   }
