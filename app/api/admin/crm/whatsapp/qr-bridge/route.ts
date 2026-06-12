@@ -549,10 +549,15 @@ function decodePathFully(rawPath: string): string {
 function extractChatJidFromPath(path: string): string {
   const parts = path.split('/').filter(Boolean);
   if (parts.length < 2) return '';
+  // parts[1] may carry a trailing query string (e.g. "919...@s.whatsapp.net?limit=100")
+  // because callers like bridgeCall() embed query params directly in the forwarded
+  // path. Strip it so the extracted value is a pure JID — otherwise it gets persisted
+  // verbatim into qr_whatsapp_chats as a bogus "chat".
+  const raw = parts[1] || '';
   try {
-    return decodeURIComponent(parts[1]);
+    return decodeURIComponent(raw).split('?')[0];
   } catch {
-    return parts[1] || '';
+    return raw.split('?')[0];
   }
 }
 

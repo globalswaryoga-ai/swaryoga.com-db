@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getLead, getCRMUserSettings, getQrWhatsAppChat, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getCRMUserSettings, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -248,83 +248,13 @@ export async function GET(req: NextRequest) {
 
     const Lead = getLead();
 
-    // ── Merge CRM leads with legacy WhatsApp history but no qr_whatsapp_chats doc ──
-    // Older leads were messaged before qr_whatsapp_chats existed (or before history
-    // sync was enabled on the bridge), so they have no chat record yet under this
-    // session even though they have real conversation history in WhatsAppMessage.
-    try {
-      const presentPhones = new Set<string>();
-      for (const c of data.chats as any[]) {
-        const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-        if (idStr.endsWith('@g.us')) continue;
-        const phone = idStr.split('@')[0].replace(/\D/g, '');
-        if (phone) presentPhones.add(phone);
-      }
-
-      const leadFilter: any = {
-        phoneNumber: { $exists: true, $nin: ['', ...Array.from(presentPhones)] },
-      };
-      // Isolation: even super admins only see THEIR OWN leads (+ unowned leads)
-      // here — NOT every lead in the system. Without this, a lead owned by a
-      // different super-admin userId (e.g. "admin" vs "admincrm" — different
-      // QR sessions/numbers) would leak into this account's inbox.
-      const ownLeadScope: any[] = [
-        { assignedToUserId: viewerUserId },
-        { createdByUserId: viewerUserId },
-      ];
-      if (superAdmin) {
-        ownLeadScope.push({
-          $and: [
-            { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
-            { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
-          ],
-        });
-      }
-      leadFilter.$or = ownLeadScope;
-
-      const extraLeads = await Lead.find(leadFilter)
-        .select('phoneNumber displayName name updatedAt')
-        .sort({ updatedAt: -1 })
-        .limit(300)
-        .lean();
-
-      if (extraLeads.length > 0) {
-        const WhatsAppMessage = getWhatsAppMessage();
-        const extraPhones = extraLeads.map((l: any) => l.phoneNumber);
-        // Exclude provider:'qr' messages here — those are already covered by the
-        // connectedPhone-scoped qr_whatsapp_chats merge above. Including them
-        // would leak conversation history sent via a PREVIOUSLY-connected QR
-        // number (e.g. an old broadcast) into the CURRENTLY-connected number's
-        // inbox, since WhatsAppMessage doesn't record which QR phone sent it.
-        const lastMsgs = await WhatsAppMessage.aggregate([
-          { $match: { phoneNumber: { $in: extraPhones }, provider: { $ne: 'qr' } } },
-          { $sort: { sentAt: -1 } },
-          { $group: { _id: '$phoneNumber', lastMessage: { $first: '$messageContent' }, lastMessageTime: { $first: '$sentAt' } } },
-        ]);
-        const lastMsgMap = new Map(lastMsgs.map((m: any) => [m._id, m]));
-
-        let addedCount = 0;
-        for (const lead of extraLeads as any[]) {
-          const phone = String(lead.phoneNumber || '').replace(/\D/g, '');
-          if (!phone) continue;
-          const lm: any = lastMsgMap.get(phone);
-          if (!lm) continue; // No conversation history — don't clutter the inbox
-          data.chats.push({
-            id: `${phone}@s.whatsapp.net`,
-            name: lead.displayName || lead.name || phone,
-            lastMessage: lm.lastMessage || '',
-            lastMessageTime: lm.lastMessageTime ? new Date(lm.lastMessageTime).toISOString() : null,
-            unreadCount: 0,
-            isGroup: false,
-            fromLead: true,
-          });
-          addedCount++;
-        }
-        console.log(`[QR Chats API] Merged ${addedCount} additional chats from CRM leads with legacy history`);
-      }
-    } catch (leadMergeErr: any) {
-      console.warn('[QR Chats API] Lead chat merge failed (non-fatal):', leadMergeErr.message);
-    }
+    // NOTE: A previous version of this route also merged in CRM leads whose only
+    // history was a provider:'meta' (Cloud API/Business API) WhatsAppMessage —
+    // i.e. conversations from a DIFFERENT WhatsApp channel/number entirely. That
+    // surfaced ~200+ unrelated chats into this QR personal-number inbox, which is
+    // exactly the kind of cross-number/cross-channel leak isolation requires we
+    // avoid. The QR inbox should only ever show chats tied to qr_whatsapp_chats
+    // for THIS connectedPhone (handled above) plus the live bridge session.
 
     // A "placeholder" chat name carries no information about the contact:
     // empty, bare digits, a JID, or the bridge's owner-name fallback.
