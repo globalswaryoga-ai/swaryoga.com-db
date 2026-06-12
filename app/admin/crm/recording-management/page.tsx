@@ -121,7 +121,7 @@ export default function RecordingManagementPage() {
     } finally {
       setLoadingMembers(false);
     }
-  }, [token, selectedCommunity.id, router]);
+  }, [token, selectedCommunity?.id, router]);
 
   // Clear bulk selection when community changes
   useEffect(() => {
@@ -129,7 +129,7 @@ export default function RecordingManagementPage() {
     setBulkPlaylists([]);
     setBulkPlaylistId('');
     setBulkResult(null);
-  }, [selectedCommunity.id]);
+  }, [selectedCommunity?.id]);
 
   // Fetch playlists for bulk actions (when members are first selected)
   const fetchBulkPlaylists = useCallback(async () => {
@@ -152,7 +152,7 @@ export default function RecordingManagementPage() {
     } finally {
       setLoadingBulkPlaylists(false);
     }
-  }, [token, selectedCommunity.id, members, selectedMemberIds, bulkPlaylists.length]);
+  }, [token, selectedCommunity?.id, members, selectedMemberIds, bulkPlaylists.length]);
 
   // Toggle single member selection
   const toggleMemberSelection = (userId: string) => {
@@ -404,6 +404,14 @@ export default function RecordingManagementPage() {
 
           {/* Working Area - Members List */}
           <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+            {!selectedCommunity ? (
+              <div className="h-full flex items-center justify-center text-sm text-gray-500">
+                {loadingCommunities || allCommunities.length === 0
+                  ? 'Loading communities…'
+                  : 'Select a community from the left to manage recordings.'}
+              </div>
+            ) : (
+            <>
             {/* Community Header */}
             <div className={'border rounded-xl p-5 mb-5 ' + selectedCommunity.bg}>
               <div className="flex items-center gap-4">
@@ -645,6 +653,8 @@ export default function RecordingManagementPage() {
                   Showing {filteredMembers.length} of {members.length} members
                 </div>
               </div>
+            )}
+            </>
             )}
           </main>
         </div>
