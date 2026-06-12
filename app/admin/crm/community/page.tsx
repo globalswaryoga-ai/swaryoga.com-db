@@ -1849,6 +1849,30 @@ export default function AdminCommunityPage() {
 
       {/* Main Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Navigation Tabs */}
+        <div className="bg-white border-b border-slate-200/60 flex gap-1 px-6 pt-3 z-10">
+          <button
+            className="px-6 py-3 font-bold text-sm uppercase tracking-tight border-b-2 transition-all text-indigo-600 border-indigo-600 flex items-center gap-2"
+            title="Community Management"
+          >
+            <Globe size={18} /> Community
+          </button>
+          <button
+            onClick={() => router.push('/admin/crm/community-moderation')}
+            className="px-6 py-3 font-bold text-sm uppercase tracking-tight border-b-2 transition-all text-slate-500 border-transparent hover:text-slate-700 flex items-center gap-2"
+            title="Content Moderation"
+          >
+            <Shield size={18} /> Moderation
+          </button>
+          <button
+            onClick={() => router.push('/admin/crm/community/zoom-setting')}
+            className="px-6 py-3 font-bold text-sm uppercase tracking-tight border-b-2 transition-all text-slate-500 border-transparent hover:text-slate-700 flex items-center gap-2"
+            title="Zoom Recording Setup"
+          >
+            <VideoIcon size={18} /> Zoom Setting
+          </button>
+        </div>
+
         <div className="bg-white border-b border-slate-200/60 p-6 z-10">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-6">
