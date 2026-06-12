@@ -501,29 +501,15 @@ async function syncMongoSessionChats(userId: string, connectedPhone: string, cha
       await QrChat.bulkWrite(ops, { ordered: false });
     }
 
-    // Treat each successful /chats sync as the exact current-session snapshot.
-    // Remove older chat rows for this user+phone that are no longer in the latest list,
-    // otherwise stale/foreign chat IDs can linger forever in Mongo and reappear in the UI.
-    //
-    // Cleanup is done PER CATEGORY (group vs individual): right after a bridge
-    // session reset (e.g. after a phone-number change), the live chatMap may briefly
-    // report groups but no individual chats (or vice versa) before its history sync
-    // catches up. If we pruned individuals just because the snapshot momentarily has
-    // zero of them, we'd wipe legitimate chat history. Only prune a category once the
-    // snapshot actually reports at least one chat of that category.
-    const validGroupIds = chats
-      .filter((chat: any) => chat?.id && chat.isGroup)
-      .map((chat: any) => String(chat.id).trim());
-    const validIndividualIds = chats
-      .filter((chat: any) => chat?.id && !chat.isGroup)
-      .map((chat: any) => String(chat.id).trim());
-
-    if (validGroupIds.length > 0) {
-      await QrChat.deleteMany({ userId, connectedPhone, isGroup: true, chatJid: { $nin: validGroupIds } });
-    }
-    if (validIndividualIds.length > 0) {
-      await QrChat.deleteMany({ userId, connectedPhone, isGroup: { $ne: true }, chatJid: { $nin: validIndividualIds } });
-    }
+    // NOTE: We intentionally do NOT delete qr_whatsapp_chats rows that are
+    // missing from this snapshot. The bridge's live in-memory chatMap is NOT a
+    // reliable complete picture — after a reconnect/session reset it only has
+    // whatever WhatsApp's (often partial) history-sync delivered, which can be
+    // a small fraction of real chat history. Treating that as authoritative and
+    // pruning "missing" rows previously wiped out dozens of legitimate
+    // individual chats (e.g. broadcast recipients) that simply hadn't appeared
+    // in the bridge's chatMap yet. Cross-number isolation is already enforced
+    // by scoping every qr_whatsapp_chats query to (userId, connectedPhone).
   } catch (err) {
     console.error('[QR Bridge Proxy] Failed to sync Mongo session chats:', err);
   }
