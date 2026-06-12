@@ -3,6 +3,7 @@ import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
 import { checkRateLimit, reserveSendSlot } from '@/lib/qrSendRateLimit';
+import { calculateVariableGapsWithBreaks } from '@/lib/whatsappGapCalculator';
 import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage, getQrWhatsAppChat, DeletedLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
@@ -348,6 +349,21 @@ export async function processDueBroadcastRuns(options?: {
       // Best-effort createdBy id label for rate-limit.
       const createdBy = String((run as any).createdByUserId || 'broadcast');
 
+      // Pre-calculate human-like delays for ALL pending messages in this batch
+      // This creates variable gaps (3-5 min avg for 15/hour) + occasional 5-8 min breaks
+      // to mimic real human behavior (like checking phone, getting distracted)
+      const humanLikeGaps = calculateVariableGapsWithBreaks(pending.length, {
+        initialGapMs: 30000,  // 30s warmup
+        initialGapCount: 2,
+        minGapMs: 180000,     // 3 min minimum (180 sec)
+        maxGapMs: 300000,     // 5 min maximum (300 sec)
+        batchSize: 8,
+        batchGapMs: 60000,
+        totalMessagesPerHour: 15, // TARGET: 15 msgs/hour
+        ensureVariation: true,
+      });
+      console.log(`[Broadcast QR] Pre-calculated ${pending.length} human-like delays (avg ~${Math.round(humanLikeGaps.reduce((a,b)=>a+b,0)/humanLikeGaps.length/1000)}s, with 5-8min breaks)`);
+
       // Track phones already processed in this run to prevent duplicate sends at runtime
       const processedPhones = new Set<string>();
       // Pre-load phones already sent in this run (from previous batches)
@@ -360,7 +376,8 @@ export async function processDueBroadcastRuns(options?: {
         if (norm) processedPhones.add(norm);
       }
 
-      for (const item of pending) {
+      for (let msgIndex = 0; msgIndex < pending.length; msgIndex++) {
+        const item = pending[msgIndex];
         const leadId = String((item as any).leadId || '').trim();
         const to = normalizePhone(String((item as any).phoneNumber || ''));
 
@@ -844,24 +861,26 @@ export async function processDueBroadcastRuns(options?: {
           stat.sent++;
           result.sent++;
 
-          // Delay between messages
-          // QR: 15 msgs/hour = 1 msg every 4 minutes (240 seconds on average)
-          // Use 180-300s range (3-5 min) to maintain human-like behavior while respecting the cap
-          const intervalEnabled = (run as any).messageInterval?.enabled !== false;
-          if (runProvider === 'qr' && intervalEnabled) {
-            // QR: 180-300s gap enforces 15 msgs/hour (3-5 min between messages)
-            const minSec = (run as any).messageInterval?.minSeconds ?? 180;
-            const maxSec = (run as any).messageInterval?.maxSeconds ?? 300;
-            const range = maxSec - minSec;
-            const seed = (Math.random() * 0xFFFF ^ (Date.now() & 0xFFFF)) >>> 0;
-            const delaySec = minSec + Math.floor((seed / 0xFFFF) * (range + 1));
-            console.log(`[Broadcast QR] ⏱️ Waiting ${delaySec}s (${minSec}-${maxSec}s range enforces ~15/hour cap)`);
-            await new Promise(resolve => setTimeout(resolve, delaySec * 1000));
+          // ── HUMAN-LIKE DELAY ──────────────────────────────────────────────
+          // Use pre-calculated gap for this message (includes random variation + breaks)
+          if (runProvider === 'qr' && msgIndex < humanLikeGaps.length) {
+            const gapMs = humanLikeGaps[msgIndex];
+            const gapSec = Math.round(gapMs / 1000);
+            const isBreak = gapMs > 300000; // Long "phone-down" break (5+ min)
+            if (isBreak) {
+              console.log(`[Broadcast QR] ⏸️  BREAK: Waiting ${gapSec}s (human phone-down behavior)`);
+            } else {
+              console.log(`[Broadcast QR] ⏱️  Waiting ${gapSec}s (human-like pacing)`);
+            }
+            await new Promise(resolve => setTimeout(resolve, gapMs));
           } else if (runProvider === 'meta') {
-            // Meta: 3s between messages = ~20 messages/min
+            // Meta: 3s between messages (conservative)
             await new Promise(resolve => setTimeout(resolve, 3000));
-          } else if (!intervalEnabled) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else if (runProvider === 'qr') {
+            // Fallback if gap array is shorter than pending (shouldn't happen)
+            const fallbackGap = 240000; // 4 min fallback
+            console.log(`[Broadcast QR] ⏱️  Waiting 240s (fallback)`);
+            await new Promise(resolve => setTimeout(resolve, fallbackGap));
           }
           
         } catch (err) {
