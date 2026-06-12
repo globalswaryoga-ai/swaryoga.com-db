@@ -116,9 +116,10 @@ async function applyQrStatusUpdate(payload: any, bridgeUserId?: string) {
   if (numeric == null || numeric < 2) return { skipped: true, reason: 'unmapped_status' };
 
   await connectDB();
-  const { getQrWhatsAppMessage, getWhatsAppMessage } = await import('@/lib/schemas/enterpriseSchemas');
+  const { getQrWhatsAppMessage, getWhatsAppMessage, getBroadcastRunMessage } = await import('@/lib/schemas/enterpriseSchemas');
   const QrWhatsAppMessage = getQrWhatsAppMessage();
   const WhatsAppMessage = getWhatsAppMessage();
+  const BroadcastRunMessage = getBroadcastRunMessage();
 
   // qr_whatsapp_messages: numeric status, never downgrade.
   const qrFilter: any = { messageId, status: { $lt: numeric } };
@@ -131,6 +132,19 @@ async function applyQrStatusUpdate(payload: any, bridgeUserId?: string) {
   if (numeric >= 4) waSet.readAt = new Date();
   else if (numeric === 3) waSet.deliveredAt = new Date();
   await WhatsAppMessage.updateOne({ waMessageId: messageId }, { $set: waSet });
+
+  // Mirror to BroadcastRunMessage so QR broadcast reports reflect delivery/read
+  // ticks (previously only WhatsAppMessage was updated, so reports stayed on
+  // "sent" forever). Never downgrade an already-higher status.
+  const statusRank: Record<string, number> = { pending: 0, sending: 0, sent: 1, delivered: 2, read: 3 };
+  const broadcastSet: any = { status: strStatus, updatedAt: new Date() };
+  if (numeric === 3) broadcastSet.deliveredAt = new Date();
+  if (numeric >= 4) { broadcastSet.deliveredAt = new Date(); broadcastSet.readAt = new Date(); }
+  const lowerStatuses = Object.keys(statusRank).filter((s) => statusRank[s] < statusRank[strStatus]);
+  await BroadcastRunMessage.updateOne(
+    { waMessageId: messageId, status: { $in: lowerStatuses } },
+    { $set: broadcastSet }
+  );
 
   return { updated: qrRes.modifiedCount || 0, status: numeric };
 }

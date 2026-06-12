@@ -574,12 +574,88 @@ export async function processDueBroadcastRuns(options?: {
         stat.attempted++;
         result.attempted++;
 
+        // Persist "sent" + reserve rate slots + schedule the next QR send.
+        // Shared by the normal success path (inside the try block below) and the
+        // post-timeout verification path (in the catch block) — QR bridge can
+        // actually deliver despite our HTTP request timing out.
+        const markMessageSent = async (apiResult: any) => {
+          await WhatsAppMessage.updateOne(
+            { _id: msg._id },
+            {
+              $set: {
+                status: 'sent',
+                waMessageId: apiResult.waMessageId,
+                provider: apiResult?.raw?.provider || 'sent',
+                updatedAt: new Date(),
+              },
+              $unset: { failureReason: 1, nextRetryAt: 1 },
+            }
+          );
+
+          if (!apiResult.waMessageId) {
+            console.warn('[Broadcast] WARNING: Message marked as sent but waMessageId is undefined. API Result:', JSON.stringify(apiResult));
+          }
+
+          await BroadcastRunMessage.updateOne(
+            { _id: (item as any)._id },
+            {
+              $set: {
+                status: 'sent',
+                waMessageId: apiResult.waMessageId,
+                provider: apiResult?.raw?.provider || 'sent',
+                whatsappMessageId: msg._id,
+                sentAt: now,
+                updatedAt: new Date(),
+              },
+              $unset: { failureReason: 1 },
+            }
+          );
+
+          // Rate limit increment: reserve the slot now that we're actually sending
+          if (runProvider === 'qr') {
+            // QR: atomically reserve send slot (15/hour, 150/day with 5 AM IST reset)
+            const slotReserved = await reserveSendSlot(createdBy);
+            if (!slotReserved.allowed) {
+              // Should not happen since we just checked, but safety guard
+              console.warn(`[Broadcast QR] Rate limit reservation failed unexpectedly:`, slotReserved.reason);
+              throw new Error(`Rate limit reservation failed: ${slotReserved.reason}`);
+            }
+            console.log(`[Broadcast QR] Rate slot reserved (day: ${slotReserved.daySent}/${150}, hour: ${slotReserved.hourSent}/${15})`);
+          } else {
+            // Meta: use standard rate limit manager
+            const rateLimitConfig = { hourly: 1000, daily: 10000, perPhone: 5, warningThreshold: 0.8 };
+            await RateLimitManager.incrementCount(createdBy, to, rateLimitConfig);
+          }
+
+          // Increment daily bulk quota
+          await BulkMessageManager.incrementDailyUsage(1);
+
+          stat.sent++;
+          result.sent++;
+
+          // ── PERSIST NEXT-SEND PACING (QR only) ─────────────────────────────
+          // Never sleep in-process — the cron is invoked once per minute and
+          // a long in-process sleep here previously let a single tick send
+          // multiple messages (warm-up gaps were only ~30s). Instead, record
+          // the earliest time the NEXT tick is allowed to send again; the
+          // pacing gate at the top of this run skips ticks until then.
+          if (runProvider === 'qr') {
+            const gapSec = Math.round(qrGapMs / 1000);
+            const isBreak = qrGapMs > 300000; // Long "phone-down" break (5+ min)
+            console.log(`[Broadcast QR] ${isBreak ? '⏸️  BREAK' : '⏱️ '} Next send in ${gapSec}s (human-like pacing)`);
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { nextQrSendAt: new Date(now.getTime() + qrGapMs), updatedAt: new Date() } }
+            );
+          } else if (runProvider === 'meta') {
+            // Meta: 3s between messages (conservative)
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
+        };
+
         try {
-          // Use the provider specified in the broadcast run ('meta' or 'qr')
-          const runProvider = String((run as any).provider || 'meta');
-          
           let apiResult: any;
-          
+
           if (runProvider === 'qr') {
             // Send via QR Bridge — resolve per-user session headers
             const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
@@ -696,7 +772,7 @@ export async function processDueBroadcastRuns(options?: {
                   fileName,
                 }),
                 cache: 'no-store',
-              }, 30000);
+              }, 60000);
 
               // If media send failed, fall back to sending text only
               if (!bridgeResponse.ok) {
@@ -707,7 +783,7 @@ export async function processDueBroadcastRuns(options?: {
                   headers: sessionHeaders,
                   body: JSON.stringify({ to, type: 'text', message: fallbackMsg }),
                   cache: 'no-store',
-                }, 20000);
+                }, 30000);
               }
             } else {
               // Text only (with optional native buttons)
@@ -730,7 +806,7 @@ export async function processDueBroadcastRuns(options?: {
                 headers: sessionHeaders,
                 body: JSON.stringify(bridgePayload),
                 cache: 'no-store',
-              }, 20000);
+              }, 30000);
               // Buttons fallback to text
               if (!bridgeResponse.ok && bridgePayload.type === 'buttons') {
                 console.log('[Broadcast QR] Native buttons failed, falling back to text');
@@ -739,7 +815,7 @@ export async function processDueBroadcastRuns(options?: {
                   headers: sessionHeaders,
                   body: JSON.stringify({ to, type: 'text', message: fullMessage }),
                   cache: 'no-store',
-                }, 20000);
+                }, 30000);
               }
             }
             
@@ -847,80 +923,51 @@ export async function processDueBroadcastRuns(options?: {
             }
           }
 
-          await WhatsAppMessage.updateOne(
-            { _id: msg._id },
-            {
-              $set: {
-                status: 'sent',
-                waMessageId: apiResult.waMessageId,
-                provider: apiResult?.raw?.provider || 'sent',
-                updatedAt: new Date(),
-              },
-              $unset: { failureReason: 1, nextRetryAt: 1 },
-            }
-          );
-
-          if (!apiResult.waMessageId) {
-            console.warn('[Broadcast] WARNING: Message marked as sent but waMessageId is undefined. API Result:', JSON.stringify(apiResult));
-          }
-
-          await BroadcastRunMessage.updateOne(
-            { _id: (item as any)._id },
-            {
-              $set: {
-                status: 'sent',
-                waMessageId: apiResult.waMessageId,
-                provider: apiResult?.raw?.provider || 'sent',
-                whatsappMessageId: msg._id,
-                sentAt: now,
-                updatedAt: new Date(),
-              },
-              $unset: { failureReason: 1 },
-            }
-          );
-
-          // Rate limit increment: reserve the slot now that we're actually sending
-          if (runProvider === 'qr') {
-            // QR: atomically reserve send slot (15/hour, 150/day with 5 AM IST reset)
-            const slotReserved = await reserveSendSlot(createdBy);
-            if (!slotReserved.allowed) {
-              // Should not happen since we just checked, but safety guard
-              console.warn(`[Broadcast QR] Rate limit reservation failed unexpectedly:`, slotReserved.reason);
-              throw new Error(`Rate limit reservation failed: ${slotReserved.reason}`);
-            }
-            console.log(`[Broadcast QR] Rate slot reserved (day: ${slotReserved.daySent}/${150}, hour: ${slotReserved.hourSent}/${15})`);
-          } else {
-            // Meta: use standard rate limit manager
-            const rateLimitConfig = { hourly: 1000, daily: 10000, perPhone: 5, warningThreshold: 0.8 };
-            await RateLimitManager.incrementCount(createdBy, to, rateLimitConfig);
-          }
-
-          // Increment daily bulk quota
-          await BulkMessageManager.incrementDailyUsage(1);
-
-          stat.sent++;
-          result.sent++;
-
-          // ── PERSIST NEXT-SEND PACING (QR only) ─────────────────────────────
-          // Never sleep in-process — the cron is invoked once per minute and
-          // a long in-process sleep here previously let a single tick send
-          // multiple messages (warm-up gaps were only ~30s). Instead, record
-          // the earliest time the NEXT tick is allowed to send again; the
-          // pacing gate at the top of this run skips ticks until then.
-          if (runProvider === 'qr') {
-            const gapSec = Math.round(qrGapMs / 1000);
-            const isBreak = qrGapMs > 300000; // Long "phone-down" break (5+ min)
-            console.log(`[Broadcast QR] ${isBreak ? '⏸️  BREAK' : '⏱️ '} Next send in ${gapSec}s (human-like pacing)`);
-            await BroadcastRun.updateOne(
-              { _id: (run as any)._id },
-              { $set: { nextQrSendAt: new Date(now.getTime() + qrGapMs), updatedAt: new Date() } }
-            );
-          } else if (runProvider === 'meta') {
-            // Meta: 3s between messages (conservative)
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          }
+          await markMessageSent(apiResult);
 
         } catch (err) {
+          // ── QR POST-FAILURE VERIFICATION ────────────────────────────────────
+          // The bridge can take longer than our HTTP timeout to download+send
+          // media (Bunny CDN fetch + Baileys upload), so our request can abort
+          // even though Baileys completed the send. Check session.messageMap
+          // via the bridge before marking this permanently failed — this is
+          // the fix for "all failed but message actually delivered".
+          if (runProvider === 'qr') {
+            try {
+              const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
+              const runUserId = String((run as any).createdByUserId || '');
+              const userSettings = runUserId
+                ? await CRMUserSettings.findOne({ userId: runUserId }, { permanentTenantId: 1, qrBridgeUrl: 1 }).lean()
+                : null;
+              const sessionKey = (userSettings as any)?.permanentTenantId || runUserId;
+              const resolvedBridgeUrl = (userSettings as any)?.qrBridgeUrl?.trim() || bridgeUrl;
+              const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+              const verifyRes = await fetchWithTimeout(`${resolvedBridgeUrl}/messages/${encodeURIComponent(jid)}?limit=5`, {
+                method: 'GET',
+                headers: {
+                  'x-bridge-secret': bridgeSecret,
+                  'x-user-id': runUserId,
+                  'x-session-key': sessionKey,
+                  'x-tenant-id': sessionKey,
+                },
+                cache: 'no-store',
+              }, 10000);
+              if (verifyRes.ok) {
+                const verifyData = await verifyRes.json().catch(() => ({}));
+                const recentSentMsg = (verifyData?.messages || []).find((m: any) =>
+                  m?.fromMe && typeof m?.timestamp === 'number' && m.timestamp * 1000 >= now.getTime() - 120000
+                );
+                if (recentSentMsg?.id) {
+                  console.log(`[Broadcast QR] Send appeared to fail (${err instanceof Error ? err.message : err}) but bridge confirms it was delivered to ${to} (id=${recentSentMsg.id}) — marking sent`);
+                  await markMessageSent({ waMessageId: recentSentMsg.id, raw: { provider: 'qr', verifiedAfterTimeout: true } });
+                  continue;
+                }
+              }
+            } catch (verifyErr) {
+              console.warn('[Broadcast QR] Post-failure verification check failed:', verifyErr instanceof Error ? verifyErr.message : verifyErr);
+            }
+          }
+
           const errorMsg = err instanceof Error ? err.message : 'WhatsApp send failed';
           
           // Categorize error type for better reporting
@@ -1037,6 +1084,19 @@ export async function processDueBroadcastRuns(options?: {
             console.error(`[Broadcast QR] 🚫 Restriction detected — run ${(run as any)._id} paused 24h until ${pauseUntil.toISOString()}`);
             qrHardStopped = true;
             break;
+          }
+
+          // ── PERSIST NEXT-SEND PACING ON FAILURE TOO (QR only) ──────────────
+          // Previously nextQrSendAt was only persisted on success or the
+          // 'blocked' hard-stop, so a single transient failure (timeout, etc.)
+          // let the next 1-minute cron tick retry immediately — collapsing the
+          // 15/hr pacing into roughly one send per minute. Apply the same gap
+          // here so pacing holds regardless of outcome.
+          if (runProvider === 'qr') {
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { nextQrSendAt: new Date(now.getTime() + qrGapMs), updatedAt: new Date() } }
+            );
           }
 
           // Continue to next message (don't stop on error)
