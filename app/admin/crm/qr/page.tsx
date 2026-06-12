@@ -1167,15 +1167,16 @@ export default function QRWhatsAppPage() {
         });
         setChats(sorted);
         setError(null);
-        // Preload avatars for the first individual chats (the visible sidebar).
+        // Preload avatars for ALL individual chats (not just first 30).
         // Groups are skipped inside fetchProfilePic (group icon + access-gated
-        // proxy, the original slowdown), and profilePicLoadedRef guarantees each
-        // JID is fetched at most once per session — polls don't refetch.
-        // Staggered so the burst never competes with the chat/message requests.
-        sorted
-          .filter((c: ChatItem) => !c.isGroup && !profilePicLoadedRef.current.has(c.id))
-          .slice(0, 30)
-          .forEach((c: ChatItem, i: number) => setTimeout(() => fetchProfilePic(c.id), i * 150));
+        // proxy), and profilePicLoadedRef guarantees each JID is fetched at most
+        // once per session — polls don't refetch.
+        // Staggered with 100ms gaps to avoid overwhelming the bridge.
+        const individualChats = sorted.filter((c: ChatItem) => !c.isGroup && !profilePicLoadedRef.current.has(c.id));
+        console.log(`[QR Avatar] Loading ${individualChats.length} profile pictures...`);
+        individualChats.forEach((c: ChatItem, i: number) =>
+          setTimeout(() => fetchProfilePic(c.id), i * 100)
+        );
       }
     } catch (e: any) {
       console.error('Failed to fetch chats:', e);
@@ -1374,6 +1375,10 @@ export default function QRWhatsAppPage() {
   const msgPollRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (selectedChat && status?.connected && isPageVisible) {
+      // Immediately fetch profile picture for selected chat (if not already loaded)
+      if (!selectedChat.endsWith('@g.us')) {
+        fetchProfilePic(selectedChat);
+      }
       // Immediately fetch messages on selection, then poll every 3s for near-real-time updates
       fetchMessages(selectedChat, { forceScroll: true });
       msgPollRef.current = setInterval(() => fetchMessages(selectedChat), 3000);
@@ -1381,7 +1386,7 @@ export default function QRWhatsAppPage() {
       if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; }
     }
     return () => { if (msgPollRef.current) { clearInterval(msgPollRef.current); msgPollRef.current = null; } };
-  }, [selectedChat, status?.connected, fetchMessages, isPageVisible]);
+  }, [selectedChat, status?.connected, fetchMessages, fetchProfilePic, isPageVisible]);
 
   // ── Poll presence for active non-group chat ──
   const presencePollRef = useRef<NodeJS.Timeout | null>(null);
