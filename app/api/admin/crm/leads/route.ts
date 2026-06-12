@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
     const workshop = url.searchParams.get('workshop');
+    const label = url.searchParams.get('label');
     const q = url.searchParams.get('q');
     const userIdParam = url.searchParams.get('userId');
     const metaOnly24h = url.searchParams.get('metaOnly24h') === '1';  // Filter for Meta messages in 24h
@@ -131,6 +132,7 @@ export async function GET(request: NextRequest) {
     const excludeSource = url.searchParams.get('excludeSource');
     if (status) filter.status = status;
     if (workshop) filter.workshopName = workshop;
+    if (label) filter.labels = label;
     if (source) filter.source = source;
     if (excludeSource) {
       const excluded = excludeSource.split(',').map(s => s.trim()).filter(Boolean);

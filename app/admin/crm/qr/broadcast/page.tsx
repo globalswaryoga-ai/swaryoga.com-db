@@ -66,6 +66,9 @@ export default function QRBroadcastWizard() {
   const [leadSearch, setLeadSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterLabel, setFilterLabel] = useState('');
+  const [filterWorkshop, setFilterWorkshop] = useState('');
+  const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
+  const [labelOptions, setLabelOptions] = useState<string[]>([]);
 
   // Step 3 — schedule
   const [runName, setRunName] = useState('');
@@ -102,9 +105,13 @@ export default function QRBroadcastWizard() {
     setLeadsLoading(true);
     // scope=own: QR broadcast is tenant-isolated — only the viewer's own leads,
     // even for the super admin.
-    const params = new URLSearchParams({ limit: '500', scope: 'own' });
+    // selectAll=true + limit=5000: the leads API caps at 200 by default, which
+    // hid most of a tenant's leads from the recipient picker. selectAll raises
+    // that cap to 5000.
+    const params = new URLSearchParams({ limit: '5000', selectAll: 'true', scope: 'own' });
     if (filterStatus) params.set('status', filterStatus);
     if (filterLabel) params.set('label', filterLabel);
+    if (filterWorkshop) params.set('workshop', filterWorkshop);
     if (leadSearch) params.set('search', leadSearch);
     // Unified lead pool: QR broadcast can target ALL of the tenant's leads (not
     // only source=qr_whatsapp). Still tenant-scoped server-side.
@@ -118,11 +125,23 @@ export default function QRBroadcastWizard() {
     // whole QR list by default (the admin can still deselect individuals).
     setSelectedLeadIds(new Set(items.map(l => l._id)));
     setLeadsLoading(false);
-  }, [token, filterStatus, filterLabel, leadSearch]);
+  }, [token, filterStatus, filterLabel, filterWorkshop, leadSearch]);
+
+  // Load workshop/label filter options (own-tenant scoped, like loadLeads)
+  useEffect(() => {
+    if (!token || step !== 1) return;
+    crmFetch('/api/admin/crm/leads/metadata?scope=own')
+      .then((res: any) => {
+        const data = res?.data ?? res;
+        setWorkshopOptions(Array.isArray(data?.workshops) ? data.workshops : []);
+        setLabelOptions(Array.isArray(data?.labels) ? data.labels : []);
+      })
+      .catch(() => { setWorkshopOptions([]); setLabelOptions([]); });
+  }, [token, step]);
 
   useEffect(() => {
     if (step === 1) loadLeads();
-  }, [step, filterStatus, filterLabel]);
+  }, [step, filterStatus, filterLabel, filterWorkshop]);
 
   // ── Filtered lists ─────────────────────────────────────────────────────────
   const filteredTemplates = templates.filter(t =>
@@ -359,6 +378,26 @@ export default function QRBroadcastWizard() {
                 <option value="prospect">Prospect</option>
                 <option value="customer">Customer</option>
                 <option value="lead">Lead</option>
+              </select>
+              <select
+                value={filterWorkshop}
+                onChange={e => setFilterWorkshop(e.target.value)}
+                className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none"
+              >
+                <option value="">All Workshops</option>
+                {workshopOptions.map(w => (
+                  <option key={w} value={w}>{w}</option>
+                ))}
+              </select>
+              <select
+                value={filterLabel}
+                onChange={e => setFilterLabel(e.target.value)}
+                className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none"
+              >
+                <option value="">All Groups</option>
+                {labelOptions.map(l => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
               </select>
               <button onClick={loadLeads}
                 className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">
