@@ -130,9 +130,19 @@ export async function GET(request: NextRequest) {
     }
 
     const excludeSource = url.searchParams.get('excludeSource');
-    if (status) filter.status = status;
-    if (workshop) filter.workshopName = workshop;
-    if (label) filter.labels = label;
+    // status/workshop/label accept comma-separated values for multi-select filters.
+    if (status) {
+      const values = status.split(',').map(s => s.trim()).filter(Boolean);
+      if (values.length) filter.status = values.length > 1 ? { $in: values } : values[0];
+    }
+    if (workshop) {
+      const values = workshop.split(',').map(s => s.trim()).filter(Boolean);
+      if (values.length) filter.workshopName = values.length > 1 ? { $in: values } : values[0];
+    }
+    if (label) {
+      const values = label.split(',').map(s => s.trim()).filter(Boolean);
+      if (values.length) filter.labels = values.length > 1 ? { $in: values } : values[0];
+    }
     if (source) filter.source = source;
     if (excludeSource) {
       const excluded = excludeSource.split(',').map(s => s.trim()).filter(Boolean);

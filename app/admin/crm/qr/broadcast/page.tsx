@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import {
-  Send, ChevronRight, ChevronLeft, MessageSquare, Users, Calendar,
+  Send, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Users, Calendar,
   Check, Search, X, Loader2, AlertCircle, FileText, Image, Video, File,
 } from 'lucide-react';
 
@@ -34,12 +34,92 @@ interface Lead {
 
 const STEPS = ['Template', 'Recipients', 'Schedule'];
 
+const STATUS_OPTIONS = [
+  { value: 'new_lead', label: 'New Lead' },
+  { value: 'contacted', label: 'Contacted' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'enrolled', label: 'Enrolled' },
+  { value: 'hot', label: 'Hot' },
+  { value: 'prospect', label: 'Prospect' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'lead', label: 'Lead' },
+];
+
 // ── Header icon ───────────────────────────────────────────────────────────────
 function HeaderIcon({ type }: { type?: string }) {
   if (type === 'IMAGE') return <Image className="w-4 h-4 text-blue-500" />;
   if (type === 'VIDEO') return <Video className="w-4 h-4 text-purple-500" />;
   if (type === 'DOCUMENT') return <File className="w-4 h-4 text-orange-500" />;
   return null;
+}
+
+// ── Multi-select checkbox dropdown ───────────────────────────────────────────
+function MultiSelectDropdown({
+  allLabel, options, selected, onChange,
+}: {
+  allLabel: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  function toggle(value: string) {
+    onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value]);
+  }
+
+  const displayText = selected.length === 0
+    ? allLabel
+    : selected.length === 1
+      ? (options.find(o => o.value === selected[0])?.label || selected[0])
+      : `${selected.length} selected`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white min-w-40 flex items-center justify-between gap-2"
+      >
+        <span className="truncate">{displayText}</span>
+        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto bg-white border rounded-lg shadow-lg py-1">
+          <label className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer font-medium border-b">
+            <input
+              type="checkbox"
+              checked={selected.length === 0}
+              onChange={() => onChange([])}
+              className="rounded border-gray-300"
+            />
+            {allLabel}
+          </label>
+          {options.map(o => (
+            <label key={o.value} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.includes(o.value)}
+                onChange={() => toggle(o.value)}
+                className="rounded border-gray-300"
+              />
+              <span className="truncate">{o.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -64,9 +144,9 @@ export default function QRBroadcastWizard() {
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [leadSearch, setLeadSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterLabel, setFilterLabel] = useState('');
-  const [filterWorkshop, setFilterWorkshop] = useState('');
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterLabels, setFilterLabels] = useState<string[]>([]);
+  const [filterWorkshops, setFilterWorkshops] = useState<string[]>([]);
   const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
   const [labelOptions, setLabelOptions] = useState<string[]>([]);
 
@@ -109,9 +189,9 @@ export default function QRBroadcastWizard() {
     // hid most of a tenant's leads from the recipient picker. selectAll raises
     // that cap to 5000.
     const params = new URLSearchParams({ limit: '5000', selectAll: 'true', scope: 'own' });
-    if (filterStatus) params.set('status', filterStatus);
-    if (filterLabel) params.set('label', filterLabel);
-    if (filterWorkshop) params.set('workshop', filterWorkshop);
+    if (filterStatuses.length) params.set('status', filterStatuses.join(','));
+    if (filterLabels.length) params.set('label', filterLabels.join(','));
+    if (filterWorkshops.length) params.set('workshop', filterWorkshops.join(','));
     if (leadSearch) params.set('search', leadSearch);
     // Unified lead pool: QR broadcast can target ALL of the tenant's leads (not
     // only source=qr_whatsapp). Still tenant-scoped server-side.
@@ -125,7 +205,7 @@ export default function QRBroadcastWizard() {
     // whole QR list by default (the admin can still deselect individuals).
     setSelectedLeadIds(new Set(items.map(l => l._id)));
     setLeadsLoading(false);
-  }, [token, filterStatus, filterLabel, filterWorkshop, leadSearch]);
+  }, [token, filterStatuses, filterLabels, filterWorkshops, leadSearch]);
 
   // Load workshop/label filter options (own-tenant scoped, like loadLeads)
   useEffect(() => {
@@ -141,7 +221,7 @@ export default function QRBroadcastWizard() {
 
   useEffect(() => {
     if (step === 1) loadLeads();
-  }, [step, filterStatus, filterLabel, filterWorkshop]);
+  }, [step, filterStatuses, filterLabels, filterWorkshops]);
 
   // ── Filtered lists ─────────────────────────────────────────────────────────
   const filteredTemplates = templates.filter(t =>
@@ -364,41 +444,24 @@ export default function QRBroadcastWizard() {
                   className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
                 />
               </div>
-              <select
-                value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none"
-              >
-                <option value="">All Statuses</option>
-                <option value="new_lead">New Lead</option>
-                <option value="contacted">Contacted</option>
-                <option value="interested">Interested</option>
-                <option value="enrolled">Enrolled</option>
-                <option value="hot">Hot</option>
-                <option value="prospect">Prospect</option>
-                <option value="customer">Customer</option>
-                <option value="lead">Lead</option>
-              </select>
-              <select
-                value={filterWorkshop}
-                onChange={e => setFilterWorkshop(e.target.value)}
-                className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none"
-              >
-                <option value="">All Workshops</option>
-                {workshopOptions.map(w => (
-                  <option key={w} value={w}>{w}</option>
-                ))}
-              </select>
-              <select
-                value={filterLabel}
-                onChange={e => setFilterLabel(e.target.value)}
-                className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none"
-              >
-                <option value="">All Groups</option>
-                {labelOptions.map(l => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
+              <MultiSelectDropdown
+                allLabel="All Statuses"
+                options={STATUS_OPTIONS}
+                selected={filterStatuses}
+                onChange={setFilterStatuses}
+              />
+              <MultiSelectDropdown
+                allLabel="All Workshops"
+                options={workshopOptions.map(w => ({ value: w, label: w }))}
+                selected={filterWorkshops}
+                onChange={setFilterWorkshops}
+              />
+              <MultiSelectDropdown
+                allLabel="All Groups"
+                options={labelOptions.map(l => ({ value: l, label: l }))}
+                selected={filterLabels}
+                onChange={setFilterLabels}
+              />
               <button onClick={loadLeads}
                 className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">
                 Refresh
