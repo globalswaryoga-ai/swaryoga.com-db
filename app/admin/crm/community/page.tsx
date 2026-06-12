@@ -1983,7 +1983,7 @@ export default function AdminCommunityPage() {
               </div>
             </div>
             <div className="flex gap-4">
-              <button onClick={() => router.push('/admin/crm/community/zoom-settings')} className="h-14 px-8 bg-white hover:bg-slate-50 text-slate-900 rounded-xl font-bold transition-all flex items-center gap-3 shadow-lg text-sm border border-slate-200" title="Map Zoom meeting IDs → communities (+ batch thumbnails)"><VideoIcon size={18} className="text-indigo-600" /> Recording Setup</button>
+              <button onClick={() => router.push('/admin/crm/community/zoom-setting')} className="h-14 px-8 bg-white hover:bg-slate-50 text-slate-900 rounded-xl font-bold transition-all flex items-center gap-3 shadow-lg text-sm border border-slate-200" title="Map Zoom meeting IDs → communities (+ batch thumbnails)"><VideoIcon size={18} className="text-indigo-600" /> Recording Setup</button>
               <button onClick={() => setShowPostModal(true)} className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all flex items-center gap-3 shadow-xl shadow-indigo-600/20 text-sm tracking-tight border border-indigo-500/50"><Send size={18} /> Run Campaign</button>
               <button onClick={() => setShowAddMemberModal(true)} className="h-14 px-8 bg-white hover:bg-slate-50 text-slate-900 rounded-xl font-bold transition-all flex items-center gap-3 shadow-lg text-sm border border-slate-200"><Plus size={18} className="text-indigo-600" /> New Member</button>
             </div>
