@@ -1340,6 +1340,11 @@ const BroadcastRunSchema = new mongoose.Schema(
     completedAt: Date,
     lastError: String,
     metadata: mongoose.Schema.Types.Mixed,
+
+    // QR pacing: cron skips this run entirely until now >= nextQrSendAt.
+    // Persisted (not in-process sleep) so pacing survives across separate
+    // 1-minute cron invocations and serverless function restarts.
+    nextQrSendAt: Date,
   },
   { timestamps: true, collection: 'broadcast_runs' }
 );

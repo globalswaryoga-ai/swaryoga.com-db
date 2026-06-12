@@ -266,6 +266,19 @@ export async function processDueBroadcastRuns(options?: {
           result.runResults.push(stat);
           continue;
         }
+
+        // ── QR PACING GATE ──────────────────────────────────────────────
+        // Cron fires every minute, but QR must average ~15 msgs/hour (one
+        // every ~3-5 min). Pacing is PERSISTED on the run (nextQrSendAt) so
+        // it survives across separate 1-minute cron invocations. Never
+        // sleep in-process here — that previously let each tick send its
+        // own "warm-up" pair of messages ~30s apart (~2/min = ~120/hr),
+        // which got the number banned.
+        const nextQrSendAt = (run as any).nextQrSendAt ? new Date((run as any).nextQrSendAt) : null;
+        if (nextQrSendAt && now.getTime() < nextQrSendAt.getTime()) {
+          result.runResults.push(stat);
+          continue;
+        }
       }
 
       // Auto-retry transient failures: reset rate-limited / timeout messages back to pending
@@ -318,10 +331,13 @@ export async function processDueBroadcastRuns(options?: {
         continue;
       }
 
-      // Fetch pending messages
+      // Fetch pending messages. QR is capped at ONE message per cron tick —
+      // pacing between sends is enforced via the persisted nextQrSendAt gate
+      // above, not by batching multiple messages into a single tick.
+      const fetchLimit = runProvider === 'qr' ? 1 : perRunMessageLimit;
       const pending = await BroadcastRunMessage.find({ runId: (run as any)._id, status: 'pending' })
         .sort({ createdAt: 1 })
-        .limit(perRunMessageLimit)
+        .limit(fetchLimit)
         .lean();
 
       if (pending.length === 0) {
@@ -349,20 +365,31 @@ export async function processDueBroadcastRuns(options?: {
       // Best-effort createdBy id label for rate-limit.
       const createdBy = String((run as any).createdByUserId || 'broadcast');
 
-      // Pre-calculate human-like delays for ALL pending messages in this batch
-      // This creates variable gaps (3-5 min avg for 15/hour) + occasional 5-8 min breaks
-      // to mimic real human behavior (like checking phone, getting distracted)
-      const humanLikeGaps = calculateVariableGapsWithBreaks(pending.length, {
-        initialGapMs: 30000,  // 30s warmup
-        initialGapCount: 2,
-        minGapMs: 180000,     // 3 min minimum (180 sec)
-        maxGapMs: 300000,     // 5 min maximum (300 sec)
-        batchSize: 8,
-        batchGapMs: 60000,
-        totalMessagesPerHour: 15, // TARGET: 15 msgs/hour
-        ensureVariation: true,
-      });
-      console.log(`[Broadcast QR] Pre-calculated ${pending.length} human-like delays (avg ~${Math.round(humanLikeGaps.reduce((a,b)=>a+b,0)/humanLikeGaps.length/1000)}s, with 5-8min breaks)`);
+      // For QR, compute the gap until the NEXT send based on how many messages
+      // have already been sent in this run so far (sentSoFarCount) — NOT
+      // pending.length. This way the "warm-up" gaps (first 2 messages get a
+      // short 30s gap) only apply once at the very start of the run, not on
+      // every 1-minute cron tick. The gap is persisted as nextQrSendAt below
+      // (no in-process sleeping).
+      let qrGapMs = 240000; // fallback ~4 min
+      if (runProvider === 'qr') {
+        const sentSoFarCount = await BroadcastRunMessage.countDocuments({
+          runId: (run as any)._id,
+          status: { $in: ['sent', 'delivered', 'read'] },
+        });
+        const gaps = calculateVariableGapsWithBreaks(sentSoFarCount + 1, {
+          initialGapMs: 30000,  // 30s warmup (only applies to msg #1-2 of the whole run)
+          initialGapCount: 2,
+          minGapMs: 180000,     // 3 min minimum
+          maxGapMs: 300000,     // 5 min maximum
+          batchSize: 8,
+          batchGapMs: 60000,
+          totalMessagesPerHour: 15, // TARGET: 15 msgs/hour
+          ensureVariation: true,
+        });
+        qrGapMs = gaps[gaps.length - 1];
+        console.log(`[Broadcast QR] sentSoFar=${sentSoFarCount}, next gap=${Math.round(qrGapMs / 1000)}s`);
+      }
 
       // Track phones already processed in this run to prevent duplicate sends at runtime
       const processedPhones = new Set<string>();
@@ -375,6 +402,11 @@ export async function processDueBroadcastRuns(options?: {
         const norm = normalizePhone(String((m as any).phoneNumber || ''));
         if (norm) processedPhones.add(norm);
       }
+
+      // Set when a QR send hits a restriction/block — the run has already
+      // been paused 24h directly, so the stats-refresh block below must not
+      // overwrite that with its own (much shorter) retry scheduling.
+      let qrHardStopped = false;
 
       for (let msgIndex = 0; msgIndex < pending.length; msgIndex++) {
         const item = pending[msgIndex];
@@ -719,6 +751,14 @@ export async function processDueBroadcastRuns(options?: {
             
             const bridgeData = await bridgeResponse.json();
             console.log('[Broadcast QR] Bridge response:', bridgeData);
+
+            // WhatsApp flagged/restricted this number — bridge returns HTTP 200
+            // with restricted:true rather than an error status. Treat as a
+            // failure so the catch block below can hard-stop this run for 24h.
+            if (bridgeData?.restricted === true) {
+              throw new Error(`WhatsApp account restricted/blocked: ${bridgeData?.error || bridgeData?.message || 'flagged by bridge'}`);
+            }
+
             const waMessageId = bridgeData?.id || bridgeData?.messageId || bridgeData?.key?.id || `qr_${Date.now()}`;
             apiResult = {
               waMessageId,
@@ -861,28 +901,25 @@ export async function processDueBroadcastRuns(options?: {
           stat.sent++;
           result.sent++;
 
-          // ── HUMAN-LIKE DELAY ──────────────────────────────────────────────
-          // Use pre-calculated gap for this message (includes random variation + breaks)
-          if (runProvider === 'qr' && msgIndex < humanLikeGaps.length) {
-            const gapMs = humanLikeGaps[msgIndex];
-            const gapSec = Math.round(gapMs / 1000);
-            const isBreak = gapMs > 300000; // Long "phone-down" break (5+ min)
-            if (isBreak) {
-              console.log(`[Broadcast QR] ⏸️  BREAK: Waiting ${gapSec}s (human phone-down behavior)`);
-            } else {
-              console.log(`[Broadcast QR] ⏱️  Waiting ${gapSec}s (human-like pacing)`);
-            }
-            await new Promise(resolve => setTimeout(resolve, gapMs));
+          // ── PERSIST NEXT-SEND PACING (QR only) ─────────────────────────────
+          // Never sleep in-process — the cron is invoked once per minute and
+          // a long in-process sleep here previously let a single tick send
+          // multiple messages (warm-up gaps were only ~30s). Instead, record
+          // the earliest time the NEXT tick is allowed to send again; the
+          // pacing gate at the top of this run skips ticks until then.
+          if (runProvider === 'qr') {
+            const gapSec = Math.round(qrGapMs / 1000);
+            const isBreak = qrGapMs > 300000; // Long "phone-down" break (5+ min)
+            console.log(`[Broadcast QR] ${isBreak ? '⏸️  BREAK' : '⏱️ '} Next send in ${gapSec}s (human-like pacing)`);
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              { $set: { nextQrSendAt: new Date(now.getTime() + qrGapMs), updatedAt: new Date() } }
+            );
           } else if (runProvider === 'meta') {
             // Meta: 3s between messages (conservative)
             await new Promise(resolve => setTimeout(resolve, 3000));
-          } else if (runProvider === 'qr') {
-            // Fallback if gap array is shorter than pending (shouldn't happen)
-            const fallbackGap = 240000; // 4 min fallback
-            console.log(`[Broadcast QR] ⏱️  Waiting 240s (fallback)`);
-            await new Promise(resolve => setTimeout(resolve, fallbackGap));
           }
-          
+
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'WhatsApp send failed';
           
@@ -977,7 +1014,31 @@ export async function processDueBroadcastRuns(options?: {
 
           stat.failed++;
           result.failed++;
-          
+
+          // ── QR HARD-STOP ON RESTRICTION/BLOCK ──────────────────────────────
+          // Unlike Meta, a "blocked" signal on QR means WhatsApp has flagged
+          // the connected number. Retrying immediately (as the old pacing bug
+          // did, for 6 hours straight) just deepens the ban. Pause this run
+          // for 24h and stop processing it for this tick.
+          if (runProvider === 'qr' && errorCategory === 'blocked') {
+            const pauseUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            await BroadcastRun.updateOne(
+              { _id: (run as any)._id },
+              {
+                $set: {
+                  status: 'scheduled',
+                  scheduledAt: pauseUntil,
+                  nextQrSendAt: pauseUntil,
+                  lastError: `WhatsApp account restricted/blocked — run auto-paused 24h to avoid deepening ban: ${errorMsg}`,
+                  updatedAt: new Date(),
+                },
+              }
+            );
+            console.error(`[Broadcast QR] 🚫 Restriction detected — run ${(run as any)._id} paused 24h until ${pauseUntil.toISOString()}`);
+            qrHardStopped = true;
+            break;
+          }
+
           // Continue to next message (don't stop on error)
           console.log(`[Broadcast] Continuing to next message after failure...`);
         }
@@ -985,7 +1046,7 @@ export async function processDueBroadcastRuns(options?: {
 
       // refresh run stats and maybe complete
       const counts = await markRunStats((run as any)._id);
-      if (counts.pending === 0) {
+      if (!qrHardStopped && counts.pending === 0) {
         // Don't complete yet if failed messages are still due for an 8h retry —
         // reschedule the run so the cron re-picks it when the retry window opens.
         if ((await countRetryEligible()) > 0) {
