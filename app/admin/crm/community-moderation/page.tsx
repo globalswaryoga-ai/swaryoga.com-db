@@ -64,16 +64,9 @@ export default function CommunityModerationPage() {
   }, [activeTab]);
 
   async function checkAuth() {
+    // Auth is checked via token in API calls; if no token, API calls will fail
     const token = localStorage.getItem('token');
-    if (!token) return;
-    try {
-      const res = await fetch('/api/auth/profile', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        router.push(getLoginPath());
-      }
-    } catch {
+    if (!token) {
       router.push(getLoginPath());
     }
   }
