@@ -2,6 +2,7 @@ import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
+import { checkRateLimit, reserveSendSlot } from '@/lib/qrSendRateLimit';
 import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage, getQrWhatsAppChat, DeletedLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
@@ -427,20 +428,26 @@ export async function processDueBroadcastRuns(options?: {
           continue;
         }
 
-        // Rate limit guard
-        const canSend = await RateLimitManager.canSendMessage(createdBy, to);
+        // Rate limit guard — use QR-specific limiter for QR broadcasts (5 AM IST reset)
+        let canSend: any;
+        if (runProvider === 'qr') {
+          // QR uses checkRateLimit for 15/hour, 150/day with 5 AM IST reset (read-only check)
+          canSend = await checkRateLimit(createdBy);
+        } else {
+          // Meta uses standard RateLimitManager
+          canSend = await RateLimitManager.canSendMessage(createdBy, to);
+        }
+
         if (!canSend.allowed) {
           const isDailyLimit = canSend.reason?.toLowerCase().includes('daily');
           if (isDailyLimit && runProvider === 'qr') {
-            // QR daily cap hit — reschedule remaining pending messages to tomorrow midnight
-            const tomorrow = new Date(now);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(0, 0, 0, 0);
+            // QR daily cap hit — reschedule remaining pending messages to next 5 AM IST
+            const nextReset = canSend.resetAt || new Date(now.getTime() + 24 * 60 * 60 * 1000);
             await BroadcastRun.updateOne(
               { _id: (run as any)._id },
-              { $set: { status: 'scheduled', scheduledAt: tomorrow, updatedAt: now } }
+              { $set: { status: 'scheduled', scheduledAt: nextReset, updatedAt: now } }
             );
-            console.log(`[Broadcast QR] Daily limit hit (${canSend.currentCount}/${canSend.limit}). Auto-shifted remaining messages to ${tomorrow.toDateString()}`);
+            console.log(`[Broadcast QR] Daily limit hit (${canSend.daySent}/${150}). Auto-shifted remaining messages to ${nextReset.toISOString()} (next 5 AM IST)`);
             break;
           }
           await BroadcastRunMessage.updateOne(
@@ -815,11 +822,21 @@ export async function processDueBroadcastRuns(options?: {
             }
           );
 
-          // QR: 60/hr, 300/day. Meta uses defaults.
-          const rateLimitConfig = runProvider === 'qr'
-            ? { hourly: 60, daily: 300, perPhone: 1, warningThreshold: 0.8 }
-            : undefined;
-          await RateLimitManager.incrementCount(createdBy, to, rateLimitConfig);
+          // Rate limit increment: reserve the slot now that we're actually sending
+          if (runProvider === 'qr') {
+            // QR: atomically reserve send slot (15/hour, 150/day with 5 AM IST reset)
+            const slotReserved = await reserveSendSlot(createdBy);
+            if (!slotReserved.allowed) {
+              // Should not happen since we just checked, but safety guard
+              console.warn(`[Broadcast QR] Rate limit reservation failed unexpectedly:`, slotReserved.reason);
+              throw new Error(`Rate limit reservation failed: ${slotReserved.reason}`);
+            }
+            console.log(`[Broadcast QR] Rate slot reserved (day: ${slotReserved.daySent}/${150}, hour: ${slotReserved.hourSent}/${15})`);
+          } else {
+            // Meta: use standard rate limit manager
+            const rateLimitConfig = { hourly: 1000, daily: 10000, perPhone: 5, warningThreshold: 0.8 };
+            await RateLimitManager.incrementCount(createdBy, to, rateLimitConfig);
+          }
 
           // Increment daily bulk quota
           await BulkMessageManager.incrementDailyUsage(1);
@@ -828,15 +845,17 @@ export async function processDueBroadcastRuns(options?: {
           result.sent++;
 
           // Delay between messages
+          // QR: 15 msgs/hour = 1 msg every 4 minutes (240 seconds on average)
+          // Use 180-300s range (3-5 min) to maintain human-like behavior while respecting the cap
           const intervalEnabled = (run as any).messageInterval?.enabled !== false;
           if (runProvider === 'qr' && intervalEnabled) {
-            // QR: use configured random delay (7-120s default) to mimic human behaviour
-            const minSec = (run as any).messageInterval?.minSeconds ?? 7;
-            const maxSec = (run as any).messageInterval?.maxSeconds ?? 120;
+            // QR: 180-300s gap enforces 15 msgs/hour (3-5 min between messages)
+            const minSec = (run as any).messageInterval?.minSeconds ?? 180;
+            const maxSec = (run as any).messageInterval?.maxSeconds ?? 300;
             const range = maxSec - minSec;
             const seed = (Math.random() * 0xFFFF ^ (Date.now() & 0xFFFF)) >>> 0;
             const delaySec = minSec + Math.floor((seed / 0xFFFF) * (range + 1));
-            console.log(`[Broadcast QR] Waiting ${delaySec}s (range: ${minSec}-${maxSec}s)`);
+            console.log(`[Broadcast QR] ⏱️ Waiting ${delaySec}s (${minSec}-${maxSec}s range enforces ~15/hour cap)`);
             await new Promise(resolve => setTimeout(resolve, delaySec * 1000));
           } else if (runProvider === 'meta') {
             // Meta: 3s between messages = ~20 messages/min
