@@ -102,6 +102,8 @@ class UserSession {
     this.connectionStabilizedTime = 0;
     this.lastDisconnectTime = 0;
     this.keepaliveTimer = null;
+    this.chatSyncDebounceTimer = null;
+    this.chatSyncInterval = null;
     this.isStarting = false;
     this.intentionalDisconnect = false;
     this.reconnectTimer = null;
@@ -132,6 +134,11 @@ class UserSession {
     if (this.keepaliveTimer) { clearInterval(this.keepaliveTimer); this.keepaliveTimer = null; }
   }
 
+  clearChatSyncTimers() {
+    if (this.chatSyncDebounceTimer) { clearTimeout(this.chatSyncDebounceTimer); this.chatSyncDebounceTimer = null; }
+    if (this.chatSyncInterval) { clearInterval(this.chatSyncInterval); this.chatSyncInterval = null; }
+  }
+
   startKeepalive() {
     this.clearKeepaliveTimer();
     const self = this;
@@ -156,6 +163,7 @@ class UserSession {
   async destroy() {
     this.clearReconnectTimer();
     this.clearKeepaliveTimer();
+    this.clearChatSyncTimers();
     this.intentionalDisconnect = true;
     if (this.sock) {
       try { this.sock.ev.removeAllListeners(); this.sock.end(undefined); } catch {}
@@ -462,6 +470,52 @@ async function forwardToWebhook(session, payload) {
   }
 }
 
+// Persist the in-memory chatMap to qr_whatsapp_chats so the inbox sidebar
+// shows the full chat list (including history-synced chats) even after a
+// bridge restart wipes chatMap. See /api/admin/crm/whatsapp/qr/sync.
+async function syncChatsToDb(session) {
+  try {
+    const connectedPhone = session.sock?.user?.id?.split(':')[0];
+    if (!connectedPhone) return;
+    const chats = Array.from(session.chatMap.values())
+      .filter(c => c.id && c.id !== 'status@broadcast')
+      .map(c => ({
+        chatJid: c.id,
+        name: c.name || '',
+        isGroup: !!c.isGroup,
+        lastMessage: typeof c.lastMessage === 'string' ? c.lastMessage : '',
+        lastMessageTime: c.lastMessageTime || null,
+        unreadCount: c.unreadCount || 0,
+        pinned: !!c.pinned,
+        archived: !!c.archived,
+      }));
+    if (chats.length === 0) return;
+
+    const res = await fetch(`${WEBHOOK_URL}/api/admin/crm/whatsapp/qr/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-bridge-secret': BRIDGE_SECRET,
+      },
+      body: JSON.stringify({
+        action: 'sync_chats',
+        userId: session.ownerUserId || session.userId,
+        connectedPhone,
+        chats,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      console.log(`[${session.userId}] Chat sync: ${chats.length} chats (upserted=${data.chats?.upserted ?? 0}, modified=${data.chats?.modified ?? 0})`);
+    } else {
+      console.error(`[${session.userId}] Chat sync failed (${res.status}):`, data);
+    }
+  } catch (e) {
+    console.error(`[${session.userId}] Chat sync error:`, e.message);
+  }
+}
+
 async function fetchMediaBuffer(url) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to fetch media: ${resp.status}`);
@@ -600,8 +654,12 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         keys: makeCacheableSignalKeyStore(state.keys, logger),
       },
       generateHighQualityLinkPreview: false,
-      syncFullHistory: false,
-      shouldSyncHistoryMessage: () => false,
+      // Enable history sync so chats/messages from before this bridge process
+      // started are processed by `messaging-history.set` and populate chatMap
+      // (previously false, which silently dropped all historical chats/messages
+      // on every reconnect — the root cause of "old chats not showing").
+      syncFullHistory: true,
+      shouldSyncHistoryMessage: () => true,
       markOnlineThrottleMs: 15000,
       // Resend message content when a recipient's device asks for a retry
       // (otherwise their WhatsApp is stuck on "Waiting for this message").
@@ -662,6 +720,14 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
 
         session.startKeepalive();
 
+        // Periodically persist chatMap to qr_whatsapp_chats so the sidebar
+        // (DB-merged) reflects live chat updates even if the bridge restarts
+        // before history sync completes again.
+        session.clearChatSyncTimers();
+        session.chatSyncInterval = setInterval(() => {
+          syncChatsToDb(session).catch(e => console.error(`[${session.userId}] Chat sync error:`, e.message));
+        }, 10 * 60 * 1000);
+
         if (ENABLE_DB_CHAT_HYDRATION && session.chatMap.size === 0) {
           loadChatsFromDB(session).catch(e => console.error(`[${session.ownerUserId}] DB-LOAD error:`, e.message));
         }
@@ -676,6 +742,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       if (connection === 'close') {
         session.lastDisconnectTime = Date.now();
         session.clearKeepaliveTimer();
+        session.clearChatSyncTimers();
         session.connectionStabilizedTime = 0;
         const hadRecentQR = session.lastQrTime && (Date.now() - session.lastQrTime < 120000);
         if (!hadRecentQR) session.connectionState = 'disconnected';
@@ -919,6 +986,14 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
           if (phoneNum) { chat.name = phoneNum; chat.resolvedPhone = phoneNum; }
         }
       }
+
+      // History sync can fire multiple events (initial/recent/on-demand) — debounce
+      // the DB persistence so we sync once after the burst settles.
+      if (session.chatSyncDebounceTimer) clearTimeout(session.chatSyncDebounceTimer);
+      session.chatSyncDebounceTimer = setTimeout(() => {
+        session.chatSyncDebounceTimer = null;
+        syncChatsToDb(session).catch(e => console.error(`[${session.userId}] Chat sync error:`, e.message));
+      }, 5000);
     });
 
     // ── Phone Number Share ──

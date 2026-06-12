@@ -1022,9 +1022,13 @@ export default function QRWhatsAppPage() {
     // so never spend a bridge round-trip on them.
     if (jid.endsWith('@g.us')) return;
     if (profilePicLoadedRef.current.has(jid)) return;
-    profilePicLoadedRef.current.add(jid);
     try {
       const data = await bridgeCall(`/profile-pic/${encodeURIComponent(jid)}`);
+      // Only mark as "loaded" once the bridge gave a definitive answer (a URL,
+      // or a clean "no photo"/not-connected response). On a thrown error
+      // (timeout, bridge unreachable) leave it unmarked so the next chat-list
+      // poll retries — otherwise a single slow request permanently hides the avatar.
+      profilePicLoadedRef.current.add(jid);
       if (data?.url) {
         setProfilePics(prev => ({ ...prev, [jid]: data.url }));
       }
@@ -1172,13 +1176,21 @@ export default function QRWhatsAppPage() {
         // Preload avatars for ALL individual chats (not just first 30).
         // Groups are skipped inside fetchProfilePic (group icon + access-gated
         // proxy), and profilePicLoadedRef guarantees each JID is fetched at most
-        // once per session — polls don't refetch.
-        // Staggered with 100ms gaps to avoid overwhelming the bridge.
+        // once per session (failed/timed-out fetches are NOT marked, so they
+        // retry on the next 30s chat poll instead of being stuck forever).
+        // Fetch in small concurrent batches instead of one-at-a-time with a
+        // 100ms stagger — with 100+ chats the old approach took 10s+ just to
+        // *start* the last request, which is why only the first couple avatars
+        // ever showed up before the user navigated away.
         const individualChats = sorted.filter((c: ChatItem) => !c.isGroup && !profilePicLoadedRef.current.has(c.id));
         console.log(`[QR Avatar] Loading ${individualChats.length} profile pictures...`);
-        individualChats.forEach((c: ChatItem, i: number) =>
-          setTimeout(() => fetchProfilePic(c.id), i * 100)
-        );
+        const PIC_CONCURRENCY = 6;
+        (async () => {
+          for (let i = 0; i < individualChats.length; i += PIC_CONCURRENCY) {
+            const batch = individualChats.slice(i, i + PIC_CONCURRENCY);
+            await Promise.allSettled(batch.map((c: ChatItem) => fetchProfilePic(c.id)));
+          }
+        })();
       }
     } catch (e: any) {
       console.error('Failed to fetch chats:', e);
