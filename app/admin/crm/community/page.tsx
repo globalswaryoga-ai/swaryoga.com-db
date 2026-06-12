@@ -123,7 +123,7 @@ export default function AdminCommunityPage() {
   const [communities, setCommunities] = useState<Community[]>(DEFAULT_COMMUNITIES);
   const [loadingCommunities, setLoadingCommunities] = useState(true);
   const [showCreateCommunityModal, setShowCreateCommunityModal] = useState(false);
-  const [newCommunityInput, setNewCommunityInput] = useState({ name: '', description: '', icon: '🌟', type: 'health' });
+  const [newCommunityInput, setNewCommunityInput] = useState({ name: '', description: '', icon: '🌟', type: 'workshop_active' });
   const [creatingCommunity, setCreatingCommunity] = useState(false);
   
   const [selectedCommunity, setSelectedCommunity] = useState('global');
@@ -853,7 +853,7 @@ export default function AdminCommunityPage() {
         body: JSON.stringify({
           name: newCommunityInput.name.trim(),
           description: newCommunityInput.description.trim(),
-          type: newCommunityInput.type || 'health',
+          type: newCommunityInput.type || 'workshop_active',
         }),
       });
 
@@ -868,7 +868,7 @@ export default function AdminCommunityPage() {
 
       alert('✅ Community created successfully!');
       setShowCreateCommunityModal(false);
-      setNewCommunityInput({ name: '', description: '', icon: '🌟', type: 'health' });
+      setNewCommunityInput({ name: '', description: '', icon: '🌟', type: 'workshop_active' });
       
       // Refresh communities list
       await fetchCommunities();
@@ -2436,17 +2436,17 @@ export default function AdminCommunityPage() {
               <div>
                 <label className="text-sm font-bold text-slate-700 mb-2 block">Category</label>
                 <select
-                  value={newCommunityInput.type || 'health'}
+                  value={newCommunityInput.type || 'workshop_active'}
                   onChange={e => setNewCommunityInput(prev => ({ ...prev, type: e.target.value }))}
                   className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
                 >
-                  <option value="health">🏥 Health & Wellness</option>
-                  <option value="wealth">💰 Wealth & Prosperity</option>
-                  <option value="relationships">💑 Relationships & Family</option>
-                  <option value="youth">🚀 Youth & Growth</option>
-                  <option value="spiritual">✨ Spiritual</option>
-                  <option value="learning">📚 Learning & Development</option>
-                  <option value="other">🌟 Other</option>
+                  <option value="workshop_active">🏥 Health & Wellness</option>
+                  <option value="workshop_active">💰 Wealth & Prosperity</option>
+                  <option value="workshop_active">💑 Relationships & Family</option>
+                  <option value="workshop_active">🚀 Youth & Growth</option>
+                  <option value="workshop_active">✨ Spiritual</option>
+                  <option value="workshop_active">📚 Learning & Development</option>
+                  <option value="workshop_active">🌟 Other</option>
                 </select>
               </div>
 
