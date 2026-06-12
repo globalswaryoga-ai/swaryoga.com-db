@@ -217,7 +217,7 @@ async function bunnyStorageSave(srcUrl, size, fileName) {
         log(`  YT OK ${view}: https://youtu.be/${id}`);
         // Auto-add speaker view to configured community with pending email invites
         if (key === 'speaker') {
-          await autoAddToConfiguredCommunity(id, m.topic, dateLabel, m.uuid, mongoose.connection.db);
+          await autoAddToConfiguredCommunity(id, m.topic, dateLabel, String(m.id), mongoose.connection.db);
         }
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
