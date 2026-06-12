@@ -181,10 +181,46 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
 }
 
 /**
+ * Tell the bridge to wipe its in-memory chatMap/messageMap/contacts/groups for this
+ * session and resync from WhatsApp. Called when we detect the connected phone number
+ * CHANGED for an existing sessionKey — the bridge's UserSession object is reused across
+ * reconnects (keyed by permanentTenantId, not phone number), so without this the old
+ * number's chats/groups stay in chatMap forever and get unioned with the new number's
+ * history sync, leaking the old number's contacts into the new number's inbox.
+ * Auth creds are preserved — this just forces a clean history resync, no QR re-scan.
+ */
+async function resetBridgeSessionData(resolved: Extract<BridgeResolution, { ok: true }>): Promise<void> {
+  try {
+    await fetch(`${resolved.url}/reconnect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-bridge-secret': resolved.secret,
+        'x-user-id': resolved.userId,
+        'x-session-key': resolved.bridgeSessionId,
+        ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    console.log(`[QR Bridge Proxy] Triggered bridge session reset for ${resolved.userId} (phone number changed)`);
+  } catch (e) {
+    console.warn(`[QR Bridge Proxy] Failed to reset bridge session for ${resolved.userId}:`, (e as Error).message);
+  }
+}
+
+/**
  * Save the connected phone AND mark the change timestamp.
  * @param isChange - true when the phone CHANGED (different from stored). Sets qrPhoneChangedAt.
+ * @param resolved - bridge resolution for this user; when provided and isChange is true,
+ *                    triggers a bridge session reset so stale chats from the previous
+ *                    number don't leak into the newly-connected number's inbox.
  */
-async function saveConnectedPhone(userId: string, phoneId: string, isChange = false): Promise<void> {
+async function saveConnectedPhone(
+  userId: string,
+  phoneId: string,
+  isChange = false,
+  resolved?: Extract<BridgeResolution, { ok: true }>
+): Promise<void> {
   try {
     // Strip the @s.whatsapp.net suffix if present: "919876543210:xx@s.whatsapp.net" → "919876543210"
     const phone = phoneId.split(':')[0].split('@')[0].replace(/\D/g, '');
@@ -204,6 +240,10 @@ async function saveConnectedPhone(userId: string, phoneId: string, isChange = fa
     );
     invalidateBridgeCache(userId);
     console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}${isChange ? ' (PHONE CHANGED)' : ''}`);
+    if (isChange && resolved) {
+      // Fire-and-forget: don't block this request on the bridge reset.
+      resetBridgeSessionData(resolved).catch(() => {});
+    }
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to save connected phone:', (e as Error).message);
   }
@@ -382,6 +422,25 @@ async function getMongoSessionChats(userId: string, connectedPhone: string) {
   }
 }
 
+/**
+ * Merge live bridge chats with the connectedPhone-scoped Mongo snapshot.
+ * Bridge entries (fresher) win on id collisions; Mongo fills in chats the
+ * live chatMap doesn't currently have (e.g. right after a bridge session
+ * reset, individual chats take longer to resync than groups — without this
+ * merge they'd briefly disappear from the inbox even though their history
+ * is safely stored in qr_whatsapp_chats for this connectedPhone).
+ */
+function mergeBridgeAndMongoChats(bridgeChats: any[], mongoChats: any[]): any[] {
+  const byId = new Map<string, any>();
+  for (const chat of mongoChats) {
+    if (chat?.id) byId.set(String(chat.id), chat);
+  }
+  for (const chat of bridgeChats) {
+    if (chat?.id) byId.set(String(chat.id), chat);
+  }
+  return Array.from(byId.values());
+}
+
 function getChatArray(data: any): any[] {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.chats)) return data.chats;
@@ -409,11 +468,6 @@ async function syncMongoSessionChats(userId: string, connectedPhone: string, cha
 
   try {
     const QrChat = getQrWhatsAppChat();
-    const validChatIds = Array.from(new Set(
-      chats
-        .map((chat: any) => String(chat?.id || '').trim())
-        .filter(Boolean)
-    ));
 
     const ops = chats
       .filter((chat: any) => chat?.id)
@@ -450,12 +504,25 @@ async function syncMongoSessionChats(userId: string, connectedPhone: string, cha
     // Treat each successful /chats sync as the exact current-session snapshot.
     // Remove older chat rows for this user+phone that are no longer in the latest list,
     // otherwise stale/foreign chat IDs can linger forever in Mongo and reappear in the UI.
-    if (validChatIds.length > 0) {
-      await QrChat.deleteMany({
-        userId,
-        connectedPhone,
-        chatJid: { $nin: validChatIds },
-      });
+    //
+    // Cleanup is done PER CATEGORY (group vs individual): right after a bridge
+    // session reset (e.g. after a phone-number change), the live chatMap may briefly
+    // report groups but no individual chats (or vice versa) before its history sync
+    // catches up. If we pruned individuals just because the snapshot momentarily has
+    // zero of them, we'd wipe legitimate chat history. Only prune a category once the
+    // snapshot actually reports at least one chat of that category.
+    const validGroupIds = chats
+      .filter((chat: any) => chat?.id && chat.isGroup)
+      .map((chat: any) => String(chat.id).trim());
+    const validIndividualIds = chats
+      .filter((chat: any) => chat?.id && !chat.isGroup)
+      .map((chat: any) => String(chat.id).trim());
+
+    if (validGroupIds.length > 0) {
+      await QrChat.deleteMany({ userId, connectedPhone, isGroup: true, chatJid: { $nin: validGroupIds } });
+    }
+    if (validIndividualIds.length > 0) {
+      await QrChat.deleteMany({ userId, connectedPhone, isGroup: { $ne: true }, chatJid: { $nin: validIndividualIds } });
     }
   } catch (err) {
     console.error('[QR Bridge Proxy] Failed to sync Mongo session chats:', err);
@@ -1038,7 +1105,7 @@ export async function POST(req: NextRequest) {
       }
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
         // Phone CHANGED → save with timestamp so /chats can detect stale data
-        await saveConnectedPhone(userId, bridgePhone, true);
+        await saveConnectedPhone(userId, bridgePhone, true, resolved);
         console.log(`[QR Bridge Proxy POST /status] Phone changed: ${resolved.storedPhone} → ${bridgePhone}`);
       } else if (bridgePhone && !resolved.storedPhone) {
         // First-time save (no previous phone)
@@ -1080,16 +1147,15 @@ export async function POST(req: NextRequest) {
         if (allBridgeChats.length > 0) {
           await syncMongoSessionChats(userId, resolved.storedPhone, allBridgeChats);
         }
-        if (filteredBridgeChats.length > 0) {
+        const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
+        const mergedChats = mergeBridgeAndMongoChats(filteredBridgeChats, mongoChats);
+        if (mergedChats.length > 0) {
+          const source = filteredBridgeChats.length > 0
+            ? (data?.source || 'bridge_current_session')
+            : 'qr_mongodb_fallback';
           data = data?.chats
-            ? { ...data, chats: filteredBridgeChats, source: data?.source || 'bridge_current_session' }
-            : { chats: filteredBridgeChats, source: 'bridge_current_session' };
-        } else {
-          const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
-          if (mongoChats.length > 0) {
-            console.log(`[QR Bridge Proxy POST /chats] Falling back to Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
-            data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb_fallback' } : { chats: mongoChats, source: 'qr_mongodb_fallback' };
-          }
+            ? { ...data, chats: mergedChats, source }
+            : { chats: mergedChats, source };
         }
       }
     }
@@ -1576,7 +1642,7 @@ export async function GET(req: NextRequest) {
       }
       if (bridgePhone && bridgePhone !== resolved.storedPhone) {
         // Phone CHANGED → save with timestamp so /chats can detect stale data
-        await saveConnectedPhone(userId, bridgePhone, true);
+        await saveConnectedPhone(userId, bridgePhone, true, resolved);
         console.log(`[QR Bridge Proxy GET /status] Phone changed: ${resolved.storedPhone} → ${bridgePhone}`);
       } else if (bridgePhone && !resolved.storedPhone) {
         await saveConnectedPhone(userId, bridgePhone, false);
@@ -1616,16 +1682,15 @@ export async function GET(req: NextRequest) {
         if (allBridgeChats.length > 0) {
           await syncMongoSessionChats(userId, resolved.storedPhone, allBridgeChats);
         }
-        if (filteredBridgeChats.length > 0) {
+        const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
+        const mergedChats = mergeBridgeAndMongoChats(filteredBridgeChats, mongoChats);
+        if (mergedChats.length > 0) {
+          const source = filteredBridgeChats.length > 0
+            ? (data?.source || 'bridge_current_session')
+            : 'qr_mongodb_fallback';
           data = data?.chats
-            ? { ...data, chats: filteredBridgeChats, source: data?.source || 'bridge_current_session' }
-            : { chats: filteredBridgeChats, source: 'bridge_current_session' };
-        } else {
-          const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
-          if (mongoChats.length > 0) {
-            console.log(`[QR Bridge Proxy GET /chats] Falling back to Mongo session chats for ${userId}: ${mongoChats.length} chats (connectedPhone=${resolved.storedPhone})`);
-            data = data?.chats ? { ...data, chats: mongoChats, source: 'qr_mongodb_fallback' } : { chats: mongoChats, source: 'qr_mongodb_fallback' };
-          }
+            ? { ...data, chats: mergedChats, source }
+            : { chats: mergedChats, source };
         }
       }
     }
