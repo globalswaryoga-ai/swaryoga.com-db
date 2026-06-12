@@ -103,24 +103,24 @@ async function trashRecording(uuid, token) {
 // User will manually invite swarsakshi9@gmail.com + mohan@swaryoga.com in YouTube Studio.
 async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeetingId, db) {
   const Videos = db.collection('communityvideos');
-  const Mappings = db.collection('zoom_community_mappings');
-  const Communities = db.collection('communities');
+  const Accounts = db.collection('socialmediaaccounts');
 
   let communityId = 'global'; // default fallback
   let communityName = 'Global';
   // hqdefault always exists; maxresdefault 404s for many recordings.
   let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
-  // Look up the zoom meeting ID in the mappings
+  // Look up the zoom meeting ID in socialmediaaccounts.metadata.zoomMappings
   try {
-    const mapping = await Mappings.findOne({ zoomMeetingId });
+    const ytAccount = await Accounts.findOne({ platform: 'youtube' });
+    const mappings = ytAccount?.metadata?.zoomMappings || [];
+    const mapping = mappings.find((m) => m.zoomMeetingId === zoomMeetingId);
     if (mapping) {
       communityId = mapping.communityId;
       communityName = mapping.communityName || mapping.communityId;
       if (mapping.thumbnailUrl) thumbnailUrl = mapping.thumbnailUrl; // batch-specific thumbnail
       log(`  Zoom mapping found: ${zoomMeetingId} → ${communityName}`);
     } else {
-      // If no mapping, try to use the community by slug if it matches
       log(`  No mapping for Zoom meeting ${zoomMeetingId}, using default 'global'`);
     }
   } catch (e) {

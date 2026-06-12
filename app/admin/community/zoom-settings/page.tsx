@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Mapping {
@@ -19,6 +20,7 @@ interface Community {
 }
 
 export default function ZoomSettingsPage() {
+  const router = useRouter();
   const token = useAuth();
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -135,15 +137,36 @@ export default function ZoomSettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Zoom → Community Settings</h1>
-          <p className="text-gray-600 mt-2">
-            Link Zoom meeting IDs to communities so recordings go to the right place
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Sticky Header Bar */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/admin/crm/community')}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+              title="Back to Community"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <p className="text-xs text-gray-500 font-semibold">COMMUNITY</p>
+              <h1 className="text-lg font-bold text-gray-900">Recording Setup</h1>
+            </div>
+          </div>
+          <div className="text-xs text-gray-400">Zoom ID + Thumbnail → Community</div>
         </div>
+      </div>
+
+      <div className="py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-gray-800">Zoom → Community Settings</h2>
+            <p className="text-gray-600 mt-2">
+              Link Zoom meeting IDs to communities so recordings go to the right place
+            </p>
+          </div>
 
         {/* Messages */}
         {error && (
@@ -336,6 +359,7 @@ export default function ZoomSettingsPage() {
             <li>4. Members see the video in their community recordings immediately</li>
           </ol>
         </div>
+      </div>
       </div>
     </div>
   );
