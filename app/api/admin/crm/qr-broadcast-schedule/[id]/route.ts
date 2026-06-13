@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
+import { timeToMinutes, minutesToTime, resolveStartTime } from '@/lib/qrGroupScheduleGap';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -79,6 +80,29 @@ export async function PUT(
     // Exclude immutable fields from update
     const { _id, userId, createdBy, createdAt, ...updateFields } = body;
 
+    // Group Scheduler ('custom' frequency): keep at least a 15-minute gap
+    // between this schedule and any other active group schedule sharing a
+    // send date — auto-shift the edited start/end time if needed.
+    let timeAdjusted = false;
+    if (
+      (updateFields.frequency || 'custom') === 'custom' &&
+      Array.isArray(updateFields.customScheduleDates) &&
+      updateFields.customScheduleDates.length > 0 &&
+      updateFields.startTime
+    ) {
+      const uid = getUserId(decoded);
+      const requestedDates = updateFields.customScheduleDates.map((d: string) => new Date(d));
+      const resolvedStart = await resolveStartTime(QRBroadcastSchedule, uid, id, updateFields.startTime, requestedDates);
+      if (resolvedStart !== updateFields.startTime) {
+        const durationMin = updateFields.endTime
+          ? ((timeToMinutes(updateFields.endTime) - timeToMinutes(updateFields.startTime)) + 1440) % 1440 || 30
+          : 30;
+        updateFields.startTime = resolvedStart;
+        updateFields.endTime = minutesToTime(timeToMinutes(resolvedStart) + durationMin);
+        timeAdjusted = true;
+      }
+    }
+
     const schedule = await QRBroadcastSchedule.findOneAndUpdate(
       ownerFilter(decoded, id),
       { $set: { ...updateFields, updatedAt: new Date() } },
@@ -89,7 +113,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: schedule });
+    return NextResponse.json({ success: true, data: { ...schedule, timeAdjusted } });
   } catch (error) {
     console.error('[QR Broadcast Schedule PUT/:id] Error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });

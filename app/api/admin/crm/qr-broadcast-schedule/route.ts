@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
+import { timeToMinutes, minutesToTime, resolveStartTime } from '@/lib/qrGroupScheduleGap';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,68 +16,6 @@ function ownerFilter(decoded: any) {
   const uid = getUserId(decoded);
   // Match by userId OR createdBy — covers both creation paths
   return { $or: [{ userId: uid }, { createdBy: uid }] };
-}
-
-const MIN_SCHEDULE_GAP_MINUTES = 15;
-
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + (m || 0);
-}
-
-function minutesToTime(mins: number): string {
-  const m = ((mins % 1440) + 1440) % 1440;
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-}
-
-function toIstDateStr(d: Date | string): string {
-  return new Date(new Date(d).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
-}
-
-/**
- * For 'custom' frequency schedules (recurring group messages on specific days),
- * make sure no two schedules fire within MIN_SCHEDULE_GAP_MINUTES of each other
- * on a shared date — push the requested start time forward in 15-min steps
- * until it clears every conflicting schedule.
- */
-async function resolveStartTime(
-  QRBroadcastSchedule: any,
-  uid: string,
-  excludeId: string | undefined,
-  requestedStart: string,
-  requestedDates: Date[]
-): Promise<string> {
-  const requestedDateSet = new Set(requestedDates.map(toIstDateStr));
-
-  const filter: any = {
-    $or: [{ userId: uid }, { createdBy: uid }],
-    frequency: 'custom',
-    isActive: true,
-    status: { $in: ['scheduled', 'in-progress', 'paused'] },
-  };
-  if (excludeId) filter._id = { $ne: excludeId };
-
-  const existing = await QRBroadcastSchedule.find(filter)
-    .select('startTime customScheduleDates')
-    .lean();
-
-  const conflictMinutes: number[] = [];
-  for (const s of existing) {
-    if (!Array.isArray(s.customScheduleDates) || !s.startTime) continue;
-    const overlaps = s.customScheduleDates.some((d: any) => requestedDateSet.has(toIstDateStr(d)));
-    if (overlaps) conflictMinutes.push(timeToMinutes(s.startTime));
-  }
-
-  let candidate = timeToMinutes(requestedStart);
-  for (let i = 0; i < 96; i++) {
-    const hasConflict = conflictMinutes.some((c) => {
-      const diff = Math.abs(candidate - c);
-      return Math.min(diff, 1440 - diff) < MIN_SCHEDULE_GAP_MINUTES;
-    });
-    if (!hasConflict) break;
-    candidate = (candidate + MIN_SCHEDULE_GAP_MINUTES) % 1440;
-  }
-  return minutesToTime(candidate);
 }
 
 export async function POST(req: NextRequest) {

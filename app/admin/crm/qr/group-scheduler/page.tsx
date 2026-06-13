@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import {
   Send, Search, Users, Loader2, CheckCircle2, Clock, Calendar,
-  Trash2, Play, Pause, RefreshCw, AlertCircle, MessageSquare, ListChecks,
+  Trash2, Play, Pause, RefreshCw, AlertCircle, MessageSquare, ListChecks, Pencil, X,
 } from 'lucide-react';
 
 type Chat = {
@@ -80,6 +80,20 @@ function fmtDayLabel(dateStr: string): string {
   return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+// IST calendar-date key (YYYY-MM-DD) for a Date/ISO string, regardless of UTC offset
+function toIstDateKey(d: string | Date): string {
+  const ist = new Date(new Date(d).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  return `${ist.getFullYear()}-${String(ist.getMonth() + 1).padStart(2, '0')}-${String(ist.getDate()).padStart(2, '0')}`;
+}
+
+function daysBetween(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const da = new Date(ay, (am || 1) - 1, ad || 1);
+  const db = new Date(by, (bm || 1) - 1, bd || 1);
+  return Math.round((db.getTime() - da.getTime()) / 86400000);
+}
+
 function fmtDateTime(d?: string) {
   if (!d) return '—';
   return new Date(d).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
@@ -106,8 +120,11 @@ export default function QRGroupSchedulerPage() {
   const [sendTime, setSendTime] = useState('18:00');
   const [startDate, setStartDate] = useState(tomorrowDateStr());
   const [numDays, setNumDays] = useState(15);
-  const [dayChecks, setDayChecks] = useState<boolean[]>(Array(15).fill(true));
+  // Dates within the block (dateList) that the admin has unchecked. Anything
+  // in dateList NOT in this set is considered selected/checked.
+  const [unselectedDates, setUnselectedDates] = useState<Set<string>>(new Set());
   const [scheduleName, setScheduleName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
@@ -165,14 +182,6 @@ export default function QRGroupSchedulerPage() {
 
   // Regenerate the day-checkbox block when start date or block length changes
   const dateList = useMemo(() => genDates(startDate, numDays), [startDate, numDays]);
-  useEffect(() => {
-    setDayChecks(prev => {
-      const next = Array(numDays).fill(true);
-      // preserve any existing unchecked days within the overlapping range
-      for (let i = 0; i < Math.min(prev.length, numDays); i++) next[i] = prev[i];
-      return next;
-    });
-  }, [numDays, startDate]);
 
   function toggleGroup(id: string) {
     setSelectedGroups(prev => {
@@ -182,12 +191,21 @@ export default function QRGroupSchedulerPage() {
     });
   }
 
-  function toggleDay(idx: number) {
-    setDayChecks(prev => prev.map((v, i) => (i === idx ? !v : v)));
+  function isDayChecked(d: string) {
+    return !unselectedDates.has(d);
+  }
+
+  function toggleDay(d: string) {
+    setUnselectedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
   }
 
   function setAllDays(value: boolean) {
-    setDayChecks(Array(numDays).fill(value));
+    if (value) setUnselectedDates(new Set());
+    else setUnselectedDates(new Set(dateList));
   }
 
   async function handleSubmit() {
@@ -202,7 +220,7 @@ export default function QRGroupSchedulerPage() {
       setFormError('Enter the message to send.');
       return;
     }
-    const selectedDates = dateList.filter((_, i) => dayChecks[i]);
+    const selectedDates = dateList.filter(d => isDayChecked(d));
     if (selectedDates.length === 0) {
       setFormError('Select at least one day in the schedule block.');
       return;
@@ -214,39 +232,81 @@ export default function QRGroupSchedulerPage() {
 
     setSubmitting(true);
     try {
-      const created = await crmFetch('/api/admin/crm/qr-broadcast-schedule', {
-        method: 'POST',
-        body: {
-          name,
-          messageText: messageText.trim(),
-          recipientChatIds: groupJids,
-          groupIds: groupJids,
-          individualIds: [],
-          frequency: 'custom',
-          customScheduleDates: selectedDates.map(d => `${d}T00:00:00+05:30`),
-          startTime: sendTime,
-          endTime: addMinutes(sendTime, 30),
-          status: 'scheduled',
-          isActive: true,
-        },
-      });
-      if (created?.timeAdjusted && created?.startTime) {
+      const body: Record<string, any> = {
+        name,
+        messageText: messageText.trim(),
+        recipientChatIds: groupJids,
+        groupIds: groupJids,
+        individualIds: [],
+        frequency: 'custom',
+        customScheduleDates: selectedDates.map(d => `${d}T00:00:00+05:30`),
+        startTime: sendTime,
+        endTime: addMinutes(sendTime, 30),
+        status: 'scheduled',
+        isActive: true,
+      };
+
+      let result: any;
+      if (editingId) {
+        body.sentRecipientChatIds = [];
+        result = await crmFetch(`/api/admin/crm/qr-broadcast-schedule/${editingId}`, {
+          method: 'PUT',
+          body,
+        });
+      } else {
+        result = await crmFetch('/api/admin/crm/qr-broadcast-schedule', {
+          method: 'POST',
+          body,
+        });
+      }
+
+      const verb = editingId ? 'Updated' : 'Scheduled';
+      if (result?.timeAdjusted && result?.startTime) {
         setFormSuccess(
-          `Scheduled "${name}" for ${selectedDates.length} day(s). Time shifted to ${created.startTime} IST ` +
+          `${verb} "${name}" for ${selectedDates.length} day(s). Time shifted to ${result.startTime} IST ` +
           `(15-min gap kept from another group schedule on the same day).`
         );
       } else {
-        setFormSuccess(`Scheduled "${name}" for ${selectedDates.length} day(s) at ${sendTime} IST.`);
+        setFormSuccess(`${verb} "${name}" for ${selectedDates.length} day(s) at ${sendTime} IST.`);
       }
-      setMessageText('');
-      setSelectedGroups(new Set());
-      setScheduleName('');
+      cancelEdit();
       await loadSchedules();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to create schedule');
+      setFormError(err instanceof Error ? err.message : `Failed to ${editingId ? 'update' : 'create'} schedule`);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function startEdit(s: Schedule) {
+    setEditingId(s._id);
+    setSelectedGroups(new Set(s.groupIds?.length ? s.groupIds : (s.recipientChatIds || [])));
+    setMessageText(s.messageText || '');
+    setSendTime(s.startTime || '18:00');
+    setScheduleName(s.name || '');
+    const existingKeys = (s.customScheduleDates || []).map(toIstDateKey).sort();
+    if (existingKeys.length > 0) {
+      const start = existingKeys[0];
+      const end = existingKeys[existingKeys.length - 1];
+      const span = Math.min(60, Math.max(1, daysBetween(start, end) + 1));
+      setStartDate(start);
+      setNumDays(span);
+      const newDateList = genDates(start, span);
+      setUnselectedDates(new Set(newDateList.filter(d => !existingKeys.includes(d))));
+    }
+    setFormError(null);
+    setFormSuccess(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setSelectedGroups(new Set());
+    setMessageText('');
+    setScheduleName('');
+    setSendTime('18:00');
+    setStartDate(tomorrowDateStr());
+    setNumDays(15);
+    setUnselectedDates(new Set());
   }
 
   async function runAction(id: string, action: 'pause' | 'resume' | 'delete') {
@@ -287,9 +347,19 @@ export default function QRGroupSchedulerPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* ── Create form ── */}
           <div className="bg-white rounded-xl border shadow-sm p-5 space-y-5">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Send className="w-5 h-5 text-green-600" /> New Schedule
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Send className="w-5 h-5 text-green-600" /> {editingId ? 'Edit Schedule' : 'New Schedule'}
+              </h2>
+              {editingId && (
+                <button
+                  onClick={cancelEdit}
+                  className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded font-medium flex items-center gap-1 hover:bg-gray-200"
+                >
+                  <X className="w-3 h-3" /> Cancel
+                </button>
+              )}
+            </div>
 
             {/* Group picker */}
             <div>
@@ -389,12 +459,12 @@ export default function QRGroupSchedulerPage() {
               <div className="flex gap-2 mb-2">
                 <button onClick={() => setAllDays(true)} className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded font-medium">Select all</button>
                 <button onClick={() => setAllDays(false)} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded font-medium">Clear all</button>
-                <span className="text-xs text-gray-400 ml-auto self-center">{dayChecks.filter(Boolean).length} of {numDays} selected</span>
+                <span className="text-xs text-gray-400 ml-auto self-center">{dateList.filter(d => isDayChecked(d)).length} of {numDays} selected</span>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-48 overflow-y-auto border rounded-lg p-2">
-                {dateList.map((d, i) => (
-                  <label key={d} className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer ${dayChecks[i] ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-400'}`}>
-                    <input type="checkbox" checked={dayChecks[i]} onChange={() => toggleDay(i)} className="accent-green-600" />
+                {dateList.map(d => (
+                  <label key={d} className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer ${isDayChecked(d) ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-400'}`}>
+                    <input type="checkbox" checked={isDayChecked(d)} onChange={() => toggleDay(d)} className="accent-green-600" />
                     {fmtDayLabel(d)}
                   </label>
                 ))}
@@ -430,7 +500,7 @@ export default function QRGroupSchedulerPage() {
               className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
-              {submitting ? 'Saving...' : 'Create Schedule'}
+              {submitting ? 'Saving...' : editingId ? 'Update Schedule' : 'Create Schedule'}
             </button>
           </div>
 
@@ -490,6 +560,12 @@ export default function QRGroupSchedulerPage() {
                             {actionLoading === s._id + 'pause' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pause className="w-3 h-3" />} Pause
                           </button>
                         )}
+                        <button
+                          onClick={() => startEdit(s)}
+                          className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded font-medium flex items-center gap-1 hover:bg-blue-200"
+                        >
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
                         {deleteConfirm === s._id ? (
                           <>
                             <button onClick={() => runAction(s._id, 'delete')} disabled={!!actionLoading} className="px-2 py-1 text-xs bg-red-600 text-white rounded font-medium">
