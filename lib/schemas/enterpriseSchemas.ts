@@ -1400,54 +1400,12 @@ BroadcastRunMessageSchema.index({ runId: 1, status: 1 });
 BroadcastRunMessageSchema.index({ leadId: 1, createdAt: -1 });
 BroadcastRunMessageSchema.index({ waMessageId: 1 }); // For webhook status updates
 
-// ============================================================================
-// 11b. BROADCAST RECURRING SCHEDULE - Meta repeat-send with delivery-based filtering
-// ============================================================================
-// Each occurrence after the first only targets recipients whose PREVIOUS
-// occurrence's message status was 'delivered' or 'read' (strict — excludes
-// 'sent', 'failed', 'blocked', 'skipped'). A new BroadcastRun is created per
-// occurrence by the recurring-processor cron.
-const BroadcastRecurringScheduleSchema = new mongoose.Schema(
-  {
-    name: { type: String, trim: true },
-    createdByUserId: { type: String, trim: true, index: true },
-
-    templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate', required: true },
-    // 'meta' = Cloud API, 'qr' = WhatsApp Web Bridge (Baileys)
-    provider: { type: String, enum: ['meta', 'qr'], default: 'meta' },
-
-    // Recipient list for occurrence #1. Later occurrences are computed from
-    // the immediately-preceding occurrence's delivered/read recipients.
-    leadIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
-
-    sendTime: { type: String, default: '10:00' }, // HH:mm IST, applied to every occurrence date
-    deliveredOnly: { type: Boolean, default: true }, // strict delivered/read filter for occurrence 2+
-
-    overrideImageUrl: String,
-    // Defaults applied per-provider in lib/broadcastRecurring.ts if not set here
-    // (meta: 1-2s; qr: 120-360s for ~15 msgs/hour anti-ban pacing).
-    messageInterval: {
-      minSeconds: Number,
-      maxSeconds: Number,
-    },
-
-    occurrences: [{
-      index: { type: Number, required: true }, // 0-based
-      scheduledAt: { type: Date, required: true },
-      runId: { type: mongoose.Schema.Types.ObjectId, ref: 'BroadcastRun' },
-      status: { type: String, enum: ['pending', 'created', 'skipped'], default: 'pending' },
-      recipientCount: Number,
-      note: String,
-    }],
-
-    status: { type: String, enum: ['active', 'paused', 'completed', 'cancelled'], default: 'active', index: true },
-    lastProcessedAt: Date,
-  },
-  { timestamps: true, collection: 'broadcast_recurring_schedules' }
-);
-
-BroadcastRecurringScheduleSchema.index({ status: 1 });
-BroadcastRecurringScheduleSchema.index({ createdByUserId: 1, createdAt: -1 });
+// NOTE: Recurring/repeat broadcast schedules (formerly a dedicated
+// `broadcast_recurring_schedules` collection) are stored as an embedded
+// array on the existing CRMUserSettings doc (metadata.broadcastRecurringSchedules)
+// — see lib/broadcastRecurring.ts. The Atlas cluster is pinned at its
+// 500-collection hard cap, so a brand-new collection cannot be created
+// (same constraint/pattern as lib/qrSendRateLimit.ts).
 
 // ============================================================================
 // 12. WHATSAPP AUTOMATION RULES - Welcome/greetings/chatbot/AI agent
@@ -3089,7 +3047,6 @@ export function getBroadcastList() { return getModel('BroadcastList', BroadcastL
 export function getBroadcastListMember() { return getModel('BroadcastListMember', BroadcastListMemberSchema); }
 export function getBroadcastRun() { return getModel('BroadcastRun', BroadcastRunSchema); }
 export function getBroadcastRunMessage() { return getModel('BroadcastRunMessage', BroadcastRunMessageSchema); }
-export function getBroadcastRecurringSchedule() { return getModel('BroadcastRecurringSchedule', BroadcastRecurringScheduleSchema); }
 export function getChatbotFlow() { return getModel('ChatbotFlow', ChatbotFlowSchema); }
 export function getChatbotSettings() { return getModel('ChatbotSettings', ChatbotSettingsSchema); }
 export function getKnowledgeBaseArticle() { return getModel('KnowledgeBaseArticle', KnowledgeBaseArticleSchema); }
@@ -3205,7 +3162,6 @@ export const BroadcastList = createModelProxy('BroadcastList', BroadcastListSche
 export const BroadcastListMember = createModelProxy('BroadcastListMember', BroadcastListMemberSchema);
 export const BroadcastRun = createModelProxy('BroadcastRun', BroadcastRunSchema);
 export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const BroadcastRecurringSchedule = createModelProxy('BroadcastRecurringSchedule', BroadcastRecurringScheduleSchema);
 export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
 export const KnowledgeBaseArticle = createModelProxy('KnowledgeBaseArticle', KnowledgeBaseArticleSchema);

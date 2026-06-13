@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
-import { BroadcastRecurringSchedule, Lead, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { Lead, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { createRecurringSchedule, listRecurringSchedules } from '@/lib/broadcastRecurring';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -22,12 +23,13 @@ function toObjectId(id: string) {
 
 /**
  * POST /api/admin/crm/broadcast-recurring
- * Create a recurring (repeat) Meta broadcast schedule.
+ * Create a recurring (repeat) broadcast schedule (Meta or QR).
  *
  * Body:
  * {
  *   name?: string
  *   templateId: string
+ *   provider?: 'meta' | 'qr'   // default 'meta'
  *   leadIds: string[]
  *   occurrenceDates: string[]  // 'YYYY-MM-DD', IST calendar dates
  *   sendTime: string           // 'HH:mm', IST
@@ -89,36 +91,29 @@ export async function POST(request: NextRequest) {
       leadQuery.$or = [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }];
     }
     const ownedLeads = await Lead.find(leadQuery).select({ _id: 1 }).lean();
-    const finalLeadIds = ownedLeads.map((l: any) => toObjectId(String(l._id)));
+    const finalLeadIds = ownedLeads.map((l: any) => String(l._id));
     if (finalLeadIds.length === 0) {
       return NextResponse.json({ error: 'No valid recipients found' }, { status: 400 });
     }
 
     // Build occurrences — scheduledAt = date + sendTime in IST (UTC+05:30)
-    const occurrences = occurrenceDates.map((dateStr, index) => {
-      const scheduledAt = new Date(`${dateStr}T${sendTime}:00+05:30`);
-      return {
-        index,
-        scheduledAt,
-        status: 'pending' as const,
-      };
-    }).filter(o => !Number.isNaN(o.scheduledAt.getTime()));
+    const occurrenceDateTimes = occurrenceDates
+      .map((dateStr) => new Date(`${dateStr}T${sendTime}:00+05:30`))
+      .filter((d) => !Number.isNaN(d.getTime()));
 
-    if (occurrences.length === 0) {
+    if (occurrenceDateTimes.length === 0) {
       return NextResponse.json({ error: 'No valid occurrence dates' }, { status: 400 });
     }
 
-    const schedule = await BroadcastRecurringSchedule.create({
+    const schedule = await createRecurringSchedule({
+      userId: viewerUserId,
       name,
-      createdByUserId: viewerUserId,
-      templateId: toObjectId(templateId),
-      provider,
+      templateId,
+      provider: provider as 'meta' | 'qr',
       leadIds: finalLeadIds,
       sendTime,
-      deliveredOnly: true,
+      occurrenceDates: occurrenceDateTimes,
       overrideImageUrl: overrideImageUrl || undefined,
-      occurrences,
-      status: 'active',
     });
 
     return NextResponse.json({ success: true, data: schedule }, { status: 201 });
@@ -137,22 +132,28 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const superAdmin = isSuperAdmin(decoded);
-    const viewerUserId = getViewerUserId(decoded);
-
-    const filter: any = {};
-    if (!superAdmin) filter.createdByUserId = viewerUserId;
+    const viewerUserId = String(getViewerUserId(decoded) || '');
 
     const url = new URL(request.url);
-    const status = url.searchParams.get('status');
-    if (status) filter.status = String(status);
+    const status = url.searchParams.get('status') || undefined;
 
-    const schedules = await BroadcastRecurringSchedule.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .populate({ path: 'templateId', select: 'templateName' })
+    const schedules = await listRecurringSchedules({
+      userIds: superAdmin ? undefined : [viewerUserId],
+      status,
+    });
+
+    const templateIds = Array.from(new Set(schedules.map((s) => String(s.templateId))));
+    const templates = await WhatsAppTemplate.find({ _id: { $in: templateIds.map(toObjectId) } })
+      .select({ templateName: 1 })
       .lean();
+    const templateNameById = new Map(templates.map((t: any) => [String(t._id), t.templateName]));
 
-    return NextResponse.json({ success: true, data: { schedules } }, { status: 200 });
+    const data = schedules.slice(0, 100).map((s) => ({
+      ...s,
+      templateId: { _id: s.templateId, templateName: templateNameById.get(String(s.templateId)) },
+    }));
+
+    return NextResponse.json({ success: true, data: { schedules: data } }, { status: 200 });
   } catch (error) {
     return handleCrmError(error, 'GET broadcast-recurring');
   }
