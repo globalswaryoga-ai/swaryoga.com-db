@@ -251,6 +251,20 @@ export async function GET(request: NextRequest) {
               },
             },
           },
+          // If multiple lead records share this phone number (duplicate
+          // leads, or separate tenants' leads colliding on the same number),
+          // pick exactly ONE so this conversation isn't duplicated by the
+          // $unwind below. Prefer a lead owned by the Meta WABA owner (super
+          // admin's own record), then fall back to the most recently created.
+          {
+            $addFields: {
+              _ownerRank: {
+                $cond: [{ $in: ['$createdByUserId', META_WHATSAPP_OWNER_IDS] }, 0, 1],
+              },
+            },
+          },
+          { $sort: { _ownerRank: 1, createdAt: -1 } },
+          { $limit: 1 },
         ],
         as: 'lead',
       },
