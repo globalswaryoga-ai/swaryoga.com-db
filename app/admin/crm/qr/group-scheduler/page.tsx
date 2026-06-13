@@ -214,7 +214,7 @@ export default function QRGroupSchedulerPage() {
 
     setSubmitting(true);
     try {
-      await crmFetch('/api/admin/crm/qr-broadcast-schedule', {
+      const created = await crmFetch('/api/admin/crm/qr-broadcast-schedule', {
         method: 'POST',
         body: {
           name,
@@ -230,7 +230,14 @@ export default function QRGroupSchedulerPage() {
           isActive: true,
         },
       });
-      setFormSuccess(`Scheduled "${name}" for ${selectedDates.length} day(s) at ${sendTime} IST.`);
+      if (created?.timeAdjusted && created?.startTime) {
+        setFormSuccess(
+          `Scheduled "${name}" for ${selectedDates.length} day(s). Time shifted to ${created.startTime} IST ` +
+          `(15-min gap kept from another group schedule on the same day).`
+        );
+      } else {
+        setFormSuccess(`Scheduled "${name}" for ${selectedDates.length} day(s) at ${sendTime} IST.`);
+      }
       setMessageText('');
       setSelectedGroups(new Set());
       setScheduleName('');
@@ -351,7 +358,8 @@ export default function QRGroupSchedulerPage() {
                 onChange={e => setSendTime(e.target.value)}
                 className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm"
               />
-              <p className="text-xs text-gray-400 mt-1">Message is sent automatically at this time each selected day (±a few minutes).</p>
+              <p className="text-xs text-gray-400 mt-1">Message is sent automatically at this time each selected day (±a few minutes). Any time of day (24 hours) is allowed.</p>
+              <p className="text-xs text-gray-400 mt-1">If another group schedule already sends within 15 minutes of this time on the same day, this schedule's time is auto-shifted to keep a 15-minute gap.</p>
             </div>
 
             {/* Day block */}

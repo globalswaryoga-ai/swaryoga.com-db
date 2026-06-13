@@ -723,19 +723,19 @@ export async function GET(req: NextRequest) {
     }
 
     // ── GLOBAL TIME GUARD: Never send QR messages after 10:30 PM or before 5:00 AM IST ──
-    if (!isQRSendAllowed()) {
-      console.log('[QR Broadcast V2] ⏰ Outside allowed hours (5:00 AM – 10:30 PM IST). Skipping all schedules.');
-      return NextResponse.json({
-        success: true,
-        timestamp: new Date().toISOString(),
-        processedSchedules: 0,
-        results: [],
-        note: 'Outside allowed send window (5:00 AM – 10:30 PM IST)',
-      });
+    // EXCEPTION: 'custom' frequency schedules (Group Scheduler — recurring messages to
+    // groups on specific calendar days) are allowed to send at any time, 24 hours a day.
+    const sendAllowedNow = isQRSendAllowed();
+    if (!sendAllowedNow) {
+      console.log('[QR Broadcast V2] ⏰ Outside allowed hours (5:00 AM – 10:30 PM IST). Skipping non-custom schedules.');
     }
 
     const results: any[] = [];
     for (const schedule of schedules) {
+      if (schedule.frequency !== 'custom' && !sendAllowedNow) {
+        console.log(`[QR Broadcast V2] ⏰ Skipping "${schedule.name}" (${schedule._id}) — outside 5:00 AM – 10:30 PM IST window`);
+        continue;
+      }
       const result = await processSchedule(schedule, bridgeUrl, bridgeSecret);
       results.push({
         scheduleId: schedule._id,

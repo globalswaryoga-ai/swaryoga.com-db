@@ -17,6 +17,68 @@ function ownerFilter(decoded: any) {
   return { $or: [{ userId: uid }, { createdBy: uid }] };
 }
 
+const MIN_SCHEDULE_GAP_MINUTES = 15;
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+function minutesToTime(mins: number): string {
+  const m = ((mins % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+function toIstDateStr(d: Date | string): string {
+  return new Date(new Date(d).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
+}
+
+/**
+ * For 'custom' frequency schedules (recurring group messages on specific days),
+ * make sure no two schedules fire within MIN_SCHEDULE_GAP_MINUTES of each other
+ * on a shared date — push the requested start time forward in 15-min steps
+ * until it clears every conflicting schedule.
+ */
+async function resolveStartTime(
+  QRBroadcastSchedule: any,
+  uid: string,
+  excludeId: string | undefined,
+  requestedStart: string,
+  requestedDates: Date[]
+): Promise<string> {
+  const requestedDateSet = new Set(requestedDates.map(toIstDateStr));
+
+  const filter: any = {
+    $or: [{ userId: uid }, { createdBy: uid }],
+    frequency: 'custom',
+    isActive: true,
+    status: { $in: ['scheduled', 'in-progress', 'paused'] },
+  };
+  if (excludeId) filter._id = { $ne: excludeId };
+
+  const existing = await QRBroadcastSchedule.find(filter)
+    .select('startTime customScheduleDates')
+    .lean();
+
+  const conflictMinutes: number[] = [];
+  for (const s of existing) {
+    if (!Array.isArray(s.customScheduleDates) || !s.startTime) continue;
+    const overlaps = s.customScheduleDates.some((d: any) => requestedDateSet.has(toIstDateStr(d)));
+    if (overlaps) conflictMinutes.push(timeToMinutes(s.startTime));
+  }
+
+  let candidate = timeToMinutes(requestedStart);
+  for (let i = 0; i < 96; i++) {
+    const hasConflict = conflictMinutes.some((c) => {
+      const diff = Math.abs(candidate - c);
+      return Math.min(diff, 1440 - diff) < MIN_SCHEDULE_GAP_MINUTES;
+    });
+    if (!hasConflict) break;
+    candidate = (candidate + MIN_SCHEDULE_GAP_MINUTES) % 1440;
+  }
+  return minutesToTime(candidate);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -52,6 +114,27 @@ export async function POST(req: NextRequest) {
     const uid = getUserId(decoded);
     const recipients = Array.isArray(body.recipientChatIds) ? body.recipientChatIds : [];
 
+    const frequency = body.frequency || 'once';
+    const customScheduleDates: Date[] = Array.isArray(body.customScheduleDates)
+      ? body.customScheduleDates.map((d: string) => new Date(d + (String(d).includes('T') ? '' : 'T00:00:00+05:30')))
+      : [];
+
+    // Group Scheduler ('custom' frequency): keep at least a 15-minute gap between
+    // any two recurring group schedules that share a send date — auto-shift the
+    // start/end time forward in 15-min steps if the requested slot conflicts.
+    let startTime = body.startTime;
+    let endTime = body.endTime;
+    let timeAdjusted = false;
+    if (frequency === 'custom' && customScheduleDates.length > 0) {
+      const resolvedStart = await resolveStartTime(QRBroadcastSchedule, uid, undefined, body.startTime, customScheduleDates);
+      if (resolvedStart !== body.startTime) {
+        const durationMin = ((timeToMinutes(body.endTime) - timeToMinutes(body.startTime)) + 1440) % 1440 || 30;
+        startTime = resolvedStart;
+        endTime = minutesToTime(timeToMinutes(resolvedStart) + durationMin);
+        timeAdjusted = true;
+      }
+    }
+
     const schedule = await QRBroadcastSchedule.create({
       userId: uid,
       tenantId: decoded?.tenantId || 'default',
@@ -63,14 +146,12 @@ export async function POST(req: NextRequest) {
       groupIds: body.groupIds || [],
       individualIds: body.individualIds || [],
       isActive: body.isActive !== false,
-      startTime: body.startTime,
-      endTime: body.endTime,
+      startTime,
+      endTime,
       timezone: body.timezone || 'Asia/Kolkata',
-      frequency: body.frequency || 'once',
+      frequency,
       daysOfWeek: body.daysOfWeek || [],
-      customScheduleDates: Array.isArray(body.customScheduleDates)
-        ? body.customScheduleDates.map((d: string) => new Date(d + (String(d).includes('T') ? '' : 'T00:00:00+05:30')))
-        : [],
+      customScheduleDates,
       maxMessagesPerDay: body.maxMessagesPerDay || 300,
       gapStrategy: body.gapStrategy || {
         initialGapMs: 7000,
@@ -106,7 +187,10 @@ export async function POST(req: NextRequest) {
         : undefined,
     });
 
-    return NextResponse.json({ success: true, data: schedule }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      data: { ...schedule.toObject(), timeAdjusted, requestedStartTime: body.startTime },
+    }, { status: 201 });
   } catch (error) {
     console.error('[QR Broadcast Schedule POST] Error:', error);
     const msg = error instanceof Error ? error.message : 'Internal server error';
