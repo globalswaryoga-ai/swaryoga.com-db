@@ -559,6 +559,15 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
           description: 'Send messages to many',
         },
         {
+          icon: CalendarDays,
+          label: 'Group Scheduler',
+          href: '/admin/crm/qr/group-scheduler',
+          color: 'text-emerald-400',
+          module: 'whatsapp',
+          planModule: 'whatsapp',
+          description: 'Recurring scheduled group messages',
+        },
+        {
           icon: Send,
           label: 'Telegram',
           href: '/admin/crm/telegram',

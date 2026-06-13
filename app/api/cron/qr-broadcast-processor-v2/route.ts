@@ -35,8 +35,10 @@ function isWithinTimeWindow(startTime: string, endTime: string, timezone: string
 /**
  * Check if schedule should run today
  * For 'once' frequency, also checks firstRunDate (scheduled specific date)
+ * For 'custom' frequency, checks customScheduleDates (e.g. a 15-day block with
+ * specific days checked/unchecked by the admin)
  */
-function shouldRunToday(frequency: string, daysOfWeek: number[], firstRunDate?: Date): boolean {
+function shouldRunToday(frequency: string, daysOfWeek: number[], firstRunDate?: Date, customScheduleDates?: Date[]): boolean {
   if (frequency === 'once') {
     // If a specific scheduled date was set, only run on that date (IST comparison)
     if (firstRunDate) {
@@ -57,6 +59,15 @@ function shouldRunToday(frequency: string, daysOfWeek: number[], firstRunDate?: 
     const today = new Date().getDay();
     const shouldRun = daysOfWeek.includes(today);
     return shouldRun;
+  }
+
+  if (frequency === 'custom') {
+    if (!Array.isArray(customScheduleDates) || customScheduleDates.length === 0) return false;
+    const todayIstStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
+    return customScheduleDates.some((d) => {
+      const dateIstStr = new Date(new Date(d).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
+      return dateIstStr === todayIstStr;
+    });
   }
 
   // Unknown frequency — default to false (don't run)
@@ -294,7 +305,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     const hasCarryOver = totalCount > 0 && sentCount > 0 && sentCount < totalCount;
 
     // Check if should run today (skipped when a carry-over is mid-flight)
-    if (!hasCarryOver && !shouldRunToday(schedule.frequency, schedule.daysOfWeek, schedule.firstRunDate)) {
+    if (!hasCarryOver && !shouldRunToday(schedule.frequency, schedule.daysOfWeek, schedule.firstRunDate, schedule.customScheduleDates)) {
       const today = new Date();
       console.log(`[QR Broadcast Processor V2] 📅 Not scheduled for today (frequency: ${schedule.frequency}, daysOfWeek: ${schedule.daysOfWeek}, today: ${today.getDay()}, firstRunDate: ${schedule.firstRunDate})`);
       return { status: 'skipped', reason: 'not_scheduled_for_today' };

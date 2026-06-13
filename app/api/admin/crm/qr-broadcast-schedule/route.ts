@@ -68,6 +68,9 @@ export async function POST(req: NextRequest) {
       timezone: body.timezone || 'Asia/Kolkata',
       frequency: body.frequency || 'once',
       daysOfWeek: body.daysOfWeek || [],
+      customScheduleDates: Array.isArray(body.customScheduleDates)
+        ? body.customScheduleDates.map((d: string) => new Date(d + (String(d).includes('T') ? '' : 'T00:00:00+05:30')))
+        : [],
       maxMessagesPerDay: body.maxMessagesPerDay || 300,
       gapStrategy: body.gapStrategy || {
         initialGapMs: 7000,
