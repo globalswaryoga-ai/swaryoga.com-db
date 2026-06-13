@@ -64,9 +64,17 @@ export async function GET(request: NextRequest) {
     // - Default (no param) & provider=meta: Meta Cloud API messages ONLY
     // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
     // - provider=all: everything (admin analytics/reports)
+    //
+    // The Meta channel is a single shared WABA owned by META_WHATSAPP_OWNER_IDS
+    // (super admin). Tenants who don't own it have no Meta messages of their own.
     if (providerParam === 'all') {
-      // No provider filter – include everything
+      if (!superAdmin) {
+        filter.provider = { $ne: 'meta' };
+      }
     } else {
+      if (!superAdmin) {
+        return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
+      }
       // Default & 'meta': strictly Meta Cloud API messages only
       filter.provider = 'meta';
     }

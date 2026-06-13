@@ -28,6 +28,26 @@ type BroadcastRun = {
   scheduledAt?: string;
 };
 
+type RecurringOccurrence = {
+  index: number;
+  scheduledAt: string;
+  runId?: string;
+  status: 'pending' | 'created' | 'skipped';
+  recipientCount?: number;
+  note?: string;
+};
+
+type RecurringSchedule = {
+  _id: string;
+  name: string;
+  templateId?: { _id: string; templateName?: string };
+  leadIds: string[];
+  sendTime: string;
+  occurrences: RecurringOccurrence[];
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+  createdAt: string;
+};
+
 type BroadcastMessage = {
   _id: string;
   phoneNumber: string;
@@ -95,6 +115,7 @@ export default function QRBroadcastReportPage() {
 
   const [runs, setRuns] = useState<BroadcastRun[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(true);
+  const [recurringSchedules, setRecurringSchedules] = useState<RecurringSchedule[]>([]);
 
   const [selectedRun, setSelectedRun] = useState<BroadcastRun | null>(null);
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
@@ -127,6 +148,19 @@ export default function QRBroadcastReportPage() {
     }
   }, [token]);
 
+  const fetchRecurringSchedules = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-recurring?provider=qr', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setRecurringSchedules(data?.data?.schedules || data?.schedules || []);
+    } catch {
+      setRecurringSchedules([]);
+    }
+  }, [token]);
+
   const fetchRunDetail = useCallback(async (id: string) => {
     if (!token) return;
     setLoadingDetail(true);
@@ -154,7 +188,7 @@ export default function QRBroadcastReportPage() {
       fetchRunDetail(runId).finally(() => { fetchingRef.current = false; });
     } else {
       setView('list');
-      fetchRuns().finally(() => { fetchingRef.current = false; });
+      Promise.all([fetchRuns(), fetchRecurringSchedules()]).finally(() => { fetchingRef.current = false; });
     }
   }, [token, runId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -417,6 +451,70 @@ export default function QRBroadcastReportPage() {
         {view === 'list' ? (
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-6">All QR Broadcasts</h2>
+
+            {/* ── Repeat broadcasts (recurring schedules) ── */}
+            {recurringSchedules.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-bold text-blue-700 uppercase mb-3 flex items-center gap-2">
+                  🔁 Repeat Broadcasts
+                </h3>
+                <div className="bg-blue-50 rounded-xl border border-blue-200 overflow-hidden divide-y divide-blue-100">
+                  {recurringSchedules.map(s => {
+                    const total = s.occurrences?.length || 0;
+                    const created = s.occurrences?.filter(o => o.status === 'created').length || 0;
+                    const skipped = s.occurrences?.filter(o => o.status === 'skipped').length || 0;
+                    const next = s.occurrences?.find(o => o.status === 'pending');
+                    const statusColors: Record<string, string> = {
+                      active: 'bg-blue-100 text-blue-700',
+                      paused: 'bg-yellow-100 text-yellow-700',
+                      completed: 'bg-green-100 text-green-700',
+                      cancelled: 'bg-gray-200 text-gray-600',
+                    };
+                    return (
+                      <div key={s._id} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-gray-900 flex items-center gap-2">
+                            🔁 {s.name}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[s.status] || statusColors.active}`}>
+                              {s.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {s.templateId?.templateName || 'Template'} · {s.leadIds?.length || 0} recipient(s) · Sends at {s.sendTime} IST
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-blue-700 font-semibold">
+                            {created}/{total} occurrence(s) sent
+                          </div>
+                          {next && (
+                            <div className="text-xs text-gray-500">
+                              Next: {new Date(next.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST
+                            </div>
+                          )}
+                          {skipped > 0 && (
+                            <div className="text-xs text-yellow-600">{skipped} skipped — no delivered/read recipients</div>
+                          )}
+                        </div>
+                        {created > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {s.occurrences.filter(o => o.runId).map(o => (
+                              <button
+                                key={o.index}
+                                onClick={() => router.push(`/admin/crm/qr/broadcast-report?runId=${o.runId}`)}
+                                className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold"
+                              >
+                                View #{o.index + 1}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {loadingRuns ? (
               <div className="flex justify-center py-12"><LoadingSpinner /></div>

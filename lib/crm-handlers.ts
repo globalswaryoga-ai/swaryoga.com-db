@@ -130,6 +130,16 @@ const normalizeAdminIdentifier = (value: unknown): string => {
   return String(value || '').trim().toLowerCase();
 };
 
+/**
+ * Identifiers that own the platform's single shared Meta WhatsApp Cloud API
+ * channel (env-configured WABA/phone number). Used to scope the Meta
+ * WhatsApp inbox so that:
+ *  - Tenants who don't own this channel see no Meta conversations/messages.
+ *  - The owner's (super admin's) inbox doesn't surface OTHER tenants' lead
+ *    records that happen to share a phone number with a Meta conversation.
+ */
+export const META_WHATSAPP_OWNER_IDS: string[] = Array.from(SUPER_ADMIN_IDS);
+
 export const isSuperAdmin = (decoded: any): boolean => {
   // Super admin is ONLY the CRM owner — identified by a known userId/username.
   // Check userId (regular admin users stored in DB)

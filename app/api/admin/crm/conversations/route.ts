@@ -8,6 +8,7 @@ import {
   buildMetadata,
   isSuperAdmin,
   getVisibleUserIds,
+  META_WHATSAPP_OWNER_IDS,
 } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
@@ -26,8 +27,12 @@ function escapeRegexLiteral(input: string): string {
  * Conversations API
  * Returns one row per leadId with last message + unread count.
  * 
- * Access Control (3-tier):
- * - Super admin: can see ALL conversations
+ * Access Control:
+ * - The Meta WhatsApp Cloud API channel is a single shared WABA owned by the
+ *   platform (META_WHATSAPP_OWNER_IDS / super admin). Tenants who don't own
+ *   it see no Meta conversations.
+ * - Super admin (channel owner): sees ALL Meta conversations, but any joined
+ *   `lead` belonging to another tenant is hidden (shown as unmatched contact).
  * - Manager (MR Admin): can see conversations for leads assigned to them OR their team
  * - Regular admin: can only see conversations for leads assigned to them
  */
@@ -51,6 +56,13 @@ export async function GET(request: NextRequest) {
       return formatCrmSuccess({ conversations: [], total: 0, note: 'Use dedicated QR WhatsApp APIs for QR conversations.' }, buildMetadata(0, limit, skip));
     }
 
+    // The Meta WhatsApp Cloud API channel is a single shared WABA owned by the
+    // platform (META_WHATSAPP_OWNER_IDS). Tenants who don't own this channel
+    // have no Meta conversations of their own.
+    if (providerParam !== 'all' && !superAdmin) {
+      return formatCrmSuccess({ conversations: [], total: 0 }, buildMetadata(0, limit, skip));
+    }
+
     await connectDB();
     const WhatsAppMessage = getWhatsAppMessage();
 
@@ -61,7 +73,10 @@ export async function GET(request: NextRequest) {
     // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
     // - provider=all: everything (admin analytics)
     if (providerParam === 'all') {
-      // No filter – include everything (for diagnostics/analytics)
+      if (!superAdmin) {
+        // Non-owner tenants don't have a Meta channel — exclude it from "all".
+        pipeline.push({ $match: { provider: { $ne: 'meta' } } });
+      }
     } else {
       // Default & 'meta': strictly Meta Cloud API messages only
       pipeline.push({ $match: { provider: 'meta' } });
@@ -241,6 +256,34 @@ export async function GET(request: NextRequest) {
       },
     });
     pipeline.push({ $unwind: { path: '$lead', preserveNullAndEmptyArrays: true } });
+
+    // Meta-channel tenant isolation: the joined `lead` may belong to a
+    // different tenant than the Meta WABA owner (phone numbers can collide
+    // across independent tenants' lead lists). For the owner's own Meta
+    // inbox, hide any joined lead that doesn't belong to the owner — the
+    // conversation itself still shows (it happened on the owner's WABA), but
+    // as an unmatched/unknown contact rather than leaking another tenant's
+    // lead record.
+    if (superAdmin) {
+      pipeline.push({
+        $addFields: {
+          lead: {
+            $cond: [
+              {
+                $or: [
+                  { $ne: ['$provider', 'meta'] },
+                  { $eq: ['$lead', null] },
+                  { $in: ['$lead.createdByUserId', [...META_WHATSAPP_OWNER_IDS, null]] },
+                  { $in: ['$lead.assignedToUserId', [...META_WHATSAPP_OWNER_IDS, null]] },
+                ],
+              },
+              '$lead',
+              null,
+            ],
+          },
+        },
+      });
+    }
 
     // Access control (3-tier):
     // - Super admin: can see all conversations (both Meta and QR)

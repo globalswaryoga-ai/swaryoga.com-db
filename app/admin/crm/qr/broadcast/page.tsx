@@ -252,9 +252,6 @@ export default function QRBroadcastWizard() {
     const items: Lead[] = Array.isArray(res?.leads) ? res.leads
       : (Array.isArray(res?.data?.leads) ? res.data.leads : []);
     setLeads(items);
-    // Auto-connect: pre-select every loaded QR lead so the broadcast targets the
-    // whole QR list by default (the admin can still deselect individuals).
-    setSelectedLeadIds(new Set(items.map(l => l._id)));
     setLeadsLoading(false);
   }, [token, filterStatuses, filterLabels, filterWorkshops, leadSearch]);
 

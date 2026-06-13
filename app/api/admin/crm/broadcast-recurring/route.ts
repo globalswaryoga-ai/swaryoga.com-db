@@ -136,11 +136,14 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const status = url.searchParams.get('status') || undefined;
+    const provider = url.searchParams.get('provider') || undefined;
 
-    const schedules = await listRecurringSchedules({
+    let schedules = await listRecurringSchedules({
       userIds: superAdmin ? undefined : [viewerUserId],
       status,
     });
+
+    if (provider) schedules = schedules.filter((s) => s.provider === provider);
 
     const templateIds = Array.from(new Set(schedules.map((s) => String(s.templateId))));
     const templates = await WhatsAppTemplate.find({ _id: { $in: templateIds.map(toObjectId) } })
