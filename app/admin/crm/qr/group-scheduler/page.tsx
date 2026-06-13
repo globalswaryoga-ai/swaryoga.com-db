@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import {
   Send, Search, Users, Loader2, CheckCircle2, Clock, Calendar,
   Trash2, Play, Pause, RefreshCw, AlertCircle, MessageSquare, ListChecks, Pencil, X,
+  Bold, Italic, Smile, Upload, File as FileIcon, Image as ImageIcon, Paperclip,
 } from 'lucide-react';
 
 type Chat = {
@@ -24,6 +25,7 @@ type Schedule = {
   endTime: string;
   frequency: string;
   customScheduleDates?: string[];
+  mediaUrls?: string[];
   status: string;
   isActive: boolean;
   lastError?: string;
@@ -99,6 +101,30 @@ function fmtDateTime(d?: string) {
   return new Date(d).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function insertAround(el: HTMLTextAreaElement | null, value: string, l: string, r: string) {
+  if (!el) return `${value}${l}${r}`;
+  const s = el.selectionStart ?? 0;
+  const e = el.selectionEnd ?? 0;
+  return `${value.slice(0, s)}${l}${value.slice(s, e)}${r}${value.slice(e)}`;
+}
+
+const EMOJI_QUICK = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'];
+
+const EMOJI_CATEGORIES: Record<string, string[]> = {
+  'Faces': ['😊','😀','😃','😄','😁','😆','😂','🤣','😍','🥰','😘','😎','🤩','😇','🥹','😅','😉','🙂','😋','😛'],
+  'Gestures': ['🙏','👋','👍','👎','✌️','🤙','👌','👏','🤝','💪','🦾','❤️','💕','💔'],
+  'Symbols': ['✅','❌','⭐','🌟','💯','✨','🔥','💫','⚡','🏆','🎯','🔔','📢','📣','💬'],
+  'Events': ['🎉','🎊','🎁','🎂','🥳','🎈','🎪','🎭','🎨','🎵','🎸','🎤','🏆'],
+  'Business': ['📱','💻','🖥️','⌨️','💾','💿','📺','📷','📞','📧','💰','💳','📊','📈'],
+  'Nature': ['🌿','🌱','🌲','🌳','🌴','🍀','🍁','🌺','🌸','🌼','🌻','🌹','🌷','🌙','☀️','🌈'],
+  'Food': ['🍎','🍊','🍋','🍇','🍓','🍑','🥭','🍍','🍅','🥑','🥦','🥕','🌽','🍔','🍕','🍜','🍰','☕'],
+  'Objects': ['🎁','🎀','🎈','🎂','📚','📖','✏️','📝','🖊️','⌚','🔑','🔒','🔓','🎁','🎪'],
+};
+
+function guessMediaKind(url: string): 'image' | 'document' {
+  return /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url) ? 'image' : 'document';
+}
+
 export default function QRGroupSchedulerPage() {
   const token = useAuth();
   const { fetch: crmFetch } = useCRM({ token });
@@ -128,6 +154,32 @@ export default function QRGroupSchedulerPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  // ── Media attachment (image / document) ──
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaFileName, setMediaFileName] = useState('');
+  const [mediaKind, setMediaKind] = useState<'image' | 'document' | ''>('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
+
+  // ── Message formatting (bold/italic/emoji) ──
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiCategory, setEmojiCategory] = useState<string>('Faces');
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showEmojiPicker]);
 
   // Load groups from QR Bridge
   const loadChats = useCallback(async () => {
@@ -208,6 +260,60 @@ export default function QRGroupSchedulerPage() {
     else setUnselectedDates(new Set(dateList));
   }
 
+  async function handleMediaUpload(file: globalThis.File, kind: 'image' | 'document') {
+    const maxSize = 25 * 1024 * 1024; // 25MB
+    if (file.size > maxSize) {
+      setFormError('File too large. Max 25MB.');
+      return;
+    }
+    setUploading(true);
+    setUploadProgress(10);
+    setFormError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      setUploadProgress(30);
+
+      const res = await fetch('/api/admin/crm/whatsapp/media-upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      setUploadProgress(80);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(err.error || 'Upload failed');
+      }
+
+      const data = await res.json();
+      setMediaUrl(data.url);
+      setMediaFileName(file.name);
+      setMediaKind(kind);
+      setUploadProgress(100);
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Failed to upload media');
+    } finally {
+      setUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
+    }
+  }
+
+  function applyFormat(l: string, r: string) {
+    setMessageText(prev => insertAround(messageRef.current, prev, l, r));
+    requestAnimationFrame(() => messageRef.current?.focus());
+  }
+
+  function addEmoji(em: string) {
+    setMessageText(prev => {
+      const el = messageRef.current;
+      if (!el) return prev + em;
+      const s = el.selectionStart ?? prev.length;
+      return `${prev.slice(0, s)}${em}${prev.slice(s)}`;
+    });
+    requestAnimationFrame(() => messageRef.current?.focus());
+  }
+
   async function handleSubmit() {
     setFormError(null);
     setFormSuccess(null);
@@ -240,6 +346,7 @@ export default function QRGroupSchedulerPage() {
         individualIds: [],
         frequency: 'custom',
         customScheduleDates: selectedDates.map(d => `${d}T00:00:00+05:30`),
+        mediaUrls: mediaUrl ? [mediaUrl] : [],
         startTime: sendTime,
         endTime: addMinutes(sendTime, 30),
         status: 'scheduled',
@@ -284,6 +391,16 @@ export default function QRGroupSchedulerPage() {
     setMessageText(s.messageText || '');
     setSendTime(s.startTime || '18:00');
     setScheduleName(s.name || '');
+    if (s.mediaUrls && s.mediaUrls.length > 0) {
+      const url = s.mediaUrls[0];
+      setMediaUrl(url);
+      setMediaFileName(url.split('/').pop() || 'media');
+      setMediaKind(guessMediaKind(url));
+    } else {
+      setMediaUrl('');
+      setMediaFileName('');
+      setMediaKind('');
+    }
     const existingKeys = (s.customScheduleDates || []).map(toIstDateKey).sort();
     if (existingKeys.length > 0) {
       const start = existingKeys[0];
@@ -307,6 +424,9 @@ export default function QRGroupSchedulerPage() {
     setStartDate(tomorrowDateStr());
     setNumDays(15);
     setUnselectedDates(new Set());
+    setMediaUrl('');
+    setMediaFileName('');
+    setMediaKind('');
   }
 
   async function runAction(id: string, action: 'pause' | 'resume' | 'delete') {
@@ -406,15 +526,137 @@ export default function QRGroupSchedulerPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-1">
                 <MessageSquare className="w-4 h-4" /> Message
               </label>
+
+              {/* Formatting toolbar */}
+              <div className="flex items-center gap-1 flex-wrap p-2 bg-gray-50 border border-b-0 rounded-t-lg">
+                <button type="button" onClick={() => applyFormat('*', '*')}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs font-bold text-gray-700 transition" title="Bold (*text*)">
+                  <Bold className="w-3.5 h-3.5" /> Bold
+                </button>
+                <button type="button" onClick={() => applyFormat('_', '_')}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs italic text-gray-700 transition" title="Italic (_text_)">
+                  <Italic className="w-3.5 h-3.5" /> Italic
+                </button>
+
+                <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                {EMOJI_QUICK.slice(0, 8).map(em => (
+                  <button key={em} type="button" onClick={() => addEmoji(em)}
+                    className="w-7 h-7 rounded border bg-white hover:bg-gray-100 flex items-center justify-center text-base leading-none transition" title={em}>
+                    {em}
+                  </button>
+                ))}
+
+                <div className="relative" ref={emojiPickerRef}>
+                  <button type="button"
+                    onClick={() => setShowEmojiPicker(v => !v)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded border text-xs font-medium transition ${showEmojiPicker ? 'bg-green-50 border-green-400 text-green-700' : 'bg-white hover:bg-gray-100 text-gray-700'}`}>
+                    <Smile className="w-3.5 h-3.5" /> More
+                  </button>
+
+                  {showEmojiPicker && (
+                    <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72">
+                      <div className="flex overflow-x-auto border-b p-1 gap-0.5" style={{ scrollbarWidth: 'none' }}>
+                        {Object.keys(EMOJI_CATEGORIES).map(cat => (
+                          <button key={cat} type="button"
+                            onClick={() => setEmojiCategory(cat)}
+                            className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium transition whitespace-nowrap ${emojiCategory === cat ? 'bg-green-100 text-green-700' : 'hover:bg-gray-100 text-gray-600'}`}>
+                            {cat.split(' ')[0]}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="p-2 grid grid-cols-8 gap-0.5 max-h-40 overflow-y-auto">
+                        {EMOJI_CATEGORIES[emojiCategory]?.map(em => (
+                          <button key={em} type="button"
+                            onClick={() => { addEmoji(em); setShowEmojiPicker(false); }}
+                            className="w-8 h-8 rounded hover:bg-gray-100 flex items-center justify-center text-lg leading-none transition"
+                            title={em}>
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                <button type="button"
+                  onClick={() => !uploading && imageInputRef.current?.click()}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs font-medium text-gray-700 transition" title="Attach image">
+                  <ImageIcon className="w-3.5 h-3.5" /> Image
+                </button>
+                <button type="button"
+                  onClick={() => !uploading && documentInputRef.current?.click()}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded border bg-white hover:bg-gray-100 text-xs font-medium text-gray-700 transition" title="Attach document">
+                  <Paperclip className="w-3.5 h-3.5" /> Document
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleMediaUpload(f, 'image'); e.target.value = ''; }}
+                  className="hidden"
+                />
+                <input
+                  ref={documentInputRef}
+                  type="file"
+                  accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleMediaUpload(f, 'document'); e.target.value = ''; }}
+                  className="hidden"
+                />
+              </div>
+
               <textarea
+                ref={messageRef}
                 value={messageText}
                 onChange={e => setMessageText(e.target.value)}
                 placeholder="e.g. 🙏 Today's Zoom link: https://zoom.us/j/..."
                 rows={5}
                 maxLength={4096}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 resize-none text-sm"
+                className="w-full px-3 py-2 border border-t-0 rounded-b-lg focus:ring-2 focus:ring-green-500 resize-none text-sm"
               />
-              <span className="text-xs text-gray-400">{messageText.length}/4096</span>
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px] text-gray-400">
+                  Format: <span className="font-bold">*bold*</span> · <span className="italic">_italic_</span>
+                </span>
+                <span className="text-xs text-gray-400">{messageText.length}/4096</span>
+              </div>
+
+              {/* Media attachment preview */}
+              {uploading ? (
+                <div className="mt-2 p-3 border-2 border-dashed border-green-400 bg-green-50 rounded-lg text-center">
+                  <Loader2 className="w-5 h-5 mx-auto text-green-600 animate-spin mb-1" />
+                  <p className="text-xs font-medium text-green-700">Uploading to Bunny CDN… {uploadProgress}%</p>
+                </div>
+              ) : mediaUrl ? (
+                <div className="mt-2 border rounded-lg overflow-hidden">
+                  {mediaKind === 'image' ? (
+                    <div className="bg-gray-100 flex items-center justify-center p-2">
+                      <img src={mediaUrl} alt="Attachment" className="max-h-32 rounded object-contain" />
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 p-3 flex items-center gap-2">
+                      <FileIcon className="w-6 h-6 text-red-500 flex-shrink-0" />
+                      <span className="text-xs text-gray-700 truncate">{mediaFileName}</span>
+                    </div>
+                  )}
+                  <div className="px-3 py-1.5 bg-gray-50 border-t flex items-center justify-between">
+                    <span className="text-xs text-gray-500 truncate flex-1">{mediaFileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setMediaUrl(''); setMediaFileName(''); setMediaKind(''); }}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium ml-2 flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" /> Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                  <Upload className="w-3 h-3" /> Optionally attach an image or document (sent with the message, max 25MB)
+                </p>
+              )}
             </div>
 
             {/* Time */}
