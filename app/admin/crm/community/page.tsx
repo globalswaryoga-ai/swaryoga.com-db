@@ -125,7 +125,10 @@ export default function AdminCommunityPage() {
   const [showCreateCommunityModal, setShowCreateCommunityModal] = useState(false);
   const [newCommunityInput, setNewCommunityInput] = useState({ name: '', description: '', icon: '🌟', type: 'workshop_active' });
   const [creatingCommunity, setCreatingCommunity] = useState(false);
-  
+  const [renamingCommunity, setRenamingCommunity] = useState<Community | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deletingCommunity, setDeletingCommunity] = useState<Community | null>(null);
+
   const [selectedCommunity, setSelectedCommunity] = useState('global');
   const [members, setMembers] = useState<CommunityMember[]>([]);
   // searchQuery and statusFilter moved to MembersPanel component for better performance
@@ -767,6 +770,55 @@ export default function AdminCommunityPage() {
 
   const updateCommunityName = () => updateCommunitySettings({ name: newCommunityName });
   const updateWAId = () => updateCommunitySettings({ whatsappGroupId: newWAId });
+
+  // Rename any community group from the sidebar
+  const openRenameCommunity = (community: Community) => {
+    setRenamingCommunity(community);
+    setRenameValue(community.name);
+  };
+
+  const submitRenameCommunity = async () => {
+    if (!renamingCommunity || !token || !renameValue.trim()) return;
+    try {
+      const res = await fetch(`/api/community/admin/${renamingCommunity.id}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      const newName = renameValue.trim();
+      setCommunities(prev => prev.map(c => c.id === renamingCommunity.id ? { ...c, name: newName } : c));
+      if (selectedCommunity === renamingCommunity.id) {
+        setEditedCommunities(prev => ({ ...prev, [renamingCommunity.id]: newName }));
+      }
+      setRenamingCommunity(null);
+    } catch {
+      alert('❌ Failed to rename group');
+    }
+  };
+
+  // Delete (archive) a community group from the sidebar
+  const confirmDeleteCommunity = async () => {
+    if (!deletingCommunity || !token) return;
+    if (!deletingCommunity._id) {
+      alert('❌ This is a built-in community and cannot be deleted.');
+      setDeletingCommunity(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/communities?communityId=${deletingCommunity._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to delete group');
+      setCommunities(prev => prev.filter(c => c.id !== deletingCommunity.id));
+      if (selectedCommunity === deletingCommunity.id) setSelectedCommunity('global');
+      setDeletingCommunity(null);
+    } catch (err: any) {
+      alert('❌ ' + (err.message || 'Failed to delete group'));
+    }
+  };
 
   const approveMember = async (memberId: string) => {
     if (!token) return;
@@ -1828,10 +1880,30 @@ export default function AdminCommunityPage() {
               {communities.map((community) => {
                 const isActive = selectedCommunity === community.id;
                 return (
-                  <button key={community.id} onClick={() => setSelectedCommunity(community.id)} className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-lg' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}>
-                    <span className="text-xl">{community.icon}</span>
-                    <span className="font-semibold text-[13px] truncate">{community.name}</span>
-                  </button>
+                  <div key={community.id} className="group relative">
+                    <button onClick={() => setSelectedCommunity(community.id)} className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-lg' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}>
+                      <span className="text-xl">{community.icon}</span>
+                      <span className="font-semibold text-[13px] truncate pr-12">{community.name}</span>
+                    </button>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openRenameCommunity(community); }}
+                        title="Rename group"
+                        className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 rounded-lg transition-all"
+                      >
+                        <Edit size={12} />
+                      </button>
+                      {community.type !== 'global' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeletingCommunity(community); }}
+                          title="Delete group"
+                          className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition-all"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
               {/* Create New Community Button */}
@@ -4136,6 +4208,34 @@ export default function AdminCommunityPage() {
                <div className="flex gap-3">
                   <button onClick={() => setEditingCommunityName(false)} className="flex-1 py-3 border rounded-xl text-xs font-bold uppercase">Discard</button>
                   <button onClick={updateCommunityName} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase shadow-lg">Update</button>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* Rename Community Group (from sidebar) */}
+      {renamingCommunity && (
+         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-xl p-10 space-y-6">
+               <h2 className="text-lg font-bold">Rename Community Group</h2>
+               <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} className="w-full h-14 p-6 bg-slate-50 border rounded-2xl focus:bg-white" autoFocus />
+               <div className="flex gap-3">
+                  <button onClick={() => setRenamingCommunity(null)} className="flex-1 py-3 border rounded-xl text-xs font-bold uppercase">Cancel</button>
+                  <button onClick={submitRenameCommunity} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase shadow-lg">Save</button>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* Delete Community Group confirmation (from sidebar) */}
+      {deletingCommunity && (
+         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-xl p-10 space-y-6">
+               <h2 className="text-lg font-bold">Delete &quot;{deletingCommunity.name}&quot;?</h2>
+               <p className="text-sm text-slate-500">This will archive the group — it will be hidden from the community list. Members and content stay in the database and can be restored later.</p>
+               <div className="flex gap-3">
+                  <button onClick={() => setDeletingCommunity(null)} className="flex-1 py-3 border rounded-xl text-xs font-bold uppercase">Cancel</button>
+                  <button onClick={confirmDeleteCommunity} className="flex-1 py-3 bg-red-600 text-white rounded-xl text-xs font-bold uppercase shadow-lg">Delete</button>
                </div>
             </div>
          </div>
