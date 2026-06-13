@@ -107,6 +107,7 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
 
   let communityId = 'global'; // default fallback
   let communityName = 'Global';
+  let batchName = null; // Batch / Workshop Name from the mapping (the "playlist")
   // hqdefault always exists; maxresdefault 404s for many recordings.
   let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
@@ -118,6 +119,7 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
     if (mapping) {
       communityId = mapping.communityId;
       communityName = mapping.communityName || mapping.communityId;
+      batchName = mapping.zoomTopic || null;
       if (mapping.thumbnailUrl) thumbnailUrl = mapping.thumbnailUrl; // batch-specific thumbnail
       log(`  Zoom mapping found: ${zoomMeetingId} → ${communityName}`);
     } else {
@@ -127,30 +129,40 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
     log(`  Zoom mapping lookup failed, falling back to 'global':`, e.message);
   }
 
-  const doc = {
-    communityId,
-    videoSource: 'youtube',
-    youtubeVideoId: videoId,
-    youtubeUnlisted: false,
-    title: `${topic} — ${dateLabel}`,
-    description: `Zoom recording from ${dateLabel}\n\nPlease invite swarsakshi9@gmail.com and mohan@swaryoga.com in YouTube Studio so they receive shareable links.`,
-    thumbnailUrl,
-    uploadedBy: 'zoom-uploader',
-    isShareable: false,
-    isCommon: true,
-    source: 'zoom',
-    recordingType: 'speaker_view',
-    tags: ['zoom', 'recording'],
-    pendingEmailInvites: ['swarsakshi9@gmail.com', 'mohan@swaryoga.com'],
-    createdAt: new Date(),
-  };
+  // Group recordings into the configured batch (folder/playlist), numbering
+  // each new recording "Video N" in series — same convention as manually
+  // uploaded recordings in the Recordings & Videos admin page.
+  const playlistName = batchName || dateLabel;
+  const playlistTag = `playlist:${playlistName}`;
 
   try {
     const existing = await Videos.findOne({ communityId, youtubeVideoId: videoId });
-    if (!existing) {
-      await Videos.insertOne(doc);
-      log(`  Community (${communityName}) OK: video added with pending email invites`);
-    }
+    if (existing) return;
+
+    const videoNumber = (await Videos.countDocuments({ communityId, tags: playlistTag })) + 1;
+    const title = `${communityName} > ${playlistName} > Video ${videoNumber}`;
+
+    const doc = {
+      communityId,
+      videoSource: 'youtube',
+      youtubeVideoId: videoId,
+      youtubeUnlisted: false,
+      title,
+      description: `Zoom recording from ${dateLabel}\n\nPlease invite swarsakshi9@gmail.com and mohan@swaryoga.com in YouTube Studio so they receive shareable links.`,
+      thumbnailUrl,
+      uploadedBy: 'zoom-uploader',
+      isShareable: false,
+      isCommon: true,
+      source: 'zoom',
+      zoomMeetingId,
+      recordingType: 'speaker_view',
+      tags: [`folder:${communityName}`, playlistTag, 'recording', `video:${videoNumber}`],
+      pendingEmailInvites: ['swarsakshi9@gmail.com', 'mohan@swaryoga.com'],
+      createdAt: new Date(),
+    };
+
+    await Videos.insertOne(doc);
+    log(`  Community (${communityName}) OK: added as "${title}"`);
   } catch (e) {
     log(`  Community FAIL:`, e.message);
   }
