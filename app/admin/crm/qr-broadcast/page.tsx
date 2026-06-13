@@ -34,7 +34,7 @@ interface BroadcastRun {
   templateSnapshot?: { templateName?: string };
   createdAt: string; completedAt?: string;
 }
-type SendMode = 'now' | 'schedule' | 'delay';
+type SendMode = 'now' | 'schedule' | 'delay' | 'repeat';
 type Step = 1 | 2 | 3;
 
 const GAP_PRESETS: Record<string, { label: string; minS: number; maxS: number; desc: string; safe: string }> = {
@@ -44,6 +44,49 @@ const GAP_PRESETS: Record<string, { label: string; minS: number; maxS: number; d
   PROFESSIONAL: { label: '🟡 Professional',  minS: 30,  maxS: 60,  desc: '90 msgs/hr', safe: 'Small risk' },
   AGGRESSIVE:   { label: '🔴 Aggressive',    minS: 15,  maxS: 30,  desc: '150 msgs/hr', safe: 'High ban risk' },
 };
+
+// ── "Repeat on these days" helpers (mirrors QR Group Scheduler) ──
+function tomorrowDateStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Generate `count` consecutive date strings (YYYY-MM-DD) starting from `start`
+function genDates(start: string, count: number): string[] {
+  const dates: string[] = [];
+  const [y, m, d] = start.split('-').map(Number);
+  const base = new Date(y, (m || 1) - 1, d || 1);
+  for (let i = 0; i < count; i++) {
+    const dt = new Date(base);
+    dt.setDate(base.getDate() + i);
+    dates.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
+  }
+  return dates;
+}
+
+function fmtDayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+// "18:00" + 30 -> "18:30"
+function addMinutes(hhmm: string, mins: number): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = (h * 60 + m + mins + 1440) % 1440;
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+}
+
+// Digits-only; prepend '91' for bare 10-digit Indian numbers
+function phoneToDigits(raw: string): string {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.startsWith('0') && digits.length > 10) return digits.replace(/^0+/, '');
+  return digits;
+}
 
 // ============================================================================
 // UTILITY COMPONENTS
@@ -86,6 +129,12 @@ export default function QRBroadcastPage() {
   const [scheduleTime, setScheduleTime] = useState('');
   const [delayMinutes, setDelayMinutes] = useState(5);
   const [gapPreset, setGapPreset] = useState('SAFE');
+  // ── Repeat (recurring) send — mirrors QR Group Scheduler "Repeat on these days" ──
+  const [repeatStartDate, setRepeatStartDate] = useState(tomorrowDateStr());
+  const [repeatNumDays, setRepeatNumDays] = useState(15);
+  const [repeatUnselectedDates, setRepeatUnselectedDates] = useState<Set<string>>(new Set());
+  const [repeatTime, setRepeatTime] = useState('18:00');
+  const [repeatScheduleName, setRepeatScheduleName] = useState('');
   const [broadcastName, setBroadcastName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -198,11 +247,28 @@ export default function QRBroadcastPage() {
 
   const canProceedToStep2 = selectedLeads.size > 0;
   const canProceedToStep3 = selectedTemplate !== null;
+
+  // ── Repeat day-block (mirrors QR Group Scheduler) ──
+  const repeatDateList = useMemo(() => genDates(repeatStartDate, repeatNumDays), [repeatStartDate, repeatNumDays]);
+  const isRepeatDayChecked = useCallback((d: string) => !repeatUnselectedDates.has(d), [repeatUnselectedDates]);
+  const toggleRepeatDay = useCallback((d: string) => {
+    setRepeatUnselectedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
+  }, []);
+  const setAllRepeatDays = useCallback((value: boolean) => {
+    setRepeatUnselectedDates(value ? new Set() : new Set(repeatDateList));
+  }, [repeatDateList]);
+  const repeatSelectedDates = useMemo(() => repeatDateList.filter(d => isRepeatDayChecked(d)), [repeatDateList, isRepeatDayChecked]);
+
   const canSend = useMemo(() => {
     if (!selectedTemplate || selectedLeads.size === 0) return false;
     if (sendMode === 'schedule' && (!scheduleDate || !scheduleTime)) return false;
+    if (sendMode === 'repeat' && repeatSelectedDates.length === 0) return false;
     return true;
-  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime]);
+  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime, repeatSelectedDates]);
 
   // ============================================================================
   // SELECTION HANDLERS
@@ -324,6 +390,49 @@ export default function QRBroadcastPage() {
     if (!canSend || !selectedTemplate) return;
     setSending(true); setResult(null);
     try {
+      // ── Repeat (recurring) mode → create a QRBroadcastSchedule, same as Group Scheduler ──
+      if (sendMode === 'repeat') {
+        const phones = filteredLeads
+          .filter(l => selectedLeads.has(l._id))
+          .map(l => l.phoneNumber)
+          .filter(Boolean);
+        const recipientChatIds = Array.from(new Set(phones.map(p => `${phoneToDigits(p)}@s.whatsapp.net`)));
+        if (recipientChatIds.length === 0) throw new Error('Selected recipients have no valid phone numbers');
+
+        const name = repeatScheduleName.trim()
+          || `${selectedTemplate.templateName} @ ${repeatTime} (${repeatSelectedDates.length} days)`;
+
+        const body = {
+          name,
+          messageText: selectedTemplate.templateContent || '',
+          mediaUrls: selectedTemplate.headerMedia?.url ? [selectedTemplate.headerMedia.url] : [],
+          recipientChatIds,
+          groupIds: [],
+          individualIds: recipientChatIds,
+          frequency: 'custom',
+          customScheduleDates: repeatSelectedDates.map(d => `${d}T00:00:00+05:30`),
+          startTime: repeatTime,
+          endTime: addMinutes(repeatTime, 30),
+          status: 'scheduled',
+          isActive: true,
+        };
+
+        const res = await fetch('/api/admin/crm/qr-broadcast-schedule', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to create repeat schedule');
+
+        setResult({
+          success: true,
+          message: `✅ Repeat schedule "${name}" created for ${recipientChatIds.length} recipient(s) on ${repeatSelectedDates.length} day(s). Manage it from QR Group Scheduler.`,
+        });
+        setSelectedLeads(new Set()); setSelectedTemplate(null); setRepeatScheduleName(''); setStep(1);
+        return;
+      }
+
       let scheduleAt: string | undefined;
       let delayMins: number | undefined;
       if (sendMode === 'schedule') {
@@ -803,24 +912,73 @@ export default function QRBroadcastPage() {
                       <span className="text-gray-600 font-medium">minutes from now</span>
                     </div>
                   )}
+                  <button onClick={() => setSendMode('repeat')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:shadow-md group ${sendMode === 'repeat' ? 'border-blue-500 bg-blue-50 shadow-md' : 'border-gray-200 hover:border-blue-300'}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">🔁</span>
+                      <div><div className="font-bold text-gray-800">Repeat</div><div className="text-sm text-gray-500">Send automatically on chosen days, every day</div></div>
+                    </div>
+                  </button>
+                  {sendMode === 'repeat' && (
+                    <div className="ml-10 mt-2 space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Send Time (IST)</label>
+                        <input type="time" value={repeatTime} onChange={e => setRepeatTime(e.target.value)} className="px-3 py-2 border-2 rounded-xl focus:border-blue-500 text-sm" />
+                        <p className="text-xs text-gray-400 mt-1">Message is sent automatically at this time each selected day (±a few minutes), at a safe ~15 msgs/hour pace.</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">📅 Repeat on these days</label>
+                        <div className="flex gap-2 mb-2 flex-wrap items-center">
+                          <span className="text-xs text-gray-500">Start date</span>
+                          <input type="date" value={repeatStartDate} onChange={e => setRepeatStartDate(e.target.value)} className="px-2 py-1.5 border-2 rounded-lg text-sm" />
+                          <span className="text-xs text-gray-500">Block size</span>
+                          <input type="number" min={1} max={60} value={repeatNumDays}
+                            onChange={e => setRepeatNumDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+                            className="w-20 px-2 py-1.5 border-2 rounded-lg text-sm" />
+                          <span className="text-xs text-gray-500">days</span>
+                        </div>
+                        <div className="flex gap-2 mb-2">
+                          <button onClick={() => setAllRepeatDays(true)} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium">Select all</button>
+                          <button onClick={() => setAllRepeatDays(false)} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded font-medium">Clear all</button>
+                          <span className="text-xs text-gray-400 ml-auto self-center">{repeatSelectedDates.length} of {repeatNumDays} selected</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto border-2 rounded-xl p-2">
+                          {repeatDateList.map(d => (
+                            <label key={d} className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer ${isRepeatDayChecked(d) ? 'bg-blue-50 text-blue-800' : 'bg-gray-50 text-gray-400'}`}>
+                              <input type="checkbox" checked={isRepeatDayChecked(d)} onChange={() => toggleRepeatDay(d)} className="accent-blue-600" />
+                              {fmtDayLabel(d)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Schedule Name (optional)</label>
+                        <input type="text" value={repeatScheduleName} onChange={e => setRepeatScheduleName(e.target.value)}
+                          placeholder={`${selectedTemplate?.templateName || 'Template'} @ ${repeatTime} (${repeatSelectedDates.length} days)`}
+                          className="w-full px-3 py-2 border-2 rounded-xl focus:border-blue-500 text-sm" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Gap Strategy */}
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">🛡️ Anti-ban Speed</h3>
-                <div className="space-y-2">
-                  {Object.entries(GAP_PRESETS).map(([key, p]) => (
-                    <label key={key} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${gapPreset === key ? 'border-green-500 bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}>
-                      <input type="radio" name="gap" value={key} checked={gapPreset === key} onChange={() => setGapPreset(key)} className="mt-0.5" />
-                      <div>
-                        <div className="font-semibold text-sm text-gray-800">{p.label} <span className="font-normal text-gray-500">({p.desc})</span></div>
-                        <div className="text-xs text-gray-500">{p.safe} · {p.minS}–{p.maxS}s between messages</div>
-                      </div>
-                    </label>
-                  ))}
+              {sendMode !== 'repeat' && (
+                <div className="bg-white rounded-2xl shadow-xl border p-6">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">🛡️ Anti-ban Speed</h3>
+                  <div className="space-y-2">
+                    {Object.entries(GAP_PRESETS).map(([key, p]) => (
+                      <label key={key} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${gapPreset === key ? 'border-green-500 bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}>
+                        <input type="radio" name="gap" value={key} checked={gapPreset === key} onChange={() => setGapPreset(key)} className="mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-sm text-gray-800">{p.label} <span className="font-normal text-gray-500">({p.desc})</span></div>
+                          <div className="text-xs text-gray-500">{p.safe} · {p.minS}–{p.maxS}s between messages</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Right: Preview & Summary */}
@@ -834,16 +992,24 @@ export default function QRBroadcastPage() {
                     <div className="text-sm text-green-700">Recipients</div>
                   </div>
                   <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-emerald-600">{sendMode === 'now' ? '⚡' : sendMode === 'schedule' ? '📅' : '⏱️'}</div>
+                    <div className="text-3xl font-bold text-emerald-600">{sendMode === 'now' ? '⚡' : sendMode === 'schedule' ? '📅' : sendMode === 'repeat' ? '🔁' : '⏱️'}</div>
                     <div className="text-sm text-emerald-700 capitalize">{sendMode}</div>
                   </div>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
                   <div className="flex justify-between"><span className="text-gray-600">Template:</span><span className="font-medium text-gray-800">{selectedTemplate?.templateName}</span></div>
                   <div className="flex justify-between"><span className="text-gray-600">Provider:</span><span className="font-medium text-gray-800">💚 QR WhatsApp</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600">Speed:</span><span className="font-medium text-gray-800">{GAP_PRESETS[gapPreset]?.label}</span></div>
+                  {sendMode !== 'repeat' && (
+                    <div className="flex justify-between"><span className="text-gray-600">Speed:</span><span className="font-medium text-gray-800">{GAP_PRESETS[gapPreset]?.label}</span></div>
+                  )}
                   {sendMode === 'schedule' && scheduleDate && scheduleTime && (
                     <div className="flex justify-between"><span className="text-gray-600">Scheduled:</span><span className="font-medium text-gray-800">{new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString('en-IN')}</span></div>
+                  )}
+                  {sendMode === 'repeat' && (
+                    <>
+                      <div className="flex justify-between"><span className="text-gray-600">Time:</span><span className="font-medium text-gray-800">{repeatTime} IST</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">Days:</span><span className="font-medium text-gray-800">{repeatSelectedDates.length} of {repeatNumDays}</span></div>
+                    </>
                   )}
                 </div>
               </div>
@@ -898,7 +1064,7 @@ export default function QRBroadcastPage() {
                 <button onClick={() => setStep(2)} className="flex-1 px-5 py-3 border-2 rounded-xl font-medium text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"><span>←</span> Back</button>
                 <button onClick={handleSend} disabled={!canSend || sending}
                   className={`flex-1 px-5 py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${canSend && !sending ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:shadow-green-500/30 hover:scale-[1.02]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
-                  {sending ? <><span className="animate-spin">⏳</span> Sending...</> : <>🚀 {sendMode === 'now' ? 'Send Now' : sendMode === 'schedule' ? 'Schedule' : 'Queue'}</>}
+                  {sending ? <><span className="animate-spin">⏳</span> {sendMode === 'repeat' ? 'Saving...' : 'Sending...'}</> : <>{sendMode === 'repeat' ? '🔁 Create Schedule' : <>🚀 {sendMode === 'now' ? 'Send Now' : sendMode === 'schedule' ? 'Schedule' : 'Queue'}</>}</>}
                 </button>
               </div>
             </div>

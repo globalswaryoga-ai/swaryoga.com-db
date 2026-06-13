@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -122,6 +122,46 @@ function MultiSelectDropdown({
   );
 }
 
+// ── "Repeat on these days" helpers (mirrors QR Group Scheduler) ────────────────
+function tomorrowDateStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function genDates(start: string, count: number): string[] {
+  const dates: string[] = [];
+  const [y, m, d] = start.split('-').map(Number);
+  const base = new Date(y, (m || 1) - 1, d || 1);
+  for (let i = 0; i < count; i++) {
+    const dt = new Date(base);
+    dt.setDate(base.getDate() + i);
+    dates.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
+  }
+  return dates;
+}
+
+function fmtDayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function addMinutes(hhmm: string, mins: number): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = (h * 60 + m + mins + 1440) % 1440;
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+}
+
+function phoneToDigits(raw: string): string {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.startsWith('0') && digits.length > 10) return digits.replace(/^0+/, '');
+  return digits;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 export default function QRBroadcastWizard() {
   const token = useAuth();
@@ -157,6 +197,31 @@ export default function QRBroadcastWizard() {
   const [delayDays, setDelayDays] = useState(0);
   const [delayHours, setDelayHours] = useState(0);
   const [delayMinutes, setDelayMinutes] = useState(10);
+
+  // Step 3 — repeat (recurring) schedule
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatStartDate, setRepeatStartDate] = useState(tomorrowDateStr());
+  const [repeatNumDays, setRepeatNumDays] = useState(15);
+  const [repeatUnselectedDates, setRepeatUnselectedDates] = useState<Set<string>>(new Set());
+  const [repeatTime, setRepeatTime] = useState('18:00');
+  const [repeatScheduleName, setRepeatScheduleName] = useState('');
+
+  const repeatDateList = useMemo(() => genDates(repeatStartDate, repeatNumDays), [repeatStartDate, repeatNumDays]);
+  const isRepeatDayChecked = useCallback((d: string) => !repeatUnselectedDates.has(d), [repeatUnselectedDates]);
+  const toggleRepeatDay = useCallback((d: string) => {
+    setRepeatUnselectedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
+  }, []);
+  const setAllRepeatDays = useCallback((value: boolean) => {
+    setRepeatUnselectedDates(value ? new Set() : new Set(repeatDateList));
+  }, [repeatDateList]);
+  const repeatSelectedDates = useMemo(
+    () => repeatDateList.filter(d => isRepeatDayChecked(d)),
+    [repeatDateList, isRepeatDayChecked]
+  );
 
   // Pre-select template from URL param (from "Use in Broadcast" button)
   useEffect(() => {
@@ -258,6 +323,46 @@ export default function QRBroadcastWizard() {
   // ── Submit ──────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!selectedTemplate) return;
+
+    if (repeatEnabled) {
+      if (repeatSelectedDates.length === 0) { setError('Select at least one day to repeat on'); return; }
+      setSubmitting(true);
+      setError(null);
+      try {
+        const phones = leads
+          .filter(l => selectedLeadIds.has(l._id))
+          .map(l => l.phoneNumber)
+          .filter(Boolean);
+        const recipientChatIds = Array.from(new Set(phones.map(p => `${phoneToDigits(p)}@s.whatsapp.net`)));
+        if (recipientChatIds.length === 0) throw new Error('Selected recipients have no valid phone numbers');
+
+        const name = repeatScheduleName.trim()
+          || runName.trim()
+          || `${selectedTemplate.templateName} @ ${repeatTime} (${repeatSelectedDates.length} days)`;
+        const body = {
+          name,
+          messageText: selectedTemplate.templateContent || '',
+          mediaUrls: selectedTemplate.headerMedia?.url ? [selectedTemplate.headerMedia.url] : [],
+          recipientChatIds,
+          groupIds: [],
+          individualIds: recipientChatIds,
+          frequency: 'custom',
+          customScheduleDates: repeatSelectedDates.map(d => `${d}T00:00:00+05:30`),
+          startTime: repeatTime,
+          endTime: addMinutes(repeatTime, 30),
+          status: 'scheduled',
+          isActive: true,
+        };
+        await crmFetch('/api/admin/crm/qr-broadcast-schedule', { method: 'POST', body });
+        router.push('/admin/crm/qr/group-scheduler');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create repeat schedule');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (mode === 'schedule' && !scheduledAt) { setError('Please set a scheduled time'); return; }
     const delayMs = ((delayDays * 24 + delayHours) * 60 + delayMinutes) * 60 * 1000;
     if (mode === 'delay' && delayMs <= 0) { setError('Please set a delay greater than 0'); return; }
@@ -557,74 +662,182 @@ export default function QRBroadcastWizard() {
               />
             </div>
 
-            {/* When to send */}
+            {/* Repeat message toggle */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">When to Send</label>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setMode('now')}
-                  className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
-                    mode === 'now' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                  }`}
-                >
-                  ⚡ Send Now
-                </button>
-                <button
-                  onClick={() => setMode('schedule')}
-                  className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
-                    mode === 'schedule' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                  }`}
-                >
-                  🕐 Schedule Later
-                </button>
-                <button
-                  onClick={() => setMode('delay')}
-                  className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
-                    mode === 'delay' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                  }`}
-                >
-                  ⏳ Send After Delay
-                </button>
-              </div>
-              {mode === 'schedule' && (
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={e => setScheduledAt(e.target.value)}
-                  min={new Date().toISOString().slice(0, 16)}
-                  className="mt-3 w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  type="checkbox"
+                  checked={repeatEnabled}
+                  onChange={e => setRepeatEnabled(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 accent-blue-600"
                 />
-              )}
-              {mode === 'delay' && (
-                <div className="mt-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: 'Days', value: delayDays, set: setDelayDays, max: 60 },
-                      { label: 'Hours', value: delayHours, set: setDelayHours, max: 23 },
-                      { label: 'Minutes', value: delayMinutes, set: setDelayMinutes, max: 59 },
-                    ].map(f => (
-                      <div key={f.label}>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={f.max}
-                          value={f.value}
-                          onChange={e => f.set(Math.max(0, Math.min(f.max, Number(e.target.value) || 0)))}
-                          className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                        />
-                      </div>
-                    ))}
+                <span className="text-sm font-medium text-gray-700">🔁 Repeat message</span>
+              </label>
+              <p className="text-xs text-gray-400 mt-1 ml-6">
+                Instead of a one-time send, automatically resend this message on the days you choose below.
+              </p>
+            </div>
+
+            {/* When to send */}
+            {!repeatEnabled && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">When to Send</label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setMode('now')}
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
+                      mode === 'now' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    ⚡ Send Now
+                  </button>
+                  <button
+                    onClick={() => setMode('schedule')}
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
+                      mode === 'schedule' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    🕐 Schedule Later
+                  </button>
+                  <button
+                    onClick={() => setMode('delay')}
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
+                      mode === 'delay' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    ⏳ Send After Delay
+                  </button>
+                </div>
+                {mode === 'schedule' && (
+                  <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={e => setScheduledAt(e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
+                    className="mt-3 w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                )}
+                {mode === 'delay' && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { label: 'Days', value: delayDays, set: setDelayDays, max: 60 },
+                        { label: 'Hours', value: delayHours, set: setDelayHours, max: 23 },
+                        { label: 'Minutes', value: delayMinutes, set: setDelayMinutes, max: 59 },
+                      ].map(f => (
+                        <div key={f.label}>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={f.max}
+                            value={f.value}
+                            onChange={e => f.set(Math.max(0, Math.min(f.max, Number(e.target.value) || 0)))}
+                            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Will send around{' '}
+                      <span className="font-semibold text-amber-700">
+                        {new Date(Date.now() + ((delayDays * 24 + delayHours) * 60 + delayMinutes) * 60000).toLocaleString('en-IN')}
+                      </span>
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Will send around{' '}
-                    <span className="font-semibold text-amber-700">
-                      {new Date(Date.now() + ((delayDays * 24 + delayHours) * 60 + delayMinutes) * 60000).toLocaleString('en-IN')}
-                    </span>
+                )}
+              </div>
+            )}
+
+            {/* Repeat on these days */}
+            {repeatEnabled && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Send Time (IST)</label>
+                  <input
+                    type="time"
+                    value={repeatTime}
+                    onChange={e => setRepeatTime(e.target.value)}
+                    className="px-3 py-2 border-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    The message will be sent automatically around this time on each selected day, at the
+                    same safe ~15 msgs/hour pace shown below.
                   </p>
                 </div>
-              )}
-            </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">📅 Repeat on these days</label>
+                  <div className="flex gap-2 mb-2 flex-wrap items-center">
+                    <span className="text-xs text-gray-500">Start date</span>
+                    <input
+                      type="date"
+                      value={repeatStartDate}
+                      onChange={e => setRepeatStartDate(e.target.value)}
+                      className="px-2 py-1.5 border-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                    <span className="text-xs text-gray-500">Block size</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={repeatNumDays}
+                      onChange={e => setRepeatNumDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+                      className="w-20 px-2 py-1.5 border-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                    <span className="text-xs text-gray-500">days</span>
+                  </div>
+                  <div className="flex gap-2 mb-2 items-center">
+                    <button
+                      onClick={() => setAllRepeatDays(true)}
+                      className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      onClick={() => setAllRepeatDays(false)}
+                      className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded font-medium hover:bg-gray-200"
+                    >
+                      Clear all
+                    </button>
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {repeatSelectedDates.length} of {repeatDateList.length} selected
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-48 overflow-y-auto border-2 rounded-lg p-2">
+                    {repeatDateList.map(d => (
+                      <label
+                        key={d}
+                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer ${
+                          isRepeatDayChecked(d) ? 'bg-blue-50 text-blue-800' : 'bg-gray-50 text-gray-400'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isRepeatDayChecked(d)}
+                          onChange={() => toggleRepeatDay(d)}
+                          className="accent-blue-600"
+                        />
+                        {fmtDayLabel(d)}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Schedule Name <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={repeatScheduleName}
+                    onChange={e => setRepeatScheduleName(e.target.value)}
+                    placeholder={`${selectedTemplate?.templateName} @ ${repeatTime} (${repeatSelectedDates.length} days)`}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Send speed — fixed anti-ban policy (no other options) */}
             <div>
@@ -662,11 +875,11 @@ export default function QRBroadcastWizard() {
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || (repeatEnabled && repeatSelectedDates.length === 0)}
               className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold flex items-center gap-2"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {mode === 'now' ? 'Send Broadcast' : 'Schedule Broadcast'}
+              {repeatEnabled ? 'Create Repeat Schedule' : (mode === 'now' ? 'Send Broadcast' : 'Schedule Broadcast')}
             </button>
           )}
         </div>

@@ -23,6 +23,9 @@
     "app/api/admin/crm/broadcast-runs/run/route.ts": {
       "maxDuration": 120
     },
+    "app/api/admin/crm/broadcast-recurring/run/route.ts": {
+      "maxDuration": 120
+    },
     "app/api/admin/crm/scheduled-messages/run/route.ts": {
       "maxDuration": 60
     },
@@ -65,6 +68,10 @@
     },
     {
       "path": "/api/admin/crm/broadcast-runs/run",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/admin/crm/broadcast-recurring/run",
       "schedule": "* * * * *"
     },
     {

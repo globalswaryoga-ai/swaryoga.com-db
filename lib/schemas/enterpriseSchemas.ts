@@ -1401,6 +1401,52 @@ BroadcastRunMessageSchema.index({ leadId: 1, createdAt: -1 });
 BroadcastRunMessageSchema.index({ waMessageId: 1 }); // For webhook status updates
 
 // ============================================================================
+// 11b. BROADCAST RECURRING SCHEDULE - Meta repeat-send with delivery-based filtering
+// ============================================================================
+// Each occurrence after the first only targets recipients whose PREVIOUS
+// occurrence's message status was 'delivered' or 'read' (strict — excludes
+// 'sent', 'failed', 'blocked', 'skipped'). A new BroadcastRun is created per
+// occurrence by the recurring-processor cron.
+const BroadcastRecurringScheduleSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+    createdByUserId: { type: String, trim: true, index: true },
+
+    templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate', required: true },
+    provider: { type: String, enum: ['meta'], default: 'meta' },
+
+    // Recipient list for occurrence #1. Later occurrences are computed from
+    // the immediately-preceding occurrence's delivered/read recipients.
+    leadIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+
+    sendTime: { type: String, default: '10:00' }, // HH:mm IST, applied to every occurrence date
+    deliveredOnly: { type: Boolean, default: true }, // strict delivered/read filter for occurrence 2+
+
+    overrideImageUrl: String,
+    messageInterval: {
+      minSeconds: { type: Number, default: 1 },
+      maxSeconds: { type: Number, default: 2 },
+    },
+
+    occurrences: [{
+      index: { type: Number, required: true }, // 0-based
+      scheduledAt: { type: Date, required: true },
+      runId: { type: mongoose.Schema.Types.ObjectId, ref: 'BroadcastRun' },
+      status: { type: String, enum: ['pending', 'created', 'skipped'], default: 'pending' },
+      recipientCount: Number,
+      note: String,
+    }],
+
+    status: { type: String, enum: ['active', 'paused', 'completed', 'cancelled'], default: 'active', index: true },
+    lastProcessedAt: Date,
+  },
+  { timestamps: true, collection: 'broadcast_recurring_schedules' }
+);
+
+BroadcastRecurringScheduleSchema.index({ status: 1 });
+BroadcastRecurringScheduleSchema.index({ createdByUserId: 1, createdAt: -1 });
+
+// ============================================================================
 // 12. WHATSAPP AUTOMATION RULES - Welcome/greetings/chatbot/AI agent
 // ============================================================================
 const WhatsAppAutomationRuleSchema = new mongoose.Schema(
@@ -3040,6 +3086,7 @@ export function getBroadcastList() { return getModel('BroadcastList', BroadcastL
 export function getBroadcastListMember() { return getModel('BroadcastListMember', BroadcastListMemberSchema); }
 export function getBroadcastRun() { return getModel('BroadcastRun', BroadcastRunSchema); }
 export function getBroadcastRunMessage() { return getModel('BroadcastRunMessage', BroadcastRunMessageSchema); }
+export function getBroadcastRecurringSchedule() { return getModel('BroadcastRecurringSchedule', BroadcastRecurringScheduleSchema); }
 export function getChatbotFlow() { return getModel('ChatbotFlow', ChatbotFlowSchema); }
 export function getChatbotSettings() { return getModel('ChatbotSettings', ChatbotSettingsSchema); }
 export function getKnowledgeBaseArticle() { return getModel('KnowledgeBaseArticle', KnowledgeBaseArticleSchema); }
@@ -3155,6 +3202,7 @@ export const BroadcastList = createModelProxy('BroadcastList', BroadcastListSche
 export const BroadcastListMember = createModelProxy('BroadcastListMember', BroadcastListMemberSchema);
 export const BroadcastRun = createModelProxy('BroadcastRun', BroadcastRunSchema);
 export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const BroadcastRecurringSchedule = createModelProxy('BroadcastRecurringSchedule', BroadcastRecurringScheduleSchema);
 export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
 export const KnowledgeBaseArticle = createModelProxy('KnowledgeBaseArticle', KnowledgeBaseArticleSchema);

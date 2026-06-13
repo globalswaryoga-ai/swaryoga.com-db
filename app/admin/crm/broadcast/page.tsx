@@ -88,9 +88,32 @@ interface BroadcastValidation {
   quotaAfterSend: number;
 }
 
-type SendMode = 'now' | 'schedule' | 'delay';
+type SendMode = 'now' | 'schedule' | 'delay' | 'repeat';
 type Provider = 'meta';
 type Step = 1 | 2 | 3;
+
+// ── "Repeat on these days" helpers (mirrors QR Group Scheduler) ────────────────
+function tomorrowDateStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function genDates(start: string, count: number): string[] {
+  const dates: string[] = [];
+  const [y, m, d] = start.split('-').map(Number);
+  const base = new Date(y, (m || 1) - 1, d || 1);
+  for (let i = 0; i < count; i++) {
+    const dt = new Date(base);
+    dt.setDate(base.getDate() + i);
+    dates.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
+  }
+  return dates;
+}
+function fmtDayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
 
 // ============================================================================
 // UTILITY COMPONENTS
@@ -185,7 +208,31 @@ export default function BroadcastPage() {
   const [delayBetweenSeconds, setDelayBetweenSeconds] = useState(2);
   const [provider] = useState<Provider>('meta');
   const [broadcastName, setBroadcastName] = useState('');
-  
+
+  // Repeat (recurring) schedule
+  const [repeatStartDate, setRepeatStartDate] = useState(tomorrowDateStr());
+  const [repeatNumDays, setRepeatNumDays] = useState(15);
+  const [repeatUnselectedDates, setRepeatUnselectedDates] = useState<Set<string>>(new Set());
+  const [repeatTime, setRepeatTime] = useState('10:00');
+  const [repeatScheduleName, setRepeatScheduleName] = useState('');
+
+  const repeatDateList = useMemo(() => genDates(repeatStartDate, repeatNumDays), [repeatStartDate, repeatNumDays]);
+  const isRepeatDayChecked = useCallback((d: string) => !repeatUnselectedDates.has(d), [repeatUnselectedDates]);
+  const toggleRepeatDay = useCallback((d: string) => {
+    setRepeatUnselectedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
+  }, []);
+  const setAllRepeatDays = useCallback((value: boolean) => {
+    setRepeatUnselectedDates(value ? new Set() : new Set(repeatDateList));
+  }, [repeatDateList]);
+  const repeatSelectedDates = useMemo(
+    () => repeatDateList.filter(d => isRepeatDayChecked(d)),
+    [repeatDateList, isRepeatDayChecked]
+  );
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -735,21 +782,69 @@ export default function BroadcastPage() {
   const canProceedToStep2 = selectedLeads.size > 0;
   const canProceedToStep3 = selectedTemplate !== null;
   
+  const realLeadCount = useMemo(
+    () => Array.from(selectedLeads).filter(id => !id.startsWith('csv_')).length,
+    [selectedLeads]
+  );
+
   const canSend = useMemo(() => {
     if (!selectedTemplate || selectedLeads.size === 0) return false;
     if (sendMode === 'schedule' && (!scheduleDate || !scheduleTime)) return false;
+    if (sendMode === 'repeat' && (repeatSelectedDates.length === 0 || realLeadCount === 0)) return false;
     // Templates are chargeable and can be sent anytime - no approval check required
     return true;
-  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime]);
+  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime, repeatSelectedDates, realLeadCount]);
 
   // ============================================================================
   // SEND BROADCAST
   // ============================================================================
   const handleSend = async () => {
     if (!canSend || !selectedTemplate) return;
-    
+
     setSending(true);
     setResult(null);
+
+    if (sendMode === 'repeat') {
+      try {
+        const realLeadIds = Array.from(selectedLeads).filter(id => !id.startsWith('csv_'));
+        if (realLeadIds.length === 0) throw new Error('Repeat requires recipients with saved lead records (CSV-only contacts are not supported)');
+        if (repeatSelectedDates.length === 0) throw new Error('Select at least one day to repeat on');
+
+        const payload: Record<string, unknown> = {
+          name: repeatScheduleName.trim() || broadcastName.trim() || `${selectedTemplate.templateName} repeat`,
+          templateId: selectedTemplate._id,
+          leadIds: realLeadIds,
+          occurrenceDates: repeatSelectedDates,
+          sendTime: repeatTime,
+        };
+        if (overrideImageUrl.trim()) payload.overrideImageUrl = overrideImageUrl.trim();
+
+        const res = await fetch('/api/admin/crm/broadcast-recurring', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to create repeat schedule');
+
+        setResult({
+          success: true,
+          message: `✅ Repeat schedule created! ${realLeadIds.length} recipients across ${repeatSelectedDates.length} occurrence(s). Later occurrences only resend to delivered/read recipients.`,
+        });
+        setSelectedLeads(new Set());
+        setSelectedTemplate(null);
+        setBroadcastName('');
+        setRepeatScheduleName('');
+        setStep(1);
+        fetchData();
+      } catch (err: any) {
+        console.error('[Broadcast] Repeat error:', err);
+        setResult({ success: false, message: `❌ ${err.message || 'Failed to create repeat schedule'}` });
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     try {
       // Prepare payload
@@ -1756,6 +1851,119 @@ export default function BroadcastPage() {
                       <span className="text-gray-600 font-medium">minutes from now</span>
                     </div>
                   )}
+
+                  {/* Repeat */}
+                  <button
+                    onClick={() => setSendMode('repeat')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'repeat' ? 'border-teal-500 bg-teal-50 shadow-md' : 'border-gray-200 hover:border-teal-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">🔁</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Repeat</div>
+                        <div className="text-sm text-gray-500">Resend on chosen days — only to delivered/read recipients after the 1st send</div>
+                      </div>
+                    </div>
+                  </button>
+                  {sendMode === 'repeat' && (
+                    <div className="ml-10 mt-2 space-y-4">
+                      {realLeadCount === 0 && (
+                        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+                          ⚠️ CSV-only contacts can&apos;t be used with Repeat — select recipients with saved lead records.
+                        </p>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Send Time (IST)</label>
+                        <input
+                          type="time"
+                          value={repeatTime}
+                          onChange={(e) => setRepeatTime(e.target.value)}
+                          className="px-4 py-2.5 border-2 rounded-xl focus:border-teal-500"
+                        />
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">📅 Repeat on these days</h4>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Start date</label>
+                            <input
+                              type="date"
+                              value={repeatStartDate}
+                              onChange={(e) => setRepeatStartDate(e.target.value)}
+                              className="w-full px-3 py-2 border-2 rounded-xl focus:border-teal-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Number of days (1-60)</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={60}
+                              value={repeatNumDays}
+                              onChange={(e) => setRepeatNumDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+                              className="w-full px-3 py-2 border-2 rounded-xl focus:border-teal-500 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAllRepeatDays(true)}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-teal-300 text-teal-700 hover:bg-teal-50"
+                            >
+                              Select all
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAllRepeatDays(false)}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {repeatSelectedDates.length} of {repeatDateList.length} selected
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 border rounded-xl">
+                          {repeatDateList.map((d) => (
+                            <label
+                              key={d}
+                              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs cursor-pointer ${
+                                isRepeatDayChecked(d) ? 'border-teal-400 bg-teal-50 text-teal-800' : 'border-gray-200 text-gray-500'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isRepeatDayChecked(d)}
+                                onChange={() => toggleRepeatDay(d)}
+                                className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600"
+                              />
+                              {fmtDayLabel(d)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Schedule Name (optional)</label>
+                        <input
+                          type="text"
+                          value={repeatScheduleName}
+                          onChange={(e) => setRepeatScheduleName(e.target.value)}
+                          placeholder={`${selectedTemplate?.templateName || 'Broadcast'} repeat`}
+                          className="w-full px-4 py-2.5 border-2 rounded-xl focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1774,7 +1982,7 @@ export default function BroadcastPage() {
                   </div>
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 text-center">
                     <div className="text-3xl font-bold text-purple-600">
-                      {sendMode === 'now' ? '⚡' : sendMode === 'schedule' ? '📅' : '⏱️'}
+                      {sendMode === 'now' ? '⚡' : sendMode === 'schedule' ? '📅' : sendMode === 'repeat' ? '🔁' : '⏱️'}
                     </div>
                     <div className="text-sm text-purple-700 capitalize">{sendMode}</div>
                   </div>
@@ -1800,6 +2008,12 @@ export default function BroadcastPage() {
                     <div className="flex justify-between mt-1">
                       <span className="text-gray-600">Delay:</span>
                       <span className="font-medium text-gray-800">{delayMinutes} minutes</span>
+                    </div>
+                  )}
+                  {sendMode === 'repeat' && (
+                    <div className="flex justify-between mt-1">
+                      <span className="text-gray-600">Occurrences:</span>
+                      <span className="font-medium text-gray-800">{repeatSelectedDates.length} day(s) @ {repeatTime} IST</span>
                     </div>
                   )}
                 </div>
@@ -1943,7 +2157,7 @@ export default function BroadcastPage() {
                     </>
                   ) : (
                     <>
-                      🚀 {sendMode === 'now' ? 'Send Now' : sendMode === 'schedule' ? 'Schedule' : 'Queue'}
+                      🚀 {sendMode === 'now' ? 'Send Now' : sendMode === 'schedule' ? 'Schedule' : sendMode === 'repeat' ? 'Create Repeat Schedule' : 'Queue'}
                     </>
                   )}
                 </button>
