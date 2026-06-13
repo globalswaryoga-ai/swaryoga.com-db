@@ -662,20 +662,25 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
   } catch (error) {
     console.error(`[QR Broadcast V2] Error:`, error);
 
+    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+    // Transient DB errors (e.g. E11000 from a concurrent rate-limit upsert)
+    // are not the schedule's fault — leave its status alone so the next tick
+    // retries instead of permanently parking it as 'failed'.
+    const isTransient = (error as any)?.code === 11000 || /E11000/.test(errMsg);
+
     const QRBroadcastSchedule = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
     await QRBroadcastSchedule.updateOne(
       { _id: schedule._id },
       {
-        status: 'failed',
-        lastRunDate: new Date(), // ← prevent infinite retry: mark as run so today check skips it
-        lastError: error instanceof Error ? error.message : 'Unknown error',
+        ...(isTransient ? {} : { status: 'failed', lastRunDate: new Date() }), // prevent infinite retry on real errors only
+        lastError: errMsg,
         lastErrorAt: new Date(),
       }
     );
 
     return {
-      status: 'error',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      status: isTransient ? 'retry' : 'error',
+      error: errMsg,
     };
   } finally {
     // Release lock

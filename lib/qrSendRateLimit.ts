@@ -104,21 +104,28 @@ export async function reserveSendSlot(userId: string): Promise<RateCheckResult> 
   const hourKey = getHourKeyIST();
 
   // Reset the whole counter if we rolled into a new day (5 AM IST cutover).
-  await CRMUserSettings.updateOne(
-    {
-      userId,
-      $or: [
-        { 'metadata.qrSendRateCounter.dayKey': { $ne: dayKey } },
-        { 'metadata.qrSendRateCounter': { $exists: false } },
-        { metadata: { $exists: false } },
-      ],
-    },
-    {
-      $set: { 'metadata.qrSendRateCounter': { dayKey, daySent: 0, hourKey, hourSent: 0, lastUpdated: new Date() } },
-      $setOnInsert: { userId },
-    },
-    { upsert: true }
-  );
+  try {
+    await CRMUserSettings.updateOne(
+      {
+        userId,
+        $or: [
+          { 'metadata.qrSendRateCounter.dayKey': { $ne: dayKey } },
+          { 'metadata.qrSendRateCounter': { $exists: false } },
+          { metadata: { $exists: false } },
+        ],
+      },
+      {
+        $set: { 'metadata.qrSendRateCounter': { dayKey, daySent: 0, hourKey, hourSent: 0, lastUpdated: new Date() } },
+        $setOnInsert: { userId },
+      },
+      { upsert: true }
+    );
+  } catch (err: any) {
+    // E11000: another concurrent call already upserted this user's settings
+    // doc (Atlas unique index on userId). The doc now exists either way, so
+    // it's safe to fall through to the hour-reset and reservation steps below.
+    if (err?.code !== 11000) throw err;
+  }
 
   // Reset the hour counter if we moved to a new clock-hour (same day).
   await CRMUserSettings.updateOne(
