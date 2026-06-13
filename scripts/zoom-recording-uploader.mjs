@@ -86,6 +86,53 @@ async function ytUpload(access, srcUrl, size, title, desc) {
   return j.id;
 }
 
+// Find a playlist owned by this channel with an exact title match, or create
+// a new UNLISTED playlist with that title if none exists.
+async function ytPlaylistFindOrCreate(access, title) {
+  let pageToken = '';
+  do {
+    const url = `https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${access}` } });
+    const j = await r.json();
+    if (!r.ok) throw new Error('yt playlists.list ' + r.status + ' ' + JSON.stringify(j));
+    const found = (j.items || []).find((p) => p.snippet?.title === title);
+    if (found) return found.id;
+    pageToken = j.nextPageToken;
+  } while (pageToken);
+
+  const create = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,status', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({ snippet: { title, description: title }, status: { privacyStatus: 'unlisted' } }),
+  });
+  const j = await create.json();
+  if (!create.ok) throw new Error('yt playlists.insert ' + create.status + ' ' + JSON.stringify(j));
+  return j.id;
+}
+
+// Add an uploaded video to a playlist.
+async function ytPlaylistAddVideo(access, playlistId, videoId) {
+  const r = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({ snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error('yt playlistItems.insert ' + r.status + ' ' + JSON.stringify(j));
+  return j.id;
+}
+
+// Look up the Zoom meeting → community/playlist mapping by meeting ID.
+async function getZoomMapping(zoomMeetingId, Accounts) {
+  try {
+    const ytAccount = await Accounts.findOne({ platform: 'youtube' }, { projection: { 'metadata.zoomMappings': 1 } });
+    const mappings = ytAccount?.metadata?.zoomMappings || [];
+    return mappings.find((mp) => mp.zoomMeetingId === zoomMeetingId) || null;
+  } catch {
+    return null;
+  }
+}
+
 // Move a meeting's cloud recording to Zoom trash (recoverable ~30 days).
 // Use action=trash (NOT delete) so it's never permanently removed.
 async function trashRecording(uuid, token) {
@@ -240,6 +287,26 @@ function bunnyCdnUrl(dest) {
         const thumb = result.youtube.speaker ? `https://img.youtube.com/vi/${result.youtube.speaker}/hqdefault.jpg` : null;
         await autoAddToConfiguredCommunity(bunnyCdnUrl(result.bunny), m.topic, dateLabel, String(m.id), mongoose.connection.db, thumb);
       } catch (e) { log('  Bunny FAIL:', e.message); }
+    }
+    // Add newly uploaded videos to the workshop's YouTube playlist (unlisted),
+    // creating the playlist on demand. The mapping's youtubePlaylistName can use
+    // {MONTH} / {YEAR} placeholders (e.g. "Swar Yoga 7 days {MONTH} {YEAR} Eveining Hindi")
+    // so each month's recordings land in their own auto-created playlist.
+    if (result.youtube.speaker || result.youtube.gallery) {
+      try {
+        const mapping = await getZoomMapping(String(m.id), Accounts);
+        if (mapping?.youtubePlaylistName) {
+          const start = new Date(m.start_time);
+          const monthName = start.toLocaleString('en-US', { month: 'long' });
+          const year = String(start.getFullYear());
+          const playlistTitle = mapping.youtubePlaylistName.replace(/\{MONTH\}/gi, monthName).replace(/\{YEAR\}/gi, year);
+          const playlistId = await ytPlaylistFindOrCreate(yt, playlistTitle);
+          for (const vid of [result.youtube.speaker, result.youtube.gallery].filter(Boolean)) {
+            await ytPlaylistAddVideo(yt, playlistId, vid);
+          }
+          log(`  Playlist OK: "${playlistTitle}" ← ${[result.youtube.speaker, result.youtube.gallery].filter(Boolean).length} video(s)`);
+        }
+      } catch (e) { log('  Playlist FAIL:', e.message); }
     }
     // Only mark done if at least one YouTube upload succeeded (so failures retry next run).
     if (result.youtube.speaker || result.youtube.gallery) {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertCircle, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Pencil, Save, X, ListVideo } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -12,6 +12,7 @@ interface Mapping {
   communityName?: string;
   zoomTopic?: string;
   thumbnailUrl?: string;
+  youtubePlaylistName?: string;
 }
 
 interface Community {
@@ -34,6 +35,12 @@ export default function ZoomSettingsPage() {
   const [selectedCommunity, setSelectedCommunity] = useState('');
   const [zoomTopic, setZoomTopic] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [youtubePlaylistName, setYoutubePlaylistName] = useState('');
+
+  // Inline edit of an existing mapping's YouTube playlist name
+  const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
+  const [editingPlaylistValue, setEditingPlaylistValue] = useState('');
+  const [savingPlaylist, setSavingPlaylist] = useState(false);
 
   // Load mappings and communities
   useEffect(() => {
@@ -87,6 +94,7 @@ export default function ZoomSettingsPage() {
           communityId: selectedCommunity,
           zoomTopic: zoomTopic || undefined,
           thumbnailUrl: thumbnailUrl || undefined,
+          youtubePlaylistName: youtubePlaylistName || undefined,
         }),
       });
 
@@ -102,6 +110,7 @@ export default function ZoomSettingsPage() {
       setSelectedCommunity('');
       setZoomTopic('');
       setThumbnailUrl('');
+      setYoutubePlaylistName('');
 
       setTimeout(() => setSuccess(null), 3000);
     } catch (e: any) {
@@ -134,6 +143,38 @@ export default function ZoomSettingsPage() {
 
   const getCommunityName = (id: string) => {
     return communities.find((c) => c.id === id)?.name || id;
+  };
+
+  const startEditPlaylist = (mapping: Mapping) => {
+    setEditingPlaylistId(mapping._id);
+    setEditingPlaylistValue(mapping.youtubePlaylistName || '');
+  };
+
+  const saveEditPlaylist = async (mappingId: string) => {
+    setSavingPlaylist(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/community/zoom-settings', {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: mappingId, youtubePlaylistName: editingPlaylistValue || '' }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update playlist name');
+      }
+      setMappings(mappings.map((m) => (m._id === mappingId ? { ...m, youtubePlaylistName: editingPlaylistValue || undefined } : m)));
+      setEditingPlaylistId(null);
+      setSuccess('✅ Playlist name updated');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSavingPlaylist(false);
+    }
   };
 
   return (
@@ -269,6 +310,25 @@ export default function ZoomSettingsPage() {
               )}
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                YouTube Playlist Name (Optional)
+              </label>
+              <input
+                type="text"
+                value={youtubePlaylistName}
+                onChange={(e) => setYoutubePlaylistName(e.target.value)}
+                placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR} Eveining Hindi"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Each newly uploaded recording (Speaker + Gallery view) is added to this YouTube playlist
+                (created automatically as <strong>Unlisted</strong> if it doesn&apos;t exist). Use
+                {' '}<code>{'{MONTH}'}</code> and <code>{'{YEAR}'}</code> placeholders so a new playlist is
+                created each month, e.g. &quot;Swar Yoga 7 days June 2026 Eveining Hindi&quot;.
+              </p>
+            </div>
+
             <button
               type="submit"
               disabled={submitting || loading}
@@ -342,6 +402,55 @@ export default function ZoomSettingsPage() {
                     <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-sm font-medium rounded">
                       {mapping.communityName || getCommunityName(mapping.communityId)}
                     </span>
+                  </div>
+
+                  {/* YouTube playlist mapping (inline edit) */}
+                  <div className="mt-3 flex items-start gap-2">
+                    <ListVideo className="w-4 h-4 text-gray-400 mt-1.5 flex-shrink-0" />
+                    {editingPlaylistId === mapping._id ? (
+                      <div className="flex-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editingPlaylistValue}
+                          onChange={(e) => setEditingPlaylistValue(e.target.value)}
+                          placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR} Eveining Hindi"
+                          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => saveEditPlaylist(mapping._id)}
+                          disabled={savingPlaylist}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded transition disabled:opacity-50"
+                          title="Save"
+                        >
+                          {savingPlaylist ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => setEditingPlaylistId(null)}
+                          className="p-1.5 text-gray-400 hover:bg-gray-100 rounded transition"
+                          title="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-between gap-2">
+                        <p className="text-sm text-gray-600">
+                          {mapping.youtubePlaylistName ? (
+                            <>YouTube playlist: <span className="font-medium">{mapping.youtubePlaylistName}</span></>
+                          ) : (
+                            <span className="text-gray-400 italic">No YouTube playlist set</span>
+                          )}
+                        </p>
+                        <button
+                          onClick={() => startEditPlaylist(mapping)}
+                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded transition"
+                          title="Edit playlist name"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

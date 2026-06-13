@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
       communityName: community.name,
       zoomTopic: zoomTopic || undefined,
       thumbnailUrl: thumbnailUrl || undefined,
+      youtubePlaylistName: body.youtubePlaylistName || undefined,
       createdAt: new Date(),
     };
 
@@ -123,6 +124,54 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[Zoom Settings POST]', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/admin/community/zoom-settings
+ * Update fields on an existing Zoom → Community mapping (e.g. youtubePlaylistName).
+ * Body: { id, zoomTopic?, thumbnailUrl?, youtubePlaylistName? }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+
+    if (!decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { id, zoomTopic, thumbnailUrl, youtubePlaylistName } = body;
+    if (!id) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    }
+
+    await connectDB();
+    const Accounts = mongoose.connection.db.collection('socialmediaaccounts');
+
+    const set: Record<string, any> = {};
+    if (zoomTopic !== undefined) set['metadata.zoomMappings.$.zoomTopic'] = zoomTopic;
+    if (thumbnailUrl !== undefined) set['metadata.zoomMappings.$.thumbnailUrl'] = thumbnailUrl;
+    if (youtubePlaylistName !== undefined) set['metadata.zoomMappings.$.youtubePlaylistName'] = youtubePlaylistName;
+
+    if (Object.keys(set).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    const result = await Accounts.updateOne(
+      { platform: 'youtube', 'metadata.zoomMappings._id': new mongoose.Types.ObjectId(id) },
+      { $set: set }
+    );
+
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Mapping not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('[Zoom Settings PATCH]', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
