@@ -116,6 +116,77 @@ export async function listRecurringSchedules(filter: { userIds?: string[]; statu
   return schedules;
 }
 
+/**
+ * Find which user owns a given recurring schedule (by its embedded _id).
+ * Optionally restrict the search to a specific userId (tenant scoping).
+ * Returns null if not found / not owned by the given userId.
+ */
+export async function findRecurringScheduleOwner(scheduleId: string, userId?: string): Promise<string | null> {
+  await connectDB();
+  const query: any = { 'metadata.broadcastRecurringSchedules._id': new mongoose.Types.ObjectId(scheduleId) };
+  if (userId) query.userId = userId;
+  const doc = await CRMUserSettings.findOne(query, { userId: 1 }).lean();
+  return (doc as any)?.userId || null;
+}
+
+/**
+ * Update editable fields (name, sendTime, status) on a recurring schedule.
+ * When sendTime changes, all PENDING occurrences are rescheduled to the new
+ * time-of-day while keeping their original calendar date (IST).
+ */
+export async function updateRecurringSchedule(
+  userId: string,
+  scheduleId: string,
+  updates: { name?: string; sendTime?: string; status?: 'active' | 'paused' }
+): Promise<void> {
+  await connectDB();
+  const now = new Date();
+  const objId = new mongoose.Types.ObjectId(scheduleId);
+
+  const set: Record<string, unknown> = { 'metadata.broadcastRecurringSchedules.$[s].updatedAt': now };
+  if (updates.name !== undefined) set['metadata.broadcastRecurringSchedules.$[s].name'] = updates.name;
+  if (updates.sendTime !== undefined) set['metadata.broadcastRecurringSchedules.$[s].sendTime'] = updates.sendTime;
+  if (updates.status !== undefined) set['metadata.broadcastRecurringSchedules.$[s].status'] = updates.status;
+
+  await CRMUserSettings.updateOne(
+    { userId },
+    { $set: set },
+    { arrayFilters: [{ 's._id': objId }] }
+  );
+
+  if (updates.sendTime !== undefined) {
+    const doc = await CRMUserSettings.findOne(
+      { userId, 'metadata.broadcastRecurringSchedules._id': objId },
+      { 'metadata.broadcastRecurringSchedules': 1 }
+    ).lean();
+    const schedule = (doc as any)?.metadata?.broadcastRecurringSchedules?.find(
+      (s: any) => String(s._id) === scheduleId
+    );
+    const [hh, mm] = updates.sendTime.split(':');
+    for (const occ of schedule?.occurrences || []) {
+      if (occ.status !== 'pending') continue;
+      const istDateStr = new Date(occ.scheduledAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const newScheduledAt = new Date(`${istDateStr}T${hh}:${mm}:00+05:30`);
+      await CRMUserSettings.updateOne(
+        { userId },
+        { $set: { 'metadata.broadcastRecurringSchedules.$[s].occurrences.$[o].scheduledAt': newScheduledAt } },
+        { arrayFilters: [{ 's._id': objId }, { 'o.index': occ.index }] }
+      );
+    }
+  }
+}
+
+/**
+ * Permanently remove a recurring schedule from the user's settings doc.
+ */
+export async function deleteRecurringSchedule(userId: string, scheduleId: string): Promise<void> {
+  await connectDB();
+  await CRMUserSettings.updateOne(
+    { userId },
+    { $pull: { 'metadata.broadcastRecurringSchedules': { _id: new mongoose.Types.ObjectId(scheduleId) } } }
+  );
+}
+
 async function setScheduleStatus(userId: string, scheduleId: mongoose.Types.ObjectId, status: RecurringSchedule['status'], now: Date) {
   await CRMUserSettings.updateOne(
     { userId },

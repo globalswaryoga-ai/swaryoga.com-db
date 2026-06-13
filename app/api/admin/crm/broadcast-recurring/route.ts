@@ -3,7 +3,13 @@ import { connectDB } from '@/lib/db';
 import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import { Lead, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
-import { createRecurringSchedule, listRecurringSchedules } from '@/lib/broadcastRecurring';
+import {
+  createRecurringSchedule,
+  listRecurringSchedules,
+  findRecurringScheduleOwner,
+  updateRecurringSchedule,
+  deleteRecurringSchedule,
+} from '@/lib/broadcastRecurring';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -159,5 +165,72 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: { schedules: data } }, { status: 200 });
   } catch (error) {
     return handleCrmError(error, 'GET broadcast-recurring');
+  }
+}
+
+/**
+ * PATCH /api/admin/crm/broadcast-recurring
+ * Edit a recurring schedule's name, send time, or active/paused status.
+ *
+ * Body: { scheduleId: string, name?: string, sendTime?: string (HH:mm), status?: 'active' | 'paused' }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const decoded: any = verifyAdmin(request);
+    const body = await request.json().catch(() => null);
+    if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+
+    const scheduleId = String(body?.scheduleId || '').trim();
+    if (!scheduleId || !mongoose.Types.ObjectId.isValid(scheduleId)) {
+      return NextResponse.json({ error: 'Invalid scheduleId' }, { status: 400 });
+    }
+
+    await connectDB();
+    const superAdmin = isSuperAdmin(decoded);
+    const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || 'admin');
+
+    const ownerUserId = await findRecurringScheduleOwner(scheduleId, superAdmin ? undefined : viewerUserId);
+    if (!ownerUserId) return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+
+    const updates: { name?: string; sendTime?: string; status?: 'active' | 'paused' } = {};
+    if (typeof body.name === 'string' && body.name.trim()) updates.name = body.name.trim();
+    if (typeof body.sendTime === 'string' && /^\d{2}:\d{2}$/.test(body.sendTime)) updates.sendTime = body.sendTime;
+    if (body.status === 'active' || body.status === 'paused') updates.status = body.status;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    await updateRecurringSchedule(ownerUserId, scheduleId, updates);
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    return handleCrmError(error, 'PATCH broadcast-recurring');
+  }
+}
+
+/**
+ * DELETE /api/admin/crm/broadcast-recurring?scheduleId=...
+ * Permanently remove a recurring schedule.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const decoded: any = verifyAdmin(request);
+    const url = new URL(request.url);
+    const scheduleId = String(url.searchParams.get('scheduleId') || '').trim();
+    if (!scheduleId || !mongoose.Types.ObjectId.isValid(scheduleId)) {
+      return NextResponse.json({ error: 'Invalid scheduleId' }, { status: 400 });
+    }
+
+    await connectDB();
+    const superAdmin = isSuperAdmin(decoded);
+    const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || 'admin');
+
+    const ownerUserId = await findRecurringScheduleOwner(scheduleId, superAdmin ? undefined : viewerUserId);
+    if (!ownerUserId) return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+
+    await deleteRecurringSchedule(ownerUserId, scheduleId);
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    return handleCrmError(error, 'DELETE broadcast-recurring');
   }
 }
