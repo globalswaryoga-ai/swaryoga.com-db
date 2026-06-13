@@ -139,6 +139,7 @@ export default function QRGroupSchedulerPage() {
   const [schedulesLoading, setSchedulesLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 
   // ── Form state ──
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
@@ -775,7 +776,45 @@ export default function QRGroupSchedulerPage() {
                         <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
                       </div>
                       <p className="text-xs text-gray-500 truncate mb-1">{groupNames.join(', ')}</p>
-                      <p className="text-xs text-gray-600 line-clamp-2 mb-2">{s.messageText}</p>
+                      {s.mediaUrls && s.mediaUrls.length > 0 && (
+                        guessMediaKind(s.mediaUrls[0]) === 'image' ? (
+                          <img
+                            src={s.mediaUrls[0]}
+                            alt="Attached media"
+                            className="w-full max-h-40 object-cover rounded mb-2 border"
+                          />
+                        ) : (
+                          <a
+                            href={s.mediaUrls[0]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block text-xs text-blue-600 underline mb-2"
+                          >
+                            📎 {s.mediaUrls[0].split('/').pop() || 'Attached file'}
+                          </a>
+                        )
+                      )}
+                      {(() => {
+                        const isExpanded = expandedMessages.has(s._id);
+                        const isLong = (s.messageText?.length || 0) > 120;
+                        return (
+                          <div className="mb-2">
+                            <p className={`text-xs text-gray-600 ${isExpanded ? '' : 'line-clamp-2'}`}>{s.messageText}</p>
+                            {isLong && (
+                              <button
+                                onClick={() => setExpandedMessages(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(s._id)) next.delete(s._id); else next.add(s._id);
+                                  return next;
+                                })}
+                                className="text-xs text-blue-600 font-medium mt-0.5 hover:underline"
+                              >
+                                {isExpanded ? 'Read less' : 'Read more'}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center gap-3 text-xs text-gray-400 mb-2 flex-wrap">
                         <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {s.startTime} IST</span>
                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {remaining} of {s.customScheduleDates?.length || 0} days left</span>
