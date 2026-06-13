@@ -82,6 +82,10 @@ export async function GET(request: NextRequest) {
         else if (v.videoSource === 'youtube' && v.youtubeVideoId) {
           videoUrl = `/api/community/videos/embed?v=${v._id}`;
         }
+        // Direct Bunny Storage CDN MP4 (e.g. Zoom recordings) — publicly playable as-is
+        else if (v.videoSource === 'bunny' && v.s3Url) {
+          videoUrl = v.s3Url;
+        }
         // Generate signed URL for S3 videos
         else if (v.s3Key && !v.s3Key.includes('b-cdn.net')) {
           try {

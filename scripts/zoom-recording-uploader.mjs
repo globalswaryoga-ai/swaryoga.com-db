@@ -99,17 +99,16 @@ async function trashRecording(uuid, token) {
   throw new Error('trash ' + r.status + ' ' + await r.text());
 }
 
-// Auto-add speaker view video to the configured community.
-// User will manually invite swarsakshi9@gmail.com + mohan@swaryoga.com in YouTube Studio.
-async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeetingId, db) {
+// Auto-add speaker view recording to the configured community using its
+// public Bunny CDN MP4 URL — plays directly, no YouTube invite step needed.
+async function autoAddToConfiguredCommunity(videoUrl, topic, dateLabel, zoomMeetingId, db, thumbnailUrl) {
   const Videos = db.collection('communityvideos');
   const Accounts = db.collection('socialmediaaccounts');
 
   let communityId = 'global'; // default fallback
   let communityName = 'Global';
   let batchName = null; // Batch / Workshop Name from the mapping (the "playlist")
-  // hqdefault always exists; maxresdefault 404s for many recordings.
-  let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  let thumb = thumbnailUrl || null;
 
   // Look up the zoom meeting ID in socialmediaaccounts.metadata.zoomMappings
   try {
@@ -120,7 +119,7 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
       communityId = mapping.communityId;
       communityName = mapping.communityName || mapping.communityId;
       batchName = mapping.zoomTopic || null;
-      if (mapping.thumbnailUrl) thumbnailUrl = mapping.thumbnailUrl; // batch-specific thumbnail
+      if (mapping.thumbnailUrl) thumb = mapping.thumbnailUrl; // batch-specific thumbnail
       log(`  Zoom mapping found: ${zoomMeetingId} → ${communityName}`);
     } else {
       log(`  No mapping for Zoom meeting ${zoomMeetingId}, using default 'global'`);
@@ -136,7 +135,7 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
   const playlistTag = `playlist:${playlistName}`;
 
   try {
-    const existing = await Videos.findOne({ communityId, youtubeVideoId: videoId });
+    const existing = await Videos.findOne({ communityId, s3Url: videoUrl });
     if (existing) return;
 
     const videoNumber = (await Videos.countDocuments({ communityId, tags: playlistTag })) + 1;
@@ -144,12 +143,11 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
 
     const doc = {
       communityId,
-      videoSource: 'youtube',
-      youtubeVideoId: videoId,
-      youtubeUnlisted: false,
+      videoSource: 'bunny',
+      s3Url: videoUrl,
       title,
-      description: `Zoom recording from ${dateLabel}\n\nPlease invite swarsakshi9@gmail.com and mohan@swaryoga.com in YouTube Studio so they receive shareable links.`,
-      thumbnailUrl,
+      description: `Zoom recording from ${dateLabel}`,
+      thumbnailUrl: thumb,
       uploadedBy: 'zoom-uploader',
       isShareable: false,
       isCommon: true,
@@ -157,12 +155,11 @@ async function autoAddToConfiguredCommunity(videoId, topic, dateLabel, zoomMeeti
       zoomMeetingId,
       recordingType: 'speaker_view',
       tags: [`folder:${communityName}`, playlistTag, 'recording', `video:${videoNumber}`],
-      pendingEmailInvites: ['swarsakshi9@gmail.com', 'mohan@swaryoga.com'],
       createdAt: new Date(),
     };
 
     await Videos.insertOne(doc);
-    log(`  Community (${communityName}) OK: added as "${title}"`);
+    log(`  Community (${communityName}) OK: added as "${title}" (Bunny)`);
   } catch (e) {
     log(`  Community FAIL:`, e.message);
   }
@@ -186,6 +183,12 @@ async function bunnyStorageSave(srcUrl, size, fileName) {
   });
   if (!put.ok) throw new Error('bunny storage put ' + put.status + ' ' + await put.text());
   return dest;
+}
+
+// Public CDN URL for a Bunny Storage path (storage zone is fronted by this pull zone).
+function bunnyCdnUrl(dest) {
+  const host = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
+  return `https://${host}/${encodeURI(dest)}`;
 }
 
 (async () => {
@@ -227,15 +230,16 @@ async function bunnyStorageSave(srcUrl, size, fileName) {
         const id = await ytUpload(yt, dl(f), f.file_size, `${m.topic} — ${view} — ${dateLabel}`, `${m.topic}\nRecorded ${m.start_time}\n${view} (${f.recording_type})`);
         result.youtube[key] = id;
         log(`  YT OK ${view}: https://youtu.be/${id}`);
-        // Auto-add speaker view to configured community with pending email invites
-        if (key === 'speaker') {
-          await autoAddToConfiguredCommunity(id, m.topic, dateLabel, String(m.id), mongoose.connection.db);
-        }
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
     if (speaker) {
-      try { result.bunny = await bunnyStorageSave(dl(speaker), speaker.file_size, `${dateLabel} ${m.topic} (speaker).mp4`); log('  Bunny Storage OK:', result.bunny); }
-      catch (e) { log('  Bunny FAIL:', e.message); }
+      try {
+        result.bunny = await bunnyStorageSave(dl(speaker), speaker.file_size, `${dateLabel} ${m.topic} (speaker).mp4`);
+        log('  Bunny Storage OK:', result.bunny);
+        // Auto-add speaker view to configured community using the public Bunny CDN URL
+        const thumb = result.youtube.speaker ? `https://img.youtube.com/vi/${result.youtube.speaker}/hqdefault.jpg` : null;
+        await autoAddToConfiguredCommunity(bunnyCdnUrl(result.bunny), m.topic, dateLabel, String(m.id), mongoose.connection.db, thumb);
+      } catch (e) { log('  Bunny FAIL:', e.message); }
     }
     // Only mark done if at least one YouTube upload succeeded (so failures retry next run).
     if (result.youtube.speaker || result.youtube.gallery) {
