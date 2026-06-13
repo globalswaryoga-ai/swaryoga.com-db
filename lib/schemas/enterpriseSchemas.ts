@@ -1413,7 +1413,8 @@ const BroadcastRecurringScheduleSchema = new mongoose.Schema(
     createdByUserId: { type: String, trim: true, index: true },
 
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate', required: true },
-    provider: { type: String, enum: ['meta'], default: 'meta' },
+    // 'meta' = Cloud API, 'qr' = WhatsApp Web Bridge (Baileys)
+    provider: { type: String, enum: ['meta', 'qr'], default: 'meta' },
 
     // Recipient list for occurrence #1. Later occurrences are computed from
     // the immediately-preceding occurrence's delivered/read recipients.
@@ -1423,9 +1424,11 @@ const BroadcastRecurringScheduleSchema = new mongoose.Schema(
     deliveredOnly: { type: Boolean, default: true }, // strict delivered/read filter for occurrence 2+
 
     overrideImageUrl: String,
+    // Defaults applied per-provider in lib/broadcastRecurring.ts if not set here
+    // (meta: 1-2s; qr: 120-360s for ~15 msgs/hour anti-ban pacing).
     messageInterval: {
-      minSeconds: { type: Number, default: 1 },
-      maxSeconds: { type: Number, default: 2 },
+      minSeconds: Number,
+      maxSeconds: Number,
     },
 
     occurrences: [{

@@ -147,21 +147,6 @@ function fmtDayLabel(dateStr: string): string {
   return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-function addMinutes(hhmm: string, mins: number): string {
-  const [h, m] = hhmm.split(':').map(Number);
-  const total = (h * 60 + m + mins + 1440) % 1440;
-  const nh = Math.floor(total / 60);
-  const nm = total % 60;
-  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
-}
-
-function phoneToDigits(raw: string): string {
-  const digits = String(raw || '').replace(/\D/g, '');
-  if (digits.length === 10) return `91${digits}`;
-  if (digits.startsWith('0') && digits.length > 10) return digits.replace(/^0+/, '');
-  return digits;
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 export default function QRBroadcastWizard() {
   const token = useAuth();
@@ -172,6 +157,7 @@ export default function QRBroadcastWizard() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Step 1 — template
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -328,35 +314,35 @@ export default function QRBroadcastWizard() {
       if (repeatSelectedDates.length === 0) { setError('Select at least one day to repeat on'); return; }
       setSubmitting(true);
       setError(null);
+      setResult(null);
       try {
-        const phones = leads
-          .filter(l => selectedLeadIds.has(l._id))
-          .map(l => l.phoneNumber)
-          .filter(Boolean);
-        const recipientChatIds = Array.from(new Set(phones.map(p => `${phoneToDigits(p)}@s.whatsapp.net`)));
-        if (recipientChatIds.length === 0) throw new Error('Selected recipients have no valid phone numbers');
+        const leadIds = Array.from(selectedLeadIds);
+        if (leadIds.length === 0) throw new Error('Selected recipients have no valid phone numbers');
 
         const name = repeatScheduleName.trim()
           || runName.trim()
           || `${selectedTemplate.templateName} @ ${repeatTime} (${repeatSelectedDates.length} days)`;
-        const body = {
+        const body: any = {
           name,
-          messageText: selectedTemplate.templateContent || '',
-          mediaUrls: selectedTemplate.headerMedia?.url ? [selectedTemplate.headerMedia.url] : [],
-          recipientChatIds,
-          groupIds: [],
-          individualIds: recipientChatIds,
-          frequency: 'custom',
-          customScheduleDates: repeatSelectedDates.map(d => `${d}T00:00:00+05:30`),
-          startTime: repeatTime,
-          endTime: addMinutes(repeatTime, 30),
-          status: 'scheduled',
-          isActive: true,
+          templateId: selectedTemplate._id,
+          provider: 'qr',
+          leadIds,
+          occurrenceDates: repeatSelectedDates,
+          sendTime: repeatTime,
         };
-        await crmFetch('/api/admin/crm/qr-broadcast-schedule', { method: 'POST', body });
-        router.push('/admin/crm/qr/group-scheduler');
+        await crmFetch('/api/admin/crm/broadcast-recurring', { method: 'POST', body });
+
+        setResult({
+          success: true,
+          message: `✅ Repeat schedule created! ${leadIds.length} recipient(s) across ${repeatSelectedDates.length} occurrence(s). Occurrences after the 1st only resend to delivered/read recipients.`,
+        });
+        setSelectedLeadIds(new Set());
+        setSelectedTemplate(null);
+        setRunName('');
+        setRepeatScheduleName('');
+        setStep(0);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create repeat schedule');
+        setResult({ success: false, message: `❌ ${err instanceof Error ? err.message : 'Failed to create repeat schedule'}` });
       } finally {
         setSubmitting(false);
       }
@@ -452,6 +438,16 @@ export default function QRBroadcastWizard() {
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             {error}
+          </div>
+        )}
+
+        {/* Result */}
+        {result && (
+          <div className={`mb-4 p-3 rounded-lg border flex items-center justify-between gap-2 text-sm ${
+            result.success ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
+            <span className="font-medium">{result.message}</span>
+            <button onClick={() => setResult(null)} className="text-lg hover:opacity-70">×</button>
           </div>
         )}
 
@@ -674,7 +670,7 @@ export default function QRBroadcastWizard() {
                 <span className="text-sm font-medium text-gray-700">🔁 Repeat message</span>
               </label>
               <p className="text-xs text-gray-400 mt-1 ml-6">
-                Instead of a one-time send, automatically resend this message on the days you choose below.
+                Resend on chosen days — only to delivered/read recipients after the 1st send.
               </p>
             </div>
 

@@ -46,16 +46,21 @@ async function createOccurrenceRun(schedule: any, leadIds: any[], occurrenceSche
 
   const scheduledAt = occurrenceScheduledAt.getTime() < now.getTime() ? now : occurrenceScheduledAt;
 
+  const provider = schedule.provider || 'meta';
+  const defaultInterval = provider === 'qr'
+    ? { minSeconds: 120, maxSeconds: 360 } // ~15 msgs/hr, matches QR anti-ban pacing
+    : { minSeconds: 1, maxSeconds: 2 };
+
   const run = await BroadcastRun.create({
     name: `${schedule.name} — Repeat`,
     createdByUserId: schedule.createdByUserId,
     createdByLabel: schedule.createdByUserId,
     mode: 'schedule',
-    provider: 'meta',
+    provider,
     scheduledAt,
     status: 'scheduled',
     templateId: schedule.templateId,
-    messageInterval: schedule.messageInterval || { minSeconds: 1, maxSeconds: 2 },
+    messageInterval: schedule.messageInterval?.minSeconds != null ? schedule.messageInterval : defaultInterval,
     templateSnapshot: {
       templateName: (template as any).templateName,
       language: (template as any).language,

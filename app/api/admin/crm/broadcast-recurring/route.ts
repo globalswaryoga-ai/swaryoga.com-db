@@ -66,6 +66,11 @@ export async function POST(request: NextRequest) {
     const overrideImageUrl = String(body?.overrideImageUrl || '').trim();
     const name = String(body?.name || '').trim() || `Repeat Broadcast ${new Date().toLocaleString()}`;
 
+    const provider = String(body?.provider || 'meta').trim();
+    if (!['meta', 'qr'].includes(provider)) {
+      return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
+    }
+
     await connectDB();
 
     const superAdmin = isSuperAdmin(decoded);
@@ -107,7 +112,7 @@ export async function POST(request: NextRequest) {
       name,
       createdByUserId: viewerUserId,
       templateId: toObjectId(templateId),
-      provider: 'meta',
+      provider,
       leadIds: finalLeadIds,
       sendTime,
       deliveredOnly: true,

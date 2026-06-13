@@ -71,23 +71,6 @@ function fmtDayLabel(dateStr: string): string {
   return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-// "18:00" + 30 -> "18:30"
-function addMinutes(hhmm: string, mins: number): string {
-  const [h, m] = hhmm.split(':').map(Number);
-  const total = (h * 60 + m + mins + 1440) % 1440;
-  const nh = Math.floor(total / 60);
-  const nm = total % 60;
-  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
-}
-
-// Digits-only; prepend '91' for bare 10-digit Indian numbers
-function phoneToDigits(raw: string): string {
-  const digits = String(raw || '').replace(/\D/g, '');
-  if (digits.length === 10) return `91${digits}`;
-  if (digits.startsWith('0') && digits.length > 10) return digits.replace(/^0+/, '');
-  return digits;
-}
-
 // ============================================================================
 // UTILITY COMPONENTS
 // ============================================================================
@@ -390,34 +373,25 @@ export default function QRBroadcastPage() {
     if (!canSend || !selectedTemplate) return;
     setSending(true); setResult(null);
     try {
-      // ── Repeat (recurring) mode → create a QRBroadcastSchedule, same as Group Scheduler ──
+      // ── Repeat (recurring) mode → create a BroadcastRecurringSchedule with delivered/read cascading filter ──
       if (sendMode === 'repeat') {
-        const phones = filteredLeads
-          .filter(l => selectedLeads.has(l._id))
-          .map(l => l.phoneNumber)
-          .filter(Boolean);
-        const recipientChatIds = Array.from(new Set(phones.map(p => `${phoneToDigits(p)}@s.whatsapp.net`)));
-        if (recipientChatIds.length === 0) throw new Error('Selected recipients have no valid phone numbers');
+        const realLeadIds = Array.from(selectedLeads).filter(id => !id.startsWith('csv_'));
+        if (realLeadIds.length === 0) throw new Error('Repeat requires recipients with saved lead records (CSV-only contacts are not supported)');
+        if (repeatSelectedDates.length === 0) throw new Error('Select at least one day to repeat on');
 
         const name = repeatScheduleName.trim()
           || `${selectedTemplate.templateName} @ ${repeatTime} (${repeatSelectedDates.length} days)`;
 
         const body = {
           name,
-          messageText: selectedTemplate.templateContent || '',
-          mediaUrls: selectedTemplate.headerMedia?.url ? [selectedTemplate.headerMedia.url] : [],
-          recipientChatIds,
-          groupIds: [],
-          individualIds: recipientChatIds,
-          frequency: 'custom',
-          customScheduleDates: repeatSelectedDates.map(d => `${d}T00:00:00+05:30`),
-          startTime: repeatTime,
-          endTime: addMinutes(repeatTime, 30),
-          status: 'scheduled',
-          isActive: true,
+          templateId: selectedTemplate._id,
+          provider: 'qr',
+          leadIds: realLeadIds,
+          occurrenceDates: repeatSelectedDates,
+          sendTime: repeatTime,
         };
 
-        const res = await fetch('/api/admin/crm/qr-broadcast-schedule', {
+        const res = await fetch('/api/admin/crm/broadcast-recurring', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -427,7 +401,7 @@ export default function QRBroadcastPage() {
 
         setResult({
           success: true,
-          message: `✅ Repeat schedule "${name}" created for ${recipientChatIds.length} recipient(s) on ${repeatSelectedDates.length} day(s). Manage it from QR Group Scheduler.`,
+          message: `✅ Repeat schedule created! ${realLeadIds.length} recipient(s) across ${repeatSelectedDates.length} occurrence(s). Occurrences after the 1st only resend to delivered/read recipients.`,
         });
         setSelectedLeads(new Set()); setSelectedTemplate(null); setRepeatScheduleName(''); setStep(1);
         return;
@@ -913,10 +887,10 @@ export default function QRBroadcastPage() {
                     </div>
                   )}
                   <button onClick={() => setSendMode('repeat')}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:shadow-md group ${sendMode === 'repeat' ? 'border-blue-500 bg-blue-50 shadow-md' : 'border-gray-200 hover:border-blue-300'}`}>
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all hover:shadow-md group ${sendMode === 'repeat' ? 'border-teal-500 bg-teal-50 shadow-md' : 'border-gray-200 hover:border-teal-300'}`}>
                     <div className="flex items-center gap-3">
                       <span className="text-2xl group-hover:scale-125 transition-transform">🔁</span>
-                      <div><div className="font-bold text-gray-800">Repeat</div><div className="text-sm text-gray-500">Send automatically on chosen days, every day</div></div>
+                      <div><div className="font-bold text-gray-800">Repeat</div><div className="text-sm text-gray-500">Resend on chosen days — only to delivered/read recipients after the 1st send</div></div>
                     </div>
                   </button>
                   {sendMode === 'repeat' && (
