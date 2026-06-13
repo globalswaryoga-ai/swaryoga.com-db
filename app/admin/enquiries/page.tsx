@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, ChevronUp, ChevronDown } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, ChevronUp, ChevronDown, Send, QrCode } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Enquiry {
@@ -311,6 +311,30 @@ export default function EnquiriesPage() {
     router.push(`/admin/crm/meta?phone=${phone}`);
   };
 
+  // Add a single enquiry's linked lead to a new Meta broadcast (template + schedule)
+  const addToBroadcast = (enquiry: Enquiry) => {
+    if (!enquiry.leadId) {
+      alert('This enquiry has no linked lead yet, so it cannot be added to a broadcast.');
+      return;
+    }
+    router.push(`/admin/crm/broadcast?leadIds=${enquiry.leadId}`);
+  };
+
+  // All linked lead IDs for every submission of a given form (used by the QR/Meta buttons)
+  const getFormLeadIds = (formId: string): string[] =>
+    enquiries.filter((e) => e.workshopId === formId && e.leadId).map((e) => e.leadId as string);
+
+  // Send a form's submissions straight to a broadcast (QR or Meta) — pick template + schedule there
+  const broadcastForm = (form: EnquiryForm, channel: 'qr' | 'meta') => {
+    const leadIds = getFormLeadIds(form.formId);
+    if (leadIds.length === 0) {
+      alert('No submissions with linked leads for this form yet.');
+      return;
+    }
+    const path = channel === 'qr' ? '/admin/crm/qr-broadcast' : '/admin/crm/broadcast';
+    router.push(`${path}?leadIds=${leadIds.join(',')}`);
+  };
+
   const workshops = Array.from(new Set(enquiries.map((e) => e.workshopName)));
 
   const filteredEnquiries = enquiries.filter((enquiry) => {
@@ -416,6 +440,20 @@ export default function EnquiriesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => broadcastForm(form, 'qr')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all"
+                        title="Broadcast this form's submissions via QR WhatsApp"
+                      >
+                        <QrCode size={12} /> QR
+                      </button>
+                      <button
+                        onClick={() => broadcastForm(form, 'meta')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#25D366]/10 text-[#1ebe5d] hover:bg-[#25D366]/20 transition-all"
+                        title="Broadcast this form's submissions via Meta WhatsApp"
+                      >
+                        <Send size={12} /> Meta
+                      </button>
                       <button
                         onClick={() => copyLink(form.formId)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -548,12 +586,21 @@ export default function EnquiriesPage() {
                       <option value="contacted">Contacted</option>
                       <option value="registered">Registered</option>
                     </select>
-                    <button
-                      onClick={() => openInMeta(enquiry)}
-                      className="w-full flex items-center justify-center gap-1.5 text-sm text-white bg-[#25D366] hover:bg-[#1ebe5d] font-semibold py-2 rounded-lg mb-2 transition-colors"
-                    >
-                      <MessageCircle size={14} /> WhatsApp
-                    </button>
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        onClick={() => openInMeta(enquiry)}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-sm text-white bg-[#25D366] hover:bg-[#1ebe5d] font-semibold py-2 rounded-lg transition-colors"
+                      >
+                        <MessageCircle size={14} /> WhatsApp
+                      </button>
+                      <button
+                        onClick={() => addToBroadcast(enquiry)}
+                        title="Add to a new Meta broadcast"
+                        className="flex items-center justify-center w-10 h-full bg-gray-100 hover:bg-gray-200 text-swar-text-secondary hover:text-swar-text rounded-lg transition-colors py-2"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
                     <button onClick={() => openEdit(enquiry)} className="w-full flex items-center justify-center gap-1.5 text-sm text-swar-primary font-medium py-1 mb-1"><Pencil size={14} /> Edit</button>
                     <button onClick={() => handleDelete(enquiry.id)} className="w-full text-sm text-red-600 hover:text-swar-primary font-medium py-1">Delete</button>
                   </div>
@@ -614,6 +661,13 @@ export default function EnquiriesPage() {
                                 className="flex items-center gap-1 px-2.5 py-1.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg text-xs font-semibold transition-colors"
                               >
                                 <MessageCircle size={13} /> Chat
+                              </button>
+                              <button
+                                onClick={() => addToBroadcast(enquiry)}
+                                title="Add to a new Meta broadcast"
+                                className="flex items-center justify-center w-7 h-7 bg-gray-100 hover:bg-gray-200 text-swar-text-secondary hover:text-swar-text rounded-lg transition-colors"
+                              >
+                                <Plus size={14} />
                               </button>
                               <button
                                 onClick={() => openEdit(enquiry)}
