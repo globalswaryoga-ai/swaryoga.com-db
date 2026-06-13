@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, ChevronUp, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Enquiry {
@@ -46,6 +46,8 @@ export default function EnquiriesPage() {
   const [selectedWorkshop, setSelectedWorkshop] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [formsCollapsed, setFormsCollapsed] = useState(false);
+  const [submissionsCollapsed, setSubmissionsCollapsed] = useState(false);
 
   // Forms management
   const [forms, setForms] = useState<EnquiryForm[]>([]);
@@ -365,14 +367,22 @@ export default function EnquiriesPage() {
 
           {/* ── Shareable Forms Section ── */}
           <div className="bg-white rounded-xl shadow-md p-5 mb-6">
-            <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => setFormsCollapsed(!formsCollapsed)}
+              className="w-full flex items-center justify-between mb-0 group"
+            >
               <h2 className="text-lg font-bold text-swar-text flex items-center gap-2">
                 <Link2 size={18} className="text-[#2d6a4f]" />
                 Shareable Forms
               </h2>
-              <span className="text-xs text-swar-text-secondary">{forms.filter(f => f.isActive).length} active</span>
-            </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-swar-text-secondary">{forms.filter(f => f.isActive).length} active</span>
+                {formsCollapsed ? <ChevronDown size={18} className="text-swar-text-secondary group-hover:text-swar-text" /> : <ChevronUp size={18} className="text-swar-text-secondary group-hover:text-swar-text" />}
+              </div>
+            </button>
 
+            {!formsCollapsed && (
+            <div className="mt-4">
             {formsLoading ? (
               <p className="text-sm text-swar-text-secondary py-2">Loading…</p>
             ) : forms.length === 0 ? (
@@ -437,8 +447,29 @@ export default function EnquiriesPage() {
                 ))}
               </div>
             )}
+            </div>
+            )}
           </div>
 
+          {/* ── Received Forms Section ── */}
+          <div className="bg-white rounded-xl shadow-md p-5 mb-6">
+            <button
+              onClick={() => setSubmissionsCollapsed(!submissionsCollapsed)}
+              className="w-full flex items-center justify-between group"
+            >
+              <h2 className="text-lg font-bold text-swar-text flex items-center gap-2">
+                <Eye size={18} className="text-[#2d6a4f]" />
+                Received Forms
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-swar-text-secondary">{enquiries.length} total</span>
+                {submissionsCollapsed ? <ChevronDown size={18} className="text-swar-text-secondary group-hover:text-swar-text" /> : <ChevronUp size={18} className="text-swar-text-secondary group-hover:text-swar-text" />}
+              </div>
+            </button>
+          </div>
+
+          {!submissionsCollapsed && (
+          <>
           {/* Filters */}
           <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -619,6 +650,8 @@ export default function EnquiriesPage() {
                 </table>
               </div>
             </div>
+          )}
+          </>
           )}
 
           {/* ── Edit Enquiry Modal (name / mobile) ── */}
