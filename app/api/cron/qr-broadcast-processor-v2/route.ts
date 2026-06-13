@@ -13,7 +13,9 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
 
 /**
- * Check if current time falls within time window (5 AM to 10:30 PM IST)
+ * Check if current time falls within a start-end time window (IST).
+ * Handles windows that cross midnight (e.g. 23:50-00:20), which Group
+ * Scheduler can produce since it allows any time of day.
  */
 function isWithinTimeWindow(startTime: string, endTime: string, timezone: string = 'Asia/Kolkata'): boolean {
   const now = new Date();
@@ -28,6 +30,11 @@ function isWithinTimeWindow(startTime: string, endTime: string, timezone: string
 
   const startTimeInMinutes = startHour * 60 + startMin;
   const endTimeInMinutes = endHour * 60 + endMin;
+
+  if (endTimeInMinutes < startTimeInMinutes) {
+    // Window wraps past midnight (e.g. 23:50-00:20)
+    return currentTimeInMinutes >= startTimeInMinutes || currentTimeInMinutes <= endTimeInMinutes;
+  }
 
   return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
 }
