@@ -605,6 +605,38 @@ export function getCommunityMembership() {
   return mongoose.models.CommunityMembership || mongoose.model('CommunityMembership', communityMembershipSchema);
 }
 
+// Community Video Watch Log - per-session watch tracking for community members
+// (mirrors the e-learning VideoWatchLog pattern)
+const communityVideoWatchLogSchema = new mongoose.Schema({
+  communityId: { type: String, required: true, index: true },
+  userId: { type: String, required: true, index: true }, // CommunityMember.userId (6-digit)
+  videoId: { type: mongoose.Schema.Types.ObjectId, ref: 'CommunityVideo', required: true, index: true },
+  videoTitle: { type: String, default: '' }, // denormalized for reporting
+
+  watchStarted: { type: Date, default: Date.now },
+  watchEnded: { type: Date },
+  watchDuration: { type: Number, default: 0 }, // seconds actually watched this session
+  videoPosition: { type: Number, default: 0 }, // last known playback position (seconds)
+  totalSeconds: { type: Number, default: 0 }, // video duration, if known
+  completed: { type: Boolean, default: false }, // watched >= 90%
+
+  deviceInfo: { type: String },
+  ipAddress: { type: String },
+
+  createdAt: { type: Date, default: Date.now },
+});
+
+communityVideoWatchLogSchema.index({ userId: 1, videoId: 1 });
+communityVideoWatchLogSchema.index({ communityId: 1, userId: 1, createdAt: -1 });
+communityVideoWatchLogSchema.index({ videoId: 1, createdAt: -1 });
+
+export const CommunityVideoWatchLog =
+  mongoose.models.CommunityVideoWatchLog || mongoose.model('CommunityVideoWatchLog', communityVideoWatchLogSchema);
+
+export function getCommunityVideoWatchLog() {
+  return mongoose.models.CommunityVideoWatchLog || mongoose.model('CommunityVideoWatchLog', communityVideoWatchLogSchema);
+}
+
 // =====================================================
 // ZOOM COMMUNITY MAPPINGS - Link Zoom meetings to communities
 // =====================================================
@@ -1284,6 +1316,21 @@ const communityMemberSchema = new mongoose.Schema({
   messageCount: { type: Number, default: 0 },
   lastMessageAt: { type: Date },
   reactions: { type: Number, default: 0 }, // Count of reactions given
+
+  // === Video watch quotas (yearly) ===
+  // null/undefined = unlimited. When usage meets/exceeds either cap,
+  // status is auto-set to 'inactive' (member loses access until an admin re-enables it).
+  videoQuota: {
+    totalSecondsPerYear: { type: Number, default: null },
+    perVideoSecondsPerYear: { type: Number, default: null },
+  },
+  // Running usage counters, reset whenever yearKey changes (e.g. '2026').
+  videoUsage: {
+    yearKey: { type: String },
+    totalSeconds: { type: Number, default: 0 },
+    perVideo: { type: mongoose.Schema.Types.Mixed, default: {} }, // { [videoId]: secondsWatched }
+  },
+
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

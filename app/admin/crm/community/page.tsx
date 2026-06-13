@@ -9,6 +9,7 @@ import { PostsPanel } from './components/PostsPanel';
 import { RecordingsPanel } from './components/RecordingsPanel';
 import { VideosPanel } from './components/VideosPanel';
 import { SubmissionsPanel } from './components/SubmissionsPanel';
+import { VideoAnalyticsPanel } from './components/VideoAnalyticsPanel';
 import {
   Users, MessageSquare, MessageCircle, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
@@ -204,7 +205,7 @@ export default function AdminCommunityPage() {
   const [previewZoom, setPreviewZoom] = useState(1);
 
   // Posts Manager State
-  const [activeTab, setActiveTab] = useState<'members' | 'posts' | 'recordings' | 'videos' | 'submissions'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'posts' | 'recordings' | 'videos' | 'submissions' | 'analytics'>('members');
   
   // User Submissions State
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -2137,6 +2138,16 @@ export default function AdminCommunityPage() {
             >
               📝 Submissions ({submissionsCounts.pending + submissionsCounts.approved + submissionsCounts.rejected + submissionsCounts.posted})
             </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`px-6 py-4 font-bold text-sm uppercase tracking-tight border-b-2 transition-all ${
+                activeTab === 'analytics'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              📊 Analytics
+            </button>
           </div>
 
           {/* Members Panel - Extracted Sub-component */}
@@ -2204,6 +2215,13 @@ export default function AdminCommunityPage() {
           onEditVideo={openEditVideoModal}
           onOpenComments={(video) => { setSelectedVideoForComments(video); setShowVideoCommentsModal(true); }}
           getProxiedMediaUrl={getProxiedMediaUrl}
+        />
+
+        {/* Analytics Tab */}
+        <VideoAnalyticsPanel
+          activeTab={activeTab}
+          token={token}
+          selectedCommunity={selectedCommunity}
         />
 
         {/* Submissions Tab */}

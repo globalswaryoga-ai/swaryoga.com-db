@@ -41,6 +41,7 @@ export default function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState('');
   const [videoToken, setVideoToken] = useState<string>('');
+  const [watchLimitMsg, setWatchLimitMsg] = useState('');
 
   const mode = detectMode(videoUrl, videoSource, youtubeVideoId, bunnyVideoId, bunnyLibraryId);
 
@@ -97,6 +98,96 @@ export default function VideoPlayer({
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+
+  // Community watch-time tracking: per-session + yearly quota enforcement.
+  // Only runs when this player is shown inside a community page (communityId set).
+  useEffect(() => {
+    if (!communityId || !videoId) return;
+
+    let communityUserId: string | null = null;
+    try {
+      const raw = localStorage.getItem('community_user');
+      const u = raw ? JSON.parse(raw) : null;
+      communityUserId = u?.userId || u?._id || null;
+    } catch {}
+    if (!communityUserId) return;
+
+    const userId = communityUserId;
+    let watchLogId: string | null = null;
+    let lastTick = Date.now();
+    let cancelled = false;
+
+    const startSession = async () => {
+      try {
+        const res = await fetch(`/api/community/${communityId}/videos/${videoId}/watch?userId=${encodeURIComponent(userId)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          if (data.suspended) setWatchLimitMsg(data.reason || 'Video access suspended');
+          return;
+        }
+        watchLogId = data.watchLogId;
+        lastTick = Date.now();
+      } catch {}
+    };
+    startSession();
+
+    const sendHeartbeat = (finalCall = false) => {
+      if (!watchLogId) return;
+      const now = Date.now();
+      const elapsed = Math.round((now - lastTick) / 1000);
+      if (elapsed <= 0) return;
+
+      let videoPosition: number | undefined;
+      let totalSecondsVal: number | undefined;
+      let completed = false;
+      if ((mode === 'hls' || mode === 'mp4') && videoRef.current) {
+        const v = videoRef.current;
+        if (v.paused && !finalCall) return; // don't count paused time for native players
+        videoPosition = Math.floor(v.currentTime);
+        totalSecondsVal = Math.floor(v.duration) || undefined;
+        if (totalSecondsVal && videoPosition / totalSecondsVal >= 0.9) completed = true;
+      } else if (document.visibilityState !== 'visible' && !finalCall) {
+        // iframe players (YouTube/Bunny): only count time while the tab is visible
+        return;
+      }
+
+      lastTick = now;
+      fetch(`/api/community/${communityId}/videos/${videoId}/watch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId, watchLogId, watchedSeconds: elapsed, videoPosition, totalSeconds: totalSecondsVal, completed,
+        }),
+        keepalive: finalCall,
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.suspended) setWatchLimitMsg(data.reason || 'Video access suspended');
+        })
+        .catch(() => {});
+    };
+
+    const interval = setInterval(() => sendHeartbeat(false), 30000);
+    const handlePageHide = () => sendHeartbeat(true);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      sendHeartbeat(true);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
+    };
+  }, [communityId, videoId, mode]);
+
+  // Pause native playback once the watch-time limit is hit
+  useEffect(() => {
+    if (watchLimitMsg && videoRef.current) {
+      videoRef.current.pause();
+    }
+  }, [watchLimitMsg]);
 
   // Fetch token for YouTube videos.
   // IMPORTANT: prefer the community tempToken (correct community identity).
@@ -224,6 +315,17 @@ export default function VideoPlayer({
             {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
           </button>
         </>
+      )}
+
+      {/* Watch-time limit reached overlay */}
+      {watchLimitMsg && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/90 text-center px-6">
+          <div>
+            <p className="text-white font-bold text-base mb-1">⏱️ Watch limit reached</p>
+            <p className="text-gray-300 text-sm">{watchLimitMsg}</p>
+            <p className="text-gray-500 text-xs mt-2">Contact the community admin to restore access.</p>
+          </div>
+        </div>
       )}
     </div>
   );
