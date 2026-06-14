@@ -134,7 +134,7 @@ async function sendMessageWithGaps(
   mediaUrls?: string[],
   sessionInfo?: { sessionKey: string; tenantId: string },
   messageIndex: number = 0,
-): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean; restricted?: boolean }> {
+): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean; restricted?: boolean; waMessageId?: string }> {
   try {
     // CHECK 1: Atomic deduplication - reserve message slot before sending
     const reservation = await reserveMessageSend(userId, chatId, messageText, scheduleId, db);
@@ -158,6 +158,7 @@ async function sendMessageWithGaps(
     if (sessionInfo?.tenantId)   bridgeHeaders['x-tenant-id']   = sessionInfo.tenantId;
 
     let sendOk = false;
+    let waMessageId: string | undefined;
 
     if (hasMedia) {
       // Send image with caption via /send (type:media) — bridge fetches URL and sends via Baileys
@@ -177,6 +178,7 @@ async function sendMessageWithGaps(
       const resData = await res.json().catch(() => ({}));
       if (res.ok && resData?.success !== false) {
         sendOk = true;
+        waMessageId = resData?.id || resData?.messageId || resData?.key?.id;
         console.log(`[QR Broadcast V2] ✓ Image sent to ${chatId}`);
       } else {
         console.warn(`[QR Broadcast V2] Image send failed for ${mediaUrl}: ${resData?.error || res.status}`);
@@ -201,6 +203,7 @@ async function sendMessageWithGaps(
           sendTimeMs,
         };
       }
+      waMessageId = resData?.id || resData?.messageId || resData?.key?.id;
     }
 
     const sendTimeMs = Date.now() - startTime;
@@ -209,7 +212,7 @@ async function sendMessageWithGaps(
       return { success: false, error: 'Bridge rejected message' };
     }
 
-    return { success: true, sendTimeMs };
+    return { success: true, sendTimeMs, waMessageId };
   } catch (error) {
     return {
       success: false,
@@ -564,7 +567,10 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
           const chatJid = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')}@s.whatsapp.net`;
           const hasMedia = Array.isArray(schedule.mediaUrls) && schedule.mediaUrls.length > 0;
           const QrMsg = getQrWhatsAppMessage();
-          const msgId = `broadcast-${schedule._id}-${chatId.replace(/\D/g, '')}-${Date.now()}`;
+          // Use the REAL bridge message id when available so status_update webhooks
+          // (delivered/read/failed) can match this record by messageId. Falls back to
+          // a synthetic id only if the bridge didn't return one.
+          const msgId = result.waMessageId || `broadcast-${schedule._id}-${chatId.replace(/\D/g, '')}-${Date.now()}`;
           if (connectedPhone) {
             await QrMsg.updateOne(
               { userId: schedule.userId, connectedPhone, messageId: msgId, chatJid },
