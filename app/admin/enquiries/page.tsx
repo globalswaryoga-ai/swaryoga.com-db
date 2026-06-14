@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, ChevronUp, ChevronDown, Send, QrCode } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, ChevronUp, ChevronDown, Send, QrCode, Archive, ArchiveRestore } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Enquiry {
@@ -312,53 +312,84 @@ export default function EnquiriesPage() {
     router.push(`/admin/crm/meta?phone=${phone}`);
   };
 
+  // Open conversation in QR WhatsApp inbox + tag lead as qr-contacted
+  const openInQR = async (enquiry: Enquiry) => {
+    const digits = enquiry.mobile.replace(/\D/g, '');
+    // Ensure country code: if 10 digits, prepend 91
+    const phone = digits.length === 10 ? `91${digits}` : digits;
+
+    // Tag the lead in the background (non-blocking)
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+      if (token && enquiry.leadId) {
+        fetch(`/api/admin/crm/leads/${enquiry.leadId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ addLabels: ['qr-whatsapp', 'qr-contacted'] }),
+        }).catch(() => {});
+      }
+    } catch {}
+
+    router.push(`/admin/crm/qr?phone=${phone}`);
+  };
+
   // The CRM label used to mark a lead as "included in this workshop's bulk broadcast"
   const broadcastGroupLabel = (workshopId: string) => `workshop:${workshopId}`;
 
+  // The CRM label used to soft-hide an enquiry from the main list
+  const HIDE_LABEL = 'enquiry-hidden';
+
   const [togglingMark, setTogglingMark] = useState<string | null>(null); // enquiry.id currently being toggled
+  const [togglingHide, setTogglingHide] = useState<string | null>(null); // enquiry.id currently being hidden/unhidden
+  const [showHidden, setShowHidden] = useState(false);
+
+  // Ensure a CRM lead exists for this enquiry (creating one for legacy
+  // entries that don't have one yet), then add/remove `label` on it.
+  // Returns the lead's id.
+  const ensureLeadAndToggleLabel = async (enquiry: Enquiry, label: string, marked: boolean): Promise<string> => {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+    if (!token) throw new Error('Not authenticated');
+    let leadId = enquiry.leadId;
+
+    if (!leadId) {
+      const res = await fetch('/api/admin/crm/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          phoneNumber: enquiry.mobile,
+          name: enquiry.name,
+          labels: ['enquiry', label],
+          source: 'website',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.data?._id) {
+        leadId = data.data._id;
+      } else if (res.status === 409 && data?.existingLead?._id) {
+        leadId = data.existingLead._id;
+      } else {
+        throw new Error(data?.error || 'Failed to create lead');
+      }
+    }
+
+    const patchRes = await fetch(`/api/admin/crm/leads/${leadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(marked ? { removeLabels: [label] } : { addLabels: [label] }),
+    });
+    if (!patchRes.ok) throw new Error('Failed to update lead labels');
+    return leadId as string;
+  };
 
   // Toggle (blue <-> red) whether this enquiry's lead is included in the
-  // workshop's bulk broadcast list. Ensures a CRM lead exists, then
-  // adds/removes the workshop group label on it.
+  // workshop's bulk broadcast list.
   const toggleBroadcastMark = async (enquiry: Enquiry) => {
-    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
-    if (!token) return;
     const label = broadcastGroupLabel(enquiry.workshopId);
     const marked = (enquiry.labels || []).includes(label);
 
     setTogglingMark(enquiry.id);
     try {
-      let leadId = enquiry.leadId;
-
-      // Create a CRM lead for legacy enquiries that don't have one yet.
-      if (!leadId) {
-        const res = await fetch('/api/admin/crm/leads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            phoneNumber: enquiry.mobile,
-            name: enquiry.name,
-            labels: ['enquiry', label],
-            source: 'website',
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data?.data?._id) {
-          leadId = data.data._id;
-        } else if (res.status === 409 && data?.existingLead?._id) {
-          leadId = data.existingLead._id;
-        } else {
-          throw new Error(data?.error || 'Failed to create lead');
-        }
-      }
-
-      const patchRes = await fetch(`/api/admin/crm/leads/${leadId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(marked ? { removeLabels: [label] } : { addLabels: [label] }),
-      });
-      if (!patchRes.ok) throw new Error('Failed to update lead labels');
-
+      const leadId = await ensureLeadAndToggleLabel(enquiry, label, marked);
       setEnquiries((prev) => prev.map((e) => {
         if (e.id !== enquiry.id) return e;
         const labels = e.labels || [];
@@ -372,6 +403,30 @@ export default function EnquiriesPage() {
       alert(err instanceof Error ? err.message : 'Failed to update broadcast selection');
     } finally {
       setTogglingMark(null);
+    }
+  };
+
+  // Soft-hide/unhide an enquiry — hidden rows are excluded from the main
+  // list but can be viewed and restored via "Show hidden".
+  const toggleHide = async (enquiry: Enquiry) => {
+    const hidden = (enquiry.labels || []).includes(HIDE_LABEL);
+
+    setTogglingHide(enquiry.id);
+    try {
+      const leadId = await ensureLeadAndToggleLabel(enquiry, HIDE_LABEL, hidden);
+      setEnquiries((prev) => prev.map((e) => {
+        if (e.id !== enquiry.id) return e;
+        const labels = e.labels || [];
+        return {
+          ...e,
+          leadId,
+          labels: hidden ? labels.filter((l) => l !== HIDE_LABEL) : [...labels, HIDE_LABEL],
+        };
+      }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update hidden state');
+    } finally {
+      setTogglingHide(null);
     }
   };
 
@@ -394,7 +449,11 @@ export default function EnquiriesPage() {
 
   const workshops = Array.from(new Set(enquiries.map((e) => e.workshopName)));
 
+  const hiddenCount = enquiries.filter((e) => (e.labels || []).includes(HIDE_LABEL)).length;
+
   const filteredEnquiries = enquiries.filter((enquiry) => {
+    const isHidden = (enquiry.labels || []).includes(HIDE_LABEL);
+    if (showHidden ? !isHidden : isHidden) return false;
     const statusMatch = selectedFilter === 'all' || enquiry.status === selectedFilter;
     const workshopMatch = selectedWorkshop === 'all' || enquiry.workshopName === selectedWorkshop;
     const searchMatch = searchTerm === '' ||
@@ -600,6 +659,10 @@ export default function EnquiriesPage() {
                 Refresh
               </button>
             </div>
+            <label className="flex items-center gap-2 mt-4 text-sm text-swar-text-secondary cursor-pointer select-none">
+              <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} className="accent-swar-primary" />
+              Show hidden ({hiddenCount})
+            </label>
           </div>
 
           {/* Enquiries Table */}
@@ -648,22 +711,37 @@ export default function EnquiriesPage() {
                         onClick={() => openInMeta(enquiry)}
                         className="flex-1 flex items-center justify-center gap-1.5 text-sm text-white bg-[#25D366] hover:bg-[#1ebe5d] font-semibold py-2 rounded-lg transition-colors"
                       >
-                        <MessageCircle size={14} /> WhatsApp
+                        <MessageCircle size={14} /> Meta
+                      </button>
+                      <button
+                        onClick={() => openInQR(enquiry)}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-sm text-white bg-[#128C7E] hover:bg-[#0e6b60] font-semibold py-2 rounded-lg transition-colors"
+                      >
+                        <QrCode size={14} /> QR
                       </button>
                       <button
                         onClick={() => toggleBroadcastMark(enquiry)}
                         disabled={togglingMark === enquiry.id}
                         title={(enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId)) ? 'Marked for bulk broadcast — click to remove' : 'Mark for bulk broadcast'}
-                        className={`flex items-center justify-center w-10 h-full rounded-lg transition-colors py-2 disabled:opacity-50 ${
+                        className={`flex items-center justify-center w-10 h-full rounded-lg transition-colors py-2 disabled:opacity-50 text-xl font-bold leading-none ${
                           (enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId))
                             ? 'bg-red-100 text-red-600 hover:bg-red-200'
                             : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
                         }`}
                       >
-                        <Plus size={16} />
+                        +
                       </button>
                     </div>
                     <button onClick={() => openEdit(enquiry)} className="w-full flex items-center justify-center gap-1.5 text-sm text-swar-primary font-medium py-1 mb-1"><Pencil size={14} /> Edit</button>
+                    <button
+                      onClick={() => toggleHide(enquiry)}
+                      disabled={togglingHide === enquiry.id}
+                      className="w-full flex items-center justify-center gap-1.5 text-sm text-swar-text-secondary font-medium py-1 mb-1 disabled:opacity-50"
+                    >
+                      {(enquiry.labels || []).includes(HIDE_LABEL)
+                        ? <><ArchiveRestore size={14} /> Unhide</>
+                        : <><Archive size={14} /> Hide</>}
+                    </button>
                     <button onClick={() => handleDelete(enquiry.id)} className="w-full text-sm text-red-600 hover:text-swar-primary font-medium py-1">Delete</button>
                   </div>
                 ))}
@@ -725,16 +803,23 @@ export default function EnquiriesPage() {
                                 <MessageCircle size={13} /> Chat
                               </button>
                               <button
+                                onClick={() => openInQR(enquiry)}
+                                title="Open in QR WhatsApp inbox"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#128C7E] hover:bg-[#0e6b60] text-white rounded-lg text-xs font-semibold transition-colors"
+                              >
+                                <QrCode size={13} /> QR
+                              </button>
+                              <button
                                 onClick={() => toggleBroadcastMark(enquiry)}
                                 disabled={togglingMark === enquiry.id}
                                 title={(enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId)) ? 'Marked for bulk broadcast — click to remove' : 'Mark for bulk broadcast'}
-                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors disabled:opacity-50 ${
+                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors disabled:opacity-50 text-lg font-bold leading-none ${
                                   (enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId))
                                     ? 'bg-red-100 text-red-600 hover:bg-red-200'
                                     : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
                                 }`}
                               >
-                                <Plus size={14} />
+                                +
                               </button>
                               <button
                                 onClick={() => openEdit(enquiry)}
@@ -748,6 +833,14 @@ export default function EnquiriesPage() {
                                 className="text-swar-text-secondary hover:text-swar-text"
                               >
                                 {expandedRow === enquiry.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                              <button
+                                onClick={() => toggleHide(enquiry)}
+                                disabled={togglingHide === enquiry.id}
+                                title={(enquiry.labels || []).includes(HIDE_LABEL) ? 'Unhide — show in main list again' : 'Hide — remove from main list (unwanted)'}
+                                className="text-swar-text-secondary hover:text-swar-primary disabled:opacity-50"
+                              >
+                                {(enquiry.labels || []).includes(HIDE_LABEL) ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                               </button>
                               <button onClick={() => handleDelete(enquiry.id)} className="text-red-600 hover:text-red-800">
                                 <Trash2 className="w-4 h-4" />

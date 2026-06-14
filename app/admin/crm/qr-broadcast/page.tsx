@@ -37,14 +37,6 @@ interface BroadcastRun {
 type SendMode = 'now' | 'schedule' | 'delay' | 'repeat';
 type Step = 1 | 2 | 3;
 
-const GAP_PRESETS: Record<string, { label: string; minS: number; maxS: number; desc: string; safe: string }> = {
-  ULTRA_SAFE:   { label: '🟢 Ultra Safe',    minS: 90,  maxS: 180, desc: '30 msgs/hr', safe: 'Minimum ban risk' },
-  VERY_SAFE:    { label: '🟢 Very Safe',     minS: 60,  maxS: 120, desc: '45 msgs/hr', safe: 'Very safe' },
-  SAFE:         { label: '🟢 Safe',           minS: 45,  maxS: 90,  desc: '60 msgs/hr', safe: 'RECOMMENDED ✓' },
-  PROFESSIONAL: { label: '🟡 Professional',  minS: 30,  maxS: 60,  desc: '90 msgs/hr', safe: 'Small risk' },
-  AGGRESSIVE:   { label: '🔴 Aggressive',    minS: 15,  maxS: 30,  desc: '150 msgs/hr', safe: 'High ban risk' },
-};
-
 // ── "Repeat on these days" helpers (mirrors QR Group Scheduler) ──
 function tomorrowDateStr(): string {
   const d = new Date();
@@ -111,7 +103,11 @@ export default function QRBroadcastPage() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [delayMinutes, setDelayMinutes] = useState(5);
-  const [gapPreset, setGapPreset] = useState('SAFE');
+  // Live 15/hr · 150/day send quota usage (lib/qrSendRateLimit.ts)
+  const [rateStatus, setRateStatus] = useState<{
+    dailyLimit: number; hourlyLimit: number;
+    daySent: number; hourSent: number; dayRemaining: number; hourRemaining: number;
+  } | null>(null);
   // ── Repeat (recurring) send — mirrors QR Group Scheduler "Repeat on these days" ──
   const [repeatStartDate, setRepeatStartDate] = useState(tomorrowDateStr());
   const [repeatNumDays, setRepeatNumDays] = useState(15);
@@ -166,6 +162,15 @@ export default function QRBroadcastPage() {
   }, [token]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Load current 15/hr · 150/day quota usage when reaching the Schedule step
+  useEffect(() => {
+    if (!token || step !== 3) return;
+    fetch('/api/admin/crm/qr-rate-status', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then((data: any) => { if (data?.success !== false) setRateStatus(data); })
+      .catch(() => {});
+  }, [token, step]);
 
   // Pre-select leads from URL params. Leads not present in the qrOnly-filtered
   // `leads` list (e.g. brand-new enquiry leads that haven't chatted via QR yet)
@@ -455,7 +460,6 @@ export default function QRBroadcastPage() {
       const target: Record<string, unknown> = { type: 'leadIds', leadIds: realLeadIds };
       if (csvContactsData.length > 0) { target.csvContacts = csvContactsData; }
 
-      const preset = GAP_PRESETS[gapPreset] || GAP_PRESETS.SAFE;
       const payload = {
         name: broadcastName.trim() || `QR Broadcast — ${new Date().toLocaleString('en-IN')}`,
         templateId: selectedTemplate._id,
@@ -464,7 +468,8 @@ export default function QRBroadcastPage() {
         scheduleAt,
         delayMins,
         target,
-        messageInterval: { enabled: true, minSeconds: preset.minS, maxSeconds: preset.maxS },
+        // Fixed anti-ban policy: ~1 message every 2-6 min (15/hr · 150/day cap enforced server-side)
+        messageInterval: { enabled: true, minSeconds: 120, maxSeconds: 360 },
       };
 
       const createRes = await fetch('/api/admin/crm/broadcast-runs', {
@@ -961,20 +966,28 @@ export default function QRBroadcastPage() {
                 </div>
               </div>
 
-              {/* Gap Strategy */}
+              {/* Send speed — fixed anti-ban policy (no other options) */}
               {sendMode !== 'repeat' && (
                 <div className="bg-white rounded-2xl shadow-xl border p-6">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">🛡️ Anti-ban Speed</h3>
-                  <div className="space-y-2">
-                    {Object.entries(GAP_PRESETS).map(([key, p]) => (
-                      <label key={key} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${gapPreset === key ? 'border-green-500 bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}>
-                        <input type="radio" name="gap" value={key} checked={gapPreset === key} onChange={() => setGapPreset(key)} className="mt-0.5" />
-                        <div>
-                          <div className="font-semibold text-sm text-gray-800">{p.label} <span className="font-normal text-gray-500">({p.desc})</span></div>
-                          <div className="text-xs text-gray-500">{p.safe} · {p.minS}–{p.maxS}s between messages</div>
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">🛡️ Send Speed (Anti-ban Protection)</h3>
+                  <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-green-500 bg-green-50">
+                    <span className="text-lg leading-none mt-0.5">🛡️</span>
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">
+                        {rateStatus ? `${rateStatus.hourlyLimit} messages / hour · max ${rateStatus.dailyLimit} / day` : '15 messages / hour · max 150 / day'}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-0.5">
+                        Safe drip pacing (~1 message every 2–6 min). The system auto-stops at the hourly/daily
+                        cap and continues the rest the next day — protecting your number from bans.
+                      </div>
+                      {rateStatus && (
+                        <div className="text-xs font-medium text-green-800 mt-2">
+                          Already used: {rateStatus.hourSent}/{rateStatus.hourlyLimit} this hour ·{' '}
+                          {rateStatus.daySent}/{rateStatus.dailyLimit} today
+                          {' '}({rateStatus.dayRemaining} remaining today)
                         </div>
-                      </label>
-                    ))}
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -999,7 +1012,7 @@ export default function QRBroadcastPage() {
                   <div className="flex justify-between"><span className="text-gray-600">Template:</span><span className="font-medium text-gray-800">{selectedTemplate?.templateName}</span></div>
                   <div className="flex justify-between"><span className="text-gray-600">Provider:</span><span className="font-medium text-gray-800">💚 QR WhatsApp</span></div>
                   {sendMode !== 'repeat' && (
-                    <div className="flex justify-between"><span className="text-gray-600">Speed:</span><span className="font-medium text-gray-800">{GAP_PRESETS[gapPreset]?.label}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Speed:</span><span className="font-medium text-gray-800">🛡️ {rateStatus ? `${rateStatus.hourlyLimit}/hr · ${rateStatus.dailyLimit}/day` : '15/hr · 150/day'}</span></div>
                   )}
                   {sendMode === 'schedule' && scheduleDate && scheduleTime && (
                     <div className="flex justify-between"><span className="text-gray-600">Scheduled:</span><span className="font-medium text-gray-800">{new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString('en-IN')}</span></div>

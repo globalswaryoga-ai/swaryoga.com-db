@@ -478,6 +478,8 @@ export default function QRWhatsAppPage() {
   const tokenRef = useRef(token);
   const errorRef = useRef(error);
   const wasConnectedRef = useRef(false);
+  // Phone number to auto-select from ?phone= query param (e.g. "Chat" link from Enquiries)
+  const pendingPhoneRef = useRef<string | null>(null);
 
   // Update refs with current state values
   selectedChatRef.current = selectedChat;
@@ -497,6 +499,37 @@ export default function QRWhatsAppPage() {
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
+
+  // ── Auto-select from ?phone= query param (e.g. "Chat" link from Enquiries) ──
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const phoneParam = url.searchParams.get('phone')?.trim();
+      if (phoneParam) {
+        pendingPhoneRef.current = phoneParam.replace(/\D/g, '');
+        url.searchParams.delete('phone');
+        window.history.replaceState({}, '', url.toString());
+        setTab('inbox');
+        if (connectedRef.current) fetchChatsRef.current?.();
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Once chats load, select the chat matching the pending ?phone= param ──
+  useEffect(() => {
+    if (!pendingPhoneRef.current || chats.length === 0) return;
+    const target = pendingPhoneRef.current;
+    const match = chats.find(c => {
+      const p = extractBestChatPhone(c);
+      return p === target || (p && target && (p.endsWith(target.slice(-10)) || target.endsWith(p.slice(-10))));
+    });
+    if (match) {
+      pendingPhoneRef.current = null;
+      selectChat(match.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chats]);
 
   // ── Track selected chat in localStorage for CRM Guide visibility ──
   useEffect(() => {
