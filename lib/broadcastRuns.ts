@@ -19,7 +19,7 @@ export type BroadcastRunsProcessResult = {
   runResults: Array<{ runId: string; status: 'ok' | 'error'; attempted: number; sent: number; failed: number; skipped: number; error?: string }>;
 };
 
-async function markRunStats(runId: any) {
+export async function markRunStats(runId: any) {
   const counts = await BroadcastRunMessage.aggregate([
     { $match: { runId } },
     { $group: { _id: '$status', count: { $sum: 1 } } },

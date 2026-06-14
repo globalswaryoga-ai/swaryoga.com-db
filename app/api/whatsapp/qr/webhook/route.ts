@@ -155,10 +155,19 @@ async function applyQrStatusUpdate(payload: any, bridgeUserId?: string) {
   if (uiStatus === 2) broadcastSet.deliveredAt = new Date();
   if (uiStatus === 3) { broadcastSet.deliveredAt = new Date(); broadcastSet.readAt = new Date(); }
   const lowerStatuses = Object.keys(statusRank).filter((s) => statusRank[s] < statusRank[strStatus]);
-  await BroadcastRunMessage.updateOne(
+  const broadcastMsg = await BroadcastRunMessage.findOneAndUpdate(
     { waMessageId: messageId, status: { $in: lowerStatuses } },
-    { $set: broadcastSet }
+    { $set: broadcastSet },
+    { projection: { runId: 1 } }
   );
+  // Recompute the run-level stats (Total/Sent/Delivered/Read/Failed shown on the
+  // Broadcast Reports page) now that this message's status changed - otherwise
+  // those counters are only ever set once when the run finishes sending and stay
+  // stuck on "sent" forever even after delivery/read receipts arrive.
+  if (broadcastMsg?.runId) {
+    const { markRunStats } = await import('@/lib/broadcastRuns');
+    await markRunStats(broadcastMsg.runId);
+  }
 
   return { updated: qrRes.modifiedCount || 0, status: uiStatus };
 }

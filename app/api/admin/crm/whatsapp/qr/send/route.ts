@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getWhatsAppMessage, getLead, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppMessage, getLead, getCRMUserSettings, getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
@@ -394,9 +394,55 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4. Upsert into qr_whatsapp_messages (keyed by the REAL bridge message id) so this
+    // send shows up in the QR WhatsApp Reports/History tab with correct sent/delivered/
+    // read/failed ticks. Without this, status_update webhooks have nothing to match by
+    // messageId and single sends never appear in those reports at all.
+    if (whatsappMessageId && typeof to === 'string') {
+      try {
+        const CRMUserSettings = getCRMUserSettings();
+        const settings = await CRMUserSettings.findOne(
+          { userId: viewerUserId },
+          { qrConnectedPhoneNumber: 1 }
+        ).lean() as any;
+        const connectedPhone = String(settings?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+        const chatJid = to.endsWith('@g.us') ? to : `${to.split('@')[0]}@s.whatsapp.net`;
+        if (connectedPhone && chatJid) {
+          const QrMsg = getQrWhatsAppMessage();
+          await QrMsg.updateOne(
+            { userId: viewerUserId, connectedPhone, messageId: whatsappMessageId, chatJid },
+            {
+              $set: {
+                userId: viewerUserId,
+                connectedPhone,
+                chatJid,
+                messageId: whatsappMessageId,
+                direction: 'outbound',
+                fromMe: true,
+                text: finalMessage || finalCaption || '',
+                type: (type === 'image' || type === 'media') ? 'image' : (type || 'text'),
+                participant: '',
+                pushName: '',
+                timestamp: Math.floor(Date.now() / 1000),
+                status: 1, // sent
+                hasMedia: !!url,
+                mediaUrl: url || '',
+                mediaMimetype: '',
+                mediaFileName: '',
+              },
+              $setOnInsert: { createdAt: new Date() },
+            },
+            { upsert: true }
+          );
+        }
+      } catch (qrErr) {
+        console.warn('[QR SEND] Failed to upsert qr_whatsapp_messages:', qrErr instanceof Error ? qrErr.message : qrErr);
+      }
+    }
+
     // Return both IDs for frontend
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       messageId: whatsappMessageId || savedDbMessageId,
       dbMessageId: savedDbMessageId,
       whatsappMessageId: whatsappMessageId
