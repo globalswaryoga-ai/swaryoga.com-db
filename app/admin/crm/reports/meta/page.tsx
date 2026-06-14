@@ -51,6 +51,26 @@ type BroadcastMessage = {
   };
 };
 
+type RecurringOccurrence = {
+  index: number;
+  scheduledAt: string;
+  runId?: string;
+  status: 'pending' | 'created' | 'skipped';
+  recipientCount?: number;
+  note?: string;
+};
+
+type RecurringSchedule = {
+  _id: string;
+  name: string;
+  templateId?: { _id: string; templateName?: string };
+  leadIds: string[];
+  sendTime: string;
+  occurrences: RecurringOccurrence[];
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+  createdAt: string;
+};
+
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     pending: 'bg-gray-100 text-gray-700',
@@ -101,6 +121,15 @@ export default function MetaReportsPage() {
   const [showConfirm, setShowConfirm] = useState<{ action: string; label: string } | null>(null);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
 
+  // Repeat broadcasts (recurring schedules)
+  const [recurringSchedules, setRecurringSchedules] = useState<RecurringSchedule[]>([]);
+  const [viewSchedule, setViewSchedule] = useState<RecurringSchedule | null>(null);
+  const [editSchedule, setEditSchedule] = useState<RecurringSchedule | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editSendTime, setEditSendTime] = useState('');
+  const [editStatus, setEditStatus] = useState<'active' | 'paused'>('active');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
   // Fetch Meta broadcast runs
   const fetchRuns = useCallback(async () => {
     if (!token) return;
@@ -119,6 +148,71 @@ export default function MetaReportsPage() {
       setLoading(false);
     }
   }, [token]);
+
+  const fetchRecurringSchedules = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-recurring?provider=meta', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setRecurringSchedules(data?.data?.schedules || data?.schedules || []);
+    } catch {
+      setRecurringSchedules([]);
+    }
+  }, [token]);
+
+  const openEditSchedule = (s: RecurringSchedule) => {
+    setEditSchedule(s);
+    setEditName(s.name);
+    setEditSendTime(s.sendTime);
+    setEditStatus(s.status === 'paused' ? 'paused' : 'active');
+  };
+
+  const saveScheduleEdit = async () => {
+    if (!token || !editSchedule) return;
+    setSavingSchedule(true);
+    setActionResult(null);
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-recurring', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduleId: editSchedule._id,
+          name: editName,
+          sendTime: editSendTime,
+          status: editStatus,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to update schedule');
+      setActionResult({ success: true, message: 'Repeat broadcast updated' });
+      setEditSchedule(null);
+      await fetchRecurringSchedules();
+    } catch (err) {
+      setActionResult({ success: false, message: err instanceof Error ? err.message : 'Failed to update schedule' });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const deleteSchedule = async (s: RecurringSchedule) => {
+    if (!token) return;
+    if (!confirm(`Delete repeat broadcast "${s.name}"? This cannot be undone.`)) return;
+    setActionResult(null);
+    try {
+      const res = await fetch(`/api/admin/crm/broadcast-recurring?scheduleId=${s._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to delete schedule');
+      setActionResult({ success: true, message: 'Repeat broadcast deleted' });
+      await fetchRecurringSchedules();
+    } catch (err) {
+      setActionResult({ success: false, message: err instanceof Error ? err.message : 'Failed to delete schedule' });
+    }
+  };
 
   const fetchRunDetail = useCallback(async (id: string) => {
     if (!token) return;
@@ -251,8 +345,9 @@ export default function MetaReportsPage() {
     } else {
       setView('list');
       fetchRuns();
+      fetchRecurringSchedules();
     }
-  }, [token, runId, fetchRuns, fetchRunDetail]);
+  }, [token, runId, fetchRuns, fetchRunDetail, fetchRecurringSchedules]);
 
   const filteredMessages = useMemo(() => {
     if (messageFilters.size === 0) return messages;
@@ -344,6 +439,97 @@ export default function MetaReportsPage() {
                 </div>
               ))}
             </div>
+
+            {/* Action result for repeat-broadcast edit/delete */}
+            {actionResult && (
+              <div className={`mb-4 p-3 rounded-lg ${actionResult.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {actionResult.message}
+              </div>
+            )}
+
+            {/* ── Repeat broadcasts (recurring schedules) ── */}
+            {recurringSchedules.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-bold text-blue-700 uppercase mb-3 flex items-center gap-2">
+                  🔁 Repeat Broadcasts
+                </h3>
+                <div className="bg-blue-50 rounded-xl border border-blue-200 overflow-hidden divide-y divide-blue-100">
+                  {recurringSchedules.map(s => {
+                    const total = s.occurrences?.length || 0;
+                    const created = s.occurrences?.filter(o => o.status === 'created').length || 0;
+                    const skipped = s.occurrences?.filter(o => o.status === 'skipped').length || 0;
+                    const next = s.occurrences?.find(o => o.status === 'pending');
+                    const statusColors: Record<string, string> = {
+                      active: 'bg-blue-100 text-blue-700',
+                      paused: 'bg-yellow-100 text-yellow-700',
+                      completed: 'bg-green-100 text-green-700',
+                      cancelled: 'bg-gray-200 text-gray-600',
+                    };
+                    return (
+                      <div key={s._id} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-gray-900 flex items-center gap-2">
+                            🔁 {s.name}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[s.status] || statusColors.active}`}>
+                              {s.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {s.templateId?.templateName || 'Template'} · {s.leadIds?.length || 0} recipient(s) · Sends at {s.sendTime} IST
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-blue-700 font-semibold">
+                            {created}/{total} occurrence(s) sent
+                          </div>
+                          {next && (
+                            <div className="text-xs text-gray-500">
+                              Next: {new Date(next.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST
+                            </div>
+                          )}
+                          {skipped > 0 && (
+                            <div className="text-xs text-yellow-600">{skipped} skipped — no delivered/read recipients</div>
+                          )}
+                        </div>
+                        {created > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {s.occurrences.filter(o => o.runId).map(o => (
+                              <button
+                                key={o.index}
+                                onClick={() => router.push(`/admin/crm/reports/meta?runId=${o.runId}`)}
+                                className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold"
+                              >
+                                View #{o.index + 1}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            onClick={() => setViewSchedule(s)}
+                            className="px-2 py-1 bg-white border border-blue-200 hover:bg-blue-100 text-blue-700 rounded text-xs font-semibold"
+                          >
+                            👁️ View
+                          </button>
+                          <button
+                            onClick={() => openEditSchedule(s)}
+                            className="px-2 py-1 bg-white border border-blue-200 hover:bg-blue-100 text-blue-700 rounded text-xs font-semibold"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            onClick={() => deleteSchedule(s)}
+                            className="px-2 py-1 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded text-xs font-semibold"
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* All Users toggle + runs count */}
             <div className="flex items-center justify-between mb-4">
@@ -721,6 +907,118 @@ export default function MetaReportsPage() {
           </>
         )}
       </main>
+
+      {/* View Repeat Broadcast Modal */}
+      {viewSchedule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">🔁 {viewSchedule.name}</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              {viewSchedule.templateId?.templateName || 'Template'} · {viewSchedule.leadIds?.length || 0} recipient(s) · Sends at {viewSchedule.sendTime} IST · Status: {viewSchedule.status}
+            </p>
+            <div className="space-y-2 mb-6">
+              {(viewSchedule.occurrences || []).map(o => {
+                const occStatusColors: Record<string, string> = {
+                  pending: 'bg-gray-100 text-gray-600',
+                  created: 'bg-green-100 text-green-700',
+                  skipped: 'bg-yellow-100 text-yellow-700',
+                };
+                return (
+                  <div key={o.index} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Occurrence #{o.index + 1}</div>
+                      <div className="text-xs text-gray-500">{new Date(o.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</div>
+                      {o.note && <div className="text-xs text-yellow-600 mt-0.5">{o.note}</div>}
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${occStatusColors[o.status] || occStatusColors.pending}`}>
+                        {o.status}
+                      </span>
+                      {typeof o.recipientCount === 'number' && (
+                        <div className="text-xs text-gray-500 mt-0.5">{o.recipientCount} recipient(s)</div>
+                      )}
+                      {o.runId && (
+                        <button
+                          onClick={() => { setViewSchedule(null); router.push(`/admin/crm/reports/meta?runId=${o.runId}`); }}
+                          className="mt-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold"
+                        >
+                          View Report
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setViewSchedule(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl font-semibold text-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Repeat Broadcast Modal */}
+      {editSchedule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-5">✏️ Edit Repeat Broadcast</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Send Time (IST)</label>
+              <input
+                type="time"
+                value={editSendTime}
+                onChange={e => setEditSendTime(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">Updates the time-of-day for all upcoming (pending) occurrences.</p>
+            </div>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+              <div className="flex gap-2">
+                {(['active', 'paused'] as const).map(st => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setEditStatus(st)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold border-2 ${editStatus === st ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                  >
+                    {st === 'active' ? '▶️ Active' : '⏸️ Paused'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEditSchedule(null)}
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-semibold text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveScheduleEdit}
+                disabled={savingSchedule || !editName.trim() || !editSendTime}
+                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl font-semibold text-sm"
+              >
+                {savingSchedule ? '⏳ Saving...' : '💾 Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

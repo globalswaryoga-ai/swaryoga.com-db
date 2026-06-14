@@ -1535,27 +1535,41 @@ export default function MetaInboxPage() {
 
     const groups: { label: string; conversations: ConversationRow[] }[] = [];
     const buckets: Record<string, ConversationRow[]> = {};
-    const order: string[] = [];
+    // tier: 3=Today, 2=Yesterday, 1=specific date (sorted by its own timestamp), 0=Older.
+    // Conversations are sorted unread-first above, so a date group's first
+    // encountered position no longer reflects chronological order — sort
+    // groups by tier/timestamp explicitly so "Today" always comes first.
+    const tiers: Record<string, { tier: number; ts: number }> = {};
 
     for (const conv of filteredConversations) {
       const ts = conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() : 0;
       let label: string;
+      let tier: number;
       if (ts >= todayStart) {
         label = 'Today';
+        tier = 3;
       } else if (ts >= yesterdayStart) {
         label = 'Yesterday';
+        tier = 2;
       } else if (ts > 0) {
         // Format as "Jan 30" or "Dec 15"
         label = new Date(conv.lastMessageAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        tier = 1;
       } else {
         label = 'Older';
+        tier = 0;
       }
       if (!buckets[label]) {
         buckets[label] = [];
-        order.push(label);
+        tiers[label] = { tier, ts };
       }
       buckets[label].push(conv);
     }
+
+    const order = Object.keys(buckets).sort((a, b) => {
+      if (tiers[b].tier !== tiers[a].tier) return tiers[b].tier - tiers[a].tier;
+      return tiers[b].ts - tiers[a].ts;
+    });
 
     for (const label of order) {
       groups.push({ label, conversations: buckets[label] });
@@ -2663,6 +2677,8 @@ export default function MetaInboxPage() {
                     </button>
                   )}
                 </div>
+                {/* Only show the 24h countdown for an active window on a new
+                    incoming chat — no stale "WINDOW EXPIRED" badge for old/closed chats. */}
                 {windowRemaining && windowRemaining.diff > 0 ? (
                 <div className="flex items-center gap-1.5">
                   <span className="flex h-1.5 w-1.5 relative">
@@ -2671,13 +2687,6 @@ export default function MetaInboxPage() {
                   </span>
                   <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(135deg, #FEF2F2, #FEE2E2)', border: '1px solid rgba(239,68,68,0.2)', boxShadow: '0 1px 4px rgba(239,68,68,0.1)' }}>
                     {`24H WINDOW • ${String(windowRemaining.hh).padStart(2, '0')}:${String(windowRemaining.mm).padStart(2, '0')}:${String(windowRemaining.ss).padStart(2, '0')}`}
-                  </span>
-                </div>
-                ) : windowAnchorMs ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-400"></span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(135deg, #F8FAFC, #F1F5F9)', border: '1px solid rgba(100,116,139,0.2)' }}>
-                    WINDOW EXPIRED
                   </span>
                 </div>
                 ) : null}
