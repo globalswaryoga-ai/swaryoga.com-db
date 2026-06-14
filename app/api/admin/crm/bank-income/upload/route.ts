@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { BankStatement, BankIncomeEntry } from '@/lib/schemas/enterpriseSchemas';
 import { uploadAdminFile } from '@/lib/bunny-storage';
-import { PDFParse } from 'pdf-parse';
+import PDFParser from 'pdf2json';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -95,6 +95,24 @@ function extractIncomeEntries(text: string): ExtractedEntry[] {
   return entries;
 }
 
+function extractPdfText(buffer: Buffer, password?: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parser = new PDFParser(null, true, password || undefined);
+    parser.on('pdfParser_dataError', (errData: any) => {
+      const err = errData?.parserError || errData;
+      reject(err instanceof Error ? err : new Error(String(err?.message || err || 'Failed to parse PDF')));
+    });
+    parser.on('pdfParser_dataReady', () => {
+      resolve(parser.getRawTextContent());
+    });
+    try {
+      parser.parseBuffer(buffer);
+    } catch (err: any) {
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const decoded = verifyAdmin(request);
@@ -103,6 +121,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const bankName = String(formData.get('bankName') || '').trim();
+    const password = String(formData.get('password') || '').trim();
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -116,20 +135,27 @@ export async function POST(request: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
+    let text = '';
+    try {
+      text = await extractPdfText(buffer, password || undefined);
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (/password/i.test(msg)) {
+        return NextResponse.json({
+          error: password
+            ? 'Incorrect PDF password. Please check and try again.'
+            : 'This PDF is password-protected. Please enter the password and try again.',
+        }, { status: 400 });
+      }
+      console.error('Bank statement PDF parse error:', e);
+      return NextResponse.json({ error: `Failed to read PDF: ${msg}` }, { status: 400 });
+    }
+
     let fileUrl = '';
     try {
       fileUrl = await uploadAdminFile(buffer, file.name, 'documents');
     } catch (e) {
       console.error('Bank statement upload to storage failed:', e);
-    }
-
-    let text = '';
-    const parser = new PDFParse({ data: buffer });
-    try {
-      const result = await parser.getText();
-      text = result.text || '';
-    } finally {
-      await parser.destroy();
     }
 
     const extracted = extractIncomeEntries(text);

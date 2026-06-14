@@ -45,6 +45,7 @@ export default function BankIncomePage() {
   // Upload tab
   const [bankName, setBankName] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [pdfPassword, setPdfPassword] = useState('');
   const [uploading, setUploading] = useState(false);
   const [statements, setStatements] = useState<BankStatement[]>([]);
   const [loadingStatements, setLoadingStatements] = useState(false);
@@ -168,6 +169,7 @@ export default function BankIncomePage() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('bankName', bankName.trim());
+      if (pdfPassword.trim()) formData.append('password', pdfPassword.trim());
       const res = await fetch('/api/admin/crm/bank-income/upload', {
         method: 'POST',
         headers: authHeaders,
@@ -345,6 +347,13 @@ export default function BankIncomePage() {
                   onChange={e => setFile(e.target.files?.[0] || null)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
+                <input
+                  type="password"
+                  placeholder="PDF password (if any)"
+                  value={pdfPassword}
+                  onChange={e => setPdfPassword(e.target.value)}
+                  className="sm:w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
                 <button
                   onClick={handleUpload}
                   disabled={uploading || !file || !bankName.trim()}
@@ -353,6 +362,7 @@ export default function BankIncomePage() {
                   {uploading ? '⏳ Processing...' : '📤 Upload & Extract'}
                 </button>
               </div>
+              <p className="mt-2 text-xs text-gray-400">If your bank statement PDF is password-protected (e.g. with your PAN or date of birth), enter the password above.</p>
               {reportBanks.length > 0 && (
                 <div className="mt-3 text-xs text-gray-500">
                   Previously used: {reportBanks.map(b => (
