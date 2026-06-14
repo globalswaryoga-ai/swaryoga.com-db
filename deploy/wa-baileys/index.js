@@ -1027,7 +1027,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
 
         // Persist delivery/read receipts so ticks survive a bridge restart / PC off.
         // Without this the DB status stayed at 2 (single grey tick) forever.
-        if (typeof update.status === 'number' && update.status >= 2 && key.id) {
+        // status 0 = ERROR (send failed) is also forwarded so "failed" shows up.
+        if (typeof update.status === 'number' && (update.status === 0 || update.status >= 2) && key.id) {
           forwardToWebhook(session, { type: 'status_update', messageId: key.id, status: update.status });
         }
       }

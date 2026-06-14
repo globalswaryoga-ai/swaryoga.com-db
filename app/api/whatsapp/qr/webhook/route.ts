@@ -95,25 +95,37 @@ export async function POST(req: NextRequest) {
 
 /**
  * Persist a delivery/read receipt to the QR message stores, only ever upgrading the tick
- * (receipts can arrive out of order). Status is the numeric Baileys code used by the inbox:
- * 1=pending, 2=sent (server_ack), 3=delivered (delivery_ack), 4=read, 5=played.
+ * (receipts can arrive out of order).
+ *
+ * The bridge sends the raw Baileys ack code: 0=error, 1=pending, 2=sent (server_ack),
+ * 3=delivered (delivery_ack), 4=read, 5=played. That's converted here to the scale
+ * QrWhatsAppMessage.status actually uses everywhere else (qr-messages API, History tab
+ * MsgStatus): -1=failed, 1=sent, 2=delivered, 3=read (played is treated as read).
  */
 async function applyQrStatusUpdate(payload: any, bridgeUserId?: string) {
   const messageId = String(payload.messageId || payload.id || '').trim();
   if (!messageId) return { skipped: true, reason: 'no_messageId' };
 
   const raw = payload.status ?? payload.ack;
-  let numeric: number | null = null;
+  let baileysStatus: number | null = null;
   if (typeof raw === 'number') {
-    numeric = raw;
+    baileysStatus = raw;
   } else if (typeof raw === 'string') {
     const map: Record<string, number> = {
-      pending: 1, sent: 2, server_ack: 2, delivered: 3, delivery_ack: 3, read: 4, played: 5,
+      error: 0, failed: 0,
+      pending: 1,
+      sent: 2, server_ack: 2,
+      delivered: 3, delivery_ack: 3,
+      read: 4,
+      played: 5,
     };
-    numeric = map[raw.toLowerCase()] ?? null;
+    baileysStatus = map[raw.toLowerCase()] ?? null;
   }
-  // Only persist real progression (sent/delivered/read/played). 0/1 carry no tick info.
-  if (numeric == null || numeric < 2) return { skipped: true, reason: 'unmapped_status' };
+  // "pending" (1) carries no tick info; anything else unrecognized is ignored.
+  if (baileysStatus == null || baileysStatus === 1) return { skipped: true, reason: 'unmapped_status' };
+
+  // -1=failed, 1=sent, 2=delivered, 3=read/played
+  const uiStatus = baileysStatus === 0 ? -1 : Math.min(baileysStatus - 1, 3);
 
   await connectDB();
   const { getQrWhatsAppMessage, getWhatsAppMessage, getBroadcastRunMessage } = await import('@/lib/schemas/enterpriseSchemas');
@@ -121,32 +133,34 @@ async function applyQrStatusUpdate(payload: any, bridgeUserId?: string) {
   const WhatsAppMessage = getWhatsAppMessage();
   const BroadcastRunMessage = getBroadcastRunMessage();
 
-  // qr_whatsapp_messages: numeric status, never downgrade.
-  const qrFilter: any = { messageId, status: { $lt: numeric } };
+  // qr_whatsapp_messages: never downgrade an existing tick. "failed" only applies
+  // while the message is still unconfirmed (status 0) - a later real delivery/read
+  // receipt should win over a stray error.
+  const qrFilter: any = { messageId, status: uiStatus === -1 ? 0 : { $lt: uiStatus } };
   if (bridgeUserId) qrFilter.userId = bridgeUserId;
-  const qrRes = await QrWhatsAppMessage.updateMany(qrFilter, { $set: { status: numeric } });
+  const qrRes = await QrWhatsAppMessage.updateMany(qrFilter, { $set: { status: uiStatus } });
 
   // Mirror to the unified WhatsAppMessage store (string status) for the combined inbox.
-  const strStatus = numeric >= 4 ? 'read' : numeric === 3 ? 'delivered' : 'sent';
+  const strStatus = uiStatus === 3 ? 'read' : uiStatus === 2 ? 'delivered' : uiStatus === 1 ? 'sent' : 'failed';
   const waSet: any = { status: strStatus };
-  if (numeric >= 4) waSet.readAt = new Date();
-  else if (numeric === 3) waSet.deliveredAt = new Date();
+  if (uiStatus === 3) waSet.readAt = new Date();
+  else if (uiStatus === 2) waSet.deliveredAt = new Date();
   await WhatsAppMessage.updateOne({ waMessageId: messageId }, { $set: waSet });
 
   // Mirror to BroadcastRunMessage so QR broadcast reports reflect delivery/read
   // ticks (previously only WhatsAppMessage was updated, so reports stayed on
   // "sent" forever). Never downgrade an already-higher status.
-  const statusRank: Record<string, number> = { pending: 0, sending: 0, sent: 1, delivered: 2, read: 3 };
+  const statusRank: Record<string, number> = { failed: -1, pending: 0, sending: 0, sent: 1, delivered: 2, read: 3 };
   const broadcastSet: any = { status: strStatus, updatedAt: new Date() };
-  if (numeric === 3) broadcastSet.deliveredAt = new Date();
-  if (numeric >= 4) { broadcastSet.deliveredAt = new Date(); broadcastSet.readAt = new Date(); }
+  if (uiStatus === 2) broadcastSet.deliveredAt = new Date();
+  if (uiStatus === 3) { broadcastSet.deliveredAt = new Date(); broadcastSet.readAt = new Date(); }
   const lowerStatuses = Object.keys(statusRank).filter((s) => statusRank[s] < statusRank[strStatus]);
   await BroadcastRunMessage.updateOne(
     { waMessageId: messageId, status: { $in: lowerStatuses } },
     { $set: broadcastSet }
   );
 
-  return { updated: qrRes.modifiedCount || 0, status: numeric };
+  return { updated: qrRes.modifiedCount || 0, status: uiStatus };
 }
 
 async function ingestQRPayload(payload: any) {
