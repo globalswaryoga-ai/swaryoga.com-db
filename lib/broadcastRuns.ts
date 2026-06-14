@@ -7,6 +7,7 @@ import { calculateVariableGapsWithBreaks } from '@/lib/whatsappGapCalculator';
 import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate, CRMUserSettings, getQrWhatsAppMessage, getQrWhatsAppChat, DeletedLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 
 export type BroadcastRunsProcessResult = {
   scannedRuns: number;
@@ -365,6 +366,11 @@ export async function processDueBroadcastRuns(options?: {
       // Best-effort createdBy id label for rate-limit.
       const createdBy = String((run as any).createdByUserId || 'broadcast');
 
+      // If this tenant has connected their own Meta WhatsApp number, send
+      // from that number; otherwise null → falls back to the global env
+      // (legacy/default number) inside sendWhatsAppTemplate.
+      const metaCreds = runProvider === 'meta' ? await getMetaCredentialsForTenant(createdBy) : null;
+
       // For QR, compute the gap until the NEXT send based on how many messages
       // have already been sent in this run so far (sentSoFarCount) — NOT
       // pending.length. This way the "warm-up" gaps (first 2 messages get a
@@ -558,6 +564,7 @@ export async function processDueBroadcastRuns(options?: {
           status: 'queued',
           sentAt: now,
           provider: 'pending',
+          ...(metaCreds?.phoneNumber ? { senderNumber: metaCreds.phoneNumber } : {}),
           metadata: {
             broadcast: { runId: String((run as any)._id) },
             template: {
@@ -914,7 +921,7 @@ export async function processDueBroadcastRuns(options?: {
 
               const cloudInput = buildCloudTemplateSendInput(effectiveTemplate, to);
               console.log('[Broadcast Meta] Cloud input:', JSON.stringify(cloudInput, null, 2));
-              apiResult = await sendWhatsAppTemplate(cloudInput);
+              apiResult = await sendWhatsAppTemplate(cloudInput, metaCreds || undefined);
               console.log('[Broadcast Meta] Send result:', apiResult);
             } catch (templateErr: any) {
               console.error('[Broadcast Meta] Template send failed:', templateErr?.message, templateErr?.data);

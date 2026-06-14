@@ -5,6 +5,7 @@ import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInt
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
 import { loadAutoConfig, isWithinWorkingHours } from '@/lib/autoConfig';
+import { getMetaCredentialsForTenant, type WhatsAppCredentials } from '@/lib/whatsappAccounts';
 
 type InboundContext = {
   leadId: string;
@@ -12,6 +13,11 @@ type InboundContext = {
   body: string;
   now: Date;
   wasFirstInbound: boolean;
+  // Set when this message belongs to a tenant's own connected Meta number
+  // (resolved by the webhook via phone_number_id). Undefined for the
+  // legacy/default shared number.
+  tenantUserId?: string;
+  creds?: WhatsAppCredentials;
 };
 
 function getEnvFlag(name: string, defaultValue = false): boolean {
@@ -206,13 +212,13 @@ function getNodeInteractiveButtons(node: any): Array<{ id: string; title: string
   }));
 }
 
-async function sendOutboundText(lead: any, to: string, text: string, metadata?: any) {
+async function sendOutboundText(lead: any, to: string, text: string, metadata?: any, creds?: WhatsAppCredentials) {
   const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
 
   // Persist outbound message
   const now = new Date();
-  const env = getWhatsAppEnv();
+  const env = creds || getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
   let finalContent = text;
@@ -252,18 +258,18 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
   });
 
   try {
-    const apiResult = await sendWhatsAppText(to, finalContent);
+    const apiResult = await sendWhatsAppText(to, finalContent, creds);
     await WhatsAppMessage.updateOne(
       { _id: message._id },
-      { 
-        $set: { 
-          status: 'sent', 
-          waMessageId: apiResult.waMessageId, 
+      {
+        $set: {
+          status: 'sent',
+          waMessageId: apiResult.waMessageId,
           provider: apiResult.raw?.provider || 'meta',
           senderNumber,
-          updatedAt: new Date() 
-        }, 
-        $unset: { failureReason: 1 } 
+          updatedAt: new Date()
+        },
+        $unset: { failureReason: 1 }
       }
     );
   } catch (err) {
@@ -280,13 +286,14 @@ async function sendOutboundInteractiveButtons(
   to: string,
   bodyText: string,
   buttons: Array<{ id: string; title: string }>,
-  metadata?: any
+  metadata?: any,
+  creds?: WhatsAppCredentials
 ) {
   const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
 
   const now = new Date();
-  const env = getWhatsAppEnv();
+  const env = creds || getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
   // Skip presence delay for admin-initiated manual starts
@@ -322,7 +329,7 @@ async function sendOutboundInteractiveButtons(
   });
 
   try {
-    const apiResult = await sendWhatsAppInteractiveButtons(to, bodyText, buttons, { headerImageUrl });
+    const apiResult = await sendWhatsAppInteractiveButtons(to, bodyText, buttons, { headerImageUrl }, creds);
     await WhatsAppMessage.updateOne(
       { _id: message._id },
       { $set: { status: 'sent', waMessageId: apiResult.waMessageId, provider: apiResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
@@ -336,7 +343,7 @@ async function sendOutboundInteractiveButtons(
   }
 }
 
-async function sendOutboundTemplate(lead: any, to: string, templateId: string, templateVariables?: any, metadata?: any) {
+async function sendOutboundTemplate(lead: any, to: string, templateId: string, templateVariables?: any, metadata?: any, creds?: WhatsAppCredentials) {
   const TemplateModel = getWhatsAppTemplate();
   const [template, compliance] = await Promise.all([
     TemplateModel.findById(templateId).lean(),
@@ -346,7 +353,7 @@ async function sendOutboundTemplate(lead: any, to: string, templateId: string, t
   if (!compliance.compliant) return;
 
   const now = new Date();
-  const env = getWhatsAppEnv();
+  const env = creds || getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
   const message = await WhatsAppMessage.create({
@@ -1129,6 +1136,11 @@ export async function startChatbotFlowForLead(input: {
   // Merge state locally instead of re-fetching from DB (saves ~200-500ms)
   const updatedLead = { ...lead, metadata: { ...(lead.metadata || {}), chatbotFlowState: flowState } };
 
+  // If this lead belongs to a tenant with their own connected Meta number, send
+  // the reply from that number; otherwise falls back to the legacy/default env.
+  const tenantUserId = (lead as any)?.createdByUserId ? String((lead as any).createdByUserId) : undefined;
+  const creds = tenantUserId ? await getMetaCredentialsForTenant(tenantUserId) : null;
+
   // Build context (empty body since this is admin-initiated, not a user message)
   const ctx: InboundContext = {
     leadId: String(lead._id),
@@ -1136,6 +1148,8 @@ export async function startChatbotFlowForLead(input: {
     body: '',
     now,
     wasFirstInbound: false,
+    tenantUserId,
+    creds: creds || undefined,
   };
 
   try {
@@ -1147,18 +1161,19 @@ export async function startChatbotFlowForLead(input: {
       if (reply.isTemplate && reply.templateId) {
         await sendOutboundTemplate(updatedLead, to, reply.templateId, [], {
           chatbot: { flowId: String(flow._id), manualStart: true },
-        });
+        }, ctx.creds);
       } else if (reply.interactiveButtons?.length > 0) {
         await sendOutboundInteractiveButtons(
           updatedLead, to,
           reply.text || 'Please choose:',
           reply.interactiveButtons,
-          { chatbot: { flowId: String(flow._id), manualStart: true, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay } }
+          { chatbot: { flowId: String(flow._id), manualStart: true, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay } },
+          ctx.creds
         );
       } else if (reply.text) {
         await sendOutboundText(updatedLead, to, reply.text, {
           chatbot: { flowId: String(flow._id), manualStart: true, spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay },
-        });
+        }, ctx.creds);
       }
 
       return { success: true, message: `Flow "${flow.name}" started – first message sent`, firstReply: reply };
@@ -1176,6 +1191,10 @@ export async function handleInboundWhatsAppAutomations(input: {
   phoneNumber: string;
   messageBody: string;
   wasFirstInbound: boolean;
+  // Set when this message was received on a tenant's own connected Meta
+  // number. Undefined for the legacy/default shared number.
+  tenantUserId?: string;
+  creds?: WhatsAppCredentials;
 }): Promise<void> {
   await connectDB();
 
@@ -1222,6 +1241,8 @@ export async function handleInboundWhatsAppAutomations(input: {
     body,
     now,
     wasFirstInbound: Boolean(input.wasFirstInbound),
+    tenantUserId: input.tenantUserId,
+    creds: input.creds,
   };
 
   // ===== CHATBOT FLOW: Continue existing flow OR auto-start by keyword =====
@@ -1233,7 +1254,12 @@ export async function handleInboundWhatsAppAutomations(input: {
       // Before continuing the active flow, check if the message is an exact keyword
       // automation rule match — keyword rules take priority over flow continuation.
       const lowerBodyForKw = body.toLowerCase().trim();
-      const keywordRules = await WhatsAppAutomationRule.find({ enabled: true, triggerType: 'keyword' }).lean();
+      const keywordRules = await WhatsAppAutomationRule.find({
+        enabled: true,
+        triggerType: 'keyword',
+        provider: 'meta',
+        ...(ctx.tenantUserId ? { createdByUserId: ctx.tenantUserId } : {}),
+      }).lean();
       const keywordRuleMatched = keywordRules.some((r: any) => {
         const kws: string[] = Array.isArray(r.keywords) ? r.keywords.map((k: any) => String(k).toLowerCase()) : [];
         return kws.length > 0 && kws.some((k: string) => k && lowerBodyForKw.includes(k));
@@ -1250,15 +1276,15 @@ export async function handleInboundWhatsAppAutomations(input: {
             if (reply.isTemplate && reply.templateId) {
               await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
                 chatbot: { flowId: String((activeFlow as any)._id) }
-              });
+              }, ctx.creds);
             } else if (reply.interactiveButtons?.length > 0) {
               await sendOutboundInteractiveButtons(lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
                 chatbot: { flowId: String((activeFlow as any)._id), presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
-              });
+              }, ctx.creds);
             } else if (reply.text) {
               await sendOutboundText(lead, fromPhone, reply.text, {
                 chatbot: { flowId: String((activeFlow as any)._id), spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
-              });
+              }, ctx.creds);
             }
             return; // Flow handled this message
           }
@@ -1272,7 +1298,9 @@ export async function handleInboundWhatsAppAutomations(input: {
     const lowerBody = body.toLowerCase().trim();
     const keywordFlows = await ChatbotFlow.find({
       enabled: true,
-      triggerKeywords: { $exists: true, $not: { $size: 0 } }
+      triggerKeywords: { $exists: true, $not: { $size: 0 } },
+      provider: 'meta',
+      ...(ctx.tenantUserId ? { createdByUserId: ctx.tenantUserId } : {}),
     }).lean();
     
     for (const flow of keywordFlows) {
@@ -1300,15 +1328,15 @@ export async function handleInboundWhatsAppAutomations(input: {
           if (reply.isTemplate && reply.templateId) {
             await sendOutboundTemplate(updatedLead || lead, fromPhone, reply.templateId, [], {
               chatbot: { flowId: String((flow as any)._id), autoTriggered: true }
-            });
+            }, ctx.creds);
           } else if (reply.interactiveButtons?.length > 0) {
             await sendOutboundInteractiveButtons(updatedLead || lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
               chatbot: { flowId: String((flow as any)._id), autoTriggered: true, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
-            });
+            }, ctx.creds);
           } else if (reply.text) {
             await sendOutboundText(updatedLead || lead, fromPhone, reply.text, {
               chatbot: { flowId: String((flow as any)._id), autoTriggered: true, spintaxEnabled: reply.spintaxEnabled, presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
-            });
+            }, ctx.creds);
           }
         }
         return; // Flow started, stop processing
@@ -1337,7 +1365,7 @@ export async function handleInboundWhatsAppAutomations(input: {
           console.log(`[Automation] Sending KB auto-reply (source: ${botResponse.source}, confidence: ${botResponse.confidence})`);
           await sendOutboundText(lead, fromPhone, botResponse.response, {
             automation: { source: botResponse.source, confidence: botResponse.confidence, kb: true }
-          });
+          }, ctx.creds);
           return; // Don't process other rules when KB auto-replied
         }
       }
@@ -1402,14 +1430,14 @@ export async function handleInboundWhatsAppAutomations(input: {
               console.log(`[Chatbot Config] Sending template: ${kw.templateName}`);
               await sendOutboundTemplate(lead, fromPhone, String((template as any)._id), {}, {
                 automation: { chatbotConfig: true, keyword: kwLower }
-              });
+              }, ctx.creds);
             } else {
               console.warn(`[Chatbot Config] Template not found: ${kw.templateName}`);
               // Fallback to response text if available
               if (kw.response) {
                 await sendOutboundText(lead, fromPhone, kw.response, {
                   automation: { chatbotConfig: true, keyword: kwLower }
-                });
+                }, ctx.creds);
               }
             }
           } else if (kw.action === 'forward_to_agent') {
@@ -1417,22 +1445,22 @@ export async function handleInboundWhatsAppAutomations(input: {
             if (kw.response) {
               await sendOutboundText(lead, fromPhone, kw.response, {
                 automation: { chatbotConfig: true, keyword: kwLower, forwardToAgent: true }
-              });
+              }, ctx.creds);
             }
             // Update lead to indicate needs attention
-            await Lead.updateOne({ _id: lead._id }, { 
-              $set: { 
-                needsAttention: true, 
+            await Lead.updateOne({ _id: lead._id }, {
+              $set: {
+                needsAttention: true,
                 lastBotForward: now,
-                updatedAt: now 
-              } 
+                updatedAt: now
+              }
             });
           } else {
             // Default: reply with text
             if (kw.response) {
               await sendOutboundText(lead, fromPhone, kw.response, {
                 automation: { chatbotConfig: true, keyword: kwLower }
-              });
+              }, ctx.creds);
             }
           }
           
@@ -1447,7 +1475,11 @@ export async function handleInboundWhatsAppAutomations(input: {
   }
   // ===== END CHATBOT CONFIG KEYWORDS =====
 
-  const rules = await WhatsAppAutomationRule.find({ enabled: true })
+  const rules = await WhatsAppAutomationRule.find({
+    enabled: true,
+    provider: 'meta',
+    ...(ctx.tenantUserId ? { createdByUserId: ctx.tenantUserId } : {}),
+  })
     .sort({ createdAt: 1 })
     .lean();
 
@@ -1478,7 +1510,11 @@ export async function handleInboundWhatsAppAutomations(input: {
     if (triggerType === 'chatbot') {
       console.log(`[Automation] Chatbot trigger active`);
       // ChatbotFlow already imported at top level
-      const activeFlow = await ChatbotFlow.findOne({ enabled: true }).lean();
+      const activeFlow = await ChatbotFlow.findOne({
+        enabled: true,
+        provider: 'meta',
+        ...(ctx.tenantUserId ? { createdByUserId: ctx.tenantUserId } : {}),
+      }).lean();
       
       if (activeFlow) {
         // Throttle chatbot: prevent duplicate replies to same message within 10 seconds
@@ -1505,22 +1541,22 @@ export async function handleInboundWhatsAppAutomations(input: {
               // Send WhatsApp template message
               await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
                 chatbot: { flowId: String(activeFlow._id) }
-              });
+              }, ctx.creds);
             } else if (reply.interactiveButtons?.length > 0) {
               // Send interactive buttons
               await sendOutboundInteractiveButtons(lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
                 chatbot: { flowId: String(activeFlow._id), presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
-              });
+              }, ctx.creds);
             } else if (reply.text) {
               // Send regular text message
-              await sendOutboundText(lead, fromPhone, reply.text, { 
-                 chatbot: { 
+              await sendOutboundText(lead, fromPhone, reply.text, {
+                 chatbot: {
                     flowId: String(activeFlow._id),
                     spintaxEnabled: reply.spintaxEnabled,
                     presenceType: reply.presenceType,
                     presenceDelay: reply.presenceDelay
-                 } 
-              });
+                 }
+              }, ctx.creds);
             }
             await markThrottle(lead._id, rule, now);
           }
@@ -1541,7 +1577,7 @@ export async function handleInboundWhatsAppAutomations(input: {
     if (actionType === 'send_text') {
       const text = String((rule as any).actionText || '').trim();
       if (!text) continue;
-      await sendOutboundText(lead, fromPhone, text, { automation: { ruleId: String((rule as any)._id) } });
+      await sendOutboundText(lead, fromPhone, text, { automation: { ruleId: String((rule as any)._id) } }, ctx.creds);
       await markThrottle(lead._id, rule, now);
       continue;
     }
@@ -1549,7 +1585,7 @@ export async function handleInboundWhatsAppAutomations(input: {
     if (actionType === 'send_template') {
       const templateId = (rule as any).actionTemplateId;
       if (!templateId) continue;
-      await sendOutboundTemplate(lead, fromPhone, templateId, (rule as any).actionTemplateVariables, { automation: { ruleId: String((rule as any)._id) } });
+      await sendOutboundTemplate(lead, fromPhone, templateId, (rule as any).actionTemplateVariables, { automation: { ruleId: String((rule as any)._id) } }, ctx.creds);
       await markThrottle(lead._id, rule, now);
       continue;
     }
@@ -1567,7 +1603,7 @@ export async function handleInboundWhatsAppAutomations(input: {
       try {
         const reply = await maybeAIReply(lead, ctx);
         if (reply) {
-          await sendOutboundText(lead, fromPhone, reply, { automation: { ruleId: String((rule as any)._id), ai: true } });
+          await sendOutboundText(lead, fromPhone, reply, { automation: { ruleId: String((rule as any)._id), ai: true } }, ctx.creds);
           await markThrottle(lead._id, rule, now);
         }
       } catch {

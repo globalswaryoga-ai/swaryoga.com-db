@@ -4,6 +4,8 @@ import { getWhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { Types } from 'mongoose';
+import { encryptCredential, decryptCredential } from '@/lib/encryption';
+import { resubscribeWABAWebhooks } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +32,16 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
     }
 
-    const account = await WhatsAppAccount.findOne({ _id: params.id, ...tf }).lean();
+    const raw = await WhatsAppAccount.findOne({ _id: params.id, ...tf }).lean();
 
-    if (!account) {
+    if (!raw) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
+
+    // Never return raw/encrypted secrets — just flag whether a token is on
+    // file so the UI can show "connected" without exposing the value.
+    const { metaAccessToken, metaVerifyToken, commonApiKey, commonApiSecret, ...rest } = raw as any;
+    const account = { ...rest, hasAccessToken: !!metaAccessToken };
 
     return NextResponse.json(
       { success: true, data: account },
@@ -89,13 +96,13 @@ export async function PUT(
     if (commonProvider) updateData.commonProvider = commonProvider;
     if (commonPhoneNumber) updateData.commonPhoneNumber = commonPhoneNumber;
     if (commonProviderId) updateData.commonProviderId = commonProviderId;
-    if (commonApiKey) updateData.commonApiKey = commonApiKey;
-    if (commonApiSecret) updateData.commonApiSecret = commonApiSecret;
     if (metaPhoneNumberId) updateData.metaPhoneNumberId = metaPhoneNumberId;
     if (metaPhoneNumber) updateData.metaPhoneNumber = metaPhoneNumber;
     if (metaBusinessAccountId) updateData.metaBusinessAccountId = metaBusinessAccountId;
-    if (metaAccessToken) updateData.metaAccessToken = metaAccessToken;
-    if (metaVerifyToken) updateData.metaVerifyToken = metaVerifyToken;
+    if (metaAccessToken) updateData.metaAccessToken = encryptCredential(metaAccessToken);
+    if (metaVerifyToken) updateData.metaVerifyToken = encryptCredential(metaVerifyToken);
+    if (commonApiKey) updateData.commonApiKey = encryptCredential(commonApiKey);
+    if (commonApiSecret) updateData.commonApiSecret = encryptCredential(commonApiSecret);
     if (typeof isActive === 'boolean') updateData.isActive = isActive;
     if (status) updateData.status = status;
 
@@ -113,14 +120,32 @@ export async function PUT(
 
     const updated = await WhatsAppAccount.findOneAndUpdate({ _id: params.id, ...tf }, updateData, {
       new: true,
-    });
+    }).lean();
 
     if (!updated) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
+    // For tenant-owned Meta accounts, (re)subscribe our app to their WABA so
+    // inbound webhooks for their number are delivered to our callback URL.
+    if ((updated as any).accountType === 'meta' && (updated as any).metaAccessToken && (updated as any).metaBusinessAccountId) {
+      const accessToken = decryptCredential((updated as any).metaAccessToken);
+      const sub = await resubscribeWABAWebhooks({ accessToken, wabaId: (updated as any).metaBusinessAccountId });
+      if (sub.success) {
+        await WhatsAppAccount.updateOne({ _id: params.id }, { $unset: { connectionError: 1 } });
+        delete (updated as any).connectionError;
+      } else {
+        const connectionError = `Webhook subscription failed: ${sub.error}`;
+        await WhatsAppAccount.updateOne({ _id: params.id }, { $set: { connectionError } });
+        (updated as any).connectionError = connectionError;
+      }
+    }
+
+    const updatedObj = updated as any;
+    const { metaAccessToken: _t, metaVerifyToken: _v, commonApiKey: _ck, commonApiSecret: _cs, ...safeUpdated } = updatedObj;
+
     return NextResponse.json(
-      { success: true, data: updated },
+      { success: true, data: { ...safeUpdated, hasAccessToken: !!updatedObj.metaAccessToken } },
       { status: 200 }
     );
   } catch (error) {

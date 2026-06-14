@@ -13,9 +13,13 @@ type WhatsAppAccount = {
   accountType: 'common' | 'meta';
   commonProvider?: string;
   commonPhoneNumber?: string;
+  metaPhoneNumberId?: string;
   metaPhoneNumber?: string;
+  metaBusinessAccountId?: string;
   status: 'connected' | 'disconnected' | 'pending' | 'error';
   healthStatus: 'healthy' | 'degraded' | 'down';
+  connectionError?: string;
+  hasAccessToken?: boolean;
   isDefault: boolean;
   isActive: boolean;
   totalMessagesSent: number;
@@ -37,6 +41,8 @@ function SettingsContent() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingAccount, setEditingAccount] = useState<WhatsAppAccount | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     accountName: '',
     accountType: 'common' as 'common' | 'meta',
@@ -92,6 +98,7 @@ function SettingsContent() {
       isActive: true,
     });
     setEditingId(null);
+    setEditingAccount(null);
     setShowForm(false);
   };
 
@@ -149,15 +156,23 @@ function SettingsContent() {
   };
 
   const healthCheck = async (id: string) => {
+    setTestingId(id);
     try {
-      await crmFetch(`/api/admin/crm/whatsapp-accounts/${id}/health-check`, {
+      const res = await crmFetch(`/api/admin/crm/whatsapp-accounts/${id}/health-check`, {
         method: 'POST',
       });
-      setSuccess('Health check completed!');
-      setTimeout(() => setSuccess(null), 2000);
+      const data = res?.data;
+      if (data?.healthStatus === 'healthy') {
+        setSuccess('Connection successful — Meta accepted this number\'s access token.');
+      } else {
+        setError(data?.connectionError || 'Connection test failed');
+      }
+      setTimeout(() => setSuccess(null), 4000);
       await fetchAccounts();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Health check failed');
+    } finally {
+      setTestingId(null);
     }
   };
 
@@ -196,15 +211,16 @@ function SettingsContent() {
       commonProviderId: '',
       commonApiKey: '',
       commonApiSecret: '',
-      metaPhoneNumberId: (account as any).metaPhoneNumberId || '',
+      metaPhoneNumberId: account.metaPhoneNumberId || '',
       metaPhoneNumber: account.metaPhoneNumber || '',
-      metaBusinessAccountId: '',
+      metaBusinessAccountId: account.metaBusinessAccountId || '',
       metaAccessToken: '',
       metaVerifyToken: '',
       isDefault: account.isDefault,
       isActive: account.isActive,
     });
     setEditingId(account._id);
+    setEditingAccount(account);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -376,7 +392,18 @@ function SettingsContent() {
             {/* Meta Gateway Fields */}
             {formData.accountType === 'meta' && (
               <div className="space-y-6 mb-6 p-6 bg-green-50 rounded-lg border border-green-200">
-                <h3 className="font-semibold text-gray-900 mb-4">💬 Meta WhatsApp Business API</h3>
+                <h3 className="font-semibold text-gray-900 mb-4">💬 Meta WhatsApp Business API — Bring Your Own Number</h3>
+
+                <div className="p-4 bg-white rounded-lg border border-green-200 text-sm text-gray-700 space-y-2">
+                  <p className="font-semibold text-gray-900">How to connect your own WhatsApp Business number:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>In <span className="font-semibold">Meta Business Manager</span>, open your WhatsApp Business Account (WABA) and find your phone number's <span className="font-mono">phone_number_id</span> and the <span className="font-mono">WABA ID</span>.</li>
+                    <li>Generate a permanent <span className="font-semibold">access token</span> (System User token recommended) with <span className="font-mono">whatsapp_business_messaging</span> and <span className="font-mono">whatsapp_business_management</span> permissions.</li>
+                    <li>Make sure your WABA has shared access with our Meta App/Business — otherwise webhook subscription below will fail with a clear error.</li>
+                    <li>Fill in the fields below and save. We'll automatically subscribe our webhook to your WABA so replies and incoming messages route to this number.</li>
+                  </ol>
+                  <p className="text-xs text-gray-500">Your access token is encrypted before being stored and is never shown again after saving.</p>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
@@ -444,7 +471,9 @@ function SettingsContent() {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Access Token
+                    Access Token {editingAccount?.hasAccessToken && (
+                      <span className="ml-2 text-xs font-normal text-green-700">●●●●●●●● saved — leave blank to keep it</span>
+                    )}
                   </label>
                   <input
                     type="password"
@@ -452,10 +481,16 @@ function SettingsContent() {
                     onChange={(e) =>
                       setFormData({ ...formData, metaAccessToken: e.target.value })
                     }
-                    placeholder="Your Meta API access token"
+                    placeholder={editingAccount?.hasAccessToken ? 'Leave blank to keep existing token' : 'Your Meta API access token'}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent"
                   />
                 </div>
+
+                {editingAccount?.connectionError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <span className="font-semibold">⚠ Connection issue:</span> {editingAccount.connectionError}
+                  </div>
+                )}
               </div>
             )}
 
@@ -604,6 +639,13 @@ function SettingsContent() {
                     </div>
                   )}
 
+                  {/* Connection Error */}
+                  {account.connectionError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-xs text-red-700 font-semibold">⚠ {account.connectionError}</p>
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="flex flex-col gap-3 pt-4 border-t border-gray-200">
                     <div className="grid grid-cols-2 gap-2">
@@ -615,9 +657,10 @@ function SettingsContent() {
                       </button>
                       <button
                         onClick={() => healthCheck(account._id)}
-                        className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold text-sm transition-colors"
+                        disabled={testingId === account._id}
+                        className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50"
                       >
-                        🏥 Check
+                        {testingId === account._id ? 'Testing…' : '🔌 Test Connection'}
                       </button>
                     </div>
 

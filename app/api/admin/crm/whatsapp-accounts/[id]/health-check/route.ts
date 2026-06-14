@@ -4,6 +4,8 @@ import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { Types } from 'mongoose';
+import { decryptCredential } from '@/lib/encryption';
+import { generateAppSecretProof } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,29 +38,45 @@ export async function POST(
     }
 
     let healthStatus = 'down';
+    let connectionStatus: 'connected' | 'disconnected' | 'error' = 'disconnected';
     let connectionError = '';
 
-    // Perform basic health check based on account type
-    if (account.accountType === 'meta' && account.metaAccessToken) {
+    // Perform a real health check based on account type
+    if (account.accountType === 'meta' && account.metaAccessToken && account.metaPhoneNumberId) {
       try {
-        // For demonstration, just verify token exists
-        healthStatus = 'healthy';
-        connectionError = '';
+        const accessToken = decryptCredential(account.metaAccessToken);
+        const proof = generateAppSecretProof(accessToken);
+        const proofParam = proof ? `&appsecret_proof=${proof}` : '';
+        const res = await fetch(
+          `https://graph.facebook.com/v24.0/${encodeURIComponent(account.metaPhoneNumberId)}?fields=display_phone_number,verified_name${proofParam}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            cache: 'no-store',
+          }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.id) {
+          healthStatus = 'healthy';
+          connectionStatus = 'connected';
+          connectionError = '';
+        } else {
+          healthStatus = 'down';
+          connectionStatus = 'error';
+          connectionError = data?.error?.message || `Meta API error (HTTP ${res.status})`;
+        }
       } catch (err) {
         healthStatus = 'down';
-        connectionError = 'Meta API connection failed';
+        connectionStatus = 'error';
+        connectionError = err instanceof Error ? err.message : 'Meta API connection failed';
       }
     } else if (account.accountType === 'common' && account.commonApiKey) {
-      try {
-        // For demonstration, just verify key exists
-        healthStatus = 'healthy';
-        connectionError = '';
-      } catch (err) {
-        healthStatus = 'down';
-        connectionError = 'Gateway connection failed';
-      }
+      // No generic gateway API to ping yet — treat presence of credentials as healthy.
+      healthStatus = 'healthy';
+      connectionStatus = 'connected';
+      connectionError = '';
     } else {
       healthStatus = 'down';
+      connectionStatus = 'error';
       connectionError = 'Missing credentials';
     }
 
@@ -66,11 +84,14 @@ export async function POST(
       { _id: params.id, ...tf },
       {
         healthStatus,
+        status: connectionStatus,
         connectionError: connectionError || undefined,
         lastHealthCheck: new Date(),
       },
       { new: true }
-    );
+    )
+      .select('-metaAccessToken -metaVerifyToken -commonApiKey -commonApiSecret')
+      .lean();
 
     return NextResponse.json(
       { success: true, data: updated },

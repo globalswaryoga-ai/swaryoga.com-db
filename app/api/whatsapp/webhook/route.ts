@@ -15,6 +15,7 @@ import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 
 import { normalizePhone as normalizePhoneDigits, resubscribeWABAWebhooks } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
+import { getMetaCredentialsByPhoneNumberId } from '@/lib/whatsappAccounts';
 
 // Import media helpers
 import { 
@@ -308,6 +309,15 @@ async function handleWebhookPayload(payload: any) {
         // NEW: Log the Phone Number Id from metadata to verify we are receiving for the correct business phone
         const businessPhoneNumberId = value?.metadata?.phone_number_id;
 
+        // Resolve which tenant (if any) owns this Meta phone number. Returns null
+        // for the legacy/default shared number — in that case everything below
+        // behaves exactly as before (no tenant filter, global env credentials).
+        const tenantResolution = businessPhoneNumberId
+          ? await getMetaCredentialsByPhoneNumberId(String(businessPhoneNumberId)).catch(() => null)
+          : null;
+        const tenantUserId = tenantResolution?.tenantUserId;
+        const tenantCreds = tenantResolution?.creds;
+
         // 1) Status updates for messages we previously sent
         const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
         for (const st of statuses) {
@@ -573,14 +583,14 @@ async function handleWebhookPayload(payload: any) {
               if (mediaId) {
                 try {
                   console.log(`[WEBHOOK MEDIA] Fetching media ID: ${mediaId} for type: ${type}`);
-                  const metaMediaUrl = await getWhatsAppMediaUrl(mediaId);
+                  const metaMediaUrl = await getWhatsAppMediaUrl(mediaId, tenantCreds);
                   console.log(`[WEBHOOK MEDIA] Got Meta URL: ${metaMediaUrl?.substring(0, 80)}...`);
                   
                   if (!metaMediaUrl) {
                     throw new Error('Meta API returned empty media URL');
                   }
                   
-                  const { buffer, contentType } = await downloadWhatsAppMedia(metaMediaUrl);
+                  const { buffer, contentType } = await downloadWhatsAppMedia(metaMediaUrl, tenantCreds);
                   console.log(`[WEBHOOK MEDIA] Downloaded ${buffer.length} bytes, type: ${contentType}`);
                   
                   if (!buffer || buffer.length === 0) {
@@ -619,7 +629,9 @@ async function handleWebhookPayload(payload: any) {
 
             // Ensure Lead exists
             console.log(`[WEBHOOK DEBUG] Finding lead for ${from}`);
-            let lead = await Lead.findOne({ phoneNumber: from });
+            let lead = await Lead.findOne(
+              tenantUserId ? { phoneNumber: from, createdByUserId: tenantUserId } : { phoneNumber: from }
+            );
             let wasFirstInbound = false;
 
             if (!lead) {
@@ -634,17 +646,22 @@ async function handleWebhookPayload(payload: any) {
                 status: 'lead',
                 leadNumber,
                 lastMessageAt: now,
+                ...(tenantUserId ? { createdByUserId: tenantUserId, assignedToUserId: tenantUserId } : {}),
               });
               wasFirstInbound = true;
-              
-              // Auto-assign to admin user via round-robin (if enabled)
-              try {
-                console.log(`[WEBHOOK DEBUG] Auto-assigning lead to admin user`);
-                await assignLeadToNextAdmin(lead);
-              } catch (assignErr) {
-                console.error('[WEBHOOK ERROR] Lead auto-assignment failed', assignErr);
+
+              if (tenantUserId) {
+                // Tenant's own number — lead already assigned to the tenant, skip global round-robin
+              } else {
+                // Auto-assign to admin user via round-robin (if enabled)
+                try {
+                  console.log(`[WEBHOOK DEBUG] Auto-assigning lead to admin user`);
+                  await assignLeadToNextAdmin(lead);
+                } catch (assignErr) {
+                  console.error('[WEBHOOK ERROR] Lead auto-assignment failed', assignErr);
+                }
               }
-              
+
               // Auto-add to main broadcast list
               try {
                   console.log(`[WEBHOOK DEBUG] Adding to broadcast list`);
@@ -770,6 +787,8 @@ async function handleWebhookPayload(payload: any) {
               phoneNumber: from,
               messageBody: body,
               wasFirstInbound,
+              tenantUserId,
+              creds: tenantCreds,
             }).catch((err) => {
               console.error('[Automation Error]', err);
             });

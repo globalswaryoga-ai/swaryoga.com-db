@@ -4,6 +4,8 @@ import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { encryptCredential } from '@/lib/encryption';
+import { resubscribeWABAWebhooks } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,11 +45,18 @@ export async function GET(request: NextRequest) {
     if (accountType) filter.accountType = accountType;
     if (isActive !== null) filter.isActive = isActive === 'true';
 
-    const accounts = await WhatsAppAccount.find(filter)
+    const rawAccounts = await WhatsAppAccount.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
       .lean();
+
+    // Never return raw/encrypted secrets — just flag whether a token is on file
+    // so the UI can show "connected" without exposing the value.
+    const accounts = rawAccounts.map((a: any) => {
+      const { metaAccessToken, metaVerifyToken, commonApiKey, commonApiSecret, ...rest } = a;
+      return { ...rest, hasAccessToken: !!metaAccessToken };
+    });
 
     const total = await WhatsAppAccount.countDocuments(filter);
 
@@ -142,20 +151,35 @@ export async function POST(request: NextRequest) {
       commonProvider,
       commonPhoneNumber,
       commonProviderId,
-      commonApiKey,
-      commonApiSecret,
+      commonApiKey: commonApiKey ? encryptCredential(commonApiKey) : commonApiKey,
+      commonApiSecret: commonApiSecret ? encryptCredential(commonApiSecret) : commonApiSecret,
       metaPhoneNumberId,
       metaPhoneNumber,
       metaBusinessAccountId,
-      metaAccessToken,
-      metaVerifyToken,
+      metaAccessToken: metaAccessToken ? encryptCredential(metaAccessToken) : metaAccessToken,
+      metaVerifyToken: metaVerifyToken ? encryptCredential(metaVerifyToken) : metaVerifyToken,
       isDefault: isDefault || false,
       isActive: isActive !== false,
       createdByUserId: decoded.userId || decoded.username,
     });
 
+    // For tenant-owned Meta accounts, subscribe our app to their WABA so
+    // inbound webhooks for their number are delivered to our callback URL.
+    if (accountType === 'meta' && metaAccessToken && metaBusinessAccountId) {
+      const sub = await resubscribeWABAWebhooks({ accessToken: metaAccessToken, wabaId: metaBusinessAccountId });
+      if (!sub.success) {
+        await WhatsAppAccount.updateOne(
+          { _id: newAccount._id },
+          { connectionError: `Webhook subscription failed: ${sub.error}` }
+        );
+      }
+    }
+
+    const accountObj = newAccount.toObject();
+    const { metaAccessToken: _t, metaVerifyToken: _v, commonApiKey: _ck, commonApiSecret: _cs, ...safeAccount } = accountObj;
+
     return NextResponse.json(
-      { success: true, data: newAccount },
+      { success: true, data: { ...safeAccount, hasAccessToken: !!accountObj.metaAccessToken } },
       { status: 201 }
     );
   } catch (error) {

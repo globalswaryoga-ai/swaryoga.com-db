@@ -9,14 +9,15 @@
  */
 
 import crypto from 'crypto';
-import { 
-  recordSuccess, 
-  recordFailure, 
-  isCircuitOpen, 
+import {
+  recordSuccess,
+  recordFailure,
+  isCircuitOpen,
   resetCircuit,
   withRetry,
-  type ProviderType 
+  type ProviderType
 } from './whatsappProtection';
+import type { WhatsAppCredentials } from './whatsappAccounts';
 
 // Re-export for convenience
 export { resetCircuit, isCircuitOpen } from './whatsappProtection';
@@ -170,8 +171,8 @@ export function getWhatsAppEnv() {
  * Pre-upload a media file to Meta's servers and return a media_id.
  * Using media_id is more reliable than link — Meta doesn't need to download from CDN.
  */
-export async function uploadMediaToMeta(imageUrl: string, mimeType = 'image/jpeg'): Promise<string | null> {
-  const env = getWhatsAppEnv();
+export async function uploadMediaToMeta(imageUrl: string, mimeType = 'image/jpeg', creds?: WhatsAppCredentials): Promise<string | null> {
+  const env = creds || getWhatsAppEnv();
   if (!env) return null;
 
   try {
@@ -205,8 +206,8 @@ export async function uploadMediaToMeta(imageUrl: string, mimeType = 'image/jpeg
 /**
  * Get the media URL from Meta using a media ID
  */
-export async function getWhatsAppMediaUrl(mediaId: string): Promise<string> {
-  const env = getWhatsAppEnv();
+export async function getWhatsAppMediaUrl(mediaId: string, creds?: WhatsAppCredentials): Promise<string> {
+  const env = creds || getWhatsAppEnv();
   if (!env) throw new Error('Meta Cloud API not configured');
 
   const { accessToken, appSecret } = env;
@@ -240,8 +241,8 @@ export async function getWhatsAppMediaUrl(mediaId: string): Promise<string> {
 /**
  * Download media from Meta temporary URL
  */
-export async function downloadWhatsAppMedia(tempUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
-  const env = getWhatsAppEnv();
+export async function downloadWhatsAppMedia(tempUrl: string, creds?: WhatsAppCredentials): Promise<{ buffer: Buffer; contentType: string }> {
+  const env = creds || getWhatsAppEnv();
   if (!env) throw new Error('Meta Cloud API not configured');
 
   const { accessToken } = env;
@@ -279,15 +280,16 @@ export async function downloadWhatsAppMedia(tempUrl: string): Promise<{ buffer: 
  * or temporary server errors. Call this after webhook GET verification
  * succeeds, or as a periodic health check.
  */
-export async function resubscribeWABAWebhooks(): Promise<{ success: boolean; error?: string }> {
+export async function resubscribeWABAWebhooks(
+  override?: { accessToken: string; wabaId: string; appSecret?: string }
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const env = getWhatsAppEnv();
-    if (!env) return { success: false, error: 'WhatsApp env not configured' };
+    const accessToken = override?.accessToken || getWhatsAppEnv()?.accessToken;
+    const appSecret = override?.appSecret ?? getWhatsAppEnv()?.appSecret;
+    if (!accessToken) return { success: false, error: 'WhatsApp access token not configured' };
 
-    const wabaId = (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim();
+    const wabaId = override?.wabaId || (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim();
     if (!wabaId) return { success: false, error: 'WHATSAPP_BUSINESS_ACCOUNT_ID not set' };
-
-    const { accessToken, appSecret } = env;
     const appSecretProof = generateAppSecretProof(accessToken, appSecret);
     const proofParam = appSecretProof ? `?appsecret_proof=${appSecretProof}` : '';
 
@@ -353,8 +355,8 @@ export function buildGraphMessagesUrl(phoneNumberId: string, appSecretProof?: st
   return url.toString();
 }
 
-export async function sendWhatsAppText(toRaw: string, body: string): Promise<WhatsAppSendTextResult> {
-  const env = getWhatsAppEnv();
+export async function sendWhatsAppText(toRaw: string, body: string, creds?: WhatsAppCredentials): Promise<WhatsAppSendTextResult> {
+  const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
 
   console.log(`[sendWhatsAppText] to=${to}, envConfigured=${!!env}, circuitOpen=${isCircuitOpen('meta')}`);
@@ -456,8 +458,9 @@ export async function sendWhatsAppInteractiveButtons(
   body: string,
   buttons: Array<{ id: string; title: string }>,
   options?: { header?: string; footer?: string; headerImageUrl?: string },
+  creds?: WhatsAppCredentials,
 ): Promise<WhatsAppSendTextResult> {
-  const env = getWhatsAppEnv();
+  const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
 
   // WhatsApp reply buttons: max 3 buttons, title max 20 chars
@@ -482,7 +485,7 @@ export async function sendWhatsAppInteractiveButtons(
     // Fallback to plain text
     const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
     const fallback = body ? `${body}\n\n${labels}` : labels;
-    return sendWhatsAppText(to, fallback);
+    return sendWhatsAppText(to, fallback, creds);
   }
 
   try {
@@ -549,7 +552,7 @@ export async function sendWhatsAppInteractiveButtons(
     // Fallback to numbered text
     const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
     const fallback = body ? `${body}\n\n${labels}` : labels;
-    return sendWhatsAppText(to, fallback);
+    return sendWhatsAppText(to, fallback, creds);
   }
 }
 
@@ -591,9 +594,10 @@ export async function sendWhatsAppMedia(
   toRaw: string,
   mediaUrl: string,
   mediaType: 'image' | 'video' | 'document' = 'image',
-  caption?: string
+  caption?: string,
+  creds?: WhatsAppCredentials,
 ): Promise<WhatsAppSendMediaResult> {
-  const env = getWhatsAppEnv();
+  const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
   
   // Convert S3 URLs to publicly accessible signed URLs
@@ -773,8 +777,8 @@ function buildTemplateComponents(input: WhatsAppSendTemplateInput): any[] {
   return components;
 }
 
-export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Promise<WhatsAppSendTemplateResult> {
-  const env = getWhatsAppEnv();
+export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, creds?: WhatsAppCredentials): Promise<WhatsAppSendTemplateResult> {
+  const env = creds || getWhatsAppEnv();
   const to = normalizePhone(input.to);
   const templateName = String(input.templateName || '').trim();
   if (!templateName) throw new Error('templateName is required');
@@ -800,7 +804,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
         if (input.headerMedia?.url) {
           const signedUrl = await getPublicMediaUrl(input.headerMedia.url);
           const mimeType = input.headerMedia.kind === 'video' ? 'video/mp4' : 'image/jpeg';
-          const mediaId = await uploadMediaToMeta(signedUrl, mimeType);
+          const mediaId = await uploadMediaToMeta(signedUrl, mimeType, creds);
           if (mediaId) {
             console.log('[sendWhatsAppTemplate] Pre-uploaded media, got media_id:', mediaId);
             processedInput = {
