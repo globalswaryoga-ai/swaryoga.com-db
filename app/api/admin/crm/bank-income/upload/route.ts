@@ -80,10 +80,12 @@ function extractIncomeEntries(text: string): ExtractedEntry[] {
     // ambiguous lines are skipped to avoid polluting the tag queue.
     if (!CREDIT_RE.test(rest) || DEBIT_RE.test(rest)) continue;
 
-    const amounts = rest.match(AMOUNT_RE) || [];
-    if (!amounts.length) continue;
+    // Extract the amount — look for amount followed by (Cr) or (Cr) marker
+    // This extracts the transaction amount, not the balance
+    const amountMatch = rest.match(/(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)\s*\(Cr\)/i);
+    if (!amountMatch) continue;
 
-    const amount = parseFloat(amounts[amounts.length - 1].replace(/,/g, ''));
+    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
     if (!amount || isNaN(amount) || amount <= 0) continue;
 
     const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;

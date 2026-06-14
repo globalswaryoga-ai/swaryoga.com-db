@@ -11,7 +11,12 @@
       "Bash(tar -xzf /tmp/atlas-restore.tar.gz -C /tmp/wt-extract)",
       "Bash(mongod --dbpath /tmp/wt-extract/restore-6a19d406215a83df1547ea36 --port 27199 --logpath /tmp/mongod-log/mongod.log --noauth)",
       "Bash(echo \"mongod PID: $!\")",
-      "Bash(kill 39299)"
+      "Bash(kill 39299)",
+      "Bash(git stash *)",
+      "Bash(vercel ls *)",
+      "Read(//Users/mohankalburgi/Library/LaunchAgents/**)",
+      "Bash(node --check scripts/zoom-recording-uploader.mjs)",
+      "Bash(vercel inspect *)"
     ]
   }
 }
