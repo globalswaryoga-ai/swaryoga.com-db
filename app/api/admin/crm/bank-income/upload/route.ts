@@ -80,12 +80,17 @@ function extractIncomeEntries(text: string): ExtractedEntry[] {
     // ambiguous lines are skipped to avoid polluting the tag queue.
     if (!CREDIT_RE.test(rest) || DEBIT_RE.test(rest)) continue;
 
-    // Extract the amount — look for amount followed by (Cr) or (Cr) marker
-    // This extracts the transaction amount, not the balance
-    const amountMatch = rest.match(/(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)\s*\(Cr\)/i);
-    if (!amountMatch) continue;
+    // Extract transaction amount — find first amount followed by (Cr)
+    // Multiple (Cr) may exist; we want the first amount(Cr) pair (transaction, not balance)
+    let amount = 0;
+    const crMatches = rest.matchAll(/(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)\s*\(\s*Cr\s*\)/gi);
+    const crArray = Array.from(crMatches);
 
-    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+    if (crArray.length > 0) {
+      // Use the first amount(Cr) as transaction amount
+      amount = parseFloat(crArray[0][1].replace(/,/g, ''));
+    }
+
     if (!amount || isNaN(amount) || amount <= 0) continue;
 
     const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;

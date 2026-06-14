@@ -51,6 +51,7 @@ export default function BankIncomePage() {
   const [loadingStatements, setLoadingStatements] = useState(false);
 
   // Tag tab
+  const [tagMonth, setTagMonth] = useState(defaultMonth);
   const [untaggedEntries, setUntaggedEntries] = useState<BankIncomeEntry[]>([]);
   const [loadingUntagged, setLoadingUntagged] = useState(false);
   const [workshops, setWorkshops] = useState<string[]>([]);
@@ -98,7 +99,8 @@ export default function BankIncomePage() {
     if (!token) return;
     setLoadingUntagged(true);
     try {
-      const res = await fetch('/api/admin/crm/bank-income/entries?tagged=false', { headers: authHeaders });
+      const params = new URLSearchParams({ tagged: 'false', month: tagMonth });
+      const res = await fetch(`/api/admin/crm/bank-income/entries?${params}`, { headers: authHeaders });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Failed to load entries');
       const entries: BankIncomeEntry[] = json.entries || [];
@@ -122,7 +124,7 @@ export default function BankIncomePage() {
     } finally {
       setLoadingUntagged(false);
     }
-  }, [token, authHeaders]);
+  }, [token, authHeaders, tagMonth]);
 
   const fetchReport = useCallback(async () => {
     if (!token) return;
@@ -150,7 +152,7 @@ export default function BankIncomePage() {
   useEffect(() => {
     if (!token || tab !== 'tag') return;
     fetchUntagged();
-  }, [token, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, tab, tagMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!token || tab !== 'report') return;
@@ -266,6 +268,11 @@ export default function BankIncomePage() {
       setError(err instanceof Error ? err.message : 'Delete failed');
     }
   };
+
+  const tagTotal = useMemo(
+    () => untaggedEntries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
+    [untaggedEntries]
+  );
 
   const reportTotal = useMemo(
     () => reportEntries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
@@ -422,7 +429,20 @@ export default function BankIncomePage() {
 
         {tab === 'tag' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Tag Income Entries</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Tag Income Entries</h2>
+              <div className="flex items-center gap-3">
+                <input
+                  type="month"
+                  value={tagMonth}
+                  onChange={e => setTagMonth(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+                <span className="text-sm font-semibold text-gray-700">
+                  Monthly Total: <span className="text-green-600">₹{tagTotal.toLocaleString('en-IN')}</span>
+                </span>
+              </div>
+            </div>
             {loadingUntagged ? (
               <div className="flex justify-center py-8"><LoadingSpinner /></div>
             ) : untaggedEntries.length === 0 ? (
