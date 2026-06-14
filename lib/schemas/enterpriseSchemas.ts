@@ -1400,6 +1400,45 @@ BroadcastRunMessageSchema.index({ runId: 1, status: 1 });
 BroadcastRunMessageSchema.index({ leadId: 1, createdAt: -1 });
 BroadcastRunMessageSchema.index({ waMessageId: 1 }); // For webhook status updates
 
+// ============================================================================
+// 11c. BANK INCOME TRACKER - Uploaded bank statements + tagged income entries
+// ============================================================================
+const BankStatementSchema = new mongoose.Schema(
+  {
+    bankName: { type: String, required: true, trim: true },
+    fileName: { type: String, trim: true },
+    fileUrl: { type: String, trim: true },
+    uploadedByUserId: { type: String, trim: true },
+    status: { type: String, enum: ['parsed', 'failed'], default: 'parsed' },
+    entryCount: { type: Number, default: 0 },
+    rawTextSnippet: String,
+  },
+  { timestamps: true, collection: 'bank_statements' }
+);
+
+const BankIncomeEntrySchema = new mongoose.Schema(
+  {
+    statementId: { type: mongoose.Schema.Types.ObjectId, ref: 'BankStatement', required: true, index: true },
+    bankName: { type: String, trim: true },
+
+    date: { type: Date, required: true },
+    month: { type: String, trim: true, index: true }, // 'YYYY-MM'
+
+    description: { type: String, trim: true },
+    amount: { type: Number, required: true },
+
+    name: { type: String, trim: true, default: '' },
+    workshopName: { type: String, trim: true, default: '' },
+    tagged: { type: Boolean, default: false },
+
+    createdByUserId: { type: String, trim: true },
+  },
+  { timestamps: true, collection: 'bank_income_entries' }
+);
+
+BankIncomeEntrySchema.index({ month: 1, tagged: 1 });
+BankIncomeEntrySchema.index({ statementId: 1 });
+
 // NOTE: Recurring/repeat broadcast schedules (formerly a dedicated
 // `broadcast_recurring_schedules` collection) are stored as an embedded
 // array on the existing CRMUserSettings doc (metadata.broadcastRecurringSchedules)
@@ -3162,6 +3201,8 @@ export const BroadcastList = createModelProxy('BroadcastList', BroadcastListSche
 export const BroadcastListMember = createModelProxy('BroadcastListMember', BroadcastListMemberSchema);
 export const BroadcastRun = createModelProxy('BroadcastRun', BroadcastRunSchema);
 export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const BankStatement = createModelProxy('BankStatement', BankStatementSchema);
+export const BankIncomeEntry = createModelProxy('BankIncomeEntry', BankIncomeEntrySchema);
 export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
 export const KnowledgeBaseArticle = createModelProxy('KnowledgeBaseArticle', KnowledgeBaseArticleSchema);

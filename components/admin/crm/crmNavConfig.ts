@@ -580,6 +580,18 @@ export const sectionConfigs: SectionConfig[] = [
     prefixes: ['/admin/crm/calls'],
   },
 
+  // Bank Income Tracker — super-admin only
+  {
+    key: 'bank-income',
+    title: 'Bank Income',
+    icon: Landmark,
+    items: [
+      { label: 'Bank Income', href: '/admin/crm/bank-income', icon: Landmark },
+    ],
+    moreItems: [],
+    prefixes: ['/admin/crm/bank-income'],
+  },
+
   // SMS Management — sms bundle
   {
     key: 'messages',

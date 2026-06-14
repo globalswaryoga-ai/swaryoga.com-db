@@ -17,7 +17,7 @@ interface CrmSidebarProps {
 }
 
 // Sections only super-admins should see.
-const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'tenants-plan', 'web-admin', 'archive']);
+const SUPER_ADMIN_KEYS = new Set(['super-admin', 'tenants', 'tenants-plan', 'web-admin', 'archive', 'bank-income']);
 
 // Tenant CRM (crm.swaryoga.com) shows ONLY these module sections, in this order.
 // Owner-panel sections (web-admin / super-admin / tenants / archive) never appear here —
