@@ -80,17 +80,13 @@ function extractIncomeEntries(text: string): ExtractedEntry[] {
     // ambiguous lines are skipped to avoid polluting the tag queue.
     if (!CREDIT_RE.test(rest) || DEBIT_RE.test(rest)) continue;
 
-    // Extract transaction amount — find first amount followed by (Cr)
-    // Multiple (Cr) may exist; we want the first amount(Cr) pair (transaction, not balance)
-    let amount = 0;
-    const crMatches = rest.matchAll(/(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)\s*\(\s*Cr\s*\)/gi);
-    const crArray = Array.from(crMatches);
+    // Extract transaction amount — the second-to-last numeric value is the credit/debit amount,
+    // the last value is typically the balance. For Axis/Union/other banks.
+    const amounts = rest.match(AMOUNT_RE) || [];
+    if (amounts.length < 2) continue;  // Need at least 2 amounts (transaction + balance)
 
-    if (crArray.length > 0) {
-      // Use the first amount(Cr) as transaction amount
-      amount = parseFloat(crArray[0][1].replace(/,/g, ''));
-    }
-
+    // Use second-to-last amount as the transaction amount (not the balance)
+    const amount = parseFloat(amounts[amounts.length - 2].replace(/,/g, ''));
     if (!amount || isNaN(amount) || amount <= 0) continue;
 
     const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
