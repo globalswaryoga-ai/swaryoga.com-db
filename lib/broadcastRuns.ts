@@ -393,7 +393,12 @@ export async function processDueBroadcastRuns(options?: {
           totalMessagesPerHour: 15, // TARGET: 15 msgs/hour
           ensureVariation: true,
         });
-        qrGapMs = gaps[gaps.length - 1];
+        // calculateVariableGaps returns (totalMessages - 1) gaps, so for the very
+        // first message of a run (sentSoFarCount=0 -> totalMessages=1) gaps is
+        // empty and gaps[gaps.length-1] is undefined — which turned nextQrSendAt
+        // into an Invalid Date and caused the whole send to be marked "failed"
+        // even though the message went out fine. Fall back to the warm-up gap.
+        qrGapMs = gaps.length > 0 ? gaps[gaps.length - 1] : 30000;
         console.log(`[Broadcast QR] sentSoFar=${sentSoFarCount}, next gap=${Math.round(qrGapMs / 1000)}s`);
       }
 
