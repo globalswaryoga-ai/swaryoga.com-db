@@ -192,6 +192,12 @@ export default function QRBroadcastWizard() {
   const [repeatTime, setRepeatTime] = useState('18:00');
   const [repeatScheduleName, setRepeatScheduleName] = useState('');
 
+  // Live 15/hr · 150/day send quota usage (lib/qrSendRateLimit.ts)
+  const [rateStatus, setRateStatus] = useState<{
+    dailyLimit: number; hourlyLimit: number;
+    daySent: number; hourSent: number; dayRemaining: number; hourRemaining: number;
+  } | null>(null);
+
   const repeatDateList = useMemo(() => genDates(repeatStartDate, repeatNumDays), [repeatStartDate, repeatNumDays]);
   const isRepeatDayChecked = useCallback((d: string) => !repeatUnselectedDates.has(d), [repeatUnselectedDates]);
   const toggleRepeatDay = useCallback((d: string) => {
@@ -270,6 +276,17 @@ export default function QRBroadcastWizard() {
   useEffect(() => {
     if (step === 1) loadLeads();
   }, [step, filterStatuses, filterLabels, filterWorkshops]);
+
+  // Load current 15/hr · 150/day quota usage when reaching the Schedule step
+  useEffect(() => {
+    if (!token || step !== 2) return;
+    crmFetch('/api/admin/crm/qr-rate-status')
+      .then((res: any) => {
+        const data = res?.data ?? res;
+        if (data?.success !== false) setRateStatus(data);
+      })
+      .catch(() => {});
+  }, [token, step]);
 
   // ── Filtered lists ─────────────────────────────────────────────────────────
   const filteredTemplates = templates.filter(t =>
@@ -840,11 +857,20 @@ export default function QRBroadcastWizard() {
               <div className="flex items-start gap-3 p-4 rounded-lg border-2 border-green-500 bg-green-50">
                 <span className="text-lg leading-none mt-0.5">🛡️</span>
                 <div>
-                  <div className="text-sm font-semibold text-gray-800">15 messages / hour · max 150 / day</div>
+                  <div className="text-sm font-semibold text-gray-800">
+                    {rateStatus ? `${rateStatus.hourlyLimit} messages / hour · max ${rateStatus.dailyLimit} / day` : '15 messages / hour · max 150 / day'}
+                  </div>
                   <div className="text-xs text-gray-600 mt-0.5">
                     Safe drip pacing (~1 message every 2–6 min). The system auto-stops at the hourly/daily
                     cap and continues the rest the next day — protecting your number from bans.
                   </div>
+                  {rateStatus && (
+                    <div className="text-xs font-medium text-green-800 mt-2">
+                      Already used: {rateStatus.hourSent}/{rateStatus.hourlyLimit} this hour ·{' '}
+                      {rateStatus.daySent}/{rateStatus.dailyLimit} today
+                      {' '}({rateStatus.dayRemaining} remaining today)
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
