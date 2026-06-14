@@ -378,13 +378,13 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       return { status: isRecurring ? 'idle_until_next_occurrence' : 'completed', reason: 'all_recipients_sent', sent: 0, totalRecipients: allRecipients.length };
     }
 
-    // ── HUMAN RANDOM-GAP PACING — TARGET ~15 messages/hour ──
+    // ── HUMAN RANDOM-GAP PACING — TARGET ~15 MINUTES between messages ──
     // The cron fires every 1 min, but we only actually send when this schedule's
     // randomized `nextSendAt` has arrived. After each send we set the next gap to
-    // a random 120–360s (mean 240s = 4 min = 15/hr). Because the gap is random,
-    // sends land on IRREGULAR minute marks (e.g. :03, :07, :12, :14, :19) instead
-    // of a fixed 4-min grid — so the pattern never looks robotic. No in-function
-    // sleeping, so the sequential multi-schedule loop stays inside the 300s budget.
+    // a random 13–17 min (mean 15 min = ~4/hr). Because the gap is random,
+    // sends land on IRREGULAR minute marks instead of a fixed 15-min grid — so
+    // the pattern never looks robotic. No in-function sleeping, so the
+    // sequential multi-schedule loop stays inside the 300s budget.
     const nowMs = Date.now();
     const nextSendAtMs = schedule.nextSendAt ? new Date(schedule.nextSendAt).getTime() : 0;
     if (nextSendAtMs && nowMs < nextSendAtMs) {
@@ -393,11 +393,11 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       return { status: 'skipped', reason: 'pacing_wait', pending: pending.length, nextSendInS: waitS };
     }
 
-    // Eligible this tick — send exactly ONE message (1 per random gap = ~15/hr).
+    // Eligible this tick — send exactly ONE message (1 per ~15 min gap = ~4/hr).
     const perTickMax = 1;
     // Random gap (ms) until the NEXT message after this one — drives the
     // irregular, human-looking spacing. Persisted on the schedule below.
-    const nextGapMs = 120000 + Math.floor(Math.random() * 240000); // 120–360s, mean 240s
+    const nextGapMs = 780000 + Math.floor(Math.random() * 240000); // 13–17 min, mean 15 min
 
     // Shuffle pending (100% human randomization) and take just this tick's slice.
     const recipients = shuffleArray([...pending]).slice(0, perTickMax);
@@ -629,7 +629,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     // Everyone handled this tick (sent or already-delivered) is added so the
     // next tick continues with whoever is left. Schedule is only 'completed'
     // once the cursor covers EVERY recipient — otherwise it stays 'in-progress'
-    // and keeps dripping (~1 msg every 2–6 min, ~15/hr) across this day and into tomorrow.
+    // and keeps dripping (~1 msg every 13–17 min, ~4/hr) across this day and into tomorrow.
     const totalDoneNow = alreadySent.size + newlySentIds.length;
     const allDone = totalDoneNow >= allRecipients.length;
 

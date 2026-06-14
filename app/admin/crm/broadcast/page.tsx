@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
+import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 
 // ============================================================================
 // TYPES
@@ -283,7 +284,7 @@ export default function BroadcastPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to submit');
       setResult({ success: true, message: data.message || 'Template submitted to Meta for approval' });
       // Refresh templates to get updated status
-      const templatesRes = await fetch('/api/admin/crm/templates', { headers: { Authorization: `Bearer ${token}` } });
+      const templatesRes = await fetch('/api/admin/crm/templates?provider=meta', { headers: { Authorization: `Bearer ${token}` } });
       const templatesData = await templatesRes.json();
       setTemplates(templatesData.data?.templates || templatesData.templates || []);
     } catch (err) {
@@ -307,7 +308,7 @@ export default function BroadcastPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to sync');
       setResult({ success: true, message: `Synced ${data.updated || 0} templates from Meta` });
       // Refresh templates to get updated statuses
-      const templatesRes = await fetch('/api/admin/crm/templates', { headers: { Authorization: `Bearer ${token}` } });
+      const templatesRes = await fetch('/api/admin/crm/templates?provider=meta', { headers: { Authorization: `Bearer ${token}` } });
       const templatesData = await templatesRes.json();
       setTemplates(templatesData.data?.templates || templatesData.templates || []);
     } catch (err) {
@@ -327,7 +328,7 @@ export default function BroadcastPage() {
     try {
       const [leadsRes, templatesRes, runsRes, bulkRes] = await Promise.all([
         fetch('/api/admin/crm/leads?limit=5000&selectAll=true&fields=name,phoneNumber,status,workshopName,assignedToUserId,userName,labels', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/crm/templates', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/templates?provider=meta', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/broadcast-runs?limit=10', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/crm/bulk-status', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
@@ -805,7 +806,7 @@ export default function BroadcastPage() {
   // VALIDATION
   // ============================================================================
   const canProceedToStep2 = selectedLeads.size > 0;
-  const canProceedToStep3 = selectedTemplate !== null;
+  const canProceedToStep3 = selectedTemplate !== null && selectedTemplate.metaStatus === 'APPROVED';
   
   const realLeadCount = useMemo(
     () => Array.from(selectedLeads).filter(id => !id.startsWith('csv_')).length,
@@ -1086,6 +1087,7 @@ export default function BroadcastPage() {
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 📢 Broadcast Center
               </h1>
+              <LeadSourceBadge token={token} variant="light" />
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               <button
@@ -1668,14 +1670,18 @@ export default function BroadcastPage() {
                   <p className="mt-2">No templates found. Create one first.</p>
                 </div>
               ) : (
-                filteredTemplates.map((t) => (
+                filteredTemplates.map((t) => {
+                  const isApproved = t.metaStatus === 'APPROVED';
+                  return (
                   <div
                     key={t._id}
-                    onClick={() => setSelectedTemplate(t)}
-                    className={`group p-4 rounded-xl cursor-pointer transition-all duration-300 border-2 ${
-                      selectedTemplate?._id === t._id
-                        ? 'bg-indigo-50 border-indigo-400 shadow-lg scale-[1.02]'
-                        : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-lg'
+                    onClick={() => { if (isApproved) setSelectedTemplate(t); }}
+                    className={`group p-4 rounded-xl transition-all duration-300 border-2 ${
+                      !isApproved
+                        ? 'bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed'
+                        : selectedTemplate?._id === t._id
+                        ? 'bg-indigo-50 border-indigo-400 shadow-lg scale-[1.02] cursor-pointer'
+                        : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-lg cursor-pointer'
                     }`}
                   >
                     {t.headerMedia?.url && (
@@ -1714,6 +1720,9 @@ export default function BroadcastPage() {
                         </span>
                       )}
                     </div>
+                    {!isApproved && (
+                      <p className="text-xs text-gray-500 mb-1">Must be Meta-approved to use in a broadcast</p>
+                    )}
                     <p className="text-sm text-gray-600 line-clamp-2">{t.templateContent}</p>
                     {t.buttons && t.buttons.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
@@ -1735,7 +1744,8 @@ export default function BroadcastPage() {
                       </button>
                     )}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
 

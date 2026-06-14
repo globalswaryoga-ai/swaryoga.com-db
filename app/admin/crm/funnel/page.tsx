@@ -17,6 +17,7 @@ import {
   PauseCircle, Repeat, Flower2, Megaphone, Plus,
 } from 'lucide-react';
 import LeadDetailModal from '@/components/admin/crm/LeadDetailModal';
+import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 import { AddToBroadcastModal } from '@/components/admin/crm';
 
 // ── 4K-quality vibrant color palette ──
@@ -667,6 +668,9 @@ export default function FunnelDashboardPage() {
               Sales Funnel
             </h1>
             <p className="text-sm text-gray-500 mt-1">Track leads through your 7-step funnel pipeline</p>
+            <div className="mt-2">
+              <LeadSourceBadge token={token} variant="light" />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Actions → direct link to manage page */}

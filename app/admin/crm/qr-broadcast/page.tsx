@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 
 // ============================================================================
 // TYPES
@@ -556,6 +557,7 @@ export default function QRBroadcastPage() {
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 📢 QR Broadcast Center
               </h1>
+              <LeadSourceBadge token={token} variant="light" />
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               <Link href="/admin/crm/qr-templates" className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-all text-sm font-medium flex items-center gap-1">

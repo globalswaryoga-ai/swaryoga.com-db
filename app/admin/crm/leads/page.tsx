@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
 import { usePlan } from '@/components/admin/crm/hooks/usePlan';
+import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
@@ -910,7 +911,8 @@ export default function LeadsPage() {
             </div>
             {/* Leads usage / limit badge */}
             {!planCtx.loading && (
-              <div className="flex items-center gap-3 mt-1">
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <LeadSourceBadge token={token} variant="dark" />
                 <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
                   <span className="text-xs text-gray-400">Leads</span>
                   <span className="text-sm font-bold text-white">{leadsUsed}</span>

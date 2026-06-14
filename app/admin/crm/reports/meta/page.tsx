@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 
 type BroadcastRun = {
   _id: string;
@@ -403,6 +404,7 @@ export default function MetaReportsPage() {
               <h1 className="text-xl font-bold text-green-600 flex items-center gap-2">
                 🟢 Meta WhatsApp Reports
               </h1>
+              <LeadSourceBadge token={token} variant="light" />
             </div>
             <div className="flex items-center gap-3">
               <Link

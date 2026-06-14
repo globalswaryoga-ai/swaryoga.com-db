@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -300,6 +301,7 @@ export default function QRReportsPage() {
             <h1 className="text-xl font-bold text-green-600 flex items-center gap-2">
               📱 QR WhatsApp Reports
             </h1>
+            <LeadSourceBadge token={token} variant="light" />
           </div>
           <div className="flex items-center gap-3">
             <Link

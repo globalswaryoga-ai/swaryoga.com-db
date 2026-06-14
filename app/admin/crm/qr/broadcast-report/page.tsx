@@ -407,6 +407,29 @@ export default function QRBroadcastReportPage() {
     setRescheduleDate('');
   };
 
+  const deleteBroadcast = async () => {
+    if (!token || !selectedRun) return;
+    if (!confirm(`Delete "${selectedRun.name}" and all its message records? This cannot be undone.`)) return;
+    setActioning(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/crm/broadcast-runs/${selectedRun._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Delete failed');
+      setSuccess('Broadcast deleted');
+      setView('list');
+      router.push('/admin/crm/qr/broadcast-report');
+      fetchRuns();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setActioning(false);
+    }
+  };
+
   const exportCSV = () => {
     if (!selectedRun || dedupedMessages.length === 0) return;
     const headers = ['Phone Number', 'Name', 'Status', 'Sent At', 'Delivered At', 'Read At', 'Failure Reason'];
@@ -493,6 +516,14 @@ export default function QRBroadcastReportPage() {
                   </button>
                   <button onClick={exportCSV} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold">
                     📥 Export CSV
+                  </button>
+                  {/* Delete — remove this run and all its message records */}
+                  <button
+                    onClick={deleteBroadcast}
+                    disabled={actioning}
+                    className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 disabled:opacity-60 rounded-lg text-sm font-semibold flex items-center gap-1.5"
+                  >
+                    🗑️ Delete
                   </button>
                 </>
               )}
