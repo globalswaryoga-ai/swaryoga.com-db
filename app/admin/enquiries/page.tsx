@@ -19,6 +19,7 @@ interface Enquiry {
   submittedAt: string;
   status: 'new' | 'contacted' | 'registered';
   notes?: string;
+  labels?: string[];
 }
 
 interface EnquiryForm {
@@ -311,24 +312,80 @@ export default function EnquiriesPage() {
     router.push(`/admin/crm/meta?phone=${phone}`);
   };
 
-  // Add a single enquiry's linked lead to a new Meta broadcast (template + schedule)
-  const addToBroadcast = (enquiry: Enquiry) => {
-    if (!enquiry.leadId) {
-      alert('This enquiry has no linked lead yet, so it cannot be added to a broadcast.');
-      return;
+  // The CRM label used to mark a lead as "included in this workshop's bulk broadcast"
+  const broadcastGroupLabel = (workshopId: string) => `workshop:${workshopId}`;
+
+  const [togglingMark, setTogglingMark] = useState<string | null>(null); // enquiry.id currently being toggled
+
+  // Toggle (blue <-> red) whether this enquiry's lead is included in the
+  // workshop's bulk broadcast list. Ensures a CRM lead exists, then
+  // adds/removes the workshop group label on it.
+  const toggleBroadcastMark = async (enquiry: Enquiry) => {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
+    if (!token) return;
+    const label = broadcastGroupLabel(enquiry.workshopId);
+    const marked = (enquiry.labels || []).includes(label);
+
+    setTogglingMark(enquiry.id);
+    try {
+      let leadId = enquiry.leadId;
+
+      // Create a CRM lead for legacy enquiries that don't have one yet.
+      if (!leadId) {
+        const res = await fetch('/api/admin/crm/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            phoneNumber: enquiry.mobile,
+            name: enquiry.name,
+            labels: ['enquiry', label],
+            source: 'website',
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.data?._id) {
+          leadId = data.data._id;
+        } else if (res.status === 409 && data?.existingLead?._id) {
+          leadId = data.existingLead._id;
+        } else {
+          throw new Error(data?.error || 'Failed to create lead');
+        }
+      }
+
+      const patchRes = await fetch(`/api/admin/crm/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(marked ? { removeLabels: [label] } : { addLabels: [label] }),
+      });
+      if (!patchRes.ok) throw new Error('Failed to update lead labels');
+
+      setEnquiries((prev) => prev.map((e) => {
+        if (e.id !== enquiry.id) return e;
+        const labels = e.labels || [];
+        return {
+          ...e,
+          leadId,
+          labels: marked ? labels.filter((l) => l !== label) : [...labels, label],
+        };
+      }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update broadcast selection');
+    } finally {
+      setTogglingMark(null);
     }
-    router.push(`/admin/crm/broadcast?leadIds=${enquiry.leadId}`);
   };
 
-  // All linked lead IDs for every submission of a given form (used by the QR/Meta buttons)
+  // Lead IDs of submissions marked (via the +/red toggle) for this form's bulk broadcast
   const getFormLeadIds = (formId: string): string[] =>
-    enquiries.filter((e) => e.workshopId === formId && e.leadId).map((e) => e.leadId as string);
+    enquiries
+      .filter((e) => e.workshopId === formId && e.leadId && (e.labels || []).includes(broadcastGroupLabel(formId)))
+      .map((e) => e.leadId as string);
 
   // Send a form's submissions straight to a broadcast (QR or Meta) — pick template + schedule there
   const broadcastForm = (form: EnquiryForm, channel: 'qr' | 'meta') => {
     const leadIds = getFormLeadIds(form.formId);
     if (leadIds.length === 0) {
-      alert('No submissions with linked leads for this form yet.');
+      alert('No leads marked for broadcast yet — click the + on the leads you want to include.');
       return;
     }
     const path = channel === 'qr' ? '/admin/crm/qr-broadcast' : '/admin/crm/broadcast';
@@ -594,9 +651,14 @@ export default function EnquiriesPage() {
                         <MessageCircle size={14} /> WhatsApp
                       </button>
                       <button
-                        onClick={() => addToBroadcast(enquiry)}
-                        title="Add to a new Meta broadcast"
-                        className="flex items-center justify-center w-10 h-full bg-gray-100 hover:bg-gray-200 text-swar-text-secondary hover:text-swar-text rounded-lg transition-colors py-2"
+                        onClick={() => toggleBroadcastMark(enquiry)}
+                        disabled={togglingMark === enquiry.id}
+                        title={(enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId)) ? 'Marked for bulk broadcast — click to remove' : 'Mark for bulk broadcast'}
+                        className={`flex items-center justify-center w-10 h-full rounded-lg transition-colors py-2 disabled:opacity-50 ${
+                          (enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId))
+                            ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                            : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                        }`}
                       >
                         <Plus size={16} />
                       </button>
@@ -663,9 +725,14 @@ export default function EnquiriesPage() {
                                 <MessageCircle size={13} /> Chat
                               </button>
                               <button
-                                onClick={() => addToBroadcast(enquiry)}
-                                title="Add to a new Meta broadcast"
-                                className="flex items-center justify-center w-7 h-7 bg-gray-100 hover:bg-gray-200 text-swar-text-secondary hover:text-swar-text rounded-lg transition-colors"
+                                onClick={() => toggleBroadcastMark(enquiry)}
+                                disabled={togglingMark === enquiry.id}
+                                title={(enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId)) ? 'Marked for bulk broadcast — click to remove' : 'Mark for bulk broadcast'}
+                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors disabled:opacity-50 ${
+                                  (enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId))
+                                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                }`}
                               >
                                 <Plus size={14} />
                               </button>

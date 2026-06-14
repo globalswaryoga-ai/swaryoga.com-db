@@ -107,6 +107,7 @@ export async function GET(request: NextRequest) {
             : l.status === 'contacted' ? 'contacted'
             : 'new',
           notes: l.notes || '',
+          labels: l.labels || [],
         };
       });
       if (workshopId) {

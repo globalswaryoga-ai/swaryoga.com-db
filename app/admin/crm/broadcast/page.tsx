@@ -415,18 +415,43 @@ export default function BroadcastPage() {
     fetchData();
   }, [fetchData]);
 
-  // Pre-select leads from URL params (from funnel manage page)
+  // Pre-select leads from URL params (from funnel manage / enquiries page).
+  // Leads not present in the loaded `leads` list are fetched directly by id
+  // and merged in, so they can still be selected.
+  const preselectDoneRef = useRef(false);
   useEffect(() => {
     const preselect = searchParams.get('leadIds');
-    if (preselect && leads.length > 0) {
-      const ids = preselect.split(',').filter(Boolean);
-      const validIds = ids.filter(id => leads.some(l => l._id === id));
-      if (validIds.length > 0) {
-        setSelectedLeads(new Set(validIds));
+    if (!preselect || loading || preselectDoneRef.current) return;
+    preselectDoneRef.current = true;
+
+    const ids = preselect.split(',').filter(Boolean);
+    const present = ids.filter(id => leads.some(l => l._id === id));
+    const missing = ids.filter(id => !leads.some(l => l._id === id));
+
+    const applySelection = (extra: Lead[] = []) => {
+      if (extra.length > 0) {
+        setLeads(prev => {
+          const existingIds = new Set(prev.map(l => l._id));
+          return [...prev, ...extra.filter(l => !existingIds.has(l._id))];
+        });
+      }
+      const allIds = [...present, ...extra.map(l => l._id)];
+      if (allIds.length > 0) {
+        setSelectedLeads(new Set(allIds));
         setStep(2); // Jump to template selection step
       }
+    };
+
+    if (missing.length === 0) {
+      applySelection();
+      return;
     }
-  }, [searchParams, leads]);
+
+    fetch(`/api/admin/crm/leads?ids=${missing.join(',')}&fields=name,phoneNumber,status,workshopName,labels`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => applySelection(data?.data?.leads || []))
+      .catch(() => applySelection());
+  }, [searchParams, leads, loading, token]);
 
   // Pre-load contacts from sessionStorage (from Reports page "Schedule Broadcast")
   useEffect(() => {

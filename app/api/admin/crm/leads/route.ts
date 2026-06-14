@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
@@ -64,6 +65,23 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const Lead = getLead();
+
+    // ── Fetch by explicit ids (bypasses qrOnly/ownership filters for super-admins) ──
+    // Used by the broadcast pages to pull in leads pre-selected from the
+    // Enquiries page that wouldn't otherwise show up in the qrOnly/scoped lists.
+    const idsParam = url.searchParams.get('ids');
+    if (idsParam) {
+      const validIds = idsParam.split(',').map(s => s.trim()).filter(id => mongoose.Types.ObjectId.isValid(id));
+      if (validIds.length === 0) {
+        return NextResponse.json({ success: true, data: { leads: [], total: 0, limit, skip } }, { status: 200 });
+      }
+      const idFilter: any = { _id: { $in: validIds } };
+      if (visibleUserIds !== null) {
+        idFilter.$or = [{ assignedToUserId: { $in: visibleUserIds } }, { createdByUserId: { $in: visibleUserIds } }];
+      }
+      const idsLeads = await Lead.find(idFilter).lean();
+      return NextResponse.json({ success: true, data: { leads: idsLeads, total: idsLeads.length, limit, skip } }, { status: 200 });
+    }
 
     const filter: any = {};
 

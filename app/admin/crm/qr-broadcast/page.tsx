@@ -167,15 +167,40 @@ export default function QRBroadcastPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Pre-select leads from URL params
+  // Pre-select leads from URL params. Leads not present in the qrOnly-filtered
+  // `leads` list (e.g. brand-new enquiry leads that haven't chatted via QR yet)
+  // are fetched directly by id and merged in, so they can still be selected.
+  const preselectDoneRef = useRef(false);
   useEffect(() => {
     const preselect = searchParams.get('leadIds');
-    if (preselect && leads.length > 0) {
-      const ids = preselect.split(',').filter(Boolean);
-      const valid = ids.filter(id => leads.some(l => l._id === id));
-      if (valid.length > 0) { setSelectedLeads(new Set(valid)); setStep(2); }
+    if (!preselect || loading || preselectDoneRef.current) return;
+    preselectDoneRef.current = true;
+
+    const ids = preselect.split(',').filter(Boolean);
+    const present = ids.filter(id => leads.some(l => l._id === id));
+    const missing = ids.filter(id => !leads.some(l => l._id === id));
+
+    const applySelection = (extra: Lead[] = []) => {
+      if (extra.length > 0) {
+        setLeads(prev => {
+          const existingIds = new Set(prev.map(l => l._id));
+          return [...prev, ...extra.filter(l => !existingIds.has(l._id))];
+        });
+      }
+      const allIds = [...present, ...extra.map(l => l._id)];
+      if (allIds.length > 0) { setSelectedLeads(new Set(allIds)); setStep(2); }
+    };
+
+    if (missing.length === 0) {
+      applySelection();
+      return;
     }
-  }, [searchParams, leads]);
+
+    fetch(`/api/admin/crm/leads?ids=${missing.join(',')}&fields=name,phoneNumber,status,workshopName,labels`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => applySelection(data?.data?.leads || []))
+      .catch(() => applySelection());
+  }, [searchParams, leads, loading, token]);
 
   // Pre-select template from URL
   useEffect(() => {

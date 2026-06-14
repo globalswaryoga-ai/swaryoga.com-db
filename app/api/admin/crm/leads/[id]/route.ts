@@ -298,6 +298,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       const labelsToAdd = body.addLabels.map((x: any) => String(x));
       mongoOp.$addToSet = { labels: { $each: labelsToAdd } };
     }
+    // removeLabels: drop specific labels without touching the rest
+    if (Array.isArray(body.removeLabels) && body.removeLabels.length > 0) {
+      const labelsToRemove = body.removeLabels.map((x: any) => String(x));
+      mongoOp.$pull = { labels: { $in: labelsToRemove } };
+    }
 
     const lead = await Lead.findByIdAndUpdate(params.id, mongoOp, { new: true }).lean();
     if (!lead) {
@@ -357,6 +362,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       notesToCreate.push({
         leadId: existing._id,
         note: `System: Labels added: ${body.addLabels.join(', ')}`,
+        createdByUserId: 'system',
+        pinned: false,
+      });
+    }
+    if (Array.isArray(body.removeLabels) && body.removeLabels.length > 0) {
+      notesToCreate.push({
+        leadId: existing._id,
+        note: `System: Labels removed: ${body.removeLabels.join(', ')}`,
         createdByUserId: 'system',
         pinned: false,
       });
