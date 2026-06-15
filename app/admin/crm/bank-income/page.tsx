@@ -38,6 +38,10 @@ function monthLabel(month: string) {
 export default function BankIncomePage() {
   const token = useAuth();
 
+  // Calculate default month first (needed for both tag & report tabs)
+  const now = new Date();
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const [tab, setTab] = useState<'upload' | 'tag' | 'report'>('upload');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -59,8 +63,6 @@ export default function BankIncomePage() {
   const [drafts, setDrafts] = useState<Record<string, { date: string; amount: string; name: string; workshopName: string }>>({});
 
   // Report tab
-  const now = new Date();
-  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [reportMonth, setReportMonth] = useState(defaultMonth);
   const [reportBank, setReportBank] = useState('all');
   const [reportEntries, setReportEntries] = useState<BankIncomeEntry[]>([]);
