@@ -413,7 +413,7 @@ export default function CertificatePage() {
 
           <div className="relative z-10 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between gap-6">
+            <div className="flex items-start justify-between gap-6">
               <img
                 src={ASSETS.photo}
                 alt="Swar Yoga"
