@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
@@ -156,11 +156,6 @@ export default function CertificatePage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
-  // Scale-to-fit: keep the certificate body within a fixed A4 page regardless of content height.
-  const certPageRef = useRef<HTMLDivElement>(null);
-  const certBodyRef = useRef<HTMLDivElement>(null);
-  const [certScale, setCertScale] = useState(1);
-
   // Participant photo editor (admin-only: URL + zoom + position)
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [photoUrl, setPhotoUrl] = useState('');
@@ -211,26 +206,6 @@ export default function CertificatePage() {
 
     fetchSale();
   }, [id, token]);
-
-  // Recompute the scale factor so the certificate body always fits within a fixed A4 page.
-  useEffect(() => {
-    const page = certPageRef.current;
-    const body = certBodyRef.current;
-    if (!page || !body) return;
-
-    const recalc = () => {
-      const style = window.getComputedStyle(page);
-      const paddingV = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const available = page.clientHeight - paddingV;
-      const natural = body.scrollHeight;
-      setCertScale(natural > available ? available / natural : 1);
-    };
-
-    recalc();
-    const observer = new ResizeObserver(recalc);
-    observer.observe(body);
-    return () => observer.disconnect();
-  }, [sale]);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -349,7 +324,7 @@ export default function CertificatePage() {
         .cert-script { font-family: 'Great Vibes', cursive; }
         @media print {
           @page { size: A4; margin: 0; }
-          .certificate-a4 { width: 210mm; height: 297mm; }
+          .certificate-a4 { width: 210mm; min-height: 297mm; }
         }
       `}</style>
 
@@ -365,47 +340,42 @@ export default function CertificatePage() {
         {/* Certificate Document */}
         <div
           id="certificate-content"
-          ref={certPageRef}
           className="certificate-a4 relative bg-white overflow-hidden mx-auto print:mx-auto"
-          style={{ width: '210mm', height: '297mm', padding: '16mm' }}
+          style={{ width: '210mm', minHeight: '297mm', padding: '16mm' }}
         >
           <CornerBanner corner="top-left" />
           <CornerBanner corner="bottom-right" />
 
-          <div
-            ref={certBodyRef}
-            className="relative z-10 flex flex-col"
-            style={{ transform: `scale(${certScale})`, transformOrigin: 'top center' }}
-          >
+          <div className="relative z-10 flex flex-col">
             {/* Header */}
-            <div className="flex items-start justify-between gap-6">
+            <div className="flex items-center justify-between gap-6">
               <img
                 src={ASSETS.photo}
                 alt="Swar Yoga"
                 crossOrigin="anonymous"
-                className="w-24 h-24 rounded-full object-cover border-4 shadow"
+                className="w-32 h-32 rounded-full object-cover border-4 shadow flex-shrink-0"
                 style={{ borderColor: '#5b9bd5' }}
               />
-              <div className="text-center flex-1 pt-8 min-w-0">
-                <h1 className="text-6xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
-                <p className="text-2xl italic mt-2 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
+              <div className="text-center flex-1 min-w-0">
+                <h1 className="text-5xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
+                <p className="text-xl italic mt-1 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
               </div>
               <img
                 src={ASSETS.goldBadge}
                 alt="Certificate Badge"
                 crossOrigin="anonymous"
-                className="w-44 h-auto object-contain flex-shrink-0"
+                className="w-52 h-auto object-contain flex-shrink-0"
               />
             </div>
 
             {/* Title */}
-            <div className="text-center mt-2">
-              <h2 className="text-7xl font-extrabold tracking-wide" style={{ color: TEAL }}>CERTIFICATE</h2>
-              <p className="text-3xl mt-2 tracking-[0.3em]" style={{ color: '#1f2937' }}>OF PARTICIPATION</p>
+            <div className="text-center mt-1">
+              <h2 className="text-6xl font-extrabold tracking-wide" style={{ color: TEAL }}>CERTIFICATE</h2>
+              <p className="text-2xl mt-1 tracking-[0.3em]" style={{ color: '#1f2937' }}>OF PARTICIPATION</p>
             </div>
 
             {/* Participant Photo */}
-            <div className="flex justify-center mt-10">
+            <div className="flex justify-center mt-6">
               <ParticipantPhotoFrame
                 photoUrl={sale.certificatePhotoUrl}
                 zoom={sale.certificatePhotoZoom ?? 1}
@@ -417,15 +387,15 @@ export default function CertificatePage() {
             </div>
 
             {/* Presented To */}
-            <div className="text-center mt-8">
-              <p className="text-2xl font-bold text-slate-900">This Certificate is Presented To :</p>
-              <p className="cert-script text-8xl mt-3" style={{ color: TEAL }}>
+            <div className="text-center mt-5">
+              <p className="text-xl font-bold text-slate-900">This Certificate is Presented To :</p>
+              <p className="cert-script text-6xl mt-2" style={{ color: TEAL }}>
                 {certTitle ? `${certTitle}. ` : ''}{customerName}{location ? `, ${location}` : ''}
               </p>
             </div>
 
             {/* Body */}
-            <p className="text-center text-xl text-slate-700 leading-loose mt-8 px-8">
+            <p className="text-center text-base text-slate-700 leading-relaxed mt-4 px-6">
               This is to proudly certify that{' '}
               <span className="font-bold">{certTitle ? `${certTitle}. ` : ''}{customerName}</span>
               {location ? <>, <span className="font-bold">{location}</span></> : ''},{' '}
@@ -437,37 +407,37 @@ export default function CertificatePage() {
             </p>
 
             {/* Reg No */}
-            <p className="text-lg text-slate-700 mt-10">Reg. No.: {certNo}</p>
+            <p className="text-base text-slate-700 mt-4">Reg. No.: {certNo}</p>
             {sale.certificateAddress && (
-              <p className="text-lg text-slate-700 mt-1">Address: {sale.certificateAddress}</p>
+              <p className="text-base text-slate-700 mt-1">Address: {sale.certificateAddress}</p>
             )}
             {sale.certificateMobile && (
-              <p className="text-lg text-slate-700 mt-1">Mobile: {sale.certificateMobile}</p>
+              <p className="text-base text-slate-700 mt-1">Mobile: {sale.certificateMobile}</p>
             )}
 
             {/* Seal & Signature */}
-            <div className="flex items-end justify-between gap-6 mt-8">
+            <div className="flex items-end justify-between gap-6 mt-4">
               <img
                 src={ASSETS.seal}
                 alt="Company Seal"
                 crossOrigin="anonymous"
-                className="w-40 h-40 object-contain"
+                className="w-48 h-48 object-contain"
               />
               <div className="text-center">
                 <img
                   src={ASSETS.signature}
                   alt="Signature"
                   crossOrigin="anonymous"
-                  className="h-40 mx-auto -mb-4 object-contain"
+                  className="h-48 mx-auto -mb-2 object-contain"
                 />
-                <p className="font-bold text-xl text-slate-900 border-t border-slate-400 pt-1 mt-1">MOHAN KALBURGI</p>
-                <p className="text-base text-slate-600">SWAR YOGA ACHARYA</p>
-                <p className="text-sm text-slate-500">CEO &amp; Founder</p>
+                <p className="font-bold text-lg text-slate-900 border-t border-slate-400 pt-1 mt-1">MOHAN KALBURGI</p>
+                <p className="text-sm text-slate-600">SWAR YOGA ACHARYA</p>
+                <p className="text-xs text-slate-500">CEO &amp; Founder</p>
               </div>
             </div>
 
             {/* Footer */}
-            <p className="text-center text-lg text-slate-700 mt-8">
+            <p className="text-center text-base text-slate-700 mt-4">
               off: Maldad road Vedant complex Sangamner-422605. Mo-9309986820
             </p>
           </div>
