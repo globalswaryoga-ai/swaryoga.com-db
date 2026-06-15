@@ -879,6 +879,15 @@ export default function SalesPage() {
             {sale.receiptNumber ? `📄 ${sale.receiptNumber}` : 'Receipts'}
           </button>
 
+          {/* Certificate Button */}
+          <button
+            onClick={() => router.push(`/admin/crm/sales/${sale._id}/certificate`)}
+            className="px-3 py-1.5 bg-black border border-purple-500 text-purple-400 rounded-lg text-sm font-medium transition-colors hover:bg-purple-500 hover:text-white"
+            title="View Certificate"
+          >
+            🎓 Certificate
+          </button>
+
           {/* WhatsApp Button */}
           <button
             onClick={() => {
