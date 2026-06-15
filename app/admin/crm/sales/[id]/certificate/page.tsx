@@ -421,7 +421,7 @@ export default function CertificatePage() {
                 className="w-32 h-32 rounded-full object-cover border-4 shadow flex-shrink-0"
                 style={{ borderColor: '#5b9bd5' }}
               />
-              <div className="text-center flex-1 min-w-0">
+              <div className="text-center flex-1 min-w-0 self-end">
                 <h1 className="text-5xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
                 <p className="text-xl italic mt-1 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
               </div>
