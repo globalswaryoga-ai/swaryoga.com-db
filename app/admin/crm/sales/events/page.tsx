@@ -226,6 +226,80 @@ export default function WorkshopEventsPage() {
     if (autoPrint) setTimeout(() => win.print(), 500);
   }, [buildReportHtml]);
 
+  const buildSingleEventHtml = useCallback((evt: EventRecord) => {
+    const rows = evt.participants.map((p, i) => `
+      <tr style="${i % 2 === 1 ? 'background:#f9fafb;' : ''}">
+        <td style="padding:5px 10px;font-size:11px;">${i + 1}</td>
+        <td style="padding:5px 10px;font-size:11px;font-weight:600;">${p.customerName || ''}</td>
+        <td style="padding:5px 10px;font-size:11px;">${p.customerPhone || '—'}</td>
+        <td style="padding:5px 10px;font-size:11px;text-align:right;">₹${Number(p.amount || 0).toLocaleString('en-IN')}</td>
+        <td style="padding:5px 10px;font-size:11px;text-transform:capitalize;">${(p.paymentMode || '—').replace(/_/g, ' ')}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${evt.workshopName} — ${fmtDate(evt.startDate)}</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; color: #1f2937; line-height: 1.4; }
+          h1 { font-size: 18px; margin-bottom: 4px; color: #6d28d9; }
+          .meta { font-size: 12px; color: #6b7280; margin-bottom: 12px; }
+          .summary { display: flex; gap: 16px; margin: 10px 0; }
+          .stat { background: #f3f4f6; padding: 8px 14px; border-radius: 8px; font-size: 12px; }
+          .stat strong { font-size: 16px; display: block; color: #6d28d9; }
+          table { width: 100%; border-collapse: collapse; border: 1px solid #d1d5db; margin-top: 10px; }
+          th { padding: 6px 10px; text-align: left; font-size: 10px; text-transform: uppercase; color: #6b7280; border-bottom: 2px solid #d1d5db; background: #f3f4f6; }
+          .footer { margin-top: 24px; text-align: center; font-size: 9px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+          .download-bar { text-align: center; margin-bottom: 16px; }
+          .download-btn { background: #6d28d9; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; }
+          @media print { .no-print { display: none !important; } }
+        </style>
+      </head>
+      <body>
+        <div class="download-bar no-print">
+          <button class="download-btn" onclick="window.print()">⬇️ Download PDF</button>
+        </div>
+        <h1>📅 ${evt.workshopName}</h1>
+        <div class="meta">
+          ${fmtDate(evt.startDate)}${evt.endDate ? ' to ' + fmtDate(evt.endDate) : ''} &nbsp;|&nbsp;
+          Time: ${evt.workshopTime || '—'} &nbsp;|&nbsp; Fees: ₹${Number(evt.workshopFees || 0).toLocaleString('en-IN')}
+          ${evt.notes ? `<br/>📝 ${evt.notes}` : ''}
+        </div>
+        <div class="summary">
+          <div class="stat"><strong>${evt.participantCount}</strong>Participants</div>
+          <div class="stat"><strong>₹${Number(evt.totalAmount || 0).toLocaleString('en-IN')}</strong>Total Amount</div>
+        </div>
+        ${rows ? `
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Number</th>
+              <th style="text-align:right;">Amount</th>
+              <th>Bank / Cash</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ` : `<p style="font-size:12px;color:#9ca3af;">No participants.</p>`}
+        <div class="footer">Swar Yoga CRM — Workshop Event Report &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')} &nbsp;|&nbsp; swaryoga.com</div>
+      </body>
+      </html>
+    `;
+  }, []);
+
+  const openSingleEventReport = useCallback((evt: EventRecord) => {
+    const html = buildSingleEventHtml(evt);
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+  }, [buildSingleEventHtml]);
+
   const handleDelete = async (evt: EventRecord) => {
     if (!token) return;
     if (!confirm(`Delete event "${evt.workshopName}" (${fmtDate(evt.startDate)})? This cannot be undone.`)) return;
@@ -383,6 +457,7 @@ export default function WorkshopEventsPage() {
                       </td>
                       <td className="px-4 py-3 text-right font-bold">₹{Number(evt.totalAmount || 0).toLocaleString('en-IN')}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <button onClick={() => openSingleEventReport(evt)} title="Download A4 report" className="text-purple-600 font-bold hover:underline mr-3">⬇️</button>
                         <button onClick={() => handleEdit(evt)} className="text-blue-600 font-bold hover:underline mr-3">Edit</button>
                         <button onClick={() => handleDelete(evt)} className="text-red-600 font-bold hover:underline">Delete</button>
                       </td>
