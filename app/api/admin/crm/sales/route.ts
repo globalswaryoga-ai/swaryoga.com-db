@@ -448,6 +448,19 @@ export async function PUT(request: NextRequest) {
     }
 
     if (updates.transactionId !== undefined) safeUpdates.transactionId = String(updates.transactionId || '').trim() || undefined;
+    if (updates.certificatePhotoUrl !== undefined) safeUpdates.certificatePhotoUrl = String(updates.certificatePhotoUrl || '').trim() || undefined;
+    if (updates.certificatePhotoZoom !== undefined) {
+      const n = Number(updates.certificatePhotoZoom);
+      safeUpdates.certificatePhotoZoom = Number.isFinite(n) && n > 0 ? n : 1;
+    }
+    if (updates.certificatePhotoOffsetX !== undefined) {
+      const n = Number(updates.certificatePhotoOffsetX);
+      safeUpdates.certificatePhotoOffsetX = Number.isFinite(n) ? n : 0;
+    }
+    if (updates.certificatePhotoOffsetY !== undefined) {
+      const n = Number(updates.certificatePhotoOffsetY);
+      safeUpdates.certificatePhotoOffsetY = Number.isFinite(n) ? n : 0;
+    }
     if (updates.customerId !== undefined) safeUpdates.customerId = String(updates.customerId || '').trim() || undefined;
     if (updates.customerName !== undefined) safeUpdates.customerName = String(updates.customerName || '').trim() || undefined;
     if (updates.customerPhone !== undefined) safeUpdates.customerPhone = String(updates.customerPhone || '').trim() || undefined;

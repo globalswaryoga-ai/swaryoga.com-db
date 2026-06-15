@@ -13,6 +13,10 @@ interface SaleRecord {
   batchDate?: string;
   saleDate?: string;
   receiptNumber?: string;
+  certificatePhotoUrl?: string;
+  certificatePhotoZoom?: number;
+  certificatePhotoOffsetX?: number;
+  certificatePhotoOffsetY?: number;
   createdAt: string;
 }
 
@@ -21,11 +25,12 @@ const ASSETS = {
   photo: 'https://swaryogacrm.b-cdn.net/mohan.jpg',
   signature: 'https://swaryogacrm.b-cdn.net/ChatGPT%20Image%20Aug%2021%2C%202025%20at%2004_08_28%20PM.png',
   seal: 'https://swaryogacrm.b-cdn.net/Blue%20Ink%20Stamp%20of%20Upamanyu%20Ltd..png',
+  goldBadge: 'https://swaryogacrm.b-cdn.net/certi.jpg',
 };
 
 const TEAL = '#2c6975';
 const GOLD = '#cda349';
-const BROWN = '#6b4423';
+const BROWN = '#906126';
 const RUST = '#c0512f';
 
 function formatMonthYear(d?: string | Date) {
@@ -46,7 +51,7 @@ function CornerBanner({ corner }: { corner: 'top-left' | 'bottom-right' }) {
   const isTopLeft = corner === 'top-left';
   return (
     <svg
-      className={`absolute ${isTopLeft ? 'top-0 left-0' : 'bottom-0 right-0'} w-72 h-72 pointer-events-none`}
+      className={`absolute ${isTopLeft ? 'top-0 left-0' : 'bottom-0 right-0'} w-96 h-96 pointer-events-none`}
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
       aria-hidden="true"
@@ -66,26 +71,70 @@ function CornerBanner({ corner }: { corner: 'top-left' | 'bottom-right' }) {
   );
 }
 
-// Decorative gold rosette / medal badge.
-function RosetteBadge() {
-  const lines = Array.from({ length: 16 }, (_, i) => {
-    const angle = (i * 360) / 16;
-    const rad = (angle * Math.PI) / 180;
-    const x1 = 45 + 32 * Math.cos(rad);
-    const y1 = 45 + 32 * Math.sin(rad);
-    const x2 = 45 + 46 * Math.cos(rad);
-    const y2 = 45 + 46 * Math.sin(rad);
-    return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={GOLD} strokeWidth="7" strokeLinecap="round" />;
-  });
+// Participant photo frame with optional drag-to-reposition (edit mode only).
+function ParticipantPhotoFrame({
+  photoUrl,
+  zoom,
+  offsetX,
+  offsetY,
+  initials,
+  editable,
+  onDrag,
+}: {
+  photoUrl?: string;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  initials: string;
+  editable: boolean;
+  onDrag?: (newOffsetX: number, newOffsetY: number) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+
+  const handlePointerDown = (e: React.MouseEvent) => {
+    if (!editable || !onDrag) return;
+    e.preventDefault();
+    setDragging(true);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const baseX = offsetX;
+    const baseY = offsetY;
+
+    const handleMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      onDrag(baseX + dx, baseY + dy);
+    };
+    const handleUp = () => {
+      setDragging(false);
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  };
 
   return (
-    <svg width="110" height="150" viewBox="0 0 90 150" aria-hidden="true">
-      {lines}
-      <circle cx="45" cy="45" r="34" fill={GOLD} stroke="#a9842f" strokeWidth="2" />
-      <circle cx="45" cy="45" r="22" fill="#fff8e1" stroke={GOLD} strokeWidth="2" />
-      <polygon points="22,68 45,55 68,68 60,140 45,112 30,140" fill={GOLD} />
-      <polygon points="30,70 45,60 60,70 55,125 45,108 35,125" fill="#e8c878" />
-    </svg>
+    <div
+      className="relative w-56 h-64 overflow-hidden bg-gray-100 select-none"
+      style={{ border: '6px solid #5b9bd5', cursor: editable && photoUrl ? (dragging ? 'grabbing' : 'grab') : 'default' }}
+      onMouseDown={handlePointerDown}
+    >
+      {photoUrl ? (
+        <img
+          src={photoUrl}
+          alt="Participant"
+          crossOrigin="anonymous"
+          draggable={false}
+          className="absolute top-1/2 left-1/2 w-full h-full object-cover"
+          style={{ transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) scale(${zoom})` }}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <span className="text-6xl font-bold text-gray-400">{initials}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -99,6 +148,15 @@ export default function CertificatePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Participant photo editor (admin-only: URL + zoom + position)
+  const [editingPhoto, setEditingPhoto] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [photoZoom, setPhotoZoom] = useState(1);
+  const [photoOffsetX, setPhotoOffsetX] = useState(0);
+  const [photoOffsetY, setPhotoOffsetY] = useState(0);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || !token) return;
@@ -119,13 +177,19 @@ export default function CertificatePage() {
         }
 
         const data = await response.json();
+        let saleData: SaleRecord | null = null;
         if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-          setSale(data.data[0]);
+          saleData = data.data[0];
         } else if (data.data && !Array.isArray(data.data)) {
-          setSale(data.data);
+          saleData = data.data;
         } else {
           throw new Error('Sale not found');
         }
+        setSale(saleData);
+        setPhotoUrl(saleData?.certificatePhotoUrl || '');
+        setPhotoZoom(saleData?.certificatePhotoZoom ?? 1);
+        setPhotoOffsetX(saleData?.certificatePhotoOffsetX ?? 0);
+        setPhotoOffsetY(saleData?.certificatePhotoOffsetY ?? 0);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load sale');
       } finally {
@@ -165,6 +229,46 @@ export default function CertificatePage() {
       pdf.save(`Certificate-${certNo}.pdf`);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleSavePhoto = async () => {
+    if (!token || !sale) return;
+    setSavingPhoto(true);
+    setPhotoError(null);
+    try {
+      const response = await fetch('/api/admin/crm/sales', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          saleId: sale._id,
+          certificatePhotoUrl: photoUrl,
+          certificatePhotoZoom: photoZoom,
+          certificatePhotoOffsetX: photoOffsetX,
+          certificatePhotoOffsetY: photoOffsetY,
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to save photo');
+      }
+
+      setSale((prev) => prev ? {
+        ...prev,
+        certificatePhotoUrl: photoUrl,
+        certificatePhotoZoom: photoZoom,
+        certificatePhotoOffsetX: photoOffsetX,
+        certificatePhotoOffsetY: photoOffsetY,
+      } : prev);
+      setEditingPhoto(false);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Failed to save photo');
+    } finally {
+      setSavingPhoto(false);
     }
   };
 
@@ -235,39 +339,44 @@ export default function CertificatePage() {
                 className="w-24 h-24 rounded-full object-cover border-4 shadow"
                 style={{ borderColor: '#5b9bd5' }}
               />
-              <div className="text-center flex-1 pt-2">
-                <h1 className="text-5xl font-extrabold" style={{ color: BROWN }}>Swar Yoga</h1>
-                <p className="text-xl italic mt-1" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
+              <div className="text-center flex-1 pt-2 min-w-0">
+                <h1 className="text-6xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
+                <p className="text-2xl italic mt-2 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
               </div>
-              <div className="flex-shrink-0 mt-2">
-                <RosetteBadge />
-              </div>
+              <img
+                src={ASSETS.goldBadge}
+                alt="Certificate Badge"
+                crossOrigin="anonymous"
+                className="w-44 h-auto object-contain flex-shrink-0"
+              />
             </div>
 
             {/* Title */}
-            <div className="text-center mt-4">
-              <h2 className="text-6xl font-extrabold tracking-wide" style={{ color: TEAL }}>CERTIFICATE</h2>
-              <p className="text-2xl mt-1 tracking-[0.3em]" style={{ color: '#1f2937' }}>OF PARTICIPATION</p>
+            <div className="text-center mt-6">
+              <h2 className="text-7xl font-extrabold tracking-wide" style={{ color: TEAL }}>CERTIFICATE</h2>
+              <p className="text-3xl mt-2 tracking-[0.3em]" style={{ color: '#1f2937' }}>OF PARTICIPATION</p>
             </div>
 
             {/* Participant Photo */}
-            <div className="flex justify-center mt-8">
-              <div
-                className="w-48 h-56 flex items-center justify-center bg-gray-100"
-                style={{ border: `6px solid #5b9bd5` }}
-              >
-                <span className="text-6xl font-bold text-gray-400">{initialsOf(customerName)}</span>
-              </div>
+            <div className="flex justify-center mt-10">
+              <ParticipantPhotoFrame
+                photoUrl={sale.certificatePhotoUrl}
+                zoom={sale.certificatePhotoZoom ?? 1}
+                offsetX={sale.certificatePhotoOffsetX ?? 0}
+                offsetY={sale.certificatePhotoOffsetY ?? 0}
+                initials={initialsOf(customerName)}
+                editable={false}
+              />
             </div>
 
             {/* Presented To */}
-            <div className="text-center mt-6">
-              <p className="text-xl font-bold text-slate-900">This Certificate is Presented To :</p>
-              <p className="cert-script text-7xl mt-2" style={{ color: TEAL }}>{customerName}</p>
+            <div className="text-center mt-8">
+              <p className="text-2xl font-bold text-slate-900">This Certificate is Presented To :</p>
+              <p className="cert-script text-8xl mt-3" style={{ color: TEAL }}>{customerName}</p>
             </div>
 
             {/* Body */}
-            <p className="text-center text-lg text-slate-700 leading-relaxed mt-6 px-6">
+            <p className="text-center text-xl text-slate-700 leading-loose mt-8 px-8">
               This is to proudly certify that <span className="font-bold">{customerName},</span> has successfully completed the Swar Yoga
               {' – '}<span className="font-bold">{workshopName}</span> organized by Upamnyu International Swar Yoga Education.
               With consistent enthusiasm, active involvement, and sincere dedication to learning and practicing Swar Yoga principles,
@@ -276,36 +385,114 @@ export default function CertificatePage() {
             </p>
 
             {/* Reg No */}
-            <p className="text-base text-slate-700 mt-8">Reg. No.: {certNo}</p>
+            <p className="text-lg text-slate-700 mt-10">Reg. No.: {certNo}</p>
+
+            <div className="flex-1" />
 
             {/* Seal & Signature */}
-            <div className="flex items-end justify-between gap-6 mt-6">
+            <div className="flex items-end justify-between gap-6 mt-8">
               <img
                 src={ASSETS.seal}
                 alt="Company Seal"
                 crossOrigin="anonymous"
-                className="w-32 h-32 object-contain"
+                className="w-40 h-40 object-contain"
               />
               <div className="text-center">
                 <img
                   src={ASSETS.signature}
                   alt="Signature"
                   crossOrigin="anonymous"
-                  className="h-32 mx-auto -mb-4 object-contain"
+                  className="h-40 mx-auto -mb-4 object-contain"
                 />
-                <p className="font-bold text-lg text-slate-900 border-t border-slate-400 pt-1 mt-1">MOHAN KALBURGI</p>
-                <p className="text-sm text-slate-600">SWAR YOGA ACHARYA</p>
-                <p className="text-xs text-slate-500">CEO &amp; Founder</p>
+                <p className="font-bold text-xl text-slate-900 border-t border-slate-400 pt-1 mt-1">MOHAN KALBURGI</p>
+                <p className="text-base text-slate-600">SWAR YOGA ACHARYA</p>
+                <p className="text-sm text-slate-500">CEO &amp; Founder</p>
               </div>
             </div>
 
-            <div className="flex-1" />
-
             {/* Footer */}
-            <p className="text-center text-base text-slate-700 mt-6">
+            <p className="text-center text-lg text-slate-700 mt-8">
               off: Maldad road Vedant complex Sangamner-422605. Mo-9309986820
             </p>
           </div>
+        </div>
+
+        {/* Participant Photo Editor (admin only) - Hidden on print */}
+        <div className="mt-6 bg-gray-900 border border-white/20 rounded-lg p-4 print:hidden">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold">Participant Photo</h3>
+            <button
+              onClick={() => {
+                if (editingPhoto) {
+                  // Cancel - revert to last saved values
+                  setPhotoUrl(sale.certificatePhotoUrl || '');
+                  setPhotoZoom(sale.certificatePhotoZoom ?? 1);
+                  setPhotoOffsetX(sale.certificatePhotoOffsetX ?? 0);
+                  setPhotoOffsetY(sale.certificatePhotoOffsetY ?? 0);
+                  setPhotoError(null);
+                }
+                setEditingPhoto(!editingPhoto);
+              }}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              {editingPhoto ? 'Cancel' : '✏️ Edit Photo'}
+            </button>
+          </div>
+
+          {editingPhoto && (
+            <div className="mt-4 flex flex-col md:flex-row gap-6 items-start">
+              <ParticipantPhotoFrame
+                photoUrl={photoUrl}
+                zoom={photoZoom}
+                offsetX={photoOffsetX}
+                offsetY={photoOffsetY}
+                initials={initialsOf(customerName)}
+                editable
+                onDrag={(nx, ny) => { setPhotoOffsetX(nx); setPhotoOffsetY(ny); }}
+              />
+              <div className="flex-1 w-full flex flex-col gap-4">
+                <div>
+                  <label className="block text-white text-sm mb-1 font-semibold">Photo URL</label>
+                  <input
+                    type="text"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white text-sm mb-1 font-semibold">Zoom: {photoZoom.toFixed(2)}x</label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="3"
+                    step="0.05"
+                    value={photoZoom}
+                    onChange={(e) => setPhotoZoom(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                <p className="text-xs text-white/50">Drag the photo above to move it left/right/up/down within the frame.</p>
+                {photoError && <AlertBox type="error" message={photoError} onClose={() => setPhotoError(null)} />}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSavePhoto}
+                    disabled={savingPhoto}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    {savingPhoto ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => { setPhotoOffsetX(0); setPhotoOffsetY(0); setPhotoZoom(1); }}
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition-colors border border-white/20"
+                  >
+                    Reset Position
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons - Hidden on print */}

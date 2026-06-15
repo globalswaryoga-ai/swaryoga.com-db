@@ -1148,6 +1148,22 @@ const SalesReportSchema = new mongoose.Schema(
     receiptId: { type: mongoose.Schema.Types.ObjectId, ref: 'CrmReceipt', sparse: true },
     receiptNumber: { type: String, trim: true },
 
+    // Certificate of Participation - participant photo (admin-uploaded URL with crop/zoom)
+    certificatePhotoUrl: { type: String, trim: true },
+    certificatePhotoZoom: { type: Number, default: 1 },
+    certificatePhotoOffsetX: { type: Number, default: 0 },
+    certificatePhotoOffsetY: { type: Number, default: 0 },
+
+    // Certificate of Participation - self-service participant details (collected via public form)
+    certificateTitle: { type: String, trim: true },
+    certificateName: { type: String, trim: true },
+    certificateAddress: { type: String, trim: true },
+    certificateMobile: { type: String, trim: true },
+    certificatePlace: { type: String, trim: true },
+    certificatePincode: { type: String, trim: true },
+    certificateState: { type: String, trim: true },
+    certificateCountry: { type: String, trim: true },
+
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'sales_reports' }

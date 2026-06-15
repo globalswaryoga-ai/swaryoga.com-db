@@ -55,6 +55,7 @@ export default function EnquiriesPage() {
   const [formsLoading, setFormsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedCertId, setCopiedCertId] = useState<string | null>(null);
 
   // New form state
   const [newWsName, setNewWsName] = useState('');
@@ -221,6 +222,15 @@ export default function EnquiriesPage() {
     navigator.clipboard.writeText(link).then(() => {
       setCopiedId(formId);
       setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const copyCertLink = (enquiry: Enquiry) => {
+    const ref = enquiry.leadId || enquiry.id;
+    const link = `${window.location.origin}/certificate-details/lead-${ref}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedCertId(enquiry.id);
+      setTimeout(() => setCopiedCertId(null), 2000);
     });
   };
 
@@ -754,6 +764,12 @@ export default function EnquiriesPage() {
                         +
                       </button>
                     </div>
+                    <button
+                      onClick={() => copyCertLink(enquiry)}
+                      className="w-full flex items-center justify-center gap-1.5 text-sm text-purple-700 font-medium py-1 mb-1"
+                    >
+                      {copiedCertId === enquiry.id ? <><Check size={14} /> Copied!</> : <><Link2 size={14} /> Copy Certificate Link</>}
+                    </button>
                     <button onClick={() => openEdit(enquiry)} className="w-full flex items-center justify-center gap-1.5 text-sm text-swar-primary font-medium py-1 mb-1"><Pencil size={14} /> Edit</button>
                     <button
                       onClick={() => toggleHide(enquiry)}
@@ -842,6 +858,13 @@ export default function EnquiriesPage() {
                                 }`}
                               >
                                 +
+                              </button>
+                              <button
+                                onClick={() => copyCertLink(enquiry)}
+                                title="Copy Certificate Details link"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-xs font-semibold transition-colors"
+                              >
+                                {copiedCertId === enquiry.id ? <><Check size={13} /> Copied!</> : <><Link2 size={13} /> Cert</>}
                               </button>
                               <button
                                 onClick={() => openEdit(enquiry)}
