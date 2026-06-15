@@ -261,60 +261,7 @@ export default function SalesPage() {
 
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState<string>('');
-
   const [generatingFromLeads, setGeneratingFromLeads] = useState(false);
-
-  const handleGenerateFromLeads = useCallback(async () => {
-    if (!token || !isSuperAdmin) return;
-
-    const ok = window.confirm(
-      'Generate monthly sales entries from leads for April 2025 - March 2026?\n\n' +
-      'This will create entries for:\n' +
-      '• Swar Yoga L-1: ₹693,000 (3500/person)\n' +
-      '• Swar Yoga L-2: ₹181,500 (3000/person)\n' +
-      '• Swar Yoga L-3: ₹108,900 (3000/person)\n' +
-      '• Master Class: ₹204,000\n' +
-      '• Weight Loss: ₹80,500\n' +
-      '• Amrut aahat: ₹44,000\n' +
-      '• Meditation Class: ₹45,000'
-    );
-
-    if (!ok) return;
-
-    setGeneratingFromLeads(true);
-    setError(null);
-
-    try {
-      const res = await crmFetch('/api/admin/crm/sales/generate-from-leads', {
-        method: 'POST',
-        body: {
-          startMonth: '2025-04',
-          endMonth: '2026-03',
-          workshops: [
-            { workshopName: 'Swar Yoga L-1', totalIncome: 693000, feePerPerson: 3500 },
-            { workshopName: 'Swar Yoga L-2', totalIncome: 181500, feePerPerson: 3000 },
-            { workshopName: 'Swar Yoga L-3', totalIncome: 108900, feePerPerson: 3000 },
-            { workshopName: 'Swar Yoga Master Class', totalIncome: 204000, feePerPerson: 6800 },
-            { workshopName: 'Weight Loss', totalIncome: 80500, feePerPerson: 3500 },
-            { workshopName: 'Amrut aahat', totalIncome: 44000, feePerPerson: 2200 },
-            { workshopName: 'Meditation Class', totalIncome: 45000, feePerPerson: 2250 },
-          ],
-        },
-      });
-
-      if (res?.success) {
-        alert(`✅ Generated ${res.createdCount} sales entries from leads`);
-        // Refresh sales list
-        await fetchSalesData();
-      } else {
-        throw new Error(res?.error || 'Generation failed');
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to generate sales from leads');
-    } finally {
-      setGeneratingFromLeads(false);
-    }
-  }, [token, isSuperAdmin, crmFetch, fetchSalesData]);
 
   const bulkDeleteSelected = useCallback(
     async (opts?: { clearAfter?: () => void; refreshAfter?: () => Promise<void> | void }) => {
@@ -385,10 +332,60 @@ export default function SalesPage() {
     }
   }, [crmFetch, view, appliedFilters]);
 
+  // Define handleGenerateFromLeads AFTER fetchSalesData
+  const handleGenerateFromLeads = useCallback(async () => {
+    if (!token || !isSuperAdmin) return;
+
+    const ok = window.confirm(
+      'Generate monthly sales entries from leads for April 2025 - March 2026?\n\n' +
+      'This will create entries for:\n' +
+      '• Swar Yoga L-1: ₹693,000 (3500/person)\n' +
+      '• Swar Yoga L-2: ₹181,500 (3000/person)\n' +
+      '• Swar Yoga L-3: ₹108,900 (3000/person)\n' +
+      '• Master Class: ₹204,000\n' +
+      '• Weight Loss: ₹80,500\n' +
+      '• Amrut aahat: ₹44,000\n' +
+      '• Meditation Class: ₹45,000'
+    );
+
+    if (!ok) return;
+
+    setGeneratingFromLeads(true);
+    setError(null);
+
+    try {
+      const res = await crmFetch('/api/admin/crm/sales/generate-from-leads', {
+        method: 'POST',
+        body: {
+          startMonth: '2025-04',
+          endMonth: '2026-03',
+          workshops: [
+            { workshopName: 'Swar Yoga L-1', totalIncome: 693000, feePerPerson: 3500 },
+            { workshopName: 'Swar Yoga L-2', totalIncome: 181500, feePerPerson: 3000 },
+            { workshopName: 'Swar Yoga L-3', totalIncome: 108900, feePerPerson: 3000 },
+            { workshopName: 'Swar Yoga Master Class', totalIncome: 204000, feePerPerson: 6800 },
+            { workshopName: 'Weight Loss', totalIncome: 80500, feePerPerson: 3500 },
+            { workshopName: 'Amrut aahat', totalIncome: 44000, feePerPerson: 2200 },
+            { workshopName: 'Meditation Class', totalIncome: 45000, feePerPerson: 2250 },
+          ],
+        },
+      });
+
+      if (res?.success) {
+        alert(`✅ Generated ${res.createdCount} sales entries from leads`);
+        await fetchSalesData();
+      } else {
+        throw new Error(res?.error || 'Generation failed');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to generate sales from leads');
+    } finally {
+      setGeneratingFromLeads(false);
+    }
+  }, [token, isSuperAdmin, crmFetch, fetchSalesData]);
+
   useEffect(() => {
-    // Don't attempt fetch if token isn't loaded yet (null = loading, empty string = not authenticated)
     if (token === null) return;
-    
     if (!token) return;
     fetchSalesData();
   }, [token, router, fetchSalesData]);
@@ -898,7 +895,7 @@ export default function SalesPage() {
   const lightTheme = !isSuperAdmin;
 
   return (
-    <div className={`min-h-screen p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : 'bg-black'}`}>
+    <div className={`min-h-screen p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : ''}`} style={{backgroundColor: '#1a0f2e'}}>
       {lightTheme && (
         <style jsx global>{`
           .crm-light .text-white { color: #0f172a !important; }
@@ -932,34 +929,34 @@ export default function SalesPage() {
                 </svg>
               </button>
               <div>
-                <h1 className="text-4xl font-bold text-emerald-400">Sales Management</h1>
-                <p className="text-white/70 text-lg">Track revenue, transactions, and workshop sales</p>
+                <h1 className="text-4xl font-bold text-purple-300">Sales Management</h1>
+                <p className="text-purple-200/70 text-lg">Track revenue, transactions, and workshop sales</p>
               </div>
             </div>
           </div>
           <div className="flex gap-3 flex-wrap justify-end">
             <button
               onClick={downloadCsv}
-              className="bg-black border border-emerald-500 text-emerald-400 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-emerald-600 hover:text-white"
+              className="bg-purple-900/30 border border-purple-400 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-purple-600 hover:text-white"
             >
               📤 Export
             </button>
             <button
               onClick={() => setShowUploadModal(true)}
-              className="bg-black border border-yellow-500 text-yellow-400 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-yellow-400 hover:text-black"
+              className="bg-purple-900/30 border border-violet-400 text-violet-300 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-violet-600 hover:text-white"
             >
               📤 Upload
             </button>
             <button
               onClick={handleGenerateFromLeads}
               disabled={generatingFromLeads}
-              className="bg-black border border-blue-500 text-blue-400 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-blue-600 hover:text-white disabled:opacity-50"
+              className="bg-purple-900/30 border border-purple-500 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-purple-600 hover:text-white disabled:opacity-50"
             >
               {generatingFromLeads ? '⏳ Generating...' : '📊 Gen Sales'}
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-black border-2 border-emerald-500 text-emerald-400 px-6 py-2 rounded-lg transition-all font-bold hover:bg-emerald-600 hover:text-white"
+              className="bg-purple-600 border-2 border-purple-400 text-white px-6 py-2 rounded-lg transition-all font-bold hover:bg-purple-700 hover:text-white"
             >
               + Record Sale
             </button>
