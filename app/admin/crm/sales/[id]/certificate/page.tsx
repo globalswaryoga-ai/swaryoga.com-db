@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
@@ -19,6 +19,8 @@ interface SaleRecord {
   certificatePhotoOffsetY?: number;
   certificateTitle?: string;
   certificateName?: string;
+  certificateAddress?: string;
+  certificateMobile?: string;
   certificatePlace?: string;
   certificateState?: string;
   certificateCountry?: string;
@@ -121,8 +123,8 @@ function ParticipantPhotoFrame({
 
   return (
     <div
-      className="relative w-56 h-64 overflow-hidden bg-gray-100 select-none"
-      style={{ border: '6px solid #5b9bd5', cursor: editable && photoUrl ? (dragging ? 'grabbing' : 'grab') : 'default' }}
+      className="relative w-36 h-44 overflow-hidden bg-gray-100 select-none"
+      style={{ border: '4px solid #5b9bd5', cursor: editable && photoUrl ? (dragging ? 'grabbing' : 'grab') : 'default' }}
       onMouseDown={handlePointerDown}
     >
       {photoUrl ? (
@@ -136,7 +138,7 @@ function ParticipantPhotoFrame({
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
-          <span className="text-6xl font-bold text-gray-400">{initials}</span>
+          <span className="text-4xl font-bold text-gray-400">{initials}</span>
         </div>
       )}
     </div>
@@ -153,6 +155,11 @@ export default function CertificatePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Scale-to-fit: keep the certificate body within a fixed A4 page regardless of content height.
+  const certPageRef = useRef<HTMLDivElement>(null);
+  const certBodyRef = useRef<HTMLDivElement>(null);
+  const [certScale, setCertScale] = useState(1);
 
   // Participant photo editor (admin-only: URL + zoom + position)
   const [editingPhoto, setEditingPhoto] = useState(false);
@@ -204,6 +211,26 @@ export default function CertificatePage() {
 
     fetchSale();
   }, [id, token]);
+
+  // Recompute the scale factor so the certificate body always fits within a fixed A4 page.
+  useEffect(() => {
+    const page = certPageRef.current;
+    const body = certBodyRef.current;
+    if (!page || !body) return;
+
+    const recalc = () => {
+      const style = window.getComputedStyle(page);
+      const paddingV = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const available = page.clientHeight - paddingV;
+      const natural = body.scrollHeight;
+      setCertScale(natural > available ? available / natural : 1);
+    };
+
+    recalc();
+    const observer = new ResizeObserver(recalc);
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [sale]);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -322,7 +349,7 @@ export default function CertificatePage() {
         .cert-script { font-family: 'Great Vibes', cursive; }
         @media print {
           @page { size: A4; margin: 0; }
-          .certificate-a4 { width: 210mm; min-height: 297mm; }
+          .certificate-a4 { width: 210mm; height: 297mm; }
         }
       `}</style>
 
@@ -338,13 +365,18 @@ export default function CertificatePage() {
         {/* Certificate Document */}
         <div
           id="certificate-content"
+          ref={certPageRef}
           className="certificate-a4 relative bg-white overflow-hidden mx-auto print:mx-auto"
-          style={{ width: '210mm', minHeight: '297mm', padding: '16mm' }}
+          style={{ width: '210mm', height: '297mm', padding: '16mm' }}
         >
           <CornerBanner corner="top-left" />
           <CornerBanner corner="bottom-right" />
 
-          <div className="relative z-10 flex flex-col h-full">
+          <div
+            ref={certBodyRef}
+            className="relative z-10 flex flex-col"
+            style={{ transform: `scale(${certScale})`, transformOrigin: 'top center' }}
+          >
             {/* Header */}
             <div className="flex items-start justify-between gap-6">
               <img
@@ -387,7 +419,9 @@ export default function CertificatePage() {
             {/* Presented To */}
             <div className="text-center mt-8">
               <p className="text-2xl font-bold text-slate-900">This Certificate is Presented To :</p>
-              <p className="cert-script text-8xl mt-3" style={{ color: TEAL }}>{customerName}</p>
+              <p className="cert-script text-8xl mt-3" style={{ color: TEAL }}>
+                {certTitle ? `${certTitle}. ` : ''}{customerName}{location ? `, ${location}` : ''}
+              </p>
             </div>
 
             {/* Body */}
@@ -404,8 +438,12 @@ export default function CertificatePage() {
 
             {/* Reg No */}
             <p className="text-lg text-slate-700 mt-10">Reg. No.: {certNo}</p>
-
-            <div className="flex-1" />
+            {sale.certificateAddress && (
+              <p className="text-lg text-slate-700 mt-1">Address: {sale.certificateAddress}</p>
+            )}
+            {sale.certificateMobile && (
+              <p className="text-lg text-slate-700 mt-1">Mobile: {sale.certificateMobile}</p>
+            )}
 
             {/* Seal & Signature */}
             <div className="flex items-end justify-between gap-6 mt-8">
