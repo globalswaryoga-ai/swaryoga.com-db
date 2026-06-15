@@ -48,7 +48,9 @@ function parseStatementDate(token: string): Date | null {
 }
 
 const DATE_RE = /^\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{1,2}[\s\-][A-Za-z]{3,9}[\s\-]?\d{2,4})/;
-const AMOUNT_RE = /\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?/g;
+// Require a decimal point (2 digits) so bare reference/transaction-ID digit
+// runs (e.g. "509821219211") are never mistaken for monetary amounts.
+const AMOUNT_RE = /\d+(?:,\d{2,3})*\.\d{2}/g;
 const CREDIT_RE = /\b(cr|credit|deposit)\b/i;
 const DEBIT_RE = /\b(dr|debit|withdrawal)\b/i;
 
