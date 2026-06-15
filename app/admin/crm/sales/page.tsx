@@ -1420,24 +1420,93 @@ export default function SalesPage() {
               </button>
             </div>
 
-            <CSVUploadPanel
-              previewColumns={['name', 'phone', 'email', 'workshop', 'amount', 'date', 'customerId']}
-              contacts={csvContacts}
-              fileName={csvFileName}
-              columnMap={csvColumnMap}
-              accent="purple"
-              label="Upload CSV or Excel — Auto-detect Name, Phone, Amount, Workshop, Date"
-              onContactsParsed={(contacts, colMap, name) => {
-                setCsvContacts(contacts);
-                setCsvColumnMap(colMap);
-                setCsvFileName(name);
-              }}
-              onRemove={() => {
-                setCsvContacts([]);
-                setCsvColumnMap(null);
-                setCsvFileName('');
-              }}
-            />
+            {/* CSV/Excel Upload */}
+            <div className="space-y-3">
+              <h3 className="text-white font-semibold">CSV or Excel File</h3>
+              <CSVUploadPanel
+                previewColumns={['name', 'phone', 'email', 'workshop', 'amount', 'date', 'customerId']}
+                contacts={csvContacts}
+                fileName={csvFileName}
+                columnMap={csvColumnMap}
+                accent="purple"
+                label="Upload CSV or Excel — Auto-detect Name, Phone, Amount, Workshop, Date"
+                onContactsParsed={(contacts, colMap, name) => {
+                  setCsvContacts(contacts);
+                  setCsvColumnMap(colMap);
+                  setCsvFileName(name);
+                }}
+                onRemove={() => {
+                  setCsvContacts([]);
+                  setCsvColumnMap(null);
+                  setCsvFileName('');
+                }}
+              />
+            </div>
+
+            {/* PDF Upload */}
+            <div className="space-y-3 border-t border-white/20 pt-4">
+              <h3 className="text-white font-semibold">Or Upload Bank Statement PDF</h3>
+              <label className="block">
+                <div className="border-2 border-dashed border-blue-500/50 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.currentTarget.files?.[0];
+                      if (!file) return;
+
+                      setCsvImporting(true);
+                      try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        const res = await fetch('/api/admin/crm/sales/extract-pdf', {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${token}` },
+                          body: formData,
+                        });
+
+                        const data = await res.json();
+                        if (res.ok && data.extracted?.length > 0) {
+                          // Auto-map extracted sales to contacts format
+                          const mappedContacts = data.extracted.map((sale: any) => ({
+                            name: sale.customerName,
+                            raw: {
+                              name: sale.customerName,
+                              amount: sale.saleAmount,
+                              date: sale.saleDate,
+                            },
+                          }));
+
+                          setCsvContacts(mappedContacts);
+                          setCsvColumnMap({
+                            name: 0,
+                            amount: 1,
+                            date: 2,
+                          });
+                          setCsvFileName(`${file.name} (${data.count} entries)`);
+                          alert(`✅ Extracted ${data.count} sales entries from PDF`);
+                        } else {
+                          alert(`❌ ${data.error || 'Failed to extract PDF'}`);
+                        }
+                      } catch (err) {
+                        alert('❌ Error processing PDF');
+                        console.error(err);
+                      } finally {
+                        setCsvImporting(false);
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                  />
+                  <div className="text-blue-400">
+                    <div className="text-2xl mb-2">📄</div>
+                    <p className="font-semibold">Drop PDF here or click to select</p>
+                    <p className="text-sm text-white/50 mt-1">Bank statements auto-extract: Amount, Date, Name</p>
+                  </div>
+                </div>
+              </label>
+            </div>
 
             {csvContacts.length > 0 && (
               <div className="bg-emerald-900/30 rounded-lg p-3 border border-emerald-500/30">
