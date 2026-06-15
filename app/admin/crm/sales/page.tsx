@@ -151,6 +151,13 @@ export default function SalesPage() {
     setBulkActionsOpen(selectedSaleIds.size >= 2);
   }, [selectedSaleIds]);
 
+  // Add-to-Event modal
+  const [addToEventOpen, setAddToEventOpen] = useState(false);
+  const [eventOptions, setEventOptions] = useState<Array<{ _id: string; month: string; workshopName: string; startDate: string; participantCount: number }>>([]);
+  const [loadingEventOptions, setLoadingEventOptions] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [addingToEvent, setAddingToEvent] = useState(false);
+
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [daily, setDaily] = useState<SalesAggRow[]>([]);
@@ -158,6 +165,7 @@ export default function SalesPage() {
   const [monthly, setMonthly] = useState<SalesAggRow[]>([]);
   const [yearly, setYearly] = useState<SalesAggRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'summary' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('list');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -302,6 +310,43 @@ export default function SalesPage() {
       }
     },
     [crmFetch, selectedSaleIds]
+  );
+
+  const openAddToEvent = useCallback(async () => {
+    setAddToEventOpen(true);
+    setSelectedEventId('');
+    setLoadingEventOptions(true);
+    try {
+      const list = await crmFetch('/api/admin/crm/sales/events', { params: { limit: 1000 } });
+      setEventOptions(Array.isArray(list) ? list : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load events');
+    } finally {
+      setLoadingEventOptions(false);
+    }
+  }, [crmFetch]);
+
+  const addSelectedToEvent = useCallback(
+    async (opts?: { clearAfter?: () => void }) => {
+      const ids = Array.from(selectedSaleIds);
+      if (!ids.length || !selectedEventId) return;
+      setAddingToEvent(true);
+      setError(null);
+      try {
+        await crmFetch(`/api/admin/crm/sales/events/${selectedEventId}`, {
+          method: 'PUT',
+          body: { addSaleIds: ids },
+        });
+        setSuccessMsg(`Added ${ids.length} sale(s) to the event`);
+        setAddToEventOpen(false);
+        opts?.clearAfter?.();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to add to event');
+      } finally {
+        setAddingToEvent(false);
+      }
+    },
+    [crmFetch, selectedSaleIds, selectedEventId]
   );
 
   const toggleSaleSelection = useCallback((saleId: string, opts?: { force?: boolean }) => {
@@ -1025,6 +1070,14 @@ export default function SalesPage() {
           </div>
         )}
 
+        {/* Success Alert */}
+        {successMsg && (
+          <div className="bg-emerald-900/30 border border-emerald-500/50 rounded-lg p-4 text-emerald-300 flex justify-between items-center backdrop-blur-sm">
+            <span className="font-medium">{successMsg}</span>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300 font-bold text-xl">×</button>
+          </div>
+        )}
+
         {/* View Selector - Professional Tabs */}
         <div className="flex gap-2 flex-wrap bg-black border border-white/30 rounded-xl p-2 w-fit">
           {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
@@ -1073,6 +1126,14 @@ export default function SalesPage() {
                 className="px-3 py-1.5 bg-black border border-emerald-500 text-emerald-400 rounded-lg font-semibold hover:bg-emerald-600 hover:text-white transition-colors"
               >
                 Actions
+              </button>
+
+              <button
+                onClick={openAddToEvent}
+                className="px-3 py-1.5 bg-black border border-purple-400 text-purple-300 rounded-lg font-semibold hover:bg-purple-600 hover:text-white transition-colors"
+                title="Add selected sales to an Event"
+              >
+                📅 Add to Event
               </button>
 
               <button
@@ -1919,6 +1980,62 @@ export default function SalesPage() {
             </div>
           </div>
         </FormModal>
+      )}
+
+      {/* ── Add to Event Modal ── */}
+      {addToEventOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50">
+          <div className="bg-gray-950 border-2 border-white/30 rounded-xl p-6 max-w-lg w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-purple-400">📅 Add to Event</h2>
+              <button
+                onClick={() => setAddToEventOpen(false)}
+                className="text-white/40 hover:text-white text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-white/60 text-sm">
+              Add {selectedSaleIds.size} selected sale(s) as participants to an existing event.
+            </p>
+
+            {loadingEventOptions ? (
+              <div className="text-white/60 text-sm">Loading events...</div>
+            ) : eventOptions.length === 0 ? (
+              <div className="text-white/60 text-sm">No events found. Create one on the Events page first.</div>
+            ) : (
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+              >
+                <option value="">Select an event...</option>
+                {eventOptions.map((evt) => (
+                  <option key={evt._id} value={evt._id}>
+                    {evt.month} — {evt.workshopName} ({evt.participantCount} participants)
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setAddToEventOpen(false)}
+                className="px-4 py-2 border border-white/30 rounded-lg text-white font-medium hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => addSelectedToEvent({ clearAfter: clearSaleSelection })}
+                disabled={!selectedEventId || addingToEvent}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+              >
+                {addingToEvent ? 'Adding...' : 'Add to Event'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Receipt Preview Modal ── */}

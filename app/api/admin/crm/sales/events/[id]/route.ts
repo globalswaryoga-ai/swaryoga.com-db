@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { handleCrmError, formatCrmSuccess, isValidObjectId } from '@/lib/crm-handlers';
-import { getWorkshopEvent } from '@/lib/schemas/enterpriseSchemas';
+import { getWorkshopEvent, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +44,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const WorkshopEvent = getWorkshopEvent();
     const body = await request.json();
-    const { startDate, endDate, workshopName, workshopTime, workshopFees, notes, participants } = body;
+    const { startDate, endDate, workshopName, workshopTime, workshopFees, notes, participants, addSaleIds } = body;
 
     const update: Record<string, any> = {};
     if (startDate) {
@@ -77,6 +77,36 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         : [];
       const { totalAmount, participantCount } = computeTotals(cleanParticipants);
       update.participants = cleanParticipants;
+      update.totalAmount = totalAmount;
+      update.participantCount = participantCount;
+    }
+
+    if (Array.isArray(addSaleIds) && addSaleIds.length > 0) {
+      const existing = await WorkshopEvent.findById(id).lean();
+      if (!existing) throw new Error('Invalid: Event not found');
+
+      const basis: any[] = update.participants !== undefined ? update.participants : (existing as any).participants || [];
+      const existingSaleIds = new Set(basis.map((p: any) => p.saleId ? String(p.saleId) : '').filter(Boolean));
+
+      const SalesReport = getSalesReport();
+      const validIds = addSaleIds.filter((sid: any) => isValidObjectId(sid));
+      const salesToAdd = await SalesReport.find({ _id: { $in: validIds } }).lean();
+
+      const newParticipants = (salesToAdd as any[])
+        .filter((s) => !existingSaleIds.has(String(s._id)))
+        .map((s) => ({
+          customerId: s.customerId || '',
+          customerName: s.customerName || '',
+          customerPhone: s.customerPhone || '',
+          workshopName: s.workshopName || '',
+          amount: Number(s.saleAmount) || 0,
+          paymentMode: s.paymentMode || '',
+          saleId: s._id,
+        }));
+
+      const merged = [...basis, ...newParticipants];
+      const { totalAmount, participantCount } = computeTotals(merged);
+      update.participants = merged;
       update.totalAmount = totalAmount;
       update.participantCount = participantCount;
     }
