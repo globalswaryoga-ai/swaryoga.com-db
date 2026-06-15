@@ -430,6 +430,7 @@ export default function CertificatePage() {
                 alt="Certificate Badge"
                 crossOrigin="anonymous"
                 className="w-52 h-auto object-contain flex-shrink-0"
+                style={{ marginRight: '-10mm' }}
               />
             </div>
 
