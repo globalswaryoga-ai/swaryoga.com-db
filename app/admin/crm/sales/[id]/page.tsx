@@ -56,30 +56,35 @@ const REFUND_POLICY = [
 ];
 
 // Digital reproduction of the company seal/stamp (curved text on a ring).
+// Rendered via raw SVG markup (with xlink:href) so the <textPath> curves
+// render reliably across browsers/print, instead of React's JSX SVG props.
+const SEAL_SVG_MARKUP = `
+<svg viewBox="0 -50 200 250" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="color:#059669;opacity:0.85;display:block;width:100%;height:100%">
+  <defs>
+    <path id="sealTopArc" d="M 30,-40 A 75,75 0 0 0 170,-40" fill="none"/>
+    <path id="sealBottomArc" d="M 25,100 A 75,75 0 0 0 175,100" fill="none"/>
+  </defs>
+  <circle cx="100" cy="100" r="92" fill="none" stroke="currentColor" stroke-width="2.5"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  <text font-size="12" font-weight="800" letter-spacing="2" fill="currentColor" font-family="Arial, sans-serif">
+    <textPath xlink:href="#sealTopArc" href="#sealTopArc" startOffset="50%" text-anchor="middle">SWAR YOGA</textPath>
+  </text>
+  <text font-size="10" font-weight="700" letter-spacing="3" fill="currentColor" font-family="Arial, sans-serif">
+    <textPath xlink:href="#sealBottomArc" href="#sealBottomArc" startOffset="50%" text-anchor="middle">★ SANGAMNER ★</textPath>
+  </text>
+  <text x="100" y="78" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" font-family="Arial, sans-serif">UPAMNYU INTERNATIONAL</text>
+  <text x="100" y="88" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" font-family="Arial, sans-serif">EDUCATION PVT. LTD.</text>
+  <text x="100" y="105" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor" font-family="monospace">CIN: U92400PN2022</text>
+  <text x="100" y="116" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor" font-family="monospace">PTC212555</text>
+</svg>`;
+
 function ReceiptSeal() {
   return (
-    <svg
-      viewBox="0 0 200 200"
+    <div
       className="w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0"
-      style={{ color: '#059669', opacity: 0.85, transform: 'rotate(-6deg)' }}
-    >
-      <defs>
-        <path id="sealTopArc" d="M 30,-40 A 75,75 0 0 0 170,-40" fill="none" />
-        <path id="sealBottomArc" d="M 25,100 A 75,75 0 0 0 175,100" fill="none" />
-      </defs>
-      <circle cx="100" cy="100" r="92" fill="none" stroke="currentColor" strokeWidth="2.5" />
-      <circle cx="100" cy="100" r="80" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <text fontSize="12" fontWeight="800" letterSpacing="2" fill="currentColor" fontFamily="Arial, sans-serif">
-        <textPath href="#sealTopArc" startOffset="50%" textAnchor="middle">SWAR YOGA</textPath>
-      </text>
-      <text fontSize="10" fontWeight="700" letterSpacing="3" fill="currentColor" fontFamily="Arial, sans-serif">
-        <textPath href="#sealBottomArc" startOffset="50%" textAnchor="middle">★ SANGAMNER ★</textPath>
-      </text>
-      <text x="100" y="78" textAnchor="middle" fontSize="7" fontWeight="700" fill="currentColor" fontFamily="Arial, sans-serif">UPAMNYU INTERNATIONAL</text>
-      <text x="100" y="88" textAnchor="middle" fontSize="7" fontWeight="700" fill="currentColor" fontFamily="Arial, sans-serif">EDUCATION PVT. LTD.</text>
-      <text x="100" y="105" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="currentColor" fontFamily="monospace">CIN: U92400PN2022</text>
-      <text x="100" y="116" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="currentColor" fontFamily="monospace">PTC212555</text>
-    </svg>
+      style={{ transform: 'rotate(-6deg)' }}
+      dangerouslySetInnerHTML={{ __html: SEAL_SVG_MARKUP }}
+    />
   );
 }
 
