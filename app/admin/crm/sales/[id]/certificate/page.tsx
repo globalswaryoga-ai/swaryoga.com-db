@@ -165,6 +165,18 @@ export default function CertificatePage() {
   const [savingPhoto, setSavingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
+  // Participant certificate details editor (admin-only: title, name, address, mobile, place, state, country)
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [detailTitle, setDetailTitle] = useState('');
+  const [detailName, setDetailName] = useState('');
+  const [detailAddress, setDetailAddress] = useState('');
+  const [detailMobile, setDetailMobile] = useState('');
+  const [detailPlace, setDetailPlace] = useState('');
+  const [detailState, setDetailState] = useState('');
+  const [detailCountry, setDetailCountry] = useState('');
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!id || !token) return;
 
@@ -197,6 +209,13 @@ export default function CertificatePage() {
         setPhotoZoom(saleData?.certificatePhotoZoom ?? 1);
         setPhotoOffsetX(saleData?.certificatePhotoOffsetX ?? 0);
         setPhotoOffsetY(saleData?.certificatePhotoOffsetY ?? 0);
+        setDetailTitle(saleData?.certificateTitle || '');
+        setDetailName(saleData?.certificateName || '');
+        setDetailAddress(saleData?.certificateAddress || '');
+        setDetailMobile(saleData?.certificateMobile || '');
+        setDetailPlace(saleData?.certificatePlace || '');
+        setDetailState(saleData?.certificateState || '');
+        setDetailCountry(saleData?.certificateCountry || '');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load sale');
       } finally {
@@ -284,6 +303,52 @@ export default function CertificatePage() {
       setPhotoError(err instanceof Error ? err.message : 'Failed to save photo');
     } finally {
       setSavingPhoto(false);
+    }
+  };
+
+  const handleSaveDetails = async () => {
+    if (!token || !sale) return;
+    setSavingDetails(true);
+    setDetailsError(null);
+    try {
+      const response = await fetch('/api/admin/crm/sales', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          saleId: sale._id,
+          certificateTitle: detailTitle,
+          certificateName: detailName,
+          certificateAddress: detailAddress,
+          certificateMobile: detailMobile,
+          certificatePlace: detailPlace,
+          certificateState: detailState,
+          certificateCountry: detailCountry,
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to save details');
+      }
+
+      setSale((prev) => prev ? {
+        ...prev,
+        certificateTitle: detailTitle || undefined,
+        certificateName: detailName || undefined,
+        certificateAddress: detailAddress || undefined,
+        certificateMobile: detailMobile || undefined,
+        certificatePlace: detailPlace || undefined,
+        certificateState: detailState || undefined,
+        certificateCountry: detailCountry || undefined,
+      } : prev);
+      setEditingDetails(false);
+    } catch (err) {
+      setDetailsError(err instanceof Error ? err.message : 'Failed to save details');
+    } finally {
+      setSavingDetails(false);
     }
   };
 
@@ -516,6 +581,126 @@ export default function CertificatePage() {
                     Reset Position
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Participant Details Editor (admin only) - Hidden on print */}
+        <div className="mt-6 bg-gray-900 border border-white/20 rounded-lg p-4 print:hidden">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold">Participant Details</h3>
+            <button
+              onClick={() => {
+                if (editingDetails) {
+                  // Cancel - revert to last saved values
+                  setDetailTitle(sale.certificateTitle || '');
+                  setDetailName(sale.certificateName || '');
+                  setDetailAddress(sale.certificateAddress || '');
+                  setDetailMobile(sale.certificateMobile || '');
+                  setDetailPlace(sale.certificatePlace || '');
+                  setDetailState(sale.certificateState || '');
+                  setDetailCountry(sale.certificateCountry || '');
+                  setDetailsError(null);
+                }
+                setEditingDetails(!editingDetails);
+              }}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              {editingDetails ? 'Cancel' : '✏️ Edit Details'}
+            </button>
+          </div>
+
+          {editingDetails && (
+            <div className="mt-4 flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-white text-sm mb-1 font-semibold">Title</label>
+                  <select
+                    value={detailTitle}
+                    onChange={(e) => setDetailTitle(e.target.value)}
+                    className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="">—</option>
+                    <option value="Mr">Mr</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Ms">Ms</option>
+                    <option value="Dr">Dr</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-white text-sm mb-1 font-semibold">Name (as on certificate)</label>
+                  <input
+                    type="text"
+                    value={detailName}
+                    onChange={(e) => setDetailName(e.target.value)}
+                    placeholder={sale.customerName || 'Participant name'}
+                    className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-white text-sm mb-1 font-semibold">Address</label>
+                <input
+                  type="text"
+                  value={detailAddress}
+                  onChange={(e) => setDetailAddress(e.target.value)}
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white text-sm mb-1 font-semibold">Mobile Number</label>
+                <input
+                  type="text"
+                  value={detailMobile}
+                  onChange={(e) => setDetailMobile(e.target.value)}
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-white text-sm mb-1 font-semibold">Place</label>
+                  <input
+                    type="text"
+                    value={detailPlace}
+                    onChange={(e) => setDetailPlace(e.target.value)}
+                    className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white text-sm mb-1 font-semibold">State</label>
+                  <input
+                    type="text"
+                    value={detailState}
+                    onChange={(e) => setDetailState(e.target.value)}
+                    className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white text-sm mb-1 font-semibold">Country</label>
+                  <input
+                    type="text"
+                    value={detailCountry}
+                    onChange={(e) => setDetailCountry(e.target.value)}
+                    className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              {detailsError && <AlertBox type="error" message={detailsError} onClose={() => setDetailsError(null)} />}
+
+              <div>
+                <button
+                  onClick={handleSaveDetails}
+                  disabled={savingDetails}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  {savingDetails ? 'Saving…' : 'Save'}
+                </button>
               </div>
             </div>
           )}

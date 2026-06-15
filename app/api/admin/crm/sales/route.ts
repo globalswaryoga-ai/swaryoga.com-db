@@ -461,6 +461,18 @@ export async function PUT(request: NextRequest) {
       const n = Number(updates.certificatePhotoOffsetY);
       safeUpdates.certificatePhotoOffsetY = Number.isFinite(n) ? n : 0;
     }
+    if (updates.certificateTitle !== undefined) {
+      const allowedTitles = ['Mr', 'Miss', 'Mrs', 'Ms', 'Dr'];
+      const title = String(updates.certificateTitle || '').trim();
+      safeUpdates.certificateTitle = allowedTitles.includes(title) ? title : undefined;
+    }
+    if (updates.certificateName !== undefined) safeUpdates.certificateName = String(updates.certificateName || '').trim() || undefined;
+    if (updates.certificateAddress !== undefined) safeUpdates.certificateAddress = String(updates.certificateAddress || '').trim() || undefined;
+    if (updates.certificateMobile !== undefined) safeUpdates.certificateMobile = String(updates.certificateMobile || '').trim() || undefined;
+    if (updates.certificatePlace !== undefined) safeUpdates.certificatePlace = String(updates.certificatePlace || '').trim() || undefined;
+    if (updates.certificatePincode !== undefined) safeUpdates.certificatePincode = String(updates.certificatePincode || '').trim() || undefined;
+    if (updates.certificateState !== undefined) safeUpdates.certificateState = String(updates.certificateState || '').trim() || undefined;
+    if (updates.certificateCountry !== undefined) safeUpdates.certificateCountry = String(updates.certificateCountry || '').trim() || undefined;
     if (updates.customerId !== undefined) safeUpdates.customerId = String(updates.customerId || '').trim() || undefined;
     if (updates.customerName !== undefined) safeUpdates.customerName = String(updates.customerName || '').trim() || undefined;
     if (updates.customerPhone !== undefined) safeUpdates.customerPhone = String(updates.customerPhone || '').trim() || undefined;
