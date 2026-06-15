@@ -458,10 +458,10 @@ export default function SalesPage() {
     }
   };
 
-  const lookupCustomer = async () => {
-    const customerId = formData.customerId.trim();
+  const lookupCustomer = async (searchValue?: string) => {
+    const customerId = (searchValue ?? formData.customerId).trim();
     if (!customerId) {
-      setLookupMsg('Enter Customer ID first.');
+      setLookupMsg('Enter Customer ID or Mobile first.');
       return;
     }
     try {
@@ -1395,13 +1395,16 @@ export default function SalesPage() {
                     customerId: e.target.value,
                   })
                 }
+                onBlur={(e) => {
+                  if (e.target.value.trim()) lookupCustomer();
+                }}
                 className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 placeholder="Enter customer id / phone / email"
               />
               <div className="mt-2 flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={lookupCustomer}
+                  onClick={() => lookupCustomer()}
                   disabled={lookupBusy}
                   className="px-3 py-1.5 rounded-lg bg-black border border-yellow-500 text-yellow-400 text-sm hover:bg-yellow-400 hover:text-black disabled:opacity-60 font-medium"
                 >
@@ -1435,6 +1438,10 @@ export default function SalesPage() {
                   onBlur={(e) => {
                     const normalized = normalizePhoneForMeta(e.target.value);
                     if (normalized) setFormData({ ...formData, customerPhone: normalized });
+                    // Auto-fill from CRM if no Customer ID has been entered yet
+                    if (!formData.customerId.trim() && (normalized || e.target.value.trim())) {
+                      lookupCustomer(normalized || e.target.value.trim());
+                    }
                   }}
                   className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   placeholder="Phone number"
