@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
  * Generate monthly WorkshopEvent records from existing sales_reports entries,
- * so the Sales > Events page shows a "perfect account" view grouped by
- * month + workshop, each with its participant list.
+ * so the Sales > Events page shows a "perfect account" view: each month has
+ * at most a handful of real batches (Morning 15-day, Evening/Workshop
+ * 15-day, Residential Offline 4-day, plus Teacher Training when present),
+ * each with its participant list - matching how Swar Yoga actually runs
+ * batches (3 batches/month, 15-30 people each).
  *
  * Idempotent: removes previously auto-generated events (label
  * 'auto-generated-from-sales') before recreating them. Does not modify
@@ -13,28 +16,35 @@
 const mongoose = require('mongoose');
 require('dotenv').config({ path: '.env.local' });
 
-// Default batch duration (days) per workshop, used to compute endDate.
-const DURATION_DAYS = {
-  'Swar Yoga': 14,
-  'Swar Yoga L-1': 14,
-  'Swar Yoga L-1 (Offline - Solapur)': 14,
-  'Swar Yoga L-1 (Offline - Samner)': 14,
-  'Swar Yoga L-2': 15,
-  'Swar Yoga L-3': 30,
-  'Swar Yoga Master Class': 45,
-  'Teacher Training': 30,
-  'Advance': 15,
-  'Aahar Shastra': 7,
-  'Amrut aahat': 7,
-  'Meditation Class': 7,
-  'Weight Loss': 7,
-  'From Company Account': 1,
+// Map each workshopName to the real-world batch category it belongs to.
+const CATEGORY_MAP = {
+  'Swar Yoga L-1': 'morning',
+  'Swar Yoga': 'evening',
+  'Swar Yoga L-2': 'evening',
+  'Swar Yoga L-3': 'evening',
+  'Swar Yoga Master Class': 'evening',
+  'Meditation Class': 'evening',
+  'Aahar Shastra': 'evening',
+  'Amrut aahat': 'evening',
+  'Weight Loss': 'evening',
+  'Advance': 'evening',
+  'Swar Yoga L-1 (Offline - Solapur)': 'residential',
+  'Swar Yoga L-1 (Offline - Samner)': 'residential',
+  'Teacher Training': 'teacher_training',
+  'From Company Account': 'other',
 };
 
-const DEFAULT_TIME = '6:00 AM - 8:00 AM';
+// Per-category batch config: display name, duration (days), time slot.
+const CATEGORY_CONFIG = {
+  morning: { workshopName: 'Swar Yoga L-1 (Morning Batch)', duration: 15, time: '6:00 AM - 8:00 AM' },
+  evening: { workshopName: 'Evening Batch & Workshops', duration: 15, time: '6:00 PM - 8:00 PM' },
+  residential: { workshopName: 'Swar Yoga L-1 (Residential - Offline)', duration: 4, time: 'Thu - Sun (Residential)' },
+  teacher_training: { workshopName: 'Teacher Training', duration: 30, time: '6:00 AM - 8:00 AM' },
+  other: { workshopName: 'Other Income', duration: 1, time: '-' },
+};
 
-function durationFor(workshopName) {
-  return DURATION_DAYS[workshopName] || 7;
+function categoryFor(workshopName) {
+  return CATEGORY_MAP[(workshopName || '').trim()] || 'evening';
 }
 
 function addDays(date, days) {
@@ -64,21 +74,23 @@ async function run() {
   const sales = await reports.find({}).toArray();
   console.log(`Loaded ${sales.length} sales_reports entries`);
 
-  // Group by (month, workshopName)
+  // Group by (month, category)
   const groups = new Map();
   for (const s of sales) {
     const date = new Date(s.saleDate || s.batchDate || s.createdAt);
     const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    const workshopName = (s.workshopName || 'Unspecified').trim();
-    const key = `${month}__${workshopName}`;
-    if (!groups.has(key)) groups.set(key, { month, workshopName, sales: [] });
+    const category = categoryFor(s.workshopName);
+    const key = `${month}__${category}`;
+    if (!groups.has(key)) groups.set(key, { month, category, sales: [] });
     groups.get(key).sales.push(s);
   }
 
-  console.log(`Grouped into ${groups.size} month/workshop event groups`);
+  console.log(`Grouped into ${groups.size} month/batch event groups`);
 
   const docs = [];
-  for (const { month, workshopName, sales: groupSales } of groups.values()) {
+  for (const { month, category, sales: groupSales } of groups.values()) {
+    const config = CATEGORY_CONFIG[category];
+
     // Anchor startDate to the earliest batchDate/saleDate in the group; fall back to 1st of month.
     const dates = groupSales
       .map((s) => s.batchDate || s.saleDate || s.createdAt)
@@ -90,8 +102,7 @@ async function run() {
       ? new Date(Math.min(...dates.map((d) => d.getTime())))
       : new Date(y, m - 1, 1, 12, 0, 0);
 
-    const duration = durationFor(workshopName);
-    const endDate = addDays(startDate, duration);
+    const endDate = addDays(startDate, config.duration);
 
     const amounts = groupSales.map((s) => Number(s.saleAmount) || 0).filter((n) => n > 0);
     const workshopFees = amounts.length > 0 ? mode(amounts) : 0;
@@ -100,7 +111,7 @@ async function run() {
       customerId: s.customerId || '',
       customerName: s.customerName || '',
       customerPhone: s.customerPhone || '',
-      workshopName: s.workshopName || workshopName,
+      workshopName: s.workshopName || config.workshopName,
       amount: Number(s.saleAmount) || 0,
       paymentMode: s.paymentMode || '',
       saleId: s._id,
@@ -111,8 +122,8 @@ async function run() {
     docs.push({
       startDate,
       endDate,
-      workshopName,
-      workshopTime: DEFAULT_TIME,
+      workshopName: config.workshopName,
+      workshopTime: config.time,
       workshopFees,
       month,
       notes: '',
@@ -139,13 +150,14 @@ async function run() {
   // Per-month summary
   const byMonth = new Map();
   for (const d of docs) {
-    if (!byMonth.has(d.month)) byMonth.set(d.month, { count: 0, total: 0 });
-    byMonth.get(d.month).count += 1;
-    byMonth.get(d.month).total += d.totalAmount;
+    if (!byMonth.has(d.month)) byMonth.set(d.month, []);
+    byMonth.get(d.month).push(d);
   }
   for (const month of Array.from(byMonth.keys()).sort()) {
-    const { count, total } = byMonth.get(month);
-    console.log(`  ${month}: ${count} events, ₹${total.toLocaleString('en-IN')}`);
+    console.log(`  ${month}:`);
+    for (const d of byMonth.get(month)) {
+      console.log(`    ${d.workshopName}: ${d.participantCount} people, ₹${d.totalAmount.toLocaleString('en-IN')}`);
+    }
   }
 
   process.exit(0);
