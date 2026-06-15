@@ -460,7 +460,7 @@ export default function CertificatePage() {
             </div>
 
             {/* Body */}
-            <p className="text-center text-base text-slate-700 leading-relaxed mt-4 px-6">
+            <p className="text-center text-base text-slate-700 leading-relaxed mt-4 px-1">
               This is to proudly certify that{' '}
               <span className="font-bold">{certTitle ? `${certTitle}. ` : ''}{customerName}</span>
               {location ? <>, <span className="font-bold">{location}</span></> : ''},{' '}
