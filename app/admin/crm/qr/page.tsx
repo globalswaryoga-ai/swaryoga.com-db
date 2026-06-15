@@ -478,8 +478,7 @@ export default function QRWhatsAppPage() {
   const tokenRef = useRef(token);
   const errorRef = useRef(error);
   const wasConnectedRef = useRef(false);
-  // Phone number to auto-select from ?phone= query param (e.g. "Chat" link from Enquiries)
-  const pendingPhoneRef = useRef<string | null>(null);
+  const chatsRef = useRef<ChatItem[]>([]);
 
   // Update refs with current state values
   selectedChatRef.current = selectedChat;
@@ -492,6 +491,7 @@ export default function QRWhatsAppPage() {
   composerTextRef.current = composerText;
   tokenRef.current = token;
   errorRef.current = error;
+  chatsRef.current = chats;
 
   // ── Pause polling when browser tab is hidden ──
   useEffect(() => {
@@ -501,35 +501,49 @@ export default function QRWhatsAppPage() {
   }, []);
 
   // ── Auto-select from ?phone= query param (e.g. "Chat" link from Enquiries) ──
+  // If a conversation with this number already exists, select it. Otherwise
+  // create a placeholder chat so the number appears in the sidebar and can be
+  // messaged directly, even if no prior conversation exists.
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
       const phoneParam = url.searchParams.get('phone')?.trim();
-      if (phoneParam) {
-        pendingPhoneRef.current = phoneParam.replace(/\D/g, '');
-        url.searchParams.delete('phone');
-        window.history.replaceState({}, '', url.toString());
-        setTab('inbox');
-        if (connectedRef.current) fetchChatsRef.current?.();
-      }
+      if (!phoneParam) return;
+      const nameHint = url.searchParams.get('name')?.trim() || '';
+      const target = phoneParam.replace(/\D/g, '');
+      url.searchParams.delete('phone');
+      url.searchParams.delete('name');
+      window.history.replaceState({}, '', url.toString());
+      setTab('inbox');
+
+      (async () => {
+        await fetchChatsRef.current?.();
+        const match = chatsRef.current.find(c => {
+          const p = extractBestChatPhone(c);
+          return p === target || (p && (p.endsWith(target.slice(-10)) || target.endsWith(p.slice(-10))));
+        });
+        if (match) {
+          selectChat(match.id);
+          return;
+        }
+        // No existing conversation — add a placeholder to the sidebar and open it.
+        let phone = target;
+        if (phone.length === 10) phone = '91' + phone;
+        const jid = `${phone}@c.us`;
+        setChats(prev => prev.some(c => c.id === jid) ? prev : [{
+          id: jid,
+          name: nameHint || phone,
+          isGroup: false,
+          resolvedPhone: phone,
+          unreadCount: 0,
+          lastMessageTime: null,
+          lastMessage: '',
+        } as ChatItem, ...prev]);
+        selectChat(jid);
+      })();
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ── Once chats load, select the chat matching the pending ?phone= param ──
-  useEffect(() => {
-    if (!pendingPhoneRef.current || chats.length === 0) return;
-    const target = pendingPhoneRef.current;
-    const match = chats.find(c => {
-      const p = extractBestChatPhone(c);
-      return p === target || (p && target && (p.endsWith(target.slice(-10)) || target.endsWith(p.slice(-10))));
-    });
-    if (match) {
-      pendingPhoneRef.current = null;
-      selectChat(match.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chats]);
 
   // ── Track selected chat in localStorage for CRM Guide visibility ──
   useEffect(() => {

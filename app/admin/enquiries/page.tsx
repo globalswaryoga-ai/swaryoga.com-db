@@ -291,46 +291,68 @@ export default function EnquiriesPage() {
     }
   };
 
-  // Open conversation in Meta inbox + tag lead as meta-contacted
+  // Open conversation in Meta inbox + tag lead as meta-contacted.
+  // Creates a CRM lead for this enquiry if one doesn't exist yet, so the
+  // number is properly tied to a lead and visible in the inbox sidebar.
   const openInMeta = async (enquiry: Enquiry) => {
     const digits = enquiry.mobile.replace(/\D/g, '');
     // Ensure country code: if 10 digits, prepend 91
     const phone = digits.length === 10 ? `91${digits}` : digits;
 
-    // Tag the lead in the background (non-blocking)
     try {
+      const leadId = await ensureLeadAndToggleLabel(enquiry, 'meta-contacted', false);
       const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
-      if (token && enquiry.leadId) {
-        fetch(`/api/admin/crm/leads/${enquiry.leadId}`, {
+      if (token) {
+        fetch(`/api/admin/crm/leads/${leadId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ addLabels: ['meta-whatsapp', 'meta-contacted'] }),
+          body: JSON.stringify({ addLabels: ['meta-whatsapp'] }),
         }).catch(() => {});
       }
-    } catch {}
+      setEnquiries((prev) => prev.map((e) => e.id !== enquiry.id ? e : {
+        ...e,
+        leadId,
+        labels: [...new Set([...(e.labels || []), 'meta-whatsapp', 'meta-contacted'])],
+      }));
+    } catch (err) {
+      console.error('Failed to ensure lead for Meta contact', err);
+    }
 
-    router.push(`/admin/crm/meta?phone=${phone}`);
+    const params = new URLSearchParams({ phone });
+    if (enquiry.name) params.set('name', enquiry.name);
+    router.push(`/admin/crm/meta?${params.toString()}`);
   };
 
-  // Open conversation in QR WhatsApp inbox + tag lead as qr-contacted
+  // Open conversation in QR WhatsApp inbox + tag lead as qr-contacted.
+  // Creates a CRM lead for this enquiry if one doesn't exist yet, so the
+  // number is properly tied to a lead and visible in the inbox sidebar.
   const openInQR = async (enquiry: Enquiry) => {
     const digits = enquiry.mobile.replace(/\D/g, '');
     // Ensure country code: if 10 digits, prepend 91
     const phone = digits.length === 10 ? `91${digits}` : digits;
 
-    // Tag the lead in the background (non-blocking)
     try {
+      const leadId = await ensureLeadAndToggleLabel(enquiry, 'qr-contacted', false);
       const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
-      if (token && enquiry.leadId) {
-        fetch(`/api/admin/crm/leads/${enquiry.leadId}`, {
+      if (token) {
+        fetch(`/api/admin/crm/leads/${leadId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ addLabels: ['qr-whatsapp', 'qr-contacted'] }),
+          body: JSON.stringify({ addLabels: ['qr-whatsapp'] }),
         }).catch(() => {});
       }
-    } catch {}
+      setEnquiries((prev) => prev.map((e) => e.id !== enquiry.id ? e : {
+        ...e,
+        leadId,
+        labels: [...new Set([...(e.labels || []), 'qr-whatsapp', 'qr-contacted'])],
+      }));
+    } catch (err) {
+      console.error('Failed to ensure lead for QR contact', err);
+    }
 
-    router.push(`/admin/crm/qr?phone=${phone}`);
+    const params = new URLSearchParams({ phone });
+    if (enquiry.name) params.set('name', enquiry.name);
+    router.push(`/admin/crm/qr?${params.toString()}`);
   };
 
   // The CRM label used to mark a lead as "included in this workshop's bulk broadcast"

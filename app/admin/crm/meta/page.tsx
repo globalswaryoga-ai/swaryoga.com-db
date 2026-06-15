@@ -334,6 +334,7 @@ export default function MetaInboxPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<ConversationRow | null>(null);
   const pendingPhoneRef = useRef<string | null>(null);
+  const pendingNameRef = useRef<string | null>(null);
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
@@ -391,8 +392,10 @@ export default function MetaInboxPage() {
       if (phoneParam) {
         // Set a pending phone to auto-select once conversations load
         pendingPhoneRef.current = phoneParam.replace(/\D/g, '');
+        pendingNameRef.current = url.searchParams.get('name')?.trim() || null;
         // Clean the URL so it doesn't persist on refresh
         url.searchParams.delete('phone');
+        url.searchParams.delete('name');
         window.history.replaceState({}, '', url.toString());
       }
     } catch {}
@@ -587,13 +590,31 @@ export default function MetaInboxPage() {
         // Auto-select conversation from ?phone= query param
         if (pendingPhoneRef.current) {
           const target = pendingPhoneRef.current;
+          const nameHint = pendingNameRef.current;
           pendingPhoneRef.current = null; // Consume once
+          pendingNameRef.current = null;
           const match = (data.conversations as ConversationRow[]).find(c => {
             const p = (c.phoneNumber || '').replace(/\D/g, '');
             return p === target || p.endsWith(target.slice(-10));
           });
           if (match) {
             handleSelectConversation(match);
+          } else {
+            // No existing conversation for this number — add a placeholder so
+            // it appears in the sidebar and can be messaged directly.
+            const placeholder: ConversationRow = {
+              _id: '',
+              leadId: '',
+              name: nameHint || target,
+              hasLead: !!nameHint,
+              phoneNumber: target,
+              unreadCount: 0,
+              labels: [],
+            };
+            setConversations(prev => prev.some(c => (c.phoneNumber || '').replace(/\D/g, '') === target)
+              ? prev
+              : [placeholder, ...prev]);
+            handleSelectConversation(placeholder);
           }
         } else if (!silent && data.conversations.length > 0) {
           // Auto-select topmost conversation on initial load (not on silent refresh)
