@@ -414,24 +414,28 @@ export default function CertificatePage() {
           <div className="relative z-10 flex flex-col">
             {/* Header */}
             <div className="flex items-start justify-between gap-6">
-              <img
-                src={ASSETS.photo}
-                alt="Swar Yoga"
-                crossOrigin="anonymous"
-                className="w-32 h-32 rounded-full object-cover border-4 shadow flex-shrink-0"
-                style={{ borderColor: '#5b9bd5' }}
-              />
-              <div className="text-center flex-1 min-w-0 self-end">
-                <h1 className="text-5xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
+              <div className="w-52 flex-shrink-0 flex justify-start">
+                <img
+                  src={ASSETS.photo}
+                  alt="Swar Yoga"
+                  crossOrigin="anonymous"
+                  className="w-32 h-32 rounded-full object-cover border-4 shadow"
+                  style={{ borderColor: '#5b9bd5' }}
+                />
+              </div>
+              <div className="text-center flex-1 min-w-0 self-center">
+                <h1 className="text-7xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
                 <p className="text-xl italic mt-1 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
               </div>
-              <img
-                src={ASSETS.goldBadge}
-                alt="Certificate Badge"
-                crossOrigin="anonymous"
-                className="w-52 h-auto object-contain flex-shrink-0"
-                style={{ marginRight: '-10mm' }}
-              />
+              <div className="w-52 flex-shrink-0 flex justify-end">
+                <img
+                  src={ASSETS.goldBadge}
+                  alt="Certificate Badge"
+                  crossOrigin="anonymous"
+                  className="w-52 h-auto object-contain"
+                  style={{ marginRight: '-10mm' }}
+                />
+              </div>
             </div>
 
             {/* Title */}
