@@ -30,7 +30,15 @@ const CATEGORY_MAP = {
   'Advance': 'evening',
   'Swar Yoga L-1 (Offline - Solapur)': 'residential',
   'Swar Yoga L-1 (Offline - Samner)': 'residential',
+  'Swar Yoga L-1 (Nepal Batch)': 'morning',
+  'Amrut Aahar (7 Days)': 'evening',
+  'Swar Yoga L-1 to L-3 Master Class': 'evening',
+  'Swar Yoga Offline Workshop': 'residential',
+  'Swar Yoga Residential Workshop': 'residential',
+  'Swar Yoga Residential Workshop (Dehradun - 4 Days)': 'residential',
+  'Life IT': 'other',
   'Teacher Training': 'teacher_training',
+  'Swar Yoga Teacher Training (Nepal Batch)': 'teacher_training',
   'From Company Account': 'other',
 };
 
