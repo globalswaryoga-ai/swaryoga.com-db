@@ -305,7 +305,7 @@ export default function SalesPage() {
       if (res?.success) {
         alert(`✅ Generated ${res.createdCount} sales entries from leads`);
         // Refresh sales list
-        await loadSales();
+        await fetchSalesData();
       } else {
         throw new Error(res?.error || 'Generation failed');
       }
@@ -314,7 +314,7 @@ export default function SalesPage() {
     } finally {
       setGeneratingFromLeads(false);
     }
-  }, [token, isSuperAdmin, crmFetch, loadSales]);
+  }, [token, isSuperAdmin, crmFetch, fetchSalesData]);
 
   const bulkDeleteSelected = useCallback(
     async (opts?: { clearAfter?: () => void; refreshAfter?: () => Promise<void> | void }) => {
