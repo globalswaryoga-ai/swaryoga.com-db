@@ -332,57 +332,6 @@ export default function SalesPage() {
     }
   }, [crmFetch, view, appliedFilters]);
 
-  // Define handleGenerateFromLeads AFTER fetchSalesData
-  const handleGenerateFromLeads = useCallback(async () => {
-    if (!token || !isSuperAdmin) return;
-
-    const ok = window.confirm(
-      'Generate monthly sales entries from leads for April 2025 - March 2026?\n\n' +
-      'This will create entries for:\n' +
-      '• Swar Yoga L-1: ₹693,000 (3500/person)\n' +
-      '• Swar Yoga L-2: ₹181,500 (3000/person)\n' +
-      '• Swar Yoga L-3: ₹108,900 (3000/person)\n' +
-      '• Master Class: ₹204,000\n' +
-      '• Weight Loss: ₹80,500\n' +
-      '• Amrut aahat: ₹44,000\n' +
-      '• Meditation Class: ₹45,000'
-    );
-
-    if (!ok) return;
-
-    setGeneratingFromLeads(true);
-    setError(null);
-
-    try {
-      const res = await crmFetch('/api/admin/crm/sales/generate-from-leads', {
-        method: 'POST',
-        body: {
-          startMonth: '2025-04',
-          endMonth: '2026-03',
-          workshops: [
-            { workshopName: 'Swar Yoga L-1', totalIncome: 693000, feePerPerson: 3500 },
-            { workshopName: 'Swar Yoga L-2', totalIncome: 181500, feePerPerson: 3000 },
-            { workshopName: 'Swar Yoga L-3', totalIncome: 108900, feePerPerson: 3000 },
-            { workshopName: 'Swar Yoga Master Class', totalIncome: 204000, feePerPerson: 6800 },
-            { workshopName: 'Weight Loss', totalIncome: 80500, feePerPerson: 3500 },
-            { workshopName: 'Amrut aahat', totalIncome: 44000, feePerPerson: 2200 },
-            { workshopName: 'Meditation Class', totalIncome: 45000, feePerPerson: 2250 },
-          ],
-        },
-      });
-
-      if (res?.success) {
-        alert(`✅ Generated ${res.createdCount} sales entries from leads`);
-        await fetchSalesData();
-      } else {
-        throw new Error(res?.error || 'Generation failed');
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to generate sales from leads');
-    } finally {
-      setGeneratingFromLeads(false);
-    }
-  }, [token, isSuperAdmin, crmFetch, fetchSalesData]);
 
   useEffect(() => {
     if (token === null) return;
@@ -948,7 +897,41 @@ export default function SalesPage() {
               📤 Upload
             </button>
             <button
-              onClick={handleGenerateFromLeads}
+              onClick={async () => {
+                if (!token || !isSuperAdmin) return;
+                const ok = window.confirm('Generate sales for Apr 2025-Mar 2026 from leads?');
+                if (!ok) return;
+                setGeneratingFromLeads(true);
+                setError(null);
+                try {
+                  const res = await crmFetch('/api/admin/crm/sales/generate-from-leads', {
+                    method: 'POST',
+                    body: {
+                      startMonth: '2025-04',
+                      endMonth: '2026-03',
+                      workshops: [
+                        { workshopName: 'Swar Yoga L-1', totalIncome: 693000, feePerPerson: 3500 },
+                        { workshopName: 'Swar Yoga L-2', totalIncome: 181500, feePerPerson: 3000 },
+                        { workshopName: 'Swar Yoga L-3', totalIncome: 108900, feePerPerson: 3000 },
+                        { workshopName: 'Swar Yoga Master Class', totalIncome: 204000, feePerPerson: 6800 },
+                        { workshopName: 'Weight Loss', totalIncome: 80500, feePerPerson: 3500 },
+                        { workshopName: 'Amrut aahat', totalIncome: 44000, feePerPerson: 2200 },
+                        { workshopName: 'Meditation Class', totalIncome: 45000, feePerPerson: 2250 },
+                      ],
+                    },
+                  });
+                  if (res?.success) {
+                    alert(`✅ Generated ${res.createdCount} sales entries`);
+                    await fetchSalesData();
+                  } else {
+                    setError(res?.error || 'Generation failed');
+                  }
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Failed to generate');
+                } finally {
+                  setGeneratingFromLeads(false);
+                }
+              }}
               disabled={generatingFromLeads}
               className="bg-purple-900/30 border border-purple-500 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-purple-600 hover:text-white disabled:opacity-50"
             >
