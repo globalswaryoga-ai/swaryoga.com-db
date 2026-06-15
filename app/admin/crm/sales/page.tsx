@@ -33,6 +33,12 @@ function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function lastMonthStartDateInputValue(): string {
+  const d = new Date();
+  d.setUTCMonth(d.getUTCMonth() - 1, 1);
+  return d.toISOString().slice(0, 10);
+}
+
 // Helper to get leadId as string (handles both string and populated object)
 function getLeadIdString(leadId: string | { _id: string } | undefined | null): string {
   if (!leadId) return '';
@@ -197,8 +203,8 @@ export default function SalesPage() {
     reportedByUserId: string;
   }>({
     workshop: [],
-    batchFrom: '',
-    batchTo: '',
+    batchFrom: lastMonthStartDateInputValue(),
+    batchTo: todayDateInputValue(),
     reportedByUserId: '',
   });
   const [appliedFilters, setAppliedFilters] = useState<{
@@ -208,8 +214,8 @@ export default function SalesPage() {
     reportedByUserId: string;
   }>({
     workshop: [],
-    batchFrom: '',
-    batchTo: '',
+    batchFrom: lastMonthStartDateInputValue(),
+    batchTo: todayDateInputValue(),
     reportedByUserId: '',
   });
   const [searchQuery, setSearchQuery] = useState('');
