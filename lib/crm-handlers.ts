@@ -436,3 +436,24 @@ export const getAccessibleCommunityIds = async (decoded: any): Promise<string[] 
   }
   return Array.from(ids);
 };
+
+/**
+ * Generate the next sales invoice/receipt number for the given date,
+ * formatted as YYMMSWNNN (e.g. June 2026's 1st invoice = "2606SW001").
+ * The sequence resets to 001 at the start of each new month.
+ */
+export const generateInvoiceNumber = async (date: Date = new Date()): Promise<string> => {
+  const yy = String(date.getFullYear()).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const key = `invoiceNumber:${yy}${mm}`;
+
+  const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm', { useCache: true });
+  const counters = db.collection<{ _id: string; seq: number }>('crm_counters');
+  const res = await counters.findOneAndUpdate(
+    { _id: key } as any,
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: 'after' }
+  );
+  const seq = res?.value?.seq ?? 1;
+  return `${yy}${mm}SW${String(seq).padStart(3, '0')}`;
+};

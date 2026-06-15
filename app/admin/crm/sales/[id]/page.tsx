@@ -28,6 +28,7 @@ interface SaleRecord {
   }>;
   transactionId?: string;
   paymentMode?: string;
+  receiptNumber?: string;
   saleDate?: string;
   reportedByUserId?: string;
   leadId?: string | { _id: string; name?: string; phoneNumber?: string };
@@ -47,45 +48,40 @@ const ORG = {
   phone: '+91 93099 86820',
   email: 'info@swaryoga.com',
   website: 'www.swaryoga.com',
+  // Optional bank details — left blank until confirmed to avoid printing incorrect payment info.
+  bankName: '',
+  bankAccount: '',
+  bankIFSC: '',
+  upiId: '',
+};
+
+// Receipt branding assets (hosted on Bunny CDN).
+const ASSETS = {
+  photo: 'https://swaryogacrm.b-cdn.net/mohan.jpg',
+  logo: 'https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png',
+  signature: 'https://swaryogacrm.b-cdn.net/ChatGPT%20Image%20Aug%2021%2C%202025%20at%2004_08_28%20PM.png',
+  seal: 'https://swaryogacrm.b-cdn.net/Blue%20Ink%20Stamp%20of%20Upamanyu%20Ltd..png',
 };
 
 const REFUND_POLICY = [
   'No cancellation and no refund once payment is made.',
   'The amount paid is non-transferable to any other person, program, or batch.',
-  'Thank you for joining — we look forward to having you with us!',
 ];
 
-// Digital reproduction of the company seal/stamp (curved text on a ring).
-// Rendered via raw SVG markup (with xlink:href) so the <textPath> curves
-// render reliably across browsers/print, instead of React's JSX SVG props.
-const SEAL_SVG_MARKUP = `
-<svg viewBox="0 -50 200 250" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="color:#059669;opacity:0.85;display:block;width:100%;height:100%">
-  <defs>
-    <path id="sealTopArc" d="M 30,-40 A 75,75 0 0 0 170,-40" fill="none"/>
-    <path id="sealBottomArc" d="M 25,100 A 75,75 0 0 0 175,100" fill="none"/>
-  </defs>
-  <circle cx="100" cy="100" r="92" fill="none" stroke="currentColor" stroke-width="2.5"/>
-  <circle cx="100" cy="100" r="80" fill="none" stroke="currentColor" stroke-width="1.5"/>
-  <text font-size="12" font-weight="800" letter-spacing="2" fill="currentColor" font-family="Arial, sans-serif">
-    <textPath xlink:href="#sealTopArc" href="#sealTopArc" startOffset="50%" text-anchor="middle">SWAR YOGA</textPath>
-  </text>
-  <text font-size="10" font-weight="700" letter-spacing="3" fill="currentColor" font-family="Arial, sans-serif">
-    <textPath xlink:href="#sealBottomArc" href="#sealBottomArc" startOffset="50%" text-anchor="middle">★ SANGAMNER ★</textPath>
-  </text>
-  <text x="100" y="78" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" font-family="Arial, sans-serif">UPAMNYU INTERNATIONAL</text>
-  <text x="100" y="88" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" font-family="Arial, sans-serif">EDUCATION PVT. LTD.</text>
-  <text x="100" y="105" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor" font-family="monospace">CIN: U92400PN2022</text>
-  <text x="100" y="116" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor" font-family="monospace">PTC212555</text>
-</svg>`;
+const ACCENT_BORDER = '#d9a26a';
+const ACCENT_TABLE = '#f39c12';
+const ACCENT_GREEN = '#5baa2f';
+const ACCENT_RED = '#d72e2e';
 
-function ReceiptSeal() {
-  return (
-    <div
-      className="w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0"
-      style={{ transform: 'rotate(-6deg)' }}
-      dangerouslySetInnerHTML={{ __html: SEAL_SVG_MARKUP }}
-    />
-  );
+function formatDate(d?: string | Date) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return '—';
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatAmount(n?: number) {
+  return `${Math.round(n || 0).toLocaleString('en-IN')}/-`;
 }
 
 export default function SaleDetailPage() {
@@ -97,6 +93,7 @@ export default function SaleDetailPage() {
   const [sale, setSale] = useState<SaleRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   // Fetch sale details
   useEffect(() => {
@@ -135,6 +132,39 @@ export default function SaleDetailPage() {
     fetchSale();
   }, [id, token]);
 
+  // Render the receipt to a canvas and download it as an A4 PDF.
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const element = document.getElementById('receipt-content');
+      if (!element) return;
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      const pageWidth = 210; // A4 mm
+      const pageHeight = 297; // A4 mm
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const renderHeight = Math.min(imgHeight, pageHeight);
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, renderHeight);
+      const invoiceNo = sale?.receiptNumber || (sale?._id || id || 'swaryoga').slice(-8).toUpperCase();
+      pdf.save(`Receipt-${invoiceNo}.pdf`);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (!token) {
     return <AlertBox type="error" message="Authentication required" />;
   }
@@ -157,13 +187,26 @@ export default function SaleDetailPage() {
     );
   }
 
+  // Payment rows for the fee table — one per recorded payment, falling back to a single
+  // "paid amount" row when no detailed history exists.
+  const paymentRows = (sale.paymentHistory && sale.paymentHistory.length > 0)
+    ? sale.paymentHistory
+    : [{ amount: sale.paidAmount || sale.saleAmount || 0, date: sale.saleDate || sale.createdAt, mode: sale.paymentMode || '' }];
+
+  const subtotal = paymentRows.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const grandTotal = sale.saleAmount || sale.workshopFee || subtotal;
+  const dueAmount = sale.dueAmount ?? Math.max(0, grandTotal - subtotal);
+
+  const hasBankDetails = ORG.bankName || ORG.bankAccount || ORG.bankIFSC || ORG.upiId;
+  const receiptNumber = sale.receiptNumber || (sale._id || id || '').slice(-10).toUpperCase();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 p-4 md:p-8 print:bg-white print:p-0">
       {/* A4 print sizing */}
       <style>{`
         @media print {
-          @page { size: A4; margin: 10mm; }
-          .receipt-a4 { width: 190mm; }
+          @page { size: A4; margin: 0; }
+          .receipt-a4 { width: 210mm; min-height: 297mm; }
         }
       `}</style>
 
@@ -177,157 +220,177 @@ export default function SaleDetailPage() {
         </button>
 
         {/* Receipt Document */}
-        <div className="receipt-a4 bg-gray-900/80 backdrop-blur border-2 border-white/20 rounded-lg overflow-hidden print:bg-white print:border-slate-200 print:border print:rounded-none print:mx-auto">
+        <div
+          id="receipt-content"
+          className="receipt-a4 relative bg-white overflow-hidden mx-auto print:mx-auto"
+          style={{ width: '210mm', minHeight: '297mm', padding: '14mm' }}
+        >
+          {/* Top wave decoration */}
+          <svg className="absolute top-0 left-0 w-full h-36 pointer-events-none" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0,0 L1000,0 L1000,20 C800,30 500,110 0,150 Z" fill="#6bb82c" />
+            <path d="M0,0 L1000,0 L1000,170 C800,165 500,70 0,30 Z" fill="#53825d" />
+          </svg>
+          {/* Bottom wave decoration */}
+          <svg className="absolute bottom-0 left-0 w-full h-36 pointer-events-none rotate-180" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0,0 L1000,0 L1000,20 C800,30 500,110 0,150 Z" fill="#6bb82c" />
+            <path d="M0,0 L1000,0 L1000,170 C800,165 500,70 0,30 Z" fill="#53825d" />
+          </svg>
 
-          {/* Receipt Header with Green Accent */}
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-8 py-6">
-            <div className="flex justify-between items-start gap-6">
-              <div>
-                <h1 className="text-3xl font-black tracking-tight">{ORG.brand}</h1>
-                <p className="text-emerald-100 text-sm mt-1">Payment Receipt</p>
-                <div className="mt-3 text-xs text-emerald-50/90 space-y-0.5 print:text-emerald-900/80">
-                  <p className="font-semibold">{ORG.legalName}</p>
-                  <p>{ORG.address}</p>
-                  <p>CIN: {ORG.cin}</p>
-                  <p>{ORG.phone} • {ORG.email} • {ORG.website}</p>
-                </div>
+          <div className="relative z-10">
+            {/* Header */}
+            <div className="flex items-end justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <img
+                  src={ASSETS.photo}
+                  alt={ORG.brand}
+                  crossOrigin="anonymous"
+                  className="w-24 h-24 rounded-full object-cover border-4 border-white shadow"
+                />
+                <h1 className="text-4xl font-extrabold tracking-wide text-slate-900">{ORG.brand}</h1>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="text-2xl font-bold">#{id?.slice(-6).toUpperCase()}</p>
-                <p className="text-emerald-100 text-sm mt-1">{new Date(sale.saleDate || sale.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                <img
+                  src={ASSETS.logo}
+                  alt="Swar Yoga Logo"
+                  crossOrigin="anonymous"
+                  className="w-20 h-20 rounded-full object-cover ml-auto mb-2"
+                />
+                <h2 className="text-5xl font-extrabold text-slate-900">INVOICE</h2>
+                <p className="text-sm text-slate-500 mt-1">No: {receiptNumber}</p>
               </div>
             </div>
-          </div>
 
-          {/* Customer & Workshop Info */}
-          <div className="px-8 py-6 border-b border-white/20 print:border-slate-200">
-            <div className="grid grid-cols-2 gap-8">
-              {/* Bill To */}
-              <div>
-                <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 print:text-emerald-600">Bill To</p>
-                <p className="text-xl font-bold text-white print:text-slate-900">{sale.customerName || 'Customer'}</p>
-                <p className="text-gray-300 mt-1 print:text-slate-600">{sale.customerPhone || ''}</p>
-                {sale.customerEmail && <p className="text-gray-400 text-sm print:text-slate-500">{sale.customerEmail}</p>}
-                <p className="text-gray-500 text-xs mt-2 font-mono print:text-slate-400">ID: {sale.customerId || id?.slice(-8)}</p>
+            {/* Divider */}
+            <hr className="border-0 h-0.5 my-5" style={{ backgroundColor: ACCENT_BORDER }} />
+
+            {/* Client & Date */}
+            <div className="flex justify-between gap-8 mb-6">
+              <div className="max-w-[55%]">
+                <p className="text-xs text-slate-500 tracking-wider uppercase">Invoice To :</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: ACCENT_GREEN }}>{sale.customerName || 'Customer'}</p>
+                <p className="text-lg font-bold text-slate-900 mt-1">ID: {sale.customerId || id?.slice(-8)}</p>
+                {sale.customerPhone && <p className="text-sm text-slate-600 mt-2">{sale.customerPhone}</p>}
+                {sale.customerEmail && <p className="text-sm text-slate-600">{sale.customerEmail}</p>}
+                {sale.customerAddress && <p className="text-sm text-slate-600">{sale.customerAddress}</p>}
               </div>
-
-              {/* Workshop Details */}
-              <div className="text-right">
-                <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 print:text-emerald-600">Program Details</p>
-                <p className="text-xl font-bold text-white print:text-slate-900">{sale.workshopName || 'Workshop'}</p>
-                {sale.batchDate && (
-                  <p className="text-gray-300 mt-1 print:text-slate-600">Batch: {new Date(sale.batchDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                )}
-                <span className={`inline-block mt-2 px-3 py-1 text-xs font-bold rounded-full ${
-                  sale.status === 'completed' ? 'bg-emerald-600/30 text-emerald-300 print:bg-emerald-100 print:text-emerald-700' :
-                  sale.status === 'pending' ? 'bg-yellow-600/30 text-yellow-300 print:bg-yellow-100 print:text-yellow-700' :
-                  sale.status === 'cancelled' ? 'bg-red-600/30 text-red-300 print:bg-red-100 print:text-red-700' :
-                  'bg-gray-600/30 text-gray-300 print:bg-slate-100 print:text-slate-700'
-                }`}>
-                  {(sale.status || 'pending').toUpperCase()}
-                </span>
+              <div className="text-right flex-shrink-0">
+                <p className="text-base text-slate-700">Date: {formatDate(sale.saleDate || sale.createdAt)}</p>
+                <p className="text-xs text-slate-500 uppercase tracking-wider mt-4">Total Amount</p>
+                <p className="text-4xl font-extrabold mt-1" style={{ color: ACCENT_RED }}>RS. {formatAmount(grandTotal)}</p>
               </div>
             </div>
-          </div>
 
-          {/* Payment Details Table */}
-          <div className="px-8 py-6">
-            <table className="w-full">
+            {/* Fee Table */}
+            <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b-2 border-white/20 print:border-slate-200">
-                  <th className="text-left py-3 text-xs font-bold text-gray-400 uppercase tracking-wider print:text-slate-500">Description</th>
-                  <th className="text-right py-3 text-xs font-bold text-gray-400 uppercase tracking-wider print:text-slate-500">Amount</th>
+                <tr style={{ backgroundColor: ACCENT_TABLE }}>
+                  <th className="py-3 px-4 text-left text-sm font-bold text-slate-900">WORKSHOP</th>
+                  <th className="py-3 px-4 text-center text-sm font-bold text-slate-900">PERSON</th>
+                  <th className="py-3 px-4 text-center text-sm font-bold text-slate-900">FEES</th>
+                  <th className="py-3 px-4 text-right text-sm font-bold text-slate-900">TOTAL</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr className="border-b border-white/10 print:border-slate-100">
-                  <td className="py-4">
-                    <p className="font-semibold text-white print:text-slate-900">{sale.workshopName || 'Workshop Enrollment'}</p>
-                    <p className="text-gray-400 text-sm print:text-slate-500">Program Fee</p>
-                  </td>
-                  <td className="py-4 text-right font-semibold text-white print:text-slate-900">₹{(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</td>
+              <tbody className="text-slate-700 text-sm">
+                <tr>
+                  <td className="py-3 px-4 font-semibold" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{sale.workshopName || 'Workshop Enrollment'}</td>
+                  <td className="py-3 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}>1</td>
+                  <td className="py-3 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{formatAmount(sale.workshopFee || grandTotal)}</td>
+                  <td className="py-3 px-4 text-right" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
                 </tr>
-                {sale.paymentHistory && sale.paymentHistory.length > 0 && sale.paymentHistory.map((payment, idx) => (
-                  <tr key={idx} className="border-b border-white/10 print:border-slate-100">
-                    <td className="py-3">
-                      <p className="text-gray-200 print:text-slate-700">Payment Received</p>
-                      <p className="text-gray-500 text-xs print:text-slate-400">{new Date(payment.date).toLocaleDateString('en-IN')} • {payment.mode}</p>
-                    </td>
-                    <td className="py-3 text-right text-emerald-400 font-semibold print:text-emerald-600">- ₹{Number(payment.amount).toLocaleString()}</td>
+                {paymentRows.map((p, idx) => (
+                  <tr key={idx}>
+                    <td className="py-3 px-4 text-slate-500" style={{ border: `1px solid ${ACCENT_BORDER}` }}>Received on the date of- {formatDate(p.date)}{p.mode ? ` (${p.mode})` : ''}</td>
+                    <td className="py-3 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
+                    <td className="py-3 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{formatAmount(p.amount)}</td>
+                    <td className="py-3 px-4 text-right" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{Math.round(p.amount || 0).toLocaleString('en-IN')}</td>
                   </tr>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-white/30 print:border-slate-300">
-                  <td className="py-4 font-bold text-gray-200 print:text-slate-700">Total Paid</td>
-                  <td className="py-4 text-right text-2xl font-black text-emerald-400 print:text-emerald-600">₹{(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</td>
-                </tr>
-                {(sale.dueAmount || 0) > 0 && (
+                {dueAmount > 0 && (
                   <tr>
-                    <td className="py-2 text-gray-400 print:text-slate-500">Balance Due</td>
-                    <td className="py-2 text-right text-lg font-bold text-orange-400 print:text-orange-600">₹{(sale.dueAmount || 0).toLocaleString()}</td>
+                    <td className="py-3 px-4 font-semibold" style={{ border: `1px solid ${ACCENT_BORDER}` }}>Amount Receivable</td>
+                    <td className="py-3 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
+                    <td className="py-3 px-4 text-center font-semibold" style={{ border: `1px solid ${ACCENT_BORDER}`, color: ACCENT_RED }}>{formatAmount(dueAmount)}</td>
+                    <td className="py-3 px-4 text-right" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
                   </tr>
                 )}
-              </tfoot>
+              </tbody>
             </table>
-          </div>
 
-          {/* Payment Method */}
-          <div className="px-8 py-4 bg-gray-800/50 border-t border-white/20 print:bg-slate-50 print:border-slate-200">
-            <div className="flex justify-between items-center">
+            {/* Payment Method & Summary */}
+            <div className="flex justify-between items-start mt-6 gap-8">
               <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider print:text-slate-500">Payment Method</p>
-                <p className="text-lg font-semibold text-white capitalize print:text-slate-800">{sale.paymentMode || 'N/A'}</p>
+                <p className="font-bold text-lg text-slate-900">Payment Method :</p>
+                <p className="text-base text-slate-700 mt-1 capitalize">{sale.paymentMode || 'N/A'}</p>
+                {sale.transactionId && <p className="text-xs text-slate-500 font-mono mt-1">Txn ID: {sale.transactionId}</p>}
+                {hasBankDetails && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {[ORG.bankName, ORG.bankAccount && `A/C ${ORG.bankAccount}`, ORG.bankIFSC && `IFSC ${ORG.bankIFSC}`, ORG.upiId && `UPI ${ORG.upiId}`]
+                      .filter(Boolean)
+                      .join(' • ')}
+                  </p>
+                )}
+                <ul className="mt-3 text-[10px] text-slate-400 list-disc list-inside space-y-0.5 max-w-xs">
+                  {REFUND_POLICY.map((line, idx) => (
+                    <li key={idx}>{line}</li>
+                  ))}
+                </ul>
               </div>
-              {sale.transactionId && (
-                <div className="text-right">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider print:text-slate-500">Transaction ID</p>
-                  <p className="text-sm font-mono text-gray-300 print:text-slate-700">{sale.transactionId}</p>
+              <div className="w-64 flex-shrink-0 text-sm">
+                <div className="flex justify-between py-2 text-slate-700">
+                  <span>Sub Total</span>
+                  <span>{formatAmount(subtotal)}</span>
                 </div>
-              )}
+                <div className="flex justify-between py-2 text-slate-700 border-t" style={{ borderColor: ACCENT_BORDER }}>
+                  <span>Tax</span>
+                  <span>0</span>
+                </div>
+                <div className="flex justify-between py-3 px-3 font-bold text-lg text-slate-900" style={{ backgroundColor: ACCENT_TABLE }}>
+                  <span>Total</span>
+                  <span>{formatAmount(grandTotal)}</span>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Terms & Refund Policy */}
-          <div className="px-8 py-5 border-t border-white/20 print:border-slate-200">
-            <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 print:text-emerald-600">Terms &amp; Refund Policy</p>
-            <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside print:text-slate-500">
-              {REFUND_POLICY.map((line, idx) => (
-                <li key={idx}>{line}</li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Seal & Signature */}
-          <div className="px-8 py-6 border-t border-white/20 print:border-slate-200 flex items-center justify-between gap-6">
-            <ReceiptSeal />
-            <div className="text-right">
-              <p className="text-sm font-semibold text-white print:text-slate-800">For {ORG.legalName}</p>
-              <div className="mt-10 border-t border-white/30 print:border-slate-400 w-44 ml-auto" />
-              <p className="text-xs text-gray-400 mt-1 print:text-slate-500">Authorized Signatory</p>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-8 py-6 bg-gradient-to-r from-emerald-900/50 to-teal-900/50 border-t border-emerald-500/30 print:from-emerald-50 print:to-teal-50 print:border-emerald-200">
-            <div className="text-center">
-              <p className="text-emerald-300 font-semibold print:text-emerald-700">Thank you for your enrollment!</p>
-              <p className="text-gray-400 text-sm mt-1 print:text-slate-500">For queries, contact us at {ORG.website}</p>
-            </div>
-            <div className="mt-4 pt-4 border-t border-emerald-500/30 flex justify-between text-xs text-gray-500 print:border-emerald-200 print:text-slate-400">
-              <span>Generated: {new Date().toLocaleString('en-IN')}</span>
-              <span>Receipt ID: {id}</span>
+            {/* Seal & Signature */}
+            <div className="flex items-end justify-between gap-6 mt-10">
+              <div className="text-center">
+                <img
+                  src={ASSETS.seal}
+                  alt="Company Seal"
+                  crossOrigin="anonymous"
+                  className="w-36 h-36 object-contain mx-auto"
+                />
+                <p className="font-bold text-lg text-slate-900 mt-2">&quot;Thank you!&quot;</p>
+                <p className="text-sm text-slate-600">Your registration &amp; payment are confirmed</p>
+              </div>
+              <div className="text-center">
+                <img
+                  src={ASSETS.signature}
+                  alt="Signature"
+                  crossOrigin="anonymous"
+                  className="h-44 mx-auto -mb-6 object-contain"
+                />
+                <p className="font-bold text-lg text-slate-900">Mohan Kalburgi</p>
+                <p className="text-sm text-slate-500 italic">Yogacharya</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Print Button - Hidden on print */}
+        {/* Action Buttons - Hidden on print */}
         <div className="mt-6 flex justify-center gap-4 print:hidden">
           <button
-            onClick={() => window.print()}
-            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors border border-emerald-500"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors border border-emerald-500"
           >
-            🖨️ Print Receipt
+            {downloading ? 'Generating…' : '⬇️ Download PDF'}
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors border border-white/20"
+          >
+            🖨️ Print
           </button>
           <button
             onClick={() => router.back()}

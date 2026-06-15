@@ -9,6 +9,7 @@ import {
   toObjectId,
   getViewerUserId,
   getVisibleUserIds,
+  generateInvoiceNumber,
 } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
@@ -351,6 +352,8 @@ export async function POST(request: NextRequest) {
     const safeCustomerEmail = customerEmail !== undefined && customerEmail !== null ? String(customerEmail).trim().toLowerCase() : '';
     const safeWorkshopName = workshopName !== undefined && workshopName !== null ? String(workshopName).trim() : '';
     const parsedBatchDate = batchDate ? new Date(String(batchDate)) : null;
+    const saleDate = new Date();
+    const receiptNumber = await generateInvoiceNumber(saleDate);
 
     const sale = await SalesReport.create({
       saleId: saleId || undefined,
@@ -358,9 +361,10 @@ export async function POST(request: NextRequest) {
       leadId: leadId ? toObjectId(leadId) : undefined,
       saleAmount: Number(saleAmount),
       paymentMode: safePaymentMode,
+      receiptNumber,
       ...(safeStatus ? { status: safeStatus } : {}),
       ...(safeLabels.length ? { labels: safeLabels } : {}),
-      saleDate: new Date(),
+      saleDate,
       funnelStage: funnelStage || undefined,
       conversionPath: Array.isArray(conversionPath) ? conversionPath : undefined,
       daysToConversion: daysToConversion || undefined,
