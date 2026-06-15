@@ -33,10 +33,11 @@ function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function lastMonthStartDateInputValue(): string {
+// Start of the current Indian financial year (1 April).
+function financialYearStartDateInputValue(): string {
   const d = new Date();
-  d.setUTCMonth(d.getUTCMonth() - 1, 1);
-  return d.toISOString().slice(0, 10);
+  const year = d.getUTCMonth() >= 3 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+  return `${year}-04-01`;
 }
 
 // Helper to get leadId as string (handles both string and populated object)
@@ -203,7 +204,7 @@ export default function SalesPage() {
     reportedByUserId: string;
   }>({
     workshop: [],
-    batchFrom: lastMonthStartDateInputValue(),
+    batchFrom: financialYearStartDateInputValue(),
     batchTo: todayDateInputValue(),
     reportedByUserId: '',
   });
@@ -214,7 +215,7 @@ export default function SalesPage() {
     reportedByUserId: string;
   }>({
     workshop: [],
-    batchFrom: lastMonthStartDateInputValue(),
+    batchFrom: financialYearStartDateInputValue(),
     batchTo: todayDateInputValue(),
     reportedByUserId: '',
   });
