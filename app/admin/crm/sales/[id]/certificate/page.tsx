@@ -455,7 +455,7 @@ export default function CertificatePage() {
             <div className="text-center mt-5">
               <p className="text-xl font-bold text-slate-900">This Certificate is Presented To :</p>
               <p className="cert-script text-6xl mt-2" style={{ color: TEAL }}>
-                {certTitle ? `${certTitle}. ` : ''}{customerName}{location ? `, ${location}` : ''}
+                {customerName}
               </p>
             </div>
 
