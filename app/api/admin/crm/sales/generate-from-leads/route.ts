@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const [endYear, endMonthNum] = endMonth.split('-').map(Number);
 
     const leadCollection = crmDb.collection('leads');
-    const saleCollection = crmDb.collection('sales');
+    const saleCollection = crmDb.collection('sales_reports');
 
     const createdSales = [];
 
@@ -89,8 +89,13 @@ export async function POST(request: NextRequest) {
             paymentMode: 'bank_transfer',
             status: 'completed',
             labels: ['generated-from-leads'],
+            reportedByUserId: 'admincrm',
+            targetAchieved: false,
+            superAdminApproved: false,
+            conversionPath: [],
+            currency: 'INR',
             createdAt: new Date(),
-            createdByUserId: decoded.userId || decoded.id || 'system',
+            updatedAt: new Date(),
           };
 
           const result = await saleCollection.insertOne(saleRecord);
