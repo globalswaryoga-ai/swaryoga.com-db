@@ -300,6 +300,7 @@ export default function SalesPage() {
     try {
       setError(null);
       const params: any = { view };
+      if (view === 'list') params.limit = 1000; // show all entries, not just first 50
       if (appliedFilters.workshop.trim()) params.workshop = appliedFilters.workshop.trim();
       if (appliedFilters.batchFrom) params.batchFrom = appliedFilters.batchFrom;
       if (appliedFilters.batchTo) params.batchTo = appliedFilters.batchTo;
@@ -844,7 +845,25 @@ export default function SalesPage() {
   const lightTheme = !isSuperAdmin;
 
   return (
-    <div className={`min-h-screen p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : ''}`} style={{backgroundColor: '#1a0f2e'}}>
+    <div className={`sales-dark min-h-screen p-8 ${lightTheme ? 'crm-light bg-[#F8FAFC]' : ''}`} style={{backgroundColor: '#1a0f2e'}}>
+      {!lightTheme && (
+        <style jsx global>{`
+          /* Data table: light-lavender backgrounds + white text */
+          .sales-dark table { color: #ffffff !important; }
+          .sales-dark thead { background: #3a2659 !important; }
+          .sales-dark thead th { color: #e9d5ff !important; }
+          .sales-dark tbody tr { background-color: #2d1b4e !important; border-color: #4c3575 !important; }
+          .sales-dark tbody tr:nth-child(even) { background-color: #34215a !important; }
+          .sales-dark tbody tr:hover { background-color: #432c70 !important; }
+          .sales-dark tbody td { color: #ffffff !important; }
+          .sales-dark .text-slate-900,
+          .sales-dark .text-slate-700,
+          .sales-dark .text-slate-600,
+          .sales-dark .text-slate-500,
+          .sales-dark .text-slate-400 { color: #ffffff !important; }
+          .sales-dark .border-slate-200 { border-color: #4c3575 !important; }
+        `}</style>
+      )}
       {lightTheme && (
         <style jsx global>{`
           .crm-light .text-white { color: #0f172a !important; }
