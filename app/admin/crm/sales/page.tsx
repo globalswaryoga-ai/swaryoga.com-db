@@ -328,6 +328,13 @@ export default function SalesPage() {
       } else {
         setSales((result as any)?.sales || []);
       }
+
+      // Period views also need the full transaction list to show real
+      // transactions grouped under each period header.
+      if (view === 'daily' || view === 'weekly' || view === 'monthly' || view === 'yearly') {
+        const listResult = await crmFetch('/api/admin/crm/sales', { params: { ...params, view: 'list', limit: 1000 } });
+        setSales((listResult as any)?.sales || []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
@@ -597,11 +604,22 @@ export default function SalesPage() {
     }
   };
 
-  const aggColumns = [
-    { key: '_id', label: 'Period' },
-    { key: 'count', label: 'Transactions', render: (v: number) => String(v ?? 0) },
-    { key: 'totalSales', label: 'Total Revenue', render: (v: number) => `₹${Number(v || 0).toLocaleString()}` },
-  ];
+  // Period key for a sale, matching the backend's $dateToString/$year/$week grouping (UTC-based).
+  function periodKeyForSale(s: SaleRecord, periodView: 'daily' | 'weekly' | 'monthly' | 'yearly'): string {
+    const d = new Date(s.saleDate || s.createdAt || 0);
+    if (Number.isNaN(d.getTime())) return '';
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    if (periodView === 'yearly') return String(yyyy);
+    if (periodView === 'monthly') return `${yyyy}-${mm}`;
+    if (periodView === 'daily') return `${yyyy}-${mm}-${dd}`;
+    // weekly: matches Mongo's $week (Sunday-based week of year)
+    const jan1 = new Date(Date.UTC(yyyy, 0, 1));
+    const dayOfYear = Math.floor((d.getTime() - jan1.getTime()) / 86400000);
+    const week = Math.floor((dayOfYear + jan1.getUTCDay()) / 7);
+    return `${yyyy}-W${week}`;
+  }
 
   const columns = [
     {
@@ -1155,50 +1173,38 @@ export default function SalesPage() {
               </div>
             )}
 
-            {view === 'daily' && (
-              <DataTable
-                columns={aggColumns}
-                data={daily}
-                loading={crm.loading}
-                empty={daily.length === 0}
-                striped
-                hover
-              />
-            )}
-
-            {view === 'monthly' && (
-              <DataTable
-                columns={aggColumns}
-                data={monthly}
-                loading={crm.loading}
-                empty={monthly.length === 0}
-                striped
-                hover
-              />
-            )}
-
-            {/* Weekly View */}
-            {view === 'weekly' && (
-              <DataTable
-                columns={aggColumns}
-                data={weekly}
-                loading={crm.loading}
-                empty={weekly.length === 0}
-                striped
-                hover
-              />
-            )}
-
-            {/* Yearly View */}
-            {view === 'yearly' && (
-              <DataTable
-                columns={aggColumns}
-                data={yearly}
-                loading={crm.loading}
-                empty={yearly.length === 0}
-                striped
-                hover
-              />
+            {/* Daily / Weekly / Monthly / Yearly: real transactions grouped per period */}
+            {(view === 'daily' || view === 'weekly' || view === 'monthly' || view === 'yearly') && (
+              <div className="space-y-6">
+                {(view === 'daily' ? daily : view === 'weekly' ? weekly : view === 'monthly' ? monthly : yearly).map((row) => {
+                  const periodSales = sales.filter((s) => periodKeyForSale(s, view) === String(row._id));
+                  return (
+                    <div key={String(row._id)} className="space-y-2">
+                      <div className="flex items-center justify-between bg-[#3a2659] rounded-lg px-4 py-3 border border-purple-500/30">
+                        <span className="text-purple-200 font-bold text-lg">{String(row._id)}</span>
+                        <div className="flex items-center gap-6 text-sm">
+                          <span className="text-white/80">{Number(row.count ?? 0)} transactions</span>
+                          <span className="text-yellow-400 font-bold">₹{Number(row.totalSales || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <DataTable
+                        columns={columns}
+                        data={periodSales}
+                        loading={crm.loading}
+                        empty={periodSales.length === 0}
+                        striped
+                        hover
+                      />
+                    </div>
+                  );
+                })}
+                {((view === 'daily' && daily.length === 0) ||
+                  (view === 'weekly' && weekly.length === 0) ||
+                  (view === 'monthly' && monthly.length === 0) ||
+                  (view === 'yearly' && yearly.length === 0)) && (
+                  <div className="text-center text-white/50 py-12">No data for this period</div>
+                )}
+              </div>
             )}
 
             {/* Sales List */}
