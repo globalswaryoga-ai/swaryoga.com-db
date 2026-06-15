@@ -1251,7 +1251,7 @@ export default function QRWhatsAppPage() {
   useEffect(() => {
     const isNowConnected = status?.connected === true;
     const wasDisconnected = wasConnectedRef.current === false;
-    
+
     if (isNowConnected && wasDisconnected) {
       console.log('[QR] 🔄 RECONNECT DETECTED — forcing aggressive chat refresh...');
       // Force immediate fetch of new offline-synced chats
@@ -1259,10 +1259,42 @@ export default function QRWhatsAppPage() {
         fetchChatsRef.current().catch(err => console.error('[QR] Reconnection fetch failed:', err));
       }
     }
-    
+
     // Update previous connection state for next check
     wasConnectedRef.current = isNowConnected;
   }, [status?.connected]);
+
+  // ── Auto-open chat from query parameter (e.g., from form submission Chat button) ──
+  // When phone=<number> is in URL, find and open that chat automatically
+  useEffect(() => {
+    if (!chats.length || !searchParams) return;
+
+    const phoneParam = searchParams.get('phone');
+    if (!phoneParam) return;
+
+    // Normalize phone: remove non-digits and find matching chat
+    const targetDigits = phoneParam.replace(/\D/g, '');
+    if (!targetDigits) return;
+
+    // Find chat matching the phone number
+    const matchingChat = chats.find(chat => {
+      const chatPhone = extractBestChatPhone(chat as ChatItem & Record<string, any>);
+      const chatDigits = chatPhone.replace(/\D/g, '');
+      return chatDigits === targetDigits;
+    });
+
+    if (matchingChat && selectedChat !== matchingChat.id) {
+      console.log(`[QR] 📞 Opening chat for phone ${phoneParam}: ${matchingChat.name}`);
+      setSelectedChat(matchingChat.id);
+      // Scroll the selected chat into view
+      setTimeout(() => {
+        const element = document.querySelector(`[data-chat-id="${matchingChat.id}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
+    }
+  }, [chats, searchParams, selectedChat]);
 
   // ── Fetch messages ──
   const fetchMessages = useCallback(async (jid: string, opts?: { forceScroll?: boolean }) => {
@@ -2869,6 +2901,7 @@ export default function QRWhatsAppPage() {
                 return (
                   <div
                     key={chat.id}
+                    data-chat-id={chat.id}
                     className={`group w-full text-left px-2 py-2 border-b hover:bg-gray-50 transition flex items-center gap-2 cursor-pointer ${
                       selectedChat === chat.id ? 'bg-green-50 border-l-4 border-l-green-500' : ''
                     }`}
