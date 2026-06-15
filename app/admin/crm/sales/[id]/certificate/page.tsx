@@ -219,12 +219,20 @@ export default function CertificatePage() {
 
       const pageWidth = 210; // A4 mm
       const pageHeight = 297; // A4 mm
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const canvasRatio = canvas.width / canvas.height;
+
+      // Fit the canvas inside the A4 page without distorting its aspect ratio.
+      let renderWidth = pageWidth;
+      let renderHeight = pageWidth / canvasRatio;
+      if (renderHeight > pageHeight) {
+        renderHeight = pageHeight;
+        renderWidth = pageHeight * canvasRatio;
+      }
+      const xOffset = (pageWidth - renderWidth) / 2;
+      const yOffset = (pageHeight - renderHeight) / 2;
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const renderHeight = Math.min(imgHeight, pageHeight);
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, renderHeight);
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', xOffset, yOffset, renderWidth, renderHeight);
       const certNo = sale?.receiptNumber || (sale?._id || id || 'swaryoga').slice(-8).toUpperCase();
       pdf.save(`Certificate-${certNo}.pdf`);
     } finally {
