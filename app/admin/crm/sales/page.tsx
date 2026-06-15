@@ -189,6 +189,7 @@ export default function SalesPage() {
     batchDate: '',
     saleAmount: 0,
     paymentMode: 'payu',
+    transactionId: '',
     saleDate: '',
     reportedByUserId: '',
     status: 'completed',
@@ -254,6 +255,7 @@ export default function SalesPage() {
     batchDate: todayDateInputValue(),
     saleAmount: 0,
     paymentMode: 'payu',
+    transactionId: '',
     status: 'completed',
     labelsText: '',
     targetAchieved: false,
@@ -441,6 +443,7 @@ export default function SalesPage() {
           batchDate: formData.batchDate || undefined,
           saleAmount: formData.saleAmount,
           paymentMode: formData.paymentMode,
+          transactionId: formData.transactionId || undefined,
           reportedByUserId: formData.reportedByUserId || undefined,
           status: formData.status || undefined,
           labels: parseLabelsText(formData.labelsText),
@@ -458,6 +461,7 @@ export default function SalesPage() {
         batchDate: todayDateInputValue(),
         saleAmount: 0,
         paymentMode: 'payu',
+        transactionId: '',
         status: 'completed',
         labelsText: '',
         targetAchieved: false,
@@ -541,6 +545,7 @@ export default function SalesPage() {
       batchDate: toDateInputValue(sale.batchDate || ''),
       saleAmount: Number(sale.saleAmount || 0),
       paymentMode: sale.paymentMode || 'payu',
+      transactionId: sale.transactionId || '',
       saleDate: toDateInputValue(sale.saleDate || ''),
       reportedByUserId: sale.reportedByUserId || '',
       status: sale.status || 'completed',
@@ -563,6 +568,7 @@ export default function SalesPage() {
         batchDate: editData.batchDate || undefined,
         saleAmount: editData.saleAmount,
         paymentMode: editData.paymentMode,
+        transactionId: editData.transactionId || undefined,
         saleDate: editData.saleDate || undefined,
         reportedByUserId: editData.reportedByUserId || undefined,
         status: editData.status || undefined,
@@ -1537,11 +1543,24 @@ export default function SalesPage() {
                 className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="payu">PayU</option>
-                <option value="card">Card</option>
+                <option value="cashfree">Cashfree</option>
+                <option value="upi">Paytm/PhonePe/Google Pay (UPI)</option>
                 <option value="bank_transfer">Bank Transfer</option>
+                <option value="paypal">PayPal</option>
                 <option value="cash">Cash</option>
+                <option value="card">Card</option>
                 <option value="other">Other</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-white text-sm mb-2 font-semibold">Payment Reference / Transaction ID</label>
+              <input
+                type="text"
+                value={formData.transactionId}
+                onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="Cashfree order ID, UPI ref no, bank UTR, etc."
+              />
             </div>
 
             <div className="flex items-center gap-3">
@@ -1983,11 +2002,24 @@ export default function SalesPage() {
                   className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="payu">PayU</option>
-                  <option value="card">Card</option>
+                  <option value="cashfree">Cashfree</option>
+                  <option value="upi">Paytm/PhonePe/Google Pay (UPI)</option>
                   <option value="bank_transfer">Bank Transfer</option>
+                  <option value="paypal">PayPal</option>
                   <option value="cash">Cash</option>
+                  <option value="card">Card</option>
                   <option value="other">Other</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-white text-sm mb-2">Payment Reference / Transaction ID</label>
+                <input
+                  type="text"
+                  value={editData.transactionId}
+                  onChange={(e) => setEditData({ ...editData, transactionId: e.target.value })}
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="Cashfree order ID, UPI ref no, bank UTR, etc."
+                />
               </div>
               <div>
                 <label className="block text-white text-sm mb-2">Sale Date</label>

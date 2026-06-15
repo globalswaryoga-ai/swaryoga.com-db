@@ -310,6 +310,7 @@ export async function POST(request: NextRequest) {
     const {
       saleAmount,
       paymentMode,
+      transactionId,
       leadId,
       saleId,
       status,
@@ -339,9 +340,11 @@ export async function POST(request: NextRequest) {
     if (leadId && !isValidObjectId(leadId)) throw new Error('Invalid leadId');
     if (saleId && !isValidObjectId(saleId)) throw new Error('Invalid saleId');
 
-    const safePaymentMode = ['payu', 'card', 'bank_transfer', 'cash', 'other'].includes(paymentMode)
+    const safePaymentMode = ['payu', 'cashfree', 'card', 'bank_transfer', 'cash', 'upi', 'paypal', 'other'].includes(paymentMode)
       ? paymentMode
       : 'payu';
+
+    const safeTransactionId = transactionId !== undefined && transactionId !== null ? String(transactionId).trim() : '';
 
     const safeStatus = normalizeSaleStatus(status);
     const safeLabels = normalizeLabels(labels);
@@ -361,6 +364,7 @@ export async function POST(request: NextRequest) {
       leadId: leadId ? toObjectId(leadId) : undefined,
       saleAmount: Number(saleAmount),
       paymentMode: safePaymentMode,
+      ...(safeTransactionId ? { transactionId: safeTransactionId } : {}),
       receiptNumber,
       ...(safeStatus ? { status: safeStatus } : {}),
       ...(safeLabels.length ? { labels: safeLabels } : {}),
@@ -420,7 +424,7 @@ export async function PUT(request: NextRequest) {
       throw new Error('Unauthorized: Cannot edit other user sales');
     }
 
-    const allowedPaymentModes = ['payu', 'card', 'bank_transfer', 'cash', 'other'];
+    const allowedPaymentModes = ['payu', 'cashfree', 'card', 'bank_transfer', 'cash', 'upi', 'paypal', 'other'];
     const safeUpdates: any = {};
 
     if (updates.saleAmount !== undefined) {
@@ -443,6 +447,7 @@ export async function PUT(request: NextRequest) {
       safeUpdates.labels = normalizeLabels(updates.labels);
     }
 
+    if (updates.transactionId !== undefined) safeUpdates.transactionId = String(updates.transactionId || '').trim() || undefined;
     if (updates.customerId !== undefined) safeUpdates.customerId = String(updates.customerId || '').trim() || undefined;
     if (updates.customerName !== undefined) safeUpdates.customerName = String(updates.customerName || '').trim() || undefined;
     if (updates.customerPhone !== undefined) safeUpdates.customerPhone = String(updates.customerPhone || '').trim() || undefined;

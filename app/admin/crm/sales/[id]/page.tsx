@@ -73,6 +73,27 @@ const ACCENT_TABLE = '#f39c12';
 const ACCENT_GREEN = '#5baa2f';
 const ACCENT_RED = '#d72e2e';
 
+const PAYMENT_MODE_LABELS: Record<string, string> = {
+  payu: 'PayU',
+  cashfree: 'Cashfree',
+  upi: 'UPI (Paytm/PhonePe/GPay)',
+  bank_transfer: 'Bank Transfer',
+  paypal: 'PayPal',
+  card: 'Card',
+  cash: 'Cash',
+  other: 'Other',
+};
+
+const PAYMENT_REFERENCE_LABELS: Record<string, string> = {
+  payu: 'PayU Txn ID',
+  cashfree: 'Cashfree Order ID',
+  upi: 'UPI Ref No.',
+  bank_transfer: 'Bank Ref / UTR No.',
+  paypal: 'PayPal Txn ID',
+  card: 'Card Txn ID',
+  other: 'Txn ID',
+};
+
 function formatDate(d?: string | Date) {
   if (!d) return '—';
   const dt = new Date(d);
@@ -230,10 +251,10 @@ export default function SaleDetailPage() {
             <path d="M0,0 L1000,0 L1000,20 C800,30 500,110 0,150 Z" fill="#6bb82c" />
             <path d="M0,0 L1000,0 L1000,170 C800,165 500,70 0,30 Z" fill="#53825d" />
           </svg>
-          {/* Bottom wave decoration */}
-          <svg className="absolute bottom-0 left-0 w-full h-36 pointer-events-none rotate-180" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0,0 L1000,0 L1000,20 C800,30 500,110 0,150 Z" fill="#6bb82c" />
-            <path d="M0,0 L1000,0 L1000,170 C800,165 500,70 0,30 Z" fill="#53825d" />
+          {/* Bottom wave decoration (paths pre-rotated 180deg, not CSS-rotated, so html2canvas captures them) */}
+          <svg className="absolute bottom-0 left-0 w-full h-36 pointer-events-none" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M1000,200 L0,200 L0,180 C200,170 500,90 1000,50 Z" fill="#6bb82c" />
+            <path d="M1000,200 L0,200 L0,30 C200,35 500,130 1000,170 Z" fill="#53825d" />
           </svg>
 
           <div className="relative z-10">
@@ -246,7 +267,11 @@ export default function SaleDetailPage() {
                   crossOrigin="anonymous"
                   className="w-24 h-24 rounded-full object-cover border-4 border-white shadow"
                 />
-                <h1 className="text-4xl font-extrabold tracking-wide text-slate-900">{ORG.brand}</h1>
+                <div>
+                  <h1 className="text-4xl font-extrabold tracking-wide text-slate-900">{ORG.brand}</h1>
+                  <p className="text-xs text-slate-500 mt-1">Maldad Road, Sangamner • Mo {ORG.phone}</p>
+                  <p className="text-xs text-slate-500">Email: mohan@swaryoga.com</p>
+                </div>
               </div>
               <div className="text-right flex-shrink-0">
                 <img
@@ -267,11 +292,11 @@ export default function SaleDetailPage() {
             <div className="flex justify-between gap-8 mb-6">
               <div className="max-w-[55%]">
                 <p className="text-xs text-slate-500 tracking-wider uppercase">Invoice To :</p>
-                <p className="text-2xl font-bold mt-1" style={{ color: ACCENT_GREEN }}>{sale.customerName || 'Customer'}</p>
                 <p className="text-lg font-bold text-slate-900 mt-1">ID: {sale.customerId || id?.slice(-8)}</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: ACCENT_GREEN }}>{sale.customerName || 'Customer'}</p>
+                {sale.customerAddress && <p className="text-sm text-slate-600 mt-1">{sale.customerAddress}</p>}
                 {sale.customerPhone && <p className="text-sm text-slate-600 mt-2">{sale.customerPhone}</p>}
                 {sale.customerEmail && <p className="text-sm text-slate-600">{sale.customerEmail}</p>}
-                {sale.customerAddress && <p className="text-sm text-slate-600">{sale.customerAddress}</p>}
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-base text-slate-700">Date: {formatDate(sale.saleDate || sale.createdAt)}</p>
@@ -320,8 +345,12 @@ export default function SaleDetailPage() {
             <div className="flex justify-between items-start mt-6 gap-8">
               <div>
                 <p className="font-bold text-lg text-slate-900">Payment Method :</p>
-                <p className="text-base text-slate-700 mt-1 capitalize">{sale.paymentMode || 'N/A'}</p>
-                {sale.transactionId && <p className="text-xs text-slate-500 font-mono mt-1">Txn ID: {sale.transactionId}</p>}
+                <p className="text-base text-slate-700 mt-1">{PAYMENT_MODE_LABELS[sale.paymentMode || ''] || sale.paymentMode || 'N/A'}</p>
+                {sale.transactionId && (
+                  <p className="text-xs text-slate-500 font-mono mt-1">
+                    {PAYMENT_REFERENCE_LABELS[sale.paymentMode || ''] || 'Txn ID'}: {sale.transactionId}
+                  </p>
+                )}
                 {hasBankDetails && (
                   <p className="text-xs text-slate-500 mt-1">
                     {[ORG.bankName, ORG.bankAccount && `A/C ${ORG.bankAccount}`, ORG.bankIFSC && `IFSC ${ORG.bankIFSC}`, ORG.upiId && `UPI ${ORG.upiId}`]
@@ -374,6 +403,8 @@ export default function SaleDetailPage() {
                 <p className="text-sm text-slate-500 italic">Yogacharya</p>
               </div>
             </div>
+
+            <p className="text-center text-sm font-semibold text-slate-500 mt-8">{ORG.website}</p>
           </div>
         </div>
 
