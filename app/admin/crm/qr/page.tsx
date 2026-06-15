@@ -1220,6 +1220,7 @@ export default function QRWhatsAppPage() {
         });
         setChats(sorted);
         setError(null);
+        chatsRef.current = sorted;
         // Preload avatars for ALL individual chats (not just first 30).
         // Groups are skipped inside fetchProfilePic (group icon + access-gated
         // proxy), and profilePicLoadedRef guarantees each JID is fetched at most
