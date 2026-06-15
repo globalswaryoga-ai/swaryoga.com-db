@@ -245,20 +245,36 @@ export default function CertificatePage() {
 
       const pageWidth = 210; // A4 mm
       const pageHeight = 297; // A4 mm
-      const canvasRatio = canvas.width / canvas.height;
-
-      // Fit the canvas inside the A4 page without distorting its aspect ratio.
-      let renderWidth = pageWidth;
-      let renderHeight = pageWidth / canvasRatio;
-      if (renderHeight > pageHeight) {
-        renderHeight = pageHeight;
-        renderWidth = pageHeight * canvasRatio;
-      }
-      const xOffset = (pageWidth - renderWidth) / 2;
-      const yOffset = (pageHeight - renderHeight) / 2;
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', xOffset, yOffset, renderWidth, renderHeight);
+
+      if (imgHeight <= pageHeight) {
+        // Fits on one page - render at full page width, no side margins.
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+      } else {
+        // Content is taller than one A4 page - slice into multiple full-width pages.
+        const pageHeightPx = (pageHeight * canvas.width) / imgWidth;
+        let renderedPx = 0;
+        let pageIndex = 0;
+        while (renderedPx < canvas.height) {
+          const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceHeightPx;
+          const ctx = sliceCanvas.getContext('2d');
+          ctx?.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+          if (pageIndex > 0) pdf.addPage();
+          const sliceImgHeight = (sliceHeightPx * imgWidth) / canvas.width;
+          pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, sliceImgHeight);
+
+          renderedPx += sliceHeightPx;
+          pageIndex++;
+        }
+      }
+
       const certNo = sale?.receiptNumber || (sale?._id || id || 'swaryoga').slice(-8).toUpperCase();
       pdf.save(`Certificate-${certNo}.pdf`);
     } finally {
@@ -413,29 +429,25 @@ export default function CertificatePage() {
 
           <div className="relative z-10 flex flex-col">
             {/* Header */}
-            <div className="flex items-start justify-between gap-6">
-              <div className="w-52 flex-shrink-0 flex justify-start">
-                <img
-                  src={ASSETS.photo}
-                  alt="Swar Yoga"
-                  crossOrigin="anonymous"
-                  className="w-32 h-32 rounded-full object-cover border-4 shadow"
-                  style={{ borderColor: '#5b9bd5' }}
-                />
-              </div>
-              <div className="text-center flex-1 min-w-0 self-center">
-                <h1 className="text-7xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
+            <div className="relative flex items-center justify-center" style={{ minHeight: '230px' }}>
+              <img
+                src={ASSETS.photo}
+                alt="Swar Yoga"
+                crossOrigin="anonymous"
+                className="absolute left-0 top-0 w-32 h-32 rounded-full object-cover border-4 shadow"
+                style={{ borderColor: '#5b9bd5' }}
+              />
+              <div className="text-center mt-[4mm]">
+                <h1 className="text-6xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
                 <p className="text-xl italic mt-1 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
               </div>
-              <div className="w-52 flex-shrink-0 flex justify-end">
-                <img
-                  src={ASSETS.goldBadge}
-                  alt="Certificate Badge"
-                  crossOrigin="anonymous"
-                  className="w-52 h-auto object-contain"
-                  style={{ marginRight: '-10mm' }}
-                />
-              </div>
+              <img
+                src={ASSETS.goldBadge}
+                alt="Certificate Badge"
+                crossOrigin="anonymous"
+                className="absolute right-0 top-0 w-52 h-auto object-contain"
+                style={{ marginRight: '-10mm' }}
+              />
             </div>
 
             {/* Title */}
@@ -465,7 +477,7 @@ export default function CertificatePage() {
             </div>
 
             {/* Body */}
-            <p className="text-center text-base text-slate-700 leading-relaxed mt-4 px-1">
+            <p className="text-center text-lg text-slate-700 leading-relaxed mt-4 px-1">
               This is to proudly certify that{' '}
               <span className="font-bold">{certTitle ? `${certTitle}. ` : ''}{customerName}</span>
               {location ? <>, <span className="font-bold">{location}</span></> : ''},{' '}
