@@ -17,6 +17,11 @@ interface SaleRecord {
   certificatePhotoZoom?: number;
   certificatePhotoOffsetX?: number;
   certificatePhotoOffsetY?: number;
+  certificateTitle?: string;
+  certificateName?: string;
+  certificatePlace?: string;
+  certificateState?: string;
+  certificateCountry?: string;
   createdAt: string;
 }
 
@@ -303,9 +308,11 @@ export default function CertificatePage() {
   }
 
   const certNo = sale.receiptNumber || (sale._id || id || '').slice(-10).toUpperCase();
-  const customerName = sale.customerName || 'Participant';
+  const customerName = sale.certificateName?.trim() || sale.customerName || 'Participant';
   const workshopName = sale.workshopName || 'Swar Yoga Workshop';
   const completionDate = formatMonthYear(sale.batchDate || sale.saleDate || sale.createdAt);
+  const certTitle = sale.certificateTitle?.trim();
+  const location = [sale.certificatePlace, sale.certificateState, sale.certificateCountry].filter((v) => v && v.trim()).join(', ');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 p-4 md:p-8 print:bg-white print:p-0">
@@ -347,7 +354,7 @@ export default function CertificatePage() {
                 className="w-24 h-24 rounded-full object-cover border-4 shadow"
                 style={{ borderColor: '#5b9bd5' }}
               />
-              <div className="text-center flex-1 pt-2 min-w-0">
+              <div className="text-center flex-1 pt-8 min-w-0">
                 <h1 className="text-6xl font-extrabold whitespace-nowrap" style={{ color: BROWN }}>Swar Yoga</h1>
                 <p className="text-2xl italic mt-2 whitespace-nowrap" style={{ color: RUST, fontFamily: 'Georgia, serif' }}>The Science Of Breath</p>
               </div>
@@ -360,7 +367,7 @@ export default function CertificatePage() {
             </div>
 
             {/* Title */}
-            <div className="text-center mt-6">
+            <div className="text-center mt-2">
               <h2 className="text-7xl font-extrabold tracking-wide" style={{ color: TEAL }}>CERTIFICATE</h2>
               <p className="text-3xl mt-2 tracking-[0.3em]" style={{ color: '#1f2937' }}>OF PARTICIPATION</p>
             </div>
@@ -385,7 +392,10 @@ export default function CertificatePage() {
 
             {/* Body */}
             <p className="text-center text-xl text-slate-700 leading-loose mt-8 px-8">
-              This is to proudly certify that <span className="font-bold">{customerName},</span> has successfully completed the Swar Yoga
+              This is to proudly certify that{' '}
+              <span className="font-bold">{certTitle ? `${certTitle}. ` : ''}{customerName}</span>
+              {location ? <>, <span className="font-bold">{location}</span></> : ''},{' '}
+              has successfully completed the Swar Yoga
               {' – '}<span className="font-bold">{workshopName}</span> organized by Upamnyu International Swar Yoga Education.
               With consistent enthusiasm, active involvement, and sincere dedication to learning and practicing Swar Yoga principles,
               the participant is hereby recognized with the Best Participation and Completion Certificate.{' '}
