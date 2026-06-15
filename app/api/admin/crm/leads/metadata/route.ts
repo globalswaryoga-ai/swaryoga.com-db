@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getCrmLeadSettings } from '@/lib/schemas/enterpriseSchemas';
 import { CANONICAL_LABELS } from '@/lib/crm/labels';
 
 export const dynamic = 'force-dynamic';
@@ -89,9 +89,19 @@ export async function GET(request: NextRequest) {
       workshopName: { $nin: [null, ''] },
     });
 
+    // Merge in workshop names the user has manually added via Lead Settings
+    // (so a newly-created workshop shows up everywhere, including Sales,
+    // even before any lead/sale uses it).
+    const CrmLeadSettings = getCrmLeadSettings();
+    const settings = await CrmLeadSettings.findOne({ userId: viewerUserId }).lean();
+    const settingsWorkshops: string[] = Array.isArray((settings as any)?.workshopNames)
+      ? (settings as any).workshopNames.map((w: any) => String(w || '').trim()).filter(Boolean)
+      : [];
+    const allWorkshops = Array.from(new Set([...uniqueWorkshops, ...settingsWorkshops]));
+
     // Get workshop counts
     const workshopCounts: Record<string, number> = {};
-    for (const workshop of uniqueWorkshops) {
+    for (const workshop of allWorkshops) {
       const count = await Lead.countDocuments({ ...baseFilter, workshopName: workshop });
       workshopCounts[workshop] = count;
     }
@@ -127,7 +137,7 @@ export async function GET(request: NextRequest) {
             customer: statusCounts[3],
             inactive: statusCounts[4],
           },
-          workshops: uniqueWorkshops.sort(),
+          workshops: allWorkshops.sort(),
           workshopCounts,
           canonicalLabels: CANONICAL_LABELS,
           labels,

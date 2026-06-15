@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getLoginPath } from '@/hooks/useAuth';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
@@ -27,6 +27,10 @@ function toDateInputValue(v: string | undefined | null): string {
   if (Number.isNaN(d.getTime())) return '';
   // Use UTC date portion for stability.
   return d.toISOString().slice(0, 10);
+}
+
+function todayDateInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 // Helper to get leadId as string (handles both string and populated object)
@@ -208,6 +212,7 @@ export default function SalesPage() {
     batchTo: '',
     reportedByUserId: '',
   });
+  const [searchQuery, setSearchQuery] = useState('');
   const [workshopFilterOpen, setWorkshopFilterOpen] = useState(false);
   const workshopFilterRef = useRef<HTMLDivElement | null>(null);
 
@@ -239,7 +244,7 @@ export default function SalesPage() {
     customerName: '',
     customerPhone: '',
     workshopName: '',
-    batchDate: '',
+    batchDate: todayDateInputValue(),
     saleAmount: 0,
     paymentMode: 'payu',
     status: 'completed',
@@ -443,7 +448,7 @@ export default function SalesPage() {
         customerName: '',
         customerPhone: '',
         workshopName: '',
-        batchDate: '',
+        batchDate: todayDateInputValue(),
         saleAmount: 0,
         paymentMode: 'payu',
         status: 'completed',
@@ -916,16 +921,40 @@ export default function SalesPage() {
     },
   ];
 
-  const allSelectedOnPage = sales.length > 0 && sales.every((s) => selectedSaleIds.has(s._id));
-  const someSelectedOnPage = sales.some((s) => selectedSaleIds.has(s._id));
+  // Client-side search across the loaded sales: matches Customer ID, Lead ID,
+  // name, mobile number, or amount.
+  const filteredSales = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sales;
+    return sales.filter((s) => {
+      const leadNumber = (typeof s.leadId === 'object' && s.leadId?.leadNumber) || '';
+      const leadName = (typeof s.leadId === 'object' && s.leadId?.name) || '';
+      const leadPhone = (typeof s.leadId === 'object' && s.leadId?.phoneNumber) || '';
+      const haystack = [
+        s.customerId,
+        leadNumber,
+        s.customerName,
+        leadName,
+        s.customerPhone,
+        leadPhone,
+        s.saleAmount != null ? String(s.saleAmount) : '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [sales, searchQuery]);
+
+  const allSelectedOnPage = filteredSales.length > 0 && filteredSales.every((s) => selectedSaleIds.has(s._id));
+  const someSelectedOnPage = filteredSales.some((s) => selectedSaleIds.has(s._id));
 
   const toggleSelectAllOnPage = () => {
     setSelectedSaleIds((prev) => {
       const next = new Set(prev);
       if (allSelectedOnPage) {
-        sales.forEach((s) => next.delete(s._id));
+        filteredSales.forEach((s) => next.delete(s._id));
       } else {
-        sales.forEach((s) => next.add(s._id));
+        filteredSales.forEach((s) => next.add(s._id));
       }
       return next;
     });
@@ -1248,6 +1277,16 @@ export default function SalesPage() {
                 placeholder="Admin user ID"
               />
             </div>
+            <div>
+              <label className="block text-white text-sm font-semibold mb-3">Search</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                placeholder="ID, name, mobile, or amount"
+              />
+            </div>
           </div>
           <div className="mt-8 flex gap-3">
             <button
@@ -1327,7 +1366,7 @@ export default function SalesPage() {
             {(view === 'daily' || view === 'weekly' || view === 'monthly' || view === 'yearly') && (
               <div className="space-y-6">
                 {(view === 'daily' ? daily : view === 'weekly' ? weekly : view === 'monthly' ? monthly : yearly).map((row) => {
-                  const periodSales = sales.filter((s) => periodKeyForSale(s, view) === String(row._id));
+                  const periodSales = filteredSales.filter((s) => periodKeyForSale(s, view) === String(row._id));
                   return (
                     <div key={String(row._id)} className="space-y-2">
                       <div className="flex items-center justify-between bg-[#3a2659] rounded-lg px-4 py-3 border border-purple-500/30">
@@ -1361,9 +1400,9 @@ export default function SalesPage() {
             {view === 'list' && (
               <DataTable
                 columns={columns}
-                data={sales}
+                data={filteredSales}
                 loading={crm.loading}
-                empty={sales.length === 0}
+                empty={filteredSales.length === 0}
                 striped
                 hover
               />

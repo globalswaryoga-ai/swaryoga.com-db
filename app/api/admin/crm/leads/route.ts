@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     // This still respects multi-user access control below (non-super-admins only see their own leads).
     const requestedLimit = Number(url.searchParams.get('limit') || 50) || 50;
     const selectAll = url.searchParams.get('selectAll') === 'true';
-    const maxLimit = selectAll ? 5000 : 200;
+    const maxLimit = selectAll ? 10000 : 200;
     const limit = Math.min(requestedLimit, maxLimit);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 

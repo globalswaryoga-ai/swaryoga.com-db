@@ -58,6 +58,21 @@ type AdminUserOption = {
   permissions?: string[];
 };
 
+// Some sources (e.g. tracking/session-based website signups) store a random
+// generated token as the lead's "name" when no real name was given. Detect
+// those so the table can fall back to the phone number instead.
+function looksLikeRandomId(name: string): boolean {
+  const s = name.trim();
+  if (!s) return true;
+  if (/\s/.test(s)) return false; // real names usually contain a space
+  if (s.length < 10) return false;
+  const upperCount = (s.match(/[A-Z]/g) || []).length;
+  const lowerCount = (s.match(/[a-z]/g) || []).length;
+  // Single "word" with multiple internal capitals and no digits/punctuation
+  // is a strong signal of a generated ID rather than a real single name.
+  return /^[A-Za-z0-9]+$/.test(s) && upperCount >= 3 && lowerCount >= 3;
+}
+
 export default function LeadsPage() {
   const router = useRouter();
   const token = useAuth();
@@ -72,6 +87,7 @@ export default function LeadsPage() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
+  // -1 means "All" (no pagination, fetch everything)
   const [limit, setLimit] = useState(100);
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -235,7 +251,12 @@ export default function LeadsPage() {
 
     try {
       setLoadingLeads(true);
-      const params: Record<string, any> = { limit, skip };
+      // "All" page size or an active search should not be capped to the
+      // selected page size - fetch everything matching the filters/search.
+      const fetchAll = limit === -1 || Boolean(search.query.trim());
+      const params: Record<string, any> = fetchAll
+        ? { limit: 5000, skip: 0, selectAll: 'true' }
+        : { limit, skip };
       if (filterStatus) params.status = filterStatus;
       if (filterWorkshop) params.workshop = filterWorkshop;
       if (search.query) params.q = search.query;
@@ -574,8 +595,9 @@ export default function LeadsPage() {
       key: 'name',
       label: 'Name & Contact',
       render: (name: any, lead: Lead) => {
-        // Fallback: If name starts with "QR Lead" or is missing/N/A, show phone number
-        const displayName = (!name || name === 'N/A' || name === 'QR Lead' || String(name).startsWith('QR Lead '))
+        // Fallback: If name starts with "QR Lead", is missing/N/A, or looks like
+        // a randomly-generated tracking ID, show the phone number instead.
+        const displayName = (!name || name === 'N/A' || name === 'QR Lead' || String(name).startsWith('QR Lead ') || looksLikeRandomId(String(name)))
           ? lead.phoneNumber
           : String(name);
         
@@ -951,16 +973,25 @@ export default function LeadsPage() {
                   if (!token) return;
                   try {
                     setBackfillBusy(true);
-                    const res = await fetch('/api/admin/crm/leads/backfill-ids?limit=500', {
-                      method: 'POST',
-                      headers: { Authorization: `Bearer ${token}` },
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data?.error || 'Backfill failed');
+                    let totalUpdated = 0;
+                    let remaining = 0;
+                    // Keep running until every lead has a Lead ID (each run covers up to 2000).
+                    while (true) {
+                      const res = await fetch('/api/admin/crm/leads/backfill-ids?limit=2000', {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data?.error || 'Backfill failed');
+
+                      totalUpdated += data?.data?.updated || 0;
+                      remaining = data?.data?.remaining || 0;
+                      if (!data?.data?.updated || remaining === 0) break;
+                    }
 
                     fetchMetadata();
                     fetchLeads();
-                    alert(`Backfilled ${data?.data?.updated || 0} lead IDs. Remaining: ${data?.data?.remaining || 0}`);
+                    alert(`Backfilled ${totalUpdated} lead IDs. Remaining without an ID: ${remaining}`);
                   } catch (err) {
                     setError(err instanceof Error ? err.message : 'Backfill failed');
                   } finally {
@@ -1040,6 +1071,7 @@ export default function LeadsPage() {
                 {[100, 200, 300, 500].map((n) => (
                   <option key={n} value={n} className="bg-[#1a1a1a]">{n}</option>
                 ))}
+                <option value={-1} className="bg-[#1a1a1a]">All</option>
               </select>
             </div>
           </div>
@@ -1355,32 +1387,43 @@ export default function LeadsPage() {
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
                   <div className="text-gray-400 font-medium">
-                    Showing <span className="font-bold text-white">{skip + 1}</span> to{' '}
-                    <span className="font-bold text-white">{Math.min(skip + limit, total)}</span> of{' '}
-                    <span className="font-bold text-green-400">{total}</span> leads
+                    {limit === -1 || search.query.trim() ? (
+                      <>
+                        Showing <span className="font-bold text-green-400">{leads.length}</span> of{' '}
+                        <span className="font-bold text-white">{total}</span> leads
+                      </>
+                    ) : (
+                      <>
+                        Showing <span className="font-bold text-white">{skip + 1}</span> to{' '}
+                        <span className="font-bold text-white">{Math.min(skip + limit, total)}</span> of{' '}
+                        <span className="font-bold text-green-400">{total}</span> leads
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setSkip(Math.max(0, skip - limit))}
-                    disabled={skip === 0}
-                    className="px-4 py-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all duration-300 border border-white/20 hover:border-white/40"
-                  >
-                    ← Previous
-                  </button>
-                  <div className="flex items-center px-4 text-gray-400 font-medium">
-                    Page {Math.floor(skip / limit) + 1} of {Math.max(1, Math.ceil(total / limit))}
+                {limit !== -1 && !search.query.trim() && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setSkip(Math.max(0, skip - limit))}
+                      disabled={skip === 0}
+                      className="px-4 py-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all duration-300 border border-white/20 hover:border-white/40"
+                    >
+                      ← Previous
+                    </button>
+                    <div className="flex items-center px-4 text-gray-400 font-medium">
+                      Page {Math.floor(skip / limit) + 1} of {Math.max(1, Math.ceil(total / limit))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (skip + limit < total) setSkip(skip + limit);
+                      }}
+                      disabled={skip + limit >= total}
+                      className="px-4 py-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-green-500/20"
+                    >
+                      Next →
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      if (skip + limit < total) setSkip(skip + limit);
-                    }}
-                    disabled={skip + limit >= total}
-                    className="px-4 py-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-green-500/20"
-                  >
-                    Next →
-                  </button>
-                </div>
+                )}
               </div>
             )}
           </>

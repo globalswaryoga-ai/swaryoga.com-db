@@ -110,8 +110,20 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       // Super-admins are not CRM-site tenants and have no plan — the crm-site
       // endpoints rightly 401 them. Treat them as full-access and skip the call
       // to avoid noisy 401s / "Failed to fetch plan" errors in the console.
+      // Also give them the unlimited (Diamond) plan limits/display so the
+      // leads usage badge doesn't show a Free-plan cap (e.g. "/100").
       if (checkIsSuperAdmin()) {
-        setState(prev => ({ ...prev, isSuperAdmin: true, loading: false, error: null }));
+        setState(prev => ({
+          ...prev,
+          plan: 'enterprise',
+          planName: PLAN_NAMES.enterprise,
+          display: getPlanDisplay('enterprise'),
+          limits: getPlanLimits('enterprise'),
+          isSuperAdmin: true,
+          upgradePlan: null,
+          loading: false,
+          error: null,
+        }));
         return;
       }
 
@@ -251,9 +263,20 @@ function usePlanStandalone(): PlanContextValue {
         return;
       }
 
-      // Super-admins have no CRM-site plan — skip to avoid noisy 401s.
+      // Super-admins have no CRM-site plan — skip to avoid noisy 401s, and
+      // give them unlimited (Diamond) limits so usage badges don't show a cap.
       if (checkIsSuperAdmin()) {
-        setState(prev => ({ ...prev, isSuperAdmin: true, loading: false, error: null }));
+        setState(prev => ({
+          ...prev,
+          plan: 'enterprise',
+          planName: PLAN_NAMES.enterprise,
+          display: getPlanDisplay('enterprise'),
+          limits: getPlanLimits('enterprise'),
+          isSuperAdmin: true,
+          upgradePlan: null,
+          loading: false,
+          error: null,
+        }));
         return;
       }
 
