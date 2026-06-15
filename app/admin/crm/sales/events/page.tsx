@@ -135,6 +135,97 @@ export default function WorkshopEventsPage() {
     }
   };
 
+  const buildReportHtml = useCallback(() => {
+    const filterLabel = [
+      monthFilter !== 'all' ? monthLabel(monthFilter) : null,
+      workshopFilter !== 'all' ? workshopFilter : null,
+    ].filter(Boolean).join(' • ') || 'All Events';
+
+    const eventBlocks = events.map((evt) => {
+      const rows = evt.participants.map((p, i) => `
+        <tr style="${i % 2 === 1 ? 'background:#f9fafb;' : ''}">
+          <td style="padding:4px 8px;font-size:10px;">${i + 1}</td>
+          <td style="padding:4px 8px;font-size:10px;font-family:monospace;">${p.customerId || '—'}</td>
+          <td style="padding:4px 8px;font-size:10px;font-weight:600;">${p.customerName || ''}</td>
+          <td style="padding:4px 8px;font-size:10px;">${p.customerPhone || '—'}</td>
+          <td style="padding:4px 8px;font-size:10px;">${p.workshopName || ''}</td>
+          <td style="padding:4px 8px;font-size:10px;text-align:right;">₹${Number(p.amount || 0).toLocaleString('en-IN')}</td>
+          <td style="padding:4px 8px;font-size:10px;">${p.paymentMode || ''}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <div style="margin-top:18px; page-break-inside:avoid;">
+          <h2 style="font-size:13px;color:#6d28d9;border-bottom:2px solid #6d28d9;padding-bottom:4px;margin-bottom:6px;">
+            ${evt.workshopName} — ${fmtDate(evt.startDate)}${evt.endDate ? ' to ' + fmtDate(evt.endDate) : ''}
+          </h2>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">
+            Time: ${evt.workshopTime || '—'} &nbsp;|&nbsp; Fees: ₹${Number(evt.workshopFees || 0).toLocaleString('en-IN')} &nbsp;|&nbsp;
+            Participants: ${evt.participantCount} &nbsp;|&nbsp; Total: ₹${Number(evt.totalAmount || 0).toLocaleString('en-IN')}
+          </div>
+          ${evt.notes ? `<div style="font-size:10px;color:#9ca3af;margin-bottom:6px;">📝 ${evt.notes}</div>` : ''}
+          ${rows ? `
+          <table style="width:100%;border-collapse:collapse;border:1px solid #d1d5db;">
+            <thead>
+              <tr style="background:#f3f4f6;">
+                <th style="padding:4px 8px;text-align:left;font-size:9px;border-bottom:1px solid #d1d5db;">#</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;border-bottom:1px solid #d1d5db;">ID</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;border-bottom:1px solid #d1d5db;">Name</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;border-bottom:1px solid #d1d5db;">Phone</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;border-bottom:1px solid #d1d5db;">Workshop</th>
+                <th style="padding:4px 8px;text-align:right;font-size:9px;border-bottom:1px solid #d1d5db;">Amount</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;border-bottom:1px solid #d1d5db;">Payment</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          ` : `<p style="font-size:11px;color:#9ca3af;">No participants.</p>`}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Workshop Events Report</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; color: #1f2937; line-height: 1.4; }
+          h1 { font-size: 18px; margin-bottom: 4px; }
+          .meta { font-size: 11px; color: #6b7280; margin-bottom: 12px; }
+          .summary { display: flex; gap: 16px; margin: 10px 0; }
+          .stat { background: #f3f4f6; padding: 8px 14px; border-radius: 8px; font-size: 11px; }
+          .stat strong { font-size: 16px; display: block; color: #6d28d9; }
+          .footer { margin-top: 24px; text-align: center; font-size: 9px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+        </style>
+      </head>
+      <body>
+        <h1>📅 Swar Yoga – Workshop Events Report</h1>
+        <div class="meta">
+          Filter: ${filterLabel} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}
+        </div>
+        <div class="summary">
+          <div class="stat"><strong>${totals.totalEvents}</strong>Events</div>
+          <div class="stat"><strong>${totals.totalParticipants}</strong>Participants</div>
+          <div class="stat"><strong>₹${totals.totalAmount.toLocaleString('en-IN')}</strong>Total Amount</div>
+        </div>
+        ${eventBlocks}
+        <div class="footer">Swar Yoga CRM — Workshop Events Report &nbsp;|&nbsp; swaryoga.com</div>
+      </body>
+      </html>
+    `;
+  }, [events, monthFilter, workshopFilter, totals]);
+
+  const openReport = useCallback((autoPrint: boolean) => {
+    const html = buildReportHtml();
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    if (autoPrint) setTimeout(() => win.print(), 500);
+  }, [buildReportHtml]);
+
   const handleDelete = async (evt: EventRecord) => {
     if (!token) return;
     if (!confirm(`Delete event "${evt.workshopName}" (${fmtDate(evt.startDate)})? This cannot be undone.`)) return;
@@ -164,13 +255,31 @@ export default function WorkshopEventsPage() {
               </Link>
               <h1 className="text-2xl font-bold text-gray-900">📅 Workshop Events</h1>
             </div>
-            <button
-              type="button"
-              onClick={handleAdd}
-              className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-violet-600 text-white px-5 py-2.5 rounded-lg font-bold hover:from-purple-700 hover:to-violet-700 transition-all shadow"
-            >
-              + Add Event
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => openReport(false)}
+                disabled={events.length === 0}
+                className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg font-bold hover:bg-gray-50 transition-all disabled:opacity-50"
+              >
+                👁️ Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => openReport(true)}
+                disabled={events.length === 0}
+                className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg font-bold hover:bg-gray-50 transition-all disabled:opacity-50"
+              >
+                📄 Export (A4)
+              </button>
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-violet-600 text-white px-5 py-2.5 rounded-lg font-bold hover:from-purple-700 hover:to-violet-700 transition-all shadow"
+              >
+                + Add Event
+              </button>
+            </div>
           </div>
         </div>
       </div>
