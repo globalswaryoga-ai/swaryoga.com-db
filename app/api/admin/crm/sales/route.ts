@@ -157,8 +157,18 @@ export async function GET(request: NextRequest) {
     if (paymentMode) filter.paymentMode = paymentMode;
 
     if (workshop && String(workshop).trim()) {
-      // Partial match for UX
-      filter.workshopName = { $regex: String(workshop).trim(), $options: 'i' };
+      const names = String(workshop)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (names.length > 1) {
+        // Multi-select checklist: exact (case-insensitive) match against any selected workshop
+        const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.workshopName = { $in: names.map((n) => new RegExp(`^${escapeRegex(n)}$`, 'i')) };
+      } else if (names.length === 1) {
+        // Partial match for UX
+        filter.workshopName = { $regex: names[0], $options: 'i' };
+      }
     }
     if (batchFrom || batchTo) {
       filter.batchDate = {};

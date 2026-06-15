@@ -178,18 +178,41 @@ export default function SalesPage() {
     superAdminApproved: false,
   });
 
-  const [draftFilters, setDraftFilters] = useState({
-    workshop: '',
+  const [draftFilters, setDraftFilters] = useState<{
+    workshop: string[];
+    batchFrom: string;
+    batchTo: string;
+    reportedByUserId: string;
+  }>({
+    workshop: [],
     batchFrom: '',
     batchTo: '',
     reportedByUserId: '',
   });
-  const [appliedFilters, setAppliedFilters] = useState({
-    workshop: '',
+  const [appliedFilters, setAppliedFilters] = useState<{
+    workshop: string[];
+    batchFrom: string;
+    batchTo: string;
+    reportedByUserId: string;
+  }>({
+    workshop: [],
     batchFrom: '',
     batchTo: '',
     reportedByUserId: '',
   });
+  const [workshopFilterOpen, setWorkshopFilterOpen] = useState(false);
+  const workshopFilterRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!workshopFilterOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (workshopFilterRef.current && !workshopFilterRef.current.contains(e.target as Node)) {
+        setWorkshopFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [workshopFilterOpen]);
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
@@ -301,7 +324,7 @@ export default function SalesPage() {
       setError(null);
       const params: any = { view };
       if (view === 'list') params.limit = 1000; // show all entries, not just first 50
-      if (appliedFilters.workshop.trim()) params.workshop = appliedFilters.workshop.trim();
+      if (appliedFilters.workshop.length > 0) params.workshop = appliedFilters.workshop.join(',');
       if (appliedFilters.batchFrom) params.batchFrom = appliedFilters.batchFrom;
       if (appliedFilters.batchTo) params.batchTo = appliedFilters.batchTo;
       if (appliedFilters.reportedByUserId.trim()) params.reportedByUserId = appliedFilters.reportedByUserId.trim();
@@ -519,7 +542,7 @@ export default function SalesPage() {
   };
 
   const clearFilters = () => {
-    const empty = { workshop: '', batchFrom: '', batchTo: '', reportedByUserId: '' };
+    const empty = { workshop: [] as string[], batchFrom: '', batchTo: '', reportedByUserId: '' };
     setDraftFilters(empty);
     setAppliedFilters(empty);
   };
@@ -532,7 +555,7 @@ export default function SalesPage() {
       const params = new URLSearchParams();
       params.set('view', 'list');
       params.set('format', 'csv');
-      if (appliedFilters.workshop.trim()) params.set('workshop', appliedFilters.workshop.trim());
+      if (appliedFilters.workshop.length > 0) params.set('workshop', appliedFilters.workshop.join(','));
       if (appliedFilters.batchFrom) params.set('batchFrom', appliedFilters.batchFrom);
       if (appliedFilters.batchTo) params.set('batchTo', appliedFilters.batchTo);
       if (appliedFilters.reportedByUserId.trim()) params.set('reportedByUserId', appliedFilters.reportedByUserId.trim());
@@ -645,7 +668,12 @@ export default function SalesPage() {
       label: 'Customer ID',
       render: (_: any, sale: SaleRecord) => {
         const displayId = sale.customerId || sale.leadId?.leadNumber || (typeof sale.leadId === 'object' && sale.leadId?._id ? String(sale.leadId._id).slice(-8) : '') || '-';
-        return <div className="font-mono text-xs text-white/70 break-words">{displayId}</div>;
+        return (
+          <div className="border border-white/20 rounded-xl px-3 py-2 bg-white/5 text-center">
+            <div className="text-xs font-bold text-green-400 mb-1">LEAD ID</div>
+            <div className="font-mono font-bold text-white">{displayId}</div>
+          </div>
+        );
       },
     },
     {
@@ -1060,15 +1088,70 @@ export default function SalesPage() {
         <div className="bg-black border border-white/30 rounded-xl p-8">
           <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-6">Filters</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div>
+            <div className="relative" ref={workshopFilterRef}>
               <label className="block text-white text-sm font-semibold mb-3">Program/Workshop</label>
-              <input
-                type="text"
-                value={draftFilters.workshop}
-                onChange={(e) => setDraftFilters((p) => ({ ...p, workshop: e.target.value }))}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                placeholder="Search workshop"
-              />
+              <button
+                type="button"
+                onClick={() => setWorkshopFilterOpen((o) => !o)}
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium text-left flex items-center justify-between gap-2 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+              >
+                <span className="truncate">
+                  {draftFilters.workshop.length === 0
+                    ? 'All workshops'
+                    : draftFilters.workshop.length === 1
+                    ? draftFilters.workshop[0]
+                    : `${draftFilters.workshop.length} workshops selected`}
+                </span>
+                <span className="text-white/50">▾</span>
+              </button>
+              {workshopFilterOpen && (
+                <div className="absolute z-20 mt-2 w-full bg-black border border-white/30 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setDraftFilters((p) => ({ ...p, workshop: [...workshopOptions] }))}
+                      className="text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDraftFilters((p) => ({ ...p, workshop: [] }))}
+                      className="text-xs font-semibold text-yellow-400 hover:text-yellow-300"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {workshopOptions.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-white/50">No workshops found</div>
+                  ) : (
+                    workshopOptions.map((w) => {
+                      const checked = draftFilters.workshop.includes(w);
+                      return (
+                        <label
+                          key={w}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setDraftFilters((p) => ({
+                                ...p,
+                                workshop: e.target.checked
+                                  ? [...p.workshop, w]
+                                  : p.workshop.filter((x) => x !== w),
+                              }));
+                            }}
+                            className="h-4 w-4 accent-emerald-500"
+                          />
+                          <span className="truncate">{w}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-white text-sm font-semibold mb-3">Date Range From</label>
