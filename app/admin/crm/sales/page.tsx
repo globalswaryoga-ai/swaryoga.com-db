@@ -950,6 +950,12 @@ export default function SalesPage() {
           </div>
           <div className="flex gap-3 flex-wrap justify-end">
             <button
+              onClick={() => router.push('/admin/crm/sales/events')}
+              className="bg-purple-900/30 border border-purple-400 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-purple-600 hover:text-white"
+            >
+              📅 Events
+            </button>
+            <button
               onClick={downloadCsv}
               className="bg-purple-900/30 border border-purple-400 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-purple-600 hover:text-white"
             >

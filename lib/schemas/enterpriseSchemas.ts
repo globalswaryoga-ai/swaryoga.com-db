@@ -1439,6 +1439,42 @@ const BankIncomeEntrySchema = new mongoose.Schema(
 BankIncomeEntrySchema.index({ month: 1, tagged: 1 });
 BankIncomeEntrySchema.index({ statementId: 1 });
 
+// ============================================================================
+// 11d. WORKSHOP EVENT - Monthly workshop batches with participant lists
+// ============================================================================
+const WorkshopEventParticipantSchema = new mongoose.Schema(
+  {
+    customerId: { type: String, trim: true },
+    customerName: { type: String, trim: true },
+    customerPhone: { type: String, trim: true },
+    workshopName: { type: String, trim: true },
+    amount: { type: Number, default: 0 },
+    paymentMode: { type: String, trim: true },
+    saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesReport' },
+  },
+  { _id: true }
+);
+
+const WorkshopEventSchema = new mongoose.Schema(
+  {
+    startDate: { type: Date, required: true, index: true },
+    endDate: { type: Date },
+    workshopName: { type: String, trim: true, required: true, index: true },
+    workshopTime: { type: String, trim: true }, // e.g. "6:00 AM - 8:00 AM"
+    workshopFees: { type: Number, default: 0 },
+    month: { type: String, trim: true, index: true }, // 'YYYY-MM'
+    notes: { type: String, trim: true },
+    participants: { type: [WorkshopEventParticipantSchema], default: [] },
+    totalAmount: { type: Number, default: 0 },
+    participantCount: { type: Number, default: 0 },
+    labels: { type: [String], default: [], index: true },
+    reportedByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'crm_workshop_events' }
+);
+
+WorkshopEventSchema.index({ month: 1, workshopName: 1 });
+
 // NOTE: Recurring/repeat broadcast schedules (formerly a dedicated
 // `broadcast_recurring_schedules` collection) are stored as an embedded
 // array on the existing CRMUserSettings doc (metadata.broadcastRecurringSchedules)
@@ -3076,6 +3112,7 @@ export function getBackup() { return getModel('Backup', BackupSchema); }
 export function getPermission() { return getModel('Permission', PermissionSchema); }
 export function getAnalyticsEvent() { return getModel('AnalyticsEvent', AnalyticsEventSchema); }
 export function getSalesReport() { return getModel('SalesReport', SalesReportSchema); }
+export function getWorkshopEvent() { return getModel('WorkshopEvent', WorkshopEventSchema); }
 export function getExpense() { return getModel('Expense', ExpenseSchema); }
 export function getWhatsAppScheduledJob() { return getModel('WhatsAppScheduledJob', WhatsAppScheduledJobSchema); }
 export function getWhatsAppAutomationRule() { return getModel('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema); }
@@ -3203,6 +3240,7 @@ export const BroadcastRun = createModelProxy('BroadcastRun', BroadcastRunSchema)
 export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
 export const BankStatement = createModelProxy('BankStatement', BankStatementSchema);
 export const BankIncomeEntry = createModelProxy('BankIncomeEntry', BankIncomeEntrySchema);
+export const WorkshopEvent = createModelProxy('WorkshopEvent', WorkshopEventSchema);
 export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
 export const KnowledgeBaseArticle = createModelProxy('KnowledgeBaseArticle', KnowledgeBaseArticleSchema);
