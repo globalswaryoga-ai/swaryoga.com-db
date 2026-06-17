@@ -48,3 +48,41 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ success: true, workshop }, { status: 201 });
 }
+
+/**
+ * PATCH /api/admin/workshop-catalog — rename/update a workshop.
+ * Slug is the stable key (schedules reference it) and is never changed here.
+ * Upserts so this also works for workshops that only exist in the static
+ * catalog (lib/workshopsData.ts) and have no DB row yet.
+ */
+export async function PATCH(req: NextRequest) {
+  const token = (req.headers.get('authorization') || '').replace('Bearer ', '').trim();
+  const decoded = verifyToken(token);
+  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!isSuperAdmin(decoded)) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
+
+  const body = await req.json();
+  const { slug, name, category, modes, languages, duration } = body;
+
+  if (!slug?.trim()) return NextResponse.json({ error: 'slug is required' }, { status: 400 });
+  if (!name?.trim()) return NextResponse.json({ error: 'Workshop name is required' }, { status: 400 });
+  if (!category?.trim()) return NextResponse.json({ error: 'category is required' }, { status: 400 });
+
+  await connectDB();
+
+  const update: Record<string, any> = {
+    name: name.trim(),
+    category: category.trim(),
+  };
+  if (Array.isArray(modes)) update.modes = modes;
+  if (Array.isArray(languages)) update.languages = languages;
+  if (typeof duration === 'string') update.duration = duration.trim();
+
+  const workshop = await Workshop.findOneAndUpdate(
+    { slug: slug.trim() },
+    { $set: update, $setOnInsert: { slug: slug.trim(), isPublished: true } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  return NextResponse.json({ success: true, workshop });
+}

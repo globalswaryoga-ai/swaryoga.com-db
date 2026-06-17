@@ -216,6 +216,11 @@ export default function AdminWorkshopSchedulesPage() {
     const [newWsDuration, setNewWsDuration] = useState('');
     const [savingNewWs, setSavingNewWs] = useState(false);
 
+    // Rename Workshop modal
+    const [renameTarget, setRenameTarget] = useState<{ slug: string; name: string; category: string } | null>(null);
+    const [renameValue, setRenameValue] = useState('');
+    const [savingRename, setSavingRename] = useState(false);
+
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<EditForm>(emptyEditForm());
     const [savingId, setSavingId] = useState<string | null>(null);
@@ -295,15 +300,27 @@ export default function AdminWorkshopSchedulesPage() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [adminToken]);
 
+    // DB rows override static-catalog rows by slug (e.g. after a rename),
+    // without touching the slug itself — schedules key off the slug.
+    const dbOverrideBySlug = useMemo(() => {
+      const map = new Map<string, DbWorkshop>();
+      for (const dw of dbWorkshops) map.set(dw.slug, dw);
+      return map;
+    }, [dbWorkshops]);
+
     const grouped = useMemo(() => {
       const map: Record<string, typeof workshopCatalog> = {};
       for (const c of CATEGORY_ORDER) map[c] = [];
 
-      // Static catalog first
+      // Static catalog first, with any DB override (renamed name/category/duration) applied
       for (const w of workshopCatalog) {
-        const c = w.category || 'Health';
+        const override = dbOverrideBySlug.get(w.slug);
+        const merged = override
+          ? { ...w, name: override.name || w.name, category: override.category || w.category, duration: override.duration || (w as any).duration }
+          : w;
+        const c = merged.category || 'Health';
         if (!map[c]) map[c] = [];
-        map[c].push(w);
+        map[c].push(merged);
       }
 
       // Merge DB workshops — add any that aren't already in the static catalog
@@ -327,7 +344,7 @@ export default function AdminWorkshopSchedulesPage() {
       }
 
       return map;
-    }, [dbWorkshops]);
+    }, [dbWorkshops, dbOverrideBySlug]);
 
     const rows = useMemo(() => {
       const list = grouped[selectedCategory] || [];
@@ -342,8 +359,13 @@ export default function AdminWorkshopSchedulesPage() {
 
     const selectedWorkshop = useMemo(() => {
       if (!selectedWorkshopSlug) return null;
-      return workshopCatalog.find((w) => w.slug === selectedWorkshopSlug) || null;
-    }, [selectedWorkshopSlug]);
+      const base = workshopCatalog.find((w) => w.slug === selectedWorkshopSlug);
+      const override = dbOverrideBySlug.get(selectedWorkshopSlug);
+      if (!base) return override ? ({ ...override } as any) : null;
+      return override
+        ? { ...base, name: override.name || base.name, category: override.category || base.category, duration: override.duration || (base as any).duration }
+        : base;
+    }, [selectedWorkshopSlug, dbOverrideBySlug]);
 
     const schedulesForWorkshopAndMode = useMemo(() => {
       if (!selectedWorkshopSlug) return [] as AdminSchedule[];
@@ -549,7 +571,7 @@ export default function AdminWorkshopSchedulesPage() {
         setSavingId('__create__');
         setError('');
 
-        const workshopName = workshopCatalog.find((w) => w.slug === selectedWorkshopSlug)?.name || '';
+        const workshopName = selectedWorkshop?.name || '';
 
         const basePayload = {
           workshopSlug: selectedWorkshopSlug,
@@ -776,6 +798,41 @@ export default function AdminWorkshopSchedulesPage() {
       }
     };
 
+    const openRename = (w: { slug: string; name: string; category: string }) => {
+      setRenameTarget({ slug: w.slug, name: w.name, category: w.category });
+      setRenameValue(w.name);
+      setError('');
+    };
+
+    const saveRename = async () => {
+      if (!renameTarget) return;
+      if (!renameValue.trim()) { setError('Workshop name is required'); return; }
+      setSavingRename(true);
+      setError('');
+      try {
+        const res = await fetch('/api/admin/workshop-catalog', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify({
+            slug: renameTarget.slug,
+            name: renameValue.trim(),
+            category: renameTarget.category,
+          }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Failed to rename workshop');
+        await loadDbWorkshops(adminToken);
+        setSuccess(`✓ Renamed to "${renameValue.trim()}".`);
+        setTimeout(() => setSuccess(''), 5000);
+        setRenameTarget(null);
+        setRenameValue('');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSavingRename(false);
+      }
+    };
+
     return (
       <>
       <div className="flex h-screen bg-swar-primary-light">
@@ -946,7 +1003,17 @@ export default function AdminWorkshopSchedulesPage() {
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-base font-extrabold text-swar-text leading-tight">{w.name}</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="text-base font-extrabold text-swar-text leading-tight">{w.name}</div>
+                                  <button
+                                    type="button"
+                                    onClick={() => openRename(w as any)}
+                                    className="text-swar-text-secondary hover:text-swar-primary"
+                                    title="Rename workshop"
+                                  >
+                                    ✏️
+                                  </button>
+                                </div>
                                 <div className="mt-1 text-sm text-swar-text">Duration: {w.duration}</div>
                                 <div className="mt-1 text-sm font-semibold text-swar-text">Fees: {feeText}</div>
                               </div>
@@ -985,7 +1052,19 @@ export default function AdminWorkshopSchedulesPage() {
                               : 'TBD';
                             return (
                               <tr key={w.slug} className={active ? 'bg-primary-50' : 'bg-white'}>
-                                <td className="px-4 py-3 font-semibold text-swar-text whitespace-nowrap">{w.name}</td>
+                                <td className="px-4 py-3 font-semibold text-swar-text whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-2">
+                                    {w.name}
+                                    <button
+                                      type="button"
+                                      onClick={() => openRename(w as any)}
+                                      className="text-swar-text-secondary hover:text-swar-primary"
+                                      title="Rename workshop"
+                                    >
+                                      ✏️
+                                    </button>
+                                  </span>
+                                </td>
                                 <td className="px-4 py-3 text-swar-text whitespace-nowrap">{w.duration}</td>
                                 <td className="px-4 py-3 text-swar-text whitespace-nowrap">{feeText}</td>
                                 <td className="px-4 py-3">
@@ -1694,6 +1773,47 @@ export default function AdminWorkshopSchedulesPage() {
                 className="rounded-lg bg-swar-primary px-5 py-2 text-sm font-bold text-white hover:bg-swar-primary-hover disabled:opacity-60"
               >
                 {savingNewWs ? 'Saving…' : 'Add Workshop'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Workshop Modal */}
+      {renameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-swar-text mb-5">Rename Workshop</h2>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Workshop Name *</label>
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-swar-primary/30"
+              />
+              <p className="mt-2 text-xs text-swar-text-secondary">
+                Existing schedules and links keep working — only the displayed name changes.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => { setRenameTarget(null); setRenameValue(''); }}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveRename}
+                disabled={savingRename || !renameValue.trim()}
+                className="rounded-lg bg-swar-primary px-5 py-2 text-sm font-bold text-white hover:bg-swar-primary-hover disabled:opacity-60"
+              >
+                {savingRename ? 'Saving…' : 'Save Name'}
               </button>
             </div>
           </div>
