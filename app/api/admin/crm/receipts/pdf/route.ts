@@ -62,14 +62,16 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
     page.drawText(t, { x, y, size: opts.size ?? 10, font: opts.font ?? reg, color: opts.color ?? black });
 
   // ─── embed logos ────────────────────────────────────────────────────────────
+  // Use the small, pre-resized copies — the source files are 3000x3000 / 1080x1080
+  // (multi-MB) and were bloating every generated receipt to several MB.
   let logoImg: any = null;
   let sealImg: any = null;
   try {
-    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'logo-square.png'));
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'receipt-logo.png'));
     logoImg = await pdfDoc.embedPng(buf);
   } catch {}
   try {
-    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'swar-yoga-seal.png'));
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'receipt-seal.png'));
     sealImg = await pdfDoc.embedPng(buf);
   } catch {}
 
@@ -102,19 +104,19 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   text('Maldad Road, Sangamner  •  Mo +91 93099 86820', M + 82, H - 66, { size: 8, color: gray });
   text('Email: mohan@swaryoga.com', M + 82, H - 78, { size: 8, color: gray });
 
-  // Seal / logo top-right (inside stripe)
+  // Seal — tucked into the very top-right corner, clear of the title below it.
   if (sealImg) {
-    page.drawImage(sealImg, { x: W - 108, y: H - 108, width: 60, height: 60 });
+    page.drawImage(sealImg, { x: W - 64, y: H - 60, width: 50, height: 50 });
   } else {
-    page.drawEllipse({ x: W - 78, y: H - 78, xScale: 28, yScale: 28, color: white });
-    text('8', W - 85, H - 88, { size: 18, font: bold, color: darkGreen });
+    page.drawEllipse({ x: W - 39, y: H - 35, xScale: 24, yScale: 24, color: white });
+    text('8', W - 46, H - 44, { size: 16, font: bold, color: darkGreen });
   }
 
-  // INVOICE title
-  text('INVOICE', W - M - bold.widthOfTextAtSize('INVOICE', 28) - 4, H - 66, { size: 28, font: bold, color: black });
+  // INVOICE title — positioned below the seal so the two never overlap.
+  text('INVOICE', W - M - bold.widthOfTextAtSize('INVOICE', 24) - 4, H - 90, { size: 24, font: bold, color: black });
 
   const receiptNumber = safe(receipt?.receiptNumber || receipt?._id);
-  text(`No: ${receiptNumber}`, W - M - reg.widthOfTextAtSize(`No: ${receiptNumber}`, 10) - 4, H - 95, { size: 10, color: gray });
+  text(`No: ${receiptNumber}`, W - M - reg.widthOfTextAtSize(`No: ${receiptNumber}`, 10) - 4, H - 105, { size: 10, color: rgb(0.85, 0.9, 0.88) });
 
   // ─── Orange divider ────────────────────────────────────────────────────────
   page.drawRectangle({ x: 0, y: H - 134, width: W, height: 4, color: orange });
