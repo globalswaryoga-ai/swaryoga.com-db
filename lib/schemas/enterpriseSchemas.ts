@@ -1120,6 +1120,9 @@ const SalesReportSchema = new mongoose.Schema(
       enum: ['payu', 'cashfree', 'card', 'bank_transfer', 'cash', 'upi', 'paypal', 'other'],
       index: true,
     },
+    // Which bank account the payment landed in (e.g., "Axis Bank", "Union Bank") — distinct
+    // from paymentMode, since multiple accounts can receive the same payment mode (e.g. UPI).
+    bankName: { type: String, trim: true, index: true },
     saleDate: { type: Date, default: Date.now, index: true },
     funnelStage: String,
     conversionPath: [

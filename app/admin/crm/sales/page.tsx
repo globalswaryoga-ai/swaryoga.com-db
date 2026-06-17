@@ -132,6 +132,7 @@ interface SaleRecord {
   }>;
   transactionId?: string;
   paymentMode: string;
+  bankName?: string;
   saleDate?: string;
   createdAt?: string;
   tallySynced?: boolean;
@@ -228,6 +229,7 @@ export default function SalesPage() {
     batchDate: '',
     saleAmount: 0,
     paymentMode: 'payu',
+    bankName: '',
     transactionId: '',
     saleDate: '',
     reportedByUserId: '',
@@ -309,6 +311,7 @@ export default function SalesPage() {
     batchDate: todayDateInputValue(),
     saleAmount: 0,
     paymentMode: 'payu',
+    bankName: '',
     transactionId: '',
     status: 'completed',
     labelsText: '',
@@ -519,6 +522,7 @@ export default function SalesPage() {
           batchDate: formData.batchDate || undefined,
           saleAmount: formData.saleAmount,
           paymentMode: formData.paymentMode,
+          bankName: formData.bankName || undefined,
           transactionId: formData.transactionId || undefined,
           reportedByUserId: formData.reportedByUserId || undefined,
           status: formData.status || undefined,
@@ -537,6 +541,7 @@ export default function SalesPage() {
         batchDate: todayDateInputValue(),
         saleAmount: 0,
         paymentMode: 'payu',
+        bankName: '',
         transactionId: '',
         status: 'completed',
         labelsText: '',
@@ -621,6 +626,7 @@ export default function SalesPage() {
       batchDate: toDateInputValue(sale.batchDate || ''),
       saleAmount: Number(sale.saleAmount || 0),
       paymentMode: sale.paymentMode || 'payu',
+      bankName: sale.bankName || '',
       transactionId: sale.transactionId || '',
       saleDate: toDateInputValue(sale.saleDate || ''),
       reportedByUserId: sale.reportedByUserId || '',
@@ -644,6 +650,7 @@ export default function SalesPage() {
         batchDate: editData.batchDate || undefined,
         saleAmount: editData.saleAmount,
         paymentMode: editData.paymentMode,
+        bankName: editData.bankName || undefined,
         transactionId: editData.transactionId || undefined,
         saleDate: editData.saleDate || undefined,
         reportedByUserId: editData.reportedByUserId || undefined,
@@ -1034,6 +1041,7 @@ export default function SalesPage() {
     },
     { key: 'saleAmount', label: 'Amount', render: (amt: number) => `₹${amt?.toLocaleString() || 0}` },
     { key: 'paymentMode', label: 'Payment', render: (mode: string) => mode.charAt(0).toUpperCase() + mode.slice(1) },
+    { key: 'bankName', label: 'Bank', render: (_: any, sale: SaleRecord) => sale.bankName || '-' },
     {
       key: 'saleDate',
       label: 'Date',
@@ -1859,6 +1867,21 @@ export default function SalesPage() {
               </select>
             </div>
             <div>
+              <label className="block text-white text-sm mb-2 font-semibold">Bank Name</label>
+              <input
+                type="text"
+                value={formData.bankName}
+                onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="e.g. Axis Bank, Union Bank"
+                list="bank-name-options"
+              />
+              <datalist id="bank-name-options">
+                <option value="Axis Bank" />
+                <option value="Union Bank" />
+              </datalist>
+            </div>
+            <div>
               <label className="block text-white text-sm mb-2 font-semibold">Payment Reference / Transaction ID</label>
               <input
                 type="text"
@@ -2316,6 +2339,17 @@ export default function SalesPage() {
                   <option value="card">Card</option>
                   <option value="other">Other</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-white text-sm mb-2">Bank Name</label>
+                <input
+                  type="text"
+                  value={editData.bankName}
+                  onChange={(e) => setEditData({ ...editData, bankName: e.target.value })}
+                  className="w-full bg-black border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="e.g. Axis Bank, Union Bank"
+                  list="bank-name-options"
+                />
               </div>
               <div>
                 <label className="block text-white text-sm mb-2">Payment Reference / Transaction ID</label>

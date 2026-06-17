@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
     const endDate = url.searchParams.get('endDate');
     const userId = url.searchParams.get('userId');
     const paymentMode = url.searchParams.get('paymentMode');
+    const bankName = url.searchParams.get('bankName');
     const workshop = url.searchParams.get('workshop') || url.searchParams.get('workshopName');
     const batchFrom = url.searchParams.get('batchFrom') || url.searchParams.get('batchStart');
     const batchTo = url.searchParams.get('batchTo') || url.searchParams.get('batchEnd');
@@ -156,6 +157,7 @@ export async function GET(request: NextRequest) {
       filter.userId = toObjectId(userId);
     }
     if (paymentMode) filter.paymentMode = paymentMode;
+    if (bankName) filter.bankName = bankName;
 
     if (workshop && String(workshop).trim()) {
       const names = String(workshop)
@@ -211,7 +213,7 @@ export async function GET(request: NextRequest) {
           mobile: r.customerPhone || '',
           workshop: r.workshopName || '',
           amount: r.saleAmount ?? '',
-          bankOrCash: paymentModeLabel(r.paymentMode),
+          bankOrCash: r.bankName ? `${paymentModeLabel(r.paymentMode)} (${r.bankName})` : paymentModeLabel(r.paymentMode),
           transactionDetails: r.transactionId || '',
         };
       });
@@ -238,6 +240,7 @@ export async function GET(request: NextRequest) {
         'BatchDate',
         'SaleAmount',
         'PaymentMode',
+        'BankName',
         'SaleDate',
         'ReportedByUserId',
       ];
@@ -256,6 +259,7 @@ export async function GET(request: NextRequest) {
             csvEscape((r as any).batchDate ? new Date((r as any).batchDate).toISOString().slice(0, 10) : ''),
             csvEscape((r as any).saleAmount),
             csvEscape((r as any).paymentMode),
+            csvEscape((r as any).bankName),
             csvEscape((r as any).saleDate ? new Date((r as any).saleDate).toISOString() : ''),
             csvEscape((r as any).reportedByUserId),
           ].join(',')
@@ -352,6 +356,7 @@ export async function POST(request: NextRequest) {
     const {
       saleAmount,
       paymentMode,
+      bankName,
       transactionId,
       leadId,
       saleId,
@@ -396,6 +401,7 @@ export async function POST(request: NextRequest) {
     const safeCustomerPhone = customerPhone !== undefined && customerPhone !== null ? String(customerPhone).trim() : '';
     const safeCustomerEmail = customerEmail !== undefined && customerEmail !== null ? String(customerEmail).trim().toLowerCase() : '';
     const safeWorkshopName = workshopName !== undefined && workshopName !== null ? String(workshopName).trim() : '';
+    const safeBankName = bankName !== undefined && bankName !== null ? String(bankName).trim() : '';
     const parsedBatchDate = batchDate ? new Date(String(batchDate)) : null;
     const saleDate = new Date();
     const receiptNumber = await generateInvoiceNumber(saleDate);
@@ -422,6 +428,7 @@ export async function POST(request: NextRequest) {
       ...(safeCustomerPhone ? { customerPhone: safeCustomerPhone } : {}),
       ...(safeCustomerEmail ? { customerEmail: safeCustomerEmail } : {}),
       ...(safeWorkshopName ? { workshopName: safeWorkshopName } : {}),
+      ...(safeBankName ? { bankName: safeBankName } : {}),
       ...(parsedBatchDate && !Number.isNaN(parsedBatchDate.getTime()) ? { batchDate: parsedBatchDate } : {}),
       reportedByUserId: adminUserId,
       metadata: {
@@ -520,6 +527,7 @@ export async function PUT(request: NextRequest) {
     if (updates.customerPhone !== undefined) safeUpdates.customerPhone = String(updates.customerPhone || '').trim() || undefined;
     if (updates.customerEmail !== undefined) safeUpdates.customerEmail = String(updates.customerEmail || '').trim().toLowerCase() || undefined;
     if (updates.workshopName !== undefined) safeUpdates.workshopName = String(updates.workshopName || '').trim() || undefined;
+    if (updates.bankName !== undefined) safeUpdates.bankName = String(updates.bankName || '').trim() || undefined;
 
     if (updates.batchDate !== undefined) {
       const d = updates.batchDate ? new Date(String(updates.batchDate)) : null;

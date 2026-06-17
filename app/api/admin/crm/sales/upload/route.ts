@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
         }
 
         const paymentMode = normalizePaymentMode(row['Payment Mode'] || row.PaymentMode || row.paymentMode || '');
+        const bankName = String(row.Bank || row['Bank Name'] || row.BankName || row.bankName || '').trim();
 
         // Optional: link to Lead by ObjectId or leadNumber
         let leadId: Types.ObjectId | undefined;
@@ -147,6 +148,7 @@ export async function POST(request: NextRequest) {
           ...(batchDate ? { batchDate } : {}),
           saleAmount,
           paymentMode,
+          ...(bankName ? { bankName } : {}),
           saleDate,
           reportedByUserId: finalReportedBy,
           metadata: {
