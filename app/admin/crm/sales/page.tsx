@@ -862,10 +862,59 @@ export default function SalesPage() {
     return `${yyyy}-W${week}`;
   }
 
+  // Client-side search across the loaded sales: matches Customer ID, Lead ID,
+  // name, mobile number, or amount.
+  const filteredSales = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sales;
+    return sales.filter((s) => {
+      const leadNumber = (typeof s.leadId === 'object' && s.leadId?.leadNumber) || '';
+      const leadName = (typeof s.leadId === 'object' && s.leadId?.name) || '';
+      const leadPhone = (typeof s.leadId === 'object' && s.leadId?.phoneNumber) || '';
+      const haystack = [
+        s.customerId,
+        leadNumber,
+        s.customerName,
+        leadName,
+        s.customerPhone,
+        leadPhone,
+        s.saleAmount != null ? String(s.saleAmount) : '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [sales, searchQuery]);
+
+  const allSelectedOnPage = filteredSales.length > 0 && filteredSales.every((s) => selectedSaleIds.has(s._id));
+  const someSelectedOnPage = filteredSales.some((s) => selectedSaleIds.has(s._id));
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedSaleIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        filteredSales.forEach((s) => next.delete(s._id));
+      } else {
+        filteredSales.forEach((s) => next.add(s._id));
+      }
+      return next;
+    });
+  };
+
   const columns = [
     {
       key: '_select',
-      label: '',
+      label: (
+        <input
+          type="checkbox"
+          checked={allSelectedOnPage}
+          ref={(el) => { if (el) el.indeterminate = !allSelectedOnPage && someSelectedOnPage; }}
+          onChange={() => toggleSelectAllOnPage()}
+          className="h-4 w-4"
+          title={allSelectedOnPage ? 'Deselect all' : 'Select all'}
+          aria-label={allSelectedOnPage ? 'Deselect all' : 'Select all'}
+        />
+      ),
       render: (_: any, sale: SaleRecord) => {
         const checked = selectedSaleIds.has(sale._id);
         return (
@@ -1097,45 +1146,6 @@ export default function SalesPage() {
       ),
     },
   ];
-
-  // Client-side search across the loaded sales: matches Customer ID, Lead ID,
-  // name, mobile number, or amount.
-  const filteredSales = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return sales;
-    return sales.filter((s) => {
-      const leadNumber = (typeof s.leadId === 'object' && s.leadId?.leadNumber) || '';
-      const leadName = (typeof s.leadId === 'object' && s.leadId?.name) || '';
-      const leadPhone = (typeof s.leadId === 'object' && s.leadId?.phoneNumber) || '';
-      const haystack = [
-        s.customerId,
-        leadNumber,
-        s.customerName,
-        leadName,
-        s.customerPhone,
-        leadPhone,
-        s.saleAmount != null ? String(s.saleAmount) : '',
-      ]
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [sales, searchQuery]);
-
-  const allSelectedOnPage = filteredSales.length > 0 && filteredSales.every((s) => selectedSaleIds.has(s._id));
-  const someSelectedOnPage = filteredSales.some((s) => selectedSaleIds.has(s._id));
-
-  const toggleSelectAllOnPage = () => {
-    setSelectedSaleIds((prev) => {
-      const next = new Set(prev);
-      if (allSelectedOnPage) {
-        filteredSales.forEach((s) => next.delete(s._id));
-      } else {
-        filteredSales.forEach((s) => next.add(s._id));
-      }
-      return next;
-    });
-  };
 
   // Basic-plan tenants (non super-admin) get a light, Funnel-style theme.
   // Super-admin keeps the dark theme. Scoped CSS remaps dark utilities.

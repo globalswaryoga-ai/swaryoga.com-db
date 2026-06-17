@@ -4,7 +4,7 @@ import React from 'react';
 
 interface Column {
   key: string;
-  label: string;
+  label: React.ReactNode;
   width?: string;
   render?: (value: any, row: any) => React.ReactNode;
   sortable?: boolean;
