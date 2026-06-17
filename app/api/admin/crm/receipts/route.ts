@@ -3,7 +3,23 @@ import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
-import { Lead, CrmReceipt } from '@/lib/schemas/enterpriseSchemas';
+import { Lead, CrmReceipt, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
+
+// Builds the payment/workshop snapshot for a receipt from the actual sale
+// record (SalesReport), which is the source of truth for amounts — the
+// Lead's embedded `sales` field is often left empty for sales recorded
+// directly on the admin Sales page (manual entries, CSV/bank-PDF imports).
+function paymentSnapshotFromSale(sale: any) {
+  return {
+    status: sale.status || 'completed',
+    currency: sale.currency || 'INR',
+    amount: sale.saleAmount,
+    paidAmount: sale.paidAmount ?? sale.saleAmount,
+    method: sale.paymentMode,
+    transactionId: sale.transactionId,
+    paidAt: sale.saleDate,
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +102,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({} as any));
     const leadId = String(body?.leadId || '').trim();
+    const saleId = String(body?.saleId || '').trim();
     const force = Boolean(body?.force);
 
     if (!mongoose.Types.ObjectId.isValid(leadId)) {
@@ -97,60 +114,78 @@ export async function POST(request: NextRequest) {
     const lead: any = await (Lead as any).findById(leadId).lean();
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    // If a receipt exists for this lead recently, reuse unless force.
-    if (!force) {
-      const existing = await (CrmReceipt as any)
-        .findOne({ leadId: new mongoose.Types.ObjectId(leadId) })
-        .sort({ issuedAt: -1 })
-        .lean();
-      if (existing) {
-        return NextResponse.json({ success: true, data: existing, message: 'Existing receipt returned' }, { status: 200 });
-      }
+    // The actual sale record (SalesReport) is the source of truth for amounts.
+    // Prefer the exact sale the admin clicked from; otherwise fall back to the
+    // most recent sale recorded against this lead.
+    const SalesReport = getSalesReport();
+    let sale: any = null;
+    if (saleId && mongoose.Types.ObjectId.isValid(saleId)) {
+      sale = await SalesReport.findById(saleId).lean();
+    }
+    if (!sale) {
+      sale = await SalesReport.findOne({ leadId: new mongoose.Types.ObjectId(leadId) }).sort({ saleDate: -1 }).lean();
     }
 
-    const receiptNumber = await allocReceiptNumber();
+    // If a receipt exists already, reuse it — unless it's stale (missing the
+    // amount a real sale has) or the caller explicitly asked to regenerate.
+    const existing = await (CrmReceipt as any)
+      .findOne({ leadId: new mongoose.Types.ObjectId(leadId) })
+      .sort({ issuedAt: -1 })
+      .lean();
+    const existingIsStale = Boolean(existing) && !existing!.payment?.amount && Boolean(sale?.saleAmount);
+    if (existing && !force && !existingIsStale) {
+      return NextResponse.json({ success: true, data: existing, message: 'Existing receipt returned' }, { status: 200 });
+    }
 
-    const payment = lead?.sales?.payment || {};
     const workshop = lead?.sales?.workshop || {};
+    const payment = sale ? paymentSnapshotFromSale(sale) : (lead?.sales?.payment || {});
+    const workshopName = sale?.workshopName || lead.workshopName || lead?.sales?.workshopName;
 
-    const created = await (CrmReceipt as any).create({
-      leadId: new mongoose.Types.ObjectId(leadId),
-      leadNumber: lead.leadNumber,
-      receiptNumber,
-      issuedByUserId: viewerUserId,
-      issuedAt: new Date(),
-      customerName: lead.name || lead.userName,
-      customerPhone: lead.phoneNumber,
-      customerEmail: lead.email,
-      workshopName: lead.workshopName || lead?.sales?.workshopName,
-      workshopSlug: workshop.slug,
-      scheduleId: workshop.scheduleId,
-      payment: {
-        status: payment.status,
-        currency: payment.currency,
-        amount: payment.amount,
-        paidAmount: payment.paidAmount,
-        method: payment.method,
-        provider: payment.provider,
-        orderId: payment.orderId,
-        transactionId: payment.transactionId,
-        paidAt: payment.paidAt,
-      },
-      metadata: {
-        leadSnapshot: {
-          source: lead.source,
-          labels: lead.labels,
-          assignedToUserId: lead.assignedToUserId,
+    let receipt: any;
+    if (existing && existingIsStale) {
+      receipt = await (CrmReceipt as any).findByIdAndUpdate(
+        existing._id,
+        { $set: { workshopName, payment } },
+        { new: true }
+      ).lean();
+    } else {
+      const receiptNumber = await allocReceiptNumber();
+      receipt = await (CrmReceipt as any).create({
+        leadId: new mongoose.Types.ObjectId(leadId),
+        leadNumber: lead.leadNumber,
+        receiptNumber,
+        issuedByUserId: viewerUserId,
+        issuedAt: new Date(),
+        customerName: sale?.customerName || lead.name || lead.userName,
+        customerPhone: sale?.customerPhone || lead.phoneNumber,
+        customerEmail: sale?.customerEmail || lead.email,
+        workshopName,
+        workshopSlug: workshop.slug,
+        scheduleId: workshop.scheduleId,
+        payment,
+        metadata: {
+          leadSnapshot: {
+            source: lead.source,
+            labels: lead.labels,
+            assignedToUserId: lead.assignedToUserId,
+          },
         },
-      },
-    });
+      });
 
-    await (Lead as any).updateOne(
-      { _id: new mongoose.Types.ObjectId(leadId) },
-      { $set: { lastReceiptId: created._id } }
-    );
+      await (Lead as any).updateOne(
+        { _id: new mongoose.Types.ObjectId(leadId) },
+        { $set: { lastReceiptId: receipt._id } }
+      );
+    }
 
-    return NextResponse.json({ success: true, data: created }, { status: 201 });
+    if (sale?._id) {
+      await SalesReport.updateOne(
+        { _id: sale._id },
+        { $set: { receiptId: receipt._id, receiptNumber: receipt.receiptNumber } }
+      );
+    }
+
+    return NextResponse.json({ success: true, data: receipt }, { status: existing ? 200 : 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create receipt';
     return NextResponse.json({ error: message }, { status: 500 });

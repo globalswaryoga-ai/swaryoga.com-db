@@ -316,16 +316,19 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const url = new URL(request.url);
+    // Iframes (used for inline preview) can't set a custom Authorization
+    // header, so accept the token as a query param too.
+    const token = request.headers.get('authorization')?.slice('Bearer '.length) || url.searchParams.get('token') || undefined;
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
     const tf = tenantFilter(decoded, 'issuedByUserId');
 
-    const url = new URL(request.url);
     const receiptId = url.searchParams.get('id');
     const leadId = url.searchParams.get('leadId');
+    const download = url.searchParams.get('download') === '1';
 
     if (!receiptId && !leadId) {
       return NextResponse.json({ error: 'Missing id or leadId' }, { status: 400 });
@@ -363,7 +366,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filenameBase}.pdf"`,
+        'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="${filenameBase}.pdf"`,
         'Cache-Control': 'no-store',
       },
     });

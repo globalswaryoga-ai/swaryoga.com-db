@@ -32,21 +32,51 @@ interface Props {
   leadName?: string;
   leadPhone?: string;
   leadEmail?: string;
+  saleId?: string;
   token: string;
   onClose: () => void;
 }
 
-export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadEmail, token, onClose }: Props) {
+export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadEmail, saleId, token, onClose }: Props) {
   const router = useRouter();
   const [receipts, setReceipts] = useState<ReceiptData[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(true);
   const [error, setError] = useState('');
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
   const [showCreateSale, setShowCreateSale] = useState(false);
 
-  // Fetch receipts for this lead
+  // Generate (or self-heal a stale) receipt — backed by the real sale record.
+  const generateReceipt = useCallback(async () => {
+    setGenerating(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/crm/receipts', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, saleId }),
+      });
+      const json = await res.json();
+      if (res.ok && json.data) {
+        setReceipts((prev) => {
+          const rest = prev.filter((r) => r._id !== json.data._id);
+          return [json.data, ...rest];
+        });
+        setActiveReceipt(json.data);
+      } else {
+        setError(json.error || 'Failed to generate receipt');
+      }
+    } catch {
+      setError('Failed to generate receipt');
+    } finally {
+      setGenerating(false);
+    }
+  }, [leadId, saleId, token]);
+
+  // Fetch receipts for this lead; auto-create/self-heal so a click always
+  // shows a ready-to-go preview instead of an extra "Generate Receipt" step.
   const fetchReceipts = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -55,43 +85,48 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
-      if (res.ok && json.data) {
-        setReceipts(json.data);
-        if (json.data.length > 0) {
-          setActiveReceipt(json.data[0]);
-        }
-      } else {
-        setReceipts([]);
+      const data: ReceiptData[] = res.ok && Array.isArray(json.data) ? json.data : [];
+      const top = data[0];
+      const looksStale = !top || !top.payment?.amount;
+      if (looksStale && saleId) {
+        // There's a known sale behind this click — auto-generate/heal so the
+        // admin sees a correct preview immediately, no extra click needed.
+        setLoading(false);
+        await generateReceipt();
+        return;
       }
+      setReceipts(data);
+      setActiveReceipt(top || null);
     } catch {
       setError('Failed to load receipts');
     } finally {
       setLoading(false);
     }
-  }, [leadId, token]);
+  }, [leadId, saleId, token, generateReceipt]);
 
   useEffect(() => { fetchReceipts(); }, [fetchReceipts]);
 
   // Load PDF for active receipt
   useEffect(() => {
     if (!activeReceipt) { setPdfUrl(null); return; }
+    setPdfLoading(true);
     const url = `/api/admin/crm/receipts/pdf?id=${activeReceipt._id}`;
     setPdfUrl(url);
   }, [activeReceipt]);
 
-  // Generate receipt if none exists
-  const generateReceipt = async () => {
+  const regenerateReceipt = async () => {
     setGenerating(true);
     setError('');
     try {
       const res = await fetch('/api/admin/crm/receipts', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId }),
+        body: JSON.stringify({ leadId, saleId, force: true }),
       });
       const json = await res.json();
       if (res.ok && json.data) {
-        await fetchReceipts();
+        setReceipts((prev) => [json.data, ...prev.filter((r) => r._id !== json.data._id)]);
+        setActiveReceipt(json.data);
       } else {
         setError(json.error || 'Failed to generate receipt');
       }
@@ -106,7 +141,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
   const downloadPdf = async () => {
     if (!activeReceipt) return;
     try {
-      const res = await fetch(`/api/admin/crm/receipts/pdf?id=${activeReceipt._id}`, {
+      const res = await fetch(`/api/admin/crm/receipts/pdf?id=${activeReceipt._id}&download=1`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Download failed');
@@ -287,11 +322,18 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
 
                   {/* PDF iframe preview */}
                   {pdfUrl && (
-                    <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-100">
+                    <div className="relative border border-gray-200 rounded-xl overflow-hidden bg-gray-100">
+                      {pdfLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                          <Loader2 className="h-6 w-6 text-indigo-400 animate-spin" />
+                        </div>
+                      )}
                       <iframe
+                        key={pdfUrl}
                         src={`${pdfUrl}&token=${encodeURIComponent(token)}`}
-                        className="w-full h-[320px]"
+                        className="w-full h-[420px]"
                         title="Receipt PDF"
+                        onLoad={() => setPdfLoading(false)}
                       />
                     </div>
                   )}
@@ -337,7 +379,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
             </button>
             {/* Generate new */}
             <button
-              onClick={() => generateReceipt()}
+              onClick={() => regenerateReceipt()}
               disabled={generating}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition ml-auto disabled:opacity-50"
             >

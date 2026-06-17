@@ -2361,6 +2361,7 @@ export default function SalesPage() {
             leadName={sale?.customerName || ''}
             leadPhone={sale?.customerPhone || ''}
             leadEmail={sale?.customerEmail || ''}
+            saleId={receiptSaleId}
             token={token}
             onClose={() => setReceiptSaleId(null)}
           />
