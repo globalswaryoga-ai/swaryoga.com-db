@@ -380,6 +380,28 @@ export default function SalesPage() {
     [crmFetch, selectedSaleIds]
   );
 
+  // Deletes every sale currently visible (respects active filters/search), regardless of checkbox selection.
+  const [deletingAll, setDeletingAll] = useState(false);
+  const deleteAllFiltered = useCallback(
+    async (ids: string[], opts?: { clearAfter?: () => void; refreshAfter?: () => Promise<void> | void }) => {
+      if (!ids.length) return;
+      const ok = window.confirm(`Delete ALL ${ids.length} sale(s) currently shown (matching filters/search)? This cannot be undone.`);
+      if (!ok) return;
+      setDeletingAll(true);
+      try {
+        setError(null);
+        await Promise.all(ids.map((id) => crmFetch('/api/admin/crm/sales', { method: 'DELETE', params: { saleId: id } })));
+        opts?.clearAfter?.();
+        await opts?.refreshAfter?.();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Delete all failed');
+      } finally {
+        setDeletingAll(false);
+      }
+    },
+    [crmFetch]
+  );
+
   const openAddToEvent = useCallback(async () => {
     setAddToEventOpen(true);
     setSelectedEventId('');
@@ -1336,6 +1358,33 @@ export default function SalesPage() {
             </button>
           ))}
         </div>
+
+        {/* Select All / Delete All — always visible in list view */}
+        {view === 'list' && (
+          <div className="bg-black border border-white/30 rounded-xl p-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={toggleSelectAllOnPage}
+              disabled={filteredSales.length === 0}
+              className="px-4 py-2 bg-black border border-emerald-500 text-emerald-400 rounded-lg font-semibold hover:bg-emerald-600 hover:text-white transition-colors disabled:opacity-50"
+              title="Select/deselect all sales matching the current filters/search"
+            >
+              {allSelectedOnPage ? '☑ Deselect All' : '☐ Select All'} ({filteredSales.length})
+            </button>
+
+            <button
+              onClick={() => deleteAllFiltered(filteredSales.map((s) => s._id), { clearAfter: clearSaleSelection, refreshAfter: fetchSalesData })}
+              disabled={filteredSales.length === 0 || deletingAll}
+              className="px-4 py-2 bg-white border border-red-500 text-red-600 rounded-lg font-semibold hover:bg-red-600 hover:text-white transition-colors disabled:opacity-50"
+              title="Delete every sale currently shown (matching filters/search)"
+            >
+              {deletingAll ? '⏳ Deleting...' : `🗑️ Delete All (${filteredSales.length})`}
+            </button>
+
+            {selectedSaleIds.size > 0 && (
+              <div className="text-sm text-white/60 ml-auto">Selected: {selectedSaleIds.size}</div>
+            )}
+          </div>
+        )}
 
         {/* Bulk actions (header) */}
         {view === 'list' && selectedSaleIds.size > 0 && (
