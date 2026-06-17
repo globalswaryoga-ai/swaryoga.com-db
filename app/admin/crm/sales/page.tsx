@@ -1512,26 +1512,36 @@ export default function SalesPage() {
                 const isAll = !draftFilters.batchFrom;
                 const { year: fromYear, month: fromMonth } = parseYearMonth(draftFilters.batchFrom);
                 return (
-                  <div className="flex gap-2">
-                    <select
-                      value={isAll ? 'all' : fromMonth}
-                      onChange={(e) => setDraftFilters((p) => ({
-                        ...p,
-                        batchFrom: e.target.value === 'all' ? '' : monthStartDateInputValue(fromYear, Number(e.target.value)),
-                      }))}
-                      className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                    >
-                      <option value="all">All</option>
-                      {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
-                    </select>
-                    <select
-                      value={fromYear}
-                      disabled={isAll}
-                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
-                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
-                    >
-                      {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
-                    </select>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <select
+                        value={isAll ? 'all' : fromMonth}
+                        onChange={(e) => setDraftFilters((p) => ({
+                          ...p,
+                          batchFrom: e.target.value === 'all' ? '' : monthStartDateInputValue(fromYear, Number(e.target.value)),
+                        }))}
+                        className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                      >
+                        <option value="all">All</option>
+                        {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                      </select>
+                      <select
+                        value={fromYear}
+                        disabled={isAll}
+                        onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
+                        className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
+                      >
+                        {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
+                    {/* Exact-day override — the month/year selects above only snap to month boundaries */}
+                    <input
+                      type="date"
+                      value={draftFilters.batchFrom}
+                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
+                      className="w-full bg-black border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:border-emerald-500 transition-all"
+                      title="Pick an exact day instead of a whole month"
+                    />
                   </div>
                 );
               })()}
@@ -1542,26 +1552,36 @@ export default function SalesPage() {
                 const isAll = !draftFilters.batchTo;
                 const { year: toYear, month: toMonth } = parseYearMonth(draftFilters.batchTo);
                 return (
-                  <div className="flex gap-2">
-                    <select
-                      value={isAll ? 'all' : toMonth}
-                      onChange={(e) => setDraftFilters((p) => ({
-                        ...p,
-                        batchTo: e.target.value === 'all' ? '' : monthEndDateInputValue(toYear, Number(e.target.value)),
-                      }))}
-                      className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                    >
-                      <option value="all">All</option>
-                      {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
-                    </select>
-                    <select
-                      value={toYear}
-                      disabled={isAll}
-                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
-                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
-                    >
-                      {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
-                    </select>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <select
+                        value={isAll ? 'all' : toMonth}
+                        onChange={(e) => setDraftFilters((p) => ({
+                          ...p,
+                          batchTo: e.target.value === 'all' ? '' : monthEndDateInputValue(toYear, Number(e.target.value)),
+                        }))}
+                        className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                      >
+                        <option value="all">All</option>
+                        {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                      </select>
+                      <select
+                        value={toYear}
+                        disabled={isAll}
+                        onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
+                        className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
+                      >
+                        {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
+                    {/* Exact-day override — the month/year selects above only snap to month boundaries */}
+                    <input
+                      type="date"
+                      value={draftFilters.batchTo}
+                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: e.target.value }))}
+                      className="w-full bg-black border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:border-emerald-500 transition-all"
+                      title="Pick an exact day instead of a whole month"
+                    />
                   </div>
                 );
               })()}
