@@ -235,6 +235,21 @@ export default function SalesPage() {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [workshopFilterOpen]);
 
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [showExportMenu]);
+
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -610,41 +625,112 @@ export default function SalesPage() {
     setAppliedFilters(empty);
   };
 
-  const downloadCsv = useCallback(async () => {
+  type SalesExportRow = {
+    date: string;
+    name: string;
+    mobile: string;
+    workshop: string;
+    amount: number | string;
+    bankOrCash: string;
+    transactionDetails: string;
+  };
+
+  const fetchExportRows = useCallback(async (): Promise<SalesExportRow[]> => {
+    if (!token) throw new Error('Missing admin token. Please login again.');
+
+    const params = new URLSearchParams();
+    params.set('view', 'list');
+    params.set('format', 'json');
+    if (appliedFilters.workshop.length > 0) params.set('workshop', appliedFilters.workshop.join(','));
+    if (appliedFilters.batchFrom) params.set('batchFrom', appliedFilters.batchFrom);
+    if (appliedFilters.batchTo) params.set('batchTo', appliedFilters.batchTo);
+    if (appliedFilters.reportedByUserId.trim()) params.set('reportedByUserId', appliedFilters.reportedByUserId.trim());
+
+    const res = await fetch(`/api/admin/crm/sales?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || `Download failed (${res.status})`);
+    }
+
+    const rows: SalesExportRow[] = Array.isArray(data?.data?.rows) ? data.data.rows : [];
+    if (rows.length === 0) throw new Error('No sales match the current filters.');
+    return rows;
+  }, [token, appliedFilters]);
+
+  const downloadExcel = useCallback(async () => {
     try {
       setError(null);
-      if (!token) throw new Error('Missing admin token. Please login again.');
+      setExporting(true);
+      const rows = await fetchExportRows();
 
-      const params = new URLSearchParams();
-      params.set('view', 'list');
-      params.set('format', 'csv');
-      if (appliedFilters.workshop.length > 0) params.set('workshop', appliedFilters.workshop.join(','));
-      if (appliedFilters.batchFrom) params.set('batchFrom', appliedFilters.batchFrom);
-      if (appliedFilters.batchTo) params.set('batchTo', appliedFilters.batchTo);
-      if (appliedFilters.reportedByUserId.trim()) params.set('reportedByUserId', appliedFilters.reportedByUserId.trim());
+      const XLSX = await import('xlsx');
+      const excelData = rows.map((r) => ({
+        Date: r.date,
+        Name: r.name,
+        'Mobile Number': r.mobile,
+        'Workshop Name': r.workshop,
+        'Amount Received': r.amount,
+        'Bank/Cash': r.bankOrCash,
+        'Transaction Details': r.transactionDetails,
+      }));
 
-      const res = await fetch(`/api/admin/crm/sales?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+      ws['!cols'] = [
+        { wch: 12 },
+        { wch: 22 },
+        { wch: 15 },
+        { wch: 22 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 22 },
+      ];
+
+      XLSX.writeFile(wb, `sales_export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download Excel');
+    } finally {
+      setExporting(false);
+      setShowExportMenu(false);
+    }
+  }, [fetchExportRows]);
+
+  const downloadPdf = useCallback(async () => {
+    try {
+      setError(null);
+      setExporting(true);
+      const rows = await fetchExportRows();
+
+      const [{ default: jsPDF }, autoTableModule] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+      const autoTable = autoTableModule.default;
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      doc.setFontSize(14);
+      doc.text('Sales Export', 14, 12);
+
+      autoTable(doc, {
+        startY: 18,
+        head: [['Date', 'Name', 'Mobile Number', 'Workshop Name', 'Amount Received', 'Bank/Cash', 'Transaction Details']],
+        body: rows.map((r) => [r.date, r.name, r.mobile, r.workshop, String(r.amount ?? ''), r.bankOrCash, r.transactionDetails]),
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [109, 40, 217] },
       });
 
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(txt || `Download failed (${res.status})`);
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sales_export_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      doc.save(`sales_export_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to download CSV');
+      setError(err instanceof Error ? err.message : 'Failed to download PDF');
+    } finally {
+      setExporting(false);
+      setShowExportMenu(false);
     }
-  }, [token, appliedFilters]);
+  }, [fetchExportRows]);
 
   const handleUploadSales = async () => {
     if (!token) {
@@ -1051,12 +1137,33 @@ export default function SalesPage() {
             >
               📅 Events
             </button>
-            <button
-              onClick={downloadCsv}
-              className="bg-purple-900/30 border border-purple-400 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-purple-600 hover:text-white"
-            >
-              📤 Export
-            </button>
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu((v) => !v)}
+                disabled={exporting}
+                className="bg-purple-900/30 border border-purple-400 text-purple-300 px-4 py-2 rounded-lg transition-all font-semibold flex items-center gap-2 hover:bg-purple-600 hover:text-white disabled:opacity-50"
+              >
+                {exporting ? '⏳ Exporting...' : '📤 Export'}
+              </button>
+              {showExportMenu && (
+                <div className="absolute z-20 mt-2 right-0 w-48 bg-black border border-white/30 rounded-lg shadow-xl overflow-hidden">
+                  <button
+                    onClick={downloadPdf}
+                    disabled={exporting}
+                    className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-purple-600/40 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    📄 Export as PDF
+                  </button>
+                  <button
+                    onClick={downloadExcel}
+                    disabled={exporting}
+                    className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-purple-600/40 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    📊 Export as Excel
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setShowUploadModal(true)}
               className="bg-purple-900/30 border border-violet-400 text-violet-300 px-4 py-2 rounded-lg transition-all font-semibold hover:bg-violet-600 hover:text-white"

@@ -177,6 +177,42 @@ export async function GET(request: NextRequest) {
       if (batchTo) filter.batchDate.$lte = new Date(String(batchTo));
     }
 
+    // JSON export for PDF/Excel downloads (ignores pagination, but enforces a safety limit)
+    if (format === 'json') {
+      const maxRows = 50000;
+      const rows = await SalesReport.find(filter)
+        .sort({ saleDate: -1 })
+        .limit(maxRows)
+        .lean();
+
+      const paymentModeLabel = (mode: any): string => {
+        const map: Record<string, string> = {
+          cash: 'Cash',
+          bank_transfer: 'Bank Transfer',
+          upi: 'UPI',
+          card: 'Card',
+          payu: 'PayU (Online)',
+          cashfree: 'Cashfree (Online)',
+          paypal: 'PayPal (Online)',
+          other: 'Other',
+        };
+        const key = String(mode || '').trim();
+        return map[key] || key;
+      };
+
+      const exportRows = rows.map((r: any) => ({
+        date: r.saleDate ? new Date(r.saleDate).toISOString().slice(0, 10) : '',
+        name: r.customerName || '',
+        mobile: r.customerPhone || '',
+        workshop: r.workshopName || '',
+        amount: r.saleAmount ?? '',
+        bankOrCash: paymentModeLabel(r.paymentMode),
+        transactionDetails: r.transactionId || '',
+      }));
+
+      return formatCrmSuccess({ rows: exportRows }, { count: exportRows.length });
+    }
+
     // CSV export for downloads (ignores pagination, but enforces a safety limit)
     if (format === 'csv') {
       const maxRows = 50000;
