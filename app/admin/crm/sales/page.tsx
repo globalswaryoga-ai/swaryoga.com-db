@@ -753,9 +753,9 @@ export default function SalesPage() {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
 
-      const fromLabel = formatDateRangeLabel(appliedFilters.batchFrom);
-      const toLabel = formatDateRangeLabel(appliedFilters.batchTo);
-      const rangeLabel = fromLabel && toLabel ? `${fromLabel}   To   ${toLabel}` : '';
+      const fromLabel = formatDateRangeLabel(appliedFilters.batchFrom) || 'All';
+      const toLabel = formatDateRangeLabel(appliedFilters.batchTo) || 'All';
+      const rangeLabel = fromLabel === 'All' && toLabel === 'All' ? 'All Dates' : `${fromLabel}   To   ${toLabel}`;
 
       const drawHeader = () => {
         doc.setFont('helvetica', 'bold');
@@ -789,7 +789,7 @@ export default function SalesPage() {
         didDrawPage: drawHeader,
       });
 
-      const fileSuffix = fromLabel && toLabel
+      const fileSuffix = appliedFilters.batchFrom && appliedFilters.batchTo
         ? `${appliedFilters.batchFrom}_to_${appliedFilters.batchTo}`
         : new Date().toISOString().slice(0, 10);
       doc.save(`swar_yoga_enrollment_${fileSuffix}.pdf`);
@@ -1450,20 +1450,26 @@ export default function SalesPage() {
             <div>
               <label className="block text-white text-sm font-semibold mb-3">Date Range From</label>
               {(() => {
+                const isAll = !draftFilters.batchFrom;
                 const { year: fromYear, month: fromMonth } = parseYearMonth(draftFilters.batchFrom);
                 return (
                   <div className="flex gap-2">
                     <select
-                      value={fromMonth}
-                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(fromYear, Number(e.target.value)) }))}
+                      value={isAll ? 'all' : fromMonth}
+                      onChange={(e) => setDraftFilters((p) => ({
+                        ...p,
+                        batchFrom: e.target.value === 'all' ? '' : monthStartDateInputValue(fromYear, Number(e.target.value)),
+                      }))}
                       className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                     >
+                      <option value="all">All</option>
                       {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
                     </select>
                     <select
                       value={fromYear}
+                      disabled={isAll}
                       onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
-                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
                     >
                       {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
                     </select>
@@ -1474,20 +1480,26 @@ export default function SalesPage() {
             <div>
               <label className="block text-white text-sm font-semibold mb-3">Date Range To</label>
               {(() => {
+                const isAll = !draftFilters.batchTo;
                 const { year: toYear, month: toMonth } = parseYearMonth(draftFilters.batchTo);
                 return (
                   <div className="flex gap-2">
                     <select
-                      value={toMonth}
-                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(toYear, Number(e.target.value)) }))}
+                      value={isAll ? 'all' : toMonth}
+                      onChange={(e) => setDraftFilters((p) => ({
+                        ...p,
+                        batchTo: e.target.value === 'all' ? '' : monthEndDateInputValue(toYear, Number(e.target.value)),
+                      }))}
                       className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                     >
+                      <option value="all">All</option>
                       {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
                     </select>
                     <select
                       value={toYear}
+                      disabled={isAll}
                       onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
-                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
                     >
                       {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
                     </select>
