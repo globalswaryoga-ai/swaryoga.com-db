@@ -1,334 +1,285 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 import mongoose from 'mongoose';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
+import { tenantFilter } from '@/lib/crm-handlers';
 import { CrmReceipt } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
-
-// Mark as dynamic since this route uses request.headers or request.url
-
-
 export const runtime = 'nodejs';
 
-function formatDate(d?: string | number | Date | null): string {
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(d?: string | number | Date | null): string {
   if (!d) return '—';
   const dt = d instanceof Date ? d : new Date(d);
   if (Number.isNaN(dt.getTime())) return '—';
-  return dt.toLocaleDateString('en-IN');
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function money(amount: any, currency?: string): string {
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return '—';
-  const curr = (currency || 'INR').toUpperCase();
-  // Keep it simple and consistent across nodes
-  const formatted = n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  // Standard PDF fonts (WinAnsi) can't render ₹ reliably; use ISO code.
-  if (curr === 'INR') return `INR ${formatted}`;
-  return `${curr} ${formatted}`;
+function money(n: any): string {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '0';
+  return v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
 
-function safeText(v: any): string {
-  const s = String(v ?? '').trim();
-  return s || '—';
+function safe(v: any): string {
+  return String(v ?? '').replace(/\s+/g, ' ').trim() || '—';
 }
 
-function asOneLine(v: any): string {
-  const s = String(v ?? '').replace(/\s+/g, ' ').trim();
-  return s || '—';
+function trunc(s: string, max = 50): string {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
-function trunc(text: string, max = 80) {
-  const s = String(text || '');
-  if (s.length <= max) return s;
-  return s.slice(0, max - 1) + '…';
-}
-
-function parsePercent(v: any): number {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(100, n));
-}
+// ─── PDF builder ──────────────────────────────────────────────────────────────
 
 async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]); // A4 in points
+  const page   = pdfDoc.addPage([595.28, 841.89]); // A4
 
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const bold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const reg    = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  const { width, height } = page.getSize();
+  const { width: W, height: H } = page.getSize();
+  const M = 40; // side margin
 
-  const marginX = 44;
-  let y = height - 48;
+  // ─── colours ────────────────────────────────────────────────────────────────
+  const orange    = rgb(0.91, 0.50, 0.10);   // #E8801A
+  const darkGreen = rgb(0.18, 0.42, 0.31);   // #2D6A4F
+  const teal      = rgb(0.10, 0.42, 0.33);   // #1A6B55
+  const red       = rgb(0.75, 0.22, 0.17);   // #C0392B
+  const darkBg    = rgb(0.10, 0.10, 0.17);   // #1A1A2E
+  const white     = rgb(1, 1, 1);
+  const black     = rgb(0.07, 0.07, 0.07);
+  const gray      = rgb(0.40, 0.40, 0.40);
+  const lightGray = rgb(0.96, 0.96, 0.96);
+  const midGray   = rgb(0.87, 0.87, 0.87);
 
-  // Palette inspired by the sample invoice screenshot.
-  const green = rgb(0.44, 0.67, 0.18);
-  const dark = rgb(0.16, 0.2, 0.25);
-  const textColor = rgb(0.15, 0.18, 0.22);
-  const mutedColor = rgb(0.42, 0.45, 0.5);
-  const lineColor = rgb(0.88, 0.9, 0.92);
-  const softFill = rgb(0.96, 0.97, 0.97);
+  const text = (t: string, x: number, y: number, opts: { size?: number; font?: any; color?: any } = {}) =>
+    page.drawText(t, { x, y, size: opts.size ?? 10, font: opts.font ?? reg, color: opts.color ?? black });
 
-  const drawText = (text: string, opts: { x: number; y: number; size?: number; font?: any; color?: any } ) => {
-    page.drawText(text, {
-      x: opts.x,
-      y: opts.y,
-      size: opts.size ?? 11,
-      font: opts.font ?? helvetica,
-      color: opts.color ?? textColor,
-    });
-  };
+  // ─── embed logos ────────────────────────────────────────────────────────────
+  let logoImg: any = null;
+  let sealImg: any = null;
+  try {
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'logo-square.png'));
+    logoImg = await pdfDoc.embedPng(buf);
+  } catch {}
+  try {
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'swar-yoga-seal.png'));
+    sealImg = await pdfDoc.embedPng(buf);
+  } catch {}
 
-  // Header band (dark) with a green accent.
-  const headerH = 92;
-  page.drawRectangle({ x: 0, y: height - headerH, width, height: headerH, color: dark });
-  // pdf-lib doesn't expose a polygon helper on the page type;
-  // approximate the diagonal accent using a slightly rotated rectangle.
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HEADER  (y = H-130 … H)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // White background
+  page.drawRectangle({ x: 0, y: H - 130, width: W, height: 130, color: white });
+
+  // Green diagonal stripe — top-right corner
   page.drawRectangle({
-    x: width * 0.42,
-    y: height - headerH,
-    width: width * 0.36,
-    height: headerH,
-    color: green,
+    x: W * 0.52,
+    y: H - 145,
+    width: W * 0.68,
+    height: 160,
+    color: darkGreen,
     rotate: degrees(12),
   });
 
-  drawText('SWAR YOGA', { x: marginX, y: height - 54, size: 22, font: helveticaBold, color: rgb(1, 1, 1) });
-  drawText('Swar Yoga Workshop Receipt', {
-    x: marginX,
-    y: height - 76,
-    size: 10,
-    font: helvetica,
-    color: rgb(0.9, 0.92, 0.94),
-  });
-
-  // Big INVOICE title
-  drawText('INVOICE', {
-    x: width - marginX - helveticaBold.widthOfTextAtSize('INVOICE', 28),
-    y: height - 64,
-    size: 28,
-    font: helveticaBold,
-    color: green,
-  });
-
-  y = height - headerH - 22;
-
-  const receiptNumber = safeText(receipt?.receiptNumber || receipt?._id);
-  const issuedAt = formatDate(receipt?.issuedAt || receipt?.createdAt);
-
-  // Invoice meta (top-right)
-  const metaBoxW = 210;
-  const metaBoxH = 44;
-  page.drawRectangle({ x: width - marginX - metaBoxW, y: y - metaBoxH + 10, width: metaBoxW, height: metaBoxH, color: softFill });
-  drawText(`Invoice No: ${trunc(receiptNumber, 28)}`, { x: width - marginX - metaBoxW + 10, y: y - 8, size: 9, font: helvetica, color: mutedColor });
-  drawText(`Invoice Date: ${issuedAt}`, { x: width - marginX - metaBoxW + 10, y: y - 21, size: 9, font: helvetica, color: mutedColor });
-
-  // From / To blocks
-  const fromX = marginX;
-  const toX = width / 2 + 8;
-  const blockYTop = y;
-
-  const orgName = asOneLine(receipt?.organizationName || receipt?.organizerName || 'Swar Yoga');
-  const orgContact = asOneLine(receipt?.organizationContact || '+91 00000 00000');
-  const orgEmail = asOneLine(receipt?.organizationEmail || 'info@swaryoga.com');
-  const orgAddress = asOneLine(
-    receipt?.organizationAddress ||
-      'Off No 04, Vedant Complex, Maldad Road, Sangamner - 422605, MH, India.'
-  );
-
-  const customerName = asOneLine(receipt?.customerName);
-  const customerPhone = asOneLine(receipt?.customerPhone);
-  const customerEmail = asOneLine(receipt?.customerEmail);
-
-  const label = (t: string, x: number, yy: number) => drawText(t, { x, y: yy, size: 9, font: helveticaBold, color: green });
-  const val = (t: string, x: number, yy: number) => drawText(trunc(t, 46), { x, y: yy, size: 9.5, font: helvetica, color: textColor });
-
-  label('Invoice From:', fromX, blockYTop);
-  val(orgName, fromX, blockYTop - 13);
-  val(orgAddress, fromX, blockYTop - 26);
-  val(`Phone: ${orgContact}`, fromX, blockYTop - 39);
-  val(`Email: ${orgEmail}`, fromX, blockYTop - 52);
-
-  label('Invoice To:', toX, blockYTop);
-  val(customerName, toX, blockYTop - 13);
-  val(`Phone: ${customerPhone}`, toX, blockYTop - 26);
-  val(`Email: ${customerEmail}`, toX, blockYTop - 39);
-
-  y = blockYTop - 74;
-
-  // Items table (like screenshot: NO | PRODUCT DESCRIPTION | PRICE | QTY | TOTAL)
-  const tableX = marginX;
-  const tableW = width - marginX * 2;
-  const headerY = y;
-  const rowH = 28;
-
-  const colNoW = 34;
-  const colDescW = 270;
-  const colPriceW = 80;
-  const colQtyW = 50;
-  const colTotalW = tableW - (colNoW + colDescW + colPriceW + colQtyW);
-
-  const colNoX = tableX;
-  const colDescX = colNoX + colNoW;
-  const colPriceX = colDescX + colDescW;
-  const colQtyX = colPriceX + colPriceW;
-  const colTotalX = colQtyX + colQtyW;
-
-  // Header row
-  page.drawRectangle({ x: tableX, y: headerY - 18, width: tableW, height: 20, color: green });
-  const headerText = (t: string, x: number) =>
-    drawText(t, { x, y: headerY - 13, size: 9, font: helveticaBold, color: rgb(1, 1, 1) });
-  headerText('NO.', colNoX + 8);
-  headerText('PRODUCT DESCRIPTION', colDescX + 8);
-  headerText('PRICE', colPriceX + 8);
-  headerText('QTY.', colQtyX + 8);
-  headerText('TOTAL', colTotalX + 8);
-
-  y = headerY - 30;
-
-  const currency = receipt?.payment?.currency || 'INR';
-  const qty = Number(receipt?.quantity ?? 1) || 1;
-  const unitPrice = Number(receipt?.payment?.unitAmount ?? receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? 0) || 0;
-
-  // discount/tax fields (optional for now)
-  const discountAmount = Number(receipt?.payment?.discountAmount ?? receipt?.discountAmount ?? 0) || 0;
-  const taxRate = parsePercent(receipt?.payment?.taxPercent ?? receipt?.taxPercent ?? 0);
-
-  const subTotal = Math.max(0, unitPrice * qty);
-  const afterDiscount = Math.max(0, subTotal - discountAmount);
-  const taxAmount = Math.max(0, (afterDiscount * taxRate) / 100);
-  const grandTotal = Math.max(0, afterDiscount + taxAmount);
-
-  const workshopName = asOneLine(receipt?.workshopName || 'Workshop');
-  const workshopSubtitle = asOneLine(receipt?.workshopSubtitle || receipt?.scheduleLabel || '');
-
-  // Single row (for now) – can be extended later to multiple line items.
-  page.drawRectangle({ x: tableX, y: y - rowH + 6, width: tableW, height: rowH, color: rgb(1, 1, 1) });
-  const cellY = y - 8;
-  drawText('01', { x: colNoX + 10, y: cellY, size: 9.5, font: helveticaBold, color: mutedColor });
-  drawText(trunc(workshopName, 40), { x: colDescX + 8, y: cellY, size: 9.5, font: helveticaBold, color: textColor });
-  if (workshopSubtitle && workshopSubtitle !== '—') {
-    drawText(trunc(workshopSubtitle, 52), { x: colDescX + 8, y: cellY - 11, size: 8.5, font: helvetica, color: mutedColor });
+  // Logo
+  if (logoImg) {
+    page.drawImage(logoImg, { x: M, y: H - 116, width: 68, height: 68 });
+  } else {
+    page.drawEllipse({ x: M + 34, y: H - 82, xScale: 32, yScale: 32, color: darkGreen });
+    text('SW', M + 18, H - 92, { size: 16, font: bold, color: white });
   }
-  drawText(money(unitPrice, currency), { x: colPriceX + 8, y: cellY, size: 9.5, font: helvetica, color: textColor });
-  drawText(String(qty), { x: colQtyX + 16, y: cellY, size: 9.5, font: helvetica, color: textColor });
-  drawText(money(subTotal, currency), { x: colTotalX + 8, y: cellY, size: 9.5, font: helvetica, color: textColor });
 
-  y -= 46;
+  // Company text
+  text('SWAR YOGA', M + 82, H - 48, { size: 19, font: bold, color: black });
+  text('Maldad Road, Sangamner  •  Mo +91 93099 86820', M + 82, H - 66, { size: 8, color: gray });
+  text('Email: mohan@swaryoga.com', M + 82, H - 78, { size: 8, color: gray });
 
-  // Totals box at bottom-right
-  const totalsX = width - marginX - 230;
-  const totalsYTop = y + 38;
-  const totalsW = 230;
-  const lineH = 14;
+  // Seal / logo top-right (inside stripe)
+  if (sealImg) {
+    page.drawImage(sealImg, { x: W - 108, y: H - 108, width: 60, height: 60 });
+  } else {
+    page.drawEllipse({ x: W - 78, y: H - 78, xScale: 28, yScale: 28, color: white });
+    text('8', W - 85, H - 88, { size: 18, font: bold, color: darkGreen });
+  }
 
-  const totalsLine = (labelText: string, valueText: string, row: number) => {
-    const yy = totalsYTop - row * lineH;
-    drawText(labelText, { x: totalsX + 10, y: yy, size: 9, font: helvetica, color: mutedColor });
-    drawText(valueText, {
-      x: totalsX + totalsW - 10 - helvetica.widthOfTextAtSize(valueText, 9),
-      y: yy,
-      size: 9,
-      font: helvetica,
-      color: textColor,
-    });
-  };
+  // INVOICE title
+  text('INVOICE', W - M - bold.widthOfTextAtSize('INVOICE', 28) - 4, H - 66, { size: 28, font: bold, color: black });
 
-  page.drawRectangle({ x: totalsX, y: totalsYTop - 4 * lineH - 10, width: totalsW, height: 4 * lineH + 56, color: softFill });
-  totalsLine('Subtotal:', money(subTotal, currency), 0);
-  totalsLine('Discount:', money(discountAmount, currency), 1);
-  totalsLine(`Tax (${taxRate.toFixed(0)}%):`, money(taxAmount, currency), 2);
+  const receiptNumber = safe(receipt?.receiptNumber || receipt?._id);
+  text(`No: ${receiptNumber}`, W - M - reg.widthOfTextAtSize(`No: ${receiptNumber}`, 10) - 4, H - 95, { size: 10, color: gray });
 
-  // Total highlight row
-  const totalBandY = totalsYTop - 3 * lineH - 20;
-  page.drawRectangle({ x: totalsX, y: totalBandY, width: totalsW, height: 32, color: green });
-  drawText('Total:', { x: totalsX + 10, y: totalBandY + 10, size: 12, font: helveticaBold, color: rgb(1, 1, 1) });
-  const totalText = money(grandTotal || receipt?.payment?.paidAmount || receipt?.payment?.amount, currency);
-  drawText(totalText, {
-    x: totalsX + totalsW - 10 - helveticaBold.widthOfTextAtSize(totalText, 12),
-    y: totalBandY + 10,
-    size: 12,
-    font: helveticaBold,
-    color: rgb(1, 1, 1),
+  // ─── Orange divider ────────────────────────────────────────────────────────
+  page.drawRectangle({ x: 0, y: H - 134, width: W, height: 4, color: orange });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INVOICE TO  +  DATE/TOTAL  (y = H-244 … H-134)
+  // ═══════════════════════════════════════════════════════════════════════════
+  page.drawRectangle({ x: 0, y: H - 244, width: W, height: 110, color: white });
+
+  // Left – customer
+  text('INVOICE TO :', M, H - 154, { size: 8.5, color: gray });
+
+  const custId = safe(receipt?.customerId || (receipt?.leadId?.toString?.() || '').slice(-6) || '—');
+  text(`ID: ${custId}`, M, H - 170, { size: 10, font: bold });
+
+  const customerName = safe(receipt?.customerName);
+  text(trunc(customerName, 32), M, H - 186, { size: 16, font: bold, color: teal });
+
+  const customerPhone = safe(receipt?.customerPhone);
+  text(customerPhone, M, H - 204, { size: 9, color: gray });
+
+  // Right – date + total
+  const colR = W / 2 + 20;
+  const issuedAt = fmt(receipt?.issuedAt || receipt?.createdAt);
+  text(`Date: ${issuedAt}`, W - M - bold.widthOfTextAtSize(`Date: ${issuedAt}`, 10), H - 154, { size: 10, font: bold });
+
+  // small orange bar
+  page.drawRectangle({ x: colR, y: H - 172, width: W - colR - M, height: 2, color: orange });
+
+  text('TOTAL AMOUNT', W - M - reg.widthOfTextAtSize('TOTAL AMOUNT', 8), H - 182, { size: 8, color: gray });
+
+  const totalAmt = receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? 0;
+  const totalStr = `RS. ${money(totalAmt)}/-`;
+  text(totalStr, W - M - bold.widthOfTextAtSize(totalStr, 20), H - 204, { size: 20, font: bold, color: red });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TABLE  (y = H-284 … H-244)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const tTop  = H - 248;
+  const tW    = W - M * 2;
+  const rowH  = 34;
+
+  // Column positions & widths
+  const cW = [tW * 0.50, tW * 0.13, tW * 0.19, tW * 0.18];
+  const cX = [M, M + cW[0], M + cW[0] + cW[1], M + cW[0] + cW[1] + cW[2]];
+
+  // Header row (orange)
+  page.drawRectangle({ x: M, y: tTop - 24, width: tW, height: 24, color: orange });
+  const hLabels = ['WORKSHOP', 'PERSON', 'FEES', 'TOTAL'];
+  hLabels.forEach((h, i) => {
+    const tx = i === 0 ? cX[i] + 8 : cX[i] + (cW[i] - bold.widthOfTextAtSize(h, 8.5)) / 2;
+    text(h, tx, tTop - 16, { size: 8.5, font: bold, color: white });
   });
 
-  y = totalBandY - 28;
+  const workshopName = safe(receipt?.workshopName || 'Workshop');
+  const qty     = Number(receipt?.quantity ?? 1) || 1;
+  const unitAmt = Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? 0);
 
-  // Payment details (bottom-left)
+  // Row 1 (white)
+  const r1Y = tTop - 24 - rowH;
+  page.drawRectangle({ x: M, y: r1Y, width: tW, height: rowH, color: white });
+  page.drawRectangle({ x: M, y: r1Y, width: tW, height: 1, color: midGray });
+  text(trunc(workshopName, 36), cX[0] + 8, r1Y + 12, { size: 10, font: bold });
+  text(String(qty), cX[1] + (cW[1] - reg.widthOfTextAtSize(String(qty), 9.5)) / 2, r1Y + 12, { size: 9.5 });
+  text(`${money(unitAmt)}/-`, cX[2] + (cW[2] - reg.widthOfTextAtSize(`${money(unitAmt)}/-`, 9.5)) / 2, r1Y + 12, { size: 9.5 });
+
+  // Row 2 (light gray) – payment received note
   const pay = receipt?.payment || {};
-  const details = [
-    pay?.method ? `Method: ${asOneLine(pay.method)}` : null,
-    pay?.provider ? `Provider: ${asOneLine(pay.provider)}` : null,
-    pay?.transactionId ? `Txn: ${asOneLine(pay.transactionId)}` : null,
-    pay?.orderId ? `Order: ${asOneLine(pay.orderId)}` : null,
-    pay?.status ? `Status: ${asOneLine(pay.status)}` : null,
-    pay?.paidAt ? `Paid At: ${formatDate(pay.paidAt)}` : null,
-  ].filter(Boolean);
+  const payMethod  = safe(pay?.method || pay?.provider || 'payment').toLowerCase().replace(/_/g, ' ');
+  const payDate    = fmt(pay?.paidAt || receipt?.issuedAt || receipt?.createdAt);
+  const receivedNote = `Received on the date of- ${payDate} (${payMethod})`;
 
-  if (details.length) {
-    drawText('Payment Method:', { x: marginX, y, size: 10, font: helveticaBold, color: green });
-    y -= 14;
-    for (const line of details) {
-      drawText(String(line), { x: marginX, y, size: 9, font: helvetica, color: textColor });
-      y -= 11;
-      if (y < 120) break;
-    }
+  const r2Y = r1Y - rowH;
+  page.drawRectangle({ x: M, y: r2Y, width: tW, height: rowH, color: lightGray });
+  page.drawRectangle({ x: M, y: r2Y, width: tW, height: 1, color: midGray });
+  text(trunc(receivedNote, 46), cX[0] + 8, r2Y + 12, { size: 8.5, color: gray });
+  text(`${money(unitAmt)}/-`, cX[2] + (cW[2] - reg.widthOfTextAtSize(`${money(unitAmt)}/-`, 9.5)) / 2, r2Y + 12, { size: 9.5 });
+  text(money(unitAmt), cX[3] + (cW[3] - reg.widthOfTextAtSize(money(unitAmt), 9.5)) / 2, r2Y + 12, { size: 9.5 });
+
+  const afterTable = r2Y - 22;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PAYMENT METHOD + TERMS  (left)
+  // ═══════════════════════════════════════════════════════════════════════════
+  let leftY = afterTable;
+
+  text('Payment Method :', M, leftY, { size: 11, font: bold });
+  leftY -= 18;
+
+  const methodRaw = safe(pay?.method || pay?.provider || 'Bank Transfer');
+  const method = methodRaw === '—'
+    ? 'Bank Transfer'
+    : methodRaw.charAt(0).toUpperCase() + methodRaw.slice(1).toLowerCase().replace(/_/g, ' ');
+  text(method, M, leftY, { size: 11 });
+  leftY -= 20;
+
+  const terms = [
+    'No cancellation and no refund once payment is made.',
+    'The amount paid is non-transferable to any other person.',
+    'Please retain this invoice for your records.',
+  ];
+  for (const t of terms) {
+    text(`• ${t}`, M, leftY, { size: 8.5, color: gray });
+    leftY -= 13;
   }
 
-  // Footer band (dark)
-  const footerH = 54;
-  page.drawRectangle({ x: 0, y: 0, width, height: footerH, color: dark });
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TOTALS BOX  (bottom-right)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const bW   = 178;
+  const bX   = W - M - bW;
+  const bY   = afterTable;
+  const lH   = 22;
 
-  drawText(asOneLine(receipt?.organizationPhone || orgContact), { x: marginX, y: 18, size: 9, font: helvetica, color: rgb(0.9, 0.92, 0.94) });
-  drawText(asOneLine(receipt?.organizationEmail || orgEmail), {
-    x: marginX + 160,
-    y: 18,
-    size: 9,
-    font: helvetica,
-    color: rgb(0.9, 0.92, 0.94),
-  });
-  drawText('Thank you for your business', {
-    x: width - marginX - helveticaBold.widthOfTextAtSize('Thank you for your business', 10),
-    y: 18,
-    size: 10,
-    font: helveticaBold,
-    color: rgb(0.9, 0.92, 0.94),
-  });
+  const discount  = Number(receipt?.payment?.discountAmount ?? 0) || 0;
+  const grandTotal = Math.max(0, unitAmt - discount);
 
-  // Terms (above footer)
-  const termsY = Math.max(footerH + 44, y);
-  drawText('Terms & Conditions:', { x: marginX, y: termsY, size: 10, font: helveticaBold, color: green });
-  drawText('Fees once paid are non-refundable. Contact support for questions about your workshop access.', {
-    x: marginX,
-    y: termsY - 14,
-    size: 9,
-    font: helvetica,
-    color: mutedColor,
-  });
+  // Sub Total
+  page.drawRectangle({ x: bX, y: bY - lH, width: bW, height: lH, color: lightGray });
+  text('Sub Total', bX + 8, bY - lH + 7, { size: 9 });
+  text(`${money(unitAmt)}/-`, bX + bW - 8 - reg.widthOfTextAtSize(`${money(unitAmt)}/-`, 9), bY - lH + 7, { size: 9 });
+
+  // Tax
+  page.drawRectangle({ x: bX, y: bY - lH * 2, width: bW, height: lH, color: white });
+  page.drawRectangle({ x: bX, y: bY - lH * 2, width: bW, height: 1, color: midGray });
+  text('Tax', bX + 8, bY - lH * 2 + 7, { size: 9 });
+  text('0', bX + bW - 8 - reg.widthOfTextAtSize('0', 9), bY - lH * 2 + 7, { size: 9 });
+
+  // Total (orange bg)
+  page.drawRectangle({ x: bX, y: bY - lH * 3 - 2, width: bW, height: lH + 2, color: orange });
+  text('Total', bX + 8, bY - lH * 3 + 6, { size: 11, font: bold, color: white });
+  const gtStr = `${money(grandTotal || unitAmt)}/-`;
+  text(gtStr, bX + bW - 8 - bold.widthOfTextAtSize(gtStr, 11), bY - lH * 3 + 6, { size: 11, font: bold, color: white });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FOOTER
+  // ═══════════════════════════════════════════════════════════════════════════
+  page.drawRectangle({ x: 0, y: 0, width: W, height: 50, color: darkBg });
+  text('+91 93099 86820', M, 20, { size: 8.5, color: rgb(0.7, 0.7, 0.75) });
+  text('mohan@swaryoga.com', M + 130, 20, { size: 8.5, color: rgb(0.7, 0.7, 0.75) });
+  const thanks = 'Thank you for your business';
+  text(thanks, W - M - reg.widthOfTextAtSize(thanks, 8.5), 20, { size: 8.5, font: bold, color: rgb(0.7, 0.7, 0.75) });
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
 }
 
+// ─── GET handler ──────────────────────────────────────────────────────────────
+
 export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url);
-    // Iframes (used for inline preview) can't set a custom Authorization
-    // header, so accept the token as a query param too.
-    const token = request.headers.get('authorization')?.slice('Bearer '.length) || url.searchParams.get('token') || undefined;
+    // Accept token from header OR query param (for iframe embeds)
+    const url   = new URL(request.url);
+    const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+      || url.searchParams.get('token')
+      || undefined;
+
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const tf = tenantFilter(decoded, 'issuedByUserId');
 
     const receiptId = url.searchParams.get('id');
-    const leadId = url.searchParams.get('leadId');
-    const download = url.searchParams.get('download') === '1';
+    const leadId    = url.searchParams.get('leadId');
 
     if (!receiptId && !leadId) {
       return NextResponse.json({ error: 'Missing id or leadId' }, { status: 400 });
@@ -336,7 +287,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    let rec: any | null = null;
+    let rec: any = null;
 
     if (receiptId) {
       if (!mongoose.Types.ObjectId.isValid(receiptId)) {
@@ -357,25 +308,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
     }
 
-    const pdf = await buildReceiptPdf(rec);
-    const filenameBase = (rec?.receiptNumber || String(rec?._id || 'receipt')).replace(/[^a-zA-Z0-9_-]+/g, '_');
+    const pdfBytes = await buildReceiptPdf(rec);
+    const filename = (rec?.receiptNumber || String(rec?._id || 'receipt')).replace(/[^a-zA-Z0-9_-]+/g, '_');
 
-  const body = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer;
+    const body = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
 
     return new NextResponse(body, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="${filenameBase}.pdf"`,
+        'Content-Disposition': `inline; filename="${filename}.pdf"`,
         'Cache-Control': 'no-store',
       },
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to generate PDF';
-    const details =
-      process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development'
-        ? { stack: error instanceof Error ? error.stack : undefined }
-        : undefined;
-    return NextResponse.json({ error: message, ...(details || {}) }, { status: 500 });
+  } catch (err) {
+    console.error('[PDF receipt] Error:', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Failed to generate PDF' },
+      { status: 500 }
+    );
   }
 }

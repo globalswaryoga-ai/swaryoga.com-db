@@ -2,9 +2,9 @@
 
 export const dynamic = 'force-dynamic';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, Link2, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, ChevronUp, ChevronDown, Send, QrCode, Archive, ArchiveRestore } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, Send, QrCode, Archive, ArchiveRestore, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Enquiry {
@@ -43,34 +43,50 @@ export default function EnquiriesPage() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'new' | 'contacted' | 'registered'>('all');
-  const [selectedWorkshop, setSelectedWorkshop] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const [formsCollapsed, setFormsCollapsed] = useState(false);
-  const [submissionsCollapsed, setSubmissionsCollapsed] = useState(false);
 
-  // Forms management
   const [forms, setForms] = useState<EnquiryForm[]>([]);
   const [formsLoading, setFormsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedCertId, setCopiedCertId] = useState<string | null>(null);
 
-  // New form state
+  // Which form card's submissions are expanded (form cards section)
+  const [expandedFormId, setExpandedFormId] = useState<string | null>(null);
+  // Which enquiry row is expanded (show notes/id)
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+  // Received Forms section — grouped accordion state
+  const [receivedOpen, setReceivedOpen] = useState(true);           // whole section open/close
+  const [openWorkshopGroups, setOpenWorkshopGroups] = useState<Record<string, boolean>>({});
+  const [wsSearchTerm, setWsSearchTerm] = useState('');
+  const [wsStatusFilter, setWsStatusFilter] = useState<'all' | 'new' | 'contacted' | 'registered'>('all');
+
+  // New/edit form fields
   const [newWsName, setNewWsName] = useState('');
   const [newWsDate, setNewWsDate] = useState('');
   const [newWsTime, setNewWsTime] = useState('');
   const [newWsMode, setNewWsMode] = useState('online');
   const [newWsDesc, setNewWsDesc] = useState('');
-  const [newWsImage, setNewWsImage] = useState('');     // Bunny CDN URL after upload
-  const [newWsPrice, setNewWsPrice] = useState('');     // workshop price (empty/0 = free, no payment)
+  const [newWsImage, setNewWsImage] = useState('');
+  const [newWsPrice, setNewWsPrice] = useState('');
   const [newWsCurrency, setNewWsCurrency] = useState('INR');
-  const [newWsGroupLink, setNewWsGroupLink] = useState(''); // WhatsApp group invite link
-  const [editingFormId, setEditingFormId] = useState<string | null>(null); // null = creating, else editing
+  const [newWsGroupLink, setNewWsGroupLink] = useState('');
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [savingForm, setSavingForm] = useState(false);
   const [formSaveError, setFormSaveError] = useState('');
+
+  // Edit enquiry
+  const [editEnquiry, setEditEnquiry] = useState<Enquiry | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editMobile, setEditMobile] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [togglingHide, setTogglingHide] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
+  const [broadcasting, setBroadcasting] = useState<string | null>(null);
+
+  const HIDE_LABEL = 'enquiry-hidden';
 
   const getAuthHeaders = (): Record<string, string> => {
     if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
@@ -81,27 +97,10 @@ export default function EnquiriesPage() {
     };
   };
 
-  const handleImageUpload = async (file: File) => {
-    setImageUploading(true);
-    setFormSaveError('');
-    try {
-      const fd = new FormData();
-      fd.append('image', file);
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
-      const res = await fetch('/api/admin/enquiry-forms/upload', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-      setNewWsImage(data.url);
-    } catch (e) {
-      setFormSaveError(e instanceof Error ? e.message : 'Image upload failed');
-    } finally {
-      setImageUploading(false);
-    }
-  };
+  const getToken = () =>
+    typeof window !== 'undefined'
+      ? (localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '')
+      : '';
 
   useEffect(() => {
     fetchEnquiries();
@@ -111,12 +110,12 @@ export default function EnquiriesPage() {
   const fetchEnquiries = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/enquiries', { headers: getAuthHeaders() });
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody?.error || errBody?.message || `Failed to fetch enquiries (${response.status})`);
+      const res = await fetch('/api/admin/enquiries', { headers: getAuthHeaders() });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b?.error || b?.message || `Failed to fetch enquiries (${res.status})`);
       }
-      const data = await response.json();
+      const data = await res.json();
       setEnquiries(data.data || []);
       setError(null);
     } catch (err) {
@@ -138,25 +137,44 @@ export default function EnquiriesPage() {
     }
   };
 
-  // Reset all form fields and close the modal (shared by create + edit).
+  const handleImageUpload = async (file: File) => {
+    setImageUploading(true);
+    setFormSaveError('');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const token = getToken();
+      const res = await fetch('/api/admin/enquiry-forms/upload', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setNewWsImage(data.url);
+    } catch (e) {
+      setFormSaveError(e instanceof Error ? e.message : 'Image upload failed');
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
   const closeFormModal = () => {
     setShowAddForm(false);
     setEditingFormId(null);
     setFormSaveError('');
-    setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
-    setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
+    setNewWsDesc(''); setNewWsImage(''); setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
   };
 
-  // Open the modal in create mode (clears any leftover edit state/fields).
   const openCreateForm = () => {
     setEditingFormId(null);
-    setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online'); setNewWsDesc(''); setNewWsImage('');
-    setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
+    setNewWsDesc(''); setNewWsImage(''); setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
     setFormSaveError('');
     setShowAddForm(true);
   };
 
-  // Open the modal pre-filled with an existing form's values for editing.
   const openEditForm = (form: EnquiryForm) => {
     setEditingFormId(form.formId);
     setNewWsName(form.workshopName || '');
@@ -189,7 +207,6 @@ export default function EnquiriesPage() {
         groupLink: newWsGroupLink.trim(),
       };
       if (editingFormId) {
-        // ── Edit existing form (PATCH) ──
         const res = await fetch(`/api/admin/enquiry-forms?id=${editingFormId}`, {
           method: 'PATCH',
           headers: getAuthHeaders(),
@@ -199,7 +216,6 @@ export default function EnquiriesPage() {
         if (!res.ok) throw new Error(data.error || 'Failed to update form');
         setForms((prev) => prev.map((f) => f.formId === editingFormId ? { ...f, ...(data.form || payload) } : f));
       } else {
-        // ── Create new form (POST) ──
         const res = await fetch('/api/admin/enquiry-forms', {
           method: 'POST',
           headers: getAuthHeaders(),
@@ -241,21 +257,15 @@ export default function EnquiriesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this enquiry?')) return;
+    if (!confirm('Delete this enquiry?')) return;
     try {
-      const response = await fetch(`/api/admin/enquiries?id=${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-      if (!response.ok) throw new Error('Failed to delete enquiry');
+      const res = await fetch(`/api/admin/enquiries?id=${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Failed to delete enquiry');
       setEnquiries(enquiries.filter((e) => e.id !== id));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete enquiry');
     }
   };
-
-  // Edit an enquiry's name / mobile number.
-  const [editEnquiry, setEditEnquiry] = useState<Enquiry | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editMobile, setEditMobile] = useState('');
-  const [savingEdit, setSavingEdit] = useState(false);
 
   const openEdit = (enquiry: Enquiry) => {
     setEditEnquiry(enquiry);
@@ -271,13 +281,13 @@ export default function EnquiriesPage() {
     if (!mobile) { alert('Mobile number cannot be empty.'); return; }
     setSavingEdit(true);
     try {
-      const response = await fetch(`/api/admin/enquiries?id=${editEnquiry.id}`, {
+      const res = await fetch(`/api/admin/enquiries?id=${editEnquiry.id}`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
         body: JSON.stringify({ name, mobile }),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.message || 'Failed to update enquiry');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'Failed to update enquiry');
       setEnquiries(enquiries.map((e) => e.id === editEnquiry.id ? { ...e, name, mobile } : e));
       setEditEnquiry(null);
     } catch (err) {
@@ -289,24 +299,20 @@ export default function EnquiriesPage() {
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/admin/enquiries?id=${id}`, {
+      const res = await fetch(`/api/admin/enquiries?id=${id}`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!response.ok) throw new Error('Failed to update status');
+      if (!res.ok) throw new Error('Failed to update status');
       setEnquiries(enquiries.map((e) => e.id === id ? { ...e, status: newStatus as Enquiry['status'] } : e));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update status');
     }
   };
 
-  // Open conversation in Meta inbox + tag lead as meta-contacted.
-  // Creates a CRM lead for this enquiry if one doesn't exist yet, so the
-  // number is properly tied to a lead and visible in the inbox sidebar.
   const openInMeta = async (enquiry: Enquiry) => {
     const digits = enquiry.mobile.replace(/\D/g, '');
-    // Ensure country code: if 10 digits, prepend 91
     const phone = digits.length === 10 ? `91${digits}` : digits;
 
     try {
@@ -333,12 +339,8 @@ export default function EnquiriesPage() {
     router.push(`/admin/crm/meta?${params.toString()}`);
   };
 
-  // Open conversation in QR WhatsApp inbox + tag lead as qr-contacted.
-  // Creates a CRM lead for this enquiry if one doesn't exist yet, so the
-  // number is properly tied to a lead and visible in the inbox sidebar.
   const openInQR = async (enquiry: Enquiry) => {
     const digits = enquiry.mobile.replace(/\D/g, '');
-    // Ensure country code: if 10 digits, prepend 91
     const phone = digits.length === 10 ? `91${digits}` : digits;
 
     try {
@@ -362,98 +364,36 @@ export default function EnquiriesPage() {
 
     const params = new URLSearchParams({ phone });
     if (enquiry.name) params.set('name', enquiry.name);
-    router.push(`/admin/crm/qr?${params.toString()}`);
+    router.push(`/admin/crm/qr?${params.toString()}`)
   };
 
-  // The CRM label used to mark a lead as "included in this workshop's bulk broadcast"
-  const broadcastGroupLabel = (workshopId: string) => `workshop:${workshopId}`;
-
-  // The CRM label used to soft-hide an enquiry from the main list
-  const HIDE_LABEL = 'enquiry-hidden';
-
-  const [togglingMark, setTogglingMark] = useState<string | null>(null); // enquiry.id currently being toggled
-  const [togglingHide, setTogglingHide] = useState<string | null>(null); // enquiry.id currently being hidden/unhidden
-  const [showHidden, setShowHidden] = useState(false);
-
-  // Ensure a CRM lead exists for this enquiry (creating one for legacy
-  // entries that don't have one yet), then add/remove `label` on it.
-  // Returns the lead's id.
-  const ensureLeadAndToggleLabel = async (enquiry: Enquiry, label: string, marked: boolean): Promise<string> => {
-    const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token') || '';
-    if (!token) throw new Error('Not authenticated');
-    let leadId = enquiry.leadId;
-
-    if (!leadId) {
-      const res = await fetch('/api/admin/crm/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          phoneNumber: enquiry.mobile,
-          name: enquiry.name,
-          labels: ['enquiry', label],
-          source: 'website',
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.data?._id) {
-        leadId = data.data._id;
-      } else if (res.status === 409 && data?.existingLead?._id) {
-        leadId = data.existingLead._id;
-      } else {
-        throw new Error(data?.error || 'Failed to create lead');
-      }
-    }
-
-    const patchRes = await fetch(`/api/admin/crm/leads/${leadId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(marked ? { removeLabels: [label] } : { addLabels: [label] }),
-    });
-    if (!patchRes.ok) throw new Error('Failed to update lead labels');
-    return leadId as string;
-  };
-
-  // Toggle (blue <-> red) whether this enquiry's lead is included in the
-  // workshop's bulk broadcast list.
-  const toggleBroadcastMark = async (enquiry: Enquiry) => {
-    const label = broadcastGroupLabel(enquiry.workshopId);
-    const marked = (enquiry.labels || []).includes(label);
-
-    setTogglingMark(enquiry.id);
-    try {
-      const leadId = await ensureLeadAndToggleLabel(enquiry, label, marked);
-      setEnquiries((prev) => prev.map((e) => {
-        if (e.id !== enquiry.id) return e;
-        const labels = e.labels || [];
-        return {
-          ...e,
-          leadId,
-          labels: marked ? labels.filter((l) => l !== label) : [...labels, label],
-        };
-      }));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update broadcast selection');
-    } finally {
-      setTogglingMark(null);
-    }
-  };
-
-  // Soft-hide/unhide an enquiry — hidden rows are excluded from the main
-  // list but can be viewed and restored via "Show hidden".
   const toggleHide = async (enquiry: Enquiry) => {
     const hidden = (enquiry.labels || []).includes(HIDE_LABEL);
-
     setTogglingHide(enquiry.id);
     try {
-      const leadId = await ensureLeadAndToggleLabel(enquiry, HIDE_LABEL, hidden);
+      const token = getToken();
+      let leadId = enquiry.leadId;
+      if (!leadId) {
+        const res = await fetch('/api/admin/crm/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ phoneNumber: enquiry.mobile, name: enquiry.name, labels: ['enquiry'], source: 'website' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.data?._id) leadId = data.data._id;
+        else if (res.status === 409 && data?.existingLead?._id) leadId = data.existingLead._id;
+        else throw new Error(data?.error || 'Failed to create lead');
+      }
+      const patchRes = await fetch(`/api/admin/crm/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(hidden ? { removeLabels: [HIDE_LABEL] } : { addLabels: [HIDE_LABEL] }),
+      });
+      if (!patchRes.ok) throw new Error('Failed to update lead');
       setEnquiries((prev) => prev.map((e) => {
         if (e.id !== enquiry.id) return e;
         const labels = e.labels || [];
-        return {
-          ...e,
-          leadId,
-          labels: hidden ? labels.filter((l) => l !== HIDE_LABEL) : [...labels, HIDE_LABEL],
-        };
+        return { ...e, leadId, labels: hidden ? labels.filter((l) => l !== HIDE_LABEL) : [...labels, HIDE_LABEL] };
       }));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update hidden state');
@@ -462,53 +402,110 @@ export default function EnquiriesPage() {
     }
   };
 
-  // Lead IDs of submissions marked (via the +/red toggle) for this form's bulk broadcast
-  const getFormLeadIds = (formId: string): string[] =>
-    enquiries
-      .filter((e) => e.workshopId === formId && e.leadId && (e.labels || []).includes(broadcastGroupLabel(formId)))
-      .map((e) => e.leadId as string);
-
-  // Send a form's submissions straight to a broadcast (QR or Meta) — pick template + schedule there
-  const broadcastForm = (form: EnquiryForm, channel: 'qr' | 'meta') => {
-    const leadIds = getFormLeadIds(form.formId);
-    if (leadIds.length === 0) {
-      alert('No leads marked for broadcast yet — click the + on the leads you want to include.');
+  // Broadcast all enquiries of a form — auto-creates CRM leads for any that don't have one yet
+  const broadcastForm = async (form: EnquiryForm, channel: 'qr' | 'meta') => {
+    const formEnquiries = enquiries.filter((e) => e.workshopId === form.formId);
+    if (formEnquiries.length === 0) {
+      alert('No submissions for this form yet.');
       return;
     }
-    const path = channel === 'qr' ? '/admin/crm/qr-broadcast' : '/admin/crm/broadcast';
-    router.push(`${path}?leadIds=${leadIds.join(',')}`);
-  };
+    setBroadcasting(`${form.formId}-${channel}`);
+    try {
+      const token = getToken();
+      const leadIds: string[] = [];
 
-  const workshops = Array.from(new Set(enquiries.map((e) => e.workshopName)));
+      for (const enq of formEnquiries) {
+        let leadId = enq.leadId;
+        if (!leadId) {
+          const res = await fetch('/api/admin/crm/leads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              phoneNumber: enq.mobile,
+              name: enq.name,
+              labels: ['enquiry', `workshop:${form.formId}`],
+              source: 'website',
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data?.data?._id) leadId = data.data._id;
+          else if (res.status === 409 && data?.existingLead?._id) leadId = data.existingLead._id;
+        }
+        if (leadId) leadIds.push(leadId);
+      }
+
+      if (leadIds.length === 0) {
+        alert('Could not resolve any CRM leads. Try again.');
+        return;
+      }
+
+      const path = channel === 'qr' ? '/admin/crm/qr-broadcast' : '/admin/crm/broadcast';
+      router.push(`${path}?leadIds=${leadIds.join(',')}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Broadcast failed');
+    } finally {
+      setBroadcasting(null);
+    }
+  };
 
   const hiddenCount = enquiries.filter((e) => (e.labels || []).includes(HIDE_LABEL)).length;
 
-  const filteredEnquiries = enquiries.filter((enquiry) => {
-    const isHidden = (enquiry.labels || []).includes(HIDE_LABEL);
-    if (showHidden ? !isHidden : isHidden) return false;
-    const statusMatch = selectedFilter === 'all' || enquiry.status === selectedFilter;
-    const workshopMatch = selectedWorkshop === 'all' || enquiry.workshopName === selectedWorkshop;
-    const searchMatch = searchTerm === '' ||
-      enquiry.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      enquiry.mobile.includes(searchTerm) ||
-      enquiry.city.toLowerCase().includes(searchTerm.toLowerCase());
-    return statusMatch && workshopMatch && searchMatch;
-  });
+  const getFormEnquiries = (formId: string) =>
+    enquiries.filter((e) => {
+      if (e.workshopId !== formId) return false;
+      const isHidden = (e.labels || []).includes(HIDE_LABEL);
+      return showHidden ? !isHidden : !isHidden;
+    });
+
+  // Group ALL enquiries by workshopName for the Received Forms accordion
+  const workshopGroups = useMemo(() => {
+    const visible = enquiries.filter((e) => {
+      const isHidden = (e.labels || []).includes(HIDE_LABEL);
+      if (showHidden ? isHidden : !isHidden) return false;
+      if (wsStatusFilter !== 'all' && e.status !== wsStatusFilter) return false;
+      if (wsSearchTerm.trim()) {
+        const q = wsSearchTerm.toLowerCase();
+        return (
+          e.name.toLowerCase().includes(q) ||
+          e.mobile.includes(q) ||
+          e.city.toLowerCase().includes(q) ||
+          e.workshopName.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+
+    const map: Record<string, Enquiry[]> = {};
+    for (const e of visible) {
+      const key = e.workshopName || 'Unknown Workshop';
+      if (!map[key]) map[key] = [];
+      map[key].push(e);
+    }
+    // Sort groups by count descending
+    return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
+  }, [enquiries, showHidden, wsStatusFilter, wsSearchTerm]);
+
+  const totalVisible = useMemo(
+    () => enquiries.filter((e) => !(e.labels || []).includes(HIDE_LABEL)).length,
+    [enquiries]
+  );
+
+  const toggleWorkshopGroup = (name: string) =>
+    setOpenWorkshopGroups((prev) => ({ ...prev, [name]: !prev[name] }));
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800';
       case 'contacted': return 'bg-yellow-100 text-yellow-800';
-      case 'registered': return 'bg-swar-primary-light text-swar-primary';
-      default: return 'bg-swar-primary-light text-swar-text';
+      case 'registered': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('en-IN', {
       year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-  };
 
   const MODE_LABELS: Record<string, string> = { online: 'Online', offline: 'Offline', residential: 'Residential', recorded: 'Recorded' };
   const MODE_ICONS: Record<string, string> = { online: '💻', offline: '📍', residential: '🏡', recorded: '🎥' };
@@ -521,11 +518,11 @@ export default function EnquiriesPage() {
         <div className="max-w-7xl mx-auto">
 
           {/* Header */}
-          <div className="flex items-start justify-between mb-8">
+          <div className="flex items-start justify-between mb-6">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-swar-text mb-1">Workshop Enquiries</h1>
-              <p className="text-swar-text-secondary">
-                Total Enquiries: <span className="font-semibold">{enquiries.length}</span>
+              <p className="text-swar-text-secondary text-sm">
+                {forms.filter(f => f.isActive).length} active forms · {enquiries.length} total submissions
               </p>
             </div>
             <button
@@ -537,450 +534,562 @@ export default function EnquiriesPage() {
             </button>
           </div>
 
-          {/* ── Shareable Forms Section ── */}
-          <div className="bg-white rounded-xl shadow-md p-5 mb-6">
-            <button
-              onClick={() => setFormsCollapsed(!formsCollapsed)}
-              className="w-full flex items-center justify-between mb-0 group"
-            >
-              <h2 className="text-lg font-bold text-swar-text flex items-center gap-2">
-                <Link2 size={18} className="text-[#2d6a4f]" />
-                Shareable Forms
-              </h2>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-swar-text-secondary">{forms.filter(f => f.isActive).length} active</span>
-                {formsCollapsed ? <ChevronDown size={18} className="text-swar-text-secondary group-hover:text-swar-text" /> : <ChevronUp size={18} className="text-swar-text-secondary group-hover:text-swar-text" />}
-              </div>
-            </button>
-
-            {!formsCollapsed && (
-            <div className="mt-4">
-            {formsLoading ? (
-              <p className="text-sm text-swar-text-secondary py-2">Loading…</p>
-            ) : forms.length === 0 ? (
-              <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-xl">
-                <p className="text-swar-text-secondary text-sm mb-2">No forms yet</p>
-                <button onClick={openCreateForm} className="text-[#2d6a4f] font-semibold text-sm hover:underline">
-                  + Create your first form
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {forms.map((form) => (
-                  <div key={form.formId} className={`flex items-center gap-4 p-4 rounded-xl border ${form.isActive ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'}`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-swar-text text-sm truncate">{form.workshopName}</span>
-                        <span className="text-xs bg-[#2d6a4f]/10 text-[#2d6a4f] px-2 py-0.5 rounded-full">
-                          {MODE_ICONS[form.workshopMode]} {MODE_LABELS[form.workshopMode] || form.workshopMode}
-                        </span>
-                        {!form.isActive && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Inactive</span>}
-                      </div>
-                      <div className="text-xs text-swar-text-secondary mt-0.5 flex items-center gap-3">
-                        {form.workshopDate && <span>📅 {form.workshopDate}</span>}
-                        {form.workshopTime && <span>🕐 {form.workshopTime}</span>}
-                        {form.price ? <span className="font-semibold text-[#2d6a4f]">💰 {form.currency || 'INR'} {form.price}</span> : <span className="text-gray-400">Free</span>}
-                        {form.groupLink ? <span title="WhatsApp group link set">👥 Group</span> : null}
-                        <span>{form.submissionCount || 0} submissions</span>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5 font-mono truncate">
-                        {typeof window !== 'undefined' ? window.location.origin : 'https://swaryoga.com'}/workshop-join/{form.formId}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => broadcastForm(form, 'qr')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all"
-                        title="Broadcast this form's submissions via QR WhatsApp"
-                      >
-                        <QrCode size={12} /> QR
-                      </button>
-                      <button
-                        onClick={() => broadcastForm(form, 'meta')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#25D366]/10 text-[#1ebe5d] hover:bg-[#25D366]/20 transition-all"
-                        title="Broadcast this form's submissions via Meta WhatsApp"
-                      >
-                        <Send size={12} /> Meta
-                      </button>
-                      <button
-                        onClick={() => copyLink(form.formId)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                          copiedId === form.formId
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-[#2d6a4f]/10 text-[#2d6a4f] hover:bg-[#2d6a4f]/20'
-                        }`}
-                      >
-                        {copiedId === form.formId ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy Link</>}
-                      </button>
-                      <button
-                        onClick={() => openEditForm(form)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all"
-                        title="Edit form"
-                      >
-                        <Pencil size={12} /> Edit
-                      </button>
-                      {form.isActive && (
-                        <button
-                          onClick={() => deactivateForm(form.formId)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                          title="Deactivate form"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            </div>
-            )}
-          </div>
-
-          {/* ── Received Forms Section ── */}
-          <div className="bg-white rounded-xl shadow-md p-5 mb-6">
-            <button
-              onClick={() => setSubmissionsCollapsed(!submissionsCollapsed)}
-              className="w-full flex items-center justify-between group"
-            >
-              <h2 className="text-lg font-bold text-swar-text flex items-center gap-2">
-                <Eye size={18} className="text-[#2d6a4f]" />
-                Received Forms
-              </h2>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-swar-text-secondary">{enquiries.length} total</span>
-                {submissionsCollapsed ? <ChevronDown size={18} className="text-swar-text-secondary group-hover:text-swar-text" /> : <ChevronUp size={18} className="text-swar-text-secondary group-hover:text-swar-text" />}
-              </div>
-            </button>
-          </div>
-
-          {!submissionsCollapsed && (
-          <>
-          {/* Filters */}
-          <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <input
-                type="text"
-                placeholder="Search by name, mobile, or city..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-              <select
-                value={selectedFilter}
-                onChange={(e) => setSelectedFilter(e.target.value as any)}
-                className="px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="all">All Status</option>
-                <option value="new">New</option>
-                <option value="contacted">Contacted</option>
-                <option value="registered">Registered</option>
-              </select>
-              <select
-                value={selectedWorkshop}
-                onChange={(e) => setSelectedWorkshop(e.target.value)}
-                className="px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="all">All Workshops</option>
-                {workshops.map((ws) => <option key={ws} value={ws}>{ws}</option>)}
-              </select>
-              <button
-                onClick={fetchEnquiries}
-                className="px-4 py-2 bg-swar-primary text-white rounded-lg hover:bg-swar-primary-hover transition-colors"
-              >
-                Refresh
+          {/* Unified Forms List */}
+          {formsLoading ? (
+            <div className="bg-white rounded-xl shadow-md p-8 text-center text-swar-text-secondary text-sm">Loading…</div>
+          ) : forms.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-md p-10 text-center border-2 border-dashed border-gray-200">
+              <p className="text-swar-text-secondary text-sm mb-3">No forms yet</p>
+              <button onClick={openCreateForm} className="text-[#2d6a4f] font-semibold text-sm hover:underline">
+                + Create your first form
               </button>
             </div>
-            <label className="flex items-center gap-2 mt-4 text-sm text-swar-text-secondary cursor-pointer select-none">
-              <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} className="accent-swar-primary" />
-              Show hidden ({hiddenCount})
-            </label>
-          </div>
-
-          {/* Enquiries Table */}
-          {loading ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center">
-              <p className="text-swar-text-secondary">Loading enquiries...</p>
-            </div>
-          ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg shadow-md p-8 text-center">
-              <p className="text-swar-primary">{error}</p>
-            </div>
-          ) : filteredEnquiries.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center">
-              <p className="text-swar-text-secondary">No enquiries found</p>
-            </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="block md:hidden space-y-4 p-4">
-                {filteredEnquiries.map((enquiry) => (
-                  <div key={enquiry.id} className="border border-swar-border rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-semibold text-swar-text">{enquiry.name}</h3>
-                        <p className="text-sm text-swar-text-secondary">{enquiry.workshopName}</p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
-                        {enquiry.status}
-                      </span>
-                    </div>
-                    <div className="space-y-2 mb-3 text-sm">
-                      <div className="flex items-center gap-2 text-swar-text-secondary"><Phone className="w-4 h-4" />{enquiry.mobile}</div>
-                      <div className="flex items-center gap-2 text-swar-text-secondary"><MapPin className="w-4 h-4" />{enquiry.city} • {enquiry.gender}</div>
-                      <div className="text-xs text-swar-text-secondary">{formatDate(enquiry.submittedAt)}</div>
-                    </div>
-                    <select
-                      value={enquiry.status}
-                      onChange={(e) => handleStatusChange(enquiry.id, e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-swar-border rounded mb-2 focus:outline-none"
-                    >
-                      <option value="new">New</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="registered">Registered</option>
-                    </select>
-                    <div className="flex items-center gap-2 mb-2">
-                      <button
-                        onClick={() => openInMeta(enquiry)}
-                        className="flex-1 flex items-center justify-center gap-1.5 text-sm text-white bg-[#25D366] hover:bg-[#1ebe5d] font-semibold py-2 rounded-lg transition-colors"
-                      >
-                        <MessageCircle size={14} /> Meta
-                      </button>
-                      <button
-                        onClick={() => openInQR(enquiry)}
-                        className="flex-1 flex items-center justify-center gap-1.5 text-sm text-white bg-[#128C7E] hover:bg-[#0e6b60] font-semibold py-2 rounded-lg transition-colors"
-                      >
-                        <QrCode size={14} /> QR
-                      </button>
-                      <button
-                        onClick={() => toggleBroadcastMark(enquiry)}
-                        disabled={togglingMark === enquiry.id}
-                        title={(enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId)) ? 'Marked for bulk broadcast — click to remove' : 'Mark for bulk broadcast'}
-                        className={`flex items-center justify-center w-10 h-full rounded-lg transition-colors py-2 disabled:opacity-50 text-xl font-bold leading-none ${
-                          (enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId))
-                            ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                            : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                        }`}
-                      >
-                        +
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => copyCertLink(enquiry)}
-                      className="w-full flex items-center justify-center gap-1.5 text-sm text-purple-700 font-medium py-1 mb-1"
-                    >
-                      {copiedCertId === enquiry.id ? <><Check size={14} /> Copied!</> : <><Link2 size={14} /> Copy Certificate Link</>}
-                    </button>
-                    <button onClick={() => openEdit(enquiry)} className="w-full flex items-center justify-center gap-1.5 text-sm text-swar-primary font-medium py-1 mb-1"><Pencil size={14} /> Edit</button>
-                    <button
-                      onClick={() => toggleHide(enquiry)}
-                      disabled={togglingHide === enquiry.id}
-                      className="w-full flex items-center justify-center gap-1.5 text-sm text-swar-text-secondary font-medium py-1 mb-1 disabled:opacity-50"
-                    >
-                      {(enquiry.labels || []).includes(HIDE_LABEL)
-                        ? <><ArchiveRestore size={14} /> Unhide</>
-                        : <><Archive size={14} /> Hide</>}
-                    </button>
-                    <button onClick={() => handleDelete(enquiry.id)} className="w-full text-sm text-red-600 hover:text-swar-primary font-medium py-1">Delete</button>
-                  </div>
-                ))}
-              </div>
+            <div className="space-y-4">
+              {forms.map((form) => {
+                const formEnquiries = getFormEnquiries(form.formId);
+                const isExpanded = expandedFormId === form.formId;
+                const isBroadcasting = (ch: 'qr' | 'meta') => broadcasting === `${form.formId}-${ch}`;
 
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-swar-bg border-b border-swar-border">
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Location</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Workshop</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Submitted</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredEnquiries.map((enquiry) => (
-                      <React.Fragment key={enquiry.id}>
-                        <tr className="border-b border-swar-border hover:bg-swar-bg">
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-swar-text">{enquiry.name}</div>
-                            <div className="text-sm text-swar-text-secondary">{enquiry.gender}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <Phone className="w-4 h-4 text-swar-text-secondary" />
-                              <a href={`tel:${enquiry.mobile}`} className="text-primary-600 hover:underline">{enquiry.mobile}</a>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2 text-swar-text">
-                              <MapPin className="w-4 h-4 text-swar-text-secondary" />
-                              {enquiry.city}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-swar-text">{enquiry.workshopName}</td>
-                          <td className="px-6 py-4 text-sm text-swar-text-secondary">{formatDate(enquiry.submittedAt)}</td>
-                          <td className="px-6 py-4">
-                            <select
-                              value={enquiry.status}
-                              onChange={(e) => handleStatusChange(enquiry.id, e.target.value)}
-                              className={`px-3 py-1 rounded-full text-sm font-semibold border-0 cursor-pointer ${getStatusBadgeColor(enquiry.status)}`}
-                            >
-                              <option value="new">New</option>
-                              <option value="contacted">Contacted</option>
-                              <option value="registered">Registered</option>
-                            </select>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => openInMeta(enquiry)}
-                                title="Open in Meta WhatsApp inbox"
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg text-xs font-semibold transition-colors"
-                              >
-                                <MessageCircle size={13} /> Chat
-                              </button>
-                              <button
-                                onClick={() => openInQR(enquiry)}
-                                title="Open in QR WhatsApp inbox"
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#128C7E] hover:bg-[#0e6b60] text-white rounded-lg text-xs font-semibold transition-colors"
-                              >
-                                <QrCode size={13} /> QR
-                              </button>
-                              <button
-                                onClick={() => toggleBroadcastMark(enquiry)}
-                                disabled={togglingMark === enquiry.id}
-                                title={(enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId)) ? 'Marked for bulk broadcast — click to remove' : 'Mark for bulk broadcast'}
-                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors disabled:opacity-50 text-lg font-bold leading-none ${
-                                  (enquiry.labels || []).includes(broadcastGroupLabel(enquiry.workshopId))
-                                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                                }`}
-                              >
-                                +
-                              </button>
-                              <button
-                                onClick={() => copyCertLink(enquiry)}
-                                title="Copy Certificate Details link"
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-xs font-semibold transition-colors"
-                              >
-                                {copiedCertId === enquiry.id ? <><Check size={13} /> Copied!</> : <><Link2 size={13} /> Cert</>}
-                              </button>
-                              <button
-                                onClick={() => openEdit(enquiry)}
-                                title="Edit name / mobile"
-                                className="text-swar-text-secondary hover:text-swar-primary"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => setExpandedRow(expandedRow === enquiry.id ? null : enquiry.id)}
-                                className="text-swar-text-secondary hover:text-swar-text"
-                              >
-                                {expandedRow === enquiry.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                              <button
-                                onClick={() => toggleHide(enquiry)}
-                                disabled={togglingHide === enquiry.id}
-                                title={(enquiry.labels || []).includes(HIDE_LABEL) ? 'Unhide — show in main list again' : 'Hide — remove from main list (unwanted)'}
-                                className="text-swar-text-secondary hover:text-swar-primary disabled:opacity-50"
-                              >
-                                {(enquiry.labels || []).includes(HIDE_LABEL) ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-                              </button>
-                              <button onClick={() => handleDelete(enquiry.id)} className="text-red-600 hover:text-red-800">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                        {expandedRow === enquiry.id && (
-                          <tr className="bg-swar-bg border-b border-swar-border">
-                            <td colSpan={7} className="px-6 py-4">
-                              <div className="text-sm">
-                                <p className="text-swar-text-secondary mb-2"><strong>ID:</strong> {enquiry.id}</p>
-                                <p className="text-swar-text-secondary"><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
-                              </div>
-                            </td>
-                          </tr>
+                return (
+                  <div key={form.formId} className={`bg-white rounded-xl shadow-md overflow-hidden border ${form.isActive ? 'border-gray-100' : 'border-gray-100 opacity-70'}`}>
+
+                    {/* Form Card Row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 sm:p-5">
+
+                      {/* Workshop name + meta */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-swar-text text-base">{form.workshopName}</span>
+                          <span className="text-xs bg-[#2d6a4f]/10 text-[#2d6a4f] px-2 py-0.5 rounded-full font-medium">
+                            {MODE_ICONS[form.workshopMode]} {MODE_LABELS[form.workshopMode] || form.workshopMode}
+                          </span>
+                          {!form.isActive && (
+                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Inactive</span>
+                          )}
+                        </div>
+                        {(form.workshopDate || form.workshopTime) && (
+                          <div className="text-xs text-swar-text-secondary mt-0.5 flex items-center gap-2">
+                            {form.workshopDate && <span>📅 {form.workshopDate}</span>}
+                            {form.workshopTime && <span>🕐 {form.workshopTime}</span>}
+                          </div>
                         )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                      </div>
+
+                      {/* Total count badge */}
+                      <div className="flex items-center shrink-0">
+                        <div className="text-center px-3 py-1.5 bg-swar-primary-light rounded-lg">
+                          <div className="text-lg font-bold text-swar-text leading-none">{formEnquiries.length}</div>
+                          <div className="text-[10px] text-swar-text-secondary uppercase tracking-wide">forms</div>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 flex-wrap shrink-0">
+                        {/* Bulk send buttons */}
+                        <button
+                          onClick={() => broadcastForm(form, 'meta')}
+                          disabled={isBroadcasting('meta') || formEnquiries.length === 0}
+                          title="Bulk send to all submissions via Meta WhatsApp"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#25D366]/10 text-[#1ebe5d] hover:bg-[#25D366]/20 transition-all disabled:opacity-50"
+                        >
+                          {isBroadcasting('meta') ? <LoaderIcon size={12} className="animate-spin" /> : <Send size={12} />}
+                          Meta
+                        </button>
+                        <button
+                          onClick={() => broadcastForm(form, 'qr')}
+                          disabled={isBroadcasting('qr') || formEnquiries.length === 0}
+                          title="Bulk send to all submissions via QR WhatsApp"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all disabled:opacity-50"
+                        >
+                          {isBroadcasting('qr') ? <LoaderIcon size={12} className="animate-spin" /> : <QrCode size={12} />}
+                          QR
+                        </button>
+
+                        {/* View toggle */}
+                        <button
+                          onClick={() => setExpandedFormId(isExpanded ? null : form.formId)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            isExpanded
+                              ? 'bg-swar-primary text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          View
+                        </button>
+
+                        {/* Copy link */}
+                        <button
+                          onClick={() => copyLink(form.formId)}
+                          title="Copy shareable link"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            copiedId === form.formId
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-[#2d6a4f]/10 text-[#2d6a4f] hover:bg-[#2d6a4f]/20'
+                          }`}
+                        >
+                          {copiedId === form.formId ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Link</>}
+                        </button>
+
+                        {/* Edit */}
+                        <button
+                          onClick={() => openEditForm(form)}
+                          title="Edit form"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all"
+                        >
+                          <Pencil size={12} /> Edit
+                        </button>
+
+                        {/* Delete */}
+                        {form.isActive && (
+                          <button
+                            onClick={() => deactivateForm(form.formId)}
+                            title="Deactivate form"
+                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expanded Submissions */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-100">
+                        {/* Hidden toggle */}
+                        <div className="flex items-center justify-between px-5 py-2 bg-gray-50 border-b border-gray-100">
+                          <span className="text-xs text-swar-text-secondary font-semibold uppercase tracking-wide">
+                            Submissions ({formEnquiries.length})
+                          </span>
+                          <label className="flex items-center gap-1.5 text-xs text-swar-text-secondary cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={showHidden}
+                              onChange={(e) => setShowHidden(e.target.checked)}
+                              className="accent-swar-primary"
+                            />
+                            Show hidden ({hiddenCount})
+                          </label>
+                        </div>
+
+                        {loading ? (
+                          <div className="p-6 text-center text-sm text-swar-text-secondary">Loading submissions…</div>
+                        ) : formEnquiries.length === 0 ? (
+                          <div className="p-8 text-center text-sm text-swar-text-secondary">No submissions yet for this form.</div>
+                        ) : (
+                          <>
+                            {/* Mobile cards */}
+                            <div className="block md:hidden space-y-3 p-4">
+                              {formEnquiries.map((enquiry) => (
+                                <div key={enquiry.id} className="border border-swar-border rounded-lg p-4">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                      <h3 className="font-semibold text-swar-text text-sm">{enquiry.name}</h3>
+                                      <p className="text-xs text-swar-text-secondary">{enquiry.city} · {enquiry.gender}</p>
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
+                                      {enquiry.status}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-swar-text-secondary mb-2">
+                                    <Phone className="w-3 h-3" />{enquiry.mobile}
+                                  </div>
+                                  <div className="text-[11px] text-swar-text-secondary mb-3">{formatDate(enquiry.submittedAt)}</div>
+                                  <select
+                                    value={enquiry.status}
+                                    onChange={(e) => handleStatusChange(enquiry.id, e.target.value)}
+                                    className="w-full px-2 py-1 text-xs border border-swar-border rounded mb-2 focus:outline-none"
+                                  >
+                                    <option value="new">New</option>
+                                    <option value="contacted">Contacted</option>
+                                    <option value="registered">Registered</option>
+                                  </select>
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => openInMeta(enquiry)} className="flex-1 flex items-center justify-center gap-1 text-xs text-white bg-[#25D366] hover:bg-[#1ebe5d] font-semibold py-1.5 rounded-lg">
+                                      <MessageCircle size={11} /> Meta
+                                    </button>
+                                    <button onClick={() => openInQR(enquiry)} className="flex-1 flex items-center justify-center gap-1 text-xs text-white bg-[#128C7E] hover:bg-[#0e6b60] font-semibold py-1.5 rounded-lg">
+                                      <QrCode size={11} /> QR
+                                    </button>
+                                    <button onClick={() => openEdit(enquiry)} className="p-1.5 text-swar-text-secondary hover:text-swar-primary"><Pencil size={13} /></button>
+                                    <button onClick={() => toggleHide(enquiry)} disabled={togglingHide === enquiry.id} className="p-1.5 text-swar-text-secondary hover:text-swar-primary disabled:opacity-50">
+                                      {(enquiry.labels || []).includes(HIDE_LABEL) ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                                    </button>
+                                    <button onClick={() => handleDelete(enquiry.id)} className="p-1.5 text-red-400 hover:text-red-600"><Trash2 size={13} /></button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Desktop table */}
+                            <div className="hidden md:block overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="bg-gray-50 border-b border-gray-100">
+                                    <th className="px-5 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Name</th>
+                                    <th className="px-5 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Contact</th>
+                                    <th className="px-5 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Location</th>
+                                    <th className="px-5 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Submitted</th>
+                                    <th className="px-5 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Status</th>
+                                    <th className="px-5 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {formEnquiries.map((enquiry) => (
+                                    <React.Fragment key={enquiry.id}>
+                                      <tr className="border-b border-gray-50 hover:bg-gray-50/50">
+                                        <td className="px-5 py-3">
+                                          <div className="font-semibold text-swar-text">{enquiry.name}</div>
+                                          <div className="text-xs text-swar-text-secondary">{enquiry.gender}</div>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                          <div className="flex items-center gap-1.5">
+                                            <Phone className="w-3.5 h-3.5 text-swar-text-secondary" />
+                                            <a href={`tel:${enquiry.mobile}`} className="text-primary-600 hover:underline">{enquiry.mobile}</a>
+                                          </div>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                          <div className="flex items-center gap-1.5 text-swar-text">
+                                            <MapPin className="w-3.5 h-3.5 text-swar-text-secondary" />
+                                            {enquiry.city}
+                                          </div>
+                                        </td>
+                                        <td className="px-5 py-3 text-xs text-swar-text-secondary whitespace-nowrap">{formatDate(enquiry.submittedAt)}</td>
+                                        <td className="px-5 py-3">
+                                          <select
+                                            value={enquiry.status}
+                                            onChange={(e) => handleStatusChange(enquiry.id, e.target.value)}
+                                            className={`px-2 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer ${getStatusBadgeColor(enquiry.status)}`}
+                                          >
+                                            <option value="new">New</option>
+                                            <option value="contacted">Contacted</option>
+                                            <option value="registered">Registered</option>
+                                          </select>
+                                        </td>
+                                        <td className="px-5 py-3">
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              onClick={() => openInMeta(enquiry)}
+                                              title="Open in Meta WhatsApp"
+                                              className="flex items-center gap-1 px-2 py-1 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg text-xs font-semibold"
+                                            >
+                                              <MessageCircle size={11} /> Chat
+                                            </button>
+                                            <button
+                                              onClick={() => openInQR(enquiry)}
+                                              title="Open in QR WhatsApp"
+                                              className="flex items-center gap-1 px-2 py-1 bg-[#128C7E] hover:bg-[#0e6b60] text-white rounded-lg text-xs font-semibold"
+                                            >
+                                              <QrCode size={11} /> QR
+                                            </button>
+                                            <button
+                                              onClick={() => openEdit(enquiry)}
+                                              title="Edit name / mobile"
+                                              className="text-swar-text-secondary hover:text-swar-primary"
+                                            >
+                                              <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              onClick={() => setExpandedRow(expandedRow === enquiry.id ? null : enquiry.id)}
+                                              className="text-swar-text-secondary hover:text-swar-text"
+                                            >
+                                              {expandedRow === enquiry.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                            </button>
+                                            <button
+                                              onClick={() => toggleHide(enquiry)}
+                                              disabled={togglingHide === enquiry.id}
+                                              title={(enquiry.labels || []).includes(HIDE_LABEL) ? 'Unhide' : 'Hide'}
+                                              className="text-swar-text-secondary hover:text-swar-primary disabled:opacity-50"
+                                            >
+                                              {(enquiry.labels || []).includes(HIDE_LABEL) ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                                            </button>
+                                            <button onClick={() => handleDelete(enquiry.id)} className="text-red-400 hover:text-red-600">
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      {expandedRow === enquiry.id && (
+                                        <tr className="bg-gray-50 border-b border-gray-100">
+                                          <td colSpan={6} className="px-5 py-3">
+                                            <div className="text-xs text-swar-text-secondary space-y-1">
+                                              <p><strong>ID:</strong> {enquiry.id}</p>
+                                              <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          )}
-          </>
           )}
 
-          {/* ── Edit Enquiry Modal (name / mobile) ── */}
-          {editEnquiry && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !savingEdit && setEditEnquiry(null)}>
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between p-5 border-b border-swar-border">
-                  <h3 className="text-lg font-bold text-swar-text">Edit Enquiry</h3>
-                  <button onClick={() => setEditEnquiry(null)} className="text-swar-text-secondary hover:text-swar-text text-xl leading-none">×</button>
-                </div>
-                <div className="p-5 space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-swar-text-secondary uppercase mb-1">Name</label>
-                    <input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="w-full border border-swar-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-swar-primary/40"
-                      placeholder="Full name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-swar-text-secondary uppercase mb-1">Mobile Number</label>
-                    <input
-                      value={editMobile}
-                      onChange={(e) => setEditMobile(e.target.value)}
-                      className="w-full border border-swar-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-swar-primary/40"
-                      placeholder="919812345678"
-                    />
-                    <p className="text-[11px] text-swar-text-secondary mt-1">Include country code (e.g. 91 for India).</p>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3 p-5 border-t border-swar-border">
-                  <button onClick={() => setEditEnquiry(null)} disabled={savingEdit} className="px-4 py-2 text-sm border border-swar-border rounded-lg hover:bg-swar-bg font-medium disabled:opacity-40">Cancel</button>
-                  <button onClick={handleEditSave} disabled={savingEdit} className="px-4 py-2 text-sm bg-swar-primary text-white rounded-lg hover:bg-swar-primary-dark font-semibold disabled:opacity-40">
-                    {savingEdit ? 'Saving…' : 'Save Changes'}
-                  </button>
-                </div>
-              </div>
-            </div>
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{error}</div>
           )}
 
-          {/* Stats */}
-          {enquiries.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-              <div className="bg-white rounded-lg shadow-md p-6 text-center">
-                <div className="text-3xl font-bold text-blue-600">{enquiries.filter((e) => e.status === 'new').length}</div>
-                <p className="text-swar-text-secondary mt-2">New Enquiries</p>
+          {/* ── RECEIVED FORMS (grouped accordion by workshop) ── */}
+          <div className="mt-6 bg-white rounded-xl shadow-md overflow-hidden">
+
+            {/* Section header */}
+            <button
+              onClick={() => setReceivedOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition"
+            >
+              <div className="flex items-center gap-2">
+                <Eye size={18} className="text-[#2d6a4f]" />
+                <span className="text-lg font-bold text-swar-text">Received Forms</span>
               </div>
-              <div className="bg-white rounded-lg shadow-md p-6 text-center">
-                <div className="text-3xl font-bold text-yellow-600">{enquiries.filter((e) => e.status === 'contacted').length}</div>
-                <p className="text-swar-text-secondary mt-2">Contacted</p>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-swar-text-secondary font-semibold">{totalVisible} total</span>
+                {receivedOpen ? <ChevronUp size={18} className="text-swar-text-secondary" /> : <ChevronDown size={18} className="text-swar-text-secondary" />}
               </div>
-              <div className="bg-white rounded-lg shadow-md p-6 text-center">
-                <div className="text-3xl font-bold text-swar-primary">{enquiries.filter((e) => e.status === 'registered').length}</div>
-                <p className="text-swar-text-secondary mt-2">Registered</p>
-              </div>
-            </div>
-          )}
+            </button>
+
+            {receivedOpen && (
+              <>
+                {/* Filters */}
+                <div className="px-5 pb-4 border-t border-gray-100 pt-4 flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    placeholder="Search by name, mobile, city or workshop…"
+                    value={wsSearchTerm}
+                    onChange={(e) => setWsSearchTerm(e.target.value)}
+                    className="flex-1 rounded-lg border border-swar-border bg-white px-4 py-2 text-sm font-semibold text-swar-text placeholder-swar-text-secondary focus:outline-none"
+                  />
+                  <select
+                    value={wsStatusFilter}
+                    onChange={(e) => setWsStatusFilter(e.target.value as any)}
+                    className="rounded-lg border border-swar-border bg-white px-4 py-2 text-sm font-semibold text-swar-text min-w-fit focus:outline-none"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="registered">Registered</option>
+                  </select>
+                  <label className="flex items-center gap-2 text-sm text-swar-text-secondary cursor-pointer whitespace-nowrap">
+                    <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} className="accent-swar-primary" />
+                    Hidden ({hiddenCount})
+                  </label>
+                </div>
+
+                {/* Grouped workshop accordion rows */}
+                {loading ? (
+                  <div className="px-5 py-8 text-center text-sm text-swar-text-secondary">Loading…</div>
+                ) : workshopGroups.length === 0 ? (
+                  <div className="px-5 py-8 text-center text-sm text-swar-text-secondary">No submissions found.</div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {workshopGroups.map(([workshopName, group]) => {
+                      const isOpen = !!openWorkshopGroups[workshopName];
+                      return (
+                        <div key={workshopName}>
+                          {/* Group header row */}
+                          <button
+                            onClick={() => toggleWorkshopGroup(workshopName)}
+                            className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-[#2d6a4f]/10 flex items-center justify-center shrink-0">
+                                <span className="text-sm font-bold text-[#2d6a4f]">{group.length}</span>
+                              </div>
+                              <span className="font-bold text-swar-text text-sm text-left">{workshopName}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-swar-text-secondary hidden sm:inline">
+                                {group.filter(e => e.status === 'new').length} new ·{' '}
+                                {group.filter(e => e.status === 'contacted').length} contacted ·{' '}
+                                {group.filter(e => e.status === 'registered').length} registered
+                              </span>
+                              <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition ${isOpen ? 'bg-swar-primary text-white' : 'bg-gray-100 text-gray-700 group-hover:bg-gray-200'}`}>
+                                {isOpen ? <><ChevronUp size={12} /> Close</> : <><ChevronDown size={12} /> Open</>}
+                              </span>
+                            </div>
+                          </button>
+
+                          {/* Expanded submissions */}
+                          {isOpen && (
+                            <div className="border-t border-gray-100 bg-gray-50/50">
+                              {/* Desktop table */}
+                              <div className="hidden md:block overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="bg-gray-100 border-b border-gray-200">
+                                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-swar-text-secondary uppercase">Name</th>
+                                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-swar-text-secondary uppercase">Contact</th>
+                                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-swar-text-secondary uppercase">Location</th>
+                                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-swar-text-secondary uppercase">Submitted</th>
+                                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-swar-text-secondary uppercase">Status</th>
+                                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-swar-text-secondary uppercase">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.map((enquiry) => (
+                                      <React.Fragment key={enquiry.id}>
+                                        <tr className="border-b border-gray-100 hover:bg-white transition">
+                                          <td className="px-5 py-3">
+                                            <div className="font-semibold text-swar-text">{enquiry.name}</div>
+                                            <div className="text-xs text-swar-text-secondary">{enquiry.gender}</div>
+                                          </td>
+                                          <td className="px-5 py-3">
+                                            <div className="flex items-center gap-1.5">
+                                              <Phone className="w-3.5 h-3.5 text-swar-text-secondary" />
+                                              <a href={`tel:${enquiry.mobile}`} className="text-[#2d6a4f] hover:underline text-sm">{enquiry.mobile}</a>
+                                            </div>
+                                          </td>
+                                          <td className="px-5 py-3">
+                                            <div className="flex items-center gap-1.5 text-swar-text">
+                                              <MapPin className="w-3.5 h-3.5 text-swar-text-secondary" />
+                                              {enquiry.city}
+                                            </div>
+                                          </td>
+                                          <td className="px-5 py-3 text-xs text-swar-text-secondary whitespace-nowrap">{formatDate(enquiry.submittedAt)}</td>
+                                          <td className="px-5 py-3">
+                                            <select
+                                              value={enquiry.status}
+                                              onChange={(e) => handleStatusChange(enquiry.id, e.target.value)}
+                                              className={`px-2 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer ${getStatusBadgeColor(enquiry.status)}`}
+                                            >
+                                              <option value="new">New</option>
+                                              <option value="contacted">Contacted</option>
+                                              <option value="registered">Registered</option>
+                                            </select>
+                                          </td>
+                                          <td className="px-5 py-3">
+                                            <div className="flex items-center gap-2">
+                                              <button onClick={() => openInMeta(enquiry)} title="Open in Meta WhatsApp" className="flex items-center gap-1 px-2 py-1 bg-[#25D366] hover:bg-[#1ebe5d] text-white rounded-lg text-xs font-semibold">
+                                                <MessageCircle size={11} /> Chat
+                                              </button>
+                                              <button onClick={() => openInQR(enquiry)} title="Open in QR WhatsApp" className="flex items-center gap-1 px-2 py-1 bg-[#128C7E] hover:bg-[#0e6b60] text-white rounded-lg text-xs font-semibold">
+                                                <QrCode size={11} /> QR
+                                              </button>
+                                              <button onClick={() => openEdit(enquiry)} title="Edit" className="text-swar-text-secondary hover:text-swar-primary"><Pencil className="w-3.5 h-3.5" /></button>
+                                              <button onClick={() => setExpandedRow(expandedRow === enquiry.id ? null : enquiry.id)} className="text-swar-text-secondary hover:text-swar-text">
+                                                {expandedRow === enquiry.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                              </button>
+                                              <button onClick={() => toggleHide(enquiry)} disabled={togglingHide === enquiry.id} title={(enquiry.labels || []).includes(HIDE_LABEL) ? 'Unhide' : 'Hide'} className="text-swar-text-secondary hover:text-swar-primary disabled:opacity-50">
+                                                {(enquiry.labels || []).includes(HIDE_LABEL) ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                                              </button>
+                                              <button onClick={() => handleDelete(enquiry.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                        {expandedRow === enquiry.id && (
+                                          <tr className="bg-white border-b border-gray-100">
+                                            <td colSpan={6} className="px-5 py-3 text-xs text-swar-text-secondary space-y-1">
+                                              <p><strong>ID:</strong> {enquiry.id}</p>
+                                              <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              {/* Mobile cards */}
+                              <div className="block md:hidden space-y-3 p-4">
+                                {group.map((enquiry) => (
+                                  <div key={enquiry.id} className="border border-swar-border rounded-lg p-4 bg-white">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div>
+                                        <h3 className="font-semibold text-swar-text text-sm">{enquiry.name}</h3>
+                                        <p className="text-xs text-swar-text-secondary">{enquiry.city} · {enquiry.gender}</p>
+                                      </div>
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>{enquiry.status}</span>
+                                    </div>
+                                    <div className="text-xs text-swar-text-secondary mb-2 flex items-center gap-1.5"><Phone className="w-3 h-3" />{enquiry.mobile}</div>
+                                    <div className="text-[11px] text-swar-text-secondary mb-3">{formatDate(enquiry.submittedAt)}</div>
+                                    <select value={enquiry.status} onChange={(e) => handleStatusChange(enquiry.id, e.target.value)} className="w-full px-2 py-1 text-xs border border-swar-border rounded mb-2">
+                                      <option value="new">New</option>
+                                      <option value="contacted">Contacted</option>
+                                      <option value="registered">Registered</option>
+                                    </select>
+                                    <div className="flex gap-2">
+                                      <button onClick={() => openInMeta(enquiry)} className="flex-1 flex items-center justify-center gap-1 text-xs text-white bg-[#25D366] font-semibold py-1.5 rounded-lg"><MessageCircle size={11} /> Meta</button>
+                                      <button onClick={() => openInQR(enquiry)} className="flex-1 flex items-center justify-center gap-1 text-xs text-white bg-[#128C7E] font-semibold py-1.5 rounded-lg"><QrCode size={11} /> QR</button>
+                                      <button onClick={() => openEdit(enquiry)} className="p-1.5 text-swar-text-secondary hover:text-swar-primary"><Pencil size={13} /></button>
+                                      <button onClick={() => toggleHide(enquiry)} disabled={togglingHide === enquiry.id} className="p-1.5 text-swar-text-secondary hover:text-swar-primary disabled:opacity-50">
+                                        {(enquiry.labels || []).includes(HIDE_LABEL) ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                                      </button>
+                                      <button onClick={() => handleDelete(enquiry.id)} className="p-1.5 text-red-400 hover:text-red-600"><Trash2 size={13} /></button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          {/* ── END RECEIVED FORMS ── */}
+
         </div>
       </main>
 
-      {/* Add Form Modal */}
+      {/* Edit Enquiry Modal */}
+      {editEnquiry && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !savingEdit && setEditEnquiry(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-swar-border">
+              <h3 className="text-lg font-bold text-swar-text">Edit Enquiry</h3>
+              <button onClick={() => setEditEnquiry(null)} className="text-swar-text-secondary hover:text-swar-text text-xl leading-none">×</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-swar-text-secondary uppercase mb-1">Name</label>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full border border-swar-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-swar-primary/40"
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-swar-text-secondary uppercase mb-1">Mobile Number</label>
+                <input
+                  value={editMobile}
+                  onChange={(e) => setEditMobile(e.target.value)}
+                  className="w-full border border-swar-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-swar-primary/40"
+                  placeholder="919812345678"
+                />
+                <p className="text-[11px] text-swar-text-secondary mt-1">Include country code (e.g. 91 for India).</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-5 border-t border-swar-border">
+              <button onClick={() => setEditEnquiry(null)} disabled={savingEdit} className="px-4 py-2 text-sm border border-swar-border rounded-lg hover:bg-swar-bg font-medium disabled:opacity-40">Cancel</button>
+              <button onClick={handleEditSave} disabled={savingEdit} className="px-4 py-2 text-sm bg-swar-primary text-white rounded-lg font-semibold disabled:opacity-40">
+                {savingEdit ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Form Modal */}
       {showAddForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-bold text-swar-text">{editingFormId ? 'Edit Shareable Form' : 'Create Shareable Form'}</h2>
-              <button onClick={closeFormModal} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
+              <h2 className="text-xl font-bold text-swar-text">{editingFormId ? 'Edit Form' : 'Create Form'}</h2>
+              <button onClick={closeFormModal} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
 
             <div className="space-y-4">
@@ -1002,45 +1111,22 @@ export default function EnquiriesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Date</label>
-                  <input
-                    type="text"
-                    value={newWsDate}
-                    onChange={(e) => setNewWsDate(e.target.value)}
-                    placeholder="e.g. 20 Jan 2026"
-                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
-                  />
+                  <input type="text" value={newWsDate} onChange={(e) => setNewWsDate(e.target.value)} placeholder="e.g. 20 Jan 2026" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Time</label>
-                  <input
-                    type="text"
-                    value={newWsTime}
-                    onChange={(e) => setNewWsTime(e.target.value)}
-                    placeholder="e.g. 7:00 PM IST"
-                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
-                  />
+                  <input type="text" value={newWsTime} onChange={(e) => setNewWsTime(e.target.value)} placeholder="e.g. 7:00 PM IST" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Price <span className="font-normal text-gray-400">(0 = free)</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={newWsPrice}
-                    onChange={(e) => setNewWsPrice(e.target.value)}
-                    placeholder="e.g. 999"
-                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
-                  />
+                  <input type="number" min="0" value={newWsPrice} onChange={(e) => setNewWsPrice(e.target.value)} placeholder="e.g. 999" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Currency</label>
-                  <select
-                    value={newWsCurrency}
-                    onChange={(e) => setNewWsCurrency(e.target.value)}
-                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 bg-white"
-                  >
+                  <select value={newWsCurrency} onChange={(e) => setNewWsCurrency(e.target.value)} className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 bg-white">
                     <option value="INR">₹ INR</option>
                     <option value="USD">$ USD</option>
                     <option value="NPR">रू NPR</option>
@@ -1050,99 +1136,45 @@ export default function EnquiriesPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">WhatsApp Group Link <span className="font-normal text-gray-400">(optional)</span></label>
-                <input
-                  type="url"
-                  value={newWsGroupLink}
-                  onChange={(e) => setNewWsGroupLink(e.target.value)}
-                  placeholder="https://chat.whatsapp.com/…"
-                  className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
-                />
-                <p className="text-xs text-gray-400 mt-1">Shown as a “Join WhatsApp Group” button after the user submits.</p>
+                <input type="url" value={newWsGroupLink} onChange={(e) => setNewWsGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/…" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Mode</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: 'online', label: '💻 Online' },
-                    { value: 'offline', label: '📍 Offline' },
-                    { value: 'residential', label: '🏡 Residential' },
-                    { value: 'recorded', label: '🎥 Recorded' },
-                  ].map((m) => (
-                    <button
-                      key={m.value}
-                      type="button"
-                      onClick={() => setNewWsMode(m.value)}
-                      className={`py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
-                        newWsMode === m.value
-                          ? 'bg-[#2d6a4f] text-white border-[#2d6a4f]'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f]/40'
-                      }`}
-                    >
+                  {[{ value: 'online', label: '💻 Online' }, { value: 'offline', label: '📍 Offline' }, { value: 'residential', label: '🏡 Residential' }, { value: 'recorded', label: '🎥 Recorded' }].map((m) => (
+                    <button key={m.value} type="button" onClick={() => setNewWsMode(m.value)} className={`py-2 rounded-lg text-sm font-semibold border-2 transition-all ${newWsMode === m.value ? 'bg-[#2d6a4f] text-white border-[#2d6a4f]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f]/40'}`}>
                       {m.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Image Upload */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Workshop Image <span className="font-normal text-gray-400">(optional)</span></label>
                 {newWsImage ? (
                   <div className="relative rounded-xl overflow-hidden">
                     <img src={newWsImage} alt="preview" className="w-full h-40 object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setNewWsImage('')}
-                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
-                    >
-                      <X size={14} />
-                    </button>
+                    <button type="button" onClick={() => setNewWsImage('')} className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"><X size={14} /></button>
                   </div>
                 ) : (
                   <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${imageUploading ? 'border-[#2d6a4f]/40 bg-green-50' : 'border-gray-200 hover:border-[#2d6a4f]/50 hover:bg-green-50/50'}`}>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }}
-                    />
-                    {imageUploading ? (
-                      <><LoaderIcon className="animate-spin text-[#2d6a4f] mb-2" size={24} /><span className="text-sm text-[#2d6a4f]">Uploading…</span></>
-                    ) : (
-                      <><ImagePlus className="text-gray-400 mb-2" size={24} /><span className="text-sm text-gray-500">Click to upload image</span><span className="text-xs text-gray-400 mt-0.5">JPG, PNG, WebP</span></>
-                    )}
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }} />
+                    {imageUploading ? (<><LoaderIcon className="animate-spin text-[#2d6a4f] mb-2" size={24} /><span className="text-sm text-[#2d6a4f]">Uploading…</span></>) : (<><ImagePlus className="text-gray-400 mb-2" size={24} /><span className="text-sm text-gray-500">Click to upload image</span><span className="text-xs text-gray-400 mt-0.5">JPG, PNG, WebP</span></>)}
                   </label>
                 )}
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Description <span className="font-normal text-gray-400">(optional)</span></label>
-                <textarea
-                  value={newWsDesc}
-                  onChange={(e) => setNewWsDesc(e.target.value)}
-                  placeholder="Short description shown on the form..."
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 resize-none"
-                />
+                <textarea value={newWsDesc} onChange={(e) => setNewWsDesc(e.target.value)} placeholder="Short description shown on the form..." rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 resize-none" />
               </div>
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={closeFormModal}
-                className="px-4 py-2 rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveNewForm}
-                disabled={savingForm || !newWsName.trim()}
-                className="px-5 py-2 rounded-lg bg-[#2d6a4f] text-sm font-bold text-white hover:bg-[#1b4332] disabled:opacity-60 flex items-center gap-2"
-              >
-                {savingForm
-                  ? (editingFormId ? 'Saving…' : 'Creating…')
-                  : (editingFormId ? <><Check size={14} /> Save Changes</> : <><Plus size={14} /> Create Form</>)}
+              <button onClick={closeFormModal} className="px-4 py-2 rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200">Cancel</button>
+              <button onClick={saveNewForm} disabled={savingForm || !newWsName.trim()} className="px-5 py-2 rounded-lg bg-[#2d6a4f] text-sm font-bold text-white hover:bg-[#1b4332] disabled:opacity-60 flex items-center gap-2">
+                {savingForm ? (editingFormId ? 'Saving…' : 'Creating…') : (editingFormId ? <><Check size={14} /> Save Changes</> : <><Plus size={14} /> Create Form</>)}
               </button>
             </div>
           </div>

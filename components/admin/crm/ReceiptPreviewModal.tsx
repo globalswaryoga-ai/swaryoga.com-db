@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X, Download, Mail, Send, FileText, Loader2, AlertCircle, Plus,
+  ExternalLink, CheckCircle, Clock,
 } from 'lucide-react';
 
 interface ReceiptData {
@@ -24,6 +25,7 @@ interface ReceiptData {
     orderId?: string;
     transactionId?: string;
     paidAt?: string;
+    discountAmount?: number;
   };
 }
 
@@ -42,13 +44,11 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
   const [receipts, setReceipts] = useState<ReceiptData[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(true);
   const [error, setError] = useState('');
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
-  const [showCreateSale, setShowCreateSale] = useState(false);
 
-  // Generate (or self-heal a stale) receipt — backed by the real sale record.
+  // Generates a receipt, or — when one already exists but is stale (missing
+  // the amount a real sale already has) — refreshes it in place.
   const generateReceipt = useCallback(async () => {
     setGenerating(true);
     setError('');
@@ -60,10 +60,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       });
       const json = await res.json();
       if (res.ok && json.data) {
-        setReceipts((prev) => {
-          const rest = prev.filter((r) => r._id !== json.data._id);
-          return [json.data, ...rest];
-        });
+        setReceipts((prev) => [json.data, ...prev.filter((r) => r._id !== json.data._id)]);
         setActiveReceipt(json.data);
       } else {
         setError(json.error || 'Failed to generate receipt');
@@ -75,8 +72,9 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     }
   }, [leadId, saleId, token]);
 
-  // Fetch receipts for this lead; auto-create/self-heal so a click always
-  // shows a ready-to-go preview instead of an extra "Generate Receipt" step.
+  // Fetch receipts for this lead; if the latest one looks stale (no amount)
+  // and we know which sale this is, auto-heal it so the preview is correct
+  // immediately — no extra "Generate Receipt" click needed.
   const fetchReceipts = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -89,8 +87,6 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       const top = data[0];
       const looksStale = !top || !top.payment?.amount;
       if (looksStale && saleId) {
-        // There's a known sale behind this click — auto-generate/heal so the
-        // admin sees a correct preview immediately, no extra click needed.
         setLoading(false);
         await generateReceipt();
         return;
@@ -106,14 +102,8 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
 
   useEffect(() => { fetchReceipts(); }, [fetchReceipts]);
 
-  // Load PDF for active receipt
-  useEffect(() => {
-    if (!activeReceipt) { setPdfUrl(null); return; }
-    setPdfLoading(true);
-    const url = `/api/admin/crm/receipts/pdf?id=${activeReceipt._id}`;
-    setPdfUrl(url);
-  }, [activeReceipt]);
-
+  // Explicitly creates a brand-new receipt (e.g. for a follow-up payment),
+  // unlike the auto-heal above which only refreshes an existing stale one.
   const regenerateReceipt = async () => {
     setGenerating(true);
     setError('');
@@ -137,11 +127,17 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     }
   };
 
-  // Download PDF
+  // Opens PDF in a new browser tab (most reliable approach — no iframe CSP issues)
+  const openPdf = () => {
+    if (!activeReceipt) return;
+    const url = `/api/admin/crm/receipts/pdf?id=${activeReceipt._id}&token=${encodeURIComponent(token)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const downloadPdf = async () => {
     if (!activeReceipt) return;
     try {
-      const res = await fetch(`/api/admin/crm/receipts/pdf?id=${activeReceipt._id}&download=1`, {
+      const res = await fetch(`/api/admin/crm/receipts/pdf?id=${activeReceipt._id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Download failed');
@@ -157,11 +153,9 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     }
   };
 
-  // WhatsApp via Meta — navigate to Meta chat page with receipt context
   const sendViaWhatsApp = () => {
     if (!activeReceipt) return;
     const phone = (leadPhone || activeReceipt.customerPhone || '').replace(/\D/g, '');
-    // Navigate to Meta WhatsApp page with receipt info for admin to send
     const params = new URLSearchParams();
     params.set('phone', phone);
     params.set('receiptId', activeReceipt._id);
@@ -170,81 +164,84 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     onClose();
   };
 
-  // Email — open mailto with receipt details
   const sendViaEmail = () => {
     if (!activeReceipt) return;
     const email = leadEmail || activeReceipt.customerEmail || '';
     const subject = encodeURIComponent(`Your Receipt - ${activeReceipt.receiptNumber || 'Swar Yoga'}`);
+    const amt = activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount || 0;
     const body = encodeURIComponent(
-      `Dear ${activeReceipt.customerName || 'Student'},\n\nPlease find your receipt details below:\n\nReceipt No: ${activeReceipt.receiptNumber || '-'}\nAmount: ₹${activeReceipt.payment?.amount || 0}\nPaid: ₹${activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount || 0}\nDate: ${activeReceipt.issuedAt ? new Date(activeReceipt.issuedAt).toLocaleDateString('en-IN') : '-'}\n\nThank you for choosing Swar Yoga!\n\nBest regards,\nSwar Yoga Team`
+      `Dear ${activeReceipt.customerName || 'Student'},\n\nPlease find your receipt details below:\n\nReceipt No: ${activeReceipt.receiptNumber || '-'}\nWorkshop: ${activeReceipt.workshopName || '-'}\nAmount Paid: ₹${amt.toLocaleString('en-IN')}\nDate: ${activeReceipt.issuedAt ? new Date(activeReceipt.issuedAt).toLocaleDateString('en-IN') : '-'}\n\nThank you for choosing Swar Yoga!\n\nBest regards,\nSwar Yoga Team`
     );
     window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
   };
 
-  const formatCurrency = (amt: number | undefined) => `₹${(amt || 0).toLocaleString('en-IN')}`;
+  const fmtAmt = (n: number | undefined) =>
+    `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  const fmtDate = (d: string | undefined) =>
+    d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  const isPaid = (activeReceipt?.payment?.status || '').toLowerCase() === 'paid'
+    || (activeReceipt?.payment?.paidAmount ?? 0) > 0;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10000] flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10000] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100"
+          style={{ background: 'linear-gradient(135deg,#1a4731 0%,#2d6a4f 60%,#e8801a 100%)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
               <FileText className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Receipts</h2>
-              <p className="text-xs text-gray-500">{leadName || 'Lead'} {leadPhone ? `· ${leadPhone}` : ''}</p>
+              <h2 className="text-base font-bold text-white">Invoice / Receipt</h2>
+              <p className="text-xs text-white/70">{leadName || 'Customer'}{leadPhone ? ` · ${leadPhone}` : ''}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition">
-            <X className="h-5 w-5 text-gray-500" />
+          <button onClick={onClose} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
+            <X className="h-5 w-5 text-white" />
           </button>
         </div>
 
-        {/* Content */}
+        {/* ── Body ── */}
         <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+              <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
             </div>
           ) : receipts.length === 0 ? (
-            /* No receipt — prompt to create sale entry */
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
               <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
                 <AlertCircle className="h-8 w-8 text-amber-500" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No Receipts Yet</h3>
               <p className="text-sm text-gray-500 mb-6 max-w-sm">
-                This lead doesn&apos;t have any receipts generated yet. Create a sale entry or generate a receipt.
+                No receipt exists for this lead. Generate a receipt or create a sale entry.
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3 justify-center">
                 <button
                   onClick={generateReceipt}
                   disabled={generating}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50"
                 >
                   {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   Generate Receipt
                 </button>
                 <button
-                  onClick={() => {
-                    router.push(`/admin/crm/sales?createFor=${leadId}`);
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition"
+                  onClick={() => { router.push(`/admin/crm/sales?createFor=${leadId}`); onClose(); }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
                 >
                   <Plus className="h-4 w-4" />
                   Make Sale Entry
                 </button>
                 <button
-                  onClick={() => {
-                    router.push('/admin/crm/tally');
-                    onClose();
-                  }}
+                  onClick={() => { router.push('/admin/crm/tally'); onClose(); }}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition"
                 >
                   Add from Tally
@@ -252,19 +249,18 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
               </div>
             </div>
           ) : (
-            /* Receipt preview */
-            <div>
-              {/* Receipt selector (if multiple) */}
+            <div className="p-6 space-y-5">
+              {/* Receipt tabs (if multiple) */}
               {receipts.length > 1 && (
-                <div className="px-6 pt-4 flex gap-2 overflow-x-auto">
+                <div className="flex gap-2 overflow-x-auto pb-1">
                   {receipts.map((r, i) => (
                     <button
                       key={r._id}
                       onClick={() => setActiveReceipt(r)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition border ${
                         activeReceipt?._id === r._id
-                          ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
-                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
+                          ? 'bg-emerald-700 text-white border-emerald-700'
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
                       }`}
                     >
                       {r.receiptNumber || `Receipt ${i + 1}`}
@@ -273,71 +269,155 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
                 </div>
               )}
 
-              {/* Receipt info card */}
               {activeReceipt && (
-                <div className="p-6 space-y-4">
-                  {/* Quick info grid */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Receipt Number</p>
-                      <p className="text-sm font-bold text-gray-900">{activeReceipt.receiptNumber || '-'}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Date</p>
-                      <p className="text-sm font-bold text-gray-900">
-                        {activeReceipt.issuedAt ? new Date(activeReceipt.issuedAt).toLocaleDateString('en-IN') : '-'}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Amount</p>
-                      <p className="text-sm font-bold text-emerald-600">{formatCurrency(activeReceipt.payment?.amount)}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Paid</p>
-                      <p className="text-sm font-bold text-emerald-600">
-                        {formatCurrency(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Customer</p>
-                      <p className="text-sm font-semibold text-gray-900">{activeReceipt.customerName || '-'}</p>
-                      <p className="text-xs text-gray-500">{activeReceipt.customerPhone || ''}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Workshop</p>
-                      <p className="text-sm font-semibold text-gray-900">{activeReceipt.workshopName || '-'}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4 col-span-2">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Payment Details</p>
-                      <div className="flex gap-4 text-xs text-gray-600">
-                        <span>Status: <strong className="text-gray-900">{activeReceipt.payment?.status || '-'}</strong></span>
-                        <span>Method: <strong className="text-gray-900">{activeReceipt.payment?.method || '-'}</strong></span>
-                        <span>Provider: <strong className="text-gray-900">{activeReceipt.payment?.provider || '-'}</strong></span>
-                        {activeReceipt.payment?.transactionId && (
-                          <span>Txn: <strong className="text-gray-900">{activeReceipt.payment.transactionId}</strong></span>
-                        )}
+                <>
+                  {/* ── Invoice preview card ── */}
+                  <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+                    {/* Invoice header (mirrors PDF design) */}
+                    <div className="relative overflow-hidden" style={{ background: '#ffffff', minHeight: 90 }}>
+                      {/* Green diagonal stripe */}
+                      <div
+                        className="absolute"
+                        style={{
+                          right: -30, top: -30, width: 280, height: 130,
+                          background: '#2d6a4f',
+                          transform: 'rotate(12deg)',
+                          transformOrigin: 'top right',
+                        }}
+                      />
+                      <div className="relative flex items-start justify-between px-6 py-5">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Swar Yoga</p>
+                          <p className="font-black text-2xl text-gray-900 leading-tight">INVOICE</p>
+                          <p className="text-xs text-gray-500 mt-0.5">No: {activeReceipt.receiptNumber || activeReceipt._id}</p>
+                        </div>
+                        <div className="text-right z-10">
+                          <p className="text-[10px] uppercase tracking-widest text-white/80 font-semibold">Date</p>
+                          <p className="text-sm font-bold text-white">{fmtDate(activeReceipt.issuedAt)}</p>
+                        </div>
                       </div>
+                    </div>
+
+                    {/* Orange accent bar */}
+                    <div className="h-1" style={{ background: '#e8801a' }} />
+
+                    {/* Customer + Amount */}
+                    <div className="grid grid-cols-2 divide-x divide-gray-100 bg-white px-6 py-4">
+                      <div className="pr-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Invoice To</p>
+                        <p className="text-base font-bold" style={{ color: '#1a6b55' }}>
+                          {activeReceipt.customerName || leadName || '—'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {activeReceipt.customerPhone || leadPhone || ''}
+                        </p>
+                      </div>
+                      <div className="pl-4 flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Total Amount</p>
+                        <p className="text-2xl font-black" style={{ color: '#c0392b' }}>
+                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Workshop row */}
+                    <div className="border-t border-gray-100">
+                      {/* Table header */}
+                      <div className="grid grid-cols-4 px-6 py-2" style={{ background: '#e8801a' }}>
+                        {['WORKSHOP', 'QTY', 'AMOUNT', 'TOTAL'].map(h => (
+                          <p key={h} className="text-[10px] font-bold text-white uppercase tracking-wide">{h}</p>
+                        ))}
+                      </div>
+                      {/* Table row */}
+                      <div className="grid grid-cols-4 px-6 py-3 bg-white border-b border-gray-100">
+                        <p className="text-sm font-semibold text-gray-900 col-span-1 truncate pr-2">
+                          {activeReceipt.workshopName || '—'}
+                        </p>
+                        <p className="text-sm text-gray-700">1</p>
+                        <p className="text-sm text-gray-700">
+                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
+                        </p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
+                        </p>
+                      </div>
+                      {/* Payment row */}
+                      <div className="grid grid-cols-4 px-6 py-3 bg-gray-50 border-b border-gray-100">
+                        <p className="text-xs text-gray-500 col-span-2">
+                          {activeReceipt.payment?.method
+                            ? `Via ${activeReceipt.payment.method.replace(/_/g, ' ')}`
+                            : 'Payment received'}
+                          {activeReceipt.payment?.paidAt ? ` · ${fmtDate(activeReceipt.payment.paidAt)}` : ''}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
+                        </p>
+                        <p className="text-xs font-semibold text-gray-700">
+                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Totals + Status */}
+                    <div className="flex items-center justify-between px-6 py-4 bg-white">
+                      {/* Status pill */}
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                        isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {isPaid
+                          ? <CheckCircle className="h-3.5 w-3.5" />
+                          : <Clock className="h-3.5 w-3.5" />}
+                        {isPaid ? 'PAID' : 'UNPAID'}
+                      </div>
+                      {/* Total box */}
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase text-gray-400 tracking-wider">Grand Total</p>
+                        <p className="text-lg font-black" style={{ color: '#e8801a' }}>
+                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Open PDF button */}
+                    <div className="border-t border-gray-100 px-6 py-3 bg-gray-50 flex items-center justify-between">
+                      <p className="text-xs text-gray-400">Swar Yoga · Maldad Road, Sangamner</p>
+                      <button
+                        onClick={openPdf}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white transition hover:opacity-90"
+                        style={{ background: '#2d6a4f' }}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View Full Invoice PDF
+                      </button>
                     </div>
                   </div>
 
-                  {/* PDF iframe preview */}
-                  {pdfUrl && (
-                    <div className="relative border border-gray-200 rounded-xl overflow-hidden bg-gray-100">
-                      {pdfLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                          <Loader2 className="h-6 w-6 text-indigo-400 animate-spin" />
+                  {/* Payment details row */}
+                  {(activeReceipt.payment?.method || activeReceipt.payment?.transactionId || activeReceipt.payment?.orderId) && (
+                    <div className="grid grid-cols-3 gap-3">
+                      {activeReceipt.payment?.method && (
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-0.5">Method</p>
+                          <p className="text-sm font-semibold text-gray-800 capitalize">
+                            {activeReceipt.payment.method.replace(/_/g, ' ')}
+                          </p>
                         </div>
                       )}
-                      <iframe
-                        key={pdfUrl}
-                        src={`${pdfUrl}&token=${encodeURIComponent(token)}`}
-                        className="w-full h-[420px]"
-                        title="Receipt PDF"
-                        onLoad={() => setPdfLoading(false)}
-                      />
+                      {activeReceipt.payment?.provider && (
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-0.5">Provider</p>
+                          <p className="text-sm font-semibold text-gray-800">{activeReceipt.payment.provider}</p>
+                        </div>
+                      )}
+                      {activeReceipt.payment?.transactionId && (
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-0.5">Txn ID</p>
+                          <p className="text-sm font-semibold text-gray-800 truncate">{activeReceipt.payment.transactionId}</p>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           )}
@@ -349,10 +429,9 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
           )}
         </div>
 
-        {/* Action buttons footer */}
+        {/* ── Footer actions ── */}
         {activeReceipt && (
-          <div className="border-t border-gray-100 px-6 py-4 bg-gray-50/50 flex items-center gap-3">
-            {/* WhatsApp */}
+          <div className="border-t border-gray-100 px-6 py-4 bg-gray-50/50 flex items-center gap-3 flex-wrap">
             <button
               onClick={sendViaWhatsApp}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition hover:opacity-90"
@@ -361,7 +440,6 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
               <Send className="h-4 w-4" />
               WhatsApp
             </button>
-            {/* Email */}
             <button
               onClick={sendViaEmail}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
@@ -369,7 +447,6 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
               <Mail className="h-4 w-4" />
               Email
             </button>
-            {/* Download */}
             <button
               onClick={downloadPdf}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gray-800 text-white hover:bg-gray-900 transition"
@@ -377,9 +454,8 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
               <Download className="h-4 w-4" />
               Download
             </button>
-            {/* Generate new */}
             <button
-              onClick={() => regenerateReceipt()}
+              onClick={regenerateReceipt}
               disabled={generating}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition ml-auto disabled:opacity-50"
             >
