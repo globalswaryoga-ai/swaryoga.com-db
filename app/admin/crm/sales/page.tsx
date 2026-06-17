@@ -40,6 +40,45 @@ function financialYearStartDateInputValue(): string {
   return `${year}-04-01`;
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+// Years available in the month/year date-range pickers.
+function dateRangeYearOptions(): number[] {
+  const currentYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let y = currentYear + 1; y >= currentYear - 6; y--) years.push(y);
+  return years;
+}
+
+// Parses a YYYY-MM-DD string into the year/month it falls in, defaulting to today.
+function parseYearMonth(v: string | undefined | null): { year: number; month: number } {
+  if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m] = v.split('-').map(Number);
+    return { year: y, month: m - 1 };
+  }
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() };
+}
+
+function monthStartDateInputValue(year: number, month: number): string {
+  return `${year}-${String(month + 1).padStart(2, '0')}-01`;
+}
+
+function monthEndDateInputValue(year: number, month: number): string {
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+// Formats a YYYY-MM-DD string as "01 Apr 2026" for report headers.
+function formatDateRangeLabel(v: string | undefined | null): string {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+  const [y, m, d] = v.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 // Helper to get leadId as string (handles both string and populated object)
 function getLeadIdString(leadId: string | { _id: string } | undefined | null): string {
   if (!leadId) return '';
@@ -712,25 +751,55 @@ export default function SalesPage() {
       const autoTable = autoTableModule.default;
 
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      doc.setFontSize(14);
-      doc.text('Sales Export', 14, 12);
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      const fromLabel = formatDateRangeLabel(appliedFilters.batchFrom);
+      const toLabel = formatDateRangeLabel(appliedFilters.batchTo);
+      const rangeLabel = fromLabel && toLabel ? `${fromLabel}   To   ${toLabel}` : '';
+
+      const drawHeader = () => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(109, 40, 217);
+        doc.text('Swar Yoga Workshop', pageWidth / 2, 14, { align: 'center' });
+
+        doc.setFontSize(12);
+        doc.setTextColor(40, 40, 40);
+        doc.text('Enrollment Details', pageWidth / 2, 21, { align: 'center' });
+
+        if (rangeLabel) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(90, 90, 90);
+          doc.text(rangeLabel, pageWidth / 2, 27, { align: 'center' });
+        }
+
+        doc.setDrawColor(109, 40, 217);
+        doc.setLineWidth(0.5);
+        doc.line(14, 30, pageWidth - 14, 30);
+      };
 
       autoTable(doc, {
-        startY: 18,
+        startY: 35,
+        margin: { top: 35 },
         head: [['Date', 'Name', 'Mobile Number', 'Workshop Name', 'Amount Received', 'Bank/Cash', 'Transaction Details']],
         body: rows.map((r) => [r.date, r.name, r.mobile, r.workshop, String(r.amount ?? ''), r.bankOrCash, r.transactionDetails]),
         styles: { fontSize: 8 },
         headStyles: { fillColor: [109, 40, 217] },
+        didDrawPage: drawHeader,
       });
 
-      doc.save(`sales_export_${new Date().toISOString().slice(0, 10)}.pdf`);
+      const fileSuffix = fromLabel && toLabel
+        ? `${appliedFilters.batchFrom}_to_${appliedFilters.batchTo}`
+        : new Date().toISOString().slice(0, 10);
+      doc.save(`swar_yoga_enrollment_${fileSuffix}.pdf`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to download PDF');
     } finally {
       setExporting(false);
       setShowExportMenu(false);
     }
-  }, [fetchExportRows]);
+  }, [fetchExportRows, appliedFilters]);
 
   const handleUploadSales = async () => {
     if (!token) {
@@ -1380,21 +1449,51 @@ export default function SalesPage() {
             </div>
             <div>
               <label className="block text-white text-sm font-semibold mb-3">Date Range From</label>
-              <input
-                type="date"
-                value={draftFilters.batchFrom}
-                onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-              />
+              {(() => {
+                const { year: fromYear, month: fromMonth } = parseYearMonth(draftFilters.batchFrom);
+                return (
+                  <div className="flex gap-2">
+                    <select
+                      value={fromMonth}
+                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(fromYear, Number(e.target.value)) }))}
+                      className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    >
+                      {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                    </select>
+                    <select
+                      value={fromYear}
+                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
+                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    >
+                      {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <label className="block text-white text-sm font-semibold mb-3">Date Range To</label>
-              <input
-                type="date"
-                value={draftFilters.batchTo}
-                onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: e.target.value }))}
-                className="w-full bg-black border border-white/30 rounded-lg px-4 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-              />
+              {(() => {
+                const { year: toYear, month: toMonth } = parseYearMonth(draftFilters.batchTo);
+                return (
+                  <div className="flex gap-2">
+                    <select
+                      value={toMonth}
+                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(toYear, Number(e.target.value)) }))}
+                      className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    >
+                      {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                    </select>
+                    <select
+                      value={toYear}
+                      onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
+                      className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    >
+                      {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <label className="block text-white text-sm font-semibold mb-3">Reported By (User ID)</label>

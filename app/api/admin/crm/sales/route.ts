@@ -180,8 +180,9 @@ export async function GET(request: NextRequest) {
     // JSON export for PDF/Excel downloads (ignores pagination, but enforces a safety limit)
     if (format === 'json') {
       const maxRows = 50000;
+      // Oldest to newest, so a report for "April to June" reads April first.
       const rows = await SalesReport.find(filter)
-        .sort({ saleDate: -1 })
+        .sort({ batchDate: 1, saleDate: 1 })
         .limit(maxRows)
         .lean();
 
@@ -200,15 +201,20 @@ export async function GET(request: NextRequest) {
         return map[key] || key;
       };
 
-      const exportRows = rows.map((r: any) => ({
-        date: r.saleDate ? new Date(r.saleDate).toISOString().slice(0, 10) : '',
-        name: r.customerName || '',
-        mobile: r.customerPhone || '',
-        workshop: r.workshopName || '',
-        amount: r.saleAmount ?? '',
-        bankOrCash: paymentModeLabel(r.paymentMode),
-        transactionDetails: r.transactionId || '',
-      }));
+      const exportRows = rows.map((r: any) => {
+        // The date-range filter is on batchDate, so the report date follows it
+        // (falling back to saleDate for older records recorded without one).
+        const reportDate = r.batchDate || r.saleDate;
+        return {
+          date: reportDate ? new Date(reportDate).toISOString().slice(0, 10) : '',
+          name: r.customerName || '',
+          mobile: r.customerPhone || '',
+          workshop: r.workshopName || '',
+          amount: r.saleAmount ?? '',
+          bankOrCash: paymentModeLabel(r.paymentMode),
+          transactionDetails: r.transactionId || '',
+        };
+      });
 
       return formatCrmSuccess({ rows: exportRows }, { count: exportRows.length });
     }
