@@ -253,17 +253,6 @@ function WorkshopsPageInner() {
     }
   }, []);
 
-  // Filter to only the 3 active workshops
-  const filteredWorkshopsList = useMemo(() => {
-    return workshopCatalog.filter(w => 
-      w.slug === 'master-swar-yoga' || 
-      w.slug === 'weight-loss' ||
-      w.slug === 'pre-pregnancy'
-    );
-  }, []);
-
-  const totalWorkshops = filteredWorkshopsList.length;
-
   useEffect(() => {
     if (!searchParams) return;
     setSelectedCategory(searchParams.get('category') || null);
@@ -287,7 +276,13 @@ function WorkshopsPageInner() {
           if (res.ok) {
             const json = await res.json();
             if (json.success && Array.isArray(json.data)) {
+              const todayIso = new Date().toISOString().slice(0, 10);
               json.data.forEach((s: any) => {
+                // Auto-hide a schedule once its workshop has ended, so expired
+                // batches don't keep showing on the public site.
+                const endDateOnly = toDateOnlyIso(s.endDate || s.startDate);
+                if (endDateOnly && endDateOnly < todayIso) return;
+
                 const slug = s.workshopSlug;
                 if (!nextMap[slug]) nextMap[slug] = [];
                 nextMap[slug].push({
@@ -367,20 +362,26 @@ function WorkshopsPageInner() {
     return a.name.localeCompare(b.name);
   });
 
-  // Pin the first four workshops in a specific order (as requested).
-  // We keep the remaining workshops in their existing sorted order.
+  // Flagship workshops always lead the list (if they have a published
+  // schedule); every other workshop with a published schedule follows.
   const PINNED_FIRST_WORKSHOP_SLUGS = [
     'master-swar-yoga',
     'weight-loss',
     'pre-pregnancy',
   ];
 
-  // Show only the 3 active workshops in pinned order
+  const workshopsWithSchedules = sortedWorkshops.filter(
+    (w) => (schedulesByWorkshopId[w.slug]?.length ?? 0) > 0
+  );
+
   const workshopsForDisplay = [
-    sortedWorkshops.find(w => w.slug === 'master-swar-yoga'),
-    sortedWorkshops.find(w => w.slug === 'weight-loss'),
-    sortedWorkshops.find(w => w.slug === 'pre-pregnancy'),
-  ].filter((w): w is WorkshopOverview => w !== undefined);
+    ...PINNED_FIRST_WORKSHOP_SLUGS
+      .map((slug) => workshopsWithSchedules.find((w) => w.slug === slug))
+      .filter((w): w is WorkshopOverview => w !== undefined),
+    ...workshopsWithSchedules.filter((w) => !PINNED_FIRST_WORKSHOP_SLUGS.includes(w.slug)),
+  ];
+
+  const totalWorkshops = workshopsForDisplay.length;
 
   // Filter workshops based on selected filters
   const filteredWorkshops = workshopsForDisplay.filter((workshop: WorkshopOverview) => {
