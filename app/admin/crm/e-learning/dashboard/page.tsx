@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Users, TrendingUp, DollarSign, BookOpen, Loader, AlertCircle, BarChart3, PieChart } from 'lucide-react';
+import { ArrowLeft, Users, TrendingUp, DollarSign, BookOpen, Loader, AlertCircle, BarChart3, PieChart, Sparkles } from 'lucide-react';
 
 interface DashboardStats {
   newWorkshops: number;
@@ -77,6 +77,14 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-white">E-Learning Dashboard</h1>
           <p className="text-sm text-gray-400">Track performance and analytics</p>
         </div>
+        <Link
+          href="/admin/crm/e-learning/rag-video"
+          className="flex items-center gap-2 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors text-sm"
+          title="YouTube to AI clone video pipeline"
+        >
+          <Sparkles size={16} />
+          RAG and Video
+        </Link>
       </div>
 
       {/* Period Tabs */}
