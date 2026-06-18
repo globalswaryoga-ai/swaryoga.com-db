@@ -1,12 +1,15 @@
-// Shared Gemini-primary/OpenAI-fallback text generation, used by every
-// AI feature in this codebase (KP Astro, Tally chat, cloud-translate,
+// Shared Gemini-primary/Anthropic+OpenAI-fallback text generation, used by
+// every AI feature in this codebase (KP Astro, Tally chat, cloud-translate,
 // RAG-Video). Centralizing this because every call site used to have its
 // own copy of "if (geminiKey) { ... } else { openai }" — which meant a
 // Gemini failure (quota, overload) returned an error directly instead of
-// actually falling back, even when an OpenAI key was configured. Confirmed
+// actually falling back, even when a fallback key was configured. Confirmed
 // live: this codebase's Gemini key hit the free tier's 20-requests/day cap
 // on gemini-2.5-flash from real use, breaking KP Astro, Tally chat, and
 // RAG-Video simultaneously since they all share one key.
+//
+// Fallback order: Gemini -> Anthropic -> OpenAI. Both fallbacks are
+// optional and independent — configure either or both.
 
 export interface AiHistoryTurn {
   role: 'user' | 'assistant';
@@ -61,9 +64,9 @@ async function callGemini(params: GenerateTextParams, attempt = 1): Promise<stri
 
     if (!isDailyCap && (res.status === 503 || res.status === 429) && attempt < 3) {
       // Cap the wait even when Gemini suggests a longer retryDelay (seen:
-      // 30s+ on non-daily 429s) — a capped retry here means the OpenAI
-      // fallback above still kicks in quickly instead of stalling the
-      // whole request behind Gemini's own suggested backoff.
+      // 30s+ on non-daily 429s) — a capped retry here means the fallbacks
+      // below still kick in quickly instead of stalling the whole request
+      // behind Gemini's own suggested backoff.
       const delayMs = Math.min((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500, 8000);
       await sleep(delayMs);
       return callGemini(params, attempt + 1);
@@ -75,6 +78,39 @@ async function callGemini(params: GenerateTextParams, attempt = 1): Promise<stri
 
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Gemini returned no text');
+  return text;
+}
+
+async function callAnthropic(params: GenerateTextParams): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
+
+  const messages = [
+    ...(params.history || []).slice(-8).map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: params.message },
+  ];
+
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: params.maxOutputTokens ?? 2000,
+      temperature: params.temperature ?? 0.3,
+      ...(params.systemPrompt ? { system: params.systemPrompt } : {}),
+      messages,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Anthropic error: ${data?.error?.message || res.statusText}`);
+  const text = data.content?.[0]?.text;
+  if (!text) throw new Error('Anthropic returned no text');
   return text;
 }
 
@@ -103,30 +139,28 @@ async function callOpenAI(params: GenerateTextParams): Promise<string> {
 }
 
 // Tries Gemini first (free tier); on ANY Gemini failure — not just a
-// missing key — falls back to OpenAI if OPENAI_API_KEY is configured.
-// Throws only if both fail or neither is configured.
+// missing key — falls back to Anthropic, then OpenAI, for whichever of
+// those have a configured key. Throws only if every configured provider
+// fails (or none are configured at all).
 export async function generateAIText(params: GenerateTextParams): Promise<string> {
-  const hasGemini = Boolean(process.env.GEMINI_API_KEY);
-  const hasOpenAI = Boolean(process.env.OPENAI_API_KEY);
+  const providers: Array<{ name: string; configured: boolean; call: () => Promise<string> }> = [
+    { name: 'Gemini', configured: Boolean(process.env.GEMINI_API_KEY), call: () => callGemini(params) },
+    { name: 'Anthropic', configured: Boolean(process.env.ANTHROPIC_API_KEY), call: () => callAnthropic(params) },
+    { name: 'OpenAI', configured: Boolean(process.env.OPENAI_API_KEY), call: () => callOpenAI(params) },
+  ].filter((p) => p.configured);
 
-  if (!hasGemini && !hasOpenAI) {
-    throw new Error('AI is not configured — add GEMINI_API_KEY (free) or OPENAI_API_KEY to your environment variables.');
+  if (!providers.length) {
+    throw new Error('AI is not configured — add GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to your environment variables.');
   }
 
-  if (hasGemini) {
+  const errors: string[] = [];
+  for (const provider of providers) {
     try {
-      return await callGemini(params);
-    } catch (geminiError) {
-      if (!hasOpenAI) throw geminiError;
-      try {
-        return await callOpenAI(params);
-      } catch (openaiError) {
-        const g = geminiError instanceof Error ? geminiError.message : String(geminiError);
-        const o = openaiError instanceof Error ? openaiError.message : String(openaiError);
-        throw new Error(`Both providers failed. Gemini: ${g} | OpenAI: ${o}`);
-      }
+      return await provider.call();
+    } catch (err) {
+      errors.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  return callOpenAI(params);
+  throw new Error(`All configured AI providers failed. ${errors.join(' | ')}`);
 }
