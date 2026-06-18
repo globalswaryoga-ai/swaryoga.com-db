@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Sparkles, Shuffle, Info } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import {
@@ -62,6 +63,14 @@ export default function KpAstroPage() {
           </span>
         }
         subtitle="KP astrology reference & lookup tool, built from the TFU MasterClass rulebook"
+        action={
+          <Link
+            href="/admin/crm/kp-astro/charts"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+          >
+            Horoscope Charts →
+          </Link>
+        }
       />
 
       <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

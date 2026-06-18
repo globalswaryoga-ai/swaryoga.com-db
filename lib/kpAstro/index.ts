@@ -11,6 +11,10 @@ import professionsRaw from './professions.json';
 import basicRulesRaw from './basicRules.json';
 import housesMeaningRaw from './housesMeaning.json';
 import aspectRaw from './aspect.json';
+// General classical Vedic/KP reference, not extracted from the TFU toolkit —
+// kept separate so it's easy to correct/expand independently of the rulebook data.
+import gemstonesRaw from './gemstones.json';
+import doshaRemediesRaw from './doshaRemedies.json';
 
 export interface SubTableRow {
   no: number;
@@ -41,9 +45,22 @@ export const aspectRules = aspectRaw as {
   maleficAngles: number[];
   orbs: Record<string, number>;
 };
+export const gemstoneByPlanet = gemstonesRaw as Record<string, string>;
+export const doshaRemedies = doshaRemediesRaw as Record<string, string>;
 
 export function getSubRow(no: number): SubTableRow | undefined {
   return subTable.find((r) => r.no === no);
+}
+
+// Finds the 249-division Sub Lord row matching a manually-entered house/planet
+// position, so report generation can ground itself in the rulebook's
+// disease/mindset/profession text instead of the AI inventing it.
+export function findSubTableRow(sign?: string, star?: string, subLord?: string): SubTableRow | undefined {
+  if (!sign || !star || !subLord) return undefined;
+  const norm = (s: string) => s.trim().toLowerCase();
+  return subTable.find(
+    (r) => norm(r.sign) === norm(sign) && norm(r.star) === norm(star) && norm(r.subLord) === norm(subLord)
+  );
 }
 
 // Parses "2, 6, 11" / "5 = 3, 5, 8, 11, 2, 6" style strings into house numbers.

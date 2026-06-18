@@ -4246,3 +4246,98 @@ QRBroadcastScheduleSchema.index({ status: 1, frequency: 1 });
 
 export function getQRBroadcastSchedule() { return getModel('QRBroadcastSchedule', QRBroadcastScheduleSchema); }
 export const QRBroadcastSchedule = createModelProxy('QRBroadcastSchedule', QRBroadcastScheduleSchema);
+
+// ============================================================================
+// KP ASTRO HOROSCOPE CHARTS — manually entered chart data + AI-generated reading
+// ============================================================================
+const KpHoroscopeHouseSchema = new mongoose.Schema(
+  {
+    house: { type: Number, required: true, min: 1, max: 12 },
+    sign: { type: String, trim: true },
+    signLord: { type: String, trim: true },
+    star: { type: String, trim: true },
+    starLord: { type: String, trim: true },
+    subLord: { type: String, trim: true },
+    degree: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
+const KpHoroscopePlanetSchema = new mongoose.Schema(
+  {
+    planet: { type: String, trim: true, required: true }, // Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu, Ketu
+    sign: { type: String, trim: true },
+    star: { type: String, trim: true },
+    subLord: { type: String, trim: true },
+    house: { type: Number, min: 1, max: 12 },
+    degree: { type: String, trim: true },
+    retrograde: { type: Boolean, default: false },
+    combust: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+const KpHoroscopeMahadashaSchema = new mongoose.Schema(
+  {
+    planet: { type: String, trim: true, required: true },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+  },
+  { _id: false }
+);
+
+const KpHoroscopeReportSchema = new mongoose.Schema(
+  {
+    language: { type: String, enum: ['hi', 'mr', 'en'], required: true },
+    text: { type: String, required: true },
+    generatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const KpHoroscopeChatMessageSchema = new mongoose.Schema(
+  {
+    role: { type: String, enum: ['user', 'assistant'], required: true },
+    content: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const KpHoroscopeChartSchema = new mongoose.Schema(
+  {
+    personName: { type: String, trim: true, required: true },
+    gender: { type: String, trim: true },
+    dob: { type: Date },
+    birthTime: { type: String, trim: true },
+    birthPlace: { type: String, trim: true },
+
+    ascendant: {
+      sign: { type: String, trim: true },
+      degree: { type: String, trim: true },
+    },
+
+    houses: [KpHoroscopeHouseSchema],
+    planets: [KpHoroscopePlanetSchema],
+    mahadashas: [KpHoroscopeMahadashaSchema],
+
+    doshas: {
+      kalsarp: { type: Boolean, default: false },
+      pitru: { type: Boolean, default: false },
+      stri: { type: Boolean, default: false },
+      otherNotes: { type: String, trim: true, default: '' },
+    },
+
+    reports: [KpHoroscopeReportSchema],
+    chatHistory: [KpHoroscopeChatMessageSchema],
+
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'kp_horoscope_charts' }
+);
+
+KpHoroscopeChartSchema.index({ createdByUserId: 1, createdAt: -1 });
+KpHoroscopeChartSchema.index({ personName: 1 });
+
+export function getKpHoroscopeChart() { return getModel('KpHoroscopeChart', KpHoroscopeChartSchema); }
+export const KpHoroscopeChart = createModelProxy('KpHoroscopeChart', KpHoroscopeChartSchema);
