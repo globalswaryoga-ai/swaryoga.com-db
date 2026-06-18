@@ -183,9 +183,7 @@ export async function GET(request: NextRequest) {
     // JSON export for PDF/Excel downloads (ignores pagination, but enforces a safety limit)
     if (format === 'json') {
       const maxRows = 50000;
-      // Oldest to newest, so a report for "April to June" reads April first.
       const rows = await SalesReport.find(filter)
-        .sort({ batchDate: 1, saleDate: 1 })
         .limit(maxRows)
         .lean();
 
@@ -204,20 +202,26 @@ export async function GET(request: NextRequest) {
         return map[key] || key;
       };
 
-      const exportRows = rows.map((r: any) => {
-        // The date-range filter is on batchDate, so the report date follows it
-        // (falling back to saleDate for older records recorded without one).
-        const reportDate = r.batchDate || r.saleDate;
-        return {
-          date: reportDate ? new Date(reportDate).toISOString().slice(0, 10) : '',
-          name: r.customerName || '',
-          mobile: r.customerPhone || '',
-          workshop: r.workshopName || '',
-          amount: r.saleAmount ?? '',
-          bankOrCash: r.bankName ? `${paymentModeLabel(r.paymentMode)} (${r.bankName})` : paymentModeLabel(r.paymentMode),
-          transactionDetails: r.transactionId || '',
-        };
-      });
+      const exportRows = rows
+        .map((r: any) => {
+          // The date-range filter is on batchDate, so the report date follows it
+          // (falling back to saleDate for older records recorded without one).
+          const reportDate = r.batchDate || r.saleDate;
+          return {
+            date: reportDate ? new Date(reportDate).toISOString().slice(0, 10) : '',
+            name: r.customerName || '',
+            mobile: r.customerPhone || '',
+            workshop: r.workshopName || '',
+            amount: r.saleAmount ?? '',
+            bankOrCash: r.bankName ? `${paymentModeLabel(r.paymentMode)} (${r.bankName})` : paymentModeLabel(r.paymentMode),
+            transactionDetails: r.transactionId || '',
+          };
+        })
+        // Sort by the same `date` used for monthly grouping below — some sales
+        // have no batchDate and fall back to saleDate, so sorting on the raw
+        // DB field instead would scatter those rows out of date order and
+        // split a single month's total across two non-adjacent blocks.
+        .sort((a, b) => a.date.localeCompare(b.date));
 
       return formatCrmSuccess({ rows: exportRows }, { count: exportRows.length });
     }
