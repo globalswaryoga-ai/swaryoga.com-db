@@ -414,6 +414,23 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       ],
     }] : []),
 
+    // ===== KP ASTRO =====
+    {
+      key: 'kp-astro',
+      label: 'KP Astro',
+      icon: Sparkles,
+      items: [
+        {
+          icon: Sparkles,
+          label: 'KP Astro',
+          href: '/admin/crm/kp-astro',
+          color: 'text-indigo-400',
+          module: 'dashboard',
+          description: 'KP astrology rule lookup & reference tool',
+        },
+      ],
+    },
+
     // ===== LEAD & SALES MANAGEMENT =====
     {
       key: 'sales',
@@ -773,12 +790,6 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       label: 'Sadhana Scheduler',
       href: '/admin/crm/sadhana-scheduler',
       color: 'text-blue-400',
-    },
-    {
-      icon: Sparkles,
-      label: 'KP Astro',
-      href: '/admin/crm/kp-astro',
-      color: 'text-indigo-400',
     },
   ];
 
