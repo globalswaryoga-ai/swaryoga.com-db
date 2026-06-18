@@ -9,6 +9,7 @@ import {
 
 interface ReceiptData {
   _id: string;
+  leadId?: string;
   receiptNumber?: string;
   issuedAt?: string;
   customerName?: string;
@@ -28,6 +29,30 @@ interface ReceiptData {
     discountAmount?: number;
   };
 }
+
+// Mirrors the canonical invoice design (app/api/admin/crm/receipts/pdf/route.ts
+// and the sales/[id] receipt page) so this preview card never drifts from it.
+const ORG = { address: 'Maldad Road, Sangamner', phone: '+91 93099 86820', email: 'mohan@swaryoga.com' };
+const ASSETS = {
+  photo: 'https://swaryogacrm.b-cdn.net/mohan.jpg',
+  logo: 'https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png',
+};
+const ACCENT_BORDER = '#d9a26a';
+const ACCENT_TABLE = '#f39c12';
+const ACCENT_GREEN = '#5baa2f';
+const ACCENT_RED = '#d72e2e';
+const WAVE_LIGHT = '#6bb82c';
+const WAVE_DARK = '#53825d';
+const PAYMENT_MODE_LABELS: Record<string, string> = {
+  payu: 'PayU',
+  cashfree: 'Cashfree',
+  upi: 'UPI (Paytm/PhonePe/GPay)',
+  bank_transfer: 'Bank Transfer',
+  paypal: 'PayPal',
+  card: 'Card',
+  cash: 'Cash',
+  other: 'Other',
+};
 
 interface Props {
   leadId: string;
@@ -179,11 +204,20 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
 
   const fmtAmt = (n: number | undefined) =>
     `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  const fmtRs = (n: number | undefined) => `RS. ${Math.round(n || 0).toLocaleString('en-IN')}/-`;
   const fmtDate = (d: string | undefined) =>
     d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   const isPaid = (activeReceipt?.payment?.status || '').toLowerCase() === 'paid'
     || (activeReceipt?.payment?.paidAmount ?? 0) > 0;
+
+  const totalAmt = activeReceipt?.payment?.amount ?? activeReceipt?.payment?.paidAmount ?? 0;
+  const paidAmt = activeReceipt?.payment?.paidAmount ?? totalAmt;
+  const dueAmt = Math.max(0, totalAmt - paidAmt);
+  const custId = (activeReceipt?.leadId || '').toString().slice(-6) || (activeReceipt?._id || '').slice(-6);
+  const methodKey = (activeReceipt?.payment?.method || activeReceipt?.payment?.provider || '').toLowerCase();
+  const methodLabel = PAYMENT_MODE_LABELS[methodKey]
+    || (methodKey ? methodKey.charAt(0).toUpperCase() + methodKey.slice(1).replace(/_/g, ' ') : 'Bank Transfer');
 
   return (
     <div
@@ -273,110 +307,111 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
 
               {activeReceipt && (
                 <>
-                  {/* ── Invoice preview card ── */}
-                  <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-                    {/* Invoice header (mirrors PDF design) */}
-                    <div className="relative overflow-hidden" style={{ background: '#ffffff', minHeight: 90 }}>
-                      {/* Green diagonal stripe */}
-                      <div
-                        className="absolute"
-                        style={{
-                          right: -30, top: -30, width: 280, height: 130,
-                          background: '#2d6a4f',
-                          transform: 'rotate(12deg)',
-                          transformOrigin: 'top right',
-                        }}
-                      />
-                      <div className="relative flex items-start justify-between px-6 py-5">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Swar Yoga</p>
-                          <p className="font-black text-2xl text-gray-900 leading-tight">INVOICE</p>
-                          <p className="text-xs text-gray-500 mt-0.5">No: {activeReceipt.receiptNumber || activeReceipt._id}</p>
+                  {/* ── Invoice preview card (mirrors the canonical receipt design exactly) ── */}
+                  <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white">
+                    {/* Header with wave decoration */}
+                    <div className="relative overflow-hidden">
+                      <svg className="absolute top-0 left-0 w-full h-20" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
+                        <path d="M0,0 L1000,0 L1000,20 C800,30 500,110 0,150 Z" fill={WAVE_LIGHT} />
+                        <path d="M0,0 L1000,0 L1000,170 C800,165 500,70 0,30 Z" fill={WAVE_DARK} />
+                      </svg>
+                      <div className="relative flex items-end justify-between gap-4 px-6 pt-6 pb-4">
+                        <div className="flex items-center gap-3">
+                          <img src={ASSETS.photo} alt="Swar Yoga" className="w-14 h-14 rounded-full object-cover border-2 border-white shadow" />
+                          <div>
+                            <p className="text-xl font-extrabold text-gray-900 leading-tight">SWAR YOGA</p>
+                            <p className="text-[10px] text-gray-500">{ORG.address} • Mo {ORG.phone}</p>
+                            <p className="text-[10px] text-gray-500">Email: {ORG.email}</p>
+                          </div>
                         </div>
-                        <div className="text-right z-10">
-                          <p className="text-[10px] uppercase tracking-widest text-white/80 font-semibold">Date</p>
-                          <p className="text-sm font-bold text-white">{fmtDate(activeReceipt.issuedAt)}</p>
+                        <div className="text-right flex-shrink-0">
+                          <img src={ASSETS.logo} alt="" className="w-10 h-10 rounded-full object-cover ml-auto mb-1" />
+                          <p className="text-2xl font-extrabold text-gray-900">INVOICE</p>
+                          <p className="text-[10px] text-gray-500">No: {activeReceipt.receiptNumber || activeReceipt._id}</p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Orange accent bar */}
-                    <div className="h-1" style={{ background: '#e8801a' }} />
+                    <div className="h-[2px]" style={{ background: ACCENT_BORDER }} />
 
-                    {/* Customer + Amount */}
-                    <div className="grid grid-cols-2 divide-x divide-gray-100 bg-white px-6 py-4">
-                      <div className="pr-4">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Invoice To</p>
-                        <p className="text-base font-bold" style={{ color: '#1a6b55' }}>
+                    {/* Invoice To + Date/Total */}
+                    <div className="flex justify-between gap-6 px-6 py-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400">Invoice To :</p>
+                        <p className="text-sm font-bold text-gray-900 mt-0.5">ID: {custId}</p>
+                        <p className="text-lg font-bold mt-0.5" style={{ color: ACCENT_GREEN }}>
                           {activeReceipt.customerName || leadName || '—'}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {activeReceipt.customerPhone || leadPhone || ''}
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">{activeReceipt.customerPhone || leadPhone || ''}</p>
                       </div>
-                      <div className="pl-4 flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Total Amount</p>
-                        <p className="text-2xl font-black" style={{ color: '#c0392b' }}>
-                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
-                        </p>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm text-gray-700">Date: {fmtDate(activeReceipt.issuedAt)}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400 mt-3">Total Amount</p>
+                        <p className="text-2xl font-extrabold mt-0.5" style={{ color: ACCENT_RED }}>{fmtRs(totalAmt)}</p>
                       </div>
                     </div>
 
-                    {/* Workshop row */}
-                    <div className="border-t border-gray-100">
-                      {/* Table header */}
-                      <div className="grid grid-cols-4 px-6 py-2" style={{ background: '#e8801a' }}>
-                        {['WORKSHOP', 'QTY', 'AMOUNT', 'TOTAL'].map(h => (
-                          <p key={h} className="text-[10px] font-bold text-white uppercase tracking-wide">{h}</p>
-                        ))}
-                      </div>
-                      {/* Table row */}
-                      <div className="grid grid-cols-4 px-6 py-3 bg-white border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-900 col-span-1 truncate pr-2">
-                          {activeReceipt.workshopName || '—'}
-                        </p>
-                        <p className="text-sm text-gray-700">1</p>
-                        <p className="text-sm text-gray-700">
-                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
-                        </p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
-                        </p>
-                      </div>
-                      {/* Payment row */}
-                      <div className="grid grid-cols-4 px-6 py-3 bg-gray-50 border-b border-gray-100">
-                        <p className="text-xs text-gray-500 col-span-2">
-                          {activeReceipt.payment?.method
-                            ? `Via ${activeReceipt.payment.method.replace(/_/g, ' ')}`
-                            : 'Payment received'}
-                          {activeReceipt.payment?.paidAt ? ` · ${fmtDate(activeReceipt.payment.paidAt)}` : ''}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
-                        </p>
-                        <p className="text-xs font-semibold text-gray-700">
-                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
-                        </p>
-                      </div>
-                    </div>
+                    {/* Fee table */}
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr style={{ background: ACCENT_TABLE }}>
+                          <th className="py-2 px-4 text-left text-[10px] font-bold text-white uppercase">Workshop</th>
+                          <th className="py-2 px-4 text-center text-[10px] font-bold text-white uppercase">Person</th>
+                          <th className="py-2 px-4 text-center text-[10px] font-bold text-white uppercase">Fees</th>
+                          <th className="py-2 px-4 text-right text-[10px] font-bold text-white uppercase">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-sm text-gray-700">
+                        <tr>
+                          <td className="py-2.5 px-4 font-semibold text-gray-900" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{activeReceipt.workshopName || 'Workshop'}</td>
+                          <td className="py-2.5 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}>1</td>
+                          <td className="py-2.5 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{Math.round(paidAmt).toLocaleString('en-IN')}/-</td>
+                          <td className="py-2.5 px-4 text-right" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
+                        </tr>
+                        <tr className="bg-gray-50">
+                          <td className="py-2.5 px-4 text-gray-500 text-xs" style={{ border: `1px solid ${ACCENT_BORDER}` }}>
+                            Received on the date of- {fmtDate(activeReceipt.payment?.paidAt || activeReceipt.issuedAt)}{methodKey ? ` (${methodKey})` : ''}
+                          </td>
+                          <td className="py-2.5 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
+                          <td className="py-2.5 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{Math.round(paidAmt).toLocaleString('en-IN')}/-</td>
+                          <td className="py-2.5 px-4 text-right" style={{ border: `1px solid ${ACCENT_BORDER}` }}>{Math.round(paidAmt).toLocaleString('en-IN')}</td>
+                        </tr>
+                        {dueAmt > 0 && (
+                          <tr>
+                            <td className="py-2.5 px-4 font-semibold text-gray-900" style={{ border: `1px solid ${ACCENT_BORDER}` }}>Amount Receivable</td>
+                            <td className="py-2.5 px-4 text-center" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
+                            <td className="py-2.5 px-4 text-center font-semibold" style={{ border: `1px solid ${ACCENT_BORDER}`, color: ACCENT_RED }}>{Math.round(dueAmt).toLocaleString('en-IN')}/-</td>
+                            <td className="py-2.5 px-4 text-right" style={{ border: `1px solid ${ACCENT_BORDER}` }}></td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
 
-                    {/* Totals + Status */}
-                    <div className="flex items-center justify-between px-6 py-4 bg-white">
-                      {/* Status pill */}
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                        isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {isPaid
-                          ? <CheckCircle className="h-3.5 w-3.5" />
-                          : <Clock className="h-3.5 w-3.5" />}
-                        {isPaid ? 'PAID' : 'UNPAID'}
+                    {/* Payment method + totals */}
+                    <div className="flex justify-between items-start gap-6 px-6 py-4">
+                      <div>
+                        <p className="font-bold text-sm text-gray-900">Payment Method :</p>
+                        <p className="text-sm text-gray-700 mt-0.5">{methodLabel}</p>
+                        <div className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                          isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                        }`}>
+                          {isPaid ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                          {isPaid ? 'PAID' : 'UNPAID'}
+                        </div>
                       </div>
-                      {/* Total box */}
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase text-gray-400 tracking-wider">Grand Total</p>
-                        <p className="text-lg font-black" style={{ color: '#e8801a' }}>
-                          {fmtAmt(activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount)}
-                        </p>
+                      <div className="w-40 flex-shrink-0 text-xs">
+                        <div className="flex justify-between py-1.5 text-gray-700">
+                          <span>Sub Total</span>
+                          <span>{Math.round(paidAmt).toLocaleString('en-IN')}/-</span>
+                        </div>
+                        <div className="flex justify-between py-1.5 text-gray-700 border-t" style={{ borderColor: ACCENT_BORDER }}>
+                          <span>Tax</span>
+                          <span>0</span>
+                        </div>
+                        <div className="flex justify-between py-2 px-2 font-bold text-sm text-white" style={{ background: ACCENT_TABLE }}>
+                          <span>Total</span>
+                          <span>{Math.round(paidAmt).toLocaleString('en-IN')}/-</span>
+                        </div>
                       </div>
                     </div>
 
