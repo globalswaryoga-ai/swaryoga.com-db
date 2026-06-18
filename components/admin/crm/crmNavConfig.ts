@@ -76,6 +76,7 @@ import {
   CalendarDays,
   Bell,
   Moon,
+  Sparkles,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -669,6 +670,28 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Integrations', href: '/admin/crm/integrations', icon: Plug },
     ],
     prefixes: ['/admin/crm/connections'],
+  },
+
+  // KP Astro — professional astrologer workbench (birth + horary + matchmaking)
+  {
+    key: 'kp-astro',
+    title: 'KP Astro',
+    icon: Moon,
+    items: [
+      { label: 'Data Entry',         href: '/admin/crm/kp-astro/data-entry',              icon: ClipboardList },
+      { label: 'Astrologer Workspace', href: '/admin/crm/kp-astro/workspace',              icon: BookOpen },
+      { label: 'Horary Workspace',   href: '/admin/crm/kp-astro/horary-workspace',         icon: Eye },
+      { label: 'Final Prediction',   href: '/admin/crm/kp-astro/final-prediction',         icon: Sparkles },
+    ],
+    moreItems: [
+      { label: 'Matchmaking Data',       href: '/admin/crm/kp-astro/matchmaking/data-entry',       icon: Heart },
+      { label: 'Matchmaking Workspace',  href: '/admin/crm/kp-astro/matchmaking/workspace',        icon: Heart },
+      { label: 'Matchmaking Prediction', href: '/admin/crm/kp-astro/matchmaking/final-prediction', icon: Heart },
+      { label: 'Export (A4 PDF)',    href: '/admin/crm/kp-astro/export',                  icon: FileText },
+      { label: 'Toolkit',            href: '/admin/crm/kp-astro',                          icon: Sparkles },
+      { label: 'All Birth Charts',   href: '/admin/crm/kp-astro/charts',                   icon: Users },
+    ],
+    prefixes: ['/admin/crm/kp-astro'],
   },
 
   // Integration Hub — tabs filtered per bundle

@@ -4286,9 +4286,11 @@ const KpHoroscopeMahadashaSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// hi/mr/en plus 10 more major Indian languages (gu/bn/ta/te/kn/ml/pa/or/as/ur)
+// — see KP_LANGUAGES in lib/kpAstro/languages.ts for the single source of truth.
 const KpHoroscopeReportSchema = new mongoose.Schema(
   {
-    language: { type: String, enum: ['hi', 'mr', 'en'], required: true },
+    language: { type: String, enum: ['hi', 'mr', 'en', 'gu', 'bn', 'ta', 'te', 'kn', 'ml', 'pa', 'or', 'as', 'ur'], required: true },
     text: { type: String, required: true },
     generatedAt: { type: Date, default: Date.now },
   },
@@ -4433,6 +4435,11 @@ KpHoroscopeChartSchema.add({
   bhavAnalysis: { type: [KpBhavAnalysisSchema], default: [] },
   dashaPeriods: { type: [KpDashaPeriodSchema], default: [] },
   rulingPlanets: { type: KpRulingPlanetsSchema, default: undefined },
+  // Current real-life facts the astrologer knows about the native (already
+  // married, already settled abroad, etc.) — the final-prediction AI step
+  // must reconcile astrological indications against these, not predict an
+  // already-past or already-fulfilled life event.
+  lifeStageNotes: { type: String, trim: true, default: '' },
 });
 
 // --- Horary (Prashna Kundali) ---

@@ -70,6 +70,7 @@ export default function KpHoroscopeChartsPage() {
   const [houses, setHouses] = useState<HouseRow[]>(emptyHouses());
   const [planets, setPlanets] = useState<PlanetRow[]>(emptyPlanets());
   const [mahadashas, setMahadashas] = useState<MahadashaRow[]>([{ planet: '', startDate: '', endDate: '' }]);
+  const [dashaPeriods, setDashaPeriods] = useState<any[]>([]);
   const [kalsarp, setKalsarp] = useState(false);
   const [pitru, setPitru] = useState(false);
   const [stri, setStri] = useState(false);
@@ -112,6 +113,7 @@ export default function KpHoroscopeChartsPage() {
     setAscendantSign(''); setAscendantDegree('');
     setHouses(emptyHouses()); setPlanets(emptyPlanets());
     setMahadashas([{ planet: '', startDate: '', endDate: '' }]);
+    setDashaPeriods([]);
     setKalsarp(false); setPitru(false); setStri(false); setOtherNotes('');
   };
 
@@ -146,6 +148,7 @@ export default function KpHoroscopeChartsPage() {
         retrograde: false, combust: false,
       })));
       setMahadashas(data.mahadashas.map((m: any) => ({ planet: m.planet, startDate: m.startDate, endDate: m.endDate })));
+      setDashaPeriods(Array.isArray(data.dashaPeriods) ? data.dashaPeriods : []);
     } catch (e) {
       setCalcError(e instanceof Error ? e.message : 'Calculation failed');
     } finally {
@@ -177,6 +180,7 @@ export default function KpHoroscopeChartsPage() {
             .filter((m) => m.planet && m.startDate && m.endDate)
             .map((m) => ({ planet: m.planet, startDate: m.startDate, endDate: m.endDate })),
           doshas: { kalsarp, pitru, stri, otherNotes },
+          dashaPeriods,
         }),
       });
       const json = await res.json();

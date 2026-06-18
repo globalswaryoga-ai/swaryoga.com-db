@@ -6,10 +6,9 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getKpHoroscopeChart } from '@/lib/schemas/enterpriseSchemas';
 import { buildChartContext } from '@/lib/kpAstro/buildChartContext';
 import { callAI, type ChatTurn } from '@/lib/kpAstro/aiClient';
+import { KP_LANGUAGE_CODES, KP_LANGUAGE_NAMES } from '@/lib/kpAstro/languages';
 
 export const dynamic = 'force-dynamic';
-
-const LANGUAGE_NAMES: Record<string, string> = { hi: 'Hindi', mr: 'Marathi', en: 'English' };
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const body = await request.json().catch(() => ({} as any));
     const message = String(body?.message || '').trim();
     const history: ChatTurn[] = Array.isArray(body?.history) ? body.history : [];
-    const language: string = ['hi', 'mr', 'en'].includes(body?.language) ? body.language : 'hi';
+    const language: string = KP_LANGUAGE_CODES.includes(body?.language) ? body.language : 'hi';
 
     if (!message) return NextResponse.json({ error: 'Message is required' }, { status: 400 });
 
@@ -46,7 +45,7 @@ CHART DATA (ground truth — do not invent planetary facts beyond it):
 ${context}
 
 RULES:
-- Answer in ${LANGUAGE_NAMES[language]} unless the astrologer's question is in a different language, in which case match their language.
+- Answer in ${KP_LANGUAGE_NAMES[language]} unless the astrologer's question is in a different language, in which case match their language.
 - Ground every answer in the data above (houses, sub lords, planets, Mahadasha, doshas). If the question needs data not provided, say so and suggest what's missing.
 - Speak to the astrologer (not the client) — you can be technical about KP rules, sub lords, and significators.
 - Keep answers focused; expand only if the astrologer asks for detail.`;

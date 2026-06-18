@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { computeChart } from '@/lib/kpAstro/ephemeris';
-import { computeVimshottariDasha } from '@/lib/kpAstro/vimshottariDasha';
+import { computeVimshottariDasha, computeDashaTree } from '@/lib/kpAstro/vimshottariDasha';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
     const moon = chart.planets.find((p) => p.planet === 'Moon');
     const birthDate = new Date(Date.UTC(year, month - 1, day, hour - utcOffsetHours, minute));
     const mahadashas = moon ? computeVimshottariDasha(moon.siderealLongitude, birthDate) : [];
+    // Eager Maha->Antar->Pratyantar tree (819 rows/cycle); Sookshma/Prana are
+    // computed on-demand later since their count explodes (59,000+ for a lifetime).
+    const dashaPeriods = moon ? computeDashaTree(moon.siderealLongitude, birthDate, 'pratyantar', 1) : [];
 
     return NextResponse.json({
       success: true,
@@ -64,9 +67,10 @@ export async function POST(request: NextRequest) {
           house: h.house, sign: h.sign, signLord: h.signLord, star: h.star, starLord: h.starLord, subLord: h.subLord, degree: h.degree,
         })),
         planets: chart.planets.map((p) => ({
-          planet: p.planet, sign: p.sign, star: p.star, subLord: p.subLord, house: p.house, degree: p.degree,
+          planet: p.planet, sign: p.sign, star: p.star, subLord: p.subLord, house: p.house, degree: p.degree, retrograde: p.retrograde,
         })),
         mahadashas,
+        dashaPeriods,
       },
     }, { status: 200 });
   } catch (error) {

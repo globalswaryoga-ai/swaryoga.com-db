@@ -6,10 +6,9 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getKpHoroscopeChart } from '@/lib/schemas/enterpriseSchemas';
 import { buildChartContext, buildSectionPromptList } from '@/lib/kpAstro/buildChartContext';
 import { callAI } from '@/lib/kpAstro/aiClient';
+import { KP_LANGUAGE_CODES, KP_LANGUAGE_NAMES } from '@/lib/kpAstro/languages';
 
 export const dynamic = 'force-dynamic';
-
-const LANGUAGE_NAMES: Record<string, string> = { hi: 'Hindi', mr: 'Marathi', en: 'English' };
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -26,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const body = await request.json().catch(() => ({} as any));
-    const language: string = ['hi', 'mr', 'en'].includes(body?.language) ? body.language : 'hi';
+    const language: string = KP_LANGUAGE_CODES.includes(body?.language) ? body.language : 'hi';
 
     await connectDB();
 
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 CHART DATA (manually entered by the astrologer from their chart-casting software — treat this as ground truth, do not invent any planetary facts beyond it):
 ${context}
 
-TASK: Write the full reading entirely in ${LANGUAGE_NAMES[language]}, addressing the reader as "sadhak" (or the ${LANGUAGE_NAMES[language]} equivalent), in a warm, respectful, personal tone — similar to how a trusted family astrologer would write.
+TASK: Write the full reading entirely in ${KP_LANGUAGE_NAMES[language]}, addressing the reader as "sadhak" (or the ${KP_LANGUAGE_NAMES[language]} equivalent), in a warm, respectful, personal tone — similar to how a trusted family astrologer would write.
 
 Cover exactly these sections, in this order, each with its own clear heading:
 ${sectionList}

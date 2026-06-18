@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getKpHoroscopeChart } from '@/lib/schemas/enterpriseSchemas';
+import { getKpHoraryChart } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     await connectDB();
 
-    const KpHoroscopeChart = getKpHoroscopeChart();
-    const chart = await (KpHoroscopeChart as any).findById(id).lean();
+    const KpHoraryChart = getKpHoraryChart();
+    const chart = await (KpHoraryChart as any).findById(id).lean();
     if (!chart) return NextResponse.json({ error: 'Chart not found' }, { status: 404 });
 
     return NextResponse.json({ success: true, data: chart }, { status: 200 });
@@ -56,15 +56,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const body = await request.json().catch(() => ({} as any));
     const updates: Record<string, any> = {};
-    for (const key of ['personName', 'gender', 'birthTime', 'birthPlace', 'ascendant', 'houses', 'planets', 'mahadashas', 'doshas', 'chartStyle', 'bhavAnalysis', 'dashaPeriods', 'rulingPlanets', 'lifeStageNotes']) {
+    for (const key of ['questionText', 'querentName', 'chartStyle', 'bhavAnalysis', 'dashaPeriods', 'rulingPlanets']) {
       if (body?.[key] !== undefined) updates[key] = body[key];
     }
-    if (body?.dob !== undefined) updates.dob = body.dob ? new Date(body.dob) : undefined;
 
     await connectDB();
 
-    const KpHoroscopeChart = getKpHoroscopeChart();
-    const chart = await (KpHoroscopeChart as any).findByIdAndUpdate(id, { $set: updates }, { new: true }).lean();
+    const KpHoraryChart = getKpHoraryChart();
+    const chart = await (KpHoraryChart as any).findByIdAndUpdate(id, { $set: updates }, { new: true }).lean();
     if (!chart) return NextResponse.json({ error: 'Chart not found' }, { status: 404 });
 
     return NextResponse.json({ success: true, data: chart }, { status: 200 });
@@ -86,8 +85,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     await connectDB();
 
-    const KpHoroscopeChart = getKpHoroscopeChart();
-    const deleted = await (KpHoroscopeChart as any).findByIdAndDelete(id).lean();
+    const KpHoraryChart = getKpHoraryChart();
+    const deleted = await (KpHoraryChart as any).findByIdAndDelete(id).lean();
     if (!deleted) return NextResponse.json({ error: 'Chart not found' }, { status: 404 });
 
     return NextResponse.json({ success: true }, { status: 200 });

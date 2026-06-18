@@ -1,5 +1,7 @@
-// Audio buffer -> Gemini pipeline, split into three deliberately separate,
-// strict stages so nothing gets silently invented along the way:
+// Audio buffer -> text pipeline (OpenAI/Anthropic primary, Gemini kept as a
+// last-resort fallback — see generateTextWithFallback/transcribeAudio below),
+// split into three deliberately separate, strict stages so nothing gets
+// silently invented along the way:
 //
 // 1. transcribeAudio        — raw transcript, verbatim, source language only.
 // 2. correctTranscript      — fixes grammar/STT mistakes and removes filler,
@@ -127,11 +129,11 @@ async function generateText(parts: any[], maxOutputTokens = 8192, attempt = 1): 
   return text;
 }
 
-// Whisper fallback for transcription only — used when Gemini fails (e.g.
-// the free tier's daily cap) and OPENAI_API_KEY is configured. Whisper's
-// endpoint caps uploads at 25MB, which is fine for the buffer sizes this
-// pipeline has seen so far but won't hold for a full ~1hr workshop recording
-// at high bitrate — acceptable since this is a fallback path, not primary.
+// Primary transcription path (requires OPENAI_API_KEY). Whisper's endpoint
+// caps uploads at 25MB, which is fine for the buffer sizes this pipeline has
+// seen so far but won't hold for a full ~1hr workshop recording at high
+// bitrate — if that becomes a real problem, the Gemini Files API fallback
+// in transcribeAudio() above has no such cap.
 async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
@@ -152,28 +154,32 @@ async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
   return data.text;
 }
 
-// Text-only stages fall back to OpenAI (via the shared helper) if Gemini
-// fails and OPENAI_API_KEY is configured, instead of just erroring out.
+// Text-only stages: OpenAI/Anthropic first, Gemini last. Gemini's free-tier
+// quota (20 requests/day, shared across every feature using this one key —
+// KP Astro, Tally, translate, RAG-Video) made it unreliable as a primary
+// here specifically, since RAG-Video's prompts are large (full transcripts)
+// and this pipeline runs multiple stages per job. OpenAI/Anthropic are tried
+// first via the shared cascading helper; Gemini stays configured as a last
+// resort rather than being removed outright.
 async function generateTextWithFallback(promptText: string, maxOutputTokens = 8192): Promise<string> {
-  try {
-    return await generateText([{ text: promptText }], maxOutputTokens);
-  } catch (geminiError) {
-    if (!process.env.OPENAI_API_KEY) throw geminiError;
-    const { generateAIText } = await import('@/lib/ai/generateWithFallback');
-    return generateAIText({ message: promptText, maxOutputTokens });
-  }
+  const { generateAIText } = await import('@/lib/ai/generateWithFallback');
+  return generateAIText({ message: promptText, maxOutputTokens, providerOrder: ['OpenAI', 'Anthropic', 'Gemini'] });
 }
 
-// Stage 1: verbatim transcript, source language, no cleanup.
+// Stage 1: verbatim transcript, source language, no cleanup. Whisper first
+// (same reasoning as generateTextWithFallback above — Gemini's shared quota
+// makes it unreliable as primary here), Gemini's Files API as a fallback
+// for when OPENAI_API_KEY isn't configured or Whisper itself fails.
 export async function transcribeAudio(audio: ExtractedAudio, topicTitle: string): Promise<string> {
-  const prompt = `This audio is a recorded workshop session titled "${topicTitle}". Transcribe it verbatim, in the language it was spoken in. Do not summarize, translate, or clean it up — output the raw transcript only.`;
   try {
+    if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured');
+    return await transcribeViaWhisper(audio);
+  } catch (whisperError) {
+    if (!process.env.GEMINI_API_KEY) throw whisperError;
+    const prompt = `This audio is a recorded workshop session titled "${topicTitle}". Transcribe it verbatim, in the language it was spoken in. Do not summarize, translate, or clean it up — output the raw transcript only.`;
     const apiKey = getApiKey();
     const fileUri = await uploadAudioToGemini(audio.buffer, audio.mimeType, topicTitle, apiKey);
     return await generateText([{ text: prompt }, { file_data: { mime_type: audio.mimeType, file_uri: fileUri } }]);
-  } catch (geminiError) {
-    if (!process.env.OPENAI_API_KEY) throw geminiError;
-    return transcribeViaWhisper(audio);
   }
 }
 

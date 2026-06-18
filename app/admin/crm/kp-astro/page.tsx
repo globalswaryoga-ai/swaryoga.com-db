@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Sparkles, Shuffle, Info } from 'lucide-react';
+import { Sparkles, Shuffle, Info, RefreshCw, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
+import { useAuth } from '@/hooks/useAuth';
 import {
   basicRules,
   getSubRow,
@@ -14,6 +15,75 @@ import {
   professionsByNo,
   aspectRules,
 } from '@/lib/kpAstro';
+
+interface RulingPlanetsSnapshot {
+  capturedAt: string; dayLord: string;
+  lagnaSign: string; lagnaSignLord: string; lagnaStarLord: string; lagnaSubLord: string;
+  moonSign: string; moonSignLord: string; moonStarLord: string; moonSubLord: string;
+  retrogradePlanets: string[];
+}
+
+function RulingPlanetsNow() {
+  const token = useAuth();
+  const [rp, setRp] = useState<RulingPlanetsSnapshot | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [latitude, setLatitude] = useState('18.5204');
+  const [longitude, setLongitude] = useState('73.8567');
+  const [utcOffsetHours, setUtcOffsetHours] = useState('5.5');
+
+  const fetchNow = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/crm/kp-astro/ruling-planets/now?latitude=${latitude}&longitude=${longitude}&utcOffsetHours=${utcOffsetHours}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (res.ok) setRp(json.data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNow();
+    const interval = setInterval(fetchNow, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Clock className="h-4 w-4 text-indigo-500" /> Ruling Planets — Right Now</h2>
+        <div className="flex items-center gap-2">
+          <input value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="Lat" className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+          <input value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="Lon" className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+          <input value={utcOffsetHours} onChange={(e) => setUtcOffsetHours(e.target.value)} placeholder="UTC+" className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+          <button type="button" onClick={fetchNow} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {rp && (
+        <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+          <span className="text-gray-500">Day Lord: <b className="text-gray-900">{rp.dayLord}</b></span>
+          <span className="text-gray-500">Lagna: <b className="text-gray-900">{rp.lagnaSign}</b></span>
+          <span className="text-gray-500">Lagna Sign Lord: <b className="text-gray-900">{rp.lagnaSignLord}</b></span>
+          <span className="text-gray-500">Lagna Star Lord: <b className="text-gray-900">{rp.lagnaStarLord}</b></span>
+          <span className="text-gray-500">Lagna Sub Lord: <b className="text-indigo-600">{rp.lagnaSubLord}</b></span>
+          <span className="text-gray-500">Moon Sign: <b className="text-gray-900">{rp.moonSign}</b></span>
+          <span className="text-gray-500">Moon Sign Lord: <b className="text-gray-900">{rp.moonSignLord}</b></span>
+          <span className="text-gray-500">Moon Star Lord: <b className="text-gray-900">{rp.moonStarLord}</b></span>
+          <span className="text-gray-500">Moon Sub Lord: <b className="text-indigo-600">{rp.moonSubLord}</b></span>
+          {!!rp.retrogradePlanets?.length && <span className="text-amber-600 sm:col-span-2">Retrograde: {rp.retrogradePlanets.join(', ')}</span>}
+        </div>
+      )}
+      <p className="text-xs text-gray-400">Updates every 5 minutes — used for live horary corroboration, not stored anywhere until you cast a horary chart.</p>
+    </div>
+  );
+}
 
 const HOUSE_TEXT_SOURCES: Record<number, { label: string; data: Record<string, string> }> = {
   3: { label: 'Mindset (3rd house)', data: mindsetByNo },
@@ -73,13 +143,15 @@ export default function KpAstroPage() {
         }
       />
 
+      <RulingPlanetsNow />
+
       <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
         <p>
-          This is a reference lookup, not a chart-casting predictor. Sign/Star/Sub Lord and
-          house data below come straight from the rulebook, but a real verdict needs actual
-          planetary positions for the moment of the query (an ephemeris) — that part isn&apos;t
-          built yet.
+          This panel below is a static rulebook reference lookup (matter → house → sub-lord
+          interpretation text). For a real chart-cast verdict with actual planetary positions,
+          use <Link href="/admin/crm/kp-astro/horary" className="underline font-medium">Horary</Link> or{' '}
+          <Link href="/admin/crm/kp-astro/charts" className="underline font-medium">Birth Charts</Link> instead.
         </p>
       </div>
 

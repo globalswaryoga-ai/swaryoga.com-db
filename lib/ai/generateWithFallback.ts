@@ -8,8 +8,10 @@
 // on gemini-2.5-flash from real use, breaking KP Astro, Tally chat, and
 // RAG-Video simultaneously since they all share one key.
 //
-// Fallback order: Gemini -> Anthropic -> OpenAI. Both fallbacks are
-// optional and independent — configure either or both.
+// Default fallback order: Gemini -> Anthropic -> OpenAI. Both fallbacks are
+// optional and independent — configure either or both. Callers can pass
+// `providerOrder` to override this per call (see RAG-Video's
+// transcribeAndCondense.ts, which puts Gemini last).
 
 export interface AiHistoryTurn {
   role: 'user' | 'assistant';
@@ -22,6 +24,11 @@ export interface GenerateTextParams {
   message: string;
   maxOutputTokens?: number;
   temperature?: number;
+  // Override the default Gemini-first order — e.g. RAG-Video passes
+  // ['Anthropic', 'OpenAI', 'Gemini'] since Gemini's shared free-tier quota
+  // (20/day across every feature using this one key) made it unreliable as
+  // a primary there. Unrecognized/omitted names fall back to default order.
+  providerOrder?: string[];
 }
 
 function sleep(ms: number): Promise<void> {
@@ -143,11 +150,15 @@ async function callOpenAI(params: GenerateTextParams): Promise<string> {
 // those have a configured key. Throws only if every configured provider
 // fails (or none are configured at all).
 export async function generateAIText(params: GenerateTextParams): Promise<string> {
-  const providers: Array<{ name: string; configured: boolean; call: () => Promise<string> }> = [
-    { name: 'Gemini', configured: Boolean(process.env.GEMINI_API_KEY), call: () => callGemini(params) },
-    { name: 'Anthropic', configured: Boolean(process.env.ANTHROPIC_API_KEY), call: () => callAnthropic(params) },
-    { name: 'OpenAI', configured: Boolean(process.env.OPENAI_API_KEY), call: () => callOpenAI(params) },
-  ].filter((p) => p.configured);
+  const allProviders: Record<string, { configured: boolean; call: () => Promise<string> }> = {
+    Gemini: { configured: Boolean(process.env.GEMINI_API_KEY), call: () => callGemini(params) },
+    Anthropic: { configured: Boolean(process.env.ANTHROPIC_API_KEY), call: () => callAnthropic(params) },
+    OpenAI: { configured: Boolean(process.env.OPENAI_API_KEY), call: () => callOpenAI(params) },
+  };
+  const order = params.providerOrder?.filter((name) => allProviders[name]) || ['Gemini', 'Anthropic', 'OpenAI'];
+  const providers = order
+    .map((name) => ({ name, ...allProviders[name] }))
+    .filter((p) => p.configured);
 
   if (!providers.length) {
     throw new Error('AI is not configured — add GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to your environment variables.');
