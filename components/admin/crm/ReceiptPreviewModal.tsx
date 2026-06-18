@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X, Download, Mail, Send, FileText, Loader2, AlertCircle, Plus,
-  ExternalLink, CheckCircle, Clock,
+  ExternalLink, CheckCircle, Clock, ChevronDown, QrCode,
 } from 'lucide-react';
 
 interface ReceiptData {
@@ -46,6 +46,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
+  const [whatsappMenuOpen, setWhatsappMenuOpen] = useState(false);
 
   // Generates a receipt, or — when one already exists but is stale (missing
   // the amount a real sale already has) — refreshes it in place.
@@ -154,14 +155,14 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     }
   };
 
-  const sendViaWhatsApp = () => {
+  const sendViaWhatsApp = (channel: 'meta' | 'qr') => {
     if (!activeReceipt) return;
     const phone = (leadPhone || activeReceipt.customerPhone || '').replace(/\D/g, '');
     const params = new URLSearchParams();
     params.set('phone', phone);
     params.set('receiptId', activeReceipt._id);
     if (leadName || activeReceipt.customerName) params.set('name', leadName || activeReceipt.customerName || '');
-    router.push(`/admin/crm/meta?${params.toString()}`);
+    router.push(`/admin/crm/${channel}?${params.toString()}`);
     onClose();
   };
 
@@ -433,14 +434,35 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
         {/* ── Footer actions ── */}
         {activeReceipt && (
           <div className="border-t border-gray-100 px-6 py-4 bg-gray-50/50 flex items-center gap-3 flex-wrap">
-            <button
-              onClick={sendViaWhatsApp}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition hover:opacity-90"
-              style={{ background: '#25D366' }}
-            >
-              <Send className="h-4 w-4" />
-              WhatsApp
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setWhatsappMenuOpen((v) => !v)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition hover:opacity-90"
+                style={{ background: '#25D366' }}
+              >
+                <Send className="h-4 w-4" />
+                WhatsApp
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              {whatsappMenuOpen && (
+                <div className="absolute bottom-full mb-2 left-0 w-44 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden z-10">
+                  <button
+                    onClick={() => { setWhatsappMenuOpen(false); sendViaWhatsApp('meta'); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    <Send className="h-4 w-4 text-emerald-600" />
+                    Via Meta
+                  </button>
+                  <button
+                    onClick={() => { setWhatsappMenuOpen(false); sendViaWhatsApp('qr'); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition border-t border-gray-100"
+                  >
+                    <QrCode className="h-4 w-4 text-indigo-600" />
+                    Via QR
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={sendViaEmail}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
