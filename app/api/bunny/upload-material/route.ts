@@ -10,9 +10,16 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const BUNNY_API_KEY = process.env.BUNNY_API_KEY;
-const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE || 'swaryoga-materials';
-const BUNNY_CDN_URL = process.env.BUNNY_CDN_URL || 'https://swaryoga-materials.b-cdn.net';
+// BUNNY_API_KEY is the Bunny Stream product's key (used elsewhere in this
+// codebase for video library calls) — Storage zone PUTs need the Storage
+// product's own key instead, confirmed live: BUNNY_API_KEY gets 401 against
+// this zone, BUNNY_STORAGE_API_KEY gets 200. Same zone/key/CDN-host pairing
+// lib/bunny-storage.ts already uses.
+const BUNNY_API_KEY = process.env.BUNNY_STORAGE_API_KEY || process.env.BUNNY_STORAGE_KEY;
+const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE_NAME || 'swaryogadb';
+const BUNNY_CDN_URL = process.env.BUNNY_STORAGE_CDN_HOST
+  ? `https://${process.env.BUNNY_STORAGE_CDN_HOST}`
+  : 'https://swaryogacrm.b-cdn.net';
 
 function checkSuperAdminAccess(decoded: any | null): boolean {
   if (!decoded) return false;

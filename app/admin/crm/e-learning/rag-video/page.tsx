@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2, User, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
 
 const LANGUAGE_OPTIONS = [
   { code: 'hi', name: 'Hindi' },
@@ -266,6 +266,49 @@ export default function RagAndVideoPage() {
     fetchJobs();
   };
 
+  const insertAvatarMarker = (language: string) => {
+    const script = selectedJob?.scripts.find((s) => s.language === language);
+    if (!script) return;
+    updateScript(language, { text: `${script.text}\n\n[AVATAR]\n` });
+  };
+
+  const markerFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingMarker, setPendingMarker] = useState<{ language: string; mode: 'slide' | 'video' } | null>(null);
+  const [insertingMarkerFor, setInsertingMarkerFor] = useState<string>('');
+
+  const triggerMarkerUpload = (language: string, mode: 'slide' | 'video') => {
+    setPendingMarker({ language, mode });
+    markerFileInputRef.current?.click();
+  };
+
+  const handleMarkerFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !pendingMarker || !token) return;
+    const { language, mode } = pendingMarker;
+    setPendingMarker(null);
+    setInsertingMarkerFor(language);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/bunny/upload-material', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      const script = selectedJob?.scripts.find((s) => s.language === language);
+      if (!script) return;
+      const marker = mode === 'slide' ? `[SLIDE: ${data.url}]` : `[VIDEO: ${data.url}]`;
+      updateScript(language, { text: `${script.text}\n\n${marker}\n` });
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to upload slide/video');
+    } finally {
+      setInsertingMarkerFor('');
+    }
+  };
+
   const handleSaveCorrection = async () => {
     if (!token || !selectedJob) return;
     const res = await fetch(`/api/admin/e-learning/ai-video/jobs/${selectedJob._id}`, {
@@ -457,6 +500,13 @@ export default function RagAndVideoPage() {
 
   return (
     <div className="min-h-screen bg-black p-6">
+      <input
+        type="file"
+        ref={markerFileInputRef}
+        accept={pendingMarker?.mode === 'video' ? 'video/*' : 'image/*'}
+        onChange={handleMarkerFileSelected}
+        className="hidden"
+      />
       <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/admin/crm/e-learning" className="w-10 h-10 bg-gray-900/50 border border-gray-800 rounded-xl flex items-center justify-center hover:border-gray-600 transition-colors">
@@ -816,11 +866,36 @@ export default function RagAndVideoPage() {
                         Approved
                       </label>
                     </div>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Mark visual changes inline: place the cursor at the end and click a button below to append a marker. Between markers, the avatar talks full-frame; after a Slide/Video marker, the avatar shrinks to a corner while that image/video fills the background.
+                    </p>
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={() => insertAvatarMarker(script.language)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        <User size={13} /> Avatar
+                      </button>
+                      <button
+                        onClick={() => triggerMarkerUpload(script.language, 'slide')}
+                        disabled={insertingMarkerFor === script.language}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        {insertingMarkerFor === script.language ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />} + Slide
+                      </button>
+                      <button
+                        onClick={() => triggerMarkerUpload(script.language, 'video')}
+                        disabled={insertingMarkerFor === script.language}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        {insertingMarkerFor === script.language ? <Loader2 size={13} className="animate-spin" /> : <VideoIcon size={13} />} + Video
+                      </button>
+                    </div>
                     <textarea
                       value={script.text}
                       onChange={(e) => updateScript(script.language, { text: e.target.value })}
                       rows={8}
-                      className="w-full bg-black border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 mb-3"
+                      className="w-full bg-black border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 mb-3 font-mono"
                     />
                     <button
                       onClick={() => saveScript(script.language)}
