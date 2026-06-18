@@ -17,6 +17,7 @@ import { getSalesReport, getLead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
 import { notifyRefundSuccessful, notifyAmountReceived } from '@/lib/notifications';
+import { autoLeadForSale } from '@/lib/crm/autoLead';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
@@ -406,10 +407,21 @@ export async function POST(request: NextRequest) {
     const saleDate = new Date();
     const receiptNumber = await generateInvoiceNumber(saleDate);
 
+    // Every sale should be traceable to a lead. If none was supplied, find/create
+    // one automatically (by phone if given, otherwise a synthetic placeholder).
+    const resolvedLeadId = leadId
+      ? toObjectId(leadId)
+      : await autoLeadForSale({
+          tenantUserId: adminUserId,
+          name: safeCustomerName,
+          phone: safeCustomerPhone,
+          workshopName: safeWorkshopName,
+        });
+
     const sale = await SalesReport.create({
       saleId: saleId || undefined,
       userId: reporterObjectId,
-      leadId: leadId ? toObjectId(leadId) : undefined,
+      leadId: resolvedLeadId || undefined,
       saleAmount: Number(saleAmount),
       paymentMode: safePaymentMode,
       ...(safeTransactionId ? { transactionId: safeTransactionId } : {}),

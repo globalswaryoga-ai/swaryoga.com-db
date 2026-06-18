@@ -2,6 +2,7 @@
  * Auto-create or link a CRM lead when a user signs up/logs in.
  * Called by signup, Google, Facebook, and Apple auth routes.
  */
+import { Types } from 'mongoose';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
@@ -99,6 +100,63 @@ export async function autoCreateOrLinkLead(input: AutoLeadInput): Promise<string
     return String(leadNumber);
   } catch (error) {
     console.error(`[autoCreateOrLinkLead] Error for ${input.source}:`, error);
+    return null;
+  }
+}
+
+interface AutoLeadForSaleInput {
+  tenantUserId: string;
+  name?: string;
+  phone?: string;
+  workshopName?: string;
+}
+
+/**
+ * Ensures a CRM lead exists for a sale recorded without one (manual entry,
+ * bulk import, or bank-statement reconciliation). Scoped to the reporting
+ * admin's tenant so it never matches/creates across tenants.
+ *
+ * No real phone on file? Mints an obviously-synthetic placeholder
+ * (9 + 9 random digits) so the required `phoneNumber` field is satisfied
+ * without it being mistaken for, or used to message, a real contact.
+ *
+ * Returns the lead's _id, or null if it couldn't be resolved (caller should
+ * treat this as non-fatal and create the sale without a leadId).
+ */
+export async function autoLeadForSale(input: AutoLeadForSaleInput): Promise<Types.ObjectId | null> {
+  try {
+    const Lead = getLead();
+    const tenantUserId = String(input.tenantUserId || '').trim();
+    if (!tenantUserId) return null;
+
+    const cleanedName = (input.name || '').trim();
+    const cleanedPhone = input.phone ? normalizePhone(input.phone) : '';
+    if (!cleanedName && !cleanedPhone) return null;
+
+    if (cleanedPhone) {
+      const existing = await Lead.findOne({
+        phoneNumber: cleanedPhone,
+        $or: [{ assignedToUserId: tenantUserId }, { createdByUserId: tenantUserId }],
+      }).select('_id').lean();
+      if (existing) return (existing as any)._id;
+    }
+
+    const placeholderPhone = cleanedPhone || `9${Math.floor(100000000 + Math.random() * 900000000)}`;
+    const { leadNumber } = await allocateNextLeadNumber(tenantUserId);
+    const lead = await Lead.create({
+      leadNumber,
+      name: cleanedName || undefined,
+      phoneNumber: placeholderPhone,
+      status: 'lead',
+      source: 'manual',
+      labels: ['sales-auto'],
+      ...(input.workshopName ? { workshopName: input.workshopName } : {}),
+      assignedToUserId: tenantUserId,
+      createdByUserId: tenantUserId,
+    });
+    return lead._id;
+  } catch (error) {
+    console.error('[autoLeadForSale] Error:', error);
     return null;
   }
 }

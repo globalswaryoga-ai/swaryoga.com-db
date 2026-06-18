@@ -5,6 +5,7 @@ import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { Lead, SalesReport } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
+import { autoLeadForSale } from '@/lib/crm/autoLead';
 import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -138,6 +139,18 @@ export async function POST(request: NextRequest) {
 
         const reportedByFromRow = String(row.reportedByUserId || row.ReportedByUserId || row['Reported By'] || '').trim();
         const finalReportedBy = superAdmin && reportedByFromRow ? reportedByFromRow : reportedByUserId;
+
+        // Every imported sale should be traceable to a lead. If none was
+        // matched above, find/create one automatically.
+        if (!leadId) {
+          const autoId = await autoLeadForSale({
+            tenantUserId: finalReportedBy,
+            name: customerName,
+            phone: customerPhone,
+            workshopName,
+          });
+          if (autoId) leadId = autoId as any;
+        }
 
         await SalesReport.create({
           ...(leadId ? { leadId } : {}),
