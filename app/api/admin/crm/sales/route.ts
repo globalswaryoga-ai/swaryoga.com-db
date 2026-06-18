@@ -476,6 +476,11 @@ export async function PUT(request: NextRequest) {
     const allowedPaymentModes = ['payu', 'cashfree', 'card', 'bank_transfer', 'cash', 'upi', 'paypal', 'other'];
     const safeUpdates: any = {};
 
+    if (updates.leadId !== undefined) {
+      if (updates.leadId && !isValidObjectId(updates.leadId)) throw new Error('Invalid leadId');
+      safeUpdates.leadId = updates.leadId ? toObjectId(updates.leadId) : null;
+    }
+
     if (updates.saleAmount !== undefined) {
       const n = Number(updates.saleAmount);
       if (!Number.isFinite(n) || n <= 0) throw new Error('Invalid saleAmount');
