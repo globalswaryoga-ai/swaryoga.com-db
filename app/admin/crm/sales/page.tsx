@@ -703,6 +703,66 @@ export default function SalesPage() {
     transactionDetails: string;
   };
 
+  type SalesExportRowWithTotal = SalesExportRow & { isTotal?: boolean };
+
+  // Rows arrive sorted oldest-to-newest by batchDate, so a simple month-change
+  // check is enough to know when to drop in a subtotal.
+  const monthLabel = (ym: string): string => {
+    const [y, m] = ym.split('-').map(Number);
+    if (!y || !m) return ym || 'Unknown';
+    return new Date(y, m - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  };
+
+  const withMonthlyTotals = (rows: SalesExportRow[]): SalesExportRowWithTotal[] => {
+    const result: SalesExportRowWithTotal[] = [];
+    let currentMonth = '';
+    let monthSum = 0;
+    let grandSum = 0;
+    let monthCount = 0;
+
+    const pushMonthTotal = () => {
+      monthCount += 1;
+      result.push({
+        date: '',
+        name: `Monthly Total - ${monthLabel(currentMonth)}`,
+        mobile: '',
+        workshop: '',
+        amount: monthSum,
+        bankOrCash: '',
+        transactionDetails: '',
+        isTotal: true,
+      });
+    };
+
+    for (const r of rows) {
+      const ym = r.date ? r.date.slice(0, 7) : '';
+      if (currentMonth && ym !== currentMonth) {
+        pushMonthTotal();
+        monthSum = 0;
+      }
+      currentMonth = ym || currentMonth;
+      monthSum += Number(r.amount) || 0;
+      grandSum += Number(r.amount) || 0;
+      result.push(r);
+    }
+    if (currentMonth) pushMonthTotal();
+
+    if (monthCount > 1) {
+      result.push({
+        date: '',
+        name: 'Grand Total',
+        mobile: '',
+        workshop: '',
+        amount: grandSum,
+        bankOrCash: '',
+        transactionDetails: '',
+        isTotal: true,
+      });
+    }
+
+    return result;
+  };
+
   const fetchExportRows = useCallback(async (): Promise<SalesExportRow[]> => {
     if (!token) throw new Error('Missing admin token. Please login again.');
 
@@ -735,7 +795,8 @@ export default function SalesPage() {
       const rows = await fetchExportRows();
 
       const XLSX = await import('xlsx');
-      const excelData = rows.map((r) => ({
+      const rowsWithTotals = withMonthlyTotals(rows);
+      const excelData = rowsWithTotals.map((r) => ({
         Date: r.date,
         Name: r.name,
         'Mobile Number': r.mobile,
@@ -808,13 +869,22 @@ export default function SalesPage() {
         doc.line(14, 30, pageWidth - 14, 30);
       };
 
+      const rowsWithTotals = withMonthlyTotals(rows);
+      const totalRowFlags = rowsWithTotals.map((r) => !!r.isTotal);
+
       autoTable(doc, {
         startY: 35,
         margin: { top: 35 },
         head: [['Date', 'Name', 'Mobile Number', 'Workshop Name', 'Amount Received', 'Bank/Cash', 'Transaction Details']],
-        body: rows.map((r) => [r.date, r.name, r.mobile, r.workshop, String(r.amount ?? ''), r.bankOrCash, r.transactionDetails]),
+        body: rowsWithTotals.map((r) => [r.date, r.name, r.mobile, r.workshop, String(r.amount ?? ''), r.bankOrCash, r.transactionDetails]),
         styles: { fontSize: 8 },
         headStyles: { fillColor: [109, 40, 217] },
+        didParseCell: (data) => {
+          if (data.section === 'body' && totalRowFlags[data.row.index]) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [237, 233, 254];
+          }
+        },
         didDrawPage: drawHeader,
       });
 
