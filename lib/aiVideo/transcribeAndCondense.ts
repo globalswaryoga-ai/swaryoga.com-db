@@ -123,12 +123,54 @@ async function generateText(parts: any[], maxOutputTokens = 8192, attempt = 1): 
   return text;
 }
 
+// Whisper fallback for transcription only — used when Gemini fails (e.g.
+// the free tier's daily cap) and OPENAI_API_KEY is configured. Whisper's
+// endpoint caps uploads at 25MB, which is fine for the buffer sizes this
+// pipeline has seen so far but won't hold for a full ~1hr workshop recording
+// at high bitrate — acceptable since this is a fallback path, not primary.
+async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
+
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(audio.buffer)], { type: audio.mimeType }), 'audio');
+  form.append('model', 'whisper-1');
+
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form as any,
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Whisper error: ${data?.error?.message || res.statusText}`);
+  if (!data.text) throw new Error('Whisper returned no text');
+  return data.text;
+}
+
+// Text-only stages fall back to OpenAI (via the shared helper) if Gemini
+// fails and OPENAI_API_KEY is configured, instead of just erroring out.
+async function generateTextWithFallback(promptText: string, maxOutputTokens = 8192): Promise<string> {
+  try {
+    return await generateText([{ text: promptText }], maxOutputTokens);
+  } catch (geminiError) {
+    if (!process.env.OPENAI_API_KEY) throw geminiError;
+    const { generateAIText } = await import('@/lib/ai/generateWithFallback');
+    return generateAIText({ message: promptText, maxOutputTokens });
+  }
+}
+
 // Stage 1: verbatim transcript, source language, no cleanup.
 export async function transcribeAudio(audio: ExtractedAudio, topicTitle: string): Promise<string> {
-  const apiKey = getApiKey();
-  const fileUri = await uploadAudioToGemini(audio.buffer, audio.mimeType, topicTitle, apiKey);
   const prompt = `This audio is a recorded workshop session titled "${topicTitle}". Transcribe it verbatim, in the language it was spoken in. Do not summarize, translate, or clean it up — output the raw transcript only.`;
-  return generateText([{ text: prompt }, { file_data: { mime_type: audio.mimeType, file_uri: fileUri } }]);
+  try {
+    const apiKey = getApiKey();
+    const fileUri = await uploadAudioToGemini(audio.buffer, audio.mimeType, topicTitle, apiKey);
+    return await generateText([{ text: prompt }, { file_data: { mime_type: audio.mimeType, file_uri: fileUri } }]);
+  } catch (geminiError) {
+    if (!process.env.OPENAI_API_KEY) throw geminiError;
+    return transcribeViaWhisper(audio);
+  }
 }
 
 // Stage 2: faithful correction only — fix grammar/spelling/transcription
@@ -138,7 +180,7 @@ export async function transcribeAudio(audio: ExtractedAudio, topicTitle: string)
 export async function correctTranscript(rawTranscript: string, sourceLanguage: string): Promise<string> {
   const languageName = LANGUAGE_NAMES[sourceLanguage] || sourceLanguage;
   const prompt = `Here is a raw, verbatim transcript of a spoken workshop session in ${languageName}. Correct only grammar, spelling, and obvious speech-to-text transcription errors, and remove filler words ("um", "you know") and exact repeated phrases. Do NOT translate. Do NOT add any new sentence, fact, or idea that is not already present in the transcript below — if something is unclear, leave it as close to the original wording as possible rather than inventing a replacement. Do NOT shorten or summarize; keep the same length and content, just cleaned up. Output only the corrected transcript, no commentary.\n\nTranscript:\n${rawTranscript}`;
-  return generateText([{ text: prompt }]);
+  return generateTextWithFallback(prompt);
 }
 
 // Stage 3: per-language, condenses to ~30 min by CUTTING material (live Q&A,
@@ -152,7 +194,7 @@ export async function condenseAndTranslate(correctedTranscript: string, sourceLa
     : ` Translate it faithfully from ${sourceName} into ${targetName} — translate meaning, not word-for-word, so it sounds natural when spoken aloud in ${targetName}.`;
 
   const prompt = `Here is a corrected transcript of a workshop session titled "${topicTitle}", in ${sourceName}. Rewrite it as a polished spoken lecture script suitable for an AI avatar to read aloud in about 30 minutes (roughly 4000-4500 words).${translateClause} Condense it ONLY by removing material that is already there — live audience Q&A, tangents, redundant explanations of the same point — restructured into a clear, natural-sounding lecture. Do NOT add any new content, fact, or example that is not already in the transcript below. If the transcript is shorter than 30 minutes of content, output it at its natural length rather than padding it with invented material.\n\nYour entire response must be the final script in ${targetName} ONLY — every single word of your output must be in ${targetName}. Do not include the original-language version, do not include a translation of your own output back into ${sourceName}, do not add labels like "${targetName} Script:" or "${sourceName} Script:", and do not add any heading, note, or explanation. The first character of your response must be the first word of the ${targetName} script itself.\n\nCorrected transcript:\n${correctedTranscript}`;
-  return generateText([{ text: prompt }]);
+  return generateTextWithFallback(prompt);
 }
 
 // E-book chapter: a different register from the spoken script above — proper
@@ -168,5 +210,5 @@ export async function rewriteForReading(correctedTranscript: string, sourceLangu
     : ` Translate it faithfully from ${sourceName} into ${targetName} as you go — translate meaning, not word-for-word, so it reads naturally in ${targetName}.`;
 
   const prompt = `Here is a corrected transcript of a workshop session titled "${topicTitle}", in ${sourceName}. Rewrite it as a book chapter — proper written prose for a reader, not a spoken script.${translateClause} Remove spoken-style transitions and audience address ("welcome everyone", "let's begin", "are there any questions", "thank you everyone") and live audience Q&A, replacing them with normal written narrative flow. Keep every fact, instruction, and example exactly as taught — do NOT add any new content, fact, or example that is not already in the transcript below, and do NOT shorten the substance (this is not a 30-minute cap like a spoken script — keep the full teaching content, just remove the spoken-only framing).\n\nYour entire response must be the chapter text in ${targetName} ONLY — no labels, no headings like "Chapter" or language names, no commentary. The first character of your response must be the first word of the chapter itself.\n\nCorrected transcript:\n${correctedTranscript}`;
-  return generateText([{ text: prompt }], 8192);
+  return generateTextWithFallback(prompt, 8192);
 }

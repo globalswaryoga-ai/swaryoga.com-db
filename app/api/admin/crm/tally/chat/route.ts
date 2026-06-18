@@ -20,6 +20,7 @@ import {
   fetchBalanceSheet,
   testTallyConnection,
 } from '@/lib/tally/tallyPrimeAPI';
+import { generateAIText } from '@/lib/ai/generateWithFallback';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,16 +134,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    // Support both Gemini (free) and OpenAI (paid)
-    const geminiKey = process.env.GEMINI_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
-    
-    if (!geminiKey && !openaiKey) {
-      return NextResponse.json({
-        reply: 'AI is not configured yet. Please add GEMINI_API_KEY (free) or OPENAI_API_KEY to your environment variables to enable the Tally AI assistant.',
-      });
-    }
-
     // Gather live Tally context
     const tallyContext = await gatherTallyContext(message, fy);
 
@@ -165,76 +156,19 @@ RULES:
 - Keep responses under 300 words unless the user asks for detailed breakdown.`;
 
     let reply: string;
-
-    if (geminiKey) {
-      // ── Google Gemini (free tier) ──
-      // gemini-2.0-flash's free-tier quota is now 0 (sunset) — confirmed live, 2.5-flash works.
-      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-      
-      // Build Gemini format: system instruction + history + user message
-      const contents = [
-        ...history.slice(-8).map((m: any) => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }],
-        })),
-        { role: 'user', parts: [{ text: message }] },
-      ];
-
-      const res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents,
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 800,
-          },
-        }),
+    try {
+      reply = await generateAIText({
+        systemPrompt,
+        history: history.slice(-8).map((m: any) => ({ role: m.role, content: m.content })),
+        message,
+        maxOutputTokens: 800,
+        temperature: 0.3,
       });
-
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        console.error('[Tally Chat Gemini Error]', data);
-        return NextResponse.json({
-          reply: `AI error: ${data?.error?.message || 'Gemini request failed'}`,
-        });
-      }
-
-      reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from AI.';
-    } else {
-      // ── OpenAI (paid) ──
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...history.slice(-8).map((m: any) => ({ role: m.role, content: m.content })),
-        { role: 'user', content: message },
-      ];
-
-      const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.3,
-          max_tokens: 800,
-        }),
+    } catch (aiError) {
+      console.error('[Tally Chat AI Error]', aiError);
+      return NextResponse.json({
+        reply: `AI error: ${aiError instanceof Error ? aiError.message : 'Request failed'}`,
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        console.error('[Tally Chat AI Error]', data);
-        return NextResponse.json({
-          reply: `AI error: ${data?.error?.message || 'OpenAI request failed'}`,
-        });
-      }
-
-      reply = data.choices?.[0]?.message?.content || 'No response from AI.';
     }
 
     return NextResponse.json({ success: true, reply });

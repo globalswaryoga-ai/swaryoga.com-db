@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { generateAIText } from '@/lib/ai/generateWithFallback';
 
 const LANG_NAMES: Record<string, string> = {
   hi: 'Hindi', en: 'English', mr: 'Marathi', ne: 'Nepali',
@@ -34,17 +35,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, translatedText: text });
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
-      return NextResponse.json({ error: 'Translation AI not configured (GEMINI_API_KEY missing)' }, { status: 503 });
+    if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'Translation AI not configured (GEMINI_API_KEY or OPENAI_API_KEY missing)' }, { status: 503 });
     }
 
     const srcName = LANG_NAMES[sourceLang] || sourceLang || 'auto-detect';
     const tgtName = LANG_NAMES[targetLang] || targetLang;
-
-    // gemini-2.0-flash's free-tier quota is now 0 (sunset) — confirmed live, 2.5-flash works.
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
 
     const systemPrompt = `You are a professional translator for a yoga & wellness CRM calling script system.
 Translate the following text from ${srcName} to ${tgtName}.
@@ -56,23 +52,13 @@ Rules:
 - Use natural, conversational ${tgtName} appropriate for phone calls.
 - Only output the translated text, nothing else.`;
 
-    const res = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts: [{ text }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 4000 },
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      console.error('[Translate Gemini Error]', data);
-      return NextResponse.json({ error: data?.error?.message || 'Translation failed' }, { status: 500 });
+    let translatedText: string;
+    try {
+      translatedText = await generateAIText({ systemPrompt, message: text, maxOutputTokens: 4000, temperature: 0.2 });
+    } catch (aiError) {
+      console.error('[Translate AI Error]', aiError);
+      return NextResponse.json({ error: aiError instanceof Error ? aiError.message : 'Translation failed' }, { status: 500 });
     }
-
-    const translatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || text;
 
     return NextResponse.json({ success: true, translatedText });
   } catch (error) {
