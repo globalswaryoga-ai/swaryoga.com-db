@@ -25,6 +25,19 @@ export default function KpAstroPage() {
   const [horaryInput, setHoraryInput] = useState<string>('');
 
   const matter = basicRules[matterIdx];
+  const matterGroups = useMemo(() => {
+    const groups: { category: string; items: { index: number; matter: string }[] }[] = [];
+    basicRules.forEach((r, index) => {
+      const category = r.category || 'Other';
+      let group = groups.find((g) => g.category === category);
+      if (!group) {
+        group = { category, items: [] };
+        groups.push(group);
+      }
+      group.items.push({ index, matter: r.matter });
+    });
+    return groups;
+  }, []);
   const relevantHouses = useMemo(() => {
     if (!matter) return [];
     const houses = new Set<number>(parseHouseList(matter.supportingHouses));
@@ -69,8 +82,12 @@ export default function KpAstroPage() {
           onChange={(e) => setMatterIdx(Number(e.target.value))}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
         >
-          {basicRules.map((r, i) => (
-            <option key={i} value={i}>{r.matter}</option>
+          {matterGroups.map((g) => (
+            <optgroup key={g.category} label={g.category}>
+              {g.items.map((item) => (
+                <option key={item.index} value={item.index}>{item.matter}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
 

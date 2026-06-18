@@ -24,6 +24,7 @@ export interface SubTableRow {
 }
 
 export interface BasicRule {
+  category: string | null;
   matter: string;
   primaryHouse: number | string | null;
   supportingHouses: string;

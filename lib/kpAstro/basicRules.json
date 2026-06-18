@@ -1,252 +1,1010 @@
 [
-{
-"matter": "Wealth",
-"primaryHouse": 2,
-"supportingHouses": "2, 6, 11"
-},
-{
-"matter": "Jewels",
-"primaryHouse": 2,
-"supportingHouses": "2, 8, 10, 11"
-},
-{
-"matter": "Lottery",
-"primaryHouse": 3,
-"supportingHouses": "3, 5, 8, 2, 11"
-},
-{
-"matter": "Stock Trading",
-"primaryHouse": 5,
-"supportingHouses": "2, 8, 11"
-},
-{
-"matter": "Returning borrowed money",
-"primaryHouse": 6,
-"supportingHouses": "4, 5, 8, 10"
-},
-{
-"matter": "Ancestral wealth",
-"primaryHouse": 8,
-"supportingHouses": "2, 6, 11"
-},
-{
-"matter": "Inheritance of Vehicles or Property",
-"primaryHouse": 8,
-"supportingHouses": "4, 11"
-},
-{
-"matter": "Returning borrowed money",
-"primaryHouse": 6,
-"supportingHouses": "4, 5, 8, 10"
-},
-{
-"matter": "Astrologer/Spiritual",
-"primaryHouse": 9,
-"supportingHouses": "4, 9, 11 + (2, 6 for income) + (10 for fame)"
-},
-{
-"matter": "Promotion",
-"primaryHouse": 6,
-"supportingHouses": "2, 6, 10, 11"
-},
-{
-"matter": "Salary increment and promotion",
-"primaryHouse": 6,
-"supportingHouses": "2, 6, 10, 11"
-},
-{
-"matter": "Debt ridden life",
-"primaryHouse": 6,
-"supportingHouses": "5, 8, 12"
-},
-{
-"matter": "Born to be poor",
-"primaryHouse": 1,
-"supportingHouses": "5, 8, 12"
-},
-{
-"matter": "Loss of wealth",
-"primaryHouse": 2,
-"supportingHouses": "5, 8, 12"
-},
-{
-"matter": "Loss of income from job",
-"primaryHouse": 6,
-"supportingHouses": "5, 8, 12"
-},
-{
-"matter": "Loss of income from retirement",
-"primaryHouse": 6,
-"supportingHouses": "5, 9"
-},
-{
-"matter": "For women, first pregnancy",
-"primaryHouse": 5,
-"supportingHouses": "2, 5, 11"
-},
-{
-"matter": "For women, second pregnancy",
-"primaryHouse": 7,
-"supportingHouses": "2, 5, 11"
-},
-{
-"matter": "For women, third pregnancy",
-"primaryHouse": 9,
-"supportingHouses": "2, 5, 11"
-},
-{
-"matter": "For women, fourth pregnancy",
-"primaryHouse": 11,
-"supportingHouses": "2, 5, 11"
-},
-{
-"matter": "For women, fifth pregnancy",
-"primaryHouse": 2,
-"supportingHouses": "2, 5, 11"
-},
-{
-"matter": "For women, six pregnancy onwards 5, 7, 9, 11, 2",
-"primaryHouse": null,
-"supportingHouses": "2, 5, 11"
-},
-{
-"matter": "For men, avoid predicting. If unavoidable, check 11th houses for all children",
-"primaryHouse": 11,
-"supportingHouses": "2, 5, 11"
-},
-{
-"matter": "For women and men, if <5>th house lord and it's star lord are in barren signs of Aries, Gemini, Leo or Virgo",
-"primaryHouse": null,
-"supportingHouses": "No Child"
-},
-{
-"matter": "Denial of Child birth",
-"primaryHouse": 5,
-"supportingHouses": "1, 4, 10"
-},
-{
-"matter": "Always in poor health",
-"primaryHouse": 1,
-"supportingHouses": "1, 6, 8, 12"
-},
-{
-"matter": "Life long diseases",
-"primaryHouse": 6,
-"supportingHouses": "1, 6, 8, 12"
-},
-{
-"matter": "School education damaged",
-"primaryHouse": 4,
-"supportingHouses": "3, 5, 8"
-},
-{
-"matter": "Ill Health",
-"primaryHouse": 6,
-"supportingHouses": "1, 8, 12"
-},
-{
-"matter": "Loss of job",
-"primaryHouse": 6,
-"supportingHouses": "5, 8, 12"
-},
-{
-"matter": "Change of job",
-"primaryHouse": 6,
-"supportingHouses": "5"
-},
-{
-"matter": "Full recovery / cure from disease / Good health",
-"primaryHouse": 6,
-"supportingHouses": "5, 11"
-},
-{
-"matter": "Live in partner / Premarital sex",
-"primaryHouse": 5,
-"supportingHouses": "5, 8, 11"
-},
-{
-"matter": "Marriage",
-"primaryHouse": 7,
-"supportingHouses": "2, 7, 11 + Fruitful signs"
-},
-{
-"matter": "Separation",
-"primaryHouse": 7,
-"supportingHouses": "1, 6, 10"
-},
-{
-"matter": "Love marriage",
-"primaryHouse": 7,
-"supportingHouses": "2, 7, 11 + 5"
-},
-{
-"matter": "Delayed marriage",
-"primaryHouse": 7,
-"supportingHouses": "2, 7, 11 + 4 + 10"
-},
-{
-"matter": "Unhappy married life",
-"primaryHouse": 11,
-"supportingHouses": "4, 6, 8, 10, 12"
-},
-{
-"matter": "Divorce",
-"primaryHouse": 11,
-"supportingHouses": "1, 6, 10, 12"
-},
-{
-"matter": "Separation",
-"primaryHouse": 11,
-"supportingHouses": "1, 6, 10"
-},
-{
-"matter": "Short travel",
-"primaryHouse": 3,
-"supportingHouses": "3, 9, 11, 12"
-},
-{
-"matter": "Local travel within 30 kms",
-"primaryHouse": 3,
-"supportingHouses": "3, 9, 11, 12"
-},
-{
-"matter": "Long travel 30 to 300 kms",
-"primaryHouse": 9,
-"supportingHouses": "3, 9, 11, 12"
-},
-{
-"matter": "Long travel above 300 kms",
-"primaryHouse": 12,
-"supportingHouses": "3, 9, 11, 12"
-},
-{
-"matter": "Foreign travel",
-"primaryHouse": 12,
-"supportingHouses": "3, 9, 11, 12"
-},
-{
-"matter": "Receipt of Visa / Passport / Greencard / Permanent Resident / Citizenship",
-"primaryHouse": 9,
-"supportingHouses": "3, 6, 9, 11, 12"
-},
-{
-"matter": "Construct house",
-"primaryHouse": 4,
-"supportingHouses": "4, 11"
-},
-{
-"matter": "Purchase of car",
-"primaryHouse": 4,
-"supportingHouses": "4, 9, 10, 11 (+12 for vehicle loan)"
-},
-{
-"matter": "Sale of property",
-"primaryHouse": 4,
-"supportingHouses": "3, 5, 10 + (2/11 for profit) + (8/12 for loss)"
-},
-{
-"matter": "Income from Partnership Business, Public Relations, Public Contracts, Public Service",
-"primaryHouse": 7,
-"supportingHouses": "2, 6, 11"
-}
+  {
+    "category": "Income",
+    "matter": "Income from Personal Efforts",
+    "primaryHouse": 1,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Income from Jewelry, Precision Stones, Metals, Mortgages, Negotiable Assets, Voice related, Eyes, Cosmetics, Lending business, Collection agency",
+    "primaryHouse": 2,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Income from Mind related, Psychology, General Trading, Local delivery, Written communication, Branding, Marketing, Social Media, TV, Radio, Internet, Book Store, Library",
+    "primaryHouse": 3,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Income from Real estate, Houses, Buildings, Land, Vehicles, Transport, Agriculture, Gardens, Herbs, Education, Schools, Junior Colleges",
+    "primaryHouse": 4,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Income from Kids, Children, Recreation, Entertainment, Amusements, Sports and Games, Banquet, Merriments, Romance and similar interests, Cinema, Drama, Opera, Dance & Music, Playing Cards, Crossword puzzles, Dice, Horse racing, Betting, Lottery, Gambling, Chanting, Mantra, Rituals, Stock Exchange, Love affairs, Courtships, Good learning and wisdom, Festivities, Events Management",
+    "primaryHouse": 5,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Income from Job, Pet Animals, Small Cattle, Sanitation and Public Health",
+    "primaryHouse": 6,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Income from Partnership Business, Public Relations, Public Contracts, Public Service",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Mortuary, Burial Ground, Unearned income, Inheritance, Legacies, Wills and Insurance, Surgeons, Medical Officers, Health Inspectors, Slaughter Houses, Butchery, Flood and Fire, Epidemics dealing, Earthquakes related, Corruption, Dowry",
+    "primaryHouse": 8,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Philosophy and Religion, Religious, Meditation, Yoga, Astrology, Vastu, Numerology, Occult Science, Research and Invention, Senior Colleges, Universities, Publishing books of intrinsic value, Import and Export, Pilgrimage, Charity, Discovery and exploration, Legal arbitration, Long journeys by Air, Land and Sea, Emigration and immigration Department",
+    "primaryHouse": 9,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Own Independent or Consulting Profession (such as a Lawyer, CA, Engineer, Architect, Plumber, Carpenter, Electrician, Management, etc.), Politics, Government, Minister, Head of State or Country, Owners and Trainers of Horses, Olympics Athletics, Judges and Stewards, President in Race clubs, Joint Venture",
+    "primaryHouse": 10,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Friendship, Foreign collaboration, Election",
+    "primaryHouse": 11,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Purchases and Investments, Prisons, Occult Research, Success in a foreign land, Spies, Secret and and Occult Societies, Mystery and Psychic research,  Investigation, Detective work, Jails and Asylums, Sanatorium, Nursing Home, Mental Hospitals, Boot-legging, Smuggling, Black-mailing",
+    "primaryHouse": 12,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Earning money through illegal means",
+    "primaryHouse": 2,
+    "supportingHouses": "2, 8, 11 + Rahu / Saturn"
+  },
+  {
+    "category": "Income",
+    "matter": "Increase in ornaments, jewels, precious metals and stones",
+    "primaryHouse": 2,
+    "supportingHouses": "2, 8, 10, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Insurance claim supported (Check 8th house for final result)",
+    "primaryHouse": 2,
+    "supportingHouses": "2, 8, 11 + Mercury / Jupiter"
+  },
+  {
+    "category": "Income",
+    "matter": "Legacy, Gratuity",
+    "primaryHouse": 2,
+    "supportingHouses": "2, 8, 11 + Jupiter"
+  },
+  {
+    "category": "Income",
+    "matter": "Medical claim",
+    "primaryHouse": 2,
+    "supportingHouses": "6, 8, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Winning Lottery",
+    "primaryHouse": 3,
+    "supportingHouses": "3, 5, 8"
+  },
+  {
+    "category": "Income",
+    "matter": "Winning Lottery + Huge money",
+    "primaryHouse": 3,
+    "supportingHouses": "3, 5, 8 + 2"
+  },
+  {
+    "category": "Income",
+    "matter": "Winning Lottery + Huge money + First prize",
+    "primaryHouse": 3,
+    "supportingHouses": "3, 5, 8 + 2 + Jupiter"
+  },
+  {
+    "category": "Income",
+    "matter": "Speculative income",
+    "primaryHouse": 5,
+    "supportingHouses": "2, 8, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Repaying loan taken from bank",
+    "primaryHouse": 6,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Income",
+    "matter": "Returning borrowed money",
+    "primaryHouse": 6,
+    "supportingHouses": "4, 5, 8, 10"
+  },
+  {
+    "category": "Income",
+    "matter": "Ancestral wealth",
+    "primaryHouse": 8,
+    "supportingHouses": "2, 6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Getting a hidden treasure",
+    "primaryHouse": 8,
+    "supportingHouses": "4, 8, 11 + Rahu / Saturn"
+  },
+  {
+    "category": "Income",
+    "matter": "Inheritance of Vehicles or Property",
+    "primaryHouse": 8,
+    "supportingHouses": "4, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Receipt of Gifts",
+    "primaryHouse": 8,
+    "supportingHouses": "6, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Taking a loan to repay a loan",
+    "primaryHouse": 12,
+    "supportingHouses": "2, 5, 8, 11, 12"
+  },
+  {
+    "category": "Income",
+    "matter": "Astrologer",
+    "primaryHouse": 9,
+    "supportingHouses": "4, 9, 11 + (2, 6 for income) + (10 for fame)"
+  },
+  {
+    "category": "Income",
+    "matter": "Promotion",
+    "primaryHouse": 6,
+    "supportingHouses": "2, 6, 10, 11"
+  },
+  {
+    "category": "Income",
+    "matter": "Recognition in Job",
+    "primaryHouse": 10,
+    "supportingHouses": "6"
+  },
+  {
+    "category": "Income",
+    "matter": "Salary increment and promotion",
+    "primaryHouse": 6,
+    "supportingHouses": "2, 6, 10, 11"
+  },
+  {
+    "category": "Losses",
+    "matter": "Debt ridden life",
+    "primaryHouse": 6,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Lack of income from any relevant house",
+    "primaryHouse": "<any of 12>",
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Born to be poor",
+    "primaryHouse": 1,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Loss of wealth",
+    "primaryHouse": 2,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Wealthlessness",
+    "primaryHouse": 2,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Poverty",
+    "primaryHouse": 2,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Loss of income from job",
+    "primaryHouse": 6,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Loss of income from retirement",
+    "primaryHouse": 6,
+    "supportingHouses": "5, 9"
+  },
+  {
+    "category": "Losses",
+    "matter": "Losing through friends",
+    "primaryHouse": 11,
+    "supportingHouses": "4, 5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Loss of wealth",
+    "primaryHouse": 11,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Losses",
+    "matter": "Loss in investment",
+    "primaryHouse": 12,
+    "supportingHouses": "1, 5, 8"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women, first pregnancy",
+    "primaryHouse": 5,
+    "supportingHouses": "2, 5, 11"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women, second pregnancy",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 5, 11"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women, third pregnancy",
+    "primaryHouse": 9,
+    "supportingHouses": "2, 5, 11"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women, fourth pregnancy",
+    "primaryHouse": 11,
+    "supportingHouses": "2, 5, 11"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women, fifth pregnancy",
+    "primaryHouse": 2,
+    "supportingHouses": "2, 5, 11"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women, six pregnancy onwards 5, 7, 9, 11, 2",
+    "primaryHouse": null,
+    "supportingHouses": "2, 5, 11"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For men, avoid predicting. If unavoidable, check 11th houses for all children",
+    "primaryHouse": 11,
+    "supportingHouses": "2, 5, 11"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women and men, if <5>th house lord and it's star lord are in barren signs of Aries, Gemini, Leo or Virgo",
+    "primaryHouse": null,
+    "supportingHouses": "No Child"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "For women and men, if <5>th house lord or it's star lord in a fruitful sign of Taurus, Cancer, Libra, Scorpio, Sagittarius, Capricorn, Aquarius, Pisces",
+    "primaryHouse": null,
+    "supportingHouses": "Child if 2, 5, 11 signified"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "If the <5>th house sub lord is in Barren sign but its star lord is in a fruitful sign and signifies 2, 5, or 11",
+    "primaryHouse": null,
+    "supportingHouses": "Last child. No more children."
+  },
+  {
+    "category": "Child Birth",
+    "matter": "Gender of child",
+    "primaryHouse": null,
+    "supportingHouses": "Check gender rule book"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "Enunch (neither male or female) child born if <5>th house sub lord is Mercury in Mercury's own star of Ashlesha, Jayeshta, or Revati",
+    "primaryHouse": null,
+    "supportingHouses": "Enunch"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "If Moon in Aswini star, then child birth is possible only if Rahu is favorable",
+    "primaryHouse": null,
+    "supportingHouses": ""
+  },
+  {
+    "category": "Child Birth",
+    "matter": "Every pregnancy is considered a child in KP Astrology",
+    "primaryHouse": null,
+    "supportingHouses": ""
+  },
+  {
+    "category": "Child Birth",
+    "matter": "If <5>th house sub lord is = Mars, Rahu or Sun",
+    "primaryHouse": null,
+    "supportingHouses": "Miscarriage or Abortion"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "Denial of Child birth",
+    "primaryHouse": 5,
+    "supportingHouses": "1, 4, 10"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "Delay in child birth if Saturn is the sub lord especially during a Dasa + Bukthi of Saturn or in a planet in Saturn star",
+    "primaryHouse": null,
+    "supportingHouses": "Saturn is a delay maker"
+  },
+  {
+    "category": "Child Birth",
+    "matter": "Child birth only if Mahadasa lord + Starlord not in barren sign. One of them must be in a fruitful zodiac sign.",
+    "primaryHouse": null,
+    "supportingHouses": "Barren period no child"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Always in poor health",
+    "primaryHouse": 1,
+    "supportingHouses": "1, 6, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Frequent hospitalization due to accidents",
+    "primaryHouse": 1,
+    "supportingHouses": "6, 8, 12 + Mars"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Surgery",
+    "primaryHouse": 1,
+    "supportingHouses": "6, 8, 12 + Mars / Sun"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Life ruined",
+    "primaryHouse": 1,
+    "supportingHouses": "8 + Maraka + Badaka + Saturn in 8"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Life long diseases",
+    "primaryHouse": 1,
+    "supportingHouses": "1, 6, 8, 12 + Saturn"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Life long diseases",
+    "primaryHouse": 6,
+    "supportingHouses": "1, 6, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Weak lagna",
+    "primaryHouse": 1,
+    "supportingHouses": "5, 6, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Political failure promised (Check 10th house for final result)",
+    "primaryHouse": 1,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Blindnes in left eye",
+    "primaryHouse": 3,
+    "supportingHouses": "1 + (For Girls Sun in Watery sign of Cancer, Scorpio, or Pisces)\n1 + (For Boys Moon in Watery sign in Cancer, Scorpio, or Pisces)"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Blindness in right eye",
+    "primaryHouse": 3,
+    "supportingHouses": "1 + (For Girls Moon in Watery sign of Cancer, Scorpio, or Pisces)\n1 + (For Boys Sun in Watery sign in Cancer, Scorpio, or Pisces)"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Blindness in both eyes",
+    "primaryHouse": 3,
+    "supportingHouses": "1 + Moon and Sun in Watery sign of Cancer, Scorpio, or Pisces"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Blindness through accident",
+    "primaryHouse": 3,
+    "supportingHouses": "1 + 8 + (Moon / Sun in Watery sign as per gender of child)"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Timid and coward person",
+    "primaryHouse": 3,
+    "supportingHouses": "8, 12 + Saturn"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Enmity with younger siblings",
+    "primaryHouse": 3,
+    "supportingHouses": "6, 8"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "School education damaged",
+    "primaryHouse": 4,
+    "supportingHouses": "3, 5, 8"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "School education failure",
+    "primaryHouse": 4,
+    "supportingHouses": "8"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "School education change of school",
+    "primaryHouse": 4,
+    "supportingHouses": "3"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Theft of vehicle",
+    "primaryHouse": 4,
+    "supportingHouses": "4, 6, 8, 12 + Saturn / Rahu"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Loose thinking",
+    "primaryHouse": 5,
+    "supportingHouses": "1, 4, 6, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Chronic illness and disease",
+    "primaryHouse": 6,
+    "supportingHouses": "1, 6, 8 + Saturn"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Unknown disease in medical history",
+    "primaryHouse": 6,
+    "supportingHouses": "8, 12 + Ketu / Saturn"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Ill Health",
+    "primaryHouse": 6,
+    "supportingHouses": "1, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Resignation from job in haste",
+    "primaryHouse": 6,
+    "supportingHouses": "2, 8, 9, 10"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Loss of job",
+    "primaryHouse": 6,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Change of job",
+    "primaryHouse": 6,
+    "supportingHouses": "5"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Change of professional career",
+    "primaryHouse": 10,
+    "supportingHouses": "9"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Accident",
+    "primaryHouse": 8,
+    "supportingHouses": "1, 8"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Accident + Hospitalisation",
+    "primaryHouse": 8,
+    "supportingHouses": "1, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Accident + Cure",
+    "primaryHouse": 8,
+    "supportingHouses": "1, 8 + 5, 11"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Criminal Mind",
+    "primaryHouse": 8,
+    "supportingHouses": "5, 1"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Depression",
+    "primaryHouse": 8,
+    "supportingHouses": "1, 3, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Disgrace, ill reputation, scandals",
+    "primaryHouse": 8,
+    "supportingHouses": "1, 5, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Madness",
+    "primaryHouse": 8,
+    "supportingHouses": "6, 8, 12 + Moon, Mercury, Ketu, Saturn"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Person of nuisance",
+    "primaryHouse": 8,
+    "supportingHouses": "5, 8"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Suicide",
+    "primaryHouse": 8,
+    "supportingHouses": "4, 12 Mars, Saturn, Rahu, Ketu, Mercury + Bhadaka / Maraka"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Income tax trouble",
+    "primaryHouse": 10,
+    "supportingHouses": "7, 8, 9, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Loss of reputation",
+    "primaryHouse": 10,
+    "supportingHouses": "7, 8, 9, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Problems in service",
+    "primaryHouse": 10,
+    "supportingHouses": "5, 6, 8"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Termination of service",
+    "primaryHouse": 10,
+    "supportingHouses": "5, 8, 9"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Suspension from service",
+    "primaryHouse": 10,
+    "supportingHouses": "1, 5, 9, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Bad luck in all forms",
+    "primaryHouse": 12,
+    "supportingHouses": "5, 8, 12 + Saturn, Mars"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Deaf and Dumb",
+    "primaryHouse": 2,
+    "supportingHouses": "Sub lord Rahu + influence of watery sign"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Disease causing defect in the body",
+    "primaryHouse": 12,
+    "supportingHouses": "6, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "House arrest and detention",
+    "primaryHouse": 12,
+    "supportingHouses": "4, 8, 12"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Imprisonment",
+    "primaryHouse": 12,
+    "supportingHouses": "2, 3, 8, 12 + Rahu as House Sub lord"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Insanity",
+    "primaryHouse": 12,
+    "supportingHouses": "6, 8, 12 + Moon + Malefic Saturn and Rahu connecting"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Mind to commit crime",
+    "primaryHouse": 12,
+    "supportingHouses": "6, 8, 10, 12 + Mars, Rahu"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Mind to raping",
+    "primaryHouse": 12,
+    "supportingHouses": "5, 6, 8, 10 + Mars"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Mentally retarded child / Special needs child",
+    "primaryHouse": 1,
+    "supportingHouses": "Moon and Lagna at 90 degrees from each other on either direction"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Slightly mentally affected child",
+    "primaryHouse": 1,
+    "supportingHouses": "Moon and Lagna at 30/45/60/120 from each other on either side"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Addiction",
+    "primaryHouse": 5,
+    "supportingHouses": "1, 2, 3, 4, 6 + Saturn, Mars, Rahu, Venus"
+  },
+  {
+    "category": "Difficulty",
+    "matter": "Full recovery / cure from disease / Good health",
+    "primaryHouse": 6,
+    "supportingHouses": "5, 11"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Scandalous love affair",
+    "primaryHouse": 5,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Live in partner / Premarital sex",
+    "primaryHouse": 5,
+    "supportingHouses": "5, 8, 11"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Illicit relationship",
+    "primaryHouse": 5,
+    "supportingHouses": "2, 5, 8, 11 + Rahu / Venus"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Raped by someone",
+    "primaryHouse": 5,
+    "supportingHouses": "8, 12 + Mars, Rahu, Saturn"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Raping someone",
+    "primaryHouse": 8,
+    "supportingHouses": "5, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Termination of love affairs",
+    "primaryHouse": 5,
+    "supportingHouses": "4, 6, 8, 10, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Marriage",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + Fruitful signs"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Separation",
+    "primaryHouse": 7,
+    "supportingHouses": "1, 6, 10"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Periods of loneliness in Married life",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 1"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Marriage through advertisement",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 3"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Loveless marriage, Delayed marriage, Marrying a neighbor or within family circles",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 4"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Love marriage",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 5"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Spouse leaves for some periods of time",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 6"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Arranged marriage, Nagging spouse",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 8"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Marrying a stranger, a teacher, Religious and Spiritual practices together",
+    "primaryHouse": 7,
+    "supportingHouses": "7 = 2, 7, 11 + 9"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Dignified partner, Periods of lack of fulfilment",
+    "primaryHouse": 7,
+    "supportingHouses": "7 = 2, 7, 11 + 10"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Sickly partner, Medical expenses due to partner",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Total fulfillment in marriage, best friends as life partners",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7 + 11"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Delayed marriage",
+    "primaryHouse": 7,
+    "supportingHouses": "2, 7, 11 + 4 + 10"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Marrying a widow, a divorcee, or strange age difference",
+    "primaryHouse": 7,
+    "supportingHouses": "Saturn as house sub lord"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Marrying a lowly person",
+    "primaryHouse": 7,
+    "supportingHouses": "Rahu as house sub lord"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Marrying a foreigner or out of caste (Mostly a Christian)",
+    "primaryHouse": 7,
+    "supportingHouses": "Ketu as house sub lord"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Partner is beautiful",
+    "primaryHouse": 7,
+    "supportingHouses": "Moon or Venus in 5"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Success for partner, failure for self",
+    "primaryHouse": 7,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Marrying an employed spouse",
+    "primaryHouse": 7,
+    "supportingHouses": "4, 8, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Spouse to get property",
+    "primaryHouse": 10,
+    "supportingHouses": "5, 8, 10"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Sexual relationship with a friend",
+    "primaryHouse": 11,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Sexual relationship with a partner",
+    "primaryHouse": 7,
+    "supportingHouses": "5, 8, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Unhappy married life",
+    "primaryHouse": 11,
+    "supportingHouses": "4, 6, 8, 10, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Divorce",
+    "primaryHouse": 11,
+    "supportingHouses": "1, 6, 10, 12"
+  },
+  {
+    "category": "Marriage",
+    "matter": "Separation",
+    "primaryHouse": 11,
+    "supportingHouses": "1, 6, 10"
+  },
+  {
+    "category": "Travel",
+    "matter": "Short travel",
+    "primaryHouse": 3,
+    "supportingHouses": "3, 9, 11, 12"
+  },
+  {
+    "category": "Travel",
+    "matter": "Local travel within 30 kms",
+    "primaryHouse": 3,
+    "supportingHouses": "3, 9, 11, 12"
+  },
+  {
+    "category": "Travel",
+    "matter": "Long travel 30 to 300 kms",
+    "primaryHouse": 9,
+    "supportingHouses": "3, 9, 11, 12"
+  },
+  {
+    "category": "Travel",
+    "matter": "Long travel above 300 kms",
+    "primaryHouse": 12,
+    "supportingHouses": "3, 9, 11, 12"
+  },
+  {
+    "category": "Travel",
+    "matter": "Foreign travel",
+    "primaryHouse": 12,
+    "supportingHouses": "3, 9, 11, 12"
+  },
+  {
+    "category": "Travel",
+    "matter": "Foreign travel for education",
+    "primaryHouse": 12,
+    "supportingHouses": "3, 9, 11, 12 + (4 or 9)"
+  },
+  {
+    "category": "Travel",
+    "matter": "Foreign travel for medical treatment",
+    "primaryHouse": 12,
+    "supportingHouses": "3, 9, 11, 8 or 12 (8 for treatment, 12 for hospitalisation)"
+  },
+  {
+    "category": "Travel",
+    "matter": "Foreign travel for job",
+    "primaryHouse": 12,
+    "supportingHouses": "3, 9, 11, 12 + 6"
+  },
+  {
+    "category": "Travel",
+    "matter": "Foreign travel for pleasure",
+    "primaryHouse": 12,
+    "supportingHouses": "3, 9, 11, 12 + 5"
+  },
+  {
+    "category": "Travel",
+    "matter": "Foreign travel with spouse or business",
+    "primaryHouse": 12,
+    "supportingHouses": "3, 9, 11, 12 + 7"
+  },
+  {
+    "category": "Travel",
+    "matter": "Visa / Passport / Greencard / Permanent Resident / Citizenship application",
+    "primaryHouse": 3,
+    "supportingHouses": "3, 6, 9, 11, 12"
+  },
+  {
+    "category": "Travel",
+    "matter": "Receipt of Visa / Passport / Greencard / Permanent Resident / Citizenship",
+    "primaryHouse": 9,
+    "supportingHouses": "3, 6, 9, 11, 12"
+  },
+  {
+    "category": "Property",
+    "matter": "Construct house",
+    "primaryHouse": 4,
+    "supportingHouses": "4, 11"
+  },
+  {
+    "category": "Property",
+    "matter": "Construct house with housing loan",
+    "primaryHouse": 4,
+    "supportingHouses": "4, 11 + 12"
+  },
+  {
+    "category": "Property",
+    "matter": "Construction of a religious or a spiritual building",
+    "primaryHouse": 4,
+    "supportingHouses": "4, 9, 11"
+  },
+  {
+    "category": "Property",
+    "matter": "Renting a building",
+    "primaryHouse": 4,
+    "supportingHouses": "6, 11"
+  },
+  {
+    "category": "Property",
+    "matter": "Owning a house",
+    "primaryHouse": 4,
+    "supportingHouses": "2, 4, 11"
+  },
+  {
+    "category": "Property",
+    "matter": "Occupying a new house",
+    "primaryHouse": 4,
+    "supportingHouses": "1, 11"
+  },
+  {
+    "category": "Property",
+    "matter": "Handing over from builder",
+    "primaryHouse": 4,
+    "supportingHouses": "4, 11, 2 + Mars"
+  },
+  {
+    "category": "Property",
+    "matter": "Sale of property",
+    "primaryHouse": 4,
+    "supportingHouses": "3, 5, 10 + (2/11 for profit) + (8/12 for loss)"
+  },
+  {
+    "category": "Property",
+    "matter": "Taking possession of an apartment/flat residence",
+    "primaryHouse": 4,
+    "supportingHouses": "9, 11"
+  },
+  {
+    "category": "Property",
+    "matter": "Getting a tenant",
+    "primaryHouse": 5,
+    "supportingHouses": "4, 6, 11"
+  },
+  {
+    "category": "Property",
+    "matter": "Tenant vacating",
+    "primaryHouse": 11,
+    "supportingHouses": "6, 8"
+  },
+  {
+    "category": "Property",
+    "matter": "Purchase of car",
+    "primaryHouse": 4,
+    "supportingHouses": "4, 9, 10, 11 (+12 for vehicle loan)"
+  }
 ]
