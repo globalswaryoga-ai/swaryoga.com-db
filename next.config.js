@@ -69,7 +69,7 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   experimental: {
     // Keep server-only packages out of webpack bundle
-    serverComponentsExternalPackages: ['@distube/ytdl-core', 'node-cron'],
+    serverComponentsExternalPackages: ['@distube/ytdl-core', 'node-cron', 'swisseph-wasm'],
     // Run instrumentation.ts register() at server startup (TLS curve fix for Atlas).
     instrumentationHook: true,
   },
@@ -184,6 +184,7 @@ const nextConfig = {
       config.externals = config.externals || {};
       config.externals['swisseph'] = 'commonjs2 swisseph';
       config.externals['@bidyashish/panchang'] = 'commonjs2 @bidyashish/panchang';
+      config.externals['swisseph-wasm'] = 'commonjs2 swisseph-wasm';
       // WhatsApp Web is server-only - completely exclude from client bundle
       config.externals['whatsapp-web.js'] = 'commonjs2 whatsapp-web.js';
       config.externals['puppeteer'] = 'commonjs2 puppeteer';
@@ -196,6 +197,9 @@ const nextConfig = {
       config.externals['whatsapp-web.js'] = 'commonjs2 whatsapp-web.js';
       config.externals['puppeteer'] = 'commonjs2 puppeteer';
       config.externals['qrcode'] = 'commonjs2 qrcode';
+      // swisseph-wasm's Emscripten glue code uses Node's createRequire() in a
+      // way that breaks under webpack's RSC bundling — must load at runtime.
+      config.externals['swisseph-wasm'] = 'commonjs2 swisseph-wasm';
     }
     
     return config;

@@ -63,6 +63,48 @@ export function findSubTableRow(sign?: string, star?: string, subLord?: string):
   );
 }
 
+export const ZODIAC_SIGNS = [
+  'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
+];
+
+// subTable's `from`/`to` columns are degree-minute-second strings within the
+// sign (0-30), written with inconsistent unicode prime/double-prime
+// characters (″ ” ’ ′) — this normalizes any of them before parsing.
+function parseDms(dms: string): number {
+  const cleaned = dms.replace(/[″”]/g, '"').replace(/[’′]/g, "'");
+  const match = cleaned.match(/(\d+)°\s*(\d+)['′]\s*(\d+)/);
+  if (!match) return NaN;
+  const [, deg, min, sec] = match;
+  return Number(deg) + Number(min) / 60 + Number(sec) / 3600;
+}
+
+// Finds the 249-division Sub Lord row containing a computed sidereal
+// longitude (0-360), so an ephemeris-derived planet/house position can be
+// mapped to a Sub Lord without the admin having to enter sign/star/subLord
+// by hand.
+export function findSubTableRowByLongitude(siderealDegree: number): SubTableRow | undefined {
+  const normalized = ((siderealDegree % 360) + 360) % 360;
+  const signIndex = Math.floor(normalized / 30);
+  const sign = ZODIAC_SIGNS[signIndex];
+  const degreeInSign = normalized - signIndex * 30;
+  return subTable.find((r) => {
+    if (r.sign !== sign) return false;
+    const from = parseDms(r.from);
+    const to = parseDms(r.to);
+    return degreeInSign >= from && degreeInSign < to;
+  });
+}
+
+// Formats a decimal degree (0-30, within-sign) as a DMS string for display.
+export function formatDegreeDms(degreeInSign: number): string {
+  const deg = Math.floor(degreeInSign);
+  const minFloat = (degreeInSign - deg) * 60;
+  const min = Math.floor(minFloat);
+  const sec = Math.round((minFloat - min) * 60);
+  return `${deg}°${String(min).padStart(2, '0')}'${String(sec).padStart(2, '0')}"`;
+}
+
 // Parses "2, 6, 11" / "5 = 3, 5, 8, 11, 2, 6" style strings into house numbers.
 export function parseHouseList(s: string | null | undefined): number[] {
   if (!s) return [];

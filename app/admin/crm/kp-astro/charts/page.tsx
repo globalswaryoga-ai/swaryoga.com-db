@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Plus, Trash2, X } from 'lucide-react';
+import { Sparkles, Plus, Trash2, X, Calculator, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -75,6 +75,12 @@ export default function KpHoroscopeChartsPage() {
   const [stri, setStri] = useState(false);
   const [otherNotes, setOtherNotes] = useState('');
 
+  const [utcOffset, setUtcOffset] = useState('+5:30');
+  const [birthLatitude, setBirthLatitude] = useState('');
+  const [birthLongitude, setBirthLongitude] = useState('');
+  const [calculating, setCalculating] = useState(false);
+  const [calcError, setCalcError] = useState('');
+
   const fetchCharts = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -107,6 +113,44 @@ export default function KpHoroscopeChartsPage() {
     setHouses(emptyHouses()); setPlanets(emptyPlanets());
     setMahadashas([{ planet: '', startDate: '', endDate: '' }]);
     setKalsarp(false); setPitru(false); setStri(false); setOtherNotes('');
+  };
+
+  const handleCalculate = async () => {
+    if (!token) return;
+    if (!dob || !birthTime || !birthLatitude || !birthLongitude) {
+      setCalcError('Date of birth, birth time, latitude, and longitude are all required to calculate.');
+      return;
+    }
+    setCalculating(true);
+    setCalcError('');
+    try {
+      const res = await fetch('/api/admin/crm/kp-astro/calculate', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dob, birthTime, utcOffset,
+          latitude: Number(birthLatitude), longitude: Number(birthLongitude),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Calculation failed');
+
+      const data = json.data;
+      setAscendantSign(data.ascendant.sign);
+      setAscendantDegree(data.ascendant.degree);
+      setHouses(data.houses.map((h: any) => ({
+        house: h.house, sign: h.sign, signLord: h.signLord, star: h.star, starLord: h.starLord, subLord: h.subLord, degree: h.degree,
+      })));
+      setPlanets(data.planets.map((p: any) => ({
+        planet: p.planet, sign: p.sign, star: p.star, subLord: p.subLord, house: String(p.house), degree: p.degree,
+        retrograde: false, combust: false,
+      })));
+      setMahadashas(data.mahadashas.map((m: any) => ({ planet: m.planet, startDate: m.startDate, endDate: m.endDate })));
+    } catch (e) {
+      setCalcError(e instanceof Error ? e.message : 'Calculation failed');
+    } finally {
+      setCalculating(false);
+    }
   };
 
   const handleSave = async () => {
@@ -198,6 +242,28 @@ export default function KpHoroscopeChartsPage() {
             <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             <input value={birthTime} onChange={(e) => setBirthTime(e.target.value)} placeholder="Birth time (e.g. 14:32)" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             <input value={birthPlace} onChange={(e) => setBirthPlace(e.target.value)} placeholder="Birth place" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
+            <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-indigo-600" /> Calculate from Birth Details
+            </h3>
+            <p className="text-xs text-gray-500">Fills in houses, planets, and the Mahadasha sequence automatically using the date of birth and birth time above, plus the UTC offset and coordinates below. Cross-check the first result against a known chart before trusting it broadly — review and edit any field afterward.</p>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <input value={utcOffset} onChange={(e) => setUtcOffset(e.target.value)} placeholder='UTC offset (e.g. "+5:30")' className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+              <input value={birthLatitude} onChange={(e) => setBirthLatitude(e.target.value)} placeholder="Birth latitude (e.g. 28.6139)" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+              <input value={birthLongitude} onChange={(e) => setBirthLongitude(e.target.value)} placeholder="Birth longitude (e.g. 77.2090)" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            </div>
+            {calcError && <p className="text-xs text-red-600">{calcError}</p>}
+            <button
+              type="button"
+              onClick={handleCalculate}
+              disabled={calculating}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
+              Calculate
+            </button>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
