@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { isSuperAdmin, getViewerUserId, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { Lead, CrmReceipt, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 
 // Builds the payment/workshop snapshot for a receipt from the actual sale
@@ -25,27 +25,6 @@ export const dynamic = 'force-dynamic';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
-
-function nextReceiptNumber(seq: number): string {
-  // Example: R-000123
-  const n = String(Math.max(0, seq)).padStart(6, '0');
-  return `R-${n}`;
-}
-
-async function allocReceiptNumber(): Promise<string> {
-  // Use a dedicated counter document in CRM db.
-  // We intentionally avoid importing CrmCounter to keep this route self-contained.
-  // This uses the same CRM DB connection (connectDB + enterpriseSchemas useDb).
-  const db = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm', { useCache: true });
-  const counters = db.collection<{ _id: string; seq: number }>('crm_counters');
-  const res = await counters.findOneAndUpdate(
-    { _id: 'receiptNumber' } as any,
-    { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: 'after' }
-  );
-  const seq = res?.value?.seq ?? 1;
-  return nextReceiptNumber(Number(seq));
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -149,7 +128,10 @@ export async function POST(request: NextRequest) {
         { new: true }
       ).lean();
     } else {
-      const receiptNumber = await allocReceiptNumber();
+      // Reuse the sale's own receipt number (YYMMSWNNN, assigned at creation)
+      // instead of minting a different one — the sale record is the source
+      // of truth for what receipt number a customer was already given.
+      const receiptNumber = sale?.receiptNumber || await generateInvoiceNumber();
       receipt = await (CrmReceipt as any).create({
         leadId: new mongoose.Types.ObjectId(leadId),
         leadNumber: lead.leadNumber,

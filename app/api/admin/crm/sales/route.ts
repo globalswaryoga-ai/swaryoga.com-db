@@ -545,6 +545,7 @@ export async function PUT(request: NextRequest) {
     if (updates.customerEmail !== undefined) safeUpdates.customerEmail = String(updates.customerEmail || '').trim().toLowerCase() || undefined;
     if (updates.workshopName !== undefined) safeUpdates.workshopName = String(updates.workshopName || '').trim() || undefined;
     if (updates.bankName !== undefined) safeUpdates.bankName = String(updates.bankName || '').trim() || undefined;
+    if (updates.receiptNumber !== undefined) safeUpdates.receiptNumber = String(updates.receiptNumber || '').trim() || undefined;
 
     if (updates.batchDate !== undefined) {
       const d = updates.batchDate ? new Date(String(updates.batchDate)) : null;

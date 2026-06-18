@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { isSuperAdmin } from '@/lib/crm-handlers';
+import { isSuperAdmin, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { getSalesReport, getCrmReceipt } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
@@ -93,15 +93,9 @@ export async function POST(request: NextRequest) {
         if (existing) {
           receipt = existing;
         } else {
-          // Generate receipt number
-          const counters = db.collection('crm_counters');
-          const counterRes = await counters.findOneAndUpdate(
-            { _id: 'receiptNumber' } as any,
-            { $inc: { seq: 1 } },
-            { upsert: true, returnDocument: 'after' }
-          );
-          const seq = counterRes?.value?.seq ?? 1;
-          const receiptNumber = `R-${String(Math.max(0, Number(seq))).padStart(6, '0')}`;
+          // Reuse the sale's own receipt number (YYMMSWNNN, assigned at
+          // creation) instead of minting a differently-formatted one.
+          const receiptNumber = sale.receiptNumber || await generateInvoiceNumber();
 
           receipt = await CrmReceipt.create({
             leadId: sale.leadId,
