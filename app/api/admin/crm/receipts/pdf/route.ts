@@ -6,7 +6,43 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter } from '@/lib/crm-handlers';
-import { CrmReceipt } from '@/lib/schemas/enterpriseSchemas';
+import { CrmReceipt, SalesReport } from '@/lib/schemas/enterpriseSchemas';
+
+const PAYMENT_MODE_LABELS: Record<string, string> = {
+  payu: 'PayU',
+  cashfree: 'Cashfree',
+  upi: 'UPI (Paytm/PhonePe/GPay)',
+  bank_transfer: 'Bank Transfer',
+  paypal: 'PayPal',
+  card: 'Card',
+  cash: 'Cash',
+  other: 'Other',
+};
+
+// Lets the PDF be built straight from a SalesReport when no CrmReceipt exists yet
+// (e.g. sales recorded before receipts were generated for every sale).
+function receiptShapeFromSale(sale: any) {
+  const paidAmount = sale.paidAmount ?? sale.saleAmount ?? 0;
+  return {
+    _id: sale._id,
+    leadId: sale.leadId,
+    receiptNumber: sale.receiptNumber,
+    customerId: sale.customerId,
+    customerName: sale.customerName,
+    customerPhone: sale.customerPhone,
+    workshopName: sale.workshopName,
+    issuedAt: sale.saleDate || sale.createdAt,
+    createdAt: sale.createdAt,
+    quantity: 1,
+    payment: {
+      amount: sale.saleAmount,
+      paidAmount,
+      method: sale.paymentMode,
+      provider: sale.paymentMode,
+      paidAt: sale.saleDate,
+    },
+  };
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -123,9 +159,8 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   }
 
   text('SWAR YOGA', M + 78, H - 42, { size: 21, font: bold, color: black });
-  text('Maldad Road, Sangamner', M + 78, H - 60, { size: 8, color: gray });
-  text('Mo +91 93099 86820', M + 78, H - 72, { size: 8, color: gray });
-  text('mohan@swaryoga.com', M + 78, H - 84, { size: 8, color: gray });
+  text('Maldad Road, Sangamner • Mo +91 93099 86820', M + 78, H - 62, { size: 8, color: gray });
+  text('Email: mohan@swaryoga.com', M + 78, H - 74, { size: 8, color: gray });
 
   if (logoImg) {
     page.drawImage(logoImg, { x: W - M - 54, y: H - 70, width: 54, height: 54 });
@@ -191,7 +226,7 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   text(`${money(unitAmt)}/-`, cX[2] + (cW[2] - reg.widthOfTextAtSize(`${money(unitAmt)}/-`, 9.5)) / 2, r1Y + 12, { size: 9.5 });
 
   const pay = receipt?.payment || {};
-  const payMethod  = safe(pay?.method || pay?.provider || 'payment').toLowerCase().replace(/_/g, ' ');
+  const payMethod  = safe(pay?.method || pay?.provider || 'payment').toLowerCase();
   const payDate    = fmt(pay?.paidAt || receipt?.issuedAt || receipt?.createdAt);
   const receivedNote = `Received on the date of- ${payDate} (${payMethod})`;
 
@@ -212,10 +247,9 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   text('Payment Method :', M, leftY, { size: 11, font: bold });
   leftY -= 18;
 
-  const methodRaw = safe(pay?.method || pay?.provider || 'Bank Transfer');
-  const method = methodRaw === '—'
-    ? 'Bank Transfer'
-    : methodRaw.charAt(0).toUpperCase() + methodRaw.slice(1).toLowerCase().replace(/_/g, ' ');
+  const methodKey = safe(pay?.method || pay?.provider || '').toLowerCase();
+  const method = PAYMENT_MODE_LABELS[methodKey]
+    || (methodKey && methodKey !== '—' ? methodKey.charAt(0).toUpperCase() + methodKey.slice(1).replace(/_/g, ' ') : 'Bank Transfer');
   text(method, M, leftY, { size: 11 });
   leftY -= 20;
 
@@ -300,12 +334,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const tf = tenantFilter(decoded, 'issuedByUserId');
+    const saleTf = tenantFilter(decoded, 'reportedByUserId');
 
     const receiptId = url.searchParams.get('id');
     const leadId    = url.searchParams.get('leadId');
+    const saleId    = url.searchParams.get('saleId');
 
-    if (!receiptId && !leadId) {
-      return NextResponse.json({ error: 'Missing id or leadId' }, { status: 400 });
+    if (!receiptId && !leadId && !saleId) {
+      return NextResponse.json({ error: 'Missing id, leadId or saleId' }, { status: 400 });
     }
 
     await connectDB();
@@ -317,6 +353,17 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid receipt id' }, { status: 400 });
       }
       rec = await (CrmReceipt as any).findOne({ _id: receiptId, ...tf }).lean();
+    } else if (saleId) {
+      if (!mongoose.Types.ObjectId.isValid(saleId)) {
+        return NextResponse.json({ error: 'Invalid sale id' }, { status: 400 });
+      }
+      rec = await (CrmReceipt as any).findOne({ saleId, ...tf }).sort({ issuedAt: -1 }).lean();
+      if (!rec) {
+        // Older sales recorded before a CrmReceipt was generated for every sale —
+        // build the same design straight from the sale record instead of 404ing.
+        const sale = await (SalesReport as any).findOne({ _id: saleId, ...saleTf }).lean();
+        if (sale) rec = receiptShapeFromSale(sale);
+      }
     } else {
       if (!mongoose.Types.ObjectId.isValid(leadId!)) {
         return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
@@ -325,6 +372,13 @@ export async function GET(request: NextRequest) {
         .findOne({ leadId: new mongoose.Types.ObjectId(leadId!), ...tf })
         .sort({ issuedAt: -1 })
         .lean();
+      if (!rec) {
+        const sale = await (SalesReport as any)
+          .findOne({ leadId: new mongoose.Types.ObjectId(leadId!), ...saleTf })
+          .sort({ saleDate: -1 })
+          .lean();
+        if (sale) rec = receiptShapeFromSale(sale);
+      }
     }
 
     if (!rec) {

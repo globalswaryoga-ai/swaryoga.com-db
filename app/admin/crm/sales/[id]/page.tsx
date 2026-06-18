@@ -153,34 +153,29 @@ export default function SaleDetailPage() {
     fetchSale();
   }, [id, token]);
 
-  // Render the receipt to a canvas and download it as an A4 PDF.
+  // Downloads the same server-rendered PDF used everywhere else (WhatsApp send,
+  // receipt preview modal), so every receipt — old sale or new — looks identical.
   const handleDownload = async () => {
+    if (!token || !sale) return;
     setDownloading(true);
     try {
-      const element = document.getElementById('receipt-content');
-      if (!element) return;
-
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
+      const res = await fetch(`/api/admin/crm/receipts/pdf?saleId=${sale._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      const pageWidth = 210; // A4 mm
-      const pageHeight = 297; // A4 mm
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const renderHeight = Math.min(imgHeight, pageHeight);
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, renderHeight);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Failed to generate PDF (${res.status})`);
+      }
+      const blob = await res.blob();
       const invoiceNo = sale?.receiptNumber || (sale?._id || id || 'swaryoga').slice(-8).toUpperCase();
-      pdf.save(`Receipt-${invoiceNo}.pdf`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Receipt-${invoiceNo}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download PDF');
     } finally {
       setDownloading(false);
     }
@@ -407,6 +402,12 @@ export default function SaleDetailPage() {
             <p className="text-center text-sm font-semibold text-slate-500 mt-8">{ORG.website}</p>
           </div>
         </div>
+
+        {error && (
+          <div className="mt-6 print:hidden">
+            <AlertBox type="error" message={error} onClose={() => setError(null)} />
+          </div>
+        )}
 
         {/* Action Buttons - Hidden on print */}
         <div className="mt-6 flex justify-center gap-4 print:hidden">
