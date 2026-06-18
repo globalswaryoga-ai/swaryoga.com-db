@@ -36,6 +36,8 @@ const ORG = { address: 'Maldad Road, Sangamner', phone: '+91 93099 86820', email
 const ASSETS = {
   photo: 'https://swaryogacrm.b-cdn.net/mohan.jpg',
   logo: 'https://swaryogacrm.b-cdn.net/Symbol%20of%20infinity%20with%20a%20flame.png',
+  seal: 'https://swaryogacrm.b-cdn.net/Blue%20Ink%20Stamp%20of%20Upamanyu%20Ltd..png',
+  signature: 'https://swaryogacrm.b-cdn.net/ChatGPT%20Image%20Aug%2021%2C%202025%20at%2004_08_28%20PM.png',
 };
 const ACCENT_BORDER = '#d9a26a';
 const ACCENT_TABLE = '#f39c12';
@@ -412,6 +414,19 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
                           <span>Total</span>
                           <span>{Math.round(paidAmt).toLocaleString('en-IN')}/-</span>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Seal & signature */}
+                    <div className="flex items-end justify-between gap-6 px-6 pb-4">
+                      <div className="text-center">
+                        <img src={ASSETS.seal} alt="Company Seal" className="w-16 h-16 object-contain mx-auto" />
+                        <p className="font-bold text-xs text-gray-900 mt-1">&quot;Thank you!&quot;</p>
+                      </div>
+                      <div className="text-center">
+                        <img src={ASSETS.signature} alt="Signature" className="h-12 mx-auto object-contain" />
+                        <p className="font-bold text-xs text-gray-900">Mohan Kalburgi</p>
+                        <p className="text-[10px] text-gray-500 italic">Yogacharya</p>
                       </div>
                     </div>
 
