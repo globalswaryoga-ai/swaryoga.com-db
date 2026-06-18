@@ -977,7 +977,11 @@ export default function SalesPage() {
       label: 'Customer & Contact',
       render: (name: string, sale: SaleRecord) => {
         const displayName = name || sale.leadId?.name || 'N/A';
-        const displayPhone = sale.customerPhone || sale.leadId?.phoneNumber || 'N/A';
+        const leadPhone = sale.leadId?.phoneNumber || '';
+        // Synthetic placeholder numbers (919999900xxx) minted when no real
+        // phone was on file -- don't show these as if they were real.
+        const isPlaceholderPhone = /^91?9999900\d{3}$/.test(leadPhone);
+        const displayPhone = sale.customerPhone || (isPlaceholderPhone ? '' : leadPhone) || 'N/A';
         return (
           <div className="space-y-1">
             <div className="font-semibold text-white break-words">{displayName}</div>
