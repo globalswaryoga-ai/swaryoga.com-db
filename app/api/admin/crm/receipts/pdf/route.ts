@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
-import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter } from '@/lib/crm-handlers';
@@ -34,6 +34,20 @@ function trunc(s: string, max = 50): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
+// Scales every (x, y) coordinate pair in a simple absolute-command SVG path
+// ("M", "L", "C", "Z" with plain numbers) by independent x/y factors, since
+// pdf-lib's drawSvgPath only supports a single uniform scale.
+function scaleSvgPath(d: string, scaleX: number, scaleY: number): string {
+  const numbers = d.match(/-?\d+(\.\d+)?/g) || [];
+  let i = 0;
+  return d.replace(/-?\d+(\.\d+)?/g, (n) => {
+    const v = Number(n);
+    const scaled = i % 2 === 0 ? v * scaleX : v * scaleY;
+    i++;
+    return String(Math.round(scaled * 100) / 100);
+  });
+}
+
 // ─── PDF builder ──────────────────────────────────────────────────────────────
 
 async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
@@ -42,31 +56,38 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
 
   const bold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const reg    = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const italic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
   const { width: W, height: H } = page.getSize();
   const M = 40; // side margin
 
-  // ─── colours ────────────────────────────────────────────────────────────────
-  const orange    = rgb(0.91, 0.50, 0.10);   // #E8801A
-  const darkGreen = rgb(0.18, 0.42, 0.31);   // #2D6A4F
-  const teal      = rgb(0.10, 0.42, 0.33);   // #1A6B55
-  const red       = rgb(0.75, 0.22, 0.17);   // #C0392B
-  const darkBg    = rgb(0.10, 0.10, 0.17);   // #1A1A2E
-  const white     = rgb(1, 1, 1);
-  const black     = rgb(0.07, 0.07, 0.07);
-  const gray      = rgb(0.40, 0.40, 0.40);
-  const lightGray = rgb(0.96, 0.96, 0.96);
-  const midGray   = rgb(0.87, 0.87, 0.87);
+  // ─── colours (matching the sales/[id] receipt page design) ────────────────
+  const orange     = rgb(0.953, 0.612, 0.075);  // #F39C12 — table header / accent
+  const borderTan  = rgb(0.851, 0.635, 0.416);  // #D9A26A — table borders
+  const accentGreen = rgb(0.357, 0.667, 0.184); // #5BAA2F — customer name
+  const accentRed  = rgb(0.843, 0.180, 0.180);  // #D72E2E — totals
+  const waveLight  = rgb(0.420, 0.722, 0.173);  // #6BB82C
+  const waveDark   = rgb(0.325, 0.510, 0.365);  // #53825D
+  const white      = rgb(1, 1, 1);
+  const black      = rgb(0.07, 0.07, 0.07);
+  const gray       = rgb(0.40, 0.40, 0.40);
+  const lightGray  = rgb(0.96, 0.96, 0.96);
+  const midGray    = rgb(0.87, 0.87, 0.87);
 
   const text = (t: string, x: number, y: number, opts: { size?: number; font?: any; color?: any } = {}) =>
     page.drawText(t, { x, y, size: opts.size ?? 10, font: opts.font ?? reg, color: opts.color ?? black });
 
-  // ─── embed logos ────────────────────────────────────────────────────────────
-  // Use the small, pre-resized copies — the source files are 3000x3000 / 1080x1080
-  // (multi-MB) and were bloating every generated receipt to several MB.
+  // ─── embed images ───────────────────────────────────────────────────────────
+  // Pre-resized local copies — the source files are several MB and would
+  // bloat every generated receipt if embedded at full size.
+  let photoImg: any = null;
   let logoImg: any = null;
   let sealImg: any = null;
   let signatureImg: any = null;
+  try {
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'receipt-photo.jpg'));
+    photoImg = await pdfDoc.embedJpg(buf);
+  } catch {}
   try {
     const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'receipt-logo.png'));
     logoImg = await pdfDoc.embedPng(buf);
@@ -80,97 +101,77 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
     signatureImg = await pdfDoc.embedPng(buf);
   } catch {}
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HEADER  (y = H-130 … H)
-  // ═══════════════════════════════════════════════════════════════════════════
-  // White background
-  page.drawRectangle({ x: 0, y: H - 130, width: W, height: 130, color: white });
+  // White page background.
+  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: white });
 
-  // Green diagonal stripe — top-right corner
-  page.drawRectangle({
-    x: W * 0.52,
-    y: H - 145,
-    width: W * 0.68,
-    height: 160,
-    color: darkGreen,
-    rotate: degrees(12),
-  });
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TOP WAVE DECORATION  (decorative backdrop behind the header)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const topWaveH = 130;
+  const sx = W / 1000;
+  const syTop = topWaveH / 200;
+  // Drawn with y = H so the SVG's own (0,0) origin sits at the page top edge,
+  // descending downward to match the original top-0 placement.
+  page.drawSvgPath(scaleSvgPath('M0,0 L1000,0 L1000,20 C800,30 500,110 0,150 Z', sx, syTop), { x: 0, y: H, color: waveLight });
+  page.drawSvgPath(scaleSvgPath('M0,0 L1000,0 L1000,170 C800,165 500,70 0,30 Z', sx, syTop), { x: 0, y: H, color: waveDark });
 
-  // Logo
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HEADER  (photo + brand on the left, logo + invoice no. on the right)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (photoImg) {
+    page.drawImage(photoImg, { x: M, y: H - 92, width: 64, height: 64 });
+  }
+
+  text('SWAR YOGA', M + 78, H - 42, { size: 21, font: bold, color: black });
+  text('Maldad Road, Sangamner', M + 78, H - 60, { size: 8, color: gray });
+  text('Mo +91 93099 86820', M + 78, H - 72, { size: 8, color: gray });
+  text('mohan@swaryoga.com', M + 78, H - 84, { size: 8, color: gray });
+
   if (logoImg) {
-    page.drawImage(logoImg, { x: M, y: H - 116, width: 68, height: 68 });
-  } else {
-    page.drawEllipse({ x: M + 34, y: H - 82, xScale: 32, yScale: 32, color: darkGreen });
-    text('SW', M + 18, H - 92, { size: 16, font: bold, color: white });
+    page.drawImage(logoImg, { x: W - M - 54, y: H - 70, width: 54, height: 54 });
   }
 
-  // Company text — kept short per line so it never runs into the green
-  // diagonal stripe (which starts around x = W*0.52).
-  text('SWAR YOGA', M + 82, H - 44, { size: 19, font: bold, color: black });
-  text('Maldad Road, Sangamner', M + 82, H - 61, { size: 8, color: gray });
-  text('Mo +91 93099 86820', M + 82, H - 73, { size: 8, color: gray });
-  text('mohan@swaryoga.com', M + 82, H - 85, { size: 8, color: gray });
-
-  // Seal — tucked into the very top-right corner, clear of the title below it.
-  if (sealImg) {
-    page.drawImage(sealImg, { x: W - 64, y: H - 60, width: 50, height: 50 });
-  } else {
-    page.drawEllipse({ x: W - 39, y: H - 35, xScale: 24, yScale: 24, color: white });
-    text('8', W - 46, H - 44, { size: 16, font: bold, color: darkGreen });
-  }
-
-  // INVOICE title — positioned below the seal so the two never overlap.
-  text('INVOICE', W - M - bold.widthOfTextAtSize('INVOICE', 24) - 4, H - 90, { size: 24, font: bold, color: black });
+  text('INVOICE', W - M - bold.widthOfTextAtSize('INVOICE', 26) , H - 92, { size: 26, font: bold, color: black });
 
   const receiptNumber = safe(receipt?.receiptNumber || receipt?._id);
-  text(`No: ${receiptNumber}`, W - M - reg.widthOfTextAtSize(`No: ${receiptNumber}`, 10) - 4, H - 105, { size: 10, color: rgb(0.85, 0.9, 0.88) });
+  text(`No: ${receiptNumber}`, W - M - reg.widthOfTextAtSize(`No: ${receiptNumber}`, 10), H - 106, { size: 10, color: gray });
 
-  // ─── Orange divider ────────────────────────────────────────────────────────
-  page.drawRectangle({ x: 0, y: H - 134, width: W, height: 4, color: orange });
+  // ─── Tan divider (matches ACCENT_BORDER on the HTML receipt) ─────────────────
+  page.drawRectangle({ x: 0, y: H - 132, width: W, height: 2.5, color: borderTan });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // INVOICE TO  +  DATE/TOTAL  (y = H-244 … H-134)
+  // INVOICE TO  +  DATE/TOTAL
   // ═══════════════════════════════════════════════════════════════════════════
-  page.drawRectangle({ x: 0, y: H - 244, width: W, height: 110, color: white });
-
-  // Left – customer
-  text('INVOICE TO :', M, H - 154, { size: 8.5, color: gray });
+  text('INVOICE TO :', M, H - 152, { size: 8.5, color: gray });
 
   const custId = safe(receipt?.customerId || (receipt?.leadId?.toString?.() || '').slice(-6) || '—');
-  text(`ID: ${custId}`, M, H - 170, { size: 10, font: bold });
+  text(`ID: ${custId}`, M, H - 168, { size: 10, font: bold });
 
   const customerName = safe(receipt?.customerName);
-  text(trunc(customerName, 32), M, H - 186, { size: 16, font: bold, color: teal });
+  text(trunc(customerName, 32), M, H - 186, { size: 17, font: bold, color: accentGreen });
 
   const customerPhone = safe(receipt?.customerPhone);
   text(customerPhone, M, H - 204, { size: 9, color: gray });
 
-  // Right – date + total
-  const colR = W / 2 + 20;
   const issuedAt = fmt(receipt?.issuedAt || receipt?.createdAt);
-  text(`Date: ${issuedAt}`, W - M - bold.widthOfTextAtSize(`Date: ${issuedAt}`, 10), H - 154, { size: 10, font: bold });
-
-  // small orange bar
-  page.drawRectangle({ x: colR, y: H - 172, width: W - colR - M, height: 2, color: orange });
+  text(`Date: ${issuedAt}`, W - M - reg.widthOfTextAtSize(`Date: ${issuedAt}`, 10), H - 152, { size: 10 });
 
   text('TOTAL AMOUNT', W - M - reg.widthOfTextAtSize('TOTAL AMOUNT', 8), H - 182, { size: 8, color: gray });
 
   const totalAmt = receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? 0;
   const totalStr = `RS. ${money(totalAmt)}/-`;
-  text(totalStr, W - M - bold.widthOfTextAtSize(totalStr, 20), H - 204, { size: 20, font: bold, color: red });
+  text(totalStr, W - M - bold.widthOfTextAtSize(totalStr, 22), H - 206, { size: 22, font: bold, color: accentRed });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // TABLE  (y = H-284 … H-244)
+  // FEE TABLE
   // ═══════════════════════════════════════════════════════════════════════════
   const tTop  = H - 248;
   const tW    = W - M * 2;
   const rowH  = 34;
 
-  // Column positions & widths
   const cW = [tW * 0.50, tW * 0.13, tW * 0.19, tW * 0.18];
   const cX = [M, M + cW[0], M + cW[0] + cW[1], M + cW[0] + cW[1] + cW[2]];
 
-  // Header row (orange)
   page.drawRectangle({ x: M, y: tTop - 24, width: tW, height: 24, color: orange });
   const hLabels = ['WORKSHOP', 'PERSON', 'FEES', 'TOTAL'];
   hLabels.forEach((h, i) => {
@@ -182,15 +183,13 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   const qty     = Number(receipt?.quantity ?? 1) || 1;
   const unitAmt = Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? 0);
 
-  // Row 1 (white)
   const r1Y = tTop - 24 - rowH;
   page.drawRectangle({ x: M, y: r1Y, width: tW, height: rowH, color: white });
-  page.drawRectangle({ x: M, y: r1Y, width: tW, height: 1, color: midGray });
+  page.drawRectangle({ x: M, y: r1Y, width: tW, height: 1, color: borderTan });
   text(trunc(workshopName, 36), cX[0] + 8, r1Y + 12, { size: 10, font: bold });
   text(String(qty), cX[1] + (cW[1] - reg.widthOfTextAtSize(String(qty), 9.5)) / 2, r1Y + 12, { size: 9.5 });
   text(`${money(unitAmt)}/-`, cX[2] + (cW[2] - reg.widthOfTextAtSize(`${money(unitAmt)}/-`, 9.5)) / 2, r1Y + 12, { size: 9.5 });
 
-  // Row 2 (light gray) – payment received note
   const pay = receipt?.payment || {};
   const payMethod  = safe(pay?.method || pay?.provider || 'payment').toLowerCase().replace(/_/g, ' ');
   const payDate    = fmt(pay?.paidAt || receipt?.issuedAt || receipt?.createdAt);
@@ -198,7 +197,7 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
 
   const r2Y = r1Y - rowH;
   page.drawRectangle({ x: M, y: r2Y, width: tW, height: rowH, color: lightGray });
-  page.drawRectangle({ x: M, y: r2Y, width: tW, height: 1, color: midGray });
+  page.drawRectangle({ x: M, y: r2Y, width: tW, height: 1, color: borderTan });
   text(trunc(receivedNote, 46), cX[0] + 8, r2Y + 12, { size: 8.5, color: gray });
   text(`${money(unitAmt)}/-`, cX[2] + (cW[2] - reg.widthOfTextAtSize(`${money(unitAmt)}/-`, 9.5)) / 2, r2Y + 12, { size: 9.5 });
   text(money(unitAmt), cX[3] + (cW[3] - reg.widthOfTextAtSize(money(unitAmt), 9.5)) / 2, r2Y + 12, { size: 9.5 });
@@ -241,63 +240,46 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   const discount  = Number(receipt?.payment?.discountAmount ?? 0) || 0;
   const grandTotal = Math.max(0, unitAmt - discount);
 
-  // Sub Total
   page.drawRectangle({ x: bX, y: bY - lH, width: bW, height: lH, color: lightGray });
   text('Sub Total', bX + 8, bY - lH + 7, { size: 9 });
   text(`${money(unitAmt)}/-`, bX + bW - 8 - reg.widthOfTextAtSize(`${money(unitAmt)}/-`, 9), bY - lH + 7, { size: 9 });
 
-  // Tax
   page.drawRectangle({ x: bX, y: bY - lH * 2, width: bW, height: lH, color: white });
-  page.drawRectangle({ x: bX, y: bY - lH * 2, width: bW, height: 1, color: midGray });
+  page.drawRectangle({ x: bX, y: bY - lH * 2, width: bW, height: 1, color: borderTan });
   text('Tax', bX + 8, bY - lH * 2 + 7, { size: 9 });
   text('0', bX + bW - 8 - reg.widthOfTextAtSize('0', 9), bY - lH * 2 + 7, { size: 9 });
 
-  // Total (orange bg)
   page.drawRectangle({ x: bX, y: bY - lH * 3 - 2, width: bW, height: lH + 2, color: orange });
   text('Total', bX + 8, bY - lH * 3 + 6, { size: 11, font: bold, color: white });
   const gtStr = `${money(grandTotal || unitAmt)}/-`;
   text(gtStr, bX + bW - 8 - bold.widthOfTextAtSize(gtStr, 11), bY - lH * 3 + 6, { size: 11, font: bold, color: white });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // CLOSING  (seal, signature, thank-you note) — fills the space between the
-  // totals box and the footer so the page reads as one deliberately designed
-  // invoice instead of leaving a large blank gap.
+  // BOTTOM WAVE DECORATION + CLOSING  (seal/thank-you left, signature right)
   // ═══════════════════════════════════════════════════════════════════════════
-  const closingTop = bY - lH * 3 - 2 - 36;
+  const bottomWaveH = 130;
+  const syBottom = bottomWaveH / 200;
+  page.drawSvgPath(scaleSvgPath('M1000,200 L0,200 L0,180 C200,170 500,90 1000,50 Z', sx, syBottom), { x: 0, y: bottomWaveH, color: waveLight });
+  page.drawSvgPath(scaleSvgPath('M1000,200 L0,200 L0,30 C200,35 500,130 1000,170 Z', sx, syBottom), { x: 0, y: bottomWaveH, color: waveDark });
 
-  page.drawRectangle({ x: M, y: closingTop, width: W - M * 2, height: 1, color: midGray });
-
-  const imgSize = 90;
-  const imgGap = 24;
-  const imagesY = closingTop - 18 - imgSize;
-  const imagesTotalW = (sealImg ? imgSize : 0) + (sealImg && signatureImg ? imgGap : 0) + (signatureImg ? imgSize : 0);
-  let imgX = (W - imagesTotalW) / 2;
+  const closeY = Math.min(bY - lH * 3 - 2 - 50, 230);
 
   if (sealImg) {
-    page.drawImage(sealImg, { x: imgX, y: imagesY, width: imgSize, height: imgSize });
-    imgX += imgSize + imgGap;
+    page.drawImage(sealImg, { x: M + 10, y: closeY - 100, width: 100, height: 100 });
+    text('"Thank you!"', M + 10, closeY - 116, { size: 13, font: bold });
+    text('Your registration & payment are confirmed', M + 10, closeY - 130, { size: 8.5, color: gray });
   }
+
   if (signatureImg) {
-    page.drawImage(signatureImg, { x: imgX, y: imagesY, width: imgSize, height: imgSize });
+    const sigW = 130, sigH = 65;
+    const sigX = W - M - sigW;
+    page.drawImage(signatureImg, { x: sigX, y: closeY - 70, width: sigW, height: sigH });
+    text('Mohan Kalburgi', W - M - bold.widthOfTextAtSize('Mohan Kalburgi', 11), closeY - 86, { size: 11, font: bold });
+    text('Yogacharya', W - M - italic.widthOfTextAtSize('Yogacharya', 9), closeY - 100, { size: 9, font: italic, color: gray });
   }
 
-  const thanksLine = '"Thank you!"';
-  text(thanksLine, (W - bold.widthOfTextAtSize(thanksLine, 14)) / 2, imagesY - 22, { size: 14, font: bold });
-
-  const confirmLine = 'Your registration & payment are confirmed';
-  text(confirmLine, (W - reg.widthOfTextAtSize(confirmLine, 9.5)) / 2, imagesY - 38, { size: 9.5, color: gray });
-
-  const signerLine = 'Mohan Kalburgi · Yogacharya';
-  text(signerLine, (W - reg.widthOfTextAtSize(signerLine, 9)) / 2, imagesY - 56, { size: 9, color: gray });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FOOTER
-  // ═══════════════════════════════════════════════════════════════════════════
-  page.drawRectangle({ x: 0, y: 0, width: W, height: 50, color: darkBg });
-  text('+91 93099 86820', M, 20, { size: 8.5, color: rgb(0.7, 0.7, 0.75) });
-  text('mohan@swaryoga.com', M + 130, 20, { size: 8.5, color: rgb(0.7, 0.7, 0.75) });
-  const thanks = 'Thank you for your business';
-  text(thanks, W - M - reg.widthOfTextAtSize(thanks, 8.5), 20, { size: 8.5, font: bold, color: rgb(0.7, 0.7, 0.75) });
+  const website = 'www.swaryoga.com';
+  text(website, (W - bold.widthOfTextAtSize(website, 9)) / 2, 40, { size: 9, font: bold, color: gray });
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
