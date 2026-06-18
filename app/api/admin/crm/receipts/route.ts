@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const leadId = url.searchParams.get('leadId');
     const receiptId = url.searchParams.get('id');
+    const saleId = url.searchParams.get('saleId');
 
     if (!leadId && !receiptId) {
       return NextResponse.json({ error: 'Missing leadId or id' }, { status: 400 });
@@ -53,6 +54,22 @@ export async function GET(request: NextRequest) {
 
     if (!mongoose.Types.ObjectId.isValid(leadId!)) {
       return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
+    }
+
+    // A lead can have multiple sales. When the caller knows which sale it's
+    // previewing, only return that sale's own receipt -- never a sibling
+    // sale's receipt under the same lead.
+    if (saleId && mongoose.Types.ObjectId.isValid(saleId)) {
+      const SalesReport = getSalesReport();
+      const sale: any = await SalesReport.findById(saleId).select('receiptId').lean();
+      let rec: any = null;
+      if (sale?.receiptId) {
+        rec = await (CrmReceipt as any).findById(sale.receiptId).lean();
+      }
+      if (!rec) {
+        rec = await (CrmReceipt as any).findOne({ saleId: new mongoose.Types.ObjectId(saleId) }).sort({ issuedAt: -1 }).lean();
+      }
+      return NextResponse.json({ success: true, data: rec ? [rec] : [] }, { status: 200 });
     }
 
     const receipts = await (CrmReceipt as any)
@@ -105,12 +122,28 @@ export async function POST(request: NextRequest) {
       sale = await SalesReport.findOne({ leadId: new mongoose.Types.ObjectId(leadId) }).sort({ saleDate: -1 }).lean();
     }
 
-    // If a receipt exists already, reuse it — unless it's stale (missing the
-    // amount a real sale has) or the caller explicitly asked to regenerate.
-    const existing = await (CrmReceipt as any)
-      .findOne({ leadId: new mongoose.Types.ObjectId(leadId) })
-      .sort({ issuedAt: -1 })
-      .lean();
+    // If a receipt exists already for THIS specific sale, reuse it — unless
+    // it's stale (missing the amount a real sale has) or the caller asked to
+    // regenerate. A lead can have multiple sales, so this must never fall
+    // back to "any receipt under this lead" -- that would show one sale's
+    // receipt when previewing a different sale of the same customer.
+    let existing: any = null;
+    if (sale?.receiptId) {
+      existing = await (CrmReceipt as any).findById(sale.receiptId).lean();
+    }
+    if (!existing && sale?._id) {
+      existing = await (CrmReceipt as any).findOne({ saleId: sale._id }).sort({ issuedAt: -1 }).lean();
+    }
+    if (!existing && !sale) {
+      // No sale at all (manual receipt, not tied to a SalesReport) -- fall
+      // back to the lead's latest receipt, the old behavior.
+      existing = await (CrmReceipt as any).findOne({ leadId: new mongoose.Types.ObjectId(leadId) }).sort({ issuedAt: -1 }).lean();
+    }
+    // Backfill saleId on receipts created before this field existed, so
+    // future lookups can match directly without going through sale.receiptId.
+    if (existing && sale?._id && !existing.saleId) {
+      await (CrmReceipt as any).updateOne({ _id: existing._id }, { $set: { saleId: sale._id } });
+    }
     const existingIsStale = Boolean(existing) && !existing!.payment?.amount && Boolean(sale?.saleAmount);
     if (existing && !force && !existingIsStale) {
       return NextResponse.json({ success: true, data: existing, message: 'Existing receipt returned' }, { status: 200 });
@@ -135,6 +168,7 @@ export async function POST(request: NextRequest) {
       receipt = await (CrmReceipt as any).create({
         leadId: new mongoose.Types.ObjectId(leadId),
         leadNumber: lead.leadNumber,
+        ...(sale?._id ? { saleId: sale._id } : {}),
         receiptNumber,
         issuedByUserId: viewerUserId,
         issuedAt: new Date(),

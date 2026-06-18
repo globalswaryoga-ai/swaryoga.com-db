@@ -79,7 +79,8 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/crm/receipts?leadId=${leadId}`, {
+      const query = saleId ? `leadId=${leadId}&saleId=${saleId}` : `leadId=${leadId}`;
+      const res = await fetch(`/api/admin/crm/receipts?${query}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();

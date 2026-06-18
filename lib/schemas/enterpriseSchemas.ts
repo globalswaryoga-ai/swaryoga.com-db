@@ -2001,6 +2001,10 @@ const CrmReceiptSchema = new mongoose.Schema(
   {
     leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
     leadNumber: { type: String, trim: true, index: true },
+    // Which specific sale this receipt was issued for -- a lead can have
+    // multiple sales, and each needs its own receipt rather than sharing
+    // whichever one happens to be the lead's most recently issued.
+    saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesReport', index: true },
 
     // Human-friendly receipt number (optional; can be generated via CrmCounter)
     receiptNumber: { type: String, trim: true, unique: true, sparse: true, index: true },
