@@ -138,6 +138,20 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
   },
+  'swar-yoga-hindi': {
+    name: 'Swar Yoga Hindi',
+    slug: 'swar-yoga-hindi',
+    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
+    description: 'A residential Swar Yoga program conducted in Hindi.',
+    detailedDescription: 'Swar Yoga Hindi is a residential program teaching the fundamentals of Swar Yoga entirely in Hindi, combining guided breathwork sessions with in-person practice and community living. Schedules (next batch dates, location, and timings) are managed from Admin.',
+    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    duration: '5 days',
+    level: 'Beginner',
+    category: 'Health',
+    mode: ['Offline'],
+    language: ['Hindi'],
+    currency: ['INR']
+  },
   'swar-yoga-meditation': {
     name: 'Swar Yoga Meditation',
     slug: 'swar-yoga-meditation',
