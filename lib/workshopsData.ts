@@ -138,6 +138,20 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
   },
+  'swar-yoga-meditation': {
+    name: 'Swar Yoga Meditation',
+    slug: 'swar-yoga-meditation',
+    image: 'https://images.unsplash.com/photo-1545641203-7d072a14e3b2?auto=format&fit=crop&q=80&w=800',
+    description: 'A focused meditation practice rooted in Swar Yoga breath awareness.',
+    detailedDescription: 'Swar Yoga Meditation guides you through breath-based meditation techniques rooted in the Swar Yoga tradition. Daily guided sessions build steady focus, calm the nervous system, and deepen your connection to the natural rhythm of the breath. Schedules (next batch dates and timings) are managed from Admin.',
+    videoUrl: 'https://www.youtube.com/embed/T3qQdIj7f0Y',
+    duration: '9 days',
+    level: 'All Levels',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
   'amrut-aahar': {
     name: 'Amrut Aahar Program',
     slug: 'amrut-aahar',
