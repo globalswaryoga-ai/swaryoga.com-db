@@ -27,7 +27,7 @@ export interface ComputedChart {
   julianDay: number;
   ascendant: ComputedPosition;
   houses: Array<{ house: number } & ComputedPosition>;
-  planets: Array<{ planet: string; house: number } & ComputedPosition>;
+  planets: Array<{ planet: string; house: number; retrograde: boolean } & ComputedPosition>;
 }
 
 const PLANETS: Array<{ name: string; id: number }> = [
@@ -117,14 +117,16 @@ export async function computeChart(params: {
   for (const p of PLANETS) {
     const pos = swe.calc_ut(jd, p.id, SEFLG_SWIEPH | SEFLG_SIDEREAL);
     const longitude = pos[0];
-    planets.push({ planet: p.name, house: houseOfLongitude(longitude, cuspsSidereal), ...positionFromLongitude(longitude) });
+    const retrograde = pos[3] < 0; // negative daily motion in longitude = retrograde
+    planets.push({ planet: p.name, house: houseOfLongitude(longitude, cuspsSidereal), retrograde, ...positionFromLongitude(longitude) });
   }
 
   const rahuPos = swe.calc_ut(jd, SE_MEAN_NODE, SEFLG_SWIEPH | SEFLG_SIDEREAL);
   const rahuLongitude = rahuPos[0];
   const ketuLongitude = (rahuLongitude + 180) % 360;
-  planets.push({ planet: 'Rahu', house: houseOfLongitude(rahuLongitude, cuspsSidereal), ...positionFromLongitude(rahuLongitude) });
-  planets.push({ planet: 'Ketu', house: houseOfLongitude(ketuLongitude, cuspsSidereal), ...positionFromLongitude(ketuLongitude) });
+  // Rahu/Ketu (lunar nodes) are conventionally always treated as retrograde in Vedic/KP practice.
+  planets.push({ planet: 'Rahu', house: houseOfLongitude(rahuLongitude, cuspsSidereal), retrograde: true, ...positionFromLongitude(rahuLongitude) });
+  planets.push({ planet: 'Ketu', house: houseOfLongitude(ketuLongitude, cuspsSidereal), retrograde: true, ...positionFromLongitude(ketuLongitude) });
 
   return {
     julianDay: jd,

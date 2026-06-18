@@ -4343,6 +4343,164 @@ export function getKpHoroscopeChart() { return getModel('KpHoroscopeChart', KpHo
 export const KpHoroscopeChart = createModelProxy('KpHoroscopeChart', KpHoroscopeChartSchema);
 
 // ============================================================================
+// KP ASTROLOGER WORKBENCH — bhav-by-bhav analysis, deeper dasha levels, ruling
+// planets, horary (prashna) charts, and matchmaking. Built on top of the
+// existing KpHoroscopeChart above (houses/planets/mahadashas/reports/chat
+// already there are reused as-is via the shared sub-schemas below).
+//
+// Design intent: the astrologer works through each of the 12 bhavs first
+// (significators, custom matters, positive/negative read, dasha cross-notes,
+// free notes, and a predictionOrder so they control which bhav becomes
+// point 1/2/3 of the final reading) — THEN the final prediction is generated
+// from that structured work, not directly from raw chart data. The AI
+// generate route is responsible for applying life-stage logic (e.g. an
+// already-past or already-married native shouldn't get a fresh marriage
+// prediction from a dasha that astrologically supports it) using the
+// astrologer's notes + current age + dasha timeline together.
+// ============================================================================
+
+const KpCustomMatterSchema = new mongoose.Schema(
+  {
+    label: { type: String, trim: true, required: true }, // astrologer-defined matter, e.g. "Foreign travel"
+    notes: { type: String, trim: true, default: '' },
+  },
+  { _id: false }
+);
+
+// KP's traditional 4-level significator categorization for a house's matters:
+// A = occupant's star lord, B = occupant, C = owner (cuspal sub lord chain),
+// D = owner's star lord. Kept as free-edit string arrays (not auto-derived
+// with certainty) because retrograde/combust/aspect judgment calls are the
+// astrologer's — the workspace UI pre-fills computed candidates as a
+// starting point, but the astrologer is the source of truth here.
+const KpBhavAnalysisSchema = new mongoose.Schema(
+  {
+    house: { type: Number, required: true, min: 1, max: 12 },
+    subLord: { type: String, trim: true, default: '' },
+    significatorsA: { type: [String], default: [] },
+    significatorsB: { type: [String], default: [] },
+    significatorsC: { type: [String], default: [] },
+    significatorsD: { type: [String], default: [] },
+    customMatters: { type: [KpCustomMatterSchema], default: [] },
+    positiveNotes: { type: String, trim: true, default: '' },
+    negativeNotes: { type: String, trim: true, default: '' },
+    dashaNotes: { type: String, trim: true, default: '' }, // mahadasha/antardasha cross-reference notes
+    freeNotes: { type: String, trim: true, default: '' },
+    predictionOrder: { type: Number, default: 0 }, // which point in the final reading (1st, 2nd...); 0 = unordered
+    includeInPrediction: { type: Boolean, default: true },
+  },
+  { _id: false }
+);
+
+// Flat list across all dasha levels (rather than nested arrays-of-arrays)
+// so "what's active right now at every level" is a simple date-range filter,
+// and rendering/PDF export doesn't need to walk a tree.
+const KpDashaPeriodSchema = new mongoose.Schema(
+  {
+    level: { type: String, enum: ['maha', 'antar', 'pratyantar', 'sookshma', 'prana'], required: true },
+    planet: { type: String, trim: true, required: true },
+    parentPath: { type: String, trim: true, default: '' }, // e.g. "Ketu-Venus-Sun" for a Pratyantar row
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+  },
+  { _id: false }
+);
+
+// A point-in-time snapshot — ruling planets are only meaningful as of the
+// moment they're judged (horary question time, or "right now" for a live
+// reference). Stored as a snapshot (not recomputed on read) so a horary
+// judgment stays tied to the actual moment the question was asked.
+const KpRulingPlanetsSchema = new mongoose.Schema(
+  {
+    capturedAt: { type: Date, required: true },
+    dayLord: { type: String, trim: true, default: '' },
+    lagnaSign: { type: String, trim: true, default: '' },
+    lagnaSignLord: { type: String, trim: true, default: '' },
+    lagnaStarLord: { type: String, trim: true, default: '' },
+    lagnaSubLord: { type: String, trim: true, default: '' },
+    moonSign: { type: String, trim: true, default: '' },
+    moonSignLord: { type: String, trim: true, default: '' },
+    moonStarLord: { type: String, trim: true, default: '' },
+    moonSubLord: { type: String, trim: true, default: '' },
+    retrogradePlanets: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+// --- Extend the birth chart with the workbench fields ---
+KpHoroscopeChartSchema.add({
+  chartStyle: { type: String, enum: ['north', 'south'], default: 'north' },
+  bhavAnalysis: { type: [KpBhavAnalysisSchema], default: [] },
+  dashaPeriods: { type: [KpDashaPeriodSchema], default: [] },
+  rulingPlanets: { type: KpRulingPlanetsSchema, default: undefined },
+});
+
+// --- Horary (Prashna Kundali) ---
+// Cast from a 1-249 KP horary number rather than a birth moment; otherwise
+// mirrors the birth chart's structure (houses/planets computed for the
+// question's moment+place, same bhav-analysis workspace, same reports/chat).
+const KpHoraryChartSchema = new mongoose.Schema(
+  {
+    questionText: { type: String, trim: true, required: true },
+    querentName: { type: String, trim: true, default: '' },
+    horaryNumber: { type: Number, required: true, min: 1, max: 249 },
+    askedAt: { type: Date, required: true },
+    askedPlace: { type: String, trim: true, default: '' },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    utcOffsetHours: { type: Number, default: 5.5 },
+
+    ascendant: {
+      sign: { type: String, trim: true },
+      degree: { type: String, trim: true },
+    },
+    houses: { type: [KpHoroscopeHouseSchema], default: [] },
+    planets: { type: [KpHoroscopePlanetSchema], default: [] },
+    dashaPeriods: { type: [KpDashaPeriodSchema], default: [] },
+    rulingPlanets: { type: KpRulingPlanetsSchema, default: undefined },
+
+    chartStyle: { type: String, enum: ['north', 'south'], default: 'north' },
+    bhavAnalysis: { type: [KpBhavAnalysisSchema], default: [] },
+    reports: { type: [KpHoroscopeReportSchema], default: [] },
+    chatHistory: { type: [KpHoroscopeChatMessageSchema], default: [] },
+
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'kp_horary_charts' }
+);
+KpHoraryChartSchema.index({ createdByUserId: 1, createdAt: -1 });
+
+export function getKpHoraryChart() { return getModel('KpHoraryChart', KpHoraryChartSchema); }
+export const KpHoraryChart = createModelProxy('KpHoraryChart', KpHoraryChartSchema);
+
+// --- Matchmaking (Kundali Milan, KP-style) ---
+// References two existing birth charts rather than duplicating their data;
+// each side gets its own bhav-analysis workspace (the astrologer's match
+// judgment is per-partner before being synthesized into one compatibility
+// reading), plus a shared compatibility note and the usual reports/chat.
+const KpMatchMakingSchema = new mongoose.Schema(
+  {
+    label: { type: String, trim: true, default: '' }, // e.g. "Mohan & Sita"
+    groomChartId: { type: mongoose.Schema.Types.ObjectId, ref: 'KpHoroscopeChart', required: true },
+    brideChartId: { type: mongoose.Schema.Types.ObjectId, ref: 'KpHoroscopeChart', required: true },
+
+    groomBhavAnalysis: { type: [KpBhavAnalysisSchema], default: [] },
+    brideBhavAnalysis: { type: [KpBhavAnalysisSchema], default: [] },
+    compatibilityNotes: { type: String, trim: true, default: '' },
+
+    reports: { type: [KpHoroscopeReportSchema], default: [] },
+    chatHistory: { type: [KpHoroscopeChatMessageSchema], default: [] },
+
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'kp_matchmaking' }
+);
+KpMatchMakingSchema.index({ createdByUserId: 1, createdAt: -1 });
+
+export function getKpMatchMaking() { return getModel('KpMatchMaking', KpMatchMakingSchema); }
+export const KpMatchMaking = createModelProxy('KpMatchMaking', KpMatchMakingSchema);
+
+// ============================================================================
 // AI VIDEO JOB (YouTube -> condensed script -> HeyGen clone render -> Bunny -> E-Learning)
 // ============================================================================
 

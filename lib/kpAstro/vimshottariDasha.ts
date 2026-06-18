@@ -53,3 +53,94 @@ export function computeVimshottariDasha(moonSiderealLongitude: number, birthDate
 
   return periods;
 }
+
+// --- Deeper Vimshottari levels (Antardasha, Pratyantar, Sookshma, Prana) ---
+// Each level subdivides its parent period among the same 9 dasha lords, in
+// the same fixed cyclic order, starting from the parent's OWN lord — e.g. a
+// Venus Mahadasha's Antardashas run Venus-Venus, Venus-Sun, Venus-Moon, ...
+// continuing the DASHA_ORDER cycle from Venus. Each sub-period's length is
+// proportional: parentDuration * (subLordYears / 120). This is the standard
+// recursive Vimshottari subdivision rule, applied identically at every level.
+
+export const DASHA_LEVELS = ['maha', 'antar', 'pratyantar', 'sookshma', 'prana'] as const;
+export type DashaLevel = typeof DASHA_LEVELS[number];
+
+export interface DashaLevelRow {
+  level: DashaLevel;
+  planet: string;
+  parentPath: string; // e.g. "Ketu-Venus-Sun" for a Pratyantar row; '' for Maha
+  startDate: string; // ISO date
+  endDate: string; // ISO date
+}
+
+function subdivide(parentLord: string, start: Date, end: Date): Array<{ lord: string; start: Date; end: Date }> {
+  const durationMs = end.getTime() - start.getTime();
+  const startIndex = DASHA_ORDER.indexOf(parentLord);
+  const rows: Array<{ lord: string; start: Date; end: Date }> = [];
+  let cursor = start;
+  for (let i = 0; i < DASHA_ORDER.length; i++) {
+    const lord = DASHA_ORDER[(startIndex + i) % DASHA_ORDER.length];
+    const periodMs = durationMs * (DASHA_YEARS[lord] / 120);
+    const periodEnd = new Date(cursor.getTime() + periodMs);
+    rows.push({ lord, start: cursor, end: periodEnd });
+    cursor = periodEnd;
+  }
+  return rows;
+}
+
+// Recursively expands one period down to (and including) deepestLevel,
+// returning every level along the way. Used both for the eager Maha->
+// Pratyantar tree below and for on-demand Sookshma/Prana drill-down from
+// any chosen parent period (see computeDashaSubLevels).
+export function expandDashaPeriod(
+  level: DashaLevel,
+  parentPath: string,
+  lord: string,
+  start: Date,
+  end: Date,
+  deepestLevel: DashaLevel
+): DashaLevelRow[] {
+  const levelIndex = DASHA_LEVELS.indexOf(level);
+  const deepestIndex = DASHA_LEVELS.indexOf(deepestLevel);
+  const row: DashaLevelRow = {
+    level,
+    planet: lord,
+    parentPath,
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+  };
+  if (levelIndex >= deepestIndex) return [row];
+
+  const newPath = parentPath ? `${parentPath}-${lord}` : lord;
+  const children = subdivide(lord, start, end).flatMap((sub) =>
+    expandDashaPeriod(DASHA_LEVELS[levelIndex + 1], newPath, sub.lord, sub.start, sub.end, deepestLevel)
+  );
+  return [row, ...children];
+}
+
+// Eager tree from birth: Maha (9 per cycle) down through Pratyantar by
+// default (9x9x9 = 729 rows per cycle) — the depth KP practice routinely
+// works at. Sookshma/Prana are deliberately NOT included here (9x more rows
+// each level deeper, 59k+ at full Prana depth for one cycle) — compute those
+// on demand for one chosen Pratyantar window via computeDashaSubLevels.
+export function computeDashaTree(moonSiderealLongitude: number, birthDate: Date, deepestLevel: DashaLevel = 'pratyantar', cycles = 1): DashaLevelRow[] {
+  const mahaPeriods = computeVimshottariDasha(moonSiderealLongitude, birthDate, cycles);
+  return mahaPeriods.flatMap((m) =>
+    expandDashaPeriod('maha', '', m.planet, new Date(m.startDate), new Date(m.endDate), deepestLevel)
+  );
+}
+
+// On-demand drill-down: given one specific period the astrologer selected
+// (any level), expand it down to deepestLevel. Excludes the parent row
+// itself (already known/stored) — only returns the new, deeper rows.
+export function computeDashaSubLevels(
+  parentLevel: DashaLevel,
+  parentPath: string,
+  parentLord: string,
+  parentStart: Date,
+  parentEnd: Date,
+  deepestLevel: DashaLevel
+): DashaLevelRow[] {
+  return expandDashaPeriod(parentLevel, parentPath, parentLord, parentStart, parentEnd, deepestLevel)
+    .filter((row) => row.level !== parentLevel);
+}
