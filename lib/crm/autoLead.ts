@@ -111,6 +111,11 @@ interface AutoLeadForSaleInput {
   workshopName?: string;
 }
 
+export interface AutoLeadForSaleResult {
+  id: Types.ObjectId;
+  leadNumber: string;
+}
+
 /**
  * Ensures a CRM lead exists for a sale recorded without one (manual entry,
  * bulk import, or bank-statement reconciliation). Scoped to the reporting
@@ -120,10 +125,15 @@ interface AutoLeadForSaleInput {
  * (9 + 9 random digits) so the required `phoneNumber` field is satisfied
  * without it being mistaken for, or used to message, a real contact.
  *
- * Returns the lead's _id, or null if it couldn't be resolved (caller should
- * treat this as non-fatal and create the sale without a leadId).
+ * Returns the lead's _id and leadNumber, or null if it couldn't be resolved
+ * (caller should treat this as non-fatal and create the sale without a
+ * leadId). Callers must use the returned leadNumber as the sale's
+ * customerId when none was otherwise supplied — otherwise the sale ends up
+ * linked to a lead but with no customer-facing ID, which is what made every
+ * receipt issued through this path show a meaningless ID fragment instead
+ * of the lead's real number.
  */
-export async function autoLeadForSale(input: AutoLeadForSaleInput): Promise<Types.ObjectId | null> {
+export async function autoLeadForSale(input: AutoLeadForSaleInput): Promise<AutoLeadForSaleResult | null> {
   try {
     const Lead = getLead();
     const tenantUserId = String(input.tenantUserId || '').trim();
@@ -137,8 +147,8 @@ export async function autoLeadForSale(input: AutoLeadForSaleInput): Promise<Type
       const existing = await Lead.findOne({
         phoneNumber: cleanedPhone,
         $or: [{ assignedToUserId: tenantUserId }, { createdByUserId: tenantUserId }],
-      }).select('_id').lean();
-      if (existing) return (existing as any)._id;
+      }).select('_id leadNumber').lean();
+      if (existing) return { id: (existing as any)._id, leadNumber: (existing as any).leadNumber || '' };
     }
 
     const placeholderPhone = cleanedPhone || `9${Math.floor(100000000 + Math.random() * 900000000)}`;
@@ -154,7 +164,7 @@ export async function autoLeadForSale(input: AutoLeadForSaleInput): Promise<Type
       assignedToUserId: tenantUserId,
       createdByUserId: tenantUserId,
     });
-    return lead._id;
+    return { id: lead._id, leadNumber };
   } catch (error) {
     console.error('[autoLeadForSale] Error:', error);
     return null;

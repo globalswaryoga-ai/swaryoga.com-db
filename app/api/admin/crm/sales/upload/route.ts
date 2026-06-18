@@ -141,20 +141,27 @@ export async function POST(request: NextRequest) {
         const finalReportedBy = superAdmin && reportedByFromRow ? reportedByFromRow : reportedByUserId;
 
         // Every imported sale should be traceable to a lead. If none was
-        // matched above, find/create one automatically.
+        // matched above, find/create one automatically. When auto-created,
+        // its leadNumber becomes the sale's customerId if the row didn't
+        // already have a Customer ID/Lead Number column — otherwise the sale
+        // ends up linked to a lead but with no customer-facing ID at all.
+        let resolvedCustomerId = customerId;
         if (!leadId) {
-          const autoId = await autoLeadForSale({
+          const autoLead = await autoLeadForSale({
             tenantUserId: finalReportedBy,
             name: customerName,
             phone: customerPhone,
             workshopName,
           });
-          if (autoId) leadId = autoId as any;
+          if (autoLead) {
+            leadId = autoLead.id as any;
+            if (!resolvedCustomerId) resolvedCustomerId = autoLead.leadNumber;
+          }
         }
 
         await SalesReport.create({
           ...(leadId ? { leadId } : {}),
-          customerId: customerId || undefined,
+          customerId: resolvedCustomerId || undefined,
           customerName: customerName || undefined,
           customerPhone: customerPhone || undefined,
           workshopName: workshopName || undefined,

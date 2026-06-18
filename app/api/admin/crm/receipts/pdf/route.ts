@@ -179,7 +179,12 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   // ═══════════════════════════════════════════════════════════════════════════
   text('INVOICE TO :', M, H - 152, { size: 8.5, color: gray });
 
-  const custId = safe(receipt?.customerId || (receipt?.leadId?.toString?.() || '').slice(-6) || '—');
+  // CrmReceipt documents store the lead's number as `leadNumber` (set at
+  // receipt creation); the sale-fallback shape (receiptShapeFromSale) sets
+  // `customerId` instead. `receipt.customerId` alone was never populated on
+  // real CrmReceipt docs, which silently fell through to the ObjectId-hex
+  // fallback for every receipt issued via the normal create flow.
+  const custId = safe(receipt?.leadNumber || receipt?.customerId || (receipt?.leadId?.toString?.() || '').slice(-6) || '—');
   text(`ID: ${custId}`, M, H - 168, { size: 10, font: bold });
 
   const customerName = safe(receipt?.customerName);

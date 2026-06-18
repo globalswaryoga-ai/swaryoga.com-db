@@ -413,14 +413,23 @@ export async function POST(request: NextRequest) {
 
     // Every sale should be traceable to a lead. If none was supplied, find/create
     // one automatically (by phone if given, otherwise a synthetic placeholder).
-    const resolvedLeadId = leadId
-      ? toObjectId(leadId)
-      : await autoLeadForSale({
-          tenantUserId: adminUserId,
-          name: safeCustomerName,
-          phone: safeCustomerPhone,
-          workshopName: safeWorkshopName,
-        });
+    // When auto-created/matched, its leadNumber becomes the sale's customerId
+    // if none was typed in — otherwise the sale is linked to a lead but shows
+    // no customer-facing ID at all on its receipt.
+    let resolvedLeadId = leadId ? toObjectId(leadId) : undefined;
+    let resolvedCustomerId = safeCustomerId;
+    if (!resolvedLeadId) {
+      const autoLead = await autoLeadForSale({
+        tenantUserId: adminUserId,
+        name: safeCustomerName,
+        phone: safeCustomerPhone,
+        workshopName: safeWorkshopName,
+      });
+      if (autoLead) {
+        resolvedLeadId = autoLead.id;
+        if (!resolvedCustomerId) resolvedCustomerId = autoLead.leadNumber;
+      }
+    }
 
     const sale = await SalesReport.create({
       saleId: saleId || undefined,
@@ -439,7 +448,7 @@ export async function POST(request: NextRequest) {
       touchpointCount: touchpointCount || undefined,
       targetAchieved: Boolean(targetAchieved) || false,
       reportedBy: reporterObjectId,
-      ...(safeCustomerId ? { customerId: safeCustomerId } : {}),
+      ...(resolvedCustomerId ? { customerId: resolvedCustomerId } : {}),
       ...(safeCustomerName ? { customerName: safeCustomerName } : {}),
       ...(safeCustomerPhone ? { customerPhone: safeCustomerPhone } : {}),
       ...(safeCustomerEmail ? { customerEmail: safeCustomerEmail } : {}),
