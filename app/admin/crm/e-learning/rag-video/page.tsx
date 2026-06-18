@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon } from 'lucide-react';
+import { ArrowLeft, Sparkles, ShieldAlert, Loader2, CheckCircle2, XCircle, Settings as SettingsIcon, Pencil, Trash2 } from 'lucide-react';
 
 const LANGUAGE_OPTIONS = [
   { code: 'hi', name: 'Hindi' },
@@ -118,6 +118,10 @@ export default function RagAndVideoPage() {
   const [sectionsByCourse, setSectionsByCourse] = useState<Record<string, Section[]>>({});
   const [attachChoice, setAttachChoice] = useState<Record<string, { courseId: string; sectionId: string }>>({});
   const [attaching, setAttaching] = useState<string>('');
+
+  const [editingJobId, setEditingJobId] = useState<string>('');
+  const [editDraft, setEditDraft] = useState({ topicTitle: '', workshopName: '', dayOrder: '', sourceLanguage: 'hi' });
+  const [deletingJobId, setDeletingJobId] = useState<string>('');
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -334,6 +338,55 @@ export default function RagAndVideoPage() {
     }
   };
 
+  const startEditJob = (job: AiVideoJob) => {
+    setEditingJobId(job._id);
+    setEditDraft({
+      topicTitle: job.topicTitle,
+      workshopName: job.workshopName || '',
+      dayOrder: job.dayOrder !== undefined ? String(job.dayOrder) : '',
+      sourceLanguage: job.sourceLanguage,
+    });
+  };
+
+  const handleSaveJobEdit = async () => {
+    if (!token || !editingJobId) return;
+    const res = await fetch(`/api/admin/e-learning/ai-video/jobs/${editingJobId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(editDraft),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (selectedJob?._id === editingJobId) setSelectedJob(data.data);
+      setEditingJobId('');
+      fetchJobs();
+    } else {
+      setCreateError(data.error || 'Failed to save changes');
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!token) return;
+    if (!window.confirm('Delete this job? This does not remove any video already attached to a course.')) return;
+    setDeletingJobId(jobId);
+    try {
+      const res = await fetch(`/api/admin/e-learning/ai-video/jobs/${jobId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to delete job');
+      }
+      if (selectedJob?._id === jobId) setSelectedJob(null);
+      fetchJobs();
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to delete job');
+    } finally {
+      setDeletingJobId('');
+    }
+  };
+
   const saveAvatarSettings = (language: string, patch: Partial<{ avatarId: string; voiceId: string }>) => {
     const next = { ...avatarSettings, [language]: { ...avatarSettings[language], ...patch } };
     setAvatarSettings(next);
@@ -524,18 +577,69 @@ export default function RagAndVideoPage() {
           <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
             <h2 className="text-white font-semibold mb-4">Jobs</h2>
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-              {jobs.map((job) => (
-                <button
-                  key={job._id}
-                  onClick={() => refreshSelectedJob(job._id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
-                    selectedJob?._id === job._id ? 'bg-purple-500/10 border-purple-500' : 'bg-black border-gray-800 hover:border-gray-600'
-                  }`}
-                >
-                  <div className="text-sm text-white truncate">{job.topicTitle}</div>
-                  <div className="text-xs text-gray-500">{job.status} · {job.targetLanguages.join(', ')}</div>
-                </button>
-              ))}
+              {jobs.map((job) =>
+                editingJobId === job._id ? (
+                  <div key={job._id} className="px-3 py-2.5 rounded-lg border border-purple-500 bg-purple-500/10 space-y-2">
+                    <input
+                      value={editDraft.topicTitle}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, topicTitle: e.target.value }))}
+                      placeholder="Topic title"
+                      className="w-full bg-black border border-gray-700 rounded px-2 py-1 text-sm text-white"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        value={editDraft.workshopName}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, workshopName: e.target.value }))}
+                        placeholder="Workshop"
+                        className="flex-1 bg-black border border-gray-700 rounded px-2 py-1 text-xs text-white"
+                      />
+                      <input
+                        value={editDraft.dayOrder}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, dayOrder: e.target.value }))}
+                        placeholder="Day #"
+                        type="number"
+                        className="w-16 bg-black border border-gray-700 rounded px-2 py-1 text-xs text-white"
+                      />
+                    </div>
+                    <select
+                      value={editDraft.sourceLanguage}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, sourceLanguage: e.target.value }))}
+                      className="w-full bg-black border border-gray-700 rounded px-2 py-1 text-xs text-white"
+                    >
+                      {LANGUAGE_OPTIONS.map((l) => (
+                        <option key={l.code} value={l.code}>{l.name}</option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <button onClick={handleSaveJobEdit} className="flex-1 px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded">Save</button>
+                      <button onClick={() => setEditingJobId('')} className="flex-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white text-xs font-semibold rounded">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={job._id}
+                    className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg border transition-colors ${
+                      selectedJob?._id === job._id ? 'bg-purple-500/10 border-purple-500' : 'bg-black border-gray-800 hover:border-gray-600'
+                    }`}
+                  >
+                    <button onClick={() => refreshSelectedJob(job._id)} className="flex-1 text-left min-w-0">
+                      <div className="text-sm text-white truncate">{job.topicTitle}</div>
+                      <div className="text-xs text-gray-500">{job.status} · {job.targetLanguages.join(', ')}</div>
+                    </button>
+                    <button onClick={() => startEditJob(job)} className="p-1.5 text-gray-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity" title="Edit">
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteJob(job._id)}
+                      disabled={deletingJobId === job._id}
+                      className="p-1.5 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
+                      title="Delete"
+                    >
+                      {deletingJobId === job._id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </div>
+                )
+              )}
               {!jobs.length && <p className="text-sm text-gray-500">No jobs yet.</p>}
             </div>
           </div>

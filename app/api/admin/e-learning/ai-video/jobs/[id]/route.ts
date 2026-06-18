@@ -110,26 +110,65 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const job = await (AiVideoJob as any).findById(id);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
-    if (!language) {
-      if (typeof body?.correctedTranscript !== 'string') {
-        return NextResponse.json({ error: 'correctedTranscript or language is required' }, { status: 400 });
-      }
+    if (language) {
+      const script = (job.scripts || []).find((s: any) => s.language === language);
+      if (!script) return NextResponse.json({ error: `No script found for language "${language}"` }, { status: 404 });
+
+      if (typeof body?.text === 'string') script.text = body.text;
+      if (typeof body?.approved === 'boolean') script.approved = body.approved;
+
+      await job.save();
+      return NextResponse.json({ success: true, data: job }, { status: 200 });
+    }
+
+    if (typeof body?.correctedTranscript === 'string') {
       job.correctedTranscript = body.correctedTranscript;
       await job.save();
       return NextResponse.json({ success: true, data: job }, { status: 200 });
     }
 
-    const script = (job.scripts || []).find((s: any) => s.language === language);
-    if (!script) return NextResponse.json({ error: `No script found for language "${language}"` }, { status: 404 });
+    // Metadata edit: topic title, workshop grouping, source language. Lets
+    // the admin fix a typo or regroup a topic without recreating the job
+    // (and re-spending a transcription call) from scratch.
+    const metaFields = ['topicTitle', 'workshopName', 'dayOrder', 'sourceLanguage', 'sourceYoutubeUrl'] as const;
+    const hasMetaUpdate = metaFields.some((f) => body?.[f] !== undefined);
+    if (hasMetaUpdate) {
+      if (typeof body.topicTitle === 'string') job.topicTitle = body.topicTitle.trim();
+      if (typeof body.workshopName === 'string') job.workshopName = body.workshopName.trim() || undefined;
+      if (body.dayOrder !== undefined) job.dayOrder = body.dayOrder === '' || body.dayOrder === null ? undefined : Number(body.dayOrder);
+      if (typeof body.sourceLanguage === 'string') job.sourceLanguage = body.sourceLanguage.trim();
+      if (typeof body.sourceYoutubeUrl === 'string') job.sourceYoutubeUrl = body.sourceYoutubeUrl.trim() || undefined;
 
-    if (typeof body?.text === 'string') script.text = body.text;
-    if (typeof body?.approved === 'boolean') script.approved = body.approved;
+      await job.save();
+      return NextResponse.json({ success: true, data: job }, { status: 200 });
+    }
 
-    await job.save();
-
-    return NextResponse.json({ success: true, data: job }, { status: 200 });
+    return NextResponse.json({ error: 'No recognized fields to update' }, { status: 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to update job';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const { error } = guard(request);
+    if (error) return error;
+
+    const { id } = params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ error: 'Invalid job id' }, { status: 400 });
+    }
+
+    await connectDB();
+
+    const AiVideoJob = getAiVideoJob();
+    const deleted = await (AiVideoJob as any).findByIdAndDelete(id).lean();
+    if (!deleted) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete job';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

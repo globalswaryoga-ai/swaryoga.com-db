@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const AiVideoJob = getAiVideoJob();
     const jobs = await (AiVideoJob as any)
       .find({})
-      .select('topicTitle sourceYoutubeUrl targetLanguages status createdAt updatedAt')
+      .select('topicTitle sourceYoutubeUrl sourceLanguage workshopName dayOrder targetLanguages status createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .limit(100)
       .lean();

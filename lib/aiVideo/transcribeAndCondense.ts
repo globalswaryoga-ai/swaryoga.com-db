@@ -79,7 +79,16 @@ async function uploadAudioToGemini(buffer: Buffer, mimeType: string, displayName
   return fileUri;
 }
 
-async function generateText(parts: any[], maxOutputTokens = 8192): Promise<string> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Gemini's free tier returns transient 503 "high demand" errors fairly
+// often, and 429s that can be either a short per-minute throttle (worth
+// retrying) or the free tier's per-day request cap (NOT worth retrying —
+// it won't reset for hours). Distinguish them via the structured
+// RetryInfo/QuotaFailure details Gemini includes, instead of guessing.
+async function generateText(parts: any[], maxOutputTokens = 8192, attempt = 1): Promise<string> {
   const apiKey = getApiKey();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${getModel()}:generateContent?key=${apiKey}`;
 
@@ -94,7 +103,20 @@ async function generateText(parts: any[], maxOutputTokens = 8192): Promise<strin
 
   const data = await res.json();
   if (!res.ok || data.error) {
-    throw new Error(`Gemini request failed: ${data?.error?.message || res.statusText}`);
+    const details: any[] = data?.error?.details || [];
+    const isDailyCap = details.some((d) => String(d?.quotaId || '').includes('PerDay'));
+    const retryDelaySeconds = Number((details.find((d) => d?.retryDelay)?.retryDelay || '').replace(/s$/, '')) || null;
+
+    if (!isDailyCap && (res.status === 503 || res.status === 429) && attempt < 4) {
+      await sleep((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500);
+      return generateText(parts, maxOutputTokens, attempt + 1);
+    }
+
+    const baseMessage = data?.error?.message || res.statusText;
+    const message = isDailyCap
+      ? `Gemini free-tier daily request limit reached for this API key (20/day on ${getModel()}). It resets after 24h — try again later, or switch to a paid Gemini plan / different key. (${baseMessage})`
+      : `Gemini request failed: ${baseMessage}`;
+    throw new Error(message);
   }
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Gemini returned no text');
