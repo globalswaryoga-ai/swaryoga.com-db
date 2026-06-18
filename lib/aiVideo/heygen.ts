@@ -12,6 +12,13 @@ export interface HeyGenSubmitParams {
   script: string;
   width?: number;
   height?: number;
+  // HeyGen's "Instant Avatar" flow (record/upload a photo or short video in
+  // their dashboard, what this codebase's setup docs point users to) creates
+  // a "talking_photo" avatar, which uses a different request shape than the
+  // older "avatar" (Studio Avatar) type — confirmed live via
+  // GET /v2/avatar_group.list, group_type: "PHOTO". Default to talking_photo
+  // since that's what every avatar created via that flow will be.
+  avatarType?: 'avatar' | 'talking_photo';
 }
 
 export interface HeyGenStatus {
@@ -27,6 +34,11 @@ function getApiKey(): string {
 }
 
 export async function submitAvatarVideo(params: HeyGenSubmitParams): Promise<string> {
+  const avatarType = params.avatarType || 'talking_photo';
+  const character = avatarType === 'talking_photo'
+    ? { type: 'talking_photo', talking_photo_id: params.avatarId }
+    : { type: 'avatar', avatar_id: params.avatarId };
+
   const res = await fetch(`${HEYGEN_BASE_URL}/v2/video/generate`, {
     method: 'POST',
     headers: {
@@ -36,7 +48,7 @@ export async function submitAvatarVideo(params: HeyGenSubmitParams): Promise<str
     body: JSON.stringify({
       video_inputs: [
         {
-          character: { type: 'avatar', avatar_id: params.avatarId },
+          character,
           voice: { type: 'text', input_text: params.script, voice_id: params.voiceId },
         },
       ],
