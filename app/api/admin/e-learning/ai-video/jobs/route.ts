@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
 
     const audioFile = formData.get('audioFile') as File | null;
+    const sourceText = String(formData.get('sourceText') || '').trim();
     const topicTitle = String(formData.get('topicTitle') || '').trim();
     const sourceYoutubeUrl = String(formData.get('sourceYoutubeUrl') || '').trim(); // optional reference only
     const sourceLanguage = String(formData.get('sourceLanguage') || 'hi').trim();
@@ -66,9 +67,9 @@ export async function POST(request: NextRequest) {
       .map((l) => l.trim())
       .filter(Boolean);
 
-    if (!audioFile || !topicTitle || !targetLanguages.length) {
+    if ((!audioFile && !sourceText) || !topicTitle || !targetLanguages.length) {
       return NextResponse.json(
-        { error: 'audioFile, topicTitle, and at least one targetLanguage are required' },
+        { error: 'audioFile or sourceText, topicTitle, and at least one targetLanguage are required' },
         { status: 400 }
       );
     }
@@ -78,23 +79,26 @@ export async function POST(request: NextRequest) {
     const AiVideoJob = getAiVideoJob();
     const job = await (AiVideoJob as any).create({
       sourceYoutubeUrl: sourceYoutubeUrl || undefined,
-      sourceFileName: audioFile.name,
+      sourceFileName: audioFile ? audioFile.name : undefined,
       sourceLanguage,
       topicTitle,
       workshopName: workshopName || undefined,
       dayOrder: Number.isFinite(dayOrder) ? dayOrder : undefined,
       targetLanguages,
-      status: 'transcribing',
+      status: audioFile ? 'transcribing' : 'awaiting_correction_review',
       createdByUserId: viewerUserId,
     });
 
     try {
-      const audio: ExtractedAudio = {
-        buffer: Buffer.from(await audioFile.arrayBuffer()),
-        mimeType: audioFile.type || 'audio/mpeg',
-      };
+      // Pasted text skips transcription entirely — it's already the raw
+      // transcript, so go straight to the correction stage.
+      const rawTranscript = audioFile
+        ? await transcribeAudio(
+            { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio,
+            topicTitle
+          )
+        : sourceText;
 
-      const rawTranscript = await transcribeAudio(audio, topicTitle);
       job.transcript = rawTranscript;
       await job.save();
 

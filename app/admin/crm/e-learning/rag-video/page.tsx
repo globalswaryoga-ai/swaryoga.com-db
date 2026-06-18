@@ -96,7 +96,9 @@ export default function RagAndVideoPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
+  const [sourceMode, setSourceMode] = useState<'audio' | 'text'>('audio');
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [sourceText, setSourceText] = useState('');
   const [referenceLink, setReferenceLink] = useState('');
   const [topicTitle, setTopicTitle] = useState('');
   const [sourceLanguage, setSourceLanguage] = useState('hi');
@@ -205,12 +207,17 @@ export default function RagAndVideoPage() {
   };
 
   const handleCreateJob = async () => {
-    if (!token || !audioFile || !topicTitle.trim() || !selectedLanguages.length) return;
+    const hasSource = sourceMode === 'audio' ? Boolean(audioFile) : Boolean(sourceText.trim());
+    if (!token || !hasSource || !topicTitle.trim() || !selectedLanguages.length) return;
     setCreating(true);
     setCreateError('');
     try {
       const formData = new FormData();
-      formData.append('audioFile', audioFile);
+      if (sourceMode === 'audio' && audioFile) {
+        formData.append('audioFile', audioFile);
+      } else {
+        formData.append('sourceText', sourceText.trim());
+      }
       formData.append('topicTitle', topicTitle.trim());
       formData.append('sourceLanguage', sourceLanguage);
       formData.append('targetLanguages', selectedLanguages.join(','));
@@ -228,6 +235,7 @@ export default function RagAndVideoPage() {
       setSelectedJob(data.data);
       setCorrectedDraft(data.data.correctedTranscript || '');
       setAudioFile(null);
+      setSourceText('');
       setReferenceLink('');
       setTopicTitle('');
       fetchJobs();
@@ -504,14 +512,47 @@ export default function RagAndVideoPage() {
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
             <h2 className="text-white font-semibold mb-4">New Job</h2>
-            <label className="block text-xs text-gray-500 mb-1">Audio file (export from Final Cut or any tool)</label>
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-              className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 file:mr-3 file:px-2 file:py-1 file:rounded file:border-0 file:bg-purple-500 file:text-white"
-            />
-            <label className="block text-xs text-gray-500 mb-1">Source language (what was actually spoken)</label>
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setSourceMode('audio')}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  sourceMode === 'audio' ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-black border-gray-700 text-gray-400'
+                }`}
+              >
+                Audio file
+              </button>
+              <button
+                onClick={() => setSourceMode('text')}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  sourceMode === 'text' ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-black border-gray-700 text-gray-400'
+                }`}
+              >
+                Paste text
+              </button>
+            </div>
+            {sourceMode === 'audio' ? (
+              <>
+                <label className="block text-xs text-gray-500 mb-1">Audio file (export from Final Cut or any tool)</label>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                  className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 file:mr-3 file:px-2 file:py-1 file:rounded file:border-0 file:bg-purple-500 file:text-white"
+                />
+              </>
+            ) : (
+              <>
+                <label className="block text-xs text-gray-500 mb-1">Source text (already-transcribed or written content — skips audio transcription, goes straight to correction)</label>
+                <textarea
+                  value={sourceText}
+                  onChange={(e) => setSourceText(e.target.value)}
+                  rows={6}
+                  placeholder="Paste raw transcript or draft text here…"
+                  className="w-full mb-3 bg-black border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                />
+              </>
+            )}
+            <label className="block text-xs text-gray-500 mb-1">Source language (what was actually spoken/written)</label>
             <select
               value={sourceLanguage}
               onChange={(e) => setSourceLanguage(e.target.value)}
@@ -566,7 +607,7 @@ export default function RagAndVideoPage() {
             {createError && <p className="text-xs text-red-400 mb-3">{createError}</p>}
             <button
               onClick={handleCreateJob}
-              disabled={creating || !audioFile || !topicTitle.trim() || !selectedLanguages.length}
+              disabled={creating || !(sourceMode === 'audio' ? audioFile : sourceText.trim()) || !topicTitle.trim() || !selectedLanguages.length}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-40 text-white font-semibold rounded-lg transition-colors text-sm"
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}

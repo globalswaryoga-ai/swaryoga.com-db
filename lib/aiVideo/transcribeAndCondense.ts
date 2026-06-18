@@ -108,7 +108,11 @@ async function generateText(parts: any[], maxOutputTokens = 8192, attempt = 1): 
     const retryDelaySeconds = Number((details.find((d) => d?.retryDelay)?.retryDelay || '').replace(/s$/, '')) || null;
 
     if (!isDailyCap && (res.status === 503 || res.status === 429) && attempt < 4) {
-      await sleep((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500);
+      // Cap the wait even when Gemini suggests a longer retryDelay (seen:
+      // 30s+ on non-daily 429s) so a capped retry here still lets the
+      // OpenAI fallback in generateTextWithFallback() kick in quickly.
+      const delayMs = Math.min((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500, 8000);
+      await sleep(delayMs);
       return generateText(parts, maxOutputTokens, attempt + 1);
     }
 

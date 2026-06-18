@@ -60,7 +60,12 @@ async function callGemini(params: GenerateTextParams, attempt = 1): Promise<stri
     const retryDelaySeconds = Number((details.find((d) => d?.retryDelay)?.retryDelay || '').replace(/s$/, '')) || null;
 
     if (!isDailyCap && (res.status === 503 || res.status === 429) && attempt < 3) {
-      await sleep((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500);
+      // Cap the wait even when Gemini suggests a longer retryDelay (seen:
+      // 30s+ on non-daily 429s) — a capped retry here means the OpenAI
+      // fallback above still kicks in quickly instead of stalling the
+      // whole request behind Gemini's own suggested backoff.
+      const delayMs = Math.min((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500, 8000);
+      await sleep(delayMs);
       return callGemini(params, attempt + 1);
     }
 
