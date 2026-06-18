@@ -66,6 +66,7 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   // (multi-MB) and were bloating every generated receipt to several MB.
   let logoImg: any = null;
   let sealImg: any = null;
+  let signatureImg: any = null;
   try {
     const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'receipt-logo.png'));
     logoImg = await pdfDoc.embedPng(buf);
@@ -73,6 +74,10 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   try {
     const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'receipt-seal.png'));
     sealImg = await pdfDoc.embedPng(buf);
+  } catch {}
+  try {
+    const buf = fs.readFileSync(path.join(process.cwd(), 'public', 'receipt-signature.png'));
+    signatureImg = await pdfDoc.embedPng(buf);
   } catch {}
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -99,10 +104,12 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
     text('SW', M + 18, H - 92, { size: 16, font: bold, color: white });
   }
 
-  // Company text
-  text('SWAR YOGA', M + 82, H - 48, { size: 19, font: bold, color: black });
-  text('Maldad Road, Sangamner  •  Mo +91 93099 86820', M + 82, H - 66, { size: 8, color: gray });
-  text('Email: mohan@swaryoga.com', M + 82, H - 78, { size: 8, color: gray });
+  // Company text — kept short per line so it never runs into the green
+  // diagonal stripe (which starts around x = W*0.52).
+  text('SWAR YOGA', M + 82, H - 44, { size: 19, font: bold, color: black });
+  text('Maldad Road, Sangamner', M + 82, H - 61, { size: 8, color: gray });
+  text('Mo +91 93099 86820', M + 82, H - 73, { size: 8, color: gray });
+  text('mohan@swaryoga.com', M + 82, H - 85, { size: 8, color: gray });
 
   // Seal — tucked into the very top-right corner, clear of the title below it.
   if (sealImg) {
@@ -250,6 +257,38 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   text('Total', bX + 8, bY - lH * 3 + 6, { size: 11, font: bold, color: white });
   const gtStr = `${money(grandTotal || unitAmt)}/-`;
   text(gtStr, bX + bW - 8 - bold.widthOfTextAtSize(gtStr, 11), bY - lH * 3 + 6, { size: 11, font: bold, color: white });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CLOSING  (seal, signature, thank-you note) — fills the space between the
+  // totals box and the footer so the page reads as one deliberately designed
+  // invoice instead of leaving a large blank gap.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const closingTop = bY - lH * 3 - 2 - 36;
+
+  page.drawRectangle({ x: M, y: closingTop, width: W - M * 2, height: 1, color: midGray });
+
+  const imgSize = 90;
+  const imgGap = 24;
+  const imagesY = closingTop - 18 - imgSize;
+  const imagesTotalW = (sealImg ? imgSize : 0) + (sealImg && signatureImg ? imgGap : 0) + (signatureImg ? imgSize : 0);
+  let imgX = (W - imagesTotalW) / 2;
+
+  if (sealImg) {
+    page.drawImage(sealImg, { x: imgX, y: imagesY, width: imgSize, height: imgSize });
+    imgX += imgSize + imgGap;
+  }
+  if (signatureImg) {
+    page.drawImage(signatureImg, { x: imgX, y: imagesY, width: imgSize, height: imgSize });
+  }
+
+  const thanksLine = '"Thank you!"';
+  text(thanksLine, (W - bold.widthOfTextAtSize(thanksLine, 14)) / 2, imagesY - 22, { size: 14, font: bold });
+
+  const confirmLine = 'Your registration & payment are confirmed';
+  text(confirmLine, (W - reg.widthOfTextAtSize(confirmLine, 9.5)) / 2, imagesY - 38, { size: 9.5, color: gray });
+
+  const signerLine = 'Mohan Kalburgi · Yogacharya';
+  text(signerLine, (W - reg.widthOfTextAtSize(signerLine, 9)) / 2, imagesY - 56, { size: 9, color: gray });
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FOOTER
