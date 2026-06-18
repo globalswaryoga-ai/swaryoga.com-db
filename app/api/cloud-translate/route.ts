@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
     const srcName = LANG_NAMES[sourceLang] || sourceLang || 'auto-detect';
     const tgtName = LANG_NAMES[targetLang] || targetLang;
 
-    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    // gemini-2.0-flash's free-tier quota is now 0 (sunset) — confirmed live, 2.5-flash works.
+    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
 
     const systemPrompt = `You are a professional translator for a yoga & wellness CRM calling script system.

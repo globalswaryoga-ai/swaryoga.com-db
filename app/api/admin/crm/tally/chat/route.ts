@@ -168,7 +168,8 @@ RULES:
 
     if (geminiKey) {
       // ── Google Gemini (free tier) ──
-      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+      // gemini-2.0-flash's free-tier quota is now 0 (sunset) — confirmed live, 2.5-flash works.
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
       
       // Build Gemini format: system instruction + history + user message

@@ -4341,3 +4341,97 @@ KpHoroscopeChartSchema.index({ personName: 1 });
 
 export function getKpHoroscopeChart() { return getModel('KpHoroscopeChart', KpHoroscopeChartSchema); }
 export const KpHoroscopeChart = createModelProxy('KpHoroscopeChart', KpHoroscopeChartSchema);
+
+// ============================================================================
+// AI VIDEO JOB (YouTube -> condensed script -> HeyGen clone render -> Bunny -> E-Learning)
+// ============================================================================
+
+const AiVideoScriptSchema = new mongoose.Schema(
+  {
+    language: { type: String, trim: true, required: true }, // e.g. 'hi', 'en'
+    text: { type: String, required: true },
+    approved: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+const AiVideoEbookChapterSchema = new mongoose.Schema(
+  {
+    language: { type: String, trim: true, required: true },
+    text: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const AiVideoRenderSchema = new mongoose.Schema(
+  {
+    language: { type: String, trim: true, required: true },
+    heygenVideoId: { type: String, trim: true },
+    heygenStatus: { type: String, trim: true }, // raw status string from HeyGen
+    status: {
+      type: String,
+      enum: ['pending', 'rendering', 'uploading', 'completed', 'failed'],
+      default: 'pending',
+    },
+    bunnyVideoId: { type: String, trim: true }, // Bunny Stream GUID, not a generic Storage URL
+    bunnyEmbedUrl: { type: String, trim: true },
+    courseVideoId: { type: mongoose.Schema.Types.ObjectId, ref: 'CourseVideo' },
+    errorMessage: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
+const AiVideoJobSchema = new mongoose.Schema(
+  {
+    // Optional reference link only (e.g. the original YouTube unlisted URL,
+    // kept for the admin's own bookkeeping) — NOT used for processing.
+    // @distube/ytdl-core cannot currently download from YouTube (their
+    // anti-throttling "n transform" breaks it — open upstream issue), so the
+    // actual audio comes from a direct file upload instead.
+    sourceYoutubeUrl: { type: String, trim: true },
+    sourceFileName: { type: String, trim: true },
+    sourceLanguage: { type: String, trim: true, default: 'hi' },
+    topicTitle: { type: String, trim: true, required: true },
+    targetLanguages: { type: [String], default: [] },
+
+    // Groups topics into one workshop (e.g. "L-1") so their e-book chapters
+    // can be compiled into a single PDF, ordered by dayOrder.
+    workshopName: { type: String, trim: true },
+    dayOrder: { type: Number },
+
+    // Rewritten-for-reading prose per language, generated from
+    // correctedTranscript independently of the spoken/condensed scripts
+    // above — same faithful content, different register (book, not lecture).
+    ebookChapters: [AiVideoEbookChapterSchema],
+
+    status: {
+      type: String,
+      enum: [
+        'pending',
+        'transcribing',
+        'awaiting_correction_review',
+        'condensing',
+        'awaiting_review',
+        'rendering',
+        'uploading',
+        'completed',
+        'failed',
+      ],
+      default: 'pending',
+    },
+
+    transcript: { type: String }, // raw, verbatim — stage 1 output
+    correctedTranscript: { type: String }, // faithful correction only — stage 2 output, reviewed before condensing
+    scripts: [AiVideoScriptSchema],
+    renders: [AiVideoRenderSchema],
+
+    errorMessage: { type: String, trim: true },
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'ai_video_jobs' }
+);
+
+AiVideoJobSchema.index({ createdByUserId: 1, createdAt: -1 });
+
+export function getAiVideoJob() { return getModel('AiVideoJob', AiVideoJobSchema); }
+export const AiVideoJob = createModelProxy('AiVideoJob', AiVideoJobSchema);
