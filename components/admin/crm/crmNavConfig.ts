@@ -75,6 +75,7 @@ import {
   ClipboardCheck,
   CalendarDays,
   Bell,
+  Moon,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -773,6 +774,7 @@ export const sectionConfigs: SectionConfig[] = [
           { label: 'Instagram',       href: '/admin/crm/instagram',      icon: Share2 },
           { label: 'Messenger',       href: '/admin/crm/messenger',      icon: MessageSquare },
           { label: 'Tally',           href: '/admin/crm/tally',          icon: Calculator },
+          { label: 'KP Astro',        href: '/admin/crm/kp-astro',       icon: Moon },
           { label: 'Onboarding',      href: '/admin/crm/onboarding',     icon: ClipboardCheck },
           { label: 'Chatbot (old)',   href: '/admin/crm/chatbot',        icon: Bot },
           { label: 'Chatbot Editor',  href: '/admin/crm/chatbots/editor', icon: FileEdit },
@@ -788,7 +790,7 @@ export const sectionConfigs: SectionConfig[] = [
       '/admin/crm/affiliate', '/admin/crm/admin-activity', '/admin/crm/error-logs',
       '/admin/crm/anti-bug', '/admin/crm/helpdesk', '/admin/crm/capacity',
       '/admin/crm/crm-users', '/admin/crm/translate', '/admin/crm/instagram',
-      '/admin/crm/messenger', '/admin/crm/tally', '/admin/crm/onboarding',
+      '/admin/crm/messenger', '/admin/crm/tally', '/admin/crm/kp-astro', '/admin/crm/onboarding',
       '/admin/crm/chatbot', '/admin/crm/integrations', '/admin/crm/whatsapp',
       '/admin/crm/whatsapp-meta', '/admin/crm/whatsapp-groups', '/admin/crm/qr-broadcast',
       '/admin/crm/qr-templates', '/admin/crm/ritucharya', '/admin/crm/ritucharya-recipes',
