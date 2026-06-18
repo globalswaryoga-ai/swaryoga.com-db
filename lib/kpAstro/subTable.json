@@ -1,0 +1,2492 @@
+[
+{
+"no": 1,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "00\u00b000\u203200\u2033",
+"to": "00\u00b046\u203240\u2033",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Ketu"
+},
+{
+"no": 2,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "00\u00b046\u203240\u2033",
+"to": "03\u00b000\u203200\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Venus"
+},
+{
+"no": 3,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "03\u00b000\u203200\u2033",
+"to": "03\u00b040\u203200\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Sun"
+},
+{
+"no": 4,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "03\u00b040\u203200\u2033",
+"to": "04\u00b046\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Moon"
+},
+{
+"no": 5,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "04\u00b046\u203240\u2033",
+"to": "05\u00b033\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Mars"
+},
+{
+"no": 6,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "05\u00b033\u203220\u2033",
+"to": "07\u00b033\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Rahu"
+},
+{
+"no": 7,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "07\u00b033\u203220\u2033",
+"to": "09\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Jupiter"
+},
+{
+"no": 8,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "09\u00b020\u203200\u2033",
+"to": "11\u00b026\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Saturn"
+},
+{
+"no": 9,
+"sign": "Aries",
+"star": "Ashvini",
+"from": "11\u00b026\u203240\u2033",
+"to": "13\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Ketu",
+"subLord": "Mercury"
+},
+{
+"no": 10,
+"sign": "Aries",
+"star": "Bharani",
+"from": "13\u00b020\u203200\u2033",
+"to": "15\u00b033\u203220\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Venus"
+},
+{
+"no": 11,
+"sign": "Aries",
+"star": "Bharani",
+"from": "15\u00b033\u203220\u2033",
+"to": "16\u00b013\u203220\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Sun"
+},
+{
+"no": 12,
+"sign": "Aries",
+"star": "Bharani",
+"from": "16\u00b013\u201920\u201d",
+"to": "17\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Moon"
+},
+{
+"no": 13,
+"sign": "Aries",
+"star": "Bharani",
+"from": "17\u00b020\u201900\u201d",
+"to": "18\u00b006\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Mars"
+},
+{
+"no": 14,
+"sign": "Aries",
+"star": "Bharani",
+"from": "18\u00b006\u201940\u201d",
+"to": "20\u00b006\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Rahu"
+},
+{
+"no": 15,
+"sign": "Aries",
+"star": "Bharani",
+"from": "20\u00b006\u201940\u201d",
+"to": "21\u00b053\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Jupiter"
+},
+{
+"no": 16,
+"sign": "Aries",
+"star": "Bharani",
+"from": "21\u00b053\u201920\u201d",
+"to": "24\u00b000\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Saturn"
+},
+{
+"no": 17,
+"sign": "Aries",
+"star": "Bharani",
+"from": "24\u00b000\u201900\u201d",
+"to": "25\u00b053\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Mercury"
+},
+{
+"no": 18,
+"sign": "Aries",
+"star": "Bharani",
+"from": "25\u00b053\u201920\u201d",
+"to": "26\u00b040\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Venus",
+"subLord": "Ketu"
+},
+{
+"no": 19,
+"sign": "Aries",
+"star": "Krittika",
+"from": "26\u00b040\u203200\u201d",
+"to": "27\u00b020\u203200\u201d",
+"signLord": "Mars",
+"starLord": "Sun",
+"subLord": "Sun"
+},
+{
+"no": 20,
+"sign": "Aries",
+"star": "Krittika",
+"from": "27\u00b020\u201900\u201d",
+"to": "28\u00b026\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Sun",
+"subLord": "Moon"
+},
+{
+"no": 21,
+"sign": "Aries",
+"star": "Krittika",
+"from": "28\u00b026\u201940\u201d",
+"to": "29\u00b013\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Sun",
+"subLord": "Mars"
+},
+{
+"no": 22,
+"sign": "Aries",
+"star": "Krittika",
+"from": "29\u00b013\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Sun",
+"subLord": "Rahu"
+},
+{
+"no": 23,
+"sign": "Taurus",
+"star": "Krittika",
+"from": "00\u00b000\u201900\u201d",
+"to": "01\u00b013\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Sun",
+"subLord": "Rahu"
+},
+{
+"no": 24,
+"sign": "Taurus",
+"star": "Krittika",
+"from": "01\u00b013\u201920\u201d",
+"to": "03\u00b000\u201900\u2019",
+"signLord": "Venus",
+"starLord": "Sun",
+"subLord": "Jupiter"
+},
+{
+"no": 25,
+"sign": "Taurus",
+"star": "Krittika",
+"from": "03\u00b000\u201900\u201d",
+"to": "05\u00b006\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Sun",
+"subLord": "Saturn"
+},
+{
+"no": 26,
+"sign": "Taurus",
+"star": "Krittika",
+"from": "05\u00b006\u201940\u201d",
+"to": "07\u00b000\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Sun",
+"subLord": "Mercury"
+},
+{
+"no": 27,
+"sign": "Taurus",
+"star": "Krittika",
+"from": "07\u00b000\u201900\u201d",
+"to": "07\u00b046\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Sun",
+"subLord": "Ketu"
+},
+{
+"no": 28,
+"sign": "Taurus",
+"star": "Krittika",
+"from": "07:46\u201940\u201d",
+"to": "10\u00b000\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Sun",
+"subLord": "Venus"
+},
+{
+"no": 29,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "10\u00b000\u203200\u201d",
+"to": "11\u00b006\u203240\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Moon"
+},
+{
+"no": 30,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "11\u00b006\u201940\u201d",
+"to": "11\u00b053\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Mars"
+},
+{
+"no": 31,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "11\u00b053\u201920\u201d",
+"to": "13\u00b053\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Rahu"
+},
+{
+"no": 32,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "13\u00b053\u201920\u201d",
+"to": "15\u00b040\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Jupiter"
+},
+{
+"no": 33,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "15\u00b040\u201900\u201d",
+"to": "17\u00b046\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Saturn"
+},
+{
+"no": 34,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "17\u00b046\u201940\u201d",
+"to": "19\u00b040\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Mercury"
+},
+{
+"no": 35,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "19\u00b040\u201900\u201d",
+"to": "20\u00b026\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Ketu"
+},
+{
+"no": 36,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "20\u00b026\u201940\u201d",
+"to": "22\u00b040\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Venus"
+},
+{
+"no": 37,
+"sign": "Taurus",
+"star": "Rohini",
+"from": "22\u00b040\u201900\u201d",
+"to": "23\u00b020\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Moon",
+"subLord": "Sun"
+},
+{
+"no": 38,
+"sign": "Taurus",
+"star": "Mrigash\u012brsha",
+"from": "23\u00b020\u201900\u201d",
+"to": "24\u00b006:40\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Mars"
+},
+{
+"no": 39,
+"sign": "Taurus",
+"star": "Mrigash\u012brsha",
+"from": "24\u00b006\u201940\u201d",
+"to": "26\u00b006\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Rahu"
+},
+{
+"no": 40,
+"sign": "Taurus",
+"star": "Mrigash\u012brsha",
+"from": "26\u00b006\u201940\u201d",
+"to": "27\u00b053\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Jupiter"
+},
+{
+"no": 41,
+"sign": "Taurus",
+"star": "Mrigash\u012brsha",
+"from": "27\u00b053\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Saturn"
+},
+{
+"no": 42,
+"sign": "Gemini",
+"star": "Mrigash\u012brsha",
+"from": "00\u00b000\u201900\u201d",
+"to": "01\u00b053\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Mercury"
+},
+{
+"no": 43,
+"sign": "Gemini",
+"star": "Mrigash\u012brsha",
+"from": "01\u00b053\u201920\u201d",
+"to": "02\u00b040\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Ketu"
+},
+{
+"no": 44,
+"sign": "Gemini",
+"star": "Mrigash\u012brsha",
+"from": "02\u00b040\u201900\u201d",
+"to": "04\u00b053\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Venus"
+},
+{
+"no": 45,
+"sign": "Gemini",
+"star": "Mrigash\u012brsha",
+"from": "04\u00b053\u201920\u201d",
+"to": "05\u00b033\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Sun"
+},
+{
+"no": 46,
+"sign": "Gemini",
+"star": "Mrigash\u012brsha",
+"from": "05\u00b033\u201920\u201d",
+"to": "06\u00b040\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Moon"
+},
+{
+"no": 47,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "06\u00b040\u201900\u201d",
+"to": "08\u00b040\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Rahu"
+},
+{
+"no": 48,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "08\u00b040\u201900\u201d",
+"to": "10\u00b026\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Jupiter"
+},
+{
+"no": 49,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "10\u00b026\u201940\u201d",
+"to": "12\u00b033\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Saturn"
+},
+{
+"no": 50,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "12\u00b033\u201920",
+"to": "14\u00b026\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Mercury"
+},
+{
+"no": 51,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "14\u00b026\u201940\u201d",
+"to": "15\u00b013\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Ketu"
+},
+{
+"no": 52,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "15\u00b013\u201920\u201d",
+"to": "17\u00b026\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Venus"
+},
+{
+"no": 53,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "17\u00b026\u201940\u201d",
+"to": "18\u00b006\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Sun"
+},
+{
+"no": 54,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "18\u00b006\u201940\u201d",
+"to": "19\u00b013\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Moon"
+},
+{
+"no": 55,
+"sign": "Gemini",
+"star": "Ardra",
+"from": "19\u00b013\u201920\u201d",
+"to": "20\u00b000\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Rahu",
+"subLord": "Mars"
+},
+{
+"no": 56,
+"sign": "Gemini",
+"star": "Punarvasu",
+"from": "20\u00b000\u201900\u201d",
+"to": "21\u00b046\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Jupiter",
+"subLord": "Jupiter"
+},
+{
+"no": 57,
+"sign": "Gemini",
+"star": "Punarvasu",
+"from": "21\u00b046\u201940\u201d",
+"to": "23\u00b053\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Jupiter",
+"subLord": "Saturn"
+},
+{
+"no": 58,
+"sign": "Gemini",
+"star": "Punarvasu",
+"from": "23\u00b053\u201920\u201d",
+"to": "25\u00b046\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Jupiter",
+"subLord": "Mercury"
+},
+{
+"no": 59,
+"sign": "Gemini",
+"star": "Punarvasu",
+"from": "25\u00b046\u201940\u201d",
+"to": "26\u00b033\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Jupiter",
+"subLord": "Ketu"
+},
+{
+"no": 60,
+"sign": "Gemini",
+"star": "Punarvasu",
+"from": "26\u00b033\u201920\u201d",
+"to": "28\u00b046\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Jupiter",
+"subLord": "Venus"
+},
+{
+"no": 61,
+"sign": "Gemini",
+"star": "Punarvasu",
+"from": "28\u00b046\u201940\u201d",
+"to": "29\u00b026\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Jupiter",
+"subLord": "Sun"
+},
+{
+"no": 62,
+"sign": "Gemini",
+"star": "Punarvasu",
+"from": "29\u00b026\u201940\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Jupiter",
+"subLord": "Moon"
+},
+{
+"no": 63,
+"sign": "Cancer",
+"star": "Punarvasu",
+"from": "00\u00b000\u201900\u201d",
+"to": "00\u00b033\u201920\u201d",
+"signLord": "Moon",
+"starLord": "Jupiter",
+"subLord": "Moon"
+},
+{
+"no": 64,
+"sign": "Cancer",
+"star": "Punarvasu",
+"from": "00\u00b033\u201920\u201d",
+"to": "01\u00b020\u201900\u201d",
+"signLord": "Moon",
+"starLord": "Jupiter",
+"subLord": "Mars"
+},
+{
+"no": 65,
+"sign": "Cancer",
+"star": "Punarvasu",
+"from": "01\u00b020\u201900\u201d",
+"to": "03\u00b020\u201900\u201d",
+"signLord": "Moon",
+"starLord": "Jupiter",
+"subLord": "Rahu"
+},
+{
+"no": 66,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "03\u00b020\u201900\u201d",
+"to": "05\u00b026\u201940\u201d",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Saturn"
+},
+{
+"no": 67,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "05\u00b026\u201940\u201d",
+"to": "07\u00b020\u201900\u201d",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Mercury"
+},
+{
+"no": 68,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "07\u00b020\u201900\u201d",
+"to": "08\u00b006\u201940\u201d",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Ketu"
+},
+{
+"no": 69,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "08\u00b006\u201940\u201d",
+"to": "10\u00b020\u201900\u201d",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Venus"
+},
+{
+"no": 70,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "10\u00b020\u201900\u201d",
+"to": "11\u00b000\u201900\u2019",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Sun"
+},
+{
+"no": 71,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "11\u00b000\u201900\u2019",
+"to": "12\u00b006\u201940\u2019",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Moon"
+},
+{
+"no": 72,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "12\u00b006\u201940\u2019",
+"to": "12\u00b053\u201920\u201d",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Mars"
+},
+{
+"no": 73,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "12\u00b053\u201920\u201d",
+"to": "14\u00b053\u201920\u201d",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Rahu"
+},
+{
+"no": 74,
+"sign": "Cancer",
+"star": "Pushya",
+"from": "14\u00b053\u201920\u201d",
+"to": "16\u00b040\u201900\u201d",
+"signLord": "Moon",
+"starLord": "Saturn",
+"subLord": "Jupiter"
+},
+{
+"no": 75,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "16\u00b040\u201900\u201d",
+"to": "18\u00b033\u201921\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Mercury"
+},
+{
+"no": 76,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "18\u00b033\u201921\u201d",
+"to": "19\u00b020\u201900\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Ketu"
+},
+{
+"no": 77,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "19\u00b020\u201900\u201d",
+"to": "21\u00b033\u201920\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Venus"
+},
+{
+"no": 78,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "21\u00b033\u201920\u201d",
+"to": "22\u00b013\u201920\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Sun"
+},
+{
+"no": 79,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "22\u00b013\u201920\u201d",
+"to": "23\u00b020\u201900",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Moon"
+},
+{
+"no": 80,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "23\u00b020\u201900",
+"to": "24\u00b006\u201940\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Mars"
+},
+{
+"no": 81,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "24\u00b006\u201940\u201d",
+"to": "26\u00b006\u201940\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Rahu"
+},
+{
+"no": 82,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "26\u00b006\u201940\u201d",
+"to": "27\u00b053\u201920\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Jupiter"
+},
+{
+"no": 83,
+"sign": "Cancer",
+"star": "\u0100shlesh\u0101",
+"from": "27\u00b053\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Moon",
+"starLord": "Mercury",
+"subLord": "Saturn"
+},
+{
+"no": 84,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "00\u00b000\u201900\u201d",
+"to": "00\u00b046\u201940\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Ketu"
+},
+{
+"no": 85,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "00\u00b046\u201940\u201d",
+"to": "03\u00b000\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Venus"
+},
+{
+"no": 86,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "03\u00b000\u201900\u201d",
+"to": "03\u00b040\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Sun"
+},
+{
+"no": 87,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "03\u00b040\u201900\u201d",
+"to": "04\u00b046\u201940\u2019",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Moon"
+},
+{
+"no": 88,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "04\u00b046\u201940\u2019",
+"to": "05\u00b033\u201920\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Mars"
+},
+{
+"no": 89,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "05\u00b033\u201920\u201d",
+"to": "07\u00b033\u201920\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Rahu"
+},
+{
+"no": 90,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "07\u00b033\u201920\u201d",
+"to": "09\u00b020\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Jupiter"
+},
+{
+"no": 91,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "09\u00b020\u201900\u201d",
+"to": "11\u00b026\u201940\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Saturn"
+},
+{
+"no": 92,
+"sign": "Leo",
+"star": "Magh\u0101",
+"from": "11\u00b026\u201940\u201d",
+"to": "13\u00b020\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Ketu",
+"subLord": "Mercury"
+},
+{
+"no": 93,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "13\u00b020\u201900\u201d",
+"to": "15\u00b033\u201920\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Venus"
+},
+{
+"no": 94,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "15\u00b033\u201920\u201d",
+"to": "16\u00b013\u201920\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Sun"
+},
+{
+"no": 95,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "16\u00b013\u201920\u201d",
+"to": "17\u00b020\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Moon"
+},
+{
+"no": 96,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "17\u00b020\u201900\u201d",
+"to": "18\u00b006\u201940\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Mars"
+},
+{
+"no": 97,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "18\u00b006\u201940\u201d",
+"to": "20\u00b006\u201940\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Rahu"
+},
+{
+"no": 98,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "20\u00b006\u201940\u201d",
+"to": "21\u00b053\u201920\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Jupiter"
+},
+{
+"no": 99,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "21\u00b053\u201920\u201d",
+"to": "24\u00b000\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Saturn"
+},
+{
+"no": 100,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "24\u00b000\u201900\u201d",
+"to": "25\u00b053\u201920\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Mercury"
+},
+{
+"no": 101,
+"sign": "Leo",
+"star": "P\u016brva Phalgun\u012b",
+"from": "25\u00b053\u201920\u201d",
+"to": "26\u00b040\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Venus",
+"subLord": "Ketu"
+},
+{
+"no": 102,
+"sign": "Leo",
+"star": "Uttara Phalgun\u012b",
+"from": "26\u00b040\u201900\u201d",
+"to": "27\u00b020\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Sun",
+"subLord": "Sun"
+},
+{
+"no": 103,
+"sign": "Leo",
+"star": "Uttara Phalgun\u012b",
+"from": "27\u00b020\u201900\u201d",
+"to": "28\u00b026\u201940\u201d",
+"signLord": "Sun",
+"starLord": "Sun",
+"subLord": "Moon"
+},
+{
+"no": 104,
+"sign": "Leo",
+"star": "Uttara Phalgun\u012b",
+"from": "28\u00b026\u201940\u201d",
+"to": "29\u00b013\u201920\u201d",
+"signLord": "Sun",
+"starLord": "Sun",
+"subLord": "Mars"
+},
+{
+"no": 105,
+"sign": "Leo",
+"star": "Uttara Phalgun\u012b",
+"from": "29\u00b013\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Sun",
+"starLord": "Sun",
+"subLord": "Rahu"
+},
+{
+"no": 106,
+"sign": "Virgo",
+"star": "Uttara Phalgun\u012b",
+"from": "00\u00b000\u201900\u201d",
+"to": "01\u00b013\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Sun",
+"subLord": "Rahu"
+},
+{
+"no": 107,
+"sign": "Virgo",
+"star": "Uttara Phalgun\u012b",
+"from": "01\u00b013\u201920\u201d",
+"to": "03\u00b000\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Sun",
+"subLord": "Jupiter"
+},
+{
+"no": 108,
+"sign": "Virgo",
+"star": "Uttara Phalgun\u012b",
+"from": "03\u00b000\u201900\u201d",
+"to": "05\u00b006\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Sun",
+"subLord": "Saturn"
+},
+{
+"no": 109,
+"sign": "Virgo",
+"star": "Uttara Phalgun\u012b",
+"from": "05\u00b006\u201940\u201d",
+"to": "07\u00b000\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Sun",
+"subLord": "Mercury"
+},
+{
+"no": 110,
+"sign": "Virgo",
+"star": "Uttara Phalgun\u012b",
+"from": "07\u00b000\u201900\u201d",
+"to": "07\u00b046\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Sun",
+"subLord": "Ketu"
+},
+{
+"no": 111,
+"sign": "Virgo",
+"star": "Uttara Phalgun\u012b",
+"from": "07\u00b046\u201940\u201d",
+"to": "10\u00b000\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Sun",
+"subLord": "Venus"
+},
+{
+"no": 112,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "10\u00b000\u201900\u201d",
+"to": "11\u00b006\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Moon"
+},
+{
+"no": 113,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "11\u00b006\u201940\u201d",
+"to": "11\u00b053\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Mars"
+},
+{
+"no": 114,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "11\u00b053\u201920\u201d",
+"to": "13\u00b053\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Rahu"
+},
+{
+"no": 115,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "13\u00b053\u201920\u201d",
+"to": "15\u00b040\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Jupiter"
+},
+{
+"no": 116,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "15\u00b040\u201900\u201d",
+"to": "17\u00b046\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Saturn"
+},
+{
+"no": 117,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "17\u00b046\u201940\u201d",
+"to": "19\u00b040\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Mercury"
+},
+{
+"no": 118,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "19\u00b040\u201900\u201d",
+"to": "20\u00b026\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Ketu"
+},
+{
+"no": 119,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "20\u00b026\u201940\u201d",
+"to": "22\u00b040\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Venus"
+},
+{
+"no": 120,
+"sign": "Virgo",
+"star": "Hasta",
+"from": "22\u00b040\u201900\u201d",
+"to": "23\u00b020\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Moon",
+"subLord": "Sun"
+},
+{
+"no": 121,
+"sign": "Virgo",
+"star": "Chitra",
+"from": "23\u00b020\u201900\u201d",
+"to": "24\u00b006\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Mars"
+},
+{
+"no": 122,
+"sign": "Virgo",
+"star": "Chitra",
+"from": "24\u00b006\u201940\u201d",
+"to": "26\u00b006\u201940\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Rahu"
+},
+{
+"no": 123,
+"sign": "Virgo",
+"star": "Chitra",
+"from": "26\u00b006\u201940\u201d",
+"to": "27\u00b053\u201920\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Jupiter"
+},
+{
+"no": 124,
+"sign": "Virgo",
+"star": "Chitra",
+"from": "27\u00b053\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Mercury",
+"starLord": "Mars",
+"subLord": "Saturn"
+},
+{
+"no": 125,
+"sign": "Libra",
+"star": "Chitra",
+"from": "00\u00b000\u201900\u201d",
+"to": "01\u00b053\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Mercury"
+},
+{
+"no": 126,
+"sign": "Libra",
+"star": "Chitra",
+"from": "01\u00b053\u201920\u201d",
+"to": "02\u00b040\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Ketu"
+},
+{
+"no": 127,
+"sign": "Libra",
+"star": "Chitra",
+"from": "02\u00b040\u201900\u201d",
+"to": "04\u00b053\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Venus"
+},
+{
+"no": 128,
+"sign": "Libra",
+"star": "Chitra",
+"from": "04\u00b053\u201920\u201d",
+"to": "05\u00b033\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Sun"
+},
+{
+"no": 129,
+"sign": "Libra",
+"star": "Chitra",
+"from": "05\u00b033\u201920\u201d",
+"to": "06\u00b040\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Mars",
+"subLord": "Moon"
+},
+{
+"no": 130,
+"sign": "Libra",
+"star": "Svati",
+"from": "06\u00b040\u201900\u201d",
+"to": "08\u00b040\u201900\u2019",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Rahu"
+},
+{
+"no": 131,
+"sign": "Libra",
+"star": "Svati",
+"from": "08\u00b040\u201900\u2019",
+"to": "10\u00b026\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Jupiter"
+},
+{
+"no": 132,
+"sign": "Libra",
+"star": "Svati",
+"from": "10\u00b026\u201940\u201d",
+"to": "12\u00b033\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Saturn"
+},
+{
+"no": 133,
+"sign": "Libra",
+"star": "Svati",
+"from": "12\u00b033\u201920\u201d",
+"to": "14\u00b026\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Mercury"
+},
+{
+"no": 134,
+"sign": "Libra",
+"star": "Svati",
+"from": "14\u00b026\u201940\u201d",
+"to": "15\u00b013\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Ketu"
+},
+{
+"no": 135,
+"sign": "Libra",
+"star": "Svati",
+"from": "15\u00b013\u201920\u201d",
+"to": "17\u00b026\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Venus"
+},
+{
+"no": 136,
+"sign": "Libra",
+"star": "Svati",
+"from": "17\u00b026\u201940\u201d",
+"to": "18\u00b006\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Sun"
+},
+{
+"no": 137,
+"sign": "Libra",
+"star": "Svati",
+"from": "18\u00b006\u201940\u201d",
+"to": "19\u00b013\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Moon"
+},
+{
+"no": 138,
+"sign": "Libra",
+"star": "Svati",
+"from": "19\u00b013\u201920\u201d",
+"to": "20\u00b000\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Rahu",
+"subLord": "Mars"
+},
+{
+"no": 139,
+"sign": "Libra",
+"star": "Vishakha",
+"from": "20\u00b000\u201900\u201d",
+"to": "21\u00b046\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Jupiter",
+"subLord": "Jupiter"
+},
+{
+"no": 140,
+"sign": "Libra",
+"star": "Vishakha",
+"from": "21\u00b046\u201940\u201d",
+"to": "23\u00b053\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Jupiter",
+"subLord": "Saturn"
+},
+{
+"no": 141,
+"sign": "Libra",
+"star": "Vishakha",
+"from": "23\u00b053\u201920\u201d",
+"to": "25\u00b046\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Jupiter",
+"subLord": "Mercury"
+},
+{
+"no": 142,
+"sign": "Libra",
+"star": "Vishakha",
+"from": "25\u00b046\u201940\u201d",
+"to": "26\u00b033\u201920\u201d",
+"signLord": "Venus",
+"starLord": "Jupiter",
+"subLord": "Ketu"
+},
+{
+"no": 143,
+"sign": "Libra",
+"star": "Vishakha",
+"from": "26\u00b033\u201920\u201d",
+"to": "28\u00b046\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Jupiter",
+"subLord": "Venus"
+},
+{
+"no": 144,
+"sign": "Libra",
+"star": "Vishakha",
+"from": "28\u00b046\u201940\u201d",
+"to": "29\u00b026\u201940\u201d",
+"signLord": "Venus",
+"starLord": "Jupiter",
+"subLord": "Sun"
+},
+{
+"no": 145,
+"sign": "Libra",
+"star": "Vishakha",
+"from": "29\u00b026\u201940\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Venus",
+"starLord": "Jupiter",
+"subLord": "Moon"
+},
+{
+"no": 146,
+"sign": "Scorpio",
+"star": "Vishakha",
+"from": "00\u00b000\u201900\u201d",
+"to": "00\u00b033\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Jupiter",
+"subLord": "Moon"
+},
+{
+"no": 147,
+"sign": "Scorpio",
+"star": "Vishakha",
+"from": "00\u00b033\u201920\u201d",
+"to": "01\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Jupiter",
+"subLord": "Mars"
+},
+{
+"no": 148,
+"sign": "Scorpio",
+"star": "Vishakha",
+"from": "01\u00b020\u201900\u201d",
+"to": "03\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Jupiter",
+"subLord": "Rahu"
+},
+{
+"no": 149,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "03\u00b020\u201900\u201d",
+"to": "05\u00b026\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Saturn"
+},
+{
+"no": 150,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "05\u00b026\u201940\u201d",
+"to": "07\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Mercury"
+},
+{
+"no": 151,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "07\u00b020\u201900\u201d",
+"to": "08\u00b006\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Ketu"
+},
+{
+"no": 152,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "08\u00b006\u201940\u201d",
+"to": "10\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Venus"
+},
+{
+"no": 153,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "10\u00b020\u201900\u201d",
+"to": "11\u00b000\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Sun"
+},
+{
+"no": 154,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "11\u00b000\u201900\u201d",
+"to": "12\u00b006\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Moon"
+},
+{
+"no": 155,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "12\u00b006\u201940\u201d",
+"to": "12\u00b053\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Mars"
+},
+{
+"no": 156,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "12\u00b053\u201920\u201d",
+"to": "14\u00b053\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Rahu"
+},
+{
+"no": 157,
+"sign": "Scorpio",
+"star": "Anuradha",
+"from": "14\u00b053\u201920\u201d",
+"to": "16\u00b040\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Saturn",
+"subLord": "Jupiter"
+},
+{
+"no": 158,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "16\u00b040\u201900\u201d",
+"to": "18\u00b033\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Mercury"
+},
+{
+"no": 159,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "18\u00b033\u201920\u201d",
+"to": "19\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Ketu"
+},
+{
+"no": 160,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "19\u00b020\u201900\u201d",
+"to": "21\u00b033\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Venus"
+},
+{
+"no": 161,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "21\u00b033\u201920\u201d",
+"to": "22\u00b013\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Sun"
+},
+{
+"no": 162,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "22\u00b013\u201920\u201d",
+"to": "23\u00b020\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Moon"
+},
+{
+"no": 163,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "23\u00b020\u201900\u201d",
+"to": "24\u00b006\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Mars"
+},
+{
+"no": 164,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "24\u00b006\u201940\u201d",
+"to": "26\u00b006\u201940\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Rahu"
+},
+{
+"no": 165,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "26\u00b006\u201940\u201d",
+"to": "27\u00b053\u201920\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Jupiter"
+},
+{
+"no": 166,
+"sign": "Scorpio",
+"star": "Jyeshtha",
+"from": "27\u00b053\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Mars",
+"starLord": "Mercury",
+"subLord": "Saturn"
+},
+{
+"no": 167,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "00\u00b000\u201900\u201d",
+"to": "00\u00b046\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Ketu"
+},
+{
+"no": 168,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "00\u00b046\u201940",
+"to": "03\u00b000\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Venus"
+},
+{
+"no": 169,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "03\u00b000\u201900\u201d",
+"to": "03\u00b040\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Sun"
+},
+{
+"no": 170,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "03\u00b040\u201900\u201d",
+"to": "04\u00b046\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Moon"
+},
+{
+"no": 171,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "04\u00b046\u201940\u201d",
+"to": "05\u00b053\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Mars"
+},
+{
+"no": 172,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "05\u00b053\u201920\u201d",
+"to": "07\u00b033\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Rahu"
+},
+{
+"no": 173,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "07\u00b033\u201920\u201d",
+"to": "09\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Jupiter"
+},
+{
+"no": 174,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "09\u00b020\u201900\u201d",
+"to": "11\u00b026\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Saturn"
+},
+{
+"no": 175,
+"sign": "Sagittarius",
+"star": "Mula",
+"from": "11\u00b026\u201940\u201d",
+"to": "13\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Ketu",
+"subLord": "Mercury"
+},
+{
+"no": 176,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "13\u00b020\u201900\u201d",
+"to": "15\u00b033\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Venus"
+},
+{
+"no": 177,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "15\u00b033\u201920\u201d",
+"to": "16\u00b013\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Sun"
+},
+{
+"no": 178,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "16\u00b013\u201920\u201d",
+"to": "17\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Moon"
+},
+{
+"no": 179,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "17\u00b020\u201900\u201d",
+"to": "18\u00b006\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Mars"
+},
+{
+"no": 180,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "18\u00b006\u201940\u201d",
+"to": "20\u00b006\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Rahu"
+},
+{
+"no": 181,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "20\u00b006\u201940\u201d",
+"to": "21\u00b053\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Jupiter"
+},
+{
+"no": 182,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "21\u00b053\u201920\u201d",
+"to": "24\u00b000\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Saturn"
+},
+{
+"no": 183,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "24\u00b000\u201900\u201d",
+"to": "25\u00b053\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Mercury"
+},
+{
+"no": 184,
+"sign": "Sagittarius",
+"star": "Purva Ashadha",
+"from": "25\u00b053\u201920\u201d",
+"to": "26\u00b040\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Venus",
+"subLord": "Ketu"
+},
+{
+"no": 185,
+"sign": "Sagittarius",
+"star": "Uttara Ashadha",
+"from": "26\u00b040\u201900\u201d",
+"to": "27\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Sun",
+"subLord": "Sun"
+},
+{
+"no": 186,
+"sign": "Sagittarius",
+"star": "Uttara Ashadha",
+"from": "27\u00b020\u201900\u201d",
+"to": "28\u00b026\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Sun",
+"subLord": "Moon"
+},
+{
+"no": 187,
+"sign": "Sagittarius",
+"star": "Uttara Ashadha",
+"from": "28\u00b026\u201940",
+"to": "29\u00b013\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Sun",
+"subLord": "Mars"
+},
+{
+"no": 188,
+"sign": "Sagittarius",
+"star": "Uttara Ashadha",
+"from": "29\u00b013\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Sun",
+"subLord": "Rahu"
+},
+{
+"no": 189,
+"sign": "Capricorn",
+"star": "Uttara Ashadha",
+"from": "00\u00b000\u201900\u201d",
+"to": "01\u00b013\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Sun",
+"subLord": "Rahu"
+},
+{
+"no": 190,
+"sign": "Capricorn",
+"star": "Uttara Ashadha",
+"from": "01\u00b013\u201920\u201d",
+"to": "03\u00b000\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Sun",
+"subLord": "Jupiter"
+},
+{
+"no": 191,
+"sign": "Capricorn",
+"star": "Uttara Ashadha",
+"from": "03\u00b000\u201900\u201d",
+"to": "05\u00b006\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Sun",
+"subLord": "Saturn"
+},
+{
+"no": 192,
+"sign": "Capricorn",
+"star": "Uttara Ashadha",
+"from": "05\u00b006\u201940\u201d",
+"to": "07\u00b000\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Sun",
+"subLord": "Mercury"
+},
+{
+"no": 193,
+"sign": "Capricorn",
+"star": "Uttara Ashadha",
+"from": "07\u00b000\u201900\u201d",
+"to": "07\u00b046\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Sun",
+"subLord": "Ketu"
+},
+{
+"no": 194,
+"sign": "Capricorn",
+"star": "Uttara Ashadha",
+"from": "07\u00b046\u201940\u201d",
+"to": "10\u00b000\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Sun",
+"subLord": "Venus"
+},
+{
+"no": 195,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "10\u00b000\u201900\u201d",
+"to": "11\u00b006\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Moon"
+},
+{
+"no": 196,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "11\u00b006\u201940\u201d",
+"to": "11\u00b053\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Mars"
+},
+{
+"no": 197,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "11\u00b053\u201920\u201d",
+"to": "13\u00b053\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Rahu"
+},
+{
+"no": 198,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "13\u00b053\u201920\u201d",
+"to": "15\u00b040\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Jupiter"
+},
+{
+"no": 199,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "15\u00b040\u201900\u201d",
+"to": "17\u00b046\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Saturn"
+},
+{
+"no": 200,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "17\u00b046\u201940",
+"to": "19\u00b040\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Mercury"
+},
+{
+"no": 201,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "19\u00b040\u201900\u201d",
+"to": "20\u00b046\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Ketu"
+},
+{
+"no": 202,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "20\u00b046\u201940\u201d",
+"to": "22\u00b040\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Venus"
+},
+{
+"no": 203,
+"sign": "Capricorn",
+"star": "Shravana",
+"from": "22\u00b040\u201900\u201d",
+"to": "23\u00b020\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Moon",
+"subLord": "Sun"
+},
+{
+"no": 204,
+"sign": "Capricorn",
+"star": "Dhanishta",
+"from": "23\u00b020\u201900\u201d",
+"to": "24\u00b006\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Mars"
+},
+{
+"no": 205,
+"sign": "Capricorn",
+"star": "Dhanishta",
+"from": "24\u00b006\u201940\u201d",
+"to": "26\u00b006\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Rahu"
+},
+{
+"no": 206,
+"sign": "Capricorn",
+"star": "Dhanishta",
+"from": "26\u00b006\u201940\u201d",
+"to": "27\u00b053\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Jupiter"
+},
+{
+"no": 207,
+"sign": "Capricorn",
+"star": "Dhanishta",
+"from": "27\u00b053\u201920\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Saturn"
+},
+{
+"no": 208,
+"sign": "Aquarius",
+"star": "Dhanishta",
+"from": "00\u00b000\u201900\u201d",
+"to": "01\u00b053\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Mercury"
+},
+{
+"no": 209,
+"sign": "Aquarius",
+"star": "Dhanishta",
+"from": "01\u00b053\u201920\u201d",
+"to": "02\u00b040\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Ketu"
+},
+{
+"no": 210,
+"sign": "Aquarius",
+"star": "Dhanishta",
+"from": "02\u00b040\u201900\u201d",
+"to": "04\u00b053\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Venus"
+},
+{
+"no": 211,
+"sign": "Aquarius",
+"star": "Dhanishta",
+"from": "04\u00b053\u201920\u201d",
+"to": "05\u00b033\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Sun"
+},
+{
+"no": 212,
+"sign": "Aquarius",
+"star": "Dhanishta",
+"from": "05\u00b033\u201920\u201d",
+"to": "06\u00b040\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Mars",
+"subLord": "Moon"
+},
+{
+"no": 213,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "06\u00b040\u201920\u201d",
+"to": "08\u00b040\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Rahu"
+},
+{
+"no": 214,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "08\u00b040\u201900\u201d",
+"to": "10\u00b026\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Jupiter"
+},
+{
+"no": 215,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "10\u00b026\u201940\u201d",
+"to": "12\u00b033\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Saturn"
+},
+{
+"no": 216,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "12\u00b033\u201920\u201d",
+"to": "14\u00b026\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Mercury"
+},
+{
+"no": 217,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "14\u00b026\u201940\u201d",
+"to": "15\u00b013\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Ketu"
+},
+{
+"no": 218,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "15\u00b013\u201920\u201d",
+"to": "17\u00b026\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Venus"
+},
+{
+"no": 219,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "17\u00b026\u201940\u201d",
+"to": "18\u00b006\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Sun"
+},
+{
+"no": 220,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "18\u00b006\u201940\u201d",
+"to": "19\u00b013\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Moon"
+},
+{
+"no": 221,
+"sign": "Aquarius",
+"star": "Shatabhisha",
+"from": "19\u00b013\u201920\u201d",
+"to": "20\u00b000\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Rahu",
+"subLord": "Mars"
+},
+{
+"no": 222,
+"sign": "Aquarius",
+"star": "Purva Bhadrapada",
+"from": "20\u00b000\u201900\u201d",
+"to": "21\u00b046\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Jupiter",
+"subLord": "Jupiter"
+},
+{
+"no": 223,
+"sign": "Aquarius",
+"star": "Purva Bhadrapada",
+"from": "21\u00b046\u201940\u201d",
+"to": "23\u00b053\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Jupiter",
+"subLord": "Saturn"
+},
+{
+"no": 224,
+"sign": "Aquarius",
+"star": "Purva Bhadrapada",
+"from": "23\u00b053\u201920\u201d",
+"to": "25\u00b046\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Jupiter",
+"subLord": "Mercury"
+},
+{
+"no": 225,
+"sign": "Aquarius",
+"star": "Purva Bhadrapada",
+"from": "25\u00b046\u201940\u201d",
+"to": "26\u00b033\u201920\u201d",
+"signLord": "Saturn",
+"starLord": "Jupiter",
+"subLord": "Ketu"
+},
+{
+"no": 226,
+"sign": "Aquarius",
+"star": "Purva Bhadrapada",
+"from": "26\u00b033\u201920\u201d",
+"to": "28\u00b046\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Jupiter",
+"subLord": "Venus"
+},
+{
+"no": 227,
+"sign": "Aquarius",
+"star": "Purva Bhadrapada",
+"from": "28\u00b046\u201940\u201d",
+"to": "29\u00b026\u201940\u201d",
+"signLord": "Saturn",
+"starLord": "Jupiter",
+"subLord": "Sun"
+},
+{
+"no": 228,
+"sign": "Aquarius",
+"star": "Purva Bhadrapada",
+"from": "29\u00b026\u201940\u201d",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Saturn",
+"starLord": "Jupiter",
+"subLord": "Moon"
+},
+{
+"no": 229,
+"sign": "Pisces",
+"star": "Purva Bhadrapada",
+"from": "00\u00b000\u201900\u201d",
+"to": "00\u00b033\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Jupiter",
+"subLord": "Moon"
+},
+{
+"no": 230,
+"sign": "Pisces",
+"star": "Purva Bhadrapada",
+"from": "00\u00b033\u201920\u201d",
+"to": "01\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Jupiter",
+"subLord": "Mars"
+},
+{
+"no": 231,
+"sign": "Pisces",
+"star": "Purva Bhadrapada",
+"from": "01\u00b020\u201900\u201d",
+"to": "03\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Jupiter",
+"subLord": "Rahu"
+},
+{
+"no": 232,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "03\u00b020\u201900\u201d",
+"to": "05\u00b026\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Saturn"
+},
+{
+"no": 233,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "05\u00b026\u201940\u201d",
+"to": "07\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Mercury"
+},
+{
+"no": 234,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "07\u00b020\u201900\u201d",
+"to": "08\u00b006\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Ketu"
+},
+{
+"no": 235,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "08\u00b006\u201940\u201d",
+"to": "10\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Venus"
+},
+{
+"no": 236,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "10\u00b020\u201900\u201d",
+"to": "11\u00b000\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Sun"
+},
+{
+"no": 237,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "11\u00b000\u201900\u201d",
+"to": "12\u00b006\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Moon"
+},
+{
+"no": 238,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "12\u00b006\u201940\u201d",
+"to": "12\u00b053\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Mars"
+},
+{
+"no": 239,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "12\u00b053\u201920\u201d",
+"to": "14\u00b053\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Rahu"
+},
+{
+"no": 240,
+"sign": "Pisces",
+"star": "Uttara Bh\u0101drapad\u0101",
+"from": "14\u00b053\u201920\u201d",
+"to": "16\u00b040\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Saturn",
+"subLord": "Jupiter"
+},
+{
+"no": 241,
+"sign": "Pisces",
+"star": "Revati",
+"from": "16\u00b040\u201900\u201d",
+"to": "18\u00b033\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Mercury"
+},
+{
+"no": 242,
+"sign": "Pisces",
+"star": "Revati",
+"from": "18\u00b033\u201920\u201d",
+"to": "19\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Ketu"
+},
+{
+"no": 243,
+"sign": "Pisces",
+"star": "Revati",
+"from": "19\u00b020\u201900\u201d",
+"to": "21\u00b033\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Venus"
+},
+{
+"no": 244,
+"sign": "Pisces",
+"star": "Revati",
+"from": "21\u00b033\u201920\u201d",
+"to": "22\u00b013\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Sun"
+},
+{
+"no": 245,
+"sign": "Pisces",
+"star": "Revati",
+"from": "22\u00b013\u201920\u201d",
+"to": "23\u00b020\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Moon"
+},
+{
+"no": 246,
+"sign": "Pisces",
+"star": "Revati",
+"from": "23\u00b020\u201900\u201d",
+"to": "24\u00b006\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Mars"
+},
+{
+"no": 247,
+"sign": "Pisces",
+"star": "Revati",
+"from": "24\u00b006\u201940\u201d",
+"to": "26\u00b006\u201940\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Rahu"
+},
+{
+"no": 248,
+"sign": "Pisces",
+"star": "Revati",
+"from": "26\u00b006\u201940\u201d",
+"to": "27\u00b053\u201920\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Jupiter"
+},
+{
+"no": 249,
+"sign": "Pisces",
+"star": "Revati",
+"from": "27\u00b053\u201920",
+"to": "30\u00b000\u201900\u201d",
+"signLord": "Jupiter",
+"starLord": "Mercury",
+"subLord": "Saturn"
+}
+]

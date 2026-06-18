@@ -774,6 +774,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {}, collap
       href: '/admin/crm/sadhana-scheduler',
       color: 'text-blue-400',
     },
+    {
+      icon: Sparkles,
+      label: 'KP Astro',
+      href: '/admin/crm/kp-astro',
+      color: 'text-indigo-400',
+    },
   ];
 
   const isActive = (href: string) => {

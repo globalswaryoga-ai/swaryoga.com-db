@@ -1,0 +1,16 @@
+{
+"beneficAngles": [
+30,
+60,
+120
+],
+"maleficAngles": [
+0,
+90,
+180
+],
+"orbs": {
+"Sun": 6.4,
+"Moon, Mars, Rahu Jup, Ven, Sat, Ketu, Mer": 3.2
+}
+}

@@ -1,0 +1,252 @@
+[
+{
+"matter": "Wealth",
+"primaryHouse": 2,
+"supportingHouses": "2, 6, 11"
+},
+{
+"matter": "Jewels",
+"primaryHouse": 2,
+"supportingHouses": "2, 8, 10, 11"
+},
+{
+"matter": "Lottery",
+"primaryHouse": 3,
+"supportingHouses": "3, 5, 8, 2, 11"
+},
+{
+"matter": "Stock Trading",
+"primaryHouse": 5,
+"supportingHouses": "2, 8, 11"
+},
+{
+"matter": "Returning borrowed money",
+"primaryHouse": 6,
+"supportingHouses": "4, 5, 8, 10"
+},
+{
+"matter": "Ancestral wealth",
+"primaryHouse": 8,
+"supportingHouses": "2, 6, 11"
+},
+{
+"matter": "Inheritance of Vehicles or Property",
+"primaryHouse": 8,
+"supportingHouses": "4, 11"
+},
+{
+"matter": "Returning borrowed money",
+"primaryHouse": 6,
+"supportingHouses": "4, 5, 8, 10"
+},
+{
+"matter": "Astrologer/Spiritual",
+"primaryHouse": 9,
+"supportingHouses": "4, 9, 11 + (2, 6 for income) + (10 for fame)"
+},
+{
+"matter": "Promotion",
+"primaryHouse": 6,
+"supportingHouses": "2, 6, 10, 11"
+},
+{
+"matter": "Salary increment and promotion",
+"primaryHouse": 6,
+"supportingHouses": "2, 6, 10, 11"
+},
+{
+"matter": "Debt ridden life",
+"primaryHouse": 6,
+"supportingHouses": "5, 8, 12"
+},
+{
+"matter": "Born to be poor",
+"primaryHouse": 1,
+"supportingHouses": "5, 8, 12"
+},
+{
+"matter": "Loss of wealth",
+"primaryHouse": 2,
+"supportingHouses": "5, 8, 12"
+},
+{
+"matter": "Loss of income from job",
+"primaryHouse": 6,
+"supportingHouses": "5, 8, 12"
+},
+{
+"matter": "Loss of income from retirement",
+"primaryHouse": 6,
+"supportingHouses": "5, 9"
+},
+{
+"matter": "For women, first pregnancy",
+"primaryHouse": 5,
+"supportingHouses": "2, 5, 11"
+},
+{
+"matter": "For women, second pregnancy",
+"primaryHouse": 7,
+"supportingHouses": "2, 5, 11"
+},
+{
+"matter": "For women, third pregnancy",
+"primaryHouse": 9,
+"supportingHouses": "2, 5, 11"
+},
+{
+"matter": "For women, fourth pregnancy",
+"primaryHouse": 11,
+"supportingHouses": "2, 5, 11"
+},
+{
+"matter": "For women, fifth pregnancy",
+"primaryHouse": 2,
+"supportingHouses": "2, 5, 11"
+},
+{
+"matter": "For women, six pregnancy onwards 5, 7, 9, 11, 2",
+"primaryHouse": null,
+"supportingHouses": "2, 5, 11"
+},
+{
+"matter": "For men, avoid predicting. If unavoidable, check 11th houses for all children",
+"primaryHouse": 11,
+"supportingHouses": "2, 5, 11"
+},
+{
+"matter": "For women and men, if <5>th house lord and it's star lord are in barren signs of Aries, Gemini, Leo or Virgo",
+"primaryHouse": null,
+"supportingHouses": "No Child"
+},
+{
+"matter": "Denial of Child birth",
+"primaryHouse": 5,
+"supportingHouses": "1, 4, 10"
+},
+{
+"matter": "Always in poor health",
+"primaryHouse": 1,
+"supportingHouses": "1, 6, 8, 12"
+},
+{
+"matter": "Life long diseases",
+"primaryHouse": 6,
+"supportingHouses": "1, 6, 8, 12"
+},
+{
+"matter": "School education damaged",
+"primaryHouse": 4,
+"supportingHouses": "3, 5, 8"
+},
+{
+"matter": "Ill Health",
+"primaryHouse": 6,
+"supportingHouses": "1, 8, 12"
+},
+{
+"matter": "Loss of job",
+"primaryHouse": 6,
+"supportingHouses": "5, 8, 12"
+},
+{
+"matter": "Change of job",
+"primaryHouse": 6,
+"supportingHouses": "5"
+},
+{
+"matter": "Full recovery / cure from disease / Good health",
+"primaryHouse": 6,
+"supportingHouses": "5, 11"
+},
+{
+"matter": "Live in partner / Premarital sex",
+"primaryHouse": 5,
+"supportingHouses": "5, 8, 11"
+},
+{
+"matter": "Marriage",
+"primaryHouse": 7,
+"supportingHouses": "2, 7, 11 + Fruitful signs"
+},
+{
+"matter": "Separation",
+"primaryHouse": 7,
+"supportingHouses": "1, 6, 10"
+},
+{
+"matter": "Love marriage",
+"primaryHouse": 7,
+"supportingHouses": "2, 7, 11 + 5"
+},
+{
+"matter": "Delayed marriage",
+"primaryHouse": 7,
+"supportingHouses": "2, 7, 11 + 4 + 10"
+},
+{
+"matter": "Unhappy married life",
+"primaryHouse": 11,
+"supportingHouses": "4, 6, 8, 10, 12"
+},
+{
+"matter": "Divorce",
+"primaryHouse": 11,
+"supportingHouses": "1, 6, 10, 12"
+},
+{
+"matter": "Separation",
+"primaryHouse": 11,
+"supportingHouses": "1, 6, 10"
+},
+{
+"matter": "Short travel",
+"primaryHouse": 3,
+"supportingHouses": "3, 9, 11, 12"
+},
+{
+"matter": "Local travel within 30 kms",
+"primaryHouse": 3,
+"supportingHouses": "3, 9, 11, 12"
+},
+{
+"matter": "Long travel 30 to 300 kms",
+"primaryHouse": 9,
+"supportingHouses": "3, 9, 11, 12"
+},
+{
+"matter": "Long travel above 300 kms",
+"primaryHouse": 12,
+"supportingHouses": "3, 9, 11, 12"
+},
+{
+"matter": "Foreign travel",
+"primaryHouse": 12,
+"supportingHouses": "3, 9, 11, 12"
+},
+{
+"matter": "Receipt of Visa / Passport / Greencard / Permanent Resident / Citizenship",
+"primaryHouse": 9,
+"supportingHouses": "3, 6, 9, 11, 12"
+},
+{
+"matter": "Construct house",
+"primaryHouse": 4,
+"supportingHouses": "4, 11"
+},
+{
+"matter": "Purchase of car",
+"primaryHouse": 4,
+"supportingHouses": "4, 9, 10, 11 (+12 for vehicle loan)"
+},
+{
+"matter": "Sale of property",
+"primaryHouse": 4,
+"supportingHouses": "3, 5, 10 + (2/11 for profit) + (8/12 for loss)"
+},
+{
+"matter": "Income from Partnership Business, Public Relations, Public Contracts, Public Service",
+"primaryHouse": 7,
+"supportingHouses": "2, 6, 11"
+}
+]
