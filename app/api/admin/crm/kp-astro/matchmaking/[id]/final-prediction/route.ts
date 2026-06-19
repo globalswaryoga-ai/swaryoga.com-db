@@ -14,6 +14,7 @@ function orderRows(rows: any[]) {
   const hasContent = (b: any) =>
     b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
     (b.customMatters && b.customMatters.length) ||
+    (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
     (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||
     (b.significatorsC && b.significatorsC.length) || (b.significatorsD && b.significatorsD.length);
   return (Array.isArray(rows) ? rows : [])

@@ -20,6 +20,8 @@ export interface BhavAnalysisRow {
   significatorsB: string[];
   significatorsC: string[];
   significatorsD: string[];
+  drishtiPlanets: string[];
+  connectionPlanets: string[];
   customMatters: Array<{ label: string; notes: string }>;
   positiveNotes: string;
   negativeNotes: string;
@@ -34,6 +36,7 @@ export function emptyBhavAnalysis(): BhavAnalysisRow[] {
     house: i + 1,
     subLord: '',
     significatorsA: [], significatorsB: [], significatorsC: [], significatorsD: [],
+    drishtiPlanets: [], connectionPlanets: [],
     customMatters: [],
     positiveNotes: '', negativeNotes: '', dashaNotes: '', freeNotes: '',
     predictionOrder: 0,
@@ -56,6 +59,8 @@ export function normalizeBhavAnalysis(rows: any[] | undefined): BhavAnalysisRow[
       significatorsB: Array.isArray(found.significatorsB) ? found.significatorsB : [],
       significatorsC: Array.isArray(found.significatorsC) ? found.significatorsC : [],
       significatorsD: Array.isArray(found.significatorsD) ? found.significatorsD : [],
+      drishtiPlanets: Array.isArray(found.drishtiPlanets) ? found.drishtiPlanets : [],
+      connectionPlanets: Array.isArray(found.connectionPlanets) ? found.connectionPlanets : [],
       customMatters: Array.isArray(found.customMatters) ? found.customMatters : [],
       positiveNotes: found.positiveNotes || '',
       negativeNotes: found.negativeNotes || '',
@@ -160,6 +165,17 @@ function BhavCard({ row, onChange }: { row: BhavAnalysisRow; onChange: (next: Bh
                 </div>
               );
             })}
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500">Drishti Planets</label>
+              <div className="mt-1"><ChipInput values={row.drishtiPlanets} onChange={(v) => set('drishtiPlanets', v)} emptyHint="no drishti planet found" /></div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500">Uti / Connection Planets</label>
+              <div className="mt-1"><ChipInput values={row.connectionPlanets} onChange={(v) => set('connectionPlanets', v)} emptyHint="no connected planet found" /></div>
+            </div>
           </div>
 
           <div>

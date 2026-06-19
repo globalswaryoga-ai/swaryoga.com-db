@@ -88,7 +88,7 @@ export default function KpFinalPredictionPage() {
   const bhavRows = chart?.bhavAnalysis || [];
   const orderedBhavs = bhavRows
     .filter((b) => b.includeInPrediction !== false)
-    .filter((b) => b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes || b.customMatters?.length)
+    .filter((b) => b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes || b.customMatters?.length || b.drishtiPlanets?.length || b.connectionPlanets?.length)
     .sort((a, b) => (a.predictionOrder || 0) - (b.predictionOrder || 0) || a.house - b.house);
   const hasAnyContent = orderedBhavs.length > 0;
   const age = currentAge(chart?.dob);

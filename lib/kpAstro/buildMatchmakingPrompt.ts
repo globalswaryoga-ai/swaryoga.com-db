@@ -13,6 +13,8 @@ function formatBhav(b: FinalPredictionBhavInput): string {
   const sig = (label: string, arr: string[]) => (arr.length ? `${label}: ${arr.join(', ')}` : '');
   const sigLine = [sig('A', b.significatorsA), sig('B', b.significatorsB), sig('C', b.significatorsC), sig('D', b.significatorsD)].filter(Boolean).join(' | ');
   if (sigLine) parts.push(`  Significators — ${sigLine}`);
+  if (b.drishtiPlanets?.length) parts.push(`  Drishti planets: ${b.drishtiPlanets.join(', ')}`);
+  if (b.connectionPlanets?.length) parts.push(`  Uti / connection planets: ${b.connectionPlanets.join(', ')}`);
   if (b.customMatters.length) parts.push(`  Matters: ${b.customMatters.map((m) => `${m.label}${m.notes ? ` (${m.notes})` : ''}`).join('; ')}`);
   if (b.positiveNotes) parts.push(`  Positive: ${b.positiveNotes}`);
   if (b.negativeNotes) parts.push(`  Negative: ${b.negativeNotes}`);

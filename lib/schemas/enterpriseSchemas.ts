@@ -4383,6 +4383,8 @@ const KpBhavAnalysisSchema = new mongoose.Schema(
     significatorsB: { type: [String], default: [] },
     significatorsC: { type: [String], default: [] },
     significatorsD: { type: [String], default: [] },
+    drishtiPlanets: { type: [String], default: [] },
+    connectionPlanets: { type: [String], default: [] },
     customMatters: { type: [KpCustomMatterSchema], default: [] },
     positiveNotes: { type: String, trim: true, default: '' },
     negativeNotes: { type: String, trim: true, default: '' },

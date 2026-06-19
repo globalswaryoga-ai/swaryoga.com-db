@@ -20,6 +20,7 @@ export interface SignificatorPlanet {
   star?: string;
   subLord?: string;
   house?: number;
+  degree?: string;
 }
 
 export function housesOccupiedBy(planets: SignificatorPlanet[], planetName: string | undefined): number[] {
@@ -68,6 +69,16 @@ export function computeFourStepSignificators(
   });
 }
 
+function formatHouseList(values: number[]): string {
+  return values.length ? values.join(',') : '-';
+}
+
+export function planetKaryesLabel(houses: SignificatorHouse[], planets: SignificatorPlanet[], planetName: string): string {
+  const sig = computeFourStepSignificators(houses, planets).find((s) => s.planet === planetName);
+  if (!sig) return planetName;
+  return `${planetName} [A:${formatHouseList(sig.A)} B:${formatHouseList(sig.B)} C:${formatHouseList(sig.C)} D:${formatHouseList(sig.D)}]`;
+}
+
 export interface BhavAutoSignificators {
   house: number;
   subLord: string;
@@ -95,16 +106,18 @@ export function computeBhavAutoSignificators(
     for (const name of names) {
       const planet = planets.find((p) => p.planet === name);
       const sl = planet ? starLordOf(planet) : undefined;
-      if (sl) result.add(sl);
+      if (sl) result.add(planetKaryesLabel(houses, planets, sl));
     }
     return Array.from(result);
   };
 
+  const labelPlanets = (names: string[]): string[] => names.map((name) => planetKaryesLabel(houses, planets, name));
+
   return {
     house: houseNumber,
     subLord: house?.subLord || '',
-    significatorsB: occupants,
-    significatorsC: owner ? [owner] : [],
+    significatorsB: labelPlanets(occupants),
+    significatorsC: owner ? [planetKaryesLabel(houses, planets, owner)] : [],
     significatorsA: starLordsOf(occupants),
     significatorsD: owner ? starLordsOf([owner]) : [],
   };

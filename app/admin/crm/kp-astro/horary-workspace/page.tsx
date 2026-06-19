@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
+import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 interface HoraryListItem { _id: string; questionText: string; horaryNumber: number; updatedAt: string; }
 
@@ -24,8 +26,8 @@ interface HoraryDetail {
   querentName?: string;
   horaryNumber: number;
   ascendant?: { sign?: string; degree?: string };
-  houses?: Array<{ house: number; sign?: string }>;
-  planets?: Array<{ planet: string; sign?: string; house?: number; retrograde?: boolean }>;
+  houses?: SignificatorHouse[];
+  planets?: Array<SignificatorPlanet & { retrograde?: boolean }>;
   chartStyle?: 'north' | 'south';
   bhavAnalysis?: BhavAnalysisRow[];
   rulingPlanets?: RulingPlanets;
@@ -45,6 +47,7 @@ export default function KpHoraryWorkspacePage() {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
+  const [chartDisplayMode, setChartDisplayMode] = useState<'planet' | 'bhav'>('planet');
   const [bhavRows, setBhavRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
 
   useEffect(() => {
@@ -63,7 +66,8 @@ export default function KpHoraryWorkspacePage() {
       if (!res.ok) throw new Error(json.error || 'Failed to load chart');
       setChart(json.data);
       setChartStyle(json.data.chartStyle === 'south' ? 'south' : 'north');
-      setBhavRows(normalizeBhavAnalysis(json.data.bhavAnalysis));
+      const normalized = normalizeBhavAnalysis(json.data.bhavAnalysis);
+      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || []));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart');
     } finally {
@@ -130,10 +134,24 @@ export default function KpHoraryWorkspacePage() {
             <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 text-sm">#{chart.horaryNumber} — {chart.questionText}</h2>
-                <select value={chartStyle} onChange={(e) => setChartStyle(e.target.value as 'north' | 'south')} className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                  <option value="north">North Indian</option>
-                  <option value="south">South Indian</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+                    {(['planet', 'bhav'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setChartDisplayMode(mode)}
+                        className={`px-2 py-1 text-xs font-medium rounded-md ${chartDisplayMode === mode ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        {mode === 'planet' ? 'Planet' : 'Bhav'}
+                      </button>
+                    ))}
+                  </div>
+                  <select value={chartStyle} onChange={(e) => setChartStyle(e.target.value as 'north' | 'south')} className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+                    <option value="north">North Indian</option>
+                    <option value="south">South Indian</option>
+                  </select>
+                </div>
               </div>
               <div className="flex justify-center">
                 <KundaliChart
@@ -142,6 +160,7 @@ export default function KpHoraryWorkspacePage() {
                   houses={chart.houses}
                   planets={chart.planets}
                   size={320}
+                  displayMode={chartDisplayMode}
                 />
               </div>
             </div>

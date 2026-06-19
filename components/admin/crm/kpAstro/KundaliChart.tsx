@@ -31,6 +31,7 @@ export interface KundaliChartProps {
   houses?: Array<{ house: number; sign?: string }>;
   planets?: Array<{ planet: string; sign?: string; house?: number }>;
   size?: number;
+  displayMode?: 'planet' | 'bhav';
 }
 
 // North Indian chart polygons for a 400x400 viewBox, house 1 = top kite,
@@ -70,7 +71,7 @@ const SOUTH_GRID: Array<{ row: number; col: number; sign: string }> = [
   { row: 3, col: 0, sign: 'Sagittarius' }, { row: 3, col: 1, sign: 'Scorpio' }, { row: 3, col: 2, sign: 'Libra' }, { row: 3, col: 3, sign: 'Virgo' },
 ];
 
-export default function KundaliChart({ chartStyle, ascendantSign, houses = [], planets = [], size = 360 }: KundaliChartProps) {
+export default function KundaliChart({ chartStyle, ascendantSign, houses = [], planets = [], size = 360, displayMode = 'planet' }: KundaliChartProps) {
   const ascIndex = ZODIAC_SIGNS.indexOf(ascendantSign);
 
   // sign -> house number, derived from the ascendant (house N's sign is the
@@ -107,8 +108,8 @@ export default function KundaliChart({ chartStyle, ascendantSign, houses = [], p
               <rect x={col * cell} y={row * cell} width={cell} height={cell} fill={isAsc ? '#ede9fe' : 'white'} stroke="#9ca3af" strokeWidth={1} />
               <text x={col * cell + 6} y={row * cell + 16} fontSize={11} fill="#6b7280">{sign.slice(0, 3)}{house ? ` (${house})` : ''}</text>
               {isAsc && <text x={col * cell + cell - 18} y={row * cell + 16} fontSize={11} fontWeight="bold" fill="#7c3aed">Asc</text>}
-              <text x={col * cell + cell / 2} y={row * cell + cell / 2 + 8} fontSize={13} fontWeight="600" fill="#111827" textAnchor="middle">
-                {planetLabels.join(' ')}
+              <text x={col * cell + cell / 2} y={row * cell + cell / 2 + 8} fontSize={displayMode === 'bhav' ? 16 : 13} fontWeight="600" fill="#111827" textAnchor="middle">
+                {displayMode === 'bhav' ? (house ? `Bhav ${house}` : '') : planetLabels.join(' ')}
               </text>
             </g>
           );
@@ -130,7 +131,9 @@ export default function KundaliChart({ chartStyle, ascendantSign, houses = [], p
           <g key={house}>
             <polygon points={points} fill={house === 1 ? '#ede9fe' : 'white'} stroke="none" />
             <text x={lx} y={ly - 10} fontSize={11} fill="#6b7280" textAnchor="middle">{sign.slice(0, 3)}</text>
-            <text x={lx} y={ly + 14} fontSize={13} fontWeight="600" fill="#111827" textAnchor="middle">{planetLabels.join(' ')}</text>
+            <text x={lx} y={ly + 14} fontSize={displayMode === 'bhav' ? 16 : 13} fontWeight="600" fill="#111827" textAnchor="middle">
+              {displayMode === 'bhav' ? house : planetLabels.join(' ')}
+            </text>
           </g>
         );
       })}

@@ -8,14 +8,16 @@ import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
+import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 interface MatchListItem { _id: string; label?: string; groomChartId?: { personName: string }; brideChartId?: { personName: string }; }
 
 interface ChartRef {
   personName: string;
   ascendant?: { sign?: string };
-  houses?: Array<{ house: number; sign?: string }>;
-  planets?: Array<{ planet: string; sign?: string; house?: number }>;
+  houses?: SignificatorHouse[];
+  planets?: SignificatorPlanet[];
   chartStyle?: 'north' | 'south';
 }
 
@@ -45,6 +47,7 @@ export default function KpMatchmakingWorkspacePage() {
   const [groomRows, setGroomRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
   const [brideRows, setBrideRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
   const [compatibilityNotes, setCompatibilityNotes] = useState('');
+  const [chartDisplayMode, setChartDisplayMode] = useState<'planet' | 'bhav'>('planet');
 
   useEffect(() => {
     if (!token) return;
@@ -61,8 +64,10 @@ export default function KpMatchmakingWorkspacePage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load match');
       setMatch(json.data);
-      setGroomRows(normalizeBhavAnalysis(json.data.groomBhavAnalysis));
-      setBrideRows(normalizeBhavAnalysis(json.data.brideBhavAnalysis));
+      const groomRows = normalizeBhavAnalysis(json.data.groomBhavAnalysis);
+      const brideRows = normalizeBhavAnalysis(json.data.brideBhavAnalysis);
+      setGroomRows(autoFillBhavRows(groomRows, json.data.groomChartId?.houses || [], json.data.groomChartId?.planets || []));
+      setBrideRows(autoFillBhavRows(brideRows, json.data.brideChartId?.houses || [], json.data.brideChartId?.planets || []));
       setCompatibilityNotes(json.data.compatibilityNotes || '');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load match');
@@ -125,14 +130,29 @@ export default function KpMatchmakingWorkspacePage() {
 
       {!loading && match && (
         <>
+          <div className="flex justify-end">
+            <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+              {(['planet', 'bhav'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setChartDisplayMode(mode)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md ${chartDisplayMode === mode ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                >
+                  {mode === 'planet' ? 'Planet' : 'Bhav'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col items-center">
               <h2 className="font-semibold text-gray-900 text-sm mb-2">Groom — {match.groomChartId?.personName}</h2>
-              <KundaliChart chartStyle={match.groomChartId?.chartStyle || 'north'} ascendantSign={match.groomChartId?.ascendant?.sign || ''} houses={match.groomChartId?.houses} planets={match.groomChartId?.planets} size={260} />
+              <KundaliChart chartStyle={match.groomChartId?.chartStyle || 'north'} ascendantSign={match.groomChartId?.ascendant?.sign || ''} houses={match.groomChartId?.houses} planets={match.groomChartId?.planets} size={260} displayMode={chartDisplayMode} />
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col items-center">
               <h2 className="font-semibold text-gray-900 text-sm mb-2">Bride — {match.brideChartId?.personName}</h2>
-              <KundaliChart chartStyle={match.brideChartId?.chartStyle || 'north'} ascendantSign={match.brideChartId?.ascendant?.sign || ''} houses={match.brideChartId?.houses} planets={match.brideChartId?.planets} size={260} />
+              <KundaliChart chartStyle={match.brideChartId?.chartStyle || 'north'} ascendantSign={match.brideChartId?.ascendant?.sign || ''} houses={match.brideChartId?.houses} planets={match.brideChartId?.planets} size={260} displayMode={chartDisplayMode} />
             </div>
           </div>
 
