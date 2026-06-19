@@ -71,7 +71,7 @@ export const ZODIAC_SIGNS = [
 // subTable's `from`/`to` columns are degree-minute-second strings within the
 // sign (0-30), written with inconsistent unicode prime/double-prime
 // characters (″ ” ’ ′) — this normalizes any of them before parsing.
-function parseDms(dms: string): number {
+export function parseDegreeDms(dms: string): number {
   const cleaned = dms.replace(/[″”]/g, '"').replace(/[’′]/g, "'");
   const match = cleaned.match(/(\d+)°\s*(\d+)['′]\s*(\d+)/);
   if (!match) return NaN;
@@ -90,8 +90,8 @@ export function findSubTableRowByLongitude(siderealDegree: number): SubTableRow 
   const degreeInSign = normalized - signIndex * 30;
   return subTable.find((r) => {
     if (r.sign !== sign) return false;
-    const from = parseDms(r.from);
-    const to = parseDms(r.to);
+    const from = parseDegreeDms(r.from);
+    const to = parseDegreeDms(r.to);
     return degreeInSign >= from && degreeInSign < to;
   });
 }

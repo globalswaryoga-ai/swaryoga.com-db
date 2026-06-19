@@ -1,12 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Send, Loader2, RefreshCw } from 'lucide-react';
+import { Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
+import { computeFourStepSignificators, cuspSubLordSignification } from '@/lib/kpAstro/significators';
+import { computeAspectsAndConjunctions, unparseablePlanets } from '@/lib/kpAstro/aspectAnalysis';
+
+const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
 
 interface ChartReport {
   language: string;
@@ -20,6 +24,27 @@ interface ChatMessage {
   createdAt?: string;
 }
 
+interface ChartHouse {
+  house: number;
+  sign?: string;
+  signLord?: string;
+  star?: string;
+  starLord?: string;
+  subLord?: string;
+  degree?: string;
+}
+
+interface ChartPlanet {
+  planet: string;
+  sign?: string;
+  star?: string;
+  subLord?: string;
+  house?: number;
+  degree?: string;
+  retrograde?: boolean;
+  combust?: boolean;
+}
+
 interface Chart {
   _id: string;
   personName: string;
@@ -27,12 +52,29 @@ interface Chart {
   dob?: string;
   birthTime?: string;
   birthPlace?: string;
-  houses?: Array<{ house: number; sign?: string; subLord?: string }>;
-  planets?: Array<{ planet: string; sign?: string; house?: number }>;
+  ascendant?: { sign?: string; degree?: string };
+  houses?: ChartHouse[];
+  planets?: ChartPlanet[];
   mahadashas?: Array<{ planet: string; startDate: string; endDate: string }>;
   doshas?: { kalsarp?: boolean; pitru?: boolean; stri?: boolean; otherNotes?: string };
   reports?: ChartReport[];
   chatHistory?: ChatMessage[];
+}
+
+const emptyHouses = (): ChartHouse[] =>
+  Array.from({ length: 12 }, (_, i) => ({ house: i + 1, sign: '', signLord: '', star: '', starLord: '', subLord: '', degree: '' }));
+
+const emptyPlanets = (): ChartPlanet[] =>
+  PLANET_NAMES.map((planet) => ({ planet, sign: '', star: '', subLord: '', house: undefined, degree: '', retrograde: false, combust: false }));
+
+function fillHouses(houses: ChartHouse[] | undefined): ChartHouse[] {
+  const base = emptyHouses();
+  return base.map((h) => ({ ...h, ...(houses?.find((x) => x.house === h.house) || {}) }));
+}
+
+function fillPlanets(planets: ChartPlanet[] | undefined): ChartPlanet[] {
+  const base = emptyPlanets();
+  return base.map((p) => ({ ...p, ...(planets?.find((x) => x.planet === p.planet) || {}) }));
 }
 
 export default function KpHoroscopeChartDetailPage() {
@@ -50,6 +92,14 @@ export default function KpHoroscopeChartDetailPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatSending, setChatSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  const [editing, setEditing] = useState(false);
+  const [editHouses, setEditHouses] = useState<ChartHouse[]>(emptyHouses());
+  const [editPlanets, setEditPlanets] = useState<ChartPlanet[]>(emptyPlanets());
+  const [editAscendantSign, setEditAscendantSign] = useState('');
+  const [editAscendantDegree, setEditAscendantDegree] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const fetchChart = useCallback(async () => {
     if (!token || !id) return;
@@ -71,6 +121,59 @@ export default function KpHoroscopeChartDetailPage() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
 
   const latestReportForLanguage = chart?.reports?.filter((r) => r.language === language).slice(-1)[0];
+
+  const significators = useMemo(
+    () => computeFourStepSignificators(chart?.houses || [], chart?.planets || []),
+    [chart]
+  );
+  const aspects = useMemo(() => computeAspectsAndConjunctions(chart?.planets || []), [chart]);
+  const unparseable = useMemo(() => unparseablePlanets(chart?.planets || []), [chart]);
+  const conjunctions = aspects.filter((a) => a.type === 'conjunction');
+  const maleficAspects = aspects.filter((a) => a.type === 'malefic');
+  const beneficAspects = aspects.filter((a) => a.type === 'benefic');
+
+  const startEditing = () => {
+    setEditHouses(fillHouses(chart?.houses));
+    setEditPlanets(fillPlanets(chart?.planets));
+    setEditAscendantSign(chart?.ascendant?.sign || '');
+    setEditAscendantDegree(chart?.ascendant?.degree || '');
+    setEditError('');
+    setEditing(true);
+  };
+
+  const updateEditHouse = (idx: number, field: keyof ChartHouse, value: string) => {
+    setEditHouses((prev) => prev.map((h, i) => (i === idx ? { ...h, [field]: value } : h)));
+  };
+  const updateEditPlanet = (idx: number, field: keyof ChartPlanet, value: string | boolean) => {
+    setEditPlanets((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!token || !id) return;
+    setSavingEdit(true);
+    setEditError('');
+    try {
+      const res = await fetch(`/api/admin/crm/kp-astro/charts/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ascendant: (editAscendantSign || editAscendantDegree) ? { sign: editAscendantSign, degree: editAscendantDegree } : undefined,
+          houses: editHouses.filter((h) => h.sign || h.subLord),
+          planets: editPlanets
+            .filter((p) => p.sign || p.subLord)
+            .map((p) => ({ ...p, house: p.house ? Number(p.house) : undefined })),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to save chart');
+      setChart(json.data);
+      setEditing(false);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : 'Failed to save chart');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!token || !id) return;
@@ -132,6 +235,181 @@ export default function KpHoroscopeChartDetailPage() {
       />
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900">12 Bhav (Houses) &amp; Planets</h2>
+          {!editing ? (
+            <button type="button" onClick={startEditing} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold text-indigo-600 hover:bg-indigo-50">
+              <Pencil className="h-4 w-4" /> Edit
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setEditing(false)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100">
+                <X className="h-4 w-4" /> Cancel
+              </button>
+              <button type="button" onClick={handleSaveEdit} disabled={savingEdit} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+              </button>
+            </div>
+          )}
+        </div>
+        {editError && <p className="text-xs text-red-600">{editError}</p>}
+
+        {editing ? (
+          <>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <input value={editAscendantSign} onChange={(e) => setEditAscendantSign(e.target.value)} placeholder="Ascendant (Lagna) Sign" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+              <input value={editAscendantDegree} onChange={(e) => setEditAscendantDegree(e.target.value)} placeholder="Ascendant Degree" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-400">
+                    <th className="p-1">House</th><th className="p-1">Sign</th><th className="p-1">Sign Lord</th>
+                    <th className="p-1">Star</th><th className="p-1">Star Lord</th><th className="p-1">Sub Lord</th><th className="p-1">Degree</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editHouses.map((h, idx) => (
+                    <tr key={h.house}>
+                      <td className="p-1 font-semibold text-gray-700">{h.house}</td>
+                      {(['sign', 'signLord', 'star', 'starLord', 'subLord', 'degree'] as const).map((field) => (
+                        <td key={field} className="p-1">
+                          <input value={h[field] || ''} onChange={(e) => updateEditHouse(idx, field, e.target.value)} className="w-full rounded border border-gray-200 px-2 py-1" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-400">
+                    <th className="p-1">Planet</th><th className="p-1">Sign</th><th className="p-1">Star</th>
+                    <th className="p-1">Sub Lord</th><th className="p-1">House</th><th className="p-1">Degree</th>
+                    <th className="p-1">Retro</th><th className="p-1">Combust</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editPlanets.map((p, idx) => (
+                    <tr key={p.planet}>
+                      <td className="p-1 font-semibold text-gray-700">{p.planet}</td>
+                      {(['sign', 'star', 'subLord', 'house', 'degree'] as const).map((field) => (
+                        <td key={field} className="p-1">
+                          <input value={(p as any)[field] ?? ''} onChange={(e) => updateEditPlanet(idx, field, e.target.value)} className="w-full rounded border border-gray-200 px-2 py-1" />
+                        </td>
+                      ))}
+                      <td className="p-1"><input type="checkbox" checked={!!p.retrograde} onChange={(e) => updateEditPlanet(idx, 'retrograde', e.target.checked)} /></td>
+                      <td className="p-1"><input type="checkbox" checked={!!p.combust} onChange={(e) => updateEditPlanet(idx, 'combust', e.target.checked)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : !chart.houses?.length && !chart.planets?.length ? (
+          <p className="text-sm text-gray-400">No house/planet data yet. Click "Edit" to enter it.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-gray-400">
+                  <th className="p-1">House</th><th className="p-1">Sign</th><th className="p-1">Sign Lord</th>
+                  <th className="p-1">Star</th><th className="p-1">Star Lord</th><th className="p-1">Sub Lord</th>
+                  <th className="p-1">Occupying Planets</th><th className="p-1">Sub Lord Signifies (Deposition / Ownership)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((houseNum) => {
+                  const h = chart.houses?.find((x) => x.house === houseNum);
+                  const occupants = (chart.planets || []).filter((p) => p.house === houseNum).map((p) => p.planet);
+                  const cusp = cuspSubLordSignification(chart.houses || [], chart.planets || [], houseNum);
+                  return (
+                    <tr key={houseNum} className="border-t border-gray-100">
+                      <td className="p-1 font-semibold text-gray-700">{houseNum}</td>
+                      <td className="p-1">{h?.sign || '—'}</td>
+                      <td className="p-1">{h?.signLord || '—'}</td>
+                      <td className="p-1">{h?.star || '—'}</td>
+                      <td className="p-1">{h?.starLord || '—'}</td>
+                      <td className="p-1 font-medium text-indigo-700">{h?.subLord || '—'}</td>
+                      <td className="p-1">{occupants.length ? occupants.join(', ') : '—'}</td>
+                      <td className="p-1 text-gray-500">
+                        {cusp.subLord ? `Dep: ${cusp.byDeposition.join(', ') || '—'} · Own: ${cusp.byOwnership.join(', ') || '—'}` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <h2 className="font-semibold text-gray-900">ABCD Significators</h2>
+        <p className="text-xs text-gray-400">For each planet: A = houses owned by its Star Lord, B = house it occupies, C = houses it owns, D = houses occupied by its Star Lord.</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-gray-400">
+                <th className="p-1">Planet</th><th className="p-1">A</th><th className="p-1">B</th><th className="p-1">C</th><th className="p-1">D</th><th className="p-1">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {significators.map((s) => (
+                <tr key={s.planet} className="border-t border-gray-100">
+                  <td className="p-1 font-semibold text-gray-700">{s.planet}</td>
+                  <td className="p-1">{s.A.join(', ') || '—'}</td>
+                  <td className="p-1">{s.B.join(', ') || '—'}</td>
+                  <td className="p-1">{s.C.join(', ') || '—'}</td>
+                  <td className="p-1">{s.D.join(', ') || '—'}</td>
+                  <td className="p-1 text-amber-600">
+                    {!s.starLordResolved && (
+                      <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Star Lord not resolved</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
+        <h2 className="font-semibold text-gray-900">Drishti &amp; Conjunctions</h2>
+        {unparseable.length > 0 && (
+          <p className="text-xs text-amber-600 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" /> Skipped (unparseable degree): {unparseable.join(', ')}
+          </p>
+        )}
+        {aspects.length === 0 ? (
+          <p className="text-sm text-gray-400">No conjunctions or aspects detected within the configured orbs.</p>
+        ) : (
+          <div className="grid sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-xs uppercase text-gray-400 font-semibold mb-1">Conjunctions</p>
+              {conjunctions.length ? conjunctions.map((a, i) => (
+                <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.separation.toFixed(1)}°)</span></p>
+              )) : <p className="text-gray-400">None</p>}
+            </div>
+            <div>
+              <p className="text-xs uppercase text-red-500 font-semibold mb-1">Malefic Drishti</p>
+              {maleficAspects.length ? maleficAspects.map((a, i) => (
+                <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.targetAngle}°, actual {a.separation.toFixed(1)}°)</span></p>
+              )) : <p className="text-gray-400">None</p>}
+            </div>
+            <div>
+              <p className="text-xs uppercase text-emerald-500 font-semibold mb-1">Benefic Drishti</p>
+              {beneficAspects.length ? beneficAspects.map((a, i) => (
+                <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.targetAngle}°, actual {a.separation.toFixed(1)}°)</span></p>
+              )) : <p className="text-gray-400">None</p>}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Sparkles, Plus, Trash2, X, Calculator, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
+import { getCountryNames, getStateNames, getCityNames, getCityCoordinates } from '@/lib/locationData';
 
 const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
 
@@ -82,6 +83,10 @@ export default function KpHoroscopeChartsPage() {
   const [calculating, setCalculating] = useState(false);
   const [calcError, setCalcError] = useState('');
 
+  const [lookupCountry, setLookupCountry] = useState('');
+  const [lookupState, setLookupState] = useState('');
+  const [lookupCity, setLookupCity] = useState('');
+
   const fetchCharts = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -115,6 +120,17 @@ export default function KpHoroscopeChartsPage() {
     setMahadashas([{ planet: '', startDate: '', endDate: '' }]);
     setDashaPeriods([]);
     setKalsarp(false); setPitru(false); setStri(false); setOtherNotes('');
+    setLookupCountry(''); setLookupState(''); setLookupCity('');
+    setBirthLatitude(''); setBirthLongitude('');
+  };
+
+  const handleLookupCity = (city: string) => {
+    setLookupCity(city);
+    const coords = getCityCoordinates(lookupCountry, lookupState, city);
+    if (coords) {
+      setBirthLatitude(String(coords.latitude));
+      setBirthLongitude(String(coords.longitude));
+    }
   };
 
   const handleCalculate = async () => {
@@ -253,6 +269,35 @@ export default function KpHoroscopeChartsPage() {
               <Calculator className="h-4 w-4 text-indigo-600" /> Calculate from Birth Details
             </h3>
             <p className="text-xs text-gray-500">Fills in houses, planets, and the Mahadasha sequence automatically using the date of birth and birth time above, plus the UTC offset and coordinates below. Cross-check the first result against a known chart before trusting it broadly — review and edit any field afterward.</p>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <select
+                value={lookupCountry}
+                onChange={(e) => { setLookupCountry(e.target.value); setLookupState(''); setLookupCity(''); }}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Country (to look up lat/long)</option>
+                {getCountryNames().map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+              <select
+                value={lookupState}
+                onChange={(e) => { setLookupState(e.target.value); setLookupCity(''); }}
+                disabled={!lookupCountry}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
+              >
+                <option value="">State</option>
+                {getStateNames(lookupCountry).map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+              <select
+                value={lookupCity}
+                onChange={(e) => handleLookupCity(e.target.value)}
+                disabled={!lookupState}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
+              >
+                <option value="">City</option>
+                {getCityNames(lookupCountry, lookupState).map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
+            <p className="text-xs text-gray-400">Picking a city fills the latitude/longitude below — correct them by hand if they're off.</p>
             <div className="grid sm:grid-cols-3 gap-3">
               <input value={utcOffset} onChange={(e) => setUtcOffset(e.target.value)} placeholder='UTC offset (e.g. "+5:30")' className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
               <input value={birthLatitude} onChange={(e) => setBirthLatitude(e.target.value)} placeholder="Birth latitude (e.g. 28.6139)" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
