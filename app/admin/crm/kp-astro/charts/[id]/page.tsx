@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
 import { computeFourStepSignificators } from '@/lib/kpAstro/significators';
-import { computeAspectsAndConjunctions, unparseablePlanets } from '@/lib/kpAstro/aspectAnalysis';
+import { computeConjunctions, computeDrishtiOnPlanets, unparseablePlanets, planetsMissingHouse } from '@/lib/kpAstro/aspectAnalysis';
 import HousesPlanetsTable from '@/components/admin/crm/kpAstro/HousesPlanetsTable';
 
 const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
@@ -127,11 +127,10 @@ export default function KpHoroscopeChartDetailPage() {
     () => computeFourStepSignificators(chart?.houses || [], chart?.planets || []),
     [chart]
   );
-  const aspects = useMemo(() => computeAspectsAndConjunctions(chart?.planets || []), [chart]);
+  const conjunctions = useMemo(() => computeConjunctions(chart?.planets || []), [chart]);
+  const drishti = useMemo(() => computeDrishtiOnPlanets(chart?.planets || []), [chart]);
   const unparseable = useMemo(() => unparseablePlanets(chart?.planets || []), [chart]);
-  const conjunctions = aspects.filter((a) => a.type === 'conjunction');
-  const maleficAspects = aspects.filter((a) => a.type === 'malefic');
-  const beneficAspects = aspects.filter((a) => a.type === 'benefic');
+  const missingHouse = useMemo(() => planetsMissingHouse(chart?.planets || []), [chart]);
 
   const startEditing = () => {
     setEditHouses(fillHouses(chart?.houses));
@@ -352,33 +351,28 @@ export default function KpHoroscopeChartDetailPage() {
         <h2 className="font-semibold text-gray-900">Drishti &amp; Conjunctions</h2>
         {unparseable.length > 0 && (
           <p className="text-xs text-amber-600 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Skipped (unparseable degree): {unparseable.join(', ')}
+            <AlertTriangle className="h-3 w-3" /> Skipped from conjunction check (unparseable degree): {unparseable.join(', ')}
           </p>
         )}
-        {aspects.length === 0 ? (
-          <p className="text-sm text-gray-400">No conjunctions or aspects detected within the configured orbs.</p>
-        ) : (
-          <div className="grid sm:grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-xs uppercase text-gray-400 font-semibold mb-1">Conjunctions</p>
-              {conjunctions.length ? conjunctions.map((a, i) => (
-                <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.separation.toFixed(1)}°)</span></p>
-              )) : <p className="text-gray-400">None</p>}
-            </div>
-            <div>
-              <p className="text-xs uppercase text-red-500 font-semibold mb-1">Malefic Drishti</p>
-              {maleficAspects.length ? maleficAspects.map((a, i) => (
-                <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.targetAngle}°, actual {a.separation.toFixed(1)}°)</span></p>
-              )) : <p className="text-gray-400">None</p>}
-            </div>
-            <div>
-              <p className="text-xs uppercase text-emerald-500 font-semibold mb-1">Benefic Drishti</p>
-              {beneficAspects.length ? beneficAspects.map((a, i) => (
-                <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.targetAngle}°, actual {a.separation.toFixed(1)}°)</span></p>
-              )) : <p className="text-gray-400">None</p>}
-            </div>
-          </div>
+        {missingHouse.length > 0 && (
+          <p className="text-xs text-amber-600 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" /> Skipped from drishti check (no house set): {missingHouse.join(', ')}
+          </p>
         )}
+        <div className="grid sm:grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-xs uppercase text-gray-400 font-semibold mb-1">Conjunctions</p>
+            {conjunctions.length ? conjunctions.map((a, i) => (
+              <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.separation.toFixed(1)}°, orb {a.orbUsed}°)</span></p>
+            )) : <p className="text-gray-400">None</p>}
+          </div>
+          <div>
+            <p className="text-xs uppercase text-gray-400 font-semibold mb-1">Drishti (house-based aspects)</p>
+            {drishti.length ? drishti.map((a, i) => (
+              <p key={i} className="text-gray-800">{a.from} → {a.to} <span className="text-gray-400">(house {a.toHouse})</span></p>
+            )) : <p className="text-gray-400">None</p>}
+          </div>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">

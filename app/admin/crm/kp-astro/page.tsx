@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Sparkles, Shuffle, Info, RefreshCw, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
+import { SPECIAL_ASPECT_OFFSETS } from '@/lib/kpAstro/aspectAnalysis';
 import {
   basicRules,
   getSubRow,
@@ -259,21 +260,24 @@ export default function KpAstroPage() {
         )}
       </div>
 
-      {/* Step 3: Aspect angles & orbs (general reference, not tied to the matter/horary above) */}
+      {/* Step 3: Drishti house-rule & conjunction orbs (general reference, not tied to the matter/horary above) */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">3. Aspect angles &amp; orbs</h2>
-        <div className="grid sm:grid-cols-2 gap-4 text-sm">
-          <div className="rounded-lg bg-emerald-50 p-3">
-            <p className="text-xs uppercase text-emerald-500 font-semibold mb-1">Benefic Angles</p>
-            <p className="text-emerald-900 font-medium">{aspectRules.beneficAngles.map((a) => `${a}°`).join(', ')}</p>
-          </div>
-          <div className="rounded-lg bg-red-50 p-3">
-            <p className="text-xs uppercase text-red-500 font-semibold mb-1">Malefic Angles</p>
-            <p className="text-red-900 font-medium">{aspectRules.maleficAngles.map((a) => `${a}°`).join(', ')}</p>
+        <h2 className="font-semibold text-gray-900">3. Drishti (special aspects) &amp; conjunction orbs</h2>
+        <div className="space-y-2">
+          <p className="text-xs uppercase text-gray-400 font-semibold">Drishti — houses aspected, counted from the planet's own house</p>
+          {Object.entries(SPECIAL_ASPECT_OFFSETS).map(([planet, offsets]) => (
+            <div key={planet} className="flex items-center justify-between rounded-lg bg-gray-50 p-3 text-sm">
+              <span className="text-gray-700">{planet}</span>
+              <span className="font-semibold text-gray-900">{offsets.join(', ')}</span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3 text-sm">
+            <span className="text-gray-700">All other planets</span>
+            <span className="font-semibold text-gray-900">7</span>
           </div>
         </div>
         <div className="space-y-2">
-          <p className="text-xs uppercase text-gray-400 font-semibold">Orbs</p>
+          <p className="text-xs uppercase text-gray-400 font-semibold">Conjunction orbs</p>
           {Object.entries(aspectRules.orbs).map(([planets, orb]) => (
             <div key={planets} className="flex items-center justify-between rounded-lg bg-gray-50 p-3 text-sm">
               <span className="text-gray-700">{planets}</span>

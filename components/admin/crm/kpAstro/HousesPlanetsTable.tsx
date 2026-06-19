@@ -7,11 +7,14 @@
 // filling in the BhavEditor's ABCD significators by hand.
 
 import { cuspSubLordSignification, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { computeDrishtiOnHouses } from '@/lib/kpAstro/aspectAnalysis';
 
 export default function HousesPlanetsTable({ houses, planets }: { houses: SignificatorHouse[]; planets: SignificatorPlanet[] }) {
   if (!houses.length && !planets.length) {
     return <p className="text-sm text-gray-400">No house/planet data yet.</p>;
   }
+
+  const drishtiHits = computeDrishtiOnHouses(planets);
 
   return (
     <div className="overflow-x-auto">
@@ -20,13 +23,15 @@ export default function HousesPlanetsTable({ houses, planets }: { houses: Signif
           <tr className="text-left text-gray-400">
             <th className="p-1">House</th><th className="p-1">Sign</th><th className="p-1">Sign Lord</th>
             <th className="p-1">Star</th><th className="p-1">Star Lord</th><th className="p-1">Sub Lord</th>
-            <th className="p-1">Occupying Planets</th><th className="p-1">Sub Lord Signifies (Deposition / Ownership)</th>
+            <th className="p-1">Occupying Planets</th><th className="p-1">Aspected By (Drishti)</th>
+            <th className="p-1">Sub Lord Signifies (Deposition / Ownership)</th>
           </tr>
         </thead>
         <tbody>
           {Array.from({ length: 12 }, (_, i) => i + 1).map((houseNum) => {
             const h = houses.find((x) => x.house === houseNum);
             const occupants = planets.filter((p) => p.house === houseNum).map((p) => p.planet);
+            const aspectedBy = drishtiHits.filter((d) => d.toHouse === houseNum).map((d) => d.planet);
             const cusp = cuspSubLordSignification(houses, planets, houseNum);
             return (
               <tr key={houseNum} className="border-t border-gray-100">
@@ -37,6 +42,7 @@ export default function HousesPlanetsTable({ houses, planets }: { houses: Signif
                 <td className="p-1">{h?.starLord || '—'}</td>
                 <td className="p-1 font-medium text-indigo-700">{h?.subLord || '—'}</td>
                 <td className="p-1">{occupants.length ? occupants.join(', ') : '—'}</td>
+                <td className="p-1">{aspectedBy.length ? aspectedBy.join(', ') : '—'}</td>
                 <td className="p-1 text-gray-500">
                   {cusp.subLord ? `Dep: ${cusp.byDeposition.join(', ') || '—'} · Own: ${cusp.byOwnership.join(', ') || '—'}` : '—'}
                 </td>

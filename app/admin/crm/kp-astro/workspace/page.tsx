@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, Loader2, Save, ArrowRight } from 'lucide-react';
@@ -10,7 +10,7 @@ import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import HousesPlanetsTable from '@/components/admin/crm/kpAstro/HousesPlanetsTable';
-import { computeBhavAutoSignificators, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { computeBhavAutoSignificators, housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 interface ChartListItem { _id: string; personName: string; gender?: string; updatedAt: string; }
 
@@ -29,6 +29,20 @@ interface ChartDetail {
 // something into — computed fresh from the chart's houses/planets so a
 // recalculated chart keeps re-deriving still-blank fields, while anything
 // the astrologer already entered or edited is left untouched.
+function isCurrentlyActive(row: DashaRow): boolean {
+  const now = Date.now();
+  return now >= new Date(row.startDate).getTime() && now < new Date(row.endDate).getTime();
+}
+
+// Predictions need to weigh the bhav's own significators together with
+// whichever Mahadasha/Antardasha is running right now, not just the
+// house's static data — find both from the already-loaded dasha tree.
+function findCurrentDasha(rows: DashaRow[]): { maha?: DashaRow; antar?: DashaRow } {
+  const maha = rows.find((r) => r.level === 'maha' && isCurrentlyActive(r));
+  const antar = maha ? rows.find((r) => r.level === 'antar' && r.parentPath === maha.planet && isCurrentlyActive(r)) : undefined;
+  return { maha, antar };
+}
+
 function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: SignificatorPlanet[]): BhavAnalysisRow[] {
   return rows.map((row) => {
     const auto = computeBhavAutoSignificators(houses, planets, row.house);
@@ -59,6 +73,7 @@ export default function KpAstrologerWorkspacePage() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [bhavRows, setBhavRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
   const [dashaPeriods, setDashaPeriods] = useState<DashaRow[]>([]);
+  const { maha: currentMaha, antar: currentAntar } = useMemo(() => findCurrentDasha(dashaPeriods), [dashaPeriods]);
 
   useEffect(() => {
     if (!token) return;
@@ -187,6 +202,28 @@ export default function KpAstrologerWorkspacePage() {
                 </button>
               </div>
             </div>
+            {(currentMaha || currentAntar) && (
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-sm space-y-1">
+                <p className="font-semibold text-indigo-900">Currently Running Dasha</p>
+                {currentMaha && (
+                  <p className="text-indigo-900">
+                    Mahadasha: <span className="font-medium">{currentMaha.planet}</span>{' '}
+                    <span className="text-indigo-600">
+                      (owns houses {housesOwnedBy(chart.houses || [], currentMaha.planet).join(', ') || '—'}; occupies house {housesOccupiedBy(chart.planets || [], currentMaha.planet).join(', ') || '—'})
+                    </span>
+                  </p>
+                )}
+                {currentAntar && (
+                  <p className="text-indigo-900">
+                    Antardasha: <span className="font-medium">{currentAntar.planet}</span>{' '}
+                    <span className="text-indigo-600">
+                      (owns houses {housesOwnedBy(chart.houses || [], currentAntar.planet).join(', ') || '—'}; occupies house {housesOccupiedBy(chart.planets || [], currentAntar.planet).join(', ') || '—'})
+                    </span>
+                  </p>
+                )}
+                <p className="text-xs text-indigo-500">Weigh these lords' own significations against each bhav's significators below — a house's static data doesn't predict on its own; the active dasha modifies which results actually manifest now.</p>
+              </div>
+            )}
             <details className="rounded-2xl border border-gray-200 bg-white open:pb-3" open>
               <summary className="cursor-pointer p-3 font-semibold text-gray-900 text-sm">
                 Houses &amp; Planets Reference (for filling ABCD)
