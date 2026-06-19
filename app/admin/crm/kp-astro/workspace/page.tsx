@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
+import HousesPlanetsTable from '@/components/admin/crm/kpAstro/HousesPlanetsTable';
 import { computeBhavAutoSignificators, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 interface ChartListItem { _id: string; personName: string; gender?: string; updatedAt: string; }
@@ -186,6 +187,14 @@ export default function KpAstrologerWorkspacePage() {
                 </button>
               </div>
             </div>
+            <details className="rounded-2xl border border-gray-200 bg-white open:pb-3" open>
+              <summary className="cursor-pointer p-3 font-semibold text-gray-900 text-sm">
+                Houses &amp; Planets Reference (for filling ABCD)
+              </summary>
+              <div className="px-3">
+                <HousesPlanetsTable houses={chart.houses || []} planets={chart.planets || []} />
+              </div>
+            </details>
             <BhavEditor rows={bhavRows} onChange={setBhavRows} />
           </div>
         </div>

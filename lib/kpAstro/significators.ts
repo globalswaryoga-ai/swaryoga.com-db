@@ -7,7 +7,10 @@ import { findSubTableRow } from './index';
 
 export interface SignificatorHouse {
   house: number;
+  sign?: string;
   signLord?: string;
+  star?: string;
+  starLord?: string;
   subLord?: string;
 }
 

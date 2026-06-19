@@ -7,8 +7,9 @@ import { Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save, AlertTriangle } fr
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
-import { computeFourStepSignificators, cuspSubLordSignification } from '@/lib/kpAstro/significators';
+import { computeFourStepSignificators } from '@/lib/kpAstro/significators';
 import { computeAspectsAndConjunctions, unparseablePlanets } from '@/lib/kpAstro/aspectAnalysis';
+import HousesPlanetsTable from '@/components/admin/crm/kpAstro/HousesPlanetsTable';
 
 const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
 
@@ -313,38 +314,7 @@ export default function KpHoroscopeChartDetailPage() {
         ) : !chart.houses?.length && !chart.planets?.length ? (
           <p className="text-sm text-gray-400">No house/planet data yet. Click "Edit" to enter it.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-gray-400">
-                  <th className="p-1">House</th><th className="p-1">Sign</th><th className="p-1">Sign Lord</th>
-                  <th className="p-1">Star</th><th className="p-1">Star Lord</th><th className="p-1">Sub Lord</th>
-                  <th className="p-1">Occupying Planets</th><th className="p-1">Sub Lord Signifies (Deposition / Ownership)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((houseNum) => {
-                  const h = chart.houses?.find((x) => x.house === houseNum);
-                  const occupants = (chart.planets || []).filter((p) => p.house === houseNum).map((p) => p.planet);
-                  const cusp = cuspSubLordSignification(chart.houses || [], chart.planets || [], houseNum);
-                  return (
-                    <tr key={houseNum} className="border-t border-gray-100">
-                      <td className="p-1 font-semibold text-gray-700">{houseNum}</td>
-                      <td className="p-1">{h?.sign || '—'}</td>
-                      <td className="p-1">{h?.signLord || '—'}</td>
-                      <td className="p-1">{h?.star || '—'}</td>
-                      <td className="p-1">{h?.starLord || '—'}</td>
-                      <td className="p-1 font-medium text-indigo-700">{h?.subLord || '—'}</td>
-                      <td className="p-1">{occupants.length ? occupants.join(', ') : '—'}</td>
-                      <td className="p-1 text-gray-500">
-                        {cusp.subLord ? `Dep: ${cusp.byDeposition.join(', ') || '—'} · Own: ${cusp.byOwnership.join(', ') || '—'}` : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <HousesPlanetsTable houses={chart.houses || []} planets={chart.planets || []} />
         )}
       </div>
 
