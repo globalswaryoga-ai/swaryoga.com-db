@@ -94,8 +94,7 @@ export async function POST(request: NextRequest) {
       // transcript, so go straight to the correction stage.
       const rawTranscript = audioFile
         ? await transcribeAudio(
-            { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio,
-            topicTitle
+            { buffer: Buffer.from(await audioFile.arrayBuffer()), mimeType: audioFile.type || 'audio/mpeg' } as ExtractedAudio
           )
         : sourceText;
 

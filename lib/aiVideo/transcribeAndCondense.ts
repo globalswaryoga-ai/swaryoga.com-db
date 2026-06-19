@@ -1,7 +1,8 @@
-// Audio buffer -> text pipeline (OpenAI/Anthropic primary, Gemini kept as a
-// last-resort fallback — see generateTextWithFallback/transcribeAudio below),
-// split into three deliberately separate, strict stages so nothing gets
-// silently invented along the way:
+// Audio buffer -> text pipeline (OpenAI Whisper for transcription, OpenAI/
+// Anthropic for every text stage — Gemini is intentionally not used anywhere
+// in this file, see generateTextWithFallback/transcribeAudio below), split
+// into three deliberately separate, strict stages so nothing gets silently
+// invented along the way:
 //
 // 1. transcribeAudio        — raw transcript, verbatim, source language only.
 // 2. correctTranscript      — fixes grammar/STT mistakes and removes filler,
@@ -31,109 +32,11 @@ export interface ExtractedAudio {
   mimeType: string;
 }
 
-function getApiKey(): string {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-  return apiKey;
-}
-
-function getModel(): string {
-  // gemini-2.0-flash's free-tier quota is now 0 (sunset) — confirmed live, 2.5-flash works.
-  return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-}
-
-async function uploadAudioToGemini(buffer: Buffer, mimeType: string, displayName: string, apiKey: string): Promise<string> {
-  const startRes = await fetch('https://generativelanguage.googleapis.com/upload/v1beta/files', {
-    method: 'POST',
-    headers: {
-      'x-goog-api-key': apiKey,
-      'X-Goog-Upload-Protocol': 'resumable',
-      'X-Goog-Upload-Command': 'start',
-      'X-Goog-Upload-Header-Content-Length': String(buffer.length),
-      'X-Goog-Upload-Header-Content-Type': mimeType,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ file: { display_name: displayName } }),
-  });
-
-  if (!startRes.ok) {
-    throw new Error(`Gemini Files API upload-start failed: ${startRes.status} ${await startRes.text()}`);
-  }
-  const uploadUrl = startRes.headers.get('x-goog-upload-url');
-  if (!uploadUrl) throw new Error('Gemini Files API did not return an upload URL');
-
-  const uploadRes = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Length': String(buffer.length),
-      'X-Goog-Upload-Offset': '0',
-      'X-Goog-Upload-Command': 'upload, finalize',
-    },
-    body: buffer as any,
-  });
-
-  if (!uploadRes.ok) {
-    throw new Error(`Gemini Files API upload failed: ${uploadRes.status} ${await uploadRes.text()}`);
-  }
-  const uploadData = await uploadRes.json();
-  const fileUri = uploadData?.file?.uri;
-  if (!fileUri) throw new Error('Gemini Files API response missing file.uri');
-  return fileUri;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Gemini's free tier returns transient 503 "high demand" errors fairly
-// often, and 429s that can be either a short per-minute throttle (worth
-// retrying) or the free tier's per-day request cap (NOT worth retrying —
-// it won't reset for hours). Distinguish them via the structured
-// RetryInfo/QuotaFailure details Gemini includes, instead of guessing.
-async function generateText(parts: any[], maxOutputTokens = 8192, attempt = 1): Promise<string> {
-  const apiKey = getApiKey();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${getModel()}:generateContent?key=${apiKey}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts }],
-      generationConfig: { temperature: 0.2, maxOutputTokens },
-    }),
-  });
-
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    const details: any[] = data?.error?.details || [];
-    const isDailyCap = details.some((d) => String(d?.quotaId || '').includes('PerDay'));
-    const retryDelaySeconds = Number((details.find((d) => d?.retryDelay)?.retryDelay || '').replace(/s$/, '')) || null;
-
-    if (!isDailyCap && (res.status === 503 || res.status === 429) && attempt < 4) {
-      // Cap the wait even when Gemini suggests a longer retryDelay (seen:
-      // 30s+ on non-daily 429s) so a capped retry here still lets the
-      // OpenAI fallback in generateTextWithFallback() kick in quickly.
-      const delayMs = Math.min((retryDelaySeconds ? retryDelaySeconds * 1000 : attempt * 3000) + 500, 8000);
-      await sleep(delayMs);
-      return generateText(parts, maxOutputTokens, attempt + 1);
-    }
-
-    const baseMessage = data?.error?.message || res.statusText;
-    const message = isDailyCap
-      ? `Gemini free-tier daily request limit reached for this API key (20/day on ${getModel()}). It resets after 24h — try again later, or switch to a paid Gemini plan / different key. (${baseMessage})`
-      : `Gemini request failed: ${baseMessage}`;
-    throw new Error(message);
-  }
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned no text');
-  return text;
-}
-
-// Primary transcription path (requires OPENAI_API_KEY). Whisper's endpoint
-// caps uploads at 25MB, which is fine for the buffer sizes this pipeline has
-// seen so far but won't hold for a full ~1hr workshop recording at high
-// bitrate — if that becomes a real problem, the Gemini Files API fallback
-// in transcribeAudio() above has no such cap.
+// Whisper's endpoint caps uploads at 25MB, which is fine for the buffer
+// sizes this pipeline has seen so far but won't hold for a full ~1hr
+// workshop recording at high bitrate — if that becomes a real problem,
+// split/compress the audio before calling this rather than reaching for a
+// different provider's API.
 async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
@@ -154,39 +57,22 @@ async function transcribeViaWhisper(audio: ExtractedAudio): Promise<string> {
   return data.text;
 }
 
-// Text-only stages: OpenAI/Anthropic first, Gemini last. Gemini's free-tier
-// quota (20 requests/day, shared across every feature using this one key —
-// KP Astro, Tally, translate, RAG-Video) made it unreliable as a primary
-// here specifically, since RAG-Video's prompts are large (full transcripts)
-// and this pipeline runs multiple stages per job. OpenAI/Anthropic are tried
-// first via the shared cascading helper; Gemini stays configured as a last
-// resort rather than being removed outright.
+// Text-only stages: OpenAI first, Anthropic as the only fallback. Gemini is
+// deliberately excluded here (not just deprioritized) — its shared
+// 20-requests/day free-tier quota kept causing cross-feature outages, and
+// this pipeline now has a paid OpenAI key configured (OPENAI_API_KEY) that
+// doesn't need a free-tier crutch.
 async function generateTextWithFallback(promptText: string, maxOutputTokens = 8192): Promise<string> {
   const { generateAIText } = await import('@/lib/ai/generateWithFallback');
-  return generateAIText({ message: promptText, maxOutputTokens, providerOrder: ['OpenAI', 'Anthropic', 'Gemini'] });
+  return generateAIText({ message: promptText, maxOutputTokens, providerOrder: ['OpenAI', 'Anthropic'] });
 }
 
-// Stage 1: verbatim transcript, source language, no cleanup. Whisper first
-// (same reasoning as generateTextWithFallback above — Gemini's shared quota
-// makes it unreliable as primary here), Gemini's Files API as a fallback
-// for when OPENAI_API_KEY isn't configured or Whisper itself fails.
-export async function transcribeAudio(audio: ExtractedAudio, topicTitle: string): Promise<string> {
-  try {
-    if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured');
-    return await transcribeViaWhisper(audio);
-  } catch (whisperError) {
-    const whisperMessage = whisperError instanceof Error ? whisperError.message : String(whisperError);
-    if (!process.env.GEMINI_API_KEY) throw whisperError;
-    try {
-      const prompt = `This audio is a recorded workshop session titled "${topicTitle}". Transcribe it verbatim, in the language it was spoken in. Do not summarize, translate, or clean it up — output the raw transcript only.`;
-      const apiKey = getApiKey();
-      const fileUri = await uploadAudioToGemini(audio.buffer, audio.mimeType, topicTitle, apiKey);
-      return await generateText([{ text: prompt }, { file_data: { mime_type: audio.mimeType, file_uri: fileUri } }]);
-    } catch (geminiError) {
-      const geminiMessage = geminiError instanceof Error ? geminiError.message : String(geminiError);
-      throw new Error(`Whisper failed (${whisperMessage}); Gemini fallback also failed (${geminiMessage})`);
-    }
-  }
+// Stage 1: verbatim transcript, source language, no cleanup. OpenAI Whisper
+// only — no Gemini fallback. If Whisper fails, the error propagates as-is
+// rather than masking the real cause behind an unrelated provider's error.
+export async function transcribeAudio(audio: ExtractedAudio): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured');
+  return transcribeViaWhisper(audio);
 }
 
 // Stage 2: faithful correction only — fix grammar/spelling/transcription
