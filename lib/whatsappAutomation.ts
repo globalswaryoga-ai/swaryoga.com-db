@@ -6,6 +6,7 @@ import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
 import { loadAutoConfig, isWithinWorkingHours } from '@/lib/autoConfig';
 import { getMetaCredentialsForTenant, type WhatsAppCredentials } from '@/lib/whatsappAccounts';
+import { generateAIText } from '@/lib/ai/generateWithFallback';
 
 type InboundContext = {
   leadId: string;
@@ -62,12 +63,10 @@ async function maybeAIReply(lead: any, ctx: InboundContext): Promise<string | nu
     }
   }
 
-  // Fall back to OpenAI if enabled
+  // Fall back to the configured AI provider chain if enabled.
   const enabled = autoCfg.aiAgentEnabled || getEnvFlag('WHATSAPP_AI_AGENT_ENABLED', false);
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = autoCfg.aiModel || process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-  if (!enabled || !apiKey) return null;
+  if (!enabled) return null;
   if (!isQuestion(ctx.body)) return null;
 
   // Pull a small recent history for context (avoid huge tokens)
@@ -90,30 +89,15 @@ async function maybeAIReply(lead: any, ctx: InboundContext): Promise<string | nu
     'Answer questions about yoga workshops/courses and booking. If information is missing, ask 1-2 short follow-up questions. ' +
     'Do not ask for sensitive data like passwords or OTPs.';
 
-  const payload = {
-    model,
-    messages: [{ role: 'system', content: system }, ...history, { role: 'user', content: ctx.body }],
+  const reply = await generateAIText({
+    systemPrompt: system,
+    history,
+    message: ctx.body,
     temperature: 0.4,
-    max_tokens: autoCfg.aiMaxTokens || 250,
-  };
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
+    maxOutputTokens: autoCfg.aiMaxTokens || 250,
   });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = data?.error?.message || 'AI provider error';
-    throw new Error(String(msg));
-  }
-
-  const text = String(data?.choices?.[0]?.message?.content || '').trim();
-  return text || null;
+  return reply || null;
 }
 
 function matchesConditions(lead: any, conditions: any): boolean {

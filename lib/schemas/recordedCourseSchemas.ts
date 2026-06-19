@@ -503,6 +503,9 @@ export interface ICourseVideo extends Document {
   videoUrl?: string; // Direct URL (for non-Bunny)
   thumbnail?: string;
   duration: number; // In seconds
+  transcript?: string;
+  aiSummary?: string;
+  ragEnabled?: boolean;
 
   // Access
   accessType: 'free' | 'preview' | 'paid' | 'gift';
@@ -542,6 +545,9 @@ const CourseVideoSchema = new Schema<ICourseVideo>({
   videoUrl: { type: String },
   thumbnail: { type: String },
   duration: { type: Number, default: 0 },
+  transcript: { type: String, default: '' },
+  aiSummary: { type: String, default: '' },
+  ragEnabled: { type: Boolean, default: false },
 
   accessType: { type: String, enum: ['free', 'preview', 'paid', 'gift'], default: 'paid' },
   order: { type: Number, default: 0 },

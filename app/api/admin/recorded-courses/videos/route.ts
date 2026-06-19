@@ -68,6 +68,9 @@ export async function GET(request: NextRequest) {
         isFree: v.isFree,
         isActive: v.isActive,
         thumbnail: v.thumbnail,
+        transcript: v.transcript || '',
+        aiSummary: v.aiSummary || '',
+        ragEnabled: v.ragEnabled === true,
       })),
     });
   } catch (error: any) {
@@ -100,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, description, bunnyVideoId, duration = 0, hoursGap = 0, isFree = false, thumbnail } = body;
+    const { courseId, title, description, bunnyVideoId, duration = 0, hoursGap = 0, isFree = false, thumbnail, transcript = '', aiSummary = '', ragEnabled = false } = body;
 
     if (!courseId || !title || !bunnyVideoId) {
       return NextResponse.json({
@@ -182,6 +185,9 @@ export async function POST(request: NextRequest) {
       isActive: true,
       order: nextOrder,
       thumbnail: thumbnail || '',
+      transcript: String(transcript || ''),
+      aiSummary: String(aiSummary || ''),
+      ragEnabled: ragEnabled === true,
       createdBy: decoded.email || decoded.userId || 'admin',
       content: {
         en: {
@@ -237,7 +243,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, title, description, duration, hoursGap, isFree, thumbnail } = body;
+    const { videoId, title, description, duration, hoursGap, isFree, thumbnail, transcript, aiSummary, ragEnabled } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
@@ -252,6 +258,9 @@ export async function PUT(request: NextRequest) {
     if (hoursGap !== undefined) updateData.hoursGap = parseInt(hoursGap) || 0;
     if (isFree !== undefined) updateData.isFree = isFree === true;
     if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
+    if (transcript !== undefined) updateData.transcript = String(transcript || '');
+    if (aiSummary !== undefined) updateData.aiSummary = String(aiSummary || '');
+    if (ragEnabled !== undefined) updateData.ragEnabled = ragEnabled === true;
 
     const video = await CourseVideo.findByIdAndUpdate(videoId, updateData, { new: true });
 

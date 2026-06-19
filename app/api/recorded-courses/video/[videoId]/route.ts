@@ -137,9 +137,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         video: {
           _id: video._id,
           title: video.content?.en?.title || '',
+          description: video.description || video.content?.en?.description || '',
           duration: video.duration,
           order: video.order,
           sectionId: video.sectionId,
+          ragEnabled: video.ragEnabled === true,
+          hasRagContent: !!(video.transcript || video.aiSummary || video.description || video.content?.en?.description),
         },
         streaming: streamingData,
         watchLogId: watchLogId,

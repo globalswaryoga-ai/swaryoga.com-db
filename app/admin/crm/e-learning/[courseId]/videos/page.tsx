@@ -27,6 +27,9 @@ interface UnifiedItem {
   totalPoints?: number;
   isRequired?: boolean;
   description?: string;
+  transcript?: string;
+  aiSummary?: string;
+  ragEnabled?: boolean;
 }
 
 interface VideoItem {
@@ -41,6 +44,9 @@ interface VideoItem {
   isFree: boolean;
   isActive: boolean;
   hoursGap?: number;
+  transcript?: string;
+  aiSummary?: string;
+  ragEnabled?: boolean;
 }
 
 interface CourseWithCommunity {
@@ -142,6 +148,9 @@ export default function VideosPage({ params }: { params: { courseId: string } })
             thumbnail: v.thumbnail,
             isFree: v.isFree,
             description: v.description,
+            transcript: v.transcript,
+            aiSummary: v.aiSummary,
+            ragEnabled: v.ragEnabled,
           });
         });
       }
@@ -1046,6 +1055,9 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
   const [duration, setDuration] = useState(video.duration.toString());
   const [hoursGap, setHoursGap] = useState((video.hoursGap || 0).toString());
   const [isFree, setIsFree] = useState(video.isFree);
+  const [ragEnabled, setRagEnabled] = useState(video.ragEnabled === true);
+  const [aiSummary, setAiSummary] = useState(video.aiSummary || '');
+  const [transcript, setTranscript] = useState(video.transcript || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1071,6 +1083,9 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
           duration: parseInt(duration) || 0,
           hoursGap: parseInt(hoursGap) || 0,
           isFree,
+          ragEnabled,
+          aiSummary,
+          transcript,
         }),
       });
 
@@ -1174,6 +1189,38 @@ function EditVideoModal({ token, video, onClose, onUpdated }: {
             </label>
           </div>
 
+          <div className="border border-gray-800 rounded-xl p-4 space-y-4">
+            <label className="flex items-center gap-2 text-white cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ragEnabled}
+                onChange={(e) => setRagEnabled(e.target.checked)}
+                className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+              />
+              Enable Video RAG Assistant
+            </label>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">AI Summary / Study Notes</label>
+              <textarea
+                value={aiSummary}
+                onChange={(e) => setAiSummary(e.target.value)}
+                rows={3}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-y"
+                placeholder="Short summary of this video for AI answers"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Transcript / Full Notes</label>
+              <textarea
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                rows={6}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-y"
+                placeholder="Paste transcript or detailed notes. The learner assistant will answer only from this context."
+              />
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -1211,6 +1258,9 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
   const [hoursGap, setHoursGap] = useState('0');
   const [thumbnail, setThumbnail] = useState('');
   const [isFree, setIsFree] = useState(false);
+  const [ragEnabled, setRagEnabled] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
+  const [transcript, setTranscript] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploadMode, setUploadMode] = useState<'bunny' | 'pc' | 'youtube'>('bunny');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -1357,6 +1407,9 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
           duration: parseInt(duration) || 0,
           hoursGap: parseInt(hoursGap) || 0,
           isFree,
+          ragEnabled,
+          aiSummary,
+          transcript,
           isActive: true,
         }),
       });
@@ -1593,6 +1646,38 @@ function AddVideoModal({ token, courseId, onClose, onAdded }: {
               />
               Free Preview Video
             </label>
+          </div>
+
+          <div className="border border-gray-800 rounded-xl p-4 space-y-4">
+            <label className="flex items-center gap-2 text-white cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ragEnabled}
+                onChange={(e) => setRagEnabled(e.target.checked)}
+                className="w-5 h-5 rounded border-gray-600 bg-black text-green-500 focus:ring-green-500"
+              />
+              Enable Video RAG Assistant
+            </label>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">AI Summary / Study Notes</label>
+              <textarea
+                value={aiSummary}
+                onChange={(e) => setAiSummary(e.target.value)}
+                rows={3}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-y"
+                placeholder="Short summary of this video for AI answers"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-green-400 mb-2">Transcript / Full Notes</label>
+              <textarea
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                rows={6}
+                className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none resize-y"
+                placeholder="Paste transcript or detailed notes. The learner assistant will answer only from this context."
+              />
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">

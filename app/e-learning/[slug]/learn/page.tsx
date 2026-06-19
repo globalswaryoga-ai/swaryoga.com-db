@@ -177,7 +177,10 @@ interface VideoStreamData {
   video: {
     _id: string;
     title: string;
+    description?: string;
     duration: number;
+    ragEnabled?: boolean;
+    hasRagContent?: boolean;
   };
   streaming: {
     directUrl?: string;
@@ -212,6 +215,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const [autoplay, setAutoplay] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [videoQuestion, setVideoQuestion] = useState('');
+  const [videoAskLoading, setVideoAskLoading] = useState(false);
+  const [videoAskError, setVideoAskError] = useState('');
+  const [videoAskMessages, setVideoAskMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastVideoTimeRef = useRef<number | undefined>(undefined);
@@ -344,6 +351,47 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
     loadVideoStream();
   }, [currentVideo, t]);
+
+  useEffect(() => {
+    setVideoQuestion('');
+    setVideoAskError('');
+    setVideoAskMessages([]);
+  }, [currentVideo?._id]);
+
+  const askVideoAssistant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentVideo || !videoQuestion.trim() || videoAskLoading) return;
+
+    const question = videoQuestion.trim();
+    const history = videoAskMessages.slice(-6);
+    setVideoAskMessages((prev) => [...prev, { role: 'user', content: question }]);
+    setVideoQuestion('');
+    setVideoAskLoading(true);
+    setVideoAskError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ question, history }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Video assistant failed');
+      }
+
+      setVideoAskMessages((prev) => [...prev, { role: 'assistant', content: data.reply || 'No response.' }]);
+    } catch (err: any) {
+      setVideoAskError(err.message || 'Video assistant failed');
+    } finally {
+      setVideoAskLoading(false);
+    }
+  };
 
   // Attach event listeners to video ref for progress tracking
   useEffect(() => {
@@ -901,6 +949,56 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   </svg>
                 </button>
               </div>
+
+              {videoStream.video.ragEnabled && videoStream.video.hasRagContent && (
+                <div className="bg-gray-900 border-t border-gray-700 p-3 sm:p-4">
+                  <div className="max-w-5xl mx-auto">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <h2 className="text-sm font-semibold text-white">Ask This Video</h2>
+                      {videoAskLoading && <span className="text-xs text-orange-300">Thinking...</span>}
+                    </div>
+
+                    {videoAskMessages.length > 0 && (
+                      <div className="max-h-44 overflow-y-auto space-y-2 mb-3 pr-1">
+                        {videoAskMessages.map((msg, index) => (
+                          <div
+                            key={`${msg.role}-${index}`}
+                            className={`rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                              msg.role === 'user'
+                                ? 'bg-orange-500/15 text-orange-100 ml-8'
+                                : 'bg-gray-800 text-gray-100 mr-8'
+                            }`}
+                          >
+                            {msg.content}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {videoAskError && (
+                      <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                        {videoAskError}
+                      </div>
+                    )}
+
+                    <form onSubmit={askVideoAssistant} className="flex gap-2">
+                      <input
+                        value={videoQuestion}
+                        onChange={(e) => setVideoQuestion(e.target.value)}
+                        className="flex-1 rounded-lg border border-gray-700 bg-black px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-orange-500 focus:outline-none"
+                        placeholder="Ask a question from this video..."
+                      />
+                      <button
+                        type="submit"
+                        disabled={videoAskLoading || !videoQuestion.trim()}
+                        className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Ask
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center px-4 py-8">
