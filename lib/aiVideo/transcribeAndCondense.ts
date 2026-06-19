@@ -175,11 +175,17 @@ export async function transcribeAudio(audio: ExtractedAudio, topicTitle: string)
     if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured');
     return await transcribeViaWhisper(audio);
   } catch (whisperError) {
+    const whisperMessage = whisperError instanceof Error ? whisperError.message : String(whisperError);
     if (!process.env.GEMINI_API_KEY) throw whisperError;
-    const prompt = `This audio is a recorded workshop session titled "${topicTitle}". Transcribe it verbatim, in the language it was spoken in. Do not summarize, translate, or clean it up — output the raw transcript only.`;
-    const apiKey = getApiKey();
-    const fileUri = await uploadAudioToGemini(audio.buffer, audio.mimeType, topicTitle, apiKey);
-    return await generateText([{ text: prompt }, { file_data: { mime_type: audio.mimeType, file_uri: fileUri } }]);
+    try {
+      const prompt = `This audio is a recorded workshop session titled "${topicTitle}". Transcribe it verbatim, in the language it was spoken in. Do not summarize, translate, or clean it up — output the raw transcript only.`;
+      const apiKey = getApiKey();
+      const fileUri = await uploadAudioToGemini(audio.buffer, audio.mimeType, topicTitle, apiKey);
+      return await generateText([{ text: prompt }, { file_data: { mime_type: audio.mimeType, file_uri: fileUri } }]);
+    } catch (geminiError) {
+      const geminiMessage = geminiError instanceof Error ? geminiError.message : String(geminiError);
+      throw new Error(`Whisper failed (${whisperMessage}); Gemini fallback also failed (${geminiMessage})`);
+    }
   }
 }
 

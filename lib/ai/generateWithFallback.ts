@@ -1,17 +1,20 @@
-// Shared Gemini-primary/Anthropic+OpenAI-fallback text generation, used by
+// Shared OpenAI/Anthropic-primary, Gemini-last text generation, used by
 // every AI feature in this codebase (KP Astro, Tally chat, cloud-translate,
-// RAG-Video). Centralizing this because every call site used to have its
-// own copy of "if (geminiKey) { ... } else { openai }" — which meant a
-// Gemini failure (quota, overload) returned an error directly instead of
-// actually falling back, even when a fallback key was configured. Confirmed
-// live: this codebase's Gemini key hit the free tier's 20-requests/day cap
-// on gemini-2.5-flash from real use, breaking KP Astro, Tally chat, and
-// RAG-Video simultaneously since they all share one key.
+// WhatsApp auto-reply, e-learning video Q&A, RAG-Video). Centralizing this
+// because every call site used to have its own copy of
+// "if (geminiKey) { ... } else { openai }" — which meant a Gemini failure
+// (quota, overload) returned an error directly instead of actually falling
+// back, even when a fallback key was configured.
 //
-// Default fallback order: Gemini -> Anthropic -> OpenAI. Both fallbacks are
-// optional and independent — configure either or both. Callers can pass
-// `providerOrder` to override this per call (see RAG-Video's
-// transcribeAndCondense.ts, which puts Gemini last).
+// Default order used to be Gemini-first, with only RAG-Video overriding to
+// put Gemini last. That left every *other* feature still hammering Gemini
+// first, which burns the free tier's 20-requests/day cap (shared across
+// every feature using this one key) before RAG-Video's own Gemini fallback
+// (used only when its OpenAI Whisper transcription step fails) ever gets a
+// turn — confirmed live: RAG-Video kept hitting "Gemini quota exceeded"
+// even after its own call site was fixed, because the other five callers
+// were still exhausting the shared quota first. Gemini is now last by
+// default everywhere; callers can still pass `providerOrder` to override.
 
 export interface AiHistoryTurn {
   role: 'user' | 'assistant';
@@ -155,7 +158,7 @@ export async function generateAIText(params: GenerateTextParams): Promise<string
     Anthropic: { configured: Boolean(process.env.ANTHROPIC_API_KEY), call: () => callAnthropic(params) },
     OpenAI: { configured: Boolean(process.env.OPENAI_API_KEY), call: () => callOpenAI(params) },
   };
-  const order = params.providerOrder?.filter((name) => allProviders[name]) || ['Gemini', 'Anthropic', 'OpenAI'];
+  const order = params.providerOrder?.filter((name) => allProviders[name]) || ['OpenAI', 'Anthropic', 'Gemini'];
   const providers = order
     .map((name) => ({ name, ...allProviders[name] }))
     .filter((p) => p.configured);
