@@ -14,6 +14,11 @@ interface RouteParams {
   params: Promise<{ videoId: string }>;
 }
 
+function isAiQuotaError(error: any): boolean {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('quota') || message.includes('rate limit') || message.includes('429') || message.includes('free-tier');
+}
+
 async function canAccessVideo(request: NextRequest, video: any, course: any) {
   if (video.isFree === true) return true;
 
@@ -107,11 +112,18 @@ Rules:
       message: question,
       maxOutputTokens: 700,
       temperature: 0.3,
+      providerOrder: ['OpenAI', 'Anthropic'],
     });
 
     return NextResponse.json({ success: true, reply });
   } catch (error: any) {
     console.error('[E-learning Video RAG Error]', error);
+    if (isAiQuotaError(error)) {
+      return NextResponse.json(
+        { error: 'The video assistant is temporarily busy. Please wait a minute and try again.' },
+        { status: 429 }
+      );
+    }
     return NextResponse.json({ error: error?.message || 'Video assistant failed' }, { status: 500 });
   }
 }

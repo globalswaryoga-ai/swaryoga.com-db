@@ -36,6 +36,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const bhavRows = Array.isArray(chart.bhavAnalysis) ? chart.bhavAnalysis : [];
     const hasContent = (b: any) =>
       b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
+      b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
+      b.subLordDrishti || b.subLordConjunction || b.dashaChain ||
       (b.customMatters && b.customMatters.length) ||
       (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
       (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||

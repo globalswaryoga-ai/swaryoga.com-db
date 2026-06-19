@@ -10,7 +10,7 @@ import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
-import HousesPlanetsTable from '@/components/admin/crm/kpAstro/HousesPlanetsTable';
+import PlanetKaryeshTable from '@/components/admin/crm/kpAstro/PlanetKaryeshTable';
 import EventTimingPanel from '@/components/admin/crm/kpAstro/EventTimingPanel';
 import { housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
@@ -21,7 +21,7 @@ interface ChartDetail {
   personName: string;
   ascendant?: { sign?: string; degree?: string };
   houses?: SignificatorHouse[];
-  planets?: Array<SignificatorPlanet & { retrograde?: boolean }>;
+  planets?: Array<SignificatorPlanet & { retrograde?: boolean; combust?: boolean }>;
   chartStyle?: 'north' | 'south';
   bhavAnalysis?: BhavAnalysisRow[];
   dashaPeriods?: DashaRow[];
@@ -39,10 +39,16 @@ function isCurrentlyActive(row: DashaRow): boolean {
 // Predictions need to weigh the bhav's own significators together with
 // whichever Mahadasha/Antardasha is running right now, not just the
 // house's static data — find both from the already-loaded dasha tree.
-function findCurrentDasha(rows: DashaRow[]): { maha?: DashaRow; antar?: DashaRow } {
+function findCurrentDasha(rows: DashaRow[]): { maha?: DashaRow; antar?: DashaRow; pratyantar?: DashaRow } {
   const maha = rows.find((r) => r.level === 'maha' && isCurrentlyActive(r));
   const antar = maha ? rows.find((r) => r.level === 'antar' && r.parentPath === maha.planet && isCurrentlyActive(r)) : undefined;
-  return { maha, antar };
+  const pratyantar = antar ? rows.find((r) => r.level === 'pratyantar' && r.parentPath === `${maha?.planet}-${antar.planet}` && isCurrentlyActive(r)) : undefined;
+  return { maha, antar, pratyantar };
+}
+
+function dashaChainText(rows: DashaRow[]): string {
+  const { maha, antar, pratyantar } = findCurrentDasha(rows);
+  return [maha?.planet, antar?.planet, pratyantar?.planet].filter(Boolean).join('-');
 }
 
 export default function KpAstrologerWorkspacePage() {
@@ -60,9 +66,10 @@ export default function KpAstrologerWorkspacePage() {
 
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [chartDisplayMode, setChartDisplayMode] = useState<'planet' | 'bhav'>('planet');
+  const [workView, setWorkView] = useState<'bhav' | 'planet'>('bhav');
   const [bhavRows, setBhavRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
   const [dashaPeriods, setDashaPeriods] = useState<DashaRow[]>([]);
-  const { maha: currentMaha, antar: currentAntar } = useMemo(() => findCurrentDasha(dashaPeriods), [dashaPeriods]);
+  const { maha: currentMaha, antar: currentAntar, pratyantar: currentPratyantar } = useMemo(() => findCurrentDasha(dashaPeriods), [dashaPeriods]);
 
   useEffect(() => {
     if (!token) return;
@@ -81,8 +88,9 @@ export default function KpAstrologerWorkspacePage() {
       setChart(json.data);
       setChartStyle(json.data.chartStyle === 'south' ? 'south' : 'north');
       const normalized = normalizeBhavAnalysis(json.data.bhavAnalysis);
-      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || []));
-      setDashaPeriods(Array.isArray(json.data.dashaPeriods) ? json.data.dashaPeriods : []);
+      const loadedDashaPeriods = Array.isArray(json.data.dashaPeriods) ? json.data.dashaPeriods : [];
+      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || [], dashaChainText(loadedDashaPeriods)));
+      setDashaPeriods(loadedDashaPeriods);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart');
     } finally {
@@ -197,7 +205,21 @@ export default function KpAstrologerWorkspacePage() {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
-              <h2 className="font-semibold text-gray-900">12-Bhav Analysis</h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-semibold text-gray-900">{workView === 'bhav' ? '12-Bhav Analysis' : 'Planet Karyesh Analysis'}</h2>
+                <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                  {(['bhav', 'planet'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setWorkView(mode)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+                    >
+                      {mode === 'bhav' ? 'Bhav' : 'Planet'}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex items-center gap-3">
                 {savedAt && <span className="text-xs text-emerald-600">Saved {savedAt.toLocaleTimeString()}</span>}
                 <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
@@ -225,18 +247,22 @@ export default function KpAstrologerWorkspacePage() {
                     </span>
                   </p>
                 )}
+                {currentPratyantar && (
+                  <p className="text-indigo-900">
+                    Vidasha: <span className="font-medium">{currentPratyantar.planet}</span>{' '}
+                    <span className="text-indigo-600">
+                      (owns houses {housesOwnedBy(chart.houses || [], currentPratyantar.planet).join(', ') || '-'}; occupies house {housesOccupiedBy(chart.planets || [], currentPratyantar.planet).join(', ') || '-'})
+                    </span>
+                  </p>
+                )}
                 <p className="text-xs text-indigo-500">Weigh these lords' own significations against each bhav's significators below — a house's static data doesn't predict on its own; the active dasha modifies which results actually manifest now.</p>
               </div>
             )}
-            <details className="rounded-2xl border border-gray-200 bg-white open:pb-3" open>
-              <summary className="cursor-pointer p-3 font-semibold text-gray-900 text-sm">
-                Houses &amp; Planets Reference (for filling ABCD)
-              </summary>
-              <div className="px-3">
-                <HousesPlanetsTable houses={chart.houses || []} planets={chart.planets || []} />
-              </div>
-            </details>
-            <BhavEditor rows={bhavRows} onChange={setBhavRows} />
+            {workView === 'bhav' ? (
+              <BhavEditor rows={bhavRows} onChange={setBhavRows} />
+            ) : (
+              <PlanetKaryeshTable houses={chart.houses || []} planets={chart.planets || []} />
+            )}
             {token && <EventTimingPanel chartId={chartId} token={token} />}
           </div>
         </div>

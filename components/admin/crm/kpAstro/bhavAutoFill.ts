@@ -1,6 +1,13 @@
 import type { BhavAnalysisRow } from './BhavEditor';
-import { computeConjunctions, computeDrishtiOnHouses } from '@/lib/kpAstro/aspectAnalysis';
-import { computeBhavAutoSignificators, planetKaryesLabel, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { computeConjunctions, computeDrishtiOnHouses, computeDrishtiOnPlanets } from '@/lib/kpAstro/aspectAnalysis';
+import {
+  computeBhavAutoSignificators,
+  computeFourStepSignificators,
+  planetKaryesLabel,
+  starLordOf,
+  type SignificatorHouse,
+  type SignificatorPlanet,
+} from '@/lib/kpAstro/significators';
 
 function basePlanetName(value: string): string {
   return value.split('[')[0].split('(')[0].trim();
@@ -21,12 +28,88 @@ function enrichPlanetLabels(values: string[], houses: SignificatorHouse[], plane
   });
 }
 
-export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: SignificatorPlanet[]): BhavAnalysisRow[] {
+function formatHouseNumbers(values: number[]): string {
+  return values.length ? values.join(', ') : '-';
+}
+
+function formatSubLordAbcdPlanets(subLord: string, planets: SignificatorPlanet[]): string {
+  if (!subLord) return '';
+  const planet = planets.find((p) => p.planet === subLord);
+  const starLord = planet ? starLordOf(planet) : undefined;
+  return [
+    `A: ${starLord || '-'}`,
+    `B: ${subLord}`,
+    `C: ${subLord}`,
+    `D: ${starLord || '-'}`,
+  ].join(' | ');
+}
+
+function formatSubLordKaryeshBhav(houses: SignificatorHouse[], planets: SignificatorPlanet[], subLord: string): string {
+  if (!subLord) return '';
+  const sig = computeFourStepSignificators(houses, planets).find((s) => s.planet === subLord);
+  if (!sig) return `${subLord}: not found in chart planets`;
+  return [
+    `A: ${formatHouseNumbers(sig.A)}`,
+    `B: ${formatHouseNumbers(sig.B)}`,
+    `C: ${formatHouseNumbers(sig.C)}`,
+    `D: ${formatHouseNumbers(sig.D)}`,
+  ].join(' | ');
+}
+
+function formatHouseAbcdPlanets(row: BhavAnalysisRow): string {
+  return [
+    `A: ${row.significatorsA.join(', ') || '-'}`,
+    `B: ${row.significatorsB.join(', ') || '-'}`,
+    `C: ${row.significatorsC.join(', ') || '-'}`,
+    `D: ${row.significatorsD.join(', ') || '-'}`,
+  ].join(' | ');
+}
+
+function subLordConnectionsWithNodes(subLord: string, conjunctions: ReturnType<typeof computeConjunctions>, drishti: ReturnType<typeof computeDrishtiOnPlanets>): string {
+  if (!subLord) return '';
+  const nodeSet = new Set(['Rahu', 'Ketu']);
+  const hits: string[] = [];
+
+  for (const c of conjunctions) {
+    const other = c.planetA === subLord ? c.planetB : c.planetB === subLord ? c.planetA : '';
+    if (nodeSet.has(other)) hits.push(`Conj ${other} (${c.separation.toFixed(1)} deg)`);
+  }
+
+  for (const d of drishti) {
+    if (d.from === subLord && nodeSet.has(d.to)) hits.push(`Drishti to ${d.to} (house ${d.toHouse})`);
+    if (d.to === subLord && nodeSet.has(d.from)) hits.push(`Drishti from ${d.from} (house ${d.toHouse})`);
+  }
+
+  return hits.join('; ') || 'No Rahu/Ketu connection found';
+}
+
+function formatSubLordDrishti(subLord: string, drishti: ReturnType<typeof computeDrishtiOnPlanets>): string {
+  if (!subLord) return '';
+  const hits = drishti
+    .filter((d) => d.from === subLord || d.to === subLord)
+    .map((d) => d.from === subLord ? `${d.from} -> ${d.to} (house ${d.toHouse})` : `${d.from} -> ${d.to} (house ${d.toHouse})`);
+  return hits.join('; ') || 'No drishti found';
+}
+
+function formatSubLordConjunction(subLord: string, conjunctions: ReturnType<typeof computeConjunctions>): string {
+  if (!subLord) return '';
+  const hits = conjunctions
+    .filter((c) => c.planetA === subLord || c.planetB === subLord)
+    .map((c) => {
+      const other = c.planetA === subLord ? c.planetB : c.planetA;
+      return `${other} (${c.separation.toFixed(1)} deg, orb ${c.orbUsed} deg)`;
+    });
+  return hits.join('; ') || 'No conjunction found';
+}
+
+export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: SignificatorPlanet[], dashaChain = ''): BhavAnalysisRow[] {
   const drishtiHits = computeDrishtiOnHouses(planets);
+  const planetDrishti = computeDrishtiOnPlanets(planets);
   const conjunctions = computeConjunctions(planets);
 
   return rows.map((row) => {
     const auto = computeBhavAutoSignificators(houses, planets, row.house);
+    const subLord = row.subLord || auto.subLord;
     const drishtiPlanets = drishtiHits
       .filter((hit) => hit.toHouse === row.house)
       .map((hit) => `${planetKaryesLabel(houses, planets, hit.planet)} from House ${hit.fromHouse}`);
@@ -37,16 +120,25 @@ export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHo
         const b = planetKaryesLabel(houses, planets, hit.planetB);
         return `${a} with ${b}`;
       });
-
-    return {
+    const enrichedRow = {
       ...row,
-      subLord: row.subLord || auto.subLord,
+      subLord,
       significatorsA: row.significatorsA.length ? enrichPlanetLabels(row.significatorsA, houses, planets) : auto.significatorsA,
       significatorsB: row.significatorsB.length ? enrichPlanetLabels(row.significatorsB, houses, planets) : auto.significatorsB,
       significatorsC: row.significatorsC.length ? enrichPlanetLabels(row.significatorsC, houses, planets) : auto.significatorsC,
       significatorsD: row.significatorsD.length ? enrichPlanetLabels(row.significatorsD, houses, planets) : auto.significatorsD,
       drishtiPlanets: row.drishtiPlanets.length ? enrichPlanetLabels(row.drishtiPlanets, houses, planets) : drishtiPlanets,
       connectionPlanets: row.connectionPlanets.length ? enrichPlanetLabels(row.connectionPlanets, houses, planets) : connectionPlanets,
+    };
+
+    return {
+      ...enrichedRow,
+      subLordAbcdPlanets: row.subLordAbcdPlanets || formatSubLordAbcdPlanets(subLord, planets) || formatHouseAbcdPlanets(enrichedRow),
+      subLordKaryeshBhav: row.subLordKaryeshBhav || formatSubLordKaryeshBhav(houses, planets, subLord),
+      subLordRahuKetuConnection: row.subLordRahuKetuConnection || subLordConnectionsWithNodes(subLord, conjunctions, planetDrishti),
+      subLordDrishti: row.subLordDrishti || formatSubLordDrishti(subLord, planetDrishti),
+      subLordConjunction: row.subLordConjunction || formatSubLordConjunction(subLord, conjunctions),
+      dashaChain: row.dashaChain || dashaChain,
     };
   });
 }

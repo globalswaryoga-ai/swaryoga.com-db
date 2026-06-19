@@ -34,23 +34,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (!chart) return NextResponse.json({ error: 'Chart not found' }, { status: 404 });
 
     const bhavRows = Array.isArray(chart.bhavAnalysis) ? chart.bhavAnalysis : [];
-    const hasAnyContent = bhavRows.some((b: any) =>
-      b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
-      (b.customMatters && b.customMatters.length) ||
-      (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
-      (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||
-      (b.significatorsC && b.significatorsC.length) || (b.significatorsD && b.significatorsD.length)
-    );
-    if (!hasAnyContent) {
-      return NextResponse.json({ error: 'No bhav analysis saved yet. Work through the Astrologer Workspace before generating a final prediction.' }, { status: 400 });
-    }
-
     const hasContent = (b: any) =>
       b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
+      b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
+      b.subLordDrishti || b.subLordConjunction || b.dashaChain ||
       (b.customMatters && b.customMatters.length) ||
       (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
       (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||
       (b.significatorsC && b.significatorsC.length) || (b.significatorsD && b.significatorsD.length);
+
+    const hasAnyContent = bhavRows.some((b: any) =>
+      hasContent(b)
+    );
+    if (!hasAnyContent) {
+      return NextResponse.json({ error: 'No bhav analysis saved yet. Work through the Astrologer Workspace before generating a final prediction.' }, { status: 400 });
+    }
 
     const orderedBhavs = bhavRows
       .filter((b: any) => b.includeInPrediction !== false && hasContent(b))

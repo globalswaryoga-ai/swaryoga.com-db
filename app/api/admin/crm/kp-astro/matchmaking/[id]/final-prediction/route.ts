@@ -13,6 +13,8 @@ export const dynamic = 'force-dynamic';
 function orderRows(rows: any[]) {
   const hasContent = (b: any) =>
     b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
+    b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
+    b.subLordDrishti || b.subLordConjunction || b.dashaChain ||
     (b.customMatters && b.customMatters.length) ||
     (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
     (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||

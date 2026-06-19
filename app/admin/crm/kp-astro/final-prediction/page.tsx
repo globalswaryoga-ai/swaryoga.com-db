@@ -86,9 +86,14 @@ export default function KpFinalPredictionPage() {
   useEffect(() => { fetchChart(); }, [fetchChart]);
 
   const bhavRows = chart?.bhavAnalysis || [];
+  const hasBhavContent = (b: any) =>
+    b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
+    b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
+    b.subLordDrishti || b.subLordConjunction || b.dashaChain ||
+    b.customMatters?.length || b.drishtiPlanets?.length || b.connectionPlanets?.length;
   const orderedBhavs = bhavRows
     .filter((b) => b.includeInPrediction !== false)
-    .filter((b) => b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes || b.customMatters?.length || b.drishtiPlanets?.length || b.connectionPlanets?.length)
+    .filter(hasBhavContent)
     .sort((a, b) => (a.predictionOrder || 0) - (b.predictionOrder || 0) || a.house - b.house);
   const hasAnyContent = orderedBhavs.length > 0;
   const age = currentAge(chart?.dob);

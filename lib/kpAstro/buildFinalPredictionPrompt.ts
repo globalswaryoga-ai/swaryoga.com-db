@@ -17,6 +17,12 @@ export interface FinalPredictionBhavInput {
   significatorsD: string[];
   drishtiPlanets?: string[];
   connectionPlanets?: string[];
+  subLordAbcdPlanets?: string;
+  subLordKaryeshBhav?: string;
+  subLordRahuKetuConnection?: string;
+  subLordDrishti?: string;
+  subLordConjunction?: string;
+  dashaChain?: string;
   customMatters: Array<{ label: string; notes: string }>;
   positiveNotes: string;
   negativeNotes: string;
@@ -44,6 +50,12 @@ function formatBhav(b: FinalPredictionBhavInput): string {
   if (sigLine) parts.push(`  Significators — ${sigLine}`);
   if (b.drishtiPlanets?.length) parts.push(`  Drishti planets: ${b.drishtiPlanets.join(', ')}`);
   if (b.connectionPlanets?.length) parts.push(`  Uti / connection planets: ${b.connectionPlanets.join(', ')}`);
+  if (b.subLordAbcdPlanets) parts.push(`  Sub Lord ABCD planets: ${b.subLordAbcdPlanets}`);
+  if (b.subLordKaryeshBhav) parts.push(`  Sub Lord karyesh bhav ABCD: ${b.subLordKaryeshBhav}`);
+  if (b.subLordRahuKetuConnection) parts.push(`  Sub Lord Rahu/Ketu connection: ${b.subLordRahuKetuConnection}`);
+  if (b.subLordDrishti) parts.push(`  Sub Lord drishti: ${b.subLordDrishti}`);
+  if (b.subLordConjunction) parts.push(`  Sub Lord conjunction: ${b.subLordConjunction}`);
+  if (b.dashaChain) parts.push(`  Dasha chain: ${b.dashaChain}`);
   if (b.customMatters.length) parts.push(`  Matters: ${b.customMatters.map((m) => `${m.label}${m.notes ? ` (${m.notes})` : ''}`).join('; ')}`);
   if (b.positiveNotes) parts.push(`  Positive: ${b.positiveNotes}`);
   if (b.negativeNotes) parts.push(`  Negative: ${b.negativeNotes}`);

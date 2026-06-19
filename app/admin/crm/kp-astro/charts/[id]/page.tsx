@@ -1,15 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save, AlertTriangle } from 'lucide-react';
+import { Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
-import { computeFourStepSignificators } from '@/lib/kpAstro/significators';
-import { computeConjunctions, computeDrishtiOnPlanets, unparseablePlanets, planetsMissingHouse } from '@/lib/kpAstro/aspectAnalysis';
-import HousesPlanetsTable from '@/components/admin/crm/kpAstro/HousesPlanetsTable';
 
 const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
 
@@ -122,15 +119,6 @@ export default function KpHoroscopeChartDetailPage() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
 
   const latestReportForLanguage = chart?.reports?.filter((r) => r.language === language).slice(-1)[0];
-
-  const significators = useMemo(
-    () => computeFourStepSignificators(chart?.houses || [], chart?.planets || []),
-    [chart]
-  );
-  const conjunctions = useMemo(() => computeConjunctions(chart?.planets || []), [chart]);
-  const drishti = useMemo(() => computeDrishtiOnPlanets(chart?.planets || []), [chart]);
-  const unparseable = useMemo(() => unparseablePlanets(chart?.planets || []), [chart]);
-  const missingHouse = useMemo(() => planetsMissingHouse(chart?.planets || []), [chart]);
 
   const startEditing = () => {
     setEditHouses(fillHouses(chart?.houses));
@@ -312,67 +300,7 @@ export default function KpHoroscopeChartDetailPage() {
           </>
         ) : !chart.houses?.length && !chart.planets?.length ? (
           <p className="text-sm text-gray-400">No house/planet data yet. Click "Edit" to enter it.</p>
-        ) : (
-          <HousesPlanetsTable houses={chart.houses || []} planets={chart.planets || []} />
-        )}
-      </div>
-
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">ABCD Significators</h2>
-        <p className="text-xs text-gray-400">For each planet: A = houses owned by its Star Lord, B = house it occupies, C = houses it owns, D = houses occupied by its Star Lord.</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-gray-400">
-                <th className="p-1">Planet</th><th className="p-1">A</th><th className="p-1">B</th><th className="p-1">C</th><th className="p-1">D</th><th className="p-1">Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {significators.map((s) => (
-                <tr key={s.planet} className="border-t border-gray-100">
-                  <td className="p-1 font-semibold text-gray-700">{s.planet}</td>
-                  <td className="p-1">{s.A.join(', ') || '—'}</td>
-                  <td className="p-1">{s.B.join(', ') || '—'}</td>
-                  <td className="p-1">{s.C.join(', ') || '—'}</td>
-                  <td className="p-1">{s.D.join(', ') || '—'}</td>
-                  <td className="p-1 text-amber-600">
-                    {!s.starLordResolved && (
-                      <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Star Lord not resolved</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
-        <h2 className="font-semibold text-gray-900">Drishti &amp; Conjunctions</h2>
-        {unparseable.length > 0 && (
-          <p className="text-xs text-amber-600 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Skipped from conjunction check (unparseable degree): {unparseable.join(', ')}
-          </p>
-        )}
-        {missingHouse.length > 0 && (
-          <p className="text-xs text-amber-600 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Skipped from drishti check (no house set): {missingHouse.join(', ')}
-          </p>
-        )}
-        <div className="grid sm:grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-xs uppercase text-gray-400 font-semibold mb-1">Conjunctions</p>
-            {conjunctions.length ? conjunctions.map((a, i) => (
-              <p key={i} className="text-gray-800">{a.planetA} – {a.planetB} <span className="text-gray-400">({a.separation.toFixed(1)}°, orb {a.orbUsed}°)</span></p>
-            )) : <p className="text-gray-400">None</p>}
-          </div>
-          <div>
-            <p className="text-xs uppercase text-gray-400 font-semibold mb-1">Drishti (house-based aspects)</p>
-            {drishti.length ? drishti.map((a, i) => (
-              <p key={i} className="text-gray-800">{a.from} → {a.to} <span className="text-gray-400">(house {a.toHouse})</span></p>
-            )) : <p className="text-gray-400">None</p>}
-          </div>
-        </div>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">

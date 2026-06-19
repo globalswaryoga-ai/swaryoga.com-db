@@ -25,7 +25,10 @@ interface MatchDetail {
 
 
 function hasContent(b: any) {
-  return b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes || b.customMatters?.length;
+  return b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
+    b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
+    b.subLordDrishti || b.subLordConjunction || b.dashaChain ||
+    b.customMatters?.length || b.drishtiPlanets?.length || b.connectionPlanets?.length;
 }
 
 export default function KpMatchmakingFinalPredictionPage() {
