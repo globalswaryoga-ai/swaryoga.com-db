@@ -65,6 +65,48 @@ export function computeFourStepSignificators(
   });
 }
 
+export interface BhavAutoSignificators {
+  house: number;
+  subLord: string;
+  significatorsA: string[]; // star lord(s) of the occupant(s)
+  significatorsB: string[]; // occupant(s) of this house
+  significatorsC: string[]; // owner of this house (its sign lord)
+  significatorsD: string[]; // star lord of the owner
+}
+
+// Auto-derives the BhavEditor's per-house Sub Lord + A/B/C/D significator
+// chips from the chart's already-computed houses/planets — so the astrologer
+// starts from a filled-in best guess and only has to correct it, instead of
+// typing every planet name in from scratch.
+export function computeBhavAutoSignificators(
+  houses: SignificatorHouse[],
+  planets: SignificatorPlanet[],
+  houseNumber: number
+): BhavAutoSignificators {
+  const house = houses.find((h) => h.house === houseNumber);
+  const occupants = planets.filter((p) => p.house === houseNumber).map((p) => p.planet);
+  const owner = house?.signLord;
+
+  const starLordsOf = (names: string[]): string[] => {
+    const result = new Set<string>();
+    for (const name of names) {
+      const planet = planets.find((p) => p.planet === name);
+      const sl = planet ? starLordOf(planet) : undefined;
+      if (sl) result.add(sl);
+    }
+    return Array.from(result);
+  };
+
+  return {
+    house: houseNumber,
+    subLord: house?.subLord || '',
+    significatorsB: occupants,
+    significatorsC: owner ? [owner] : [],
+    significatorsA: starLordsOf(occupants),
+    significatorsD: owner ? starLordsOf([owner]) : [],
+  };
+}
+
 export interface CuspSubLordSignification {
   house: number;
   subLord?: string;

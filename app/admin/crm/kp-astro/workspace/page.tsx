@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
+import { computeBhavAutoSignificators, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 interface ChartListItem { _id: string; personName: string; gender?: string; updatedAt: string; }
 
@@ -16,11 +17,29 @@ interface ChartDetail {
   _id: string;
   personName: string;
   ascendant?: { sign?: string; degree?: string };
-  houses?: Array<{ house: number; sign?: string }>;
-  planets?: Array<{ planet: string; sign?: string; house?: number; retrograde?: boolean }>;
+  houses?: SignificatorHouse[];
+  planets?: Array<SignificatorPlanet & { retrograde?: boolean }>;
   chartStyle?: 'north' | 'south';
   bhavAnalysis?: BhavAnalysisRow[];
   dashaPeriods?: DashaRow[];
+}
+
+// Fills in any Sub Lord / A/B/C/D field the astrologer hasn't already typed
+// something into — computed fresh from the chart's houses/planets so a
+// recalculated chart keeps re-deriving still-blank fields, while anything
+// the astrologer already entered or edited is left untouched.
+function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: SignificatorPlanet[]): BhavAnalysisRow[] {
+  return rows.map((row) => {
+    const auto = computeBhavAutoSignificators(houses, planets, row.house);
+    return {
+      ...row,
+      subLord: row.subLord || auto.subLord,
+      significatorsA: row.significatorsA.length ? row.significatorsA : auto.significatorsA,
+      significatorsB: row.significatorsB.length ? row.significatorsB : auto.significatorsB,
+      significatorsC: row.significatorsC.length ? row.significatorsC : auto.significatorsC,
+      significatorsD: row.significatorsD.length ? row.significatorsD : auto.significatorsD,
+    };
+  });
 }
 
 export default function KpAstrologerWorkspacePage() {
@@ -56,7 +75,8 @@ export default function KpAstrologerWorkspacePage() {
       if (!res.ok) throw new Error(json.error || 'Failed to load chart');
       setChart(json.data);
       setChartStyle(json.data.chartStyle === 'south' ? 'south' : 'north');
-      setBhavRows(normalizeBhavAnalysis(json.data.bhavAnalysis));
+      const normalized = normalizeBhavAnalysis(json.data.bhavAnalysis);
+      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || []));
       setDashaPeriods(Array.isArray(json.data.dashaPeriods) ? json.data.dashaPeriods : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart');
