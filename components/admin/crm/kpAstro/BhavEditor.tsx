@@ -74,7 +74,7 @@ const HOUSE_LABELS: Record<number, string> = {
   10: 'Career, status, profession', 11: 'Gains, income, elder siblings', 12: 'Loss, expenditure, foreign, moksha',
 };
 
-function ChipInput({ values, onChange }: { values: string[]; onChange: (v: string[]) => void }) {
+function ChipInput({ values, onChange, emptyHint }: { values: string[]; onChange: (v: string[]) => void; emptyHint?: string }) {
   const [draft, setDraft] = useState('');
   const add = () => {
     const v = draft.trim();
@@ -89,6 +89,9 @@ function ChipInput({ values, onChange }: { values: string[]; onChange: (v: strin
           <button type="button" onClick={() => onChange(values.filter((_, j) => j !== i))} className="hover:text-indigo-900">×</button>
         </span>
       ))}
+      {values.length === 0 && emptyHint && (
+        <span className="text-xs text-gray-400 italic">{emptyHint}</span>
+      )}
       <input
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -141,14 +144,22 @@ function BhavCard({ row, onChange }: { row: BhavAnalysisRow; onChange: (next: Bh
           </div>
 
           <div className="grid sm:grid-cols-4 gap-3">
-            {(['significatorsA', 'significatorsB', 'significatorsC', 'significatorsD'] as const).map((key, i) => (
-              <div key={key}>
-                <label className="text-xs font-medium text-gray-500">
-                  {['A — Star lord of occupant', 'B — Occupant', 'C — Owner', 'D — Star lord of owner'][i]}
-                </label>
-                <div className="mt-1"><ChipInput values={row[key]} onChange={(v) => set(key, v)} /></div>
-              </div>
-            ))}
+            {(['significatorsA', 'significatorsB', 'significatorsC', 'significatorsD'] as const).map((key, i) => {
+              const emptyHints: Record<typeof key, string> = {
+                significatorsA: row.significatorsB.length === 0 ? 'no occupant in this house' : "occupant's star lord not resolved",
+                significatorsB: 'no occupant in this house',
+                significatorsC: 'house owner not resolved',
+                significatorsD: row.significatorsC.length === 0 ? 'no owner to resolve' : "owner's star lord not resolved",
+              };
+              return (
+                <div key={key}>
+                  <label className="text-xs font-medium text-gray-500">
+                    {['A — Star lord of occupant', 'B — Occupant', 'C — Owner', 'D — Star lord of owner'][i]}
+                  </label>
+                  <div className="mt-1"><ChipInput values={row[key]} onChange={(v) => set(key, v)} emptyHint={emptyHints[key]} /></div>
+                </div>
+              );
+            })}
           </div>
 
           <div>
