@@ -1,5 +1,8 @@
 'use client';
 
+import { useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+
 // Per-bhav (per-house) astrologer working sheet. Each row stays editable so
 // the astrologer can correct the auto-filled KP data before final prediction.
 
@@ -90,93 +93,147 @@ function TextCell({ value, onChange, placeholder, rows = 2 }: { value: string; o
       onChange={(e) => onChange(e.target.value)}
       rows={rows}
       placeholder={placeholder}
-      className="min-w-[190px] w-full resize-y rounded-lg border border-slate-200 bg-white/90 px-2.5 py-2 text-xs leading-relaxed text-slate-700 shadow-sm shadow-slate-100/60 placeholder:text-slate-300 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+      className="w-full resize-y rounded-lg border border-zinc-700 bg-black/60 px-2.5 py-2 text-xs leading-relaxed text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
     />
   );
 }
 
+function FieldBox({ label, children, tone = 'slate' }: { label: string; children: ReactNode; tone?: 'slate' | 'indigo' | 'emerald' | 'red' }) {
+  const toneClass = {
+    slate: 'bg-zinc-900/80 border-zinc-700 text-zinc-300',
+    indigo: 'bg-yellow-500/10 border-yellow-500/40 text-yellow-300',
+    emerald: 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300',
+    red: 'bg-red-950/60 border-red-700/60 text-red-300',
+  }[tone];
+
+  return (
+    <div className={`rounded-xl border p-3 ${toneClass}`}>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function bhavLabel(house: number): string {
+  return `${house}${house === 1 ? 'st' : house === 2 ? 'nd' : house === 3 ? 'rd' : 'th'} Bhav`;
+}
+
 export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]; onChange: (rows: BhavAnalysisRow[]) => void }) {
+  const [openHouse, setOpenHouse] = useState(1);
+
   const updateRow = <K extends keyof BhavAnalysisRow>(house: number, key: K, value: BhavAnalysisRow[K]) => {
     onChange(rows.map((r) => (r.house === house ? { ...r, [key]: value } : r)));
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3">
+    <div className="rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-black px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">12 Bhav Working Table</h3>
+          <h3 className="text-sm font-semibold text-white">12 Bhav Working Dropdowns</h3>
         </div>
-        <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600">12 rows</div>
+        <div className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">12 bhavs</div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-0 text-xs">
-          <thead className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-            <tr>
-              <th className="sticky left-0 z-20 min-w-[120px] border-b border-slate-100 bg-slate-50/95 p-3">Bhav</th>
-              <th className="min-w-[135px] border-b border-slate-100 bg-slate-50/80 p-3">Sub Lord</th>
-              <th className="min-w-[235px] border-b border-slate-100 bg-slate-50/80 p-3">ABCD Planets</th>
-              <th className="min-w-[235px] border-b border-slate-100 bg-slate-50/80 p-3">Karyesh Bhav ABCD</th>
-              <th className="min-w-[235px] border-b border-slate-100 bg-slate-50/80 p-3">Rahu/Ketu</th>
-              <th className="min-w-[235px] border-b border-slate-100 bg-slate-50/80 p-3">Drishti</th>
-              <th className="min-w-[255px] border-b border-slate-100 bg-slate-50/80 p-3">Conjunction Degree</th>
-              <th className="min-w-[185px] border-b border-slate-100 bg-slate-50/80 p-3">Maha-Antar-Vidasha</th>
-              <th className="min-w-[280px] border-b border-slate-100 bg-slate-50/80 p-3">Notes</th>
-              <th className="min-w-[80px] border-b border-slate-100 bg-slate-50/80 p-3 text-center">Use</th>
-              <th className="min-w-[80px] border-b border-slate-100 bg-slate-50/80 p-3">Order</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.house} className="group align-top">
-                <td className="sticky left-0 z-10 border-b border-slate-100 bg-white/95 p-3 group-hover:bg-indigo-50/80">
-                  <div className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
-                    {row.house}{row.house === 1 ? 'st' : row.house === 2 ? 'nd' : row.house === 3 ? 'rd' : 'th'} Bhav
+      <div className="space-y-2 p-3">
+        {rows.map((row) => {
+          const open = openHouse === row.house;
+
+          return (
+            <div key={row.house} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setOpenHouse(open ? 0 : row.house)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-900"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
+                  <span className="shrink-0 rounded-full bg-yellow-400 px-2.5 py-1 text-xs font-bold text-black">{bhavLabel(row.house)}</span>
+                  <span className="truncate text-sm font-medium text-zinc-100">{HOUSE_LABELS[row.house]}</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {row.subLord && <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-100">Sub: {row.subLord}</span>}
+                  {row.dashaChain && <span className="hidden rounded-full bg-emerald-950 px-2.5 py-1 text-xs font-semibold text-emerald-300 sm:inline">{row.dashaChain}</span>}
+                </div>
+              </button>
+
+              {open && (
+                <div className="space-y-3 border-t border-zinc-800 bg-black/70 p-4">
+                  <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
+                    <FieldBox label="Sub Lord Planet" tone="indigo">
+                      <input
+                        value={row.subLord}
+                        onChange={(e) => updateRow(row.house, 'subLord', e.target.value)}
+                        className="w-full rounded-lg border border-yellow-500/40 bg-black px-3 py-2 text-sm font-semibold text-yellow-200 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                      />
+                    </FieldBox>
+                    <FieldBox label="Maha-Antar-Vidasha">
+                      <input
+                        value={row.dashaChain}
+                        onChange={(e) => updateRow(row.house, 'dashaChain', e.target.value)}
+                        placeholder="Sun-Moon-Saturn"
+                        className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                      />
+                    </FieldBox>
+                    <FieldBox label="Use">
+                      <div className="flex h-[38px] items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={row.includeInPrediction}
+                          onChange={(e) => updateRow(row.house, 'includeInPrediction', e.target.checked)}
+                          className="h-5 w-5 rounded border-zinc-600 bg-black text-yellow-400 focus:ring-yellow-500/30"
+                        />
+                      </div>
+                    </FieldBox>
+                    <FieldBox label="Order">
+                      <input
+                        type="number"
+                        value={row.predictionOrder || ''}
+                        onChange={(e) => updateRow(row.house, 'predictionOrder', Number(e.target.value) || 0)}
+                        className="w-20 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                      />
+                    </FieldBox>
                   </div>
-                  <div className="mt-2 max-w-[110px] text-[11px] leading-snug text-slate-400">{HOUSE_LABELS[row.house]}</div>
-                </td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30">
-                  <input
-                    value={row.subLord}
-                    onChange={(e) => updateRow(row.house, 'subLord', e.target.value)}
-                    className="w-full rounded-lg border border-indigo-100 bg-indigo-50/50 px-2.5 py-2 text-xs font-semibold text-indigo-700 shadow-sm shadow-indigo-50 focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
-                </td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30"><TextCell value={row.subLordAbcdPlanets} onChange={(v) => updateRow(row.house, 'subLordAbcdPlanets', v)} /></td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30"><TextCell value={row.subLordKaryeshBhav} onChange={(v) => updateRow(row.house, 'subLordKaryeshBhav', v)} /></td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30"><TextCell value={row.subLordRahuKetuConnection} onChange={(v) => updateRow(row.house, 'subLordRahuKetuConnection', v)} /></td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30"><TextCell value={row.subLordDrishti} onChange={(v) => updateRow(row.house, 'subLordDrishti', v)} /></td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30"><TextCell value={row.subLordConjunction} onChange={(v) => updateRow(row.house, 'subLordConjunction', v)} /></td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30">
-                  <input
-                    value={row.dashaChain}
-                    onChange={(e) => updateRow(row.house, 'dashaChain', e.target.value)}
-                    placeholder="Sun-Moon-Saturn"
-                    className="w-full rounded-lg border border-slate-200 bg-white/90 px-2.5 py-2 text-xs text-slate-700 shadow-sm shadow-slate-100/60 placeholder:text-slate-300 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
-                </td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30">
-                  <TextCell value={row.freeNotes} onChange={(v) => updateRow(row.house, 'freeNotes', v)} placeholder="Prediction notes, positives, negatives, timing..." rows={3} />
-                </td>
-                <td className="border-b border-slate-100 p-3 text-center group-hover:bg-indigo-50/30">
-                  <input
-                    type="checkbox"
-                    checked={row.includeInPrediction}
-                    onChange={(e) => updateRow(row.house, 'includeInPrediction', e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-200"
-                  />
-                </td>
-                <td className="border-b border-slate-100 p-3 group-hover:bg-indigo-50/30">
-                  <input
-                    type="number"
-                    value={row.predictionOrder || ''}
-                    onChange={(e) => updateRow(row.house, 'predictionOrder', Number(e.target.value) || 0)}
-                    className="w-16 rounded-lg border border-slate-200 bg-white/90 px-2 py-2 text-xs text-slate-700 shadow-sm shadow-slate-100/60 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <FieldBox label="Sub Lord ABCD Planets" tone="indigo">
+                      <TextCell value={row.subLordAbcdPlanets} onChange={(v) => updateRow(row.house, 'subLordAbcdPlanets', v)} rows={3} />
+                    </FieldBox>
+                    <FieldBox label="Sub Lord Karyesh Bhav - ABCD" tone="indigo">
+                      <TextCell value={row.subLordKaryeshBhav} onChange={(v) => updateRow(row.house, 'subLordKaryeshBhav', v)} rows={3} />
+                    </FieldBox>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    <FieldBox label="Rahu/Ketu Connection">
+                      <TextCell value={row.subLordRahuKetuConnection} onChange={(v) => updateRow(row.house, 'subLordRahuKetuConnection', v)} rows={3} />
+                    </FieldBox>
+                    <FieldBox label="Sub Lord Drishti">
+                      <TextCell value={row.subLordDrishti} onChange={(v) => updateRow(row.house, 'subLordDrishti', v)} rows={3} />
+                    </FieldBox>
+                    <FieldBox label="Conjunction - Planet & Degree">
+                      <TextCell value={row.subLordConjunction} onChange={(v) => updateRow(row.house, 'subLordConjunction', v)} rows={3} />
+                    </FieldBox>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    <FieldBox label="Positive Notes" tone="emerald">
+                      <TextCell value={row.positiveNotes} onChange={(v) => updateRow(row.house, 'positiveNotes', v)} rows={3} />
+                    </FieldBox>
+                    <FieldBox label="Negative Notes" tone="red">
+                      <TextCell value={row.negativeNotes} onChange={(v) => updateRow(row.house, 'negativeNotes', v)} rows={3} />
+                    </FieldBox>
+                    <FieldBox label="Dasha Cross Notes">
+                      <TextCell value={row.dashaNotes} onChange={(v) => updateRow(row.house, 'dashaNotes', v)} rows={3} />
+                    </FieldBox>
+                  </div>
+
+                  <FieldBox label="Prediction Notes">
+                    <TextCell value={row.freeNotes} onChange={(v) => updateRow(row.house, 'freeNotes', v)} rows={4} />
+                  </FieldBox>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

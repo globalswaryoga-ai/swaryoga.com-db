@@ -12,6 +12,7 @@ export interface SignificatorHouse {
   star?: string;
   starLord?: string;
   subLord?: string;
+  degree?: string;
 }
 
 export interface SignificatorPlanet {

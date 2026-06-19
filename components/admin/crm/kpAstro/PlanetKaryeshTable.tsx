@@ -41,34 +41,34 @@ export default function PlanetKaryeshTable({ houses, planets }: { houses: Signif
 
   if (!planets.length) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-400">
+      <div className="rounded-2xl border border-zinc-700 bg-black p-6 text-sm text-zinc-400">
         No planet data found.
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
-        <h3 className="text-sm font-semibold text-slate-900">ABCD Significators - Planets</h3>
-        <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600">{planets.length} planets</div>
+    <div className="overflow-hidden rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
+      <div className="flex items-center justify-between border-b border-zinc-800 bg-black px-4 py-3">
+        <h3 className="text-sm font-semibold text-white">ABCD Significators - Planets</h3>
+        <div className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">{planets.length} planets</div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-separate border-spacing-0 text-xs">
-          <thead className="text-left text-[11px] uppercase tracking-wide text-slate-400">
+          <thead className="text-left text-[11px] uppercase tracking-wide text-zinc-400">
             <tr>
-              <th className="sticky left-0 z-20 min-w-[120px] border-b border-slate-100 bg-slate-50/95 p-3">Planet</th>
-              <th className="min-w-[90px] border-b border-slate-100 bg-slate-50/80 p-3">House</th>
-              <th className="min-w-[115px] border-b border-slate-100 bg-slate-50/80 p-3">Sign</th>
-              <th className="min-w-[120px] border-b border-slate-100 bg-slate-50/80 p-3">Degree</th>
-              <th className="min-w-[145px] border-b border-slate-100 bg-slate-50/80 p-3">Star</th>
-              <th className="min-w-[120px] border-b border-slate-100 bg-slate-50/80 p-3">Star Lord</th>
-              <th className="min-w-[120px] border-b border-slate-100 bg-slate-50/80 p-3">Sub Lord</th>
-              <th className="min-w-[110px] border-b border-slate-100 bg-slate-50/80 p-3">Nature</th>
-              <th className="min-w-[90px] border-b border-slate-100 bg-slate-50/80 p-3">A</th>
-              <th className="min-w-[90px] border-b border-slate-100 bg-slate-50/80 p-3">B</th>
-              <th className="min-w-[90px] border-b border-slate-100 bg-slate-50/80 p-3">C</th>
-              <th className="min-w-[90px] border-b border-slate-100 bg-slate-50/80 p-3">D</th>
+              <th className="sticky left-0 z-20 min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">Planet</th>
+              <th className="min-w-[90px] border-b border-zinc-800 bg-zinc-950 p-3">House</th>
+              <th className="min-w-[115px] border-b border-zinc-800 bg-zinc-950 p-3">Sign</th>
+              <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">Degree</th>
+              <th className="min-w-[145px] border-b border-zinc-800 bg-zinc-950 p-3">Star</th>
+              <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">Star Lord</th>
+              <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">Sub Lord</th>
+              <th className="min-w-[110px] border-b border-zinc-800 bg-zinc-950 p-3">Nature</th>
+              <th className="min-w-[90px] border-b border-zinc-800 bg-zinc-950 p-3">A</th>
+              <th className="min-w-[90px] border-b border-zinc-800 bg-zinc-950 p-3">B</th>
+              <th className="min-w-[90px] border-b border-zinc-800 bg-zinc-950 p-3">C</th>
+              <th className="min-w-[90px] border-b border-zinc-800 bg-zinc-950 p-3">D</th>
             </tr>
           </thead>
           <tbody>
@@ -79,28 +79,28 @@ export default function PlanetKaryeshTable({ houses, planets }: { houses: Signif
 
               return (
                 <tr key={planet.planet} className="group align-top">
-                  <td className="sticky left-0 z-10 border-b border-slate-100 bg-white/95 p-3 group-hover:bg-indigo-50/80">
+                  <td className="sticky left-0 z-10 border-b border-zinc-800 bg-black p-3 group-hover:bg-zinc-900">
                     <div className="flex items-center gap-1.5">
-                      <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
+                      <span className="inline-flex rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-bold text-black">
                         {planetShortName(planet.planet)}
                       </span>
                       {planet.retrograde && <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">R</span>}
                       {planet.combust && <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-600">U</span>}
                     </div>
                   </td>
-                  <td className="border-b border-slate-100 p-3 text-slate-700 group-hover:bg-indigo-50/30">{planet.house || '-'}</td>
-                  <td className="border-b border-slate-100 p-3 text-slate-700 group-hover:bg-indigo-50/30">{planet.sign || '-'}</td>
-                  <td className="border-b border-slate-100 p-3 text-slate-700 group-hover:bg-indigo-50/30">{planet.degree || '-'}</td>
-                  <td className="border-b border-slate-100 p-3 text-slate-700 group-hover:bg-indigo-50/30">{planet.star || '-'}</td>
-                  <td className="border-b border-slate-100 p-3 text-indigo-700 group-hover:bg-indigo-50/30">{starLord || '-'}</td>
-                  <td className="border-b border-slate-100 p-3 text-slate-700 group-hover:bg-indigo-50/30">{planet.subLord || '-'}</td>
-                  <td className={`border-b border-slate-100 p-3 font-medium group-hover:bg-indigo-50/30 ${nature === 'Benefic' ? 'text-emerald-600' : 'text-red-500'}`}>
+                  <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{planet.house || '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{planet.sign || '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{planet.degree || '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{planet.star || '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 text-yellow-300 group-hover:bg-zinc-900">{starLord || '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{planet.subLord || '-'}</td>
+                  <td className={`border-b border-zinc-800 p-3 font-semibold group-hover:bg-zinc-900 ${nature === 'Benefic' ? 'text-emerald-400' : 'text-red-500'}`}>
                     {nature}
                   </td>
-                  <td className="border-b border-slate-100 p-3 font-medium text-slate-800 group-hover:bg-indigo-50/30">{sig ? houseList(sig.A) : '-'}</td>
-                  <td className="border-b border-slate-100 p-3 font-medium text-slate-800 group-hover:bg-indigo-50/30">{sig ? houseList(sig.B) : '-'}</td>
-                  <td className="border-b border-slate-100 p-3 font-medium text-slate-800 group-hover:bg-indigo-50/30">{sig ? houseList(sig.C) : '-'}</td>
-                  <td className="border-b border-slate-100 p-3 font-medium text-slate-800 group-hover:bg-indigo-50/30">{sig ? houseList(sig.D) : '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 font-semibold text-white group-hover:bg-zinc-900">{sig ? houseList(sig.A) : '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 font-semibold text-white group-hover:bg-zinc-900">{sig ? houseList(sig.B) : '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 font-semibold text-white group-hover:bg-zinc-900">{sig ? houseList(sig.C) : '-'}</td>
+                  <td className="border-b border-zinc-800 p-3 font-semibold text-white group-hover:bg-zinc-900">{sig ? houseList(sig.D) : '-'}</td>
                 </tr>
               );
             })}

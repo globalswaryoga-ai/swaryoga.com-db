@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Loader2, Save, ArrowRight } from 'lucide-react';
+import { Sparkles, Loader2, Save, ArrowRight, Wand2 } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
-import PlanetKaryeshTable from '@/components/admin/crm/kpAstro/PlanetKaryeshTable';
+import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
+import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
 import EventTimingPanel from '@/components/admin/crm/kpAstro/EventTimingPanel';
 import { housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
@@ -66,7 +67,7 @@ export default function KpAstrologerWorkspacePage() {
 
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [chartDisplayMode, setChartDisplayMode] = useState<'planet' | 'bhav'>('planet');
-  const [workView, setWorkView] = useState<'bhav' | 'planet'>('bhav');
+  const [workView, setWorkView] = useState<'analysis' | 'abcd' | 'details'>('analysis');
   const [bhavRows, setBhavRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
   const [dashaPeriods, setDashaPeriods] = useState<DashaRow[]>([]);
   const { maha: currentMaha, antar: currentAntar, pratyantar: currentPratyantar } = useMemo(() => findCurrentDasha(dashaPeriods), [dashaPeriods]);
@@ -118,6 +119,11 @@ export default function KpAstrologerWorkspacePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAutoFillNeedful = () => {
+    if (!chart) return;
+    setBhavRows((prev) => autoFillBhavRows(prev, chart.houses || [], chart.planets || [], dashaChainText(dashaPeriods)));
   };
 
   return (
@@ -204,25 +210,39 @@ export default function KpAstrologerWorkspacePage() {
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
+            <div className="flex items-center justify-between sticky top-0 rounded-2xl border border-zinc-800 bg-black/90 px-3 py-2 backdrop-blur z-10">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-semibold text-gray-900">{workView === 'bhav' ? '12-Bhav Analysis' : 'Planet Karyesh Analysis'}</h2>
-                <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                  {(['bhav', 'planet'] as const).map((mode) => (
+                <h2 className="font-semibold text-white">
+                  {workView === 'analysis' ? '12 Bhav Analysis' : workView === 'abcd' ? 'ABCD Significators' : 'Houses & Planets'}
+                </h2>
+                <div className="inline-flex rounded-xl border border-zinc-700 bg-zinc-950 p-1 shadow-sm">
+                  {([
+                    ['analysis', '12 Bhav'],
+                    ['abcd', 'ABCD Sig.'],
+                    ['details', 'Houses & Planets'],
+                  ] as const).map(([mode, label]) => (
                     <button
                       key={mode}
                       type="button"
                       onClick={() => setWorkView(mode)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-yellow-400 text-black shadow-sm' : 'text-zinc-300 hover:bg-zinc-900 hover:text-white'}`}
                     >
-                      {mode === 'bhav' ? 'Bhav' : 'Planet'}
+                      {label}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {savedAt && <span className="text-xs text-emerald-600">Saved {savedAt.toLocaleTimeString()}</span>}
-                <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                {savedAt && <span className="text-xs text-emerald-400">Saved {savedAt.toLocaleTimeString()}</span>}
+                <button
+                  type="button"
+                  onClick={handleAutoFillNeedful}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border border-yellow-500/50 bg-zinc-950 text-yellow-300 hover:bg-yellow-400 hover:text-black"
+                >
+                  <Wand2 className="h-4 w-4" />
+                  Auto Fill
+                </button>
+                <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-800 text-white hover:bg-emerald-700 disabled:opacity-50">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Save
                 </button>
@@ -258,10 +278,12 @@ export default function KpAstrologerWorkspacePage() {
                 <p className="text-xs text-indigo-500">Weigh these lords' own significations against each bhav's significators below — a house's static data doesn't predict on its own; the active dasha modifies which results actually manifest now.</p>
               </div>
             )}
-            {workView === 'bhav' ? (
+            {workView === 'analysis' ? (
               <BhavEditor rows={bhavRows} onChange={setBhavRows} />
+            ) : workView === 'abcd' ? (
+              <ABCDSignificatorsPanel houses={chart.houses || []} planets={chart.planets || []} bhavRows={bhavRows} />
             ) : (
-              <PlanetKaryeshTable houses={chart.houses || []} planets={chart.planets || []} />
+              <ChartDetailsPanel houses={chart.houses || []} planets={chart.planets || []} />
             )}
             {token && <EventTimingPanel chartId={chartId} token={token} />}
           </div>
