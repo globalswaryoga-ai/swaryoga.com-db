@@ -10,6 +10,7 @@ import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import HousesPlanetsTable from '@/components/admin/crm/kpAstro/HousesPlanetsTable';
+import EventTimingPanel from '@/components/admin/crm/kpAstro/EventTimingPanel';
 import { computeBhavAutoSignificators, housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 interface ChartListItem { _id: string; personName: string; gender?: string; updatedAt: string; }
@@ -233,6 +234,7 @@ export default function KpAstrologerWorkspacePage() {
               </div>
             </details>
             <BhavEditor rows={bhavRows} onChange={setBhavRows} />
+            {token && <EventTimingPanel chartId={chartId} token={token} />}
           </div>
         </div>
       )}

@@ -135,3 +135,30 @@ export async function computeChart(params: {
     planets,
   };
 }
+
+const TRANSIT_PLANET_IDS: Record<string, number> = { Sun: 0, Moon: 1 };
+
+// Geocentric sidereal position of Sun/Moon at a given UTC instant — used for
+// transit event-timing searches (KP's "Sun transit narrows to the year, Moon
+// transit narrows to the month/day" technique). No observer location needed:
+// Sun/Moon's sign/star/sub is the same everywhere on Earth at a given moment.
+export async function computeTransitPosition(date: Date, planet: 'Sun' | 'Moon'): Promise<ComputedPosition> {
+  const swe = await getSwe();
+  const utcHour = date.getUTCHours() + date.getUTCMinutes() / 60;
+  const jd = swe.julday(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), utcHour);
+  const pos = swe.calc_ut(jd, TRANSIT_PLANET_IDS[planet], SEFLG_SWIEPH | SEFLG_SIDEREAL);
+  return positionFromLongitude(pos[0]);
+}
+
+// Transiting Lagna (Ascendant) at a given UTC instant, for a specific
+// observer location — this DOES depend on location/time-of-day, unlike
+// Sun/Moon above. Used for the final hour-level refinement step (the Lagna
+// completes one full 360° cycle roughly every ~24h, close to a solar day).
+export async function computeTransitLagna(date: Date, latitude: number, longitude: number): Promise<ComputedPosition> {
+  const swe = await getSwe();
+  const utcHour = date.getUTCHours() + date.getUTCMinutes() / 60;
+  const jd = swe.julday(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), utcHour);
+  const houseResult = swe.houses_ex(jd, SEFLG_SIDEREAL, latitude, longitude, 'P');
+  const ascendantLongitude = houseResult.ascmc[0];
+  return positionFromLongitude(ascendantLongitude);
+}
