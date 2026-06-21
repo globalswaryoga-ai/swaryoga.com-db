@@ -193,6 +193,7 @@ interface VideoStreamData {
     allowDownload: boolean;
     allowPlaybackSpeedChange: boolean;
   };
+  watchLogId?: string;
 }
 
 export default function CourseLearnPage({ params }: { params: { slug: string } }) {
@@ -224,6 +225,43 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const lastVideoTimeRef = useRef<number | undefined>(undefined);
 
   const t = translations[language];
+
+  const getLearningDevice = useCallback(() => {
+    const storageKey = 'swaryoga_elearning_device_id';
+    let fingerprint = localStorage.getItem(storageKey);
+
+    if (!fingerprint) {
+      const randomId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      fingerprint = randomId;
+      localStorage.setItem(storageKey, fingerprint);
+    }
+
+    const ua = navigator.userAgent;
+    const deviceName = /iPhone/i.test(ua)
+      ? 'iPhone'
+      : /iPad/i.test(ua)
+      ? 'iPad'
+      : /Android/i.test(ua)
+      ? 'Android Device'
+      : /Windows/i.test(ua)
+      ? 'Windows PC'
+      : /Mac/i.test(ua)
+      ? 'Mac'
+      : /Linux/i.test(ua)
+      ? 'Linux PC'
+      : 'Browser Device';
+
+    const deviceInfo = [
+      ua,
+      navigator.language,
+      `${window.screen.width}x${window.screen.height}`,
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+    ].filter(Boolean).join(' | ');
+
+    return { fingerprint, deviceName, deviceInfo };
+  }, []);
 
   // Get language from localStorage
   useEffect(() => {
@@ -325,10 +363,19 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       setVideoLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}`, {
+        const device = getLearningDevice();
+        const query = new URLSearchParams({
+          fingerprint: device.fingerprint,
+          deviceName: device.deviceName,
+          deviceInfo: device.deviceInfo,
+        });
+        const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}?${query.toString()}`, {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
+            'x-device-fingerprint': device.fingerprint,
+            'x-device-name': device.deviceName,
+            'x-device-info': device.deviceInfo,
           },
         });
         const data = await response.json();
@@ -350,7 +397,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     };
 
     loadVideoStream();
-  }, [currentVideo, t]);
+  }, [currentVideo, getLearningDevice, t]);
 
   useEffect(() => {
     setVideoQuestion('');
@@ -442,6 +489,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
 
     try {
       const token = localStorage.getItem('token');
+      const device = getLearningDevice();
       const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}`, {
         method: 'POST',
         headers: {
@@ -452,6 +500,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           watchedSeconds: Math.floor(videoRef.current.currentTime),
           totalSeconds: Math.floor(videoRef.current.duration),
           completed,
+          watchLogId: videoStream?.watchLogId,
+          deviceFingerprint: device.fingerprint,
+          deviceInfo: device.deviceInfo,
         }),
       });
 

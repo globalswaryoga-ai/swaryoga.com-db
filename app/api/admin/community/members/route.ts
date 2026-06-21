@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 
-import { connectDB, CommunityMember } from '@/lib/db';
+import { connectDB, CommunityMember, UserDevice } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 
@@ -44,6 +44,44 @@ export async function GET(request: NextRequest) {
     }
     
     const members = await membersQuery.lean();
+    const userIds = members
+      .map((member: any) => member.userId)
+      .filter((userId: unknown): userId is string => typeof userId === 'string' && userId.length > 0);
+
+    let membersWithDevices = members;
+    if (userIds.length > 0) {
+      const devices = await UserDevice.find({ userId: { $in: userIds } })
+        .sort({ lastActive: -1 })
+        .lean();
+      const devicesByUser = new Map<string, any[]>();
+
+      devices.forEach((device: any) => {
+        const list = devicesByUser.get(device.userId) || [];
+        list.push(device);
+        devicesByUser.set(device.userId, list);
+      });
+
+      membersWithDevices = members.map((member: any) => {
+        const memberDevices = devicesByUser.get(member.userId) || [];
+        const activeDevices = memberDevices.filter((device: any) => !device.isBlocked);
+        return {
+          ...member,
+          deviceCount: memberDevices.length,
+          activeDeviceCount: activeDevices.length,
+          latestDevice: memberDevices[0]
+            ? {
+                deviceId: memberDevices[0].deviceId,
+                deviceName: memberDevices[0].deviceName,
+                deviceType: memberDevices[0].deviceType,
+                browser: memberDevices[0].browser,
+                os: memberDevices[0].os,
+                lastActive: memberDevices[0].lastActive,
+                isBlocked: memberDevices[0].isBlocked,
+              }
+            : null,
+        };
+      });
+    }
 
     const total = await CommunityMember.countDocuments(query);
 
@@ -51,7 +89,7 @@ export async function GET(request: NextRequest) {
       {
         success: true,
         data: {
-          members,
+          members: membersWithDevices,
           total,
           limit,
           skip,

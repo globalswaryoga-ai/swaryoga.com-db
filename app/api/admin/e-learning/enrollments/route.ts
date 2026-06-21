@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(request.nextUrl.searchParams.get('limit') || '20');
 
     const CourseEnrollment = getCourseEnrollment();
-    const User = mongoose.models.User || mongoose.model('User');
+    const UserModel = mongoose.models.User || mongoose.model('User');
 
     let query: any = {};
 
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
 
     // Search by user name/email
     if (search) {
-      const users = await User.find({
+      const users = await UserModel.find({
         $or: [
           { name: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } },

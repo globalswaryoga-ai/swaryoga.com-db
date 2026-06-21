@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Download, Mail, Shield, Send, Loader, CheckCircle, AlertCircle, Trash2, Users, Search } from 'lucide-react';
+import { Download, Mail, Shield, Send, Loader, CheckCircle, AlertCircle, Trash2, Users, Search, Monitor, ExternalLink } from 'lucide-react';
 
 interface CommunityMember {
   _id: string;
@@ -18,6 +18,17 @@ interface CommunityMember {
   messageCount: number;
   reactions: number;
   chatEnabled?: boolean;
+  deviceCount?: number;
+  activeDeviceCount?: number;
+  latestDevice?: {
+    deviceId: string;
+    deviceName?: string;
+    deviceType?: string;
+    browser?: string;
+    os?: string;
+    lastActive?: string;
+    isBlocked?: boolean;
+  } | null;
   metadata?: {
     requestMessage?: string;
     workshopsCompleted?: boolean;
@@ -220,6 +231,7 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
                   <th className="px-4 py-3">Approved</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Interaction</th>
+                  <th className="px-4 py-3">Devices</th>
                   <th className="pr-10 px-4 py-3 text-right">Ops</th>
                 </tr>
               </thead>
@@ -312,6 +324,22 @@ export const MembersPanel: React.FC<MembersPanelProps> = ({
                           <p className="text-[8px] font-bold text-slate-400 uppercase">Posts</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={member.userId ? `/admin/crm/devices?userId=${encodeURIComponent(member.userId)}` : '/admin/crm/devices'}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-100 transition-all"
+                        title={member.latestDevice?.deviceName || 'Open device manager'}
+                      >
+                        <Monitor size={14} className={member.latestDevice?.isBlocked ? 'text-red-500' : 'text-slate-500'} />
+                        <span className="text-xs font-bold text-slate-800">
+                          {member.activeDeviceCount ?? member.deviceCount ?? 0}
+                        </span>
+                        <span className="text-[8px] font-bold uppercase text-slate-400">
+                          {member.latestDevice?.deviceName || 'No device'}
+                        </span>
+                        <ExternalLink size={12} className="text-slate-300" />
+                      </a>
                     </td>
                     <td className="pr-10 px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition-all">
                       <div className="flex justify-end gap-1.5">

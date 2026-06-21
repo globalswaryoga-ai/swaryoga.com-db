@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import connectDB from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
@@ -90,6 +91,52 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }, { status: 403 });
       }
 
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || 'unknown';
+      const deviceFingerprint = getDeviceFingerprint(request);
+      const deviceName = getDeviceName(request, userAgent);
+      const deviceInfo = getDeviceInfo(request, userAgent);
+      let enrollmentForLog: any = null;
+
+      if (userId) {
+        enrollmentForLog = await CourseEnrollment.findOne({
+          userId,
+          courseId: course._id,
+          status: { $in: ['active', 'completed'] },
+        });
+
+        try {
+          const device = await CourseDevice.findOneAndUpdate(
+            { userId, courseId: course._id, fingerprint: deviceFingerprint },
+            {
+              $set: {
+                deviceName,
+                deviceInfo,
+                ipAddress,
+                lastUsedAt: new Date(),
+                isActive: true,
+              },
+              $setOnInsert: {
+                userId,
+                courseId: course._id,
+                fingerprint: deviceFingerprint,
+                registeredAt: new Date(),
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+
+          if (device?.isBlocked) {
+            return NextResponse.json({
+              error: 'This device is blocked for this course',
+              deviceBlocked: true,
+            }, { status: 403 });
+          }
+        } catch (deviceErr) {
+          console.warn('[Video API] Failed to register course device:', deviceErr);
+        }
+      }
+
       // Get video streaming URL
       let streamingData: any = {};
 
@@ -121,9 +168,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             userId: userId,
             courseId: course._id,
             videoId: video._id,
-            startTime: new Date(),
-            ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown',
-            userAgent: request.headers.get('user-agent') || 'unknown',
+            enrollmentId: enrollmentForLog?._id,
+            deviceFingerprint,
+            deviceInfo,
+            watchStarted: new Date(),
+            ipAddress,
           });
           watchLogId = watchLog._id;
         } catch (logErr) {
@@ -200,12 +249,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       watchedSeconds, 
       completed = false,
       watchLogId,
+      deviceFingerprint,
+      deviceInfo,
     } = body;
     
     const CourseVideo = getCourseVideo();
     const RecordedCourse = getRecordedCourse();
     const CourseEnrollment = getCourseEnrollment();
     const VideoWatchLog = getVideoWatchLog();
+    const CourseDevice = getCourseDevice();
     
     // Get video
     const video = await CourseVideo.findById(videoId);
@@ -223,13 +275,48 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!enrollment) {
       return NextResponse.json({ error: 'Not enrolled' }, { status: 403 });
     }
+
+    if (deviceFingerprint) {
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || 'unknown';
+      try {
+        const device = await CourseDevice.findOneAndUpdate(
+          { userId, courseId: video.courseId, fingerprint: String(deviceFingerprint).slice(0, 256) },
+          {
+            $set: {
+              deviceName: getDeviceName(request, userAgent),
+              deviceInfo: String(deviceInfo || userAgent).slice(0, 1000),
+              ipAddress,
+              lastUsedAt: new Date(),
+              isActive: true,
+            },
+            $setOnInsert: {
+              userId,
+              courseId: video.courseId,
+              fingerprint: String(deviceFingerprint).slice(0, 256),
+              registeredAt: new Date(),
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+
+        if (device?.isBlocked) {
+          return NextResponse.json({ error: 'This device is blocked for this course' }, { status: 403 });
+        }
+      } catch (deviceErr) {
+        console.warn('[Video Progress] Failed to update course device:', deviceErr);
+      }
+    }
     
     // Update watch log
     if (watchLogId) {
       await VideoWatchLog.findByIdAndUpdate(watchLogId, {
-        endTime: new Date(),
-        watchedSeconds: watchedSeconds || 0,
-        completedWatch: completed,
+        watchEnded: new Date(),
+        watchDuration: watchedSeconds || 0,
+        videoPosition: watchedSeconds || 0,
+        completed,
+        ...(deviceFingerprint ? { deviceFingerprint: String(deviceFingerprint).slice(0, 256) } : {}),
+        ...(deviceInfo ? { deviceInfo: String(deviceInfo).slice(0, 1000) } : {}),
       });
     }
     
@@ -308,4 +395,33 @@ function parseDeviceName(userAgent: string): string {
   if (userAgent.includes('Mac')) return 'Mac';
   if (userAgent.includes('Linux')) return 'Linux PC';
   return 'Unknown Device';
+}
+
+function getDeviceFingerprint(request: NextRequest): string {
+  const explicit = request.nextUrl.searchParams.get('fingerprint') || request.headers.get('x-device-fingerprint');
+  if (explicit) return explicit.slice(0, 256);
+
+  const userAgent = request.headers.get('user-agent') || 'unknown';
+  const language = request.headers.get('accept-language') || '';
+  const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || '';
+  return crypto
+    .createHash('sha256')
+    .update([userAgent, language, ipAddress].join('|'))
+    .digest('hex');
+}
+
+function getDeviceName(request: NextRequest, userAgent: string): string {
+  return (
+    request.nextUrl.searchParams.get('deviceName') ||
+    request.headers.get('x-device-name') ||
+    parseDeviceName(userAgent)
+  ).slice(0, 120);
+}
+
+function getDeviceInfo(request: NextRequest, userAgent: string): string {
+  return (
+    request.nextUrl.searchParams.get('deviceInfo') ||
+    request.headers.get('x-device-info') ||
+    userAgent
+  ).slice(0, 1000);
 }

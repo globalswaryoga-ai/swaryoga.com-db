@@ -929,6 +929,9 @@ export interface ICourseDevice extends Document {
   ipAddress?: string;
   lastUsedAt: Date;
   isActive: boolean;
+  isBlocked: boolean;
+  blockedAt?: Date;
+  blockedReason?: string;
   registeredAt: Date;
 
   createdAt: Date;
@@ -945,6 +948,9 @@ const CourseDeviceSchema = new Schema<ICourseDevice>({
   ipAddress: { type: String },
   lastUsedAt: { type: Date, default: Date.now },
   isActive: { type: Boolean, default: true },
+  isBlocked: { type: Boolean, default: false },
+  blockedAt: { type: Date },
+  blockedReason: { type: String },
   registeredAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 

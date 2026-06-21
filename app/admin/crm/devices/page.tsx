@@ -83,7 +83,7 @@ export default function AdminDevicesPage() {
     } catch (error) {
       console.error('Failed to fetch devices:', error);
     }
-  }, []);
+  }, [token]);
 
   const fetchViolations = useCallback(async (unreviewed = false) => {
     const url = `/api/admin/devices/violations?unreviewed=${unreviewed}`;
@@ -97,7 +97,7 @@ export default function AdminDevicesPage() {
     } catch (error) {
       console.error('Failed to fetch violations:', error);
     }
-  }, []);
+  }, [token]);
 
   const fetchStats = useCallback(async () => {
     
@@ -110,12 +110,14 @@ export default function AdminDevicesPage() {
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchDevices(), fetchViolations(), fetchStats()]);
+      const userIdFromQuery = new URLSearchParams(window.location.search).get('userId') || '';
+      setSearchUserId(userIdFromQuery);
+      await Promise.all([fetchDevices(userIdFromQuery || undefined), fetchViolations(), fetchStats()]);
       setLoading(false);
     };
     loadData();
