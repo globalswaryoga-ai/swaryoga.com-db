@@ -6,10 +6,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
+import connectDB, { User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { getCourseEnrollment, getRecordedCourse, getVideoWatchLog, getCourseDevice } from '@/lib/schemas/recordedCourseSchemas';
+import { getCourseEnrollment, getRecordedCourse, getCourseVideo, getVideoWatchLog, getCourseDevice } from '@/lib/schemas/recordedCourseSchemas';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +47,10 @@ export async function GET(request: NextRequest) {
     // Get specific enrollment details
     if (enrollmentId) {
       const CourseEnrollment = getCourseEnrollment();
+      getRecordedCourse();
+      getCourseVideo();
+      // Ensure the User model is registered before populate() runs in serverless.
+      void User;
       const VideoWatchLog = getVideoWatchLog();
       const CourseDevice = getCourseDevice();
 
@@ -60,8 +64,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
       }
 
+      const enrollmentUserId = (enrollment.userId as any)?._id || enrollment.userId;
+      const enrollmentCourseId = (enrollment.courseId as any)?._id || enrollment.courseId;
       const watchLogs = await VideoWatchLog.find({ enrollmentId }).sort({ watchStarted: -1 }).limit(10).lean();
-      const devices = await CourseDevice.find({ userId: enrollment.userId, courseId: enrollment.courseId }).lean();
+      const devices = await CourseDevice.find({ userId: enrollmentUserId, courseId: enrollmentCourseId }).lean();
 
       return NextResponse.json({
         success: true,
