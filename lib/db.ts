@@ -272,6 +272,9 @@ const orderSchema = new mongoose.Schema({
   // Optional for guest/one-off purchases (e.g., workshop checkout)
   // Can be either a real ObjectId or a guest-{timestamp} string for anonymous customers
   userId: { type: String, required: false, index: true },
+  // E-learning purchases store the course here so the Cashfree webhook can grant access.
+  courseId: { type: String, required: false, index: true },
+  enrollmentCreated: { type: Boolean, default: false },
   items: [
     {
       kind: { type: String, enum: ['workshop', 'product'], required: false },

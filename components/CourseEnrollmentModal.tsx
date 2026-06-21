@@ -249,6 +249,7 @@ export default function CourseEnrollmentModal({
                 zip={formData.zip}
                 currency="INR"
                 token={token}
+                courseId={course._id}
                 className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-all"
                 disabled={!isFormValid || loading}
                 onSuccess={() => {

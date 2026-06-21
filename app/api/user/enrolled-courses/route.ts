@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    if (!decoded?.id) {
+    const userId = decoded?.id || decoded?._id || decoded?.userId;
+    if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's enrolled courses
     const enrollments = await CourseEnrollment.find({
-      userId: decoded.id,
+      userId,
       status: { $in: ['active', 'completed'] },
     }).sort({ enrolledAt: -1 }).lean();
 
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
         }).sort({ order: 1 }).lean();
 
         const watchLogs = await VideoWatchLog.find({
-          userId: decoded.id,
+          userId,
           courseId: course._id,
         }).lean();
 

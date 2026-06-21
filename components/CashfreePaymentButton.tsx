@@ -27,6 +27,7 @@ interface CashfreePaymentButtonProps {
   zip?: string;
   currency?: string;
   token: string;
+  courseId?: string;
   onSuccess?: (response: any) => void;
   onError?: (error: string) => void;
   onLoading?: (loading: boolean) => void;
@@ -48,6 +49,7 @@ export default function CashfreePaymentButton({
   zip = '',
   currency = 'INR',
   token,
+  courseId,
   onSuccess,
   onError,
   onLoading,
@@ -137,6 +139,7 @@ export default function CashfreePaymentButton({
             state,
             zip,
             currency,
+            courseId,
             items: items.length > 0 ? items : undefined,
           }),
           signal: controller.signal,

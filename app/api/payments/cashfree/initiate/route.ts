@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { amount, productInfo, firstName, lastName, email, phone, city } = body;
+    const { amount, productInfo, firstName, lastName, email, phone, city, courseId } = body;
 
     if (!amount || !productInfo || !firstName || !email || !phone || !city) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -90,8 +90,10 @@ export async function POST(request: NextRequest) {
     // Create and save Order in DB (in parallel)
     const order = new Order({
       userId: userId,
+      courseId: courseId ? String(courseId) : undefined,
       items: body.items || [
         {
+          kind: courseId ? 'product' : undefined,
           name: productInfo,
           price: amountNum,
           quantity: 1,

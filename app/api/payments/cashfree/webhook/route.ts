@@ -1,11 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
-import { getCourseEnrollment } from '@/lib/schemas/recordedCourseSchemas';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import { connectDB, Order, User, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
+import { getCourseEnrollment, getRecordedCourse } from '@/lib/schemas/recordedCourseSchemas';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
+function normalizeEmail(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function buildAutoPassword() {
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+
+async function resolveCourseAccessUser(order: any) {
+  const shippingAddress = order.shippingAddress || {};
+  const rawUserId = String(order.userId || '').trim();
+
+  if (mongoose.Types.ObjectId.isValid(rawUserId)) {
+    const existingById = await User.findById(rawUserId).select('_id').lean() as any;
+    if (existingById?._id) return existingById._id;
+  }
+
+  const email = normalizeEmail(shippingAddress.email || order.email);
+  if (!email) return null;
+
+  const existingByEmail = await User.findOne({ email }).select('_id').lean() as any;
+  if (existingByEmail?._id) return existingByEmail._id;
+
+  const firstName = String(shippingAddress.firstName || '').trim();
+  const lastName = String(shippingAddress.lastName || '').trim();
+  const name = [firstName, lastName].filter(Boolean).join(' ') || email.split('@')[0] || 'Student';
+  const hashedPassword = await bcrypt.hash(buildAutoPassword(), 10);
+
+  const user = await User.create({
+    name,
+    email,
+    phone: shippingAddress.phone ? String(shippingAddress.phone) : undefined,
+    countryCode: '+91',
+    country: shippingAddress.country || 'India',
+    state: shippingAddress.state || 'Unknown',
+    gender: 'Other',
+    age: 18,
+    profession: 'Student',
+    password: hashedPassword,
+  });
+
+  return user._id;
+}
 
 // Cashfree webhook handler.
 // We keep verification simple and robust:
@@ -89,22 +134,46 @@ export async function POST(request: NextRequest) {
       if ((order as any).courseId && !(order as any).enrollmentCreated) {
         try {
           const CourseEnrollment = getCourseEnrollment();
-          const userId = (order as any).userId;
+          const RecordedCourse = getRecordedCourse();
+          const userId = await resolveCourseAccessUser(order as any);
           const courseId = (order as any).courseId;
+
+          if (!userId) {
+            throw new Error('Unable to resolve user for course enrollment');
+          }
 
           // Check if enrollment already exists
           const existingEnrollment = await CourseEnrollment.findOne({ userId, courseId });
 
-          if (!existingEnrollment) {
+          if (existingEnrollment) {
+            if (!['active', 'completed'].includes(String(existingEnrollment.status))) {
+              existingEnrollment.status = 'active';
+              existingEnrollment.purchaseType = 'paid';
+              existingEnrollment.paymentId = cashfreeOrderId;
+              existingEnrollment.currency = existingEnrollment.currency || 'INR';
+              existingEnrollment.amountPaid = existingEnrollment.amountPaid || order.total;
+              existingEnrollment.expiresAt = existingEnrollment.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+              await existingEnrollment.save();
+            }
+          } else {
             const enrollment = new CourseEnrollment({
               userId,
               courseId,
+              purchaseType: 'paid',
+              paymentId: cashfreeOrderId,
+              currency: 'INR',
+              amountPaid: order.total,
               status: 'active',
               progress: 0,
+              videosWatched: [],
+              totalWatchTime: 0,
+              assignmentsCompleted: [],
+              certificateIssued: false,
               enrolledAt: new Date(),
-              accessUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year access
+              expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year access
             });
             await enrollment.save();
+            await RecordedCourse.findByIdAndUpdate(courseId, { $inc: { enrolledCount: 1 } });
             console.log(`✅ Created course enrollment for user ${userId} in course ${courseId}`);
           }
 

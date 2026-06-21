@@ -119,10 +119,11 @@ export async function GET(request: NextRequest) {
       // Check enrollment status
       let enrollment = null;
       let canAccessPaidContent = false;
+      const userId = decoded?.id || decoded?._id || decoded?.userId;
       
-      if (decoded?.id) {
+      if (userId) {
         enrollment = await CourseEnrollment.findOne({
-          userId: decoded.id,
+          userId,
           courseId: course._id,
           status: { $in: ['active', 'completed'] },
         }).lean();
@@ -198,9 +199,10 @@ export async function GET(request: NextRequest) {
     
     // Get user enrollments
     let userEnrollments: any[] = [];
-    if (decoded?.id) {
+    const userId = decoded?.id || decoded?._id || decoded?.userId;
+    if (userId) {
       userEnrollments = await CourseEnrollment.find({
-        userId: decoded.id,
+        userId,
         status: { $in: ['active', 'completed'] },
       }).lean();
     }
