@@ -53,6 +53,18 @@ function formatDate(date: Date, format: string): string {
   return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
 }
 
+function getCoursePrice(course: any): number {
+  const pricing = course?.pricing;
+  const inr = pricing?.INR;
+
+  if (typeof inr === 'number') return inr;
+  if (typeof inr?.price === 'number') return inr.price;
+  if (typeof inr?.salePrice === 'number') return inr.salePrice;
+  if (typeof pricing?.price === 'number') return pricing.price;
+
+  return 0;
+}
+
 /**
  * GET - Get analytics data
  */
@@ -111,10 +123,9 @@ export async function GET(request: NextRequest) {
       }).populate('courseId', 'pricing');
 
       const paymentsReceived = enrollmentsInPeriod.reduce((sum: number, enrollment: any) => {
-        const pricing = enrollment.courseId?.pricing;
-        if (pricing && enrollment.status !== 'gift') {
-          const amount = pricing.INR || 0;
-          return sum + amount;
+        if (enrollment.purchaseType !== 'gift') {
+          const paidAmount = typeof enrollment.amountPaid === 'number' ? enrollment.amountPaid : 0;
+          return sum + (paidAmount || getCoursePrice(enrollment.courseId));
         }
         return sum;
       }, 0);
@@ -147,7 +158,7 @@ export async function GET(request: NextRequest) {
         {
           $match: {
             enrolledAt: { $gte: startDate, $lte: endDate },
-            status: { $ne: 'gift' },
+            purchaseType: { $ne: 'gift' },
           },
         },
         {
@@ -171,7 +182,11 @@ export async function GET(request: NextRequest) {
             },
             amount: {
               $sum: {
-                $convert: { input: '$course.pricing.INR', to: 'double', onError: 0, onNull: 0 },
+                $cond: [
+                  { $gt: [{ $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } }, 0] },
+                  { $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } },
+                  { $convert: { input: '$course.pricing.INR.price', to: 'double', onError: 0, onNull: 0 } },
+                ],
               },
             },
           },
@@ -203,18 +218,13 @@ export async function GET(request: NextRequest) {
         {
           $match: {
             enrolledAt: { $gte: startDate, $lte: endDate },
-          },
-        },
-        {
-          $group: {
-            _id: '$courseId',
-            enrollments: { $sum: 1 },
+            purchaseType: { $ne: 'gift' },
           },
         },
         {
           $lookup: {
             from: 'recordedcourses',
-            localField: '_id',
+            localField: 'courseId',
             foreignField: '_id',
             as: 'course',
           },
@@ -224,14 +234,15 @@ export async function GET(request: NextRequest) {
         },
         {
           $group: {
-            _id: '$_id',
+            _id: '$courseId',
             title: { $first: '$course.content.en.title' },
-            enrollments: { $first: '$enrollments' },
+            enrollments: { $sum: 1 },
             revenue: {
               $sum: {
-                $multiply: [
-                  '$enrollments',
-                  { $convert: { input: '$course.pricing.INR', to: 'double', onError: 0, onNull: 0 } },
+                $cond: [
+                  { $gt: [{ $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } }, 0] },
+                  { $convert: { input: '$amountPaid', to: 'double', onError: 0, onNull: 0 } },
+                  { $convert: { input: '$course.pricing.INR.price', to: 'double', onError: 0, onNull: 0 } },
                 ],
               },
             },
