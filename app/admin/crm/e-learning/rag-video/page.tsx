@@ -777,7 +777,9 @@ export default function RagAndVideoPage() {
                 <h2 className="text-white font-semibold">{selectedJob.topicTitle}</h2>
                 {selectedJob.sourceYoutubeUrl && <p className="text-xs text-gray-500 break-all">{selectedJob.sourceYoutubeUrl}</p>}
                 <p className="text-xs text-gray-400 mt-1">Status: <span className="text-purple-300">{selectedJob.status}</span></p>
-                {selectedJob.errorMessage && <p className="text-xs text-red-400 mt-2">{selectedJob.errorMessage}</p>}
+                {selectedJob.status === 'failed' && selectedJob.errorMessage && (
+                  <p className="text-xs text-red-400 mt-2">{selectedJob.errorMessage}</p>
+                )}
               </div>
 
               {selectedJob.correctedTranscript !== undefined && (

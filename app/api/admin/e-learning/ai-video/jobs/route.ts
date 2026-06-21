@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
       const corrected = await correctTranscript(rawTranscript, sourceLanguage);
       job.correctedTranscript = corrected;
       job.status = 'awaiting_correction_review';
+      job.errorMessage = undefined;
       await job.save();
     } catch (pipelineError) {
       job.status = 'failed';

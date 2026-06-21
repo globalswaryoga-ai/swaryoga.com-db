@@ -49,6 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const existing = job.ebookChapters.find((c: any) => c.language === language);
     if (existing) existing.text = text;
     else job.ebookChapters.push({ language, text });
+    job.errorMessage = undefined;
     await job.save();
 
     return NextResponse.json({ success: true, data: job }, { status: 200 });

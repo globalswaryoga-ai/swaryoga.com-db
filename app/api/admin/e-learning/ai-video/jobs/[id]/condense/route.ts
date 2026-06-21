@@ -51,6 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       }
       job.scripts = scripts;
       job.status = 'awaiting_review';
+      job.errorMessage = undefined;
       await job.save();
     } catch (condenseError) {
       job.status = 'failed';
