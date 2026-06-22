@@ -22,6 +22,20 @@ function formatBhav(b: FinalPredictionBhavInput): string {
   if (b.subLordDrishti) parts.push(`  Sub Lord drishti: ${b.subLordDrishti}`);
   if (b.subLordConjunction) parts.push(`  Sub Lord conjunction: ${b.subLordConjunction}`);
   if (b.dashaChain) parts.push(`  Dasha chain: ${b.dashaChain}`);
+  const toolkitLines = [
+    b.toolkitMatter ? `Matter/event: ${b.toolkitMatter}` : '',
+    b.toolkitPrimaryHouse ? `Primary house: ${b.toolkitPrimaryHouse}` : '',
+    b.toolkitSupportingHouses ? `Supporting houses: ${b.toolkitSupportingHouses}` : '',
+    b.toolkitOpposingHouses ? `Opposing/denial houses: ${b.toolkitOpposingHouses}` : '',
+    b.cslRetrogradeStatus ? `CSL retro/direct: ${b.cslRetrogradeStatus}` : '',
+    b.cslStarLord ? `Star of CSL: ${b.cslStarLord}` : '',
+    b.cslStarLordOwner ? `Owner of Star of CSL: ${b.cslStarLordOwner}` : '',
+    b.cslStarLordRetrogradeStatus ? `Star owner retro/direct: ${b.cslStarLordRetrogradeStatus}` : '',
+    b.cslStarLordSignification ? `Signification by Owner of Star of CSL: ${b.cslStarLordSignification}` : '',
+    b.karyeshRuleResult ? `Rule result: ${b.karyeshRuleResult}` : '',
+    b.karyeshRuleConclusion ? `Rule conclusion: ${b.karyeshRuleConclusion}` : '',
+  ].filter(Boolean);
+  if (toolkitLines.length) parts.push(`  Toolkit Karyesh rule template:\n    ${toolkitLines.join('\n    ')}`);
   if (b.customMatters.length) parts.push(`  Matters: ${b.customMatters.map((m) => `${m.label}${m.notes ? ` (${m.notes})` : ''}`).join('; ')}`);
   if (b.positiveNotes) parts.push(`  Positive: ${b.positiveNotes}`);
   if (b.negativeNotes) parts.push(`  Negative: ${b.negativeNotes}`);
@@ -55,6 +69,8 @@ export function buildHoraryJudgmentPrompt(params: {
 QUESTION ASKED: "${questionText}"
 
 CRITICAL RULE: the astrologer has already analyzed the relevant house(s) for this question below — this is your ONLY factual basis. Do not invent planetary facts beyond it. KP horary judgment works primarily through the SIGNIFICATORS and SUB LORDS given — if the sub lord of the relevant house signifies the matter positively (per the astrologer's notes), the answer leans YES; if it signifies negatively or denial, the answer leans NO.
+
+KARYESH TOOLKIT RULE: when the saved house analysis includes the "Toolkit Karyesh rule template", use that as the controlling judgment flow: Matter, Primary House, CSL, CSL R/D, Star of CSL, Owner of Star of CSL, star-owner signification, Result, and Conclusion. CSL retrograde means delay. Star-owner retrograde means denial/weak delivery unless the astrologer's conclusion clearly overrides it. Compare star-owner significations with supporting and opposing/denial houses before giving the verdict.
 
 RULING PLANETS AT THE MOMENT ASKED (corroborating evidence, use to support/strengthen the judgment, not override the house analysis):
 ${rpBlock}

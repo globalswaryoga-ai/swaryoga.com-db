@@ -38,6 +38,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
       b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
       b.subLordDrishti || b.subLordConjunction || b.dashaChain ||
+      b.toolkitMatter || b.toolkitPrimaryHouse || b.toolkitSupportingHouses || b.toolkitOpposingHouses ||
+      b.cslRetrogradeStatus || b.cslStarLord || b.cslStarLordOwner || b.cslStarLordRetrogradeStatus ||
+      b.cslStarLordSignification || b.karyeshRuleResult || b.karyeshRuleConclusion ||
       (b.customMatters && b.customMatters.length) ||
       (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
       (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||

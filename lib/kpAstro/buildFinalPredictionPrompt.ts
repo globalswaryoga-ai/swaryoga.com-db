@@ -23,6 +23,17 @@ export interface FinalPredictionBhavInput {
   subLordDrishti?: string;
   subLordConjunction?: string;
   dashaChain?: string;
+  toolkitMatter?: string;
+  toolkitPrimaryHouse?: string;
+  toolkitSupportingHouses?: string;
+  toolkitOpposingHouses?: string;
+  cslRetrogradeStatus?: string;
+  cslStarLord?: string;
+  cslStarLordOwner?: string;
+  cslStarLordRetrogradeStatus?: string;
+  cslStarLordSignification?: string;
+  karyeshRuleResult?: string;
+  karyeshRuleConclusion?: string;
   customMatters: Array<{ label: string; notes: string }>;
   positiveNotes: string;
   negativeNotes: string;
@@ -56,6 +67,20 @@ function formatBhav(b: FinalPredictionBhavInput): string {
   if (b.subLordDrishti) parts.push(`  Sub Lord drishti: ${b.subLordDrishti}`);
   if (b.subLordConjunction) parts.push(`  Sub Lord conjunction: ${b.subLordConjunction}`);
   if (b.dashaChain) parts.push(`  Dasha chain: ${b.dashaChain}`);
+  const toolkitLines = [
+    b.toolkitMatter ? `Matter/event: ${b.toolkitMatter}` : '',
+    b.toolkitPrimaryHouse ? `Primary house: ${b.toolkitPrimaryHouse}` : '',
+    b.toolkitSupportingHouses ? `Supporting houses: ${b.toolkitSupportingHouses}` : '',
+    b.toolkitOpposingHouses ? `Opposing/denial houses: ${b.toolkitOpposingHouses}` : '',
+    b.cslRetrogradeStatus ? `CSL retro/direct: ${b.cslRetrogradeStatus}` : '',
+    b.cslStarLord ? `Star of CSL: ${b.cslStarLord}` : '',
+    b.cslStarLordOwner ? `Owner of Star of CSL: ${b.cslStarLordOwner}` : '',
+    b.cslStarLordRetrogradeStatus ? `Star owner retro/direct: ${b.cslStarLordRetrogradeStatus}` : '',
+    b.cslStarLordSignification ? `Signification by Owner of Star of CSL: ${b.cslStarLordSignification}` : '',
+    b.karyeshRuleResult ? `Rule result: ${b.karyeshRuleResult}` : '',
+    b.karyeshRuleConclusion ? `Rule conclusion: ${b.karyeshRuleConclusion}` : '',
+  ].filter(Boolean);
+  if (toolkitLines.length) parts.push(`  Toolkit Karyesh rule template:\n    ${toolkitLines.join('\n    ')}`);
   if (b.customMatters.length) parts.push(`  Matters: ${b.customMatters.map((m) => `${m.label}${m.notes ? ` (${m.notes})` : ''}`).join('; ')}`);
   if (b.positiveNotes) parts.push(`  Positive: ${b.positiveNotes}`);
   if (b.negativeNotes) parts.push(`  Negative: ${b.negativeNotes}`);
@@ -84,6 +109,8 @@ export function buildFinalPredictionPrompt(params: {
   return `You are a KP (Krishnamurti Paddhati) astrology assistant writing the FINAL prediction for an admin astrologer at Swar Yoga, to share with their client ("sadhak").
 
 CRITICAL RULE — do not skip this: the astrologer has already done the per-bhav analytical work below, IN THE ORDER GIVEN. That order is deliberate — it is the priority order for this prediction. Use ONLY this analysis as your factual basis; do not invent planetary facts beyond it.
+
+KARYESH TOOLKIT RULE — when a bhav includes the "Toolkit Karyesh rule template", treat it as the controlling rule logic for that point. Use the Matter, Primary House, CSL, CSL R/D, Star of CSL, Owner of Star of CSL, star-owner signification, Result, and Conclusion exactly as the astrologer saved them. If CSL is marked Retrograde, describe delay/slow delivery. If the star-owner is marked Retrograde, treat the result as denial, weakness, or delayed fulfillment unless the astrologer's conclusion clearly says otherwise. Compare the star-owner significations with supporting houses and opposing/denial houses; do not override the astrologer's conclusion.
 
 NATIVE: ${personName}${gender ? `, ${gender}` : ''}${age !== null ? `, currently ${age} years old` : ''}.
 ${currentMahadasha ? `Current Mahadasha: ${currentMahadasha.planet} (${currentMahadasha.startDate} to ${currentMahadasha.endDate}).` : ''}

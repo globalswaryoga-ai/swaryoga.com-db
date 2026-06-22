@@ -3,11 +3,15 @@ import { computeConjunctions, computeDrishtiOnHouses, computeDrishtiOnPlanets } 
 import {
   computeBhavAutoSignificators,
   computeFourStepSignificators,
+  housesOccupiedBy,
+  housesOwnedBy,
   planetKaryesLabel,
   starLordOf,
   type SignificatorHouse,
   type SignificatorPlanet,
 } from '@/lib/kpAstro/significators';
+
+type AutoFillPlanet = SignificatorPlanet & { retrograde?: boolean };
 
 function basePlanetName(value: string): string {
   return value.split('[')[0].split('(')[0].trim();
@@ -30,6 +34,19 @@ function enrichPlanetLabels(values: string[], houses: SignificatorHouse[], plane
 
 function formatHouseNumbers(values: number[]): string {
   return values.length ? values.join(', ') : '-';
+}
+
+function retrogradeStatus(planet: AutoFillPlanet | undefined): string {
+  if (!planet) return '';
+  return planet.retrograde ? 'Retrograde' : 'Direct';
+}
+
+function formatPlanetSignification(houses: SignificatorHouse[], planets: AutoFillPlanet[], planetName: string | undefined): string {
+  if (!planetName) return '';
+  const occupied = housesOccupiedBy(planets, planetName);
+  const owned = housesOwnedBy(houses, planetName);
+  const combined = [...new Set([...occupied, ...owned])].sort((a, b) => a - b);
+  return `${planetName} = ${formatHouseNumbers(combined)} (deposition: ${formatHouseNumbers(occupied)}; ownership: ${formatHouseNumbers(owned)})`;
 }
 
 function formatSubLordAbcdPlanets(subLord: string, planets: SignificatorPlanet[]): string {
@@ -102,7 +119,7 @@ function formatSubLordConjunction(subLord: string, conjunctions: ReturnType<type
   return hits.join('; ') || 'No conjunction found';
 }
 
-export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: SignificatorPlanet[], dashaChain = ''): BhavAnalysisRow[] {
+export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: AutoFillPlanet[], dashaChain = ''): BhavAnalysisRow[] {
   const drishtiHits = computeDrishtiOnHouses(planets);
   const planetDrishti = computeDrishtiOnPlanets(planets);
   const conjunctions = computeConjunctions(planets);
@@ -110,6 +127,9 @@ export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHo
   return rows.map((row) => {
     const auto = computeBhavAutoSignificators(houses, planets, row.house);
     const subLord = row.subLord || auto.subLord;
+    const subLordPlanet = planets.find((p) => p.planet === subLord);
+    const cslStarOwner = subLordPlanet ? starLordOf(subLordPlanet) : undefined;
+    const cslStarOwnerPlanet = planets.find((p) => p.planet === cslStarOwner);
     const drishtiPlanets = drishtiHits
       .filter((hit) => hit.toHouse === row.house)
       .map((hit) => `${planetKaryesLabel(houses, planets, hit.planet)} from House ${hit.fromHouse}`);
@@ -139,6 +159,13 @@ export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHo
       subLordDrishti: row.subLordDrishti || formatSubLordDrishti(subLord, planetDrishti),
       subLordConjunction: row.subLordConjunction || formatSubLordConjunction(subLord, conjunctions),
       dashaChain: row.dashaChain || dashaChain,
+      toolkitPrimaryHouse: row.toolkitPrimaryHouse || String(row.house),
+      cslRetrogradeStatus: row.cslRetrogradeStatus || retrogradeStatus(subLordPlanet),
+      cslStarLord: row.cslStarLord || subLordPlanet?.star || '',
+      cslStarLordOwner: row.cslStarLordOwner || cslStarOwner || '',
+      cslStarLordRetrogradeStatus: row.cslStarLordRetrogradeStatus || retrogradeStatus(cslStarOwnerPlanet),
+      cslStarLordSignification: row.cslStarLordSignification || formatPlanetSignification(houses, planets, cslStarOwner),
+      karyeshRuleResult: row.karyeshRuleResult || (cslStarOwner ? `${row.house} = ${formatPlanetSignification(houses, planets, cslStarOwner)}` : ''),
     };
   });
 }
