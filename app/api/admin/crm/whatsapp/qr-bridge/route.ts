@@ -948,12 +948,16 @@ export async function POST(req: NextRequest) {
     console.log(`[QR Bridge Proxy] ════════════════════════════════════════`);
 
     // Determine timeout based on endpoint type
+    // Session-management endpoints can be slow when Baileys is stuck in a
+    // reconnect loop. Keep them below maxDuration, but don't cut them off at
+    // the default 8s or logout/reconnect may never get a chance to clear auth.
     // /send with media: 45s (large base64 payloads)
     // Messages polling: 12s (can be slow, needs more time)
     // Status check: 8s
     // Contact/Group details: 3s (timeout quickly, use fallback)
     // Other endpoints: 8s
     let timeoutMs = 8000;
+    if (['/logout', '/reconnect', '/disconnect'].includes(decodedPath)) timeoutMs = 30000;
     if (decodedPath.includes('/send')) timeoutMs = 45000; // Large media uploads need more time
     if (decodedPath.includes('/messages')) timeoutMs = 12000;
     if (decodedPath.includes('/contact') || decodedPath.includes('/group')) timeoutMs = 3000;
@@ -1824,4 +1828,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-
