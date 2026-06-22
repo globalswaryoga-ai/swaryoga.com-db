@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { handleCrmError, formatCrmSuccess, isValidObjectId } from '@/lib/crm-handlers';
+import { handleCrmError, formatCrmSuccess, getVisibleUserIds, isValidObjectId, toObjectId } from '@/lib/crm-handlers';
 import { getWorkshopEvent, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
@@ -19,15 +19,23 @@ function verifyAdmin(request: NextRequest) {
   return decoded;
 }
 
+function buildEventAccessFilter(decoded: any): Record<string, any> {
+  const visibleUserIds = getVisibleUserIds(decoded);
+  if (visibleUserIds === null) return {};
+  if (visibleUserIds.length === 1) return { reportedByUserId: visibleUserIds[0] || '__never_match__' };
+  return { reportedByUserId: { $in: visibleUserIds } };
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB();
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
+    const accessFilter = buildEventAccessFilter(decoded);
     const { id } = await params;
     if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
 
     const WorkshopEvent = getWorkshopEvent();
-    const doc = await WorkshopEvent.findById(id).lean();
+    const doc = await WorkshopEvent.findOne({ _id: toObjectId(id), ...accessFilter }).lean();
     if (!doc) throw new Error('Invalid: Event not found');
     return formatCrmSuccess(doc);
   } catch (error: any) {
@@ -38,7 +46,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB();
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
+    const accessFilter = buildEventAccessFilter(decoded);
     const { id } = await params;
     if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
 
@@ -82,7 +91,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     if (Array.isArray(addSaleIds) && addSaleIds.length > 0) {
-      const existing = await WorkshopEvent.findById(id).lean();
+      const existing = await WorkshopEvent.findOne({ _id: toObjectId(id), ...accessFilter }).lean();
       if (!existing) throw new Error('Invalid: Event not found');
 
       const basis: any[] = update.participants !== undefined ? update.participants : (existing as any).participants || [];
@@ -90,7 +99,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       const SalesReport = getSalesReport();
       const validIds = addSaleIds.filter((sid: any) => isValidObjectId(sid));
-      const salesToAdd = await SalesReport.find({ _id: { $in: validIds } }).lean();
+      const salesFilter: Record<string, any> = { _id: { $in: validIds.map((sid: string) => toObjectId(sid)) } };
+      const visibleUserIds = getVisibleUserIds(decoded);
+      if (visibleUserIds !== null) {
+        salesFilter.reportedByUserId = visibleUserIds.length === 1 ? visibleUserIds[0] : { $in: visibleUserIds };
+      }
+      const salesToAdd = await SalesReport.find(salesFilter).lean();
 
       const newParticipants = (salesToAdd as any[])
         .filter((s) => !existingSaleIds.has(String(s._id)))
@@ -111,7 +125,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       update.participantCount = participantCount;
     }
 
-    const doc = await WorkshopEvent.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
+    const doc = await WorkshopEvent.findOneAndUpdate(
+      { _id: toObjectId(id), ...accessFilter },
+      { $set: update },
+      { new: true }
+    ).lean();
     if (!doc) throw new Error('Invalid: Event not found');
     return formatCrmSuccess(doc);
   } catch (error: any) {
@@ -122,12 +140,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB();
-    verifyAdmin(request);
+    const decoded = verifyAdmin(request);
+    const accessFilter = buildEventAccessFilter(decoded);
     const { id } = await params;
     if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
 
     const WorkshopEvent = getWorkshopEvent();
-    const doc = await WorkshopEvent.findByIdAndDelete(id).lean();
+    const doc = await WorkshopEvent.findOneAndDelete({ _id: toObjectId(id), ...accessFilter }).lean();
     if (!doc) throw new Error('Invalid: Event not found');
     return formatCrmSuccess({ deleted: true });
   } catch (error: any) {

@@ -1,7 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getViewerUserId, handleCrmError, formatCrmSuccess, parsePagination } from '@/lib/crm-handlers';
+import {
+  getViewerUserId,
+  getVisibleUserIds,
+  handleCrmError,
+  formatCrmSuccess,
+  parsePagination,
+  isValidObjectId,
+  toObjectId,
+} from '@/lib/crm-handlers';
 import { getWorkshopEvent } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +18,13 @@ function computeTotals(participants: any[]) {
   const list = Array.isArray(participants) ? participants : [];
   const totalAmount = list.reduce((sum, p) => sum + (Number(p?.amount) || 0), 0);
   return { totalAmount, participantCount: list.length };
+}
+
+function buildEventAccessFilter(decoded: any): Record<string, any> {
+  const visibleUserIds = getVisibleUserIds(decoded);
+  if (visibleUserIds === null) return {};
+  if (visibleUserIds.length === 1) return { reportedByUserId: visibleUserIds[0] || '__never_match__' };
+  return { reportedByUserId: { $in: visibleUserIds } };
 }
 
 /**
@@ -25,11 +40,13 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) throw new Error('Unauthorized: Admin access required');
+    const accessFilter = buildEventAccessFilter(decoded);
 
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
     if (id) {
-      const doc = await WorkshopEvent.findById(id).lean();
+      if (!isValidObjectId(id)) throw new Error('Invalid: bad event id');
+      const doc = await WorkshopEvent.findOne({ _id: toObjectId(id), ...accessFilter }).lean();
       if (!doc) throw new Error('Invalid: Event not found');
       return formatCrmSuccess(doc);
     }
@@ -38,7 +55,7 @@ export async function GET(request: NextRequest) {
     const workshop = url.searchParams.get('workshop');
     const { limit, skip } = parsePagination(request);
 
-    const filter: Record<string, any> = {};
+    const filter: Record<string, any> = { ...accessFilter };
     if (month) filter.month = month;
     if (workshop) filter.workshopName = workshop;
 
