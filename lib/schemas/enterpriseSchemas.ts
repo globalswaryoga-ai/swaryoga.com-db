@@ -4291,6 +4291,7 @@ const KpHoroscopeMahadashaSchema = new mongoose.Schema(
 const KpHoroscopeReportSchema = new mongoose.Schema(
   {
     language: { type: String, enum: ['hi', 'mr', 'en', 'gu', 'bn', 'ta', 'te', 'kn', 'ml', 'pa', 'or', 'as', 'ur'], required: true },
+    reportType: { type: String, enum: ['general', 'final', 'timeline', 'matchmaking', 'horary'], default: 'general', index: true },
     text: { type: String, required: true },
     generatedAt: { type: Date, default: Date.now },
   },

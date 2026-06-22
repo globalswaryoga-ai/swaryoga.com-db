@@ -12,7 +12,7 @@ import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
 interface ChartListItem { _id: string; personName: string; updatedAt: string; }
 interface HoraryListItem { _id: string; questionText: string; horaryNumber: number; updatedAt: string; }
 
-interface ChartReport { language: string; text: string; generatedAt: string; }
+interface ChartReport { language: string; reportType?: string; text: string; generatedAt: string; }
 
 interface ChartDetail {
   _id: string;
@@ -126,7 +126,7 @@ export default function KpFinalPredictionPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to generate');
-      setChart((prev) => (prev ? { ...prev, reports: [...(prev.reports || []), { language, text: json.data.text, generatedAt: json.data.generatedAt }] } : prev));
+      setChart((prev) => (prev ? { ...prev, reports: [...(prev.reports || []), { language, reportType: isHorary ? 'horary' : 'final', text: json.data.text, generatedAt: json.data.generatedAt }] } : prev));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate final prediction');
     } finally {
@@ -134,7 +134,10 @@ export default function KpFinalPredictionPage() {
     }
   };
 
-  const latestReport = chart?.reports?.filter((r) => r.language === language).slice(-1)[0];
+  const latestReport = chart?.reports
+    ?.filter((r) => r.language === language)
+    .filter((r) => (r.reportType || (isHorary ? 'horary' : 'final')) === (isHorary ? 'horary' : 'final'))
+    .slice(-1)[0];
 
   const handlePickBirth = (id: string) => router.push(id ? `/admin/crm/kp-astro/final-prediction?chartId=${id}` : '/admin/crm/kp-astro/final-prediction');
   const handlePickHorary = (id: string) => router.push(id ? `/admin/crm/kp-astro/final-prediction?horaryChartId=${id}` : '/admin/crm/kp-astro/final-prediction');

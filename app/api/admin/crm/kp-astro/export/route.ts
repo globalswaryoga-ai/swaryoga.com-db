@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const kind = searchParams.get('kind');
     const id = searchParams.get('id') || '';
     const language = searchParams.get('language') || 'hi';
+    const requestedReportType = searchParams.get('reportType') || '';
 
     if (!['birth', 'horary', 'matchmaking'].includes(kind || '')) {
       return NextResponse.json({ error: 'kind must be birth, horary, or matchmaking' }, { status: 400 });
@@ -39,13 +40,18 @@ export async function GET(request: NextRequest) {
     let title = '';
     let subtitle = '';
     let metaRows: Array<{ label: string; value: string }> = [];
-    let reports: Array<{ language: string; text: string; generatedAt: string }> = [];
+    let reports: Array<{ language: string; reportType?: string; text: string; generatedAt: string }> = [];
+    let reportType = requestedReportType || (kind === 'horary' ? 'horary' : kind === 'matchmaking' ? 'matchmaking' : 'general');
+    const legacyReportType = kind === 'horary' ? 'horary' : kind === 'matchmaking' ? 'matchmaking' : 'general';
+    if (!['general', 'final', 'timeline', 'matchmaking', 'horary'].includes(reportType)) {
+      return NextResponse.json({ error: 'Invalid reportType' }, { status: 400 });
+    }
 
     if (kind === 'birth') {
       const KpHoroscopeChart = getKpHoroscopeChart();
       const chart = await (KpHoroscopeChart as any).findById(id).lean();
       if (!chart) return NextResponse.json({ error: 'Chart not found' }, { status: 404 });
-      title = `Horoscope Prediction — ${chart.personName}`;
+      title = reportType === 'timeline' ? `Life Timeline Prediction — ${chart.personName}` : `Horoscope Prediction — ${chart.personName}`;
       subtitle = [chart.gender, chart.dob ? new Date(chart.dob).toLocaleDateString('en-IN') : null, chart.birthPlace].filter(Boolean).join(' · ');
       metaRows = [
         { label: 'Name', value: chart.personName || '-' },
@@ -82,9 +88,12 @@ export async function GET(request: NextRequest) {
       reports = record.reports || [];
     }
 
-    const latestReport = reports.filter((r) => r.language === language).slice(-1)[0];
+    const latestReport = reports
+      .filter((r) => r.language === language)
+      .filter((r) => (r.reportType || legacyReportType) === reportType)
+      .slice(-1)[0];
     if (!latestReport) {
-      return NextResponse.json({ error: `No generated prediction found in this language yet. Generate it first on the Final Prediction page.` }, { status: 404 });
+      return NextResponse.json({ error: `No ${reportType} prediction found in this language yet. Generate it first.` }, { status: 404 });
     }
 
     const pdfBytes = await buildKpPredictionPdf({

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save } from 'lucide-react';
+import { Clock3, Download, Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
@@ -12,6 +12,7 @@ const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Sat
 
 interface ChartReport {
   language: string;
+  reportType?: 'general' | 'final' | 'timeline' | 'matchmaking' | 'horary';
   text: string;
   generatedAt: string;
 }
@@ -85,6 +86,7 @@ export default function KpHoroscopeChartDetailPage() {
   const [error, setError] = useState('');
   const [language, setLanguage] = useState<string>('hi');
   const [generating, setGenerating] = useState(false);
+  const [generatingTimeline, setGeneratingTimeline] = useState(false);
 
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -118,7 +120,13 @@ export default function KpHoroscopeChartDetailPage() {
   useEffect(() => { fetchChart(); }, [fetchChart]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
 
-  const latestReportForLanguage = chart?.reports?.filter((r) => r.language === language).slice(-1)[0];
+  const latestReportForLanguage = chart?.reports
+    ?.filter((r) => r.language === language)
+    .filter((r) => !r.reportType || r.reportType === 'general')
+    .slice(-1)[0];
+  const latestTimelineForLanguage = chart?.reports
+    ?.filter((r) => r.language === language && r.reportType === 'timeline')
+    .slice(-1)[0];
 
   const startEditing = () => {
     setEditHouses(fillHouses(chart?.houses));
@@ -175,11 +183,34 @@ export default function KpHoroscopeChartDetailPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to generate report');
-      setChart((prev) => (prev ? { ...prev, reports: [...(prev.reports || []), { language, text: json.data.text, generatedAt: json.data.generatedAt }] } : prev));
+      setChart((prev) => (prev ? { ...prev, reports: [...(prev.reports || []), { language, reportType: 'general', text: json.data.text, generatedAt: json.data.generatedAt }] } : prev));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate report');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleGenerateTimeline = async () => {
+    if (!token || !id) return;
+    setGeneratingTimeline(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/crm/kp-astro/charts/${id}/timeline-prediction`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to generate age timeline');
+      setChart((prev) => (prev ? {
+        ...prev,
+        reports: [...(prev.reports || []), { language, reportType: 'timeline', text: json.data.text, generatedAt: json.data.generatedAt }],
+      } : prev));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to generate age timeline');
+    } finally {
+      setGeneratingTimeline(false);
     }
   };
 
@@ -319,6 +350,17 @@ export default function KpHoroscopeChartDetailPage() {
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {latestReportForLanguage ? 'Regenerate' : 'Generate'}
             </button>
+            {latestReportForLanguage && (
+              <a
+                href={`/api/admin/crm/kp-astro/export?kind=birth&id=${id}&language=${language}&reportType=general`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <Download className="h-4 w-4" />
+                PDF
+              </a>
+            )}
           </div>
         </div>
 
@@ -328,6 +370,48 @@ export default function KpHoroscopeChartDetailPage() {
           </div>
         ) : (
           <p className="text-sm text-gray-400">No reading generated yet in {KP_LANGUAGES.find((l) => l.code === language)?.label}. Click "Generate".</p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Clock3 className="h-4 w-4 text-indigo-500" />
+              Age Timeline Prediction
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">Generates age 5, 10, 15...80 using saved Mahadasha and bhav analysis.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerateTimeline}
+              disabled={generatingTimeline}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {generatingTimeline ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {latestTimelineForLanguage ? 'Regenerate Timeline' : 'Generate Timeline'}
+            </button>
+            {latestTimelineForLanguage && (
+              <a
+                href={`/api/admin/crm/kp-astro/export?kind=birth&id=${id}&language=${language}&reportType=timeline`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <Download className="h-4 w-4" />
+                PDF
+              </a>
+            )}
+          </div>
+        </div>
+
+        {latestTimelineForLanguage ? (
+          <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+            {latestTimelineForLanguage.text}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">No age timeline generated yet in {KP_LANGUAGES.find((l) => l.code === language)?.label}.</p>
         )}
       </div>
 

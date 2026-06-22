@@ -4,11 +4,13 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getKpHoroscopeChart } from '@/lib/schemas/enterpriseSchemas';
-import { buildFinalPredictionPrompt } from '@/lib/kpAstro/buildFinalPredictionPrompt';
+import { computeAgeMilestones } from '@/lib/kpAstro/ageTimeline';
+import { buildAgeTimelinePredictionPrompt } from '@/lib/kpAstro/buildAgeTimelinePredictionPrompt';
 import { callAI } from '@/lib/kpAstro/aiClient';
 import { KP_LANGUAGE_CODES } from '@/lib/kpAstro/languages';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -33,52 +35,51 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const chart = await (KpHoroscopeChart as any).findById(id).lean();
     if (!chart) return NextResponse.json({ error: 'Chart not found' }, { status: 404 });
 
+    if (!chart.dob) {
+      return NextResponse.json({ error: 'This chart has no date of birth saved — required to compute the age timeline.' }, { status: 400 });
+    }
+    if (!Array.isArray(chart.mahadashas) || chart.mahadashas.length === 0) {
+      return NextResponse.json({ error: 'No Mahadasha periods saved on this chart. Recalculate from Data Entry first.' }, { status: 400 });
+    }
+
     const bhavRows = Array.isArray(chart.bhavAnalysis) ? chart.bhavAnalysis : [];
     const hasContent = (b: any) =>
       b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
-      b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
-      b.subLordDrishti || b.subLordConjunction || b.dashaChain ||
       (b.customMatters && b.customMatters.length) ||
-      (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
       (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||
       (b.significatorsC && b.significatorsC.length) || (b.significatorsD && b.significatorsD.length);
-
-    const hasAnyContent = bhavRows.some((b: any) =>
-      hasContent(b)
-    );
-    if (!hasAnyContent) {
-      return NextResponse.json({ error: 'No bhav analysis saved yet. Work through the Astrologer Workspace before generating a final prediction.' }, { status: 400 });
-    }
 
     const orderedBhavs = bhavRows
       .filter((b: any) => b.includeInPrediction !== false && hasContent(b))
       .sort((a: any, b: any) => (a.predictionOrder || 0) - (b.predictionOrder || 0) || a.house - b.house);
 
-    const currentMahadasha = Array.isArray(chart.mahadashas)
-      ? chart.mahadashas.find((m: any) => new Date(m.startDate) <= new Date() && new Date() < new Date(m.endDate))
-      : undefined;
+    if (orderedBhavs.length === 0) {
+      return NextResponse.json({ error: 'No bhav analysis saved yet. Work through the Astrologer Workspace before generating the life timeline.' }, { status: 400 });
+    }
 
-    const systemPrompt = buildFinalPredictionPrompt({
+    const milestones = computeAgeMilestones(chart.dob, chart.mahadashas, chart.dashaPeriods);
+
+    const systemPrompt = buildAgeTimelinePredictionPrompt({
       personName: chart.personName,
       dob: chart.dob,
       gender: chart.gender,
       language,
       lifeStageNotes: chart.lifeStageNotes || '',
       orderedBhavs,
-      currentMahadasha,
+      milestones,
     });
 
-    const reportText = await callAI(systemPrompt, [], 'Generate the final prediction now.', 4000);
+    const reportText = await callAI(systemPrompt, [], 'Generate the full age 5-80 life timeline prediction now.', 6000);
 
     const updated = await (KpHoroscopeChart as any).findByIdAndUpdate(
       id,
-      { $push: { reports: { language, reportType: 'final', text: reportText, generatedAt: new Date() } } },
+      { $push: { reports: { language, reportType: 'timeline', text: reportText, generatedAt: new Date() } } },
       { new: true }
     ).lean();
 
-    return NextResponse.json({ success: true, data: { language, text: reportText, generatedAt: new Date(), chart: updated } }, { status: 200 });
+    return NextResponse.json({ success: true, data: { language, text: reportText, generatedAt: new Date(), milestones, chart: updated } }, { status: 200 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to generate final prediction';
+    const message = error instanceof Error ? error.message : 'Failed to generate life timeline prediction';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -58,7 +58,7 @@ RULES:
 
     const updated = await (KpHoroscopeChart as any).findByIdAndUpdate(
       id,
-      { $push: { reports: { language, text: reportText, generatedAt: new Date() } } },
+      { $push: { reports: { language, reportType: 'general', text: reportText, generatedAt: new Date() } } },
       { new: true }
     ).lean();
 

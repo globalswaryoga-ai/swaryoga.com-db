@@ -63,7 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const updated = await (KpHoraryChart as any).findByIdAndUpdate(
       id,
-      { $push: { reports: { language, text: reportText, generatedAt: new Date() } } },
+      { $push: { reports: { language, reportType: 'horary', text: reportText, generatedAt: new Date() } } },
       { new: true }
     ).lean();
 

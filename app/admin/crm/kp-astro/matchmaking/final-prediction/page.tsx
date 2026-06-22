@@ -10,7 +10,7 @@ import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
 
 interface MatchListItem { _id: string; label?: string; groomChartId?: { personName: string }; brideChartId?: { personName: string }; }
 
-interface MatchReport { language: string; text: string; generatedAt: string; }
+interface MatchReport { language: string; reportType?: string; text: string; generatedAt: string; }
 
 interface MatchDetail {
   _id: string;
@@ -84,7 +84,7 @@ export default function KpMatchmakingFinalPredictionPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to generate');
-      setMatch((prev) => (prev ? { ...prev, reports: [...(prev.reports || []), { language, text: json.data.text, generatedAt: json.data.generatedAt }] } : prev));
+      setMatch((prev) => (prev ? { ...prev, reports: [...(prev.reports || []), { language, reportType: 'matchmaking', text: json.data.text, generatedAt: json.data.generatedAt }] } : prev));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate prediction');
     } finally {
@@ -92,7 +92,10 @@ export default function KpMatchmakingFinalPredictionPage() {
     }
   };
 
-  const latestReport = match?.reports?.filter((r) => r.language === language).slice(-1)[0];
+  const latestReport = match?.reports
+    ?.filter((r) => r.language === language)
+    .filter((r) => (r.reportType || 'matchmaking') === 'matchmaking')
+    .slice(-1)[0];
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
