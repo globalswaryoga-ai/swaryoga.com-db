@@ -23,15 +23,23 @@ try {
 const BRIDGE_HOST = process.env.QR_WATCHDOG_HOST || '127.0.0.1';
 const BRIDGE_PORT = Number(process.env.PORT || process.env.QR_WATCHDOG_PORT || 3333);
 const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || process.env.BRIDGE_SECRET || '';
+const SESSION_KEY = process.env.QR_WATCHDOG_SESSION_KEY || '';
+const USER_ID = process.env.QR_WATCHDOG_USER_ID || SESSION_KEY || '';
+const TENANT_ID = process.env.QR_WATCHDOG_TENANT_ID || SESSION_KEY || '';
 const CHECK_INTERVAL_MS = Number(process.env.QR_WATCHDOG_INTERVAL_MS || 30000);
 const STUCK_THRESHOLD = Number(process.env.QR_WATCHDOG_STUCK_THRESHOLD || 4);
 const RESTART_COOLDOWN_MS = Number(process.env.QR_WATCHDOG_RESTART_COOLDOWN_MS || 180000);
+const MAX_RESTART_COOLDOWN_MS = Number(process.env.QR_WATCHDOG_MAX_RESTART_COOLDOWN_MS || 1800000);
 const HTTP_TIMEOUT_MS = Number(process.env.QR_WATCHDOG_HTTP_TIMEOUT_MS || 8000);
 const LOG_FILE = process.env.QR_WATCHDOG_LOG_FILE || '/tmp/qr-bridge-watchdog.log';
+const REPORT_INTERVAL_MS = Number(process.env.QR_WATCHDOG_REPORT_INTERVAL_MS || 24 * 60 * 60 * 1000);
 
 let stuckCount = 0;
 let failureCount = 0;
 let lastRestartAt = 0;
+let restartCount = 0;
+let currentRestartCooldownMs = RESTART_COOLDOWN_MS;
+let lastReportAt = 0;
 let restarting = false;
 
 function log(message) {
@@ -44,8 +52,17 @@ function log(message) {
   }
 }
 
-function bridgeRequest(pathname) {
+function bridgeRequest(pathname, sessionScoped = false) {
   return new Promise((resolve) => {
+    const headers = {
+      'x-bridge-secret': BRIDGE_SECRET,
+    };
+    if (sessionScoped && SESSION_KEY) {
+      headers['x-session-key'] = SESSION_KEY;
+      headers['x-tenant-id'] = TENANT_ID;
+      headers['x-user-id'] = USER_ID;
+    }
+
     const req = http.request(
       {
         hostname: BRIDGE_HOST,
@@ -53,9 +70,7 @@ function bridgeRequest(pathname) {
         path: pathname,
         method: 'GET',
         timeout: HTTP_TIMEOUT_MS,
-        headers: {
-          'x-bridge-secret': BRIDGE_SECRET,
-        },
+        headers,
       },
       (res) => {
         let body = '';
@@ -96,14 +111,15 @@ function hasQrPayload(qrResponse) {
 async function restartBridge(reason) {
   if (restarting) return;
   const now = Date.now();
-  if (now - lastRestartAt < RESTART_COOLDOWN_MS) {
-    log(`Restart suppressed by cooldown. reason=${reason}`);
+  if (now - lastRestartAt < currentRestartCooldownMs) {
+    log(`Restart suppressed by cooldown. reason=${reason} remainingMs=${currentRestartCooldownMs - (now - lastRestartAt)}`);
     return;
   }
 
   restarting = true;
   lastRestartAt = now;
-  log(`Restarting wa-bridge. reason=${reason}`);
+  restartCount += 1;
+  log(`Restarting wa-bridge. reason=${reason} restartCount=${restartCount} cooldownMs=${currentRestartCooldownMs}`);
 
   await new Promise((resolve) => {
     const child = spawn('pm2', ['restart', 'wa-bridge', '--update-env'], { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -117,11 +133,27 @@ async function restartBridge(reason) {
 
   stuckCount = 0;
   failureCount = 0;
+  currentRestartCooldownMs = Math.min(currentRestartCooldownMs * 2, MAX_RESTART_COOLDOWN_MS);
   restarting = false;
 }
 
 async function checkOnce() {
-  const statusRes = await bridgeRequest('/status');
+  const healthRes = await bridgeRequest('/health');
+  if (!healthRes.ok) {
+    failureCount += 1;
+    log(`Health check failed ${failureCount}/${STUCK_THRESHOLD}: ${healthRes.error || healthRes.statusCode}`);
+    if (failureCount >= STUCK_THRESHOLD) await restartBridge('health_unreachable');
+    return;
+  }
+
+  if (!SESSION_KEY) {
+    failureCount = 0;
+    stuckCount = 0;
+    maybeReport({ mode: 'health_only', activeSessions: healthRes.data?.activeSessions });
+    return;
+  }
+
+  const statusRes = await bridgeRequest('/status', true);
 
   if (!statusRes.ok) {
     failureCount += 1;
@@ -139,13 +171,16 @@ async function checkOnce() {
   if (connected || qrAvailable || state !== 'connecting') {
     if (stuckCount > 0) log(`Recovered without restart. state=${state} connected=${connected} qrAvailable=${qrAvailable}`);
     stuckCount = 0;
+    if (connected) currentRestartCooldownMs = RESTART_COOLDOWN_MS;
+    maybeReport({ mode: 'session', activeSessions: healthRes.data?.activeSessions, connected, state, qrAvailable });
     return;
   }
 
-  const qrRes = await bridgeRequest('/qr');
+  const qrRes = await bridgeRequest('/qr', true);
   if (hasQrPayload(qrRes)) {
     if (stuckCount > 0) log('QR payload is available; not restarting.');
     stuckCount = 0;
+    maybeReport({ mode: 'session', activeSessions: healthRes.data?.activeSessions, connected, state, qrAvailable: true });
     return;
   }
 
@@ -157,8 +192,15 @@ async function checkOnce() {
   }
 }
 
+function maybeReport(details) {
+  const now = Date.now();
+  if (now - lastReportAt < REPORT_INTERVAL_MS) return;
+  lastReportAt = now;
+  log(`Daily health summary ${JSON.stringify({ ...details, restarts: restartCount, cooldownMs: currentRestartCooldownMs })}`);
+}
+
 async function main() {
-  log(`QR bridge watchdog started host=${BRIDGE_HOST} port=${BRIDGE_PORT} intervalMs=${CHECK_INTERVAL_MS} threshold=${STUCK_THRESHOLD}`);
+  log(`QR bridge watchdog started host=${BRIDGE_HOST} port=${BRIDGE_PORT} intervalMs=${CHECK_INTERVAL_MS} threshold=${STUCK_THRESHOLD} sessionScoped=${Boolean(SESSION_KEY)}`);
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
