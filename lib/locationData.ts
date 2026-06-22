@@ -28,3 +28,32 @@ export function getCityCoordinates(
   const city = state?.cities.find((c) => c.name === cityName);
   return city ? { latitude: city.latitude, longitude: city.longitude } : undefined;
 }
+
+export interface CityLookupOption {
+  country: string;
+  state: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+}
+
+export function getCityLookupOptions(countryName?: string): CityLookupOption[] {
+  return locationData
+    .filter((country) => !countryName || country.name === countryName)
+    .flatMap((country) =>
+      country.states.flatMap((state) =>
+        state.cities.map((city) => ({
+          country: country.name,
+          state: state.name,
+          city: city.name,
+          latitude: city.latitude,
+          longitude: city.longitude,
+        }))
+      )
+    )
+    .sort((a, b) => `${a.city}, ${a.state}`.localeCompare(`${b.city}, ${b.state}`));
+}
+
+export function getIndiaCityLookupOptions(): CityLookupOption[] {
+  return getCityLookupOptions('India');
+}

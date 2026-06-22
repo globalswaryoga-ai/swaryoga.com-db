@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Sparkles, Plus, Trash2, X, Eye } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
+import { getCountryNames, getStateNames, getCityNames, getCityCoordinates, getIndiaCityLookupOptions } from '@/lib/locationData';
 
 interface HoraryListItem {
   _id: string;
@@ -40,6 +41,10 @@ export default function KpHoraryListPage() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [utcOffsetHours, setUtcOffsetHours] = useState('5.5');
+  const [lookupCountry, setLookupCountry] = useState('');
+  const [lookupState, setLookupState] = useState('');
+  const [lookupCity, setLookupCity] = useState('');
+  const [indiaCityLookup, setIndiaCityLookup] = useState('');
 
   const fetchCharts = useCallback(async () => {
     if (!token) return;
@@ -60,6 +65,28 @@ export default function KpHoraryListPage() {
   const resetForm = () => {
     setQuestionText(''); setQuerentName(''); setHoraryNumber(''); setAskedAt(nowForInput());
     setAskedPlace(''); setLatitude(''); setLongitude(''); setUtcOffsetHours('5.5');
+    setLookupCountry(''); setLookupState(''); setLookupCity(''); setIndiaCityLookup('');
+  };
+
+  const handleLookupCity = (city: string) => {
+    setLookupCity(city);
+    const coords = getCityCoordinates(lookupCountry, lookupState, city);
+    if (!coords) return;
+    setLatitude(String(coords.latitude));
+    setLongitude(String(coords.longitude));
+  };
+
+  const handleIndiaCityLookup = (value: string) => {
+    setIndiaCityLookup(value);
+    const option = getIndiaCityLookupOptions().find((item) => `${item.city}|${item.state}` === value);
+    if (!option) return;
+    setLookupCountry('India');
+    setLookupState(option.state);
+    setLookupCity(option.city);
+    setAskedPlace(`${option.city}, ${option.state}, India`);
+    setLatitude(String(option.latitude));
+    setLongitude(String(option.longitude));
+    setUtcOffsetHours('5.5');
   };
 
   const handleSave = async () => {
@@ -144,7 +171,37 @@ export default function KpHoraryListPage() {
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             <input type="datetime-local" value={askedAt} onChange={(e) => setAskedAt(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-            <input value={askedPlace} onChange={(e) => setAskedPlace(e.target.value)} placeholder="Place asked" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
+            <p className="text-xs text-gray-500">Choose an Indian city to fill place, latitude, longitude, and IST automatically. For outside India or a city not listed, enter the place and coordinates manually.</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <select value={indiaCityLookup} onChange={(e) => handleIndiaCityLookup(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <option value="">India city quick lookup</option>
+                {getIndiaCityLookupOptions().map((item) => (
+                  <option key={`${item.city}|${item.state}`} value={`${item.city}|${item.state}`}>
+                    {item.city}, {item.state}
+                  </option>
+                ))}
+              </select>
+              <input value={askedPlace} onChange={(e) => setAskedPlace(e.target.value)} placeholder="Place asked / manual outside India" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            </div>
+            <details className="rounded-lg border border-indigo-100 bg-white/70 p-3">
+              <summary className="cursor-pointer text-xs font-semibold text-indigo-700">Advanced country/state/city lookup</summary>
+              <div className="grid sm:grid-cols-3 gap-3 mt-3">
+                <select value={lookupCountry} onChange={(e) => { setLookupCountry(e.target.value); setLookupState(''); setLookupCity(''); setIndiaCityLookup(''); }} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                  <option value="">Country</option>
+                  {getCountryNames().map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+                <select value={lookupState} onChange={(e) => { setLookupState(e.target.value); setLookupCity(''); setIndiaCityLookup(''); }} disabled={!lookupCountry} className="rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50">
+                  <option value="">State</option>
+                  {getStateNames(lookupCountry).map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+                <select value={lookupCity} onChange={(e) => { handleLookupCity(e.target.value); setIndiaCityLookup(''); }} disabled={!lookupState} className="rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50">
+                  <option value="">City</option>
+                  {getCityNames(lookupCountry, lookupState).map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+            </details>
           </div>
           <div className="grid sm:grid-cols-3 gap-3">
             <input value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="Latitude *" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
