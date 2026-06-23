@@ -469,3 +469,75 @@ Fix:
 ## Recommended Next Step
 
 Start with a route inventory for public pages. It is the easiest win and helps decide what users actually see first.
+
+## Known Type-Check Errors
+
+Command used:
+
+```bash
+npm run type-check
+```
+
+Status after the first public visitor flow cleanup:
+
+- Type-check still fails.
+- The reported errors are outside the public flow files changed in this branch.
+- Treat these as existing repo cleanup tasks to fix in later batches.
+
+Current error summary:
+
+| Errors | File |
+| ---: | --- |
+| 13 | `app/admin/crm/planner-dashboard/accounting/page.tsx:1438` |
+| 3 | `app/admin/crm/ritucharya/diet-plan/page.tsx:57` |
+| 2 | `app/admin/crm/ritucharya/dietary-recommendations/page.tsx:327` |
+| 1 | `app/admin/crm/ritucharya/logic/page.tsx:86` |
+| 3 | `app/admin/crm/sales/page.tsx:2114` |
+| 2 | `app/admin/enquiries/page.tsx:319` |
+| 4 | `app/admin/videos/page.tsx:457` |
+| 1 | `app/api/admin/crm/admin-activity/route.ts:274` |
+| 2 | `app/api/admin/crm/funnel/config/route.ts:50` |
+| 2 | `app/api/admin/crm/funnel/route.ts:27` |
+| 1 | `app/api/admin/crm/integration-hub/route.ts:32` |
+| 1 | `app/api/admin/crm/knowledge-base/search/route.ts:49` |
+| 1 | `app/api/admin/crm/sales/generate-from-leads/route.ts:102` |
+| 1 | `app/api/admin/crm/sales/route.ts:121` |
+| 1 | `app/api/admin/crm/sales/tally-sync/route.ts:94` |
+| 3 | `app/api/admin/crm/whatsapp/diagnostics/route.ts:75` |
+| 3 | `app/api/admin/crm/whatsapp/qr-bridge/route.ts:153` |
+| 13 | `app/api/admin/signups/[id]/reset-password/route.ts:61` |
+| 1 | `app/api/admin/unified-profile/route.ts:116` |
+| 6 | `app/api/crm-site/compartment/route.ts:111` |
+| 1 | `app/api/crm-site/plan/route.ts:99` |
+| 9 | `app/api/crm-site/setup-status/route.ts:77` |
+| 3 | `components/ActionPlanModal.tsx:114` |
+| 3 | `components/admin/crm/PlanComponents.tsx:102` |
+| 1 | `components/AdminSidebar.tsx:373` |
+| 1 | `components/BunnyVideoPlayer.tsx:30` |
+| 3 | `components/EnhancedVisionBuilder.tsx:24` |
+| 3 | `components/GoalManager.tsx:31` |
+| 4 | `components/VisionForm.tsx:33` |
+| 1 | `components/VisionFormWithCategories.tsx:141` |
+| 3 | `lib/backup/bunny-client.ts:43` |
+| 1 | `lib/backup/index.ts:46` |
+| 1 | `lib/bunny-storage.ts:642` |
+| 1 | `lib/bunny/bunnyUpload.ts:45` |
+| 6 | `lib/chatbot/knowledge-bot.ts:58` |
+| 4 | `lib/course-certificate-generator.ts:72` |
+| 2 | `lib/crm/apiGuards.ts:16` |
+| 2 | `lib/crm/planGuards.ts:14` |
+| 3 | `lib/errorTracking.ts:122` |
+| 1 | `lib/lifePlannerMongoStorage.ts:159` |
+| 1 | `lib/qrSessionIsolation.ts:74` |
+| 4 | `lib/sadhanaSchedulerService.ts:142` |
+| 1 | `lib/safeGroupMerge.ts:143` |
+| 2 | `lib/schemas/rituDietaryRecommendations.ts:117` |
+| 2 | `lib/zoomBotService.ts:91` |
+
+Suggested fix order:
+
+1. Fix missing imports/modules first: `lib/crm/apiGuards.ts`, `lib/crm/planGuards.ts`, `app/admin/enquiries/page.tsx`.
+2. Fix repeated Mongoose `findOne`/lean typing issues in API routes.
+3. Fix Life Planner type shape mismatches around `Vision`, `Goal`, `Word`, and `Milestone`.
+4. Fix media/video form types.
+5. Re-run `npm run type-check` after each small batch.
