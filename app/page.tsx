@@ -22,10 +22,10 @@ const HomePage = () => {
   };
 
   const workshopTypes = [
-    { type: 'Online', color: 'from-swar-primary to-blue-700' },
-    { type: 'Offline', color: 'from-swar-primary to-purple-700' },
-    { type: 'Residential', color: 'from-swar-primary to-green-700' },
-    { type: 'Recorded', color: 'from-orange-600 to-orange-700' }
+    { type: 'Online', href: '/workshops?mode=online', color: 'from-swar-primary to-blue-700' },
+    { type: 'Offline', href: '/workshops?mode=offline', color: 'from-swar-primary to-purple-700' },
+    { type: 'Residential', href: '/workshops?mode=residential', color: 'from-swar-primary to-green-700' },
+    { type: 'Recorded', href: '/workshops?mode=recorded', color: 'from-orange-600 to-orange-700' }
   ];
 
   return (
@@ -186,7 +186,7 @@ const HomePage = () => {
               {workshopTypes.map((workshop, index) => (
                 <Link
                   key={index}
-                  href="/workshops"
+                  href={workshop.href}
                   className={`bg-gradient-to-br ${workshop.color} text-white p-4 sm:p-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:translate-y-[-2px] touch-target text-center group font-bold text-lg sm:text-2xl`}
                 >
                   {workshop.type}

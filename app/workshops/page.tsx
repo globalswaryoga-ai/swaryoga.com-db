@@ -57,8 +57,19 @@ const workshopFilterOptions = workshopCatalog.map((workshop) => ({
   name: workshop.name
 }));
 
+function normalizeFilterValue(value: string | undefined | null): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function includesNormalized(values: string[] | undefined, selectedValue: string | null): boolean {
+  if (!selectedValue) return true;
+  const selected = normalizeFilterValue(selectedValue);
+  return (values || []).some((value) => normalizeFilterValue(value) === selected);
+}
+
 type ApiWorkshopSchedule = {
   id: string;
+  workshopName?: string;
   startDate: string;
   endDate: string;
   registrationCloseDate?: string;
@@ -159,6 +170,23 @@ function formatDateShort(isoDate: string): string {
   } catch {
     return 'TBA';
   }
+}
+
+function formatFilterLabel(value: string): string {
+  const normalized = normalizeFilterValue(value);
+  if (!normalized) return '';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function uniqueScheduleValues(schedules: ApiWorkshopSchedule[], key: keyof ApiWorkshopSchedule): string[] {
+  return Array.from(
+    new Set(
+      schedules
+        .map((schedule) => schedule[key])
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map((value) => (key === 'mode' ? formatFilterLabel(value) : value))
+    )
+  );
 }
 
 function getMonthYear(isoDate: string): string {
@@ -287,6 +315,7 @@ function WorkshopsPageInner() {
                 if (!nextMap[slug]) nextMap[slug] = [];
                 nextMap[slug].push({
                   id: s.id,
+                  workshopName: s.workshopName,
                   startDate: s.startDate,
                   endDate: s.endDate,
                   registrationCloseDate: s.registrationCloseDate || s.endDate,
@@ -370,9 +399,29 @@ function WorkshopsPageInner() {
     'pre-pregnancy',
   ];
 
-  const workshopsWithSchedules = sortedWorkshops.filter(
+  const catalogWorkshopSlugs = new Set(workshopCatalog.map((workshop) => workshop.slug));
+  const apiOnlyWorkshops: WorkshopOverview[] = Object.entries(schedulesByWorkshopId)
+    .filter(([slug, schedules]) => !catalogWorkshopSlugs.has(slug) && schedules.length > 0)
+    .map(([slug, schedules], index) => ({
+      id: 10000 + index,
+      name: schedules.find((schedule) => schedule.workshopName)?.workshopName || slug.replace(/-/g, ' '),
+      slug,
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
+      description: 'Workshop details and schedule are managed from Admin.',
+      duration: schedules[0]?.duration || 'TBA',
+      level: 'All Levels',
+      category: 'Health',
+      mode: uniqueScheduleValues(schedules, 'mode'),
+      language: uniqueScheduleValues(schedules, 'language'),
+      currency: uniqueScheduleValues(schedules, 'currency'),
+    }));
+
+  const workshopsWithSchedules = [
+    ...sortedWorkshops.filter(
     (w) => (schedulesByWorkshopId[w.slug]?.length ?? 0) > 0
-  );
+    ),
+    ...apiOnlyWorkshops,
+  ];
 
   const workshopsForDisplay = [
     ...PINNED_FIRST_WORKSHOP_SLUGS
@@ -393,9 +442,12 @@ function WorkshopsPageInner() {
         .some((v) => String(v).toLowerCase().includes(q));
     const categoryMatch = !selectedCategory || workshop.category === selectedCategory;
     const workshopMatch = !selectedWorkshop || workshop.slug === selectedWorkshop;
-    const modeMatch = !selectedMode || (workshop.mode && workshop.mode.includes(selectedMode));
-    const languageMatch = !selectedLanguage || (workshop.language && workshop.language.includes(selectedLanguage));
-    const currencyMatch = !selectedPayment || (workshop.currency && workshop.currency.includes(selectedPayment));
+    const scheduleModeMatch =
+      !selectedMode ||
+      (schedulesByWorkshopId[workshop.slug] || []).some((schedule) => normalizeFilterValue(schedule.mode) === normalizeFilterValue(selectedMode));
+    const modeMatch = !selectedMode || includesNormalized(workshop.mode, selectedMode) || scheduleModeMatch;
+    const languageMatch = includesNormalized(workshop.language, selectedLanguage);
+    const currencyMatch = includesNormalized(workshop.currency, selectedPayment);
 
     return textMatch && categoryMatch && workshopMatch && modeMatch && languageMatch && currencyMatch;
   });
@@ -570,11 +622,15 @@ function WorkshopsPageInner() {
                 monthKey: string;
               }> = [];
 
-              workshopsForDisplay.forEach((workshop) => {
+              filteredWorkshops.forEach((workshop) => {
                 const schedules = schedulesByWorkshopId[workshop.slug] || [];
                 schedules.forEach((schedule) => {
                   const startDateOnly = toDateOnlyIso(schedule.startDate);
-                  if (startDateOnly && startDateOnly >= todayIso) {
+                  const selectedModeMatches =
+                    !selectedMode ||
+                    normalizeFilterValue(schedule.mode) === normalizeFilterValue(selectedMode) ||
+                    includesNormalized(workshop.mode, selectedMode);
+                  if (startDateOnly && startDateOnly >= todayIso && selectedModeMatches) {
                     allSchedules.push({
                       workshop,
                       schedule,
