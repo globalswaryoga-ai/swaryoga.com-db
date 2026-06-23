@@ -10,6 +10,8 @@ out/
 *.md
 !README.md
 !docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md
+!docs/REPO_GUIDE.md
+!docs/ORGANIZATION_AND_FLOWS.md
 
 # Environment files
 .env

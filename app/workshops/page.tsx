@@ -57,8 +57,19 @@ const workshopFilterOptions = workshopCatalog.map((workshop) => ({
   name: workshop.name
 }));
 
+function normalizeFilterValue(value: string | undefined | null): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function includesNormalized(values: string[] | undefined, selectedValue: string | null): boolean {
+  if (!selectedValue) return true;
+  const selected = normalizeFilterValue(selectedValue);
+  return (values || []).some((value) => normalizeFilterValue(value) === selected);
+}
+
 type ApiWorkshopSchedule = {
   id: string;
+  workshopName?: string;
   startDate: string;
   endDate: string;
   registrationCloseDate?: string;
@@ -161,6 +172,23 @@ function formatDateShort(isoDate: string): string {
   }
 }
 
+function formatFilterLabel(value: string): string {
+  const normalized = normalizeFilterValue(value);
+  if (!normalized) return '';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function uniqueScheduleValues(schedules: ApiWorkshopSchedule[], key: keyof ApiWorkshopSchedule): string[] {
+  return Array.from(
+    new Set(
+      schedules
+        .map((schedule) => schedule[key])
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map((value) => (key === 'mode' ? formatFilterLabel(value) : value))
+    )
+  );
+}
+
 function getMonthYear(isoDate: string): string {
   const dateOnly = toDateOnlyIso(isoDate);
   if (!dateOnly) return 'TBA';
@@ -222,6 +250,7 @@ function WorkshopsPageInner() {
   });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [schedulesByWorkshopId, setSchedulesByWorkshopId] = useState<Record<string, ApiWorkshopSchedule[]>>({});
+  const [schedulesLoaded, setSchedulesLoaded] = useState(false);
   const [enrollModal, setEnrollModal] = useState<{ isOpen: boolean; workshopSlug: string | null; workshopName: string | null }>({
     isOpen: false,
     workshopSlug: null,
@@ -287,6 +316,7 @@ function WorkshopsPageInner() {
                 if (!nextMap[slug]) nextMap[slug] = [];
                 nextMap[slug].push({
                   id: s.id,
+                  workshopName: s.workshopName,
                   startDate: s.startDate,
                   endDate: s.endDate,
                   registrationCloseDate: s.registrationCloseDate || s.endDate,
@@ -331,9 +361,13 @@ function WorkshopsPageInner() {
         
         if (!cancelled) {
           setSchedulesByWorkshopId(nextMap);
+          setSchedulesLoaded(true);
         }
       } catch (e) {
         console.error('Error loading schedules:', e);
+        if (!cancelled) {
+          setSchedulesLoaded(true);
+        }
       }
     };
     
@@ -370,9 +404,29 @@ function WorkshopsPageInner() {
     'pre-pregnancy',
   ];
 
-  const workshopsWithSchedules = sortedWorkshops.filter(
+  const catalogWorkshopSlugs = new Set(workshopCatalog.map((workshop) => workshop.slug));
+  const apiOnlyWorkshops: WorkshopOverview[] = Object.entries(schedulesByWorkshopId)
+    .filter(([slug, schedules]) => !catalogWorkshopSlugs.has(slug) && schedules.length > 0)
+    .map(([slug, schedules], index) => ({
+      id: 10000 + index,
+      name: schedules.find((schedule) => schedule.workshopName)?.workshopName || slug.replace(/-/g, ' '),
+      slug,
+      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
+      description: 'Workshop details and schedule are managed from Admin.',
+      duration: schedules[0]?.duration || 'TBA',
+      level: 'All Levels',
+      category: 'Health',
+      mode: uniqueScheduleValues(schedules, 'mode'),
+      language: uniqueScheduleValues(schedules, 'language'),
+      currency: uniqueScheduleValues(schedules, 'currency'),
+    }));
+
+  const workshopsWithSchedules = [
+    ...sortedWorkshops.filter(
     (w) => (schedulesByWorkshopId[w.slug]?.length ?? 0) > 0
-  );
+    ),
+    ...apiOnlyWorkshops,
+  ];
 
   const workshopsForDisplay = [
     ...PINNED_FIRST_WORKSHOP_SLUGS
@@ -393,9 +447,12 @@ function WorkshopsPageInner() {
         .some((v) => String(v).toLowerCase().includes(q));
     const categoryMatch = !selectedCategory || workshop.category === selectedCategory;
     const workshopMatch = !selectedWorkshop || workshop.slug === selectedWorkshop;
-    const modeMatch = !selectedMode || (workshop.mode && workshop.mode.includes(selectedMode));
-    const languageMatch = !selectedLanguage || (workshop.language && workshop.language.includes(selectedLanguage));
-    const currencyMatch = !selectedPayment || (workshop.currency && workshop.currency.includes(selectedPayment));
+    const scheduleModeMatch =
+      !selectedMode ||
+      (schedulesByWorkshopId[workshop.slug] || []).some((schedule) => normalizeFilterValue(schedule.mode) === normalizeFilterValue(selectedMode));
+    const modeMatch = !selectedMode || includesNormalized(workshop.mode, selectedMode) || scheduleModeMatch;
+    const languageMatch = includesNormalized(workshop.language, selectedLanguage);
+    const currencyMatch = includesNormalized(workshop.currency, selectedPayment);
 
     return textMatch && categoryMatch && workshopMatch && modeMatch && languageMatch && currencyMatch;
   });
@@ -405,6 +462,13 @@ function WorkshopsPageInner() {
   const startIndex = (currentPage - 1) * workshopsPerPage;
   const endIndex = startIndex + workshopsPerPage;
   const currentWorkshops = filteredWorkshops.slice(startIndex, endIndex);
+  const activeFilterLabels = [
+    selectedMode ? `Mode: ${formatFilterLabel(selectedMode)}` : '',
+    selectedLanguage ? `Language: ${selectedLanguage}` : '',
+    selectedPayment ? `Currency: ${selectedPayment}` : '',
+    selectedCategory ? `Category: ${selectedCategory}` : '',
+    activeWorkshopLabel ? `Workshop: ${activeWorkshopLabel}` : '',
+  ].filter(Boolean);
 
   // Handle payment method selection from popup
   const handlePaymentMethodSelect = (method: 'india' | 'nepal' | 'usd') => {
@@ -560,6 +624,21 @@ function WorkshopsPageInner() {
               </p>
             </div>
 
+            {activeFilterLabels.length > 0 && (
+              <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-green-900">Showing filtered schedules</p>
+                  <p className="text-sm text-green-800">{activeFilterLabels.join(' | ')}</p>
+                </div>
+                <Link
+                  href="/workshops"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white text-green-700 border border-green-300 hover:bg-green-100 text-sm font-bold transition"
+                >
+                  View all upcoming workshops
+                </Link>
+              </div>
+            )}
+
             {/* Workshop Schedules - Monthly Table View */}
             {(() => {
               // Gather all upcoming schedules across all workshops
@@ -570,11 +649,15 @@ function WorkshopsPageInner() {
                 monthKey: string;
               }> = [];
 
-              workshopsForDisplay.forEach((workshop) => {
+              filteredWorkshops.forEach((workshop) => {
                 const schedules = schedulesByWorkshopId[workshop.slug] || [];
                 schedules.forEach((schedule) => {
                   const startDateOnly = toDateOnlyIso(schedule.startDate);
-                  if (startDateOnly && startDateOnly >= todayIso) {
+                  const selectedModeMatches =
+                    !selectedMode ||
+                    normalizeFilterValue(schedule.mode) === normalizeFilterValue(selectedMode) ||
+                    includesNormalized(workshop.mode, selectedMode);
+                  if (startDateOnly && startDateOnly >= todayIso && selectedModeMatches) {
                     allSchedules.push({
                       workshop,
                       schedule,
@@ -599,6 +682,16 @@ function WorkshopsPageInner() {
               });
 
               const monthKeys = Object.keys(byMonth);
+
+              if (!schedulesLoaded) {
+                return (
+                  <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                    <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-green-200 border-t-green-600" />
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Loading Upcoming Schedules</h3>
+                    <p className="text-gray-600">Checking the latest workshop dates...</p>
+                  </div>
+                );
+              }
 
               if (monthKeys.length === 0) {
                 return (
@@ -651,8 +744,13 @@ function WorkshopsPageInner() {
                                   <div className="col-span-2 text-sm font-semibold text-gray-600">
                                     {getMonthYear(schedule.startDate).split(' ')[0]}
                                   </div>
-                                  <div className="col-span-4 text-sm font-bold text-gray-900 truncate" title={workshop.name}>
+                                  <div className="col-span-3 text-sm font-bold text-gray-900 truncate" title={workshop.name}>
                                     {workshop.name}
+                                  </div>
+                                  <div className="col-span-1">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-primary-50 text-primary-700 text-xs font-bold capitalize">
+                                      {schedule.mode || 'TBA'}
+                                    </span>
                                   </div>
                                   <div className="col-span-2 text-sm text-gray-700 flex items-center gap-1">
                                     🗣️ {schedule.language || 'Hindi'}
@@ -722,6 +820,8 @@ function WorkshopsPageInner() {
                                   <div>
                                     <h4 className="font-bold text-gray-900 text-sm">{workshop.name}</h4>
                                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                                      <span className="capitalize">{schedule.mode || 'TBA'}</span>
+                                      <span>•</span>
                                       <span>🗣️ {schedule.language || 'Hindi'}</span>
                                       <span>•</span>
                                       <span><Users className="w-3 h-3 inline" /> {schedule.slots}</span>
