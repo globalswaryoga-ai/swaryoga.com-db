@@ -18,7 +18,7 @@ export default function Navigation() {
   const navigation = [
     { name: 'Home', href: '/' },
     { name: 'About', href: '/about' },
-    { name: 'Workshops', href: '/workshop' },
+    { name: 'Workshops', href: '/workshops' },
     { name: 'E-Learning', href: '/e-learning' },
     { name: 'Resort', href: '/resort' },
     { name: 'Ritucharya', href: '/life-planner/ritucharya' },

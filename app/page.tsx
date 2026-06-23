@@ -91,7 +91,7 @@ const HomePage = () => {
               className="flex flex-col sm:flex-row gap-4 flex-wrap"
             >
               <Link
-                href="/workshop"
+                href="/workshops"
                 className="bg-swar-primary hover:bg-swar-primary-hover text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 flex items-center justify-center group hover:translate-y-[-2px] hover:shadow-lg touch-target"
               >
                 <span className="text-base sm:text-lg">Start Your Journey</span>
@@ -186,7 +186,7 @@ const HomePage = () => {
               {workshopTypes.map((workshop, index) => (
                 <Link
                   key={index}
-                  href="/workshop"
+                  href="/workshops"
                   className={`bg-gradient-to-br ${workshop.color} text-white p-4 sm:p-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:translate-y-[-2px] touch-target text-center group font-bold text-lg sm:text-2xl`}
                 >
                   {workshop.type}
@@ -221,7 +221,7 @@ const HomePage = () => {
               className="text-center"
             >
               <Link
-                href="/workshop"
+                href="/workshops"
                 className="inline-flex items-center justify-center bg-swar-primary hover:bg-swar-primary text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 text-base sm:text-lg font-medium hover:shadow-lg hover:translate-y-[-2px] group touch-target"
               >
                 <Calendar size={20} className="mr-2 sm:mr-3 sm:h-6 sm:w-6" />
@@ -308,7 +308,7 @@ const HomePage = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/workshop"
+              href="/workshops"
               className="bg-white hover:bg-swar-primary-light text-swar-primary px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
             >
               Browse Workshops
