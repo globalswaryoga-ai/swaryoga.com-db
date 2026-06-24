@@ -9,7 +9,6 @@ import Image from 'next/image';
 import { Play, X, Star, MessageSquareText } from 'lucide-react';
 import { findWorkshopBySlug, workshopLandingPages } from '@/lib/workshopsData';
 import EnquiryFormModal from '@/components/EnquiryFormModal';
-import { fetchWorkshopApiJson } from '@/lib/workshopApiClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -358,7 +357,8 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   useEffect(() => {
     const fetchSchedules = async () => {
       try {
-        const json = await fetchWorkshopApiJson('/api/workshops/schedules');
+        const res = await fetch('/api/workshops/schedules', { cache: 'no-store' });
+        const json = await res.json();
         if (Array.isArray(json?.data)) {
           setAllSchedules(json.data);
         }
