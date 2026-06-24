@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { workshopCatalog, WorkshopOverview, workshopDetails } from '@/lib/workshopsData';
 import { getWorkshopPaymentLink } from '@/lib/workshops/workshopPaymentConfig';
 import { addCartItem } from '@/lib/cart';
+import { fetchWorkshopApiJson } from '@/lib/workshopApiClient';
 import PaymentMethodPopup from '@/components/PaymentMethodPopup';
 
 export const dynamic = 'force-dynamic';
@@ -301,36 +302,33 @@ function WorkshopsPageInner() {
         
         // 1. Fetch published schedules from API (Source of Truth)
         try {
-          const res = await fetch('/api/workshops/schedules', { cache: 'no-store' });
-          if (res.ok) {
-            const json = await res.json();
-            if (json.success && Array.isArray(json.data)) {
-              const todayIso = new Date().toISOString().slice(0, 10);
-              json.data.forEach((s: any) => {
-                // Auto-hide a schedule once its workshop has ended, so expired
-                // batches don't keep showing on the public site.
-                const endDateOnly = toDateOnlyIso(s.endDate || s.startDate);
-                if (endDateOnly && endDateOnly < todayIso) return;
+          const json = await fetchWorkshopApiJson('/api/workshops/schedules');
+          if (json.success && Array.isArray(json.data)) {
+            const todayIso = new Date().toISOString().slice(0, 10);
+            json.data.forEach((s: any) => {
+              // Auto-hide a schedule once its workshop has ended, so expired
+              // batches don't keep showing on the public site.
+              const endDateOnly = toDateOnlyIso(s.endDate || s.startDate);
+              if (endDateOnly && endDateOnly < todayIso) return;
 
-                const slug = s.workshopSlug;
-                if (!nextMap[slug]) nextMap[slug] = [];
-                nextMap[slug].push({
-                  id: s.id,
-                  workshopName: s.workshopName,
-                  startDate: s.startDate,
-                  endDate: s.endDate,
-                  registrationCloseDate: s.registrationCloseDate || s.endDate,
-                  time: s.time || '',
-                  mode: s.mode,
-                  language: s.language || 'Hindi',
-                  location: s.location || null,
-                  slots: typeof s.seatsTotal === 'number' ? s.seatsTotal : 0,
-                  price: s.price,
-                  price3Month: s.price3Month,
-                  currency: s.currency,
-                });
+              const slug = s.workshopSlug;
+              if (!nextMap[slug]) nextMap[slug] = [];
+              nextMap[slug].push({
+                id: s.id,
+                workshopName: s.workshopName,
+                startDate: s.startDate,
+                endDate: s.endDate,
+                registrationCloseDate: s.registrationCloseDate || s.endDate,
+                time: s.time || '',
+                mode: s.mode,
+                language: s.language || 'Hindi',
+                location: s.location || null,
+                slots: typeof s.seatsTotal === 'number' ? s.seatsTotal : 0,
+                price: s.price,
+                price3Month: s.price3Month,
+                currency: s.currency,
               });
-            }
+            });
           }
         } catch (err) {
           console.error('Failed to fetch schedules from API:', err);
@@ -338,22 +336,19 @@ function WorkshopsPageInner() {
         
         // 2. Fetch real-time seat availability to update slots
         try {
-          const res = await fetch('/api/workshops/availability', { cache: 'no-store' });
-          if (res.ok) {
-            const seatData = await res.json();
-            if (seatData.data && Array.isArray(seatData.data)) {
-              seatData.data.forEach((seat: any) => {
-                const slug = seat.workshopSlug;
-                if (nextMap[slug]) {
-                  // Update slots with real-time seat remaining
-                  nextMap[slug] = nextMap[slug].map(schedule => 
-                    schedule.id === seat.scheduleId 
-                      ? { ...schedule, slots: Math.max(0, seat.seatsRemaining ?? schedule.slots) }
-                      : schedule
-                  );
-                }
-              });
-            }
+          const seatData = await fetchWorkshopApiJson('/api/workshops/availability');
+          if (seatData.data && Array.isArray(seatData.data)) {
+            seatData.data.forEach((seat: any) => {
+              const slug = seat.workshopSlug;
+              if (nextMap[slug]) {
+                // Update slots with real-time seat remaining
+                nextMap[slug] = nextMap[slug].map(schedule =>
+                  schedule.id === seat.scheduleId
+                    ? { ...schedule, slots: Math.max(0, seat.seatsRemaining ?? schedule.slots) }
+                    : schedule
+                );
+              }
+            });
           }
         } catch (e) {
           console.warn('Could not fetch live seat availability:', e);
