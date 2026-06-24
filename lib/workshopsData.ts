@@ -31,7 +31,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     description: 'A 6-month masterclass combining Swar Yoga Levels 1 to 5. New batch starts every month (3 days/week).',
     detailedDescription:
       'This Master Swar Yoga program combines Levels 1–5 in a single guided 6-month journey. The curriculum includes: Level-1, Level-2 (Aham Brahmasmi), Level-3 (Astavakra), Level-4, and Level-5 (Bandhan Mukti). New batch starts every month. Classes run 3 days a week with timings and dates managed from Admin schedules. Choose monthly payment or a discounted 3-month plan.',
-    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '6 months',
     level: 'Masterclass',
     category: 'Health',
@@ -46,7 +46,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     description: '2-day starter program (1.5 hours/day) to learn the fundamentals of Swar Yoga.',
     detailedDescription:
       'Swar Yoga Basic Program is a short 2-day introduction designed for beginners. Learn the core foundations of Swar Yoga in 1.5-hour classes. Schedules (next batch dates and timings) are controlled from Admin. Seats are limited per batch.',
-    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '2 days',
     level: 'Beginner',
     category: 'Health',
@@ -60,7 +60,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800',
     description: 'A complete yogasana and sadhana practice program for disciplined daily growth.',
     detailedDescription: 'Master the fundamental yogasanas and integrate them into a daily sadhana (spiritual practice) that transforms your body, mind, and spirit. This comprehensive program covers classical yoga postures combined with breathing techniques and meditation. You will develop strength, flexibility, and inner awareness through consistent daily practice. Perfect for beginners and experienced practitioners seeking to deepen their practice. This program has helped thousands achieve better health, mental clarity, and spiritual growth.',
-    videoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '30 days',
     level: 'All Levels',
     category: 'Health',
@@ -74,7 +74,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     description: 'First level comprehensive Swar Yoga training',
     detailedDescription: 'Unlock the ancient science of Swar Yoga and learn how to balance your body, mind, and energy through nasal breathing techniques. Level-1 introduces the fundamentals of alternating nostrils and their effects on consciousness. This workshop teaches you to harness the natural rhythm of your breath to improve health, energy levels, and decision-making abilities. Participants learn practical techniques that can be applied immediately in daily life for enhanced vitality and mental clarity.',
-    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '15 days',
     level: 'Beginner',
     category: 'Health',
@@ -88,7 +88,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=800',
     description: 'Advanced Swar Yoga for wealth creation and prosperity',
     detailedDescription: 'Build on Level-1 foundations with advanced Swar Yoga techniques specifically designed for wealth creation, prosperity, and success. Learn the deeper principles of lunar and solar energy cycles and how to align them with your intentions. This advanced workshop reveals ancient secrets used by successful entrepreneurs and leaders. Master timing for important decisions, business launches, and personal goals aligned with natural cycles.',
-    videoUrl: 'https://www.youtube.com/embed/5nqVXQG9Mvk',
+    videoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     duration: '15 days',
     level: 'Intermediate',
     category: 'Wealth',
@@ -102,7 +102,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800',
     description: 'Specially designed for young practitioners',
     detailedDescription: 'A modern, engaging approach to Swar Yoga specifically tailored for young adults and teenagers. This program addresses common challenges like stress, focus issues, and confidence using ancient yoga science combined with contemporary understanding. Youth learn practical tools to excel in academics, sports, and relationships. Interactive, fun, and results-driven approach makes ancient wisdom accessible to today\'s generation.',
-    videoUrl: 'https://www.youtube.com/embed/xm1h7KLhBNM',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '10 days',
     level: 'Beginner',
     category: 'Youth & Children',
@@ -116,7 +116,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=800',
     description: 'Transform your body through Swar Yoga',
     detailedDescription: 'Achieve sustainable weight loss without restrictive diets using the holistic Swar Yoga approach. This program combines specialized breathing techniques, movement practices, and metabolic optimization. Learn how to activate your natural fat-burning mechanisms and maintain ideal weight long-term. Includes nutrition guidance aligned with your individual constitution and energy patterns.',
-    videoUrl: 'https://www.youtube.com/embed/cklZSXAWA5U',
+    videoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     duration: '90 days',
     level: 'Intermediate',
     category: 'Health',
@@ -130,7 +130,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1545641203-7d072a14e3b2?auto=format&fit=crop&q=80&w=800',
     description: 'Deep meditation and mindfulness training inspired by the Buddha.',
     detailedDescription: 'Journey into profound states of meditation and inner peace through techniques inspired by the serene stillness of the Buddha. This program progressively develops your meditation capacity, from basic mindfulness to advanced states of consciousness. Experience reduced stress, enhanced focus, and spiritual connection. Daily guided practices combined with theory helps you understand the mechanics of mind and meditation.',
-    videoUrl: 'https://www.youtube.com/embed/T3qQdIj7f0Y',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '15 days',
     level: 'All Levels',
     category: 'Health',
@@ -144,7 +144,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     description: 'A residential Swar Yoga program conducted in Hindi.',
     detailedDescription: 'Swar Yoga Hindi is a residential program teaching the fundamentals of Swar Yoga entirely in Hindi, combining guided breathwork sessions with in-person practice and community living. Schedules (next batch dates, location, and timings) are managed from Admin.',
-    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '5 days',
     level: 'Beginner',
     category: 'Health',
@@ -158,7 +158,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1545641203-7d072a14e3b2?auto=format&fit=crop&q=80&w=800',
     description: 'A focused meditation practice rooted in Swar Yoga breath awareness.',
     detailedDescription: 'Swar Yoga Meditation guides you through breath-based meditation techniques rooted in the Swar Yoga tradition. Daily guided sessions build steady focus, calm the nervous system, and deepen your connection to the natural rhythm of the breath. Schedules (next batch dates and timings) are managed from Admin.',
-    videoUrl: 'https://www.youtube.com/embed/T3qQdIj7f0Y',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '9 days',
     level: 'All Levels',
     category: 'Health',
@@ -172,7 +172,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=800',
     description: 'Complete natural diet and nutrition guidance',
     detailedDescription: 'Discover the science of optimal nutrition and how to nourish your body for maximum vitality and longevity. Amrut Aahar means "nectar food" - learn which foods truly nourish and heal your unique constitution. This program covers seasonal eating, food combinations, digestion optimization, and natural remedies. Transform your eating habits into a path of health and enlightenment.',
-    videoUrl: 'https://www.youtube.com/embed/9uWo6Av2Qcg',
+    videoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     duration: '45 days',
     level: 'All Levels',
     category: 'Health',
@@ -186,7 +186,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1502101872923-d48509bff386?auto=format&fit=crop&q=80&w=800',
     description: 'Level-3 advanced meditation and wisdom drawing from the Astavakra Gita.',
     detailedDescription: 'The highest level of advanced meditation practice drawing from the Astavakra Gita teachings. This intensive residential program guides seekers into transcendent states of consciousness and self-realization. Only for those who have completed prerequisite levels. Experience non-dual awareness and the ultimate truths of existence through direct practice and transmission from the master.',
-    videoUrl: 'https://www.youtube.com/embed/L3GGhK65iEw',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '10 days',
     level: 'Advanced',
     category: 'Health',
@@ -200,7 +200,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=800',
     description: 'Safe yoga practice for expecting mothers',
     detailedDescription: 'A specially designed program for expectant mothers that ensures safe, effective yoga practice throughout pregnancy. Learn techniques to reduce pregnancy discomfort, prepare for childbirth naturally, and maintain emotional wellbeing. Includes gentle movements, breathing practices, and meditation designed specifically for pregnant women. Reduces anxiety, improves sleep, and promotes healthy development of the baby.',
-    videoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '36 days',
     level: 'All Levels',
     category: 'Marriage',
@@ -214,7 +214,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1476703993599-0035a260f381?auto=format&fit=crop&q=80&w=800',
     description: 'Yoga training for children and teenagers',
     detailedDescription: 'Introduce children to yoga with fun, engaging, and age-appropriate practices. This program helps kids develop focus, confidence, physical strength, and emotional intelligence. Through games, stories, and interactive practices, children learn ancient wisdom in a modern, relatable way. Reduces hyperactivity, improves concentration for studies, and builds character.',
-    videoUrl: 'https://www.youtube.com/embed/8HWaFGJz6Yw',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '10 days',
     level: 'Beginner',
     category: 'Youth & Children',
@@ -242,7 +242,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80&w=800',
     description: 'Stress management and productivity for corporate professionals',
     detailedDescription: 'Tailored for corporate leaders and professionals, this program teaches practical techniques to manage stress, make better decisions, and boost productivity. Learn how to use Swar Yoga for strategic timing, negotiation success, and team management. Applicable immediately in business contexts with measurable results in performance and wellbeing.',
-    videoUrl: 'https://www.youtube.com/embed/9_OLxmZzcNQ',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '10 days',
     level: 'Intermediate',
     category: 'Wealth',
@@ -256,7 +256,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1599447421416-3414500d18a5?auto=format&fit=crop&q=80&w=800',
     description: 'Ultimate self-discovery following the path of Adi Shankaracharya.',
     detailedDescription: 'The pinnacle of self-discovery and spiritual transformation through intensive residential practice. This advanced Level-4 program follows the non-dualistic (Advaita) path of Adi Shankaracharya, facilitating profound shifts in consciousness and understanding of one\'s true nature. Experience direct realization of your authentic self beyond ego and conditioning. Suitable only for advanced practitioners committed to radical transformation.',
-    videoUrl: 'https://www.youtube.com/embed/GNNmCPBSyv8',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '30 days',
     level: 'Advanced',
     category: 'Health',
@@ -270,7 +270,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?auto=format&fit=crop&q=80&w=800',
     description: 'Transform your married life with Swar Yoga techniques',
     detailedDescription: 'Revitalize your married life using proven Swar Yoga techniques that enhance compatibility, communication, and intimacy. Learn how to align with your partner\'s natural rhythms and create harmonious relationships. This program addresses common marriage challenges and provides practical tools for couples. Transform conflict into connection and deepen the bonds of love.',
-    videoUrl: 'https://www.youtube.com/embed/gNbVlsGXe3M',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '36 days',
     level: 'All Levels',
     category: 'Marriage',
@@ -284,7 +284,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&q=80&w=800',
     description: 'Comprehensive teacher training program in traditional Gurukul style',
     detailedDescription: 'Become a master teacher in the traditional Gurukul education system. This 90-day intensive residential program transmits the complete knowledge and skills needed to teach Swar Yoga and yoga science at the highest level. Includes extensive mentorship, practice, and teaching methodology. Produces qualified teachers capable of spreading these transformative teachings worldwide.',
-    videoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
+    videoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     duration: '90 days',
     level: 'Advanced',
     category: 'Training',
@@ -312,7 +312,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800',
     description: 'Training program to build organisers who can manage and grow Gurukul systems.',
     detailedDescription: 'Learn to organize and manage Gurukul education centers and yoga programs. This training develops leadership skills, business acumen, and deep knowledge needed to establish sustainable yoga and wellness centers. Includes curriculum design, student management, staff training, and financial planning for yoga enterprises.',
-    videoUrl: 'https://www.youtube.com/embed/mTVVNGMBx0Q',
+    videoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     duration: '45 days',
     level: 'Intermediate',
     category: 'Training',
@@ -326,7 +326,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1620733321588-2f0851f50a49?auto=format&fit=crop&q=80&w=800',
     description: 'Complete natural healing with Shirodhara and traditional treatments.',
     detailedDescription: 'Master the ancient art and science of natural healing. This program includes intensive Shirodhara sessions, therapeutic massages, and holistic detoxification in a traditional residential setting.',
-    videoUrl: 'https://www.youtube.com/embed/nGNnVhEhjPg',
+    videoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     duration: '7 days',
     level: 'All Levels',
     category: 'Health',
@@ -340,7 +340,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800',
     description: 'Swar Yoga techniques for business success, wealth creation, and entrepreneurial growth.',
     detailedDescription: 'Master advanced Swar Yoga techniques specifically designed for business professionals and entrepreneurs. Learn how to use nasal breathing cycles to enhance business decision-making, improve negotiation skills, and attract prosperity. This program combines ancient yogic wisdom with modern business principles to accelerate wealth creation and business growth.',
-    videoUrl: 'https://www.youtube.com/embed/9_OLxmZzcNQ',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '21 days',
     level: 'Intermediate',
     category: 'Wealth',
@@ -354,7 +354,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=800',
     description: 'Complete 9-month program for spiritual development during pregnancy.',
     detailedDescription: 'A comprehensive 9-month Garbh Sanskara (fetal education) program designed to facilitate optimal spiritual and physical development during pregnancy. This ancient practice combines specific yoga practices, meditation, chanting, and lifestyle guidelines to nurture the developing baby and prepare the mother for childbirth. Experience profound connection with your baby and lay the foundation for the child\'s holistic development.',
-    videoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '9 months',
     level: 'All Levels',
     category: 'Marriage',
@@ -559,7 +559,7 @@ export interface WorkshopLandingData {
 export const workshopLandingPages: Record<string, WorkshopLandingData> = {
   'yogasana-sadhana': {
     heroImage: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Master fundamental yogasanas with proper alignment and breathing',
       'Integrate daily sadhana (spiritual practice) into your routine',
@@ -568,9 +568,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Transform your body, mind, and spirit through consistent practice'
     ],
     highlightVideos: [
-      { title: 'Yogasana Fundamentals', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Daily Sadhana Practice', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' },
-      { title: 'Success Transformations', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' }
+      { title: 'Yogasana Fundamentals', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Daily Sadhana Practice', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'Success Transformations', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     mentorInfo: 'Our yoga masters have 25+ years of experience guiding thousands through authentic yogasana and sadhana practices. They provide personalized modifications and deep spiritual guidance throughout the program.',
     testimonials: [
@@ -580,16 +580,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'I finally understand the true purpose of yoga beyond just exercise.', name: 'Anjali Verma', place: 'Pune' }
     ],
     videoTestimonials: [
-      { name: 'Raj - IT Professional', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Priya - Student', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Vikram - Business Owner', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Anjali - Homemaker', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Raj - IT Professional', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Priya - Student', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Vikram - Business Owner', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Anjali - Homemaker', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Join this 21-day transformative yogasana and sadhana program. Master the ancient practices that have guided thousands to health and spiritual growth.'
   },
   'swar-yoga-basic-program': {
     heroImage: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Understand the science of alternating nostril breathing',
       'Balance your body, mind, and energy through nasal breathing',
@@ -599,7 +599,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     highlightVideos: [
       { title: 'Swar Yoga Level-1 Complete Guide', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
-      { title: 'Nasal Breathing Techniques', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Nasal Breathing Techniques', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
       { title: 'Real Results from Practitioners', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     mentorInfo: 'Learn from experienced Swar Yoga teachers who have mastered the ancient science of nasal breathing. They will guide you through each technique with precision and care.',
@@ -610,16 +610,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'The results are natural and lasting!', name: 'Sneha Gupta', place: 'Kolkata' }
     ],
     videoTestimonials: [
-      { name: 'Arjun - Corporate Executive', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Deepika - Doctor', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Rohan - Entrepreneur', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Sneha - Student', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Arjun - Corporate Executive', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Deepika - Doctor', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Rohan - Entrepreneur', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Sneha - Student', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Begin your Swar Yoga journey. Unlock ancient secrets for health, wealth, and success through the power of breath.'
   },
   'swar-yoga-level-1': {
     heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Understand the science of alternating nostril breathing',
       'Balance your body, mind, and energy through nasal breathing',
@@ -629,7 +629,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     highlightVideos: [
       { title: 'Swar Yoga Level-1 Complete Guide', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
-      { title: 'Nasal Breathing Techniques', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Nasal Breathing Techniques', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
       { title: 'Real Results from Practitioners', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     mentorInfo: 'Learn from experienced Swar Yoga teachers who have mastered the ancient science of nasal breathing. They will guide you through each technique with precision and care, ensuring you grasp the deeper principles.',
@@ -640,16 +640,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'The results are natural and lasting - no side effects!', name: 'Sneha Gupta', place: 'Kolkata' }
     ],
     videoTestimonials: [
-      { name: 'Arjun - Corporate Executive', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Deepika - Doctor', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Rohan - Entrepreneur', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Sneha - Student', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Arjun - Corporate Executive', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Deepika - Doctor', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Rohan - Entrepreneur', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Sneha - Student', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Begin your 15-day Swar Yoga Level-1 journey. Unlock ancient secrets for health, wealth, and success through the power of breath.'
   },
   'swar-yoga-level-2': {
     heroImage: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/5nqVXQG9Mvk',
+    introVideoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     whatYouWillLearn: [
       'Build on Level-1 foundations with advanced Swar Yoga techniques',
       'Master lunar and solar energy cycles for success',
@@ -658,9 +658,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Align business launches and goals with natural cycles'
     ],
     highlightVideos: [
-      { title: 'Advanced Techniques', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' },
-      { title: 'Wealth Creation Secrets', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Business Success Stories', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Advanced Techniques', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { title: 'Wealth Creation Secrets', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Business Success Stories', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Advanced level teaching from master practitioners who have used these techniques to achieve remarkable success. Their insights combine ancient wisdom with modern business understanding.',
     testimonials: [
@@ -670,16 +670,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'The timing techniques work - my results speak for themselves!', name: 'Nisha Iyer', place: 'Chennai' }
     ],
     videoTestimonials: [
-      { name: 'Harsh - CEO', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Meera - Investor', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Aditya - Startup Founder', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Nisha - Entrepreneur', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Harsh - CEO', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Meera - Investor', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Aditya - Startup Founder', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Nisha - Entrepreneur', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Advance your Swar Yoga practice with Level-2. Master wealth creation and success principles used by top performers worldwide.'
   },
   'swar-yoga-youth': {
     heroImage: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Manage stress and anxiety using proven techniques',
       'Improve focus and concentration for academics and sports',
@@ -688,9 +688,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Master practical tools for modern life challenges'
     ],
     highlightVideos: [
-      { title: 'Youth Program Overview', url: 'https://www.youtube.com/embed/xm1h7KLhBNM' },
-      { title: 'Stress Management for Students', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Young Success Stories', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Youth Program Overview', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Stress Management for Students', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Young Success Stories', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Designed by experts who understand young people\'s challenges. Our mentors use engaging, fun, and practical approaches to make ancient wisdom accessible to today\'s generation.',
     testimonials: [
@@ -700,16 +700,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Finally, tools that actually work in real life!', name: 'Diya Patel', place: 'Vadodara' }
     ],
     videoTestimonials: [
-      { name: 'Aman - School Student', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Zara - College Student', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Kabir - Young Professional', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Diya - Student Athlete', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Aman - School Student', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Zara - College Student', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Kabir - Young Professional', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Diya - Student Athlete', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Transform your teenage and young adult years. Learn practical tools for stress, focus, confidence, and success in today\'s world.'
   },
   'weight-loss': {
     heroImage: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/cklZSXAWA5U',
+    introVideoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     whatYouWillLearn: [
       'Activate your natural fat-burning mechanisms',
       'Achieve sustainable weight loss without restrictive diets',
@@ -718,9 +718,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Maintain ideal weight long-term through natural methods'
     ],
     highlightVideos: [
-      { title: 'Weight Loss Science', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { title: 'Breathing for Metabolism', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Transformation Stories', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Weight Loss Science', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { title: 'Breathing for Metabolism', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Transformation Stories', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Our weight loss specialists combine ancient Swar Yoga science with modern nutritional understanding. They provide personalized guidance for sustainable, healthy weight transformation.',
     testimonials: [
@@ -730,16 +730,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Finally, a method that works with my body, not against it!', name: 'Participant', place: 'India' }
     ],
     videoTestimonials: [
-      { name: 'Swati - Lost 20kg', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Rahul - Lost 18kg', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Neha - Lost 15kg', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Amit - Lost 25kg', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Swati - Lost 20kg', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Rahul - Lost 18kg', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Neha - Lost 15kg', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Amit - Lost 25kg', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Start your 90-day weight loss transformation. Achieve sustainable results using holistic Swar Yoga methods without diets or starvation.'
   },
   'meditation': {
     heroImage: 'https://images.unsplash.com/photo-1545641203-7d072a14e3b2?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/T3qQdIj7f0Y',
+    introVideoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     whatYouWillLearn: [
       'Progress from basic mindfulness to advanced meditation states',
       'Experience profound inner peace inspired by the Buddha',
@@ -748,9 +748,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Develop spiritual connection through guided practice'
     ],
     highlightVideos: [
-      { title: 'Meditation Fundamentals', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { title: 'Advanced Meditation States', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Peace and Transformation', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Meditation Fundamentals', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'Advanced Meditation States', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Peace and Transformation', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Learn from experienced meditation teachers who guide students into profound states of consciousness. Progressive practices ensure success at every level.',
     testimonials: [
@@ -760,16 +760,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Meditation became my favorite part of the day!', name: 'Participant', place: 'India' }
     ],
     videoTestimonials: [
-      { name: 'Ashok - Retired Executive', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Pooja - Anxiety Sufferer', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Vikas - Busy Professional', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Sunita - Housewife', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Ashok - Retired Executive', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Pooja - Anxiety Sufferer', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Vikas - Busy Professional', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Sunita - Housewife', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Begin your 15-day deep meditation journey. Experience inner peace, clarity, and spiritual growth through scientifically-backed techniques.'
   },
   'amrut-aahar': {
     heroImage: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/9uWo6Av2Qcg',
+    introVideoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     whatYouWillLearn: [
       'Discover optimal nutrition for your unique constitution',
       'Learn seasonal eating and food combining principles',
@@ -778,9 +778,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Transform eating into a path of health and enlightenment'
     ],
     highlightVideos: [
-      { title: 'Nutritional Science', url: 'https://www.youtube.com/embed/9uWo6Av2Qcg' },
-      { title: 'Seasonal Eating Guide', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Health Transformations', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Nutritional Science', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { title: 'Seasonal Eating Guide', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Health Transformations', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Our nutrition experts blend ancient Ayurvedic wisdom with modern nutritional science. Learn personalized diet guidance that actually works for your body type.',
     testimonials: [
@@ -790,16 +790,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Food became medicine rather than a source of problems.', name: 'Kavya Iyer', place: 'Cochin' }
     ],
     videoTestimonials: [
-      { name: 'Vinod - Digestion Issues Resolved', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Shruti - Nutrition Expert', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Bhavesh - Energy Transformed', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Kavya - Glowing Health', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Vinod - Digestion Issues Resolved', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Shruti - Nutrition Expert', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Bhavesh - Energy Transformed', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Kavya - Glowing Health', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Transform your health through the Amrut Aahar program. Learn the science of nourishing your unique body for vitality and longevity.'
   },
   'astavakra': {
     heroImage: 'https://images.unsplash.com/photo-1518191766444-14a89f16daac?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/L3GGhK65iEw',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Experience radical non-dual awareness (Advaita) following the Astavakra Gita',
       'Direct realization of the self beyond body, mind, and intellect',
@@ -808,9 +808,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Transmission of silence from enlightened masters in deep retreat'
     ],
     highlightVideos: [
-      { title: 'The Wisdom of Astavakra', url: 'https://www.youtube.com/embed/L3GGhK65iEw' },
-      { title: 'Path of No-Effort', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Radical Awakening', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'The Wisdom of Astavakra', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Path of No-Effort', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Radical Awakening', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'This supreme level program is taught by masters who live the non-dual truth. Prerequisites: Swar Yoga Level 2 and prior approval. Conducted in profound silence and intensive residential retreat.',
     testimonials: [
@@ -820,16 +820,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: ' Sage Astavakra\'s words came alive in my own heart.', name: 'Anjana Verma', place: 'Ujjain' }
     ],
     videoTestimonials: [
-      { name: 'Sadhak 1 - Awakening', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Sadhak 2 - Stillness', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Sadhak 3 - Clarity', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Sadhak 4 - Freedom', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Sadhak 1 - Awakening', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Sadhak 2 - Stillness', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Sadhak 3 - Clarity', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Sadhak 4 - Freedom', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'The peak of spiritual evolution. 10 days of radical transcendence through the timeless wisdom of the Astavakra Gita.'
   },
   'pre-pregnancy': {
     heroImage: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Practice safe yoga specifically designed for pregnancy',
       'Reduce pregnancy discomforts naturally',
@@ -838,9 +838,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Promote healthy fetal development'
     ],
     highlightVideos: [
-      { title: 'Safe Pregnancy Yoga', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { title: 'Breathing for Childbirth', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Happy Mothers', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Safe Pregnancy Yoga', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Breathing for Childbirth', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Happy Mothers', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Specialized program created by yoga experts with obstetric knowledge. Safe, gentle practices designed specifically for pregnant women at every stage.',
     testimonials: [
@@ -850,16 +850,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Felt amazing throughout my entire pregnancy!', name: 'Divya Gupta', place: 'Noida' }
     ],
     videoTestimonials: [
-      { name: 'Mom 1 - Easy Birth', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Mom 2 - Pain-Free', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Mom 3 - Healthy Baby', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Mom 4 - Joyful Pregnancy', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Mom 1 - Easy Birth', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Mom 2 - Pain-Free', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Mom 3 - Healthy Baby', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Mom 4 - Joyful Pregnancy', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Ensure a safe, healthy, joyful pregnancy. Join the 36-day program designed specifically for expecting mothers.'
   },
   'swy-children': {
     heroImage: 'https://images.unsplash.com/photo-1476703993599-0035a260f381?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/8HWaFGJz6Yw',
+    introVideoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     whatYouWillLearn: [
       'Practice yoga in fun, age-appropriate ways',
       'Develop focus and concentration for studies',
@@ -868,9 +868,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Create healthy, joyful habits from childhood'
     ],
     highlightVideos: [
-      { title: 'Fun Yoga for Kids', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' },
-      { title: 'Focus and Confidence', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Happy Kids Success', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Fun Yoga for Kids', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'Focus and Confidence', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Happy Kids Success', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Child-friendly instructors who understand children\'s psychology and developmental needs. Interactive, playful, and effective approaches make learning fun.',
     testimonials: [
@@ -880,10 +880,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'My child now loves practicing yoga every day!', name: 'Sara Khan', place: 'Pune' }
     ],
     videoTestimonials: [
-      { name: 'Arun - Age 8', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Isha - Age 10', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Dev - Age 12', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Sara - Age 14', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Arun - Age 8', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Isha - Age 10', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Dev - Age 12', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Sara - Age 14', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Give your child the gift of yoga and wellness. 10-day program with fun, engaging, and transformative practices.'
   },
@@ -899,8 +899,8 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     highlightVideos: [
       { title: 'Holistic Health Science', url: 'https://www.youtube.com/embed/5jvJY-I7Vug' },
-      { title: 'Disease Reversal Methods', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Health Transformations', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Disease Reversal Methods', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Health Transformations', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Expert practitioners trained in both traditional yoga science and modern medical understanding. Comprehensive protocols for each health condition.',
     testimonials: [
@@ -910,16 +910,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Doctors amazed by my complete health recovery!', name: 'Neeta Patel', place: 'Rajkot' }
     ],
     videoTestimonials: [
-      { name: 'Sharma - BP Cured', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Gupta - Diabetes Reversed', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Desai - Heart Health', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Khan - Total Wellness', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Sharma - BP Cured', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Gupta - Diabetes Reversed', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Desai - Heart Health', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Khan - Total Wellness', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Reclaim your health with the Complete Health program. Holistic healing for all major health conditions in 45 days.'
   },
   'corporate-swy': {
     heroImage: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/9_OLxmZzcNQ',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Manage workplace stress and pressure effectively',
       'Make better strategic business decisions',
@@ -928,9 +928,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Achieve work-life balance and wellbeing'
     ],
     highlightVideos: [
-      { title: 'Corporate Performance', url: 'https://www.youtube.com/embed/9_OLxmZzcNQ' },
-      { title: 'Decision-Making Excellence', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Executive Success Stories', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Corporate Performance', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Decision-Making Excellence', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Executive Success Stories', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Specialized for corporate professionals. Teachers understand business pressures and provide immediately applicable techniques for office environments.',
     testimonials: [
@@ -940,16 +940,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Finally found balance between work and personal life.', name: 'Anjali Singh', place: 'Delhi' }
     ],
     videoTestimonials: [
-      { name: 'CEO - Fortune 500', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Manager - Tech Company', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Sales Head - Corporate', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Executive - Finance', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'CEO - Fortune 500', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Manager - Tech Company', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Sales Head - Corporate', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Executive - Finance', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Elevate your corporate leadership. 10-day intensive designed specifically for busy professionals seeking peak performance.'
   },
   'self-awareness': {
     heroImage: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/GNNmCPBSyv8',
+    introVideoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     whatYouWillLearn: [
       'Master the path of Jnana Yoga (Knowledge) as taught by Adi Shankaracharya',
       'Analyze and dissolve the layers of ego conditioning (Pancha Kosha)',
@@ -958,9 +958,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Establish yourself in the state of eternal, unchanging awareness'
     ],
     highlightVideos: [
-      { title: 'The Path of Shankaracharya', url: 'https://www.youtube.com/embed/GNNmCPBSyv8' },
-      { title: 'Dissolving the Ego', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Eternal Awareness', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'The Path of Shankaracharya', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'Dissolving the Ego', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Eternal Awareness', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'A month-long immersive journey led by scholars and practitioners of Advaita Vedanta. This Level-4 retreat is the ultimate offering of Swar Yoga for those seeking final liberation (Moksha).',
     testimonials: [
@@ -970,16 +970,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'The most authentic exposition of non-duality I have ever experienced.', name: 'Meera Verma', place: 'Ujjain' }
     ],
     videoTestimonials: [
-      { name: 'Seeker - Realization', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Seeker - Freedom', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Seeker - Truth', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Seeker - Awakening', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Seeker - Realization', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Seeker - Freedom', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Seeker - Truth', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Seeker - Awakening', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'The ultimate 30-day residential transformation. Step into the lineage of Adi Shankaracharya and realize your true nature as infinite awareness.'
   },
   'happy-marriage': {
     heroImage: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/gNbVlsGXe3M',
+    introVideoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     whatYouWillLearn: [
       'Enhance compatibility and understanding with partner',
       'Improve communication and intimacy',
@@ -988,9 +988,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Deepen the bonds of love and partnership'
     ],
     highlightVideos: [
-      { title: 'Relationship Harmony', url: 'https://www.youtube.com/embed/gNbVlsGXe3M' },
-      { title: 'Couples Communication', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Love Stories', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Relationship Harmony', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'Couples Communication', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Love Stories', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Expert couple\'s counselors trained in Swar Yoga relationship techniques. Helps couples understand and strengthen their partnership.',
     testimonials: [
@@ -1000,16 +1000,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Our love deepened in ways we never expected.', name: 'Swati Iyer', place: 'Chennai' }
     ],
     videoTestimonials: [
-      { name: 'Couple 1 - Rekindled Love', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Couple 2 - Communication', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Couple 3 - Harmony', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Couple 4 - Forever Love', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Couple 1 - Rekindled Love', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Couple 2 - Communication', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Couple 3 - Harmony', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Couple 4 - Forever Love', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Transform your marriage into a loving partnership. 36-day program to deepen connection and create lasting happiness together.'
   },
   'gurukul-training': {
     heroImage: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
+    introVideoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     whatYouWillLearn: [
       'Complete knowledge of Swar Yoga teaching methods',
       'Traditional Gurukul education philosophy',
@@ -1018,9 +1018,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Spread transformative teachings worldwide'
     ],
     highlightVideos: [
-      { title: 'Gurukul Philosophy', url: 'https://www.youtube.com/embed/XQ6MYL_rKgE' },
-      { title: 'Teaching Methodology', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Graduate Success', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Gurukul Philosophy', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { title: 'Teaching Methodology', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Graduate Success', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: '90-day intensive residential training from master teachers. Comprehensive knowledge transmission and extensive mentorship for future Gurukul leaders.',
     testimonials: [
@@ -1030,10 +1030,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Most fulfilling career path I\'ve ever chosen.', name: 'Divya Desai', place: 'Surat' }
     ],
     videoTestimonials: [
-      { name: 'Teacher 1 - Passionate Educator', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Teacher 2 - School Owner', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Teacher 3 - Corporate Trainer', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Teacher 4 - International Teacher', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Teacher 1 - Passionate Educator', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Teacher 2 - School Owner', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Teacher 3 - Corporate Trainer', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Teacher 4 - International Teacher', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Begin your 90-day Gurukul Teachers Training. Master teaching skills and become a qualified Swar Yoga educator.'
   },
@@ -1049,8 +1049,8 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     highlightVideos: [
       { title: 'Teacher Certification', url: 'https://www.youtube.com/embed/7qTSVzR6gIc' },
-      { title: 'Teaching Techniques', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Successful Teachers', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Teaching Techniques', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Successful Teachers', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Comprehensive certification program with globally recognized credentials. Covers theory, practice, teaching methodology, and business skills.',
     testimonials: [
@@ -1060,16 +1060,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Making a real difference in people\'s lives.', name: 'Priyanka Gupta', place: 'Raipur' }
     ],
     videoTestimonials: [
-      { name: 'Certified Teacher 1', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Certified Teacher 2', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Certified Teacher 3', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Certified Teacher 4', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Certified Teacher 1', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Certified Teacher 2', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Certified Teacher 3', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Certified Teacher 4', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Get certified as a professional Swar Yoga teacher. 15-day intensive with globally recognized credentials.'
   },
   'gurukul-organiser-training': {
     heroImage: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/mTVVNGMBx0Q',
+    introVideoUrl: 'https://www.youtube.com/embed/LScQlc6tnmw',
     whatYouWillLearn: [
       'Establish and manage yoga centers and programs',
       'Develop effective organizational leadership',
@@ -1078,9 +1078,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Build sustainable yoga enterprises'
     ],
     highlightVideos: [
-      { title: 'Organiser Training Overview', url: 'https://www.youtube.com/embed/mTVVNGMBx0Q' },
-      { title: 'Business Fundamentals', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Successful Centers', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Organiser Training Overview', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'Business Fundamentals', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Successful Centers', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: 'Training for entrepreneurs and leaders seeking to establish yoga centers. Combines yoga philosophy with modern business management.',
     testimonials: [
@@ -1090,16 +1090,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Building a legacy of wellness.', name: 'Anjana Sharma', place: 'Indore' }
     ],
     videoTestimonials: [
-      { name: 'Center Owner 1', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Center Owner 2', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Franchise Leader', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Regional Director', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Center Owner 1', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Center Owner 2', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Franchise Leader', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Regional Director', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Learn to build and manage yoga centers. 45-day training combining yoga philosophy with business excellence.'
   },
   'naturopathy': {
     heroImage: 'https://images.unsplash.com/photo-1620733321588-2f0851f50a49?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/nGNnVhEhjPg',
+    introVideoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     whatYouWillLearn: [
       'Master natural healing following Mahavir\'s ascetic wisdom',
       'Specialized treatments including Shirodhara and therapeutic massage',
@@ -1108,9 +1108,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Diagnose and treat imbalances without pharmaceuticals'
     ],
     highlightVideos: [
-      { title: 'Naturopathy Science', url: 'https://www.youtube.com/embed/nGNnVhEhjPg' },
-      { title: 'Healing Protocols', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Patient Transformations', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Naturopathy Science', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { title: 'Healing Protocols', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Patient Transformations', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     mentorInfo: '30-day residential program with experienced naturopathy practitioners. Complete training in natural healing methods and treatment protocols.',
     testimonials: [
@@ -1120,16 +1120,16 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Building a thriving naturopathy practice.', name: 'Sneha Desai', place: 'Malappuram' }
     ],
     videoTestimonials: [
-      { name: 'Practitioner 1 - Natural Healer', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Practitioner 2 - Clinic Owner', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Practitioner 3 - Alternative Medicine', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Practitioner 4 - Wellness Expert', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Practitioner 1 - Natural Healer', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Practitioner 2 - Clinic Owner', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Practitioner 3 - Alternative Medicine', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Practitioner 4 - Wellness Expert', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Master natural healing methods. 30-day residential naturopathy treatment program with credentials and expertise.'
   },
   'master-swar-yoga': {
     heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Level 1 to 5 - Complete Master Class Curriculum',
       'Advanced Swar Yoga & Breath Mastery',
@@ -1138,14 +1138,14 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Hereditary Health & Lifespan Secrets'
     ],
     highlightVideos: [
-      { title: 'Master Class Intro', url: 'https://www.youtube.com/embed/j_H8i50HjYQ' },
+      { title: 'Master Class Intro', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
       { title: 'Level 1-5 Journey', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
-      { title: 'The Power of Mastery', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'The Power of Mastery', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     detailVideos: [
-      { title: 'Science of Swar', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Science of Swar', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
       { title: 'Meditation Depth', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
-      { title: 'Final Realization', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' }
+      { title: 'Final Realization', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     mentorInfo: 'The Master Swar Yoga program is mentored by masters with decades of experience in the lineage of absolute self-realization.',
     testimonials: [
@@ -1155,10 +1155,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'The 6-month progression is perfectly designed.', name: 'Kavita', place: 'Delhi' }
     ],
     videoTestimonials: [
-      { name: 'Master Student 1', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Master Student 2', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Master Student 3', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Master Student 4', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Master Student 1', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Master Student 2', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Master Student 3', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Master Student 4', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: 'Enroll in the 6-Month Master Swar Yoga Program. Complete your journey from Level 1 to Level 5.'
   }

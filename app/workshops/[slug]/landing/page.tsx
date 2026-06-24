@@ -91,6 +91,59 @@ function normalizeYouTubeEmbedUrl(raw: string): string {
   }
 }
 
+const BROKEN_WORKSHOP_YOUTUBE_IDS = new Set([
+  '5nqVXQG9Mvk',
+  '8HWaFGJz6Yw',
+  '9_OLxmZzcNQ',
+  '9uWo6Av2Qcg',
+  'GNNmCPBSyv8',
+  'L3GGhK65iEw',
+  'T3qQdIj7f0Y',
+  'XQ6MYL_rKgE',
+  'fXA5CjzgHQA',
+  'fxA5CjzgHQA',
+  'gNbVlsGXe3M',
+  'j_H8i50HjYQ',
+  'luSaTlBXssM',
+  'mTVVNGMBx0Q',
+  'nGNnVhEhjPg',
+  'xm1h7KLhBNM',
+  'y90cV_3OMrQ',
+]);
+
+function getYouTubeVideoId(raw: string): string | null {
+  const url = String(raw || '').trim();
+  if (!url) return null;
+
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+      if (u.pathname === '/watch') return u.searchParams.get('v');
+      const embedMatch = u.pathname.match(/\/embed\/([^/?#]+)/);
+      if (embedMatch?.[1]) return embedMatch[1];
+      const shortsMatch = u.pathname.match(/\/shorts\/([^/?#]+)/);
+      if (shortsMatch?.[1]) return shortsMatch[1];
+    }
+
+    if (host === 'youtu.be') {
+      return u.pathname.replace('/', '').split('/')[0] || null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function isPlayableWorkshopVideoUrl(raw: string): boolean {
+  const normalized = normalizeYouTubeEmbedUrl(raw);
+  if (!normalized) return false;
+  const videoId = getYouTubeVideoId(normalized);
+  return !videoId || !BROKEN_WORKSHOP_YOUTUBE_IDS.has(videoId);
+}
+
 function dedupeByUrl<T extends { url: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
@@ -102,6 +155,64 @@ function dedupeByUrl<T extends { url: string }>(items: T[]): T[] {
     out.push({ ...item, url: normalized });
   }
   return out;
+}
+
+function WorkshopVideoFallback({
+  title,
+  image,
+  compact = false,
+}: {
+  title: string;
+  image: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className="relative w-full h-full overflow-hidden bg-green-950">
+      <Image
+        src={image}
+        alt={title}
+        fill
+        className="object-cover opacity-60"
+        sizes={compact ? '(max-width: 768px) 100vw, 33vw' : '100vw'}
+      />
+      <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-green-950/50 to-black/70" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-5 text-center">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur">
+          <Play className="h-6 w-6" fill="white" />
+        </div>
+        <div className={`${compact ? 'text-sm' : 'text-lg'} font-black text-white`}>{title}</div>
+        <div className="mt-1 text-xs font-semibold text-green-100">Video coming soon</div>
+      </div>
+    </div>
+  );
+}
+
+function WorkshopVideoFrame({
+  url,
+  title,
+  image,
+  compact = false,
+  className = 'w-full h-full',
+}: {
+  url: string;
+  title: string;
+  image: string;
+  compact?: boolean;
+  className?: string;
+}) {
+  if (!isPlayableWorkshopVideoUrl(url)) {
+    return <WorkshopVideoFallback title={title} image={image} compact={compact} />;
+  }
+
+  return (
+    <iframe
+      src={normalizeYouTubeEmbedUrl(url)}
+      title={title}
+      className={className}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowFullScreen
+    />
+  );
 }
 
 type DbSchedule = {
@@ -149,13 +260,11 @@ const VideoModal: React.FC<VideoModalProps> = ({ videoUrl, onClose }) => {
         >
           <X size={32} />
         </button>
-        <div className="w-full aspect-video">
-          <iframe
-            src={videoUrl}
+        <div className="w-full aspect-video rounded-lg overflow-hidden">
+          <WorkshopVideoFrame
+            url={videoUrl}
             title="Workshop Video"
-            className="w-full h-full rounded-lg"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
+            image="/images/workshops/swar-yoga-basic.png"
           />
         </div>
       </div>
@@ -318,9 +427,9 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   }, [schedulesFor]);
   
   // Get landing page data for this workshop
-  const landingData: LandingPageData = workshopLandingPages[params.slug] || {
+  const landingData: LandingPageData = useMemo(() => workshopLandingPages[params.slug] || {
     heroImage: workshop.image,
-    introVideoUrl: workshop.videoUrl || 'https://www.youtube.com/embed/mzYKqFxYzQU',
+    introVideoUrl: workshop.videoUrl || 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Master the core principles of this transformative practice',
       'Develop practical skills applicable to daily life',
@@ -329,14 +438,14 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
       'Create lasting positive changes in your life'
     ],
     highlightVideos: [
-      { title: 'Introduction', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Key Techniques', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' },
-      { title: 'Success Stories', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' }
+      { title: 'Introduction', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Key Techniques', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'Success Stories', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     detailVideos: [
-      { title: 'More Details – 1', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'More Details – 2', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' },
-      { title: 'More Details – 3', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' }
+      { title: 'More Details – 1', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'More Details – 2', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { title: 'More Details – 3', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     mentorInfo: 'Our experienced mentors have 25+ years of expertise in guiding students through transformative journeys. They provide personalized guidance and support throughout your program.',
     testimonials: [
@@ -346,13 +455,13 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
       { quote: 'Highly recommended for anyone seeking transformation.', name: 'Participant Four', place: 'Pune' }
     ],
     videoTestimonials: [
-      { name: 'Participant 1', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Participant 2', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Participant 3', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Participant 4', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Participant 1', url: 'https://www.youtube.com/embed/LScQlc6tnmw' },
+      { name: 'Participant 2', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { name: 'Participant 3', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Participant 4', url: 'https://www.youtube.com/embed/LScQlc6tnmw' }
     ],
     finalCTA: `Join ${workshop.name} and transform your life. Enroll now for this extraordinary opportunity.`
-  };
+  }, [params.slug, workshop]);
 
   const detailVideos = useMemo(() => dedupeByUrl(pickDetailVideos(landingData)), [landingData]);
   const videoTestimonials = useMemo(() => dedupeByUrl(landingData.videoTestimonials || []), [landingData]);
@@ -581,7 +690,11 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
               {!isFeaturedLanding && (
                 <button
                   type="button"
-                  onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(landingData.introVideoUrl))}
+                  onClick={() => {
+                    if (isPlayableWorkshopVideoUrl(landingData.introVideoUrl)) {
+                      setActiveVideoModal(normalizeYouTubeEmbedUrl(landingData.introVideoUrl));
+                    }
+                  }}
                   className="inline-flex items-center gap-2 rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-4 py-2 transition-colors"
                 >
                   <Play className="w-4 h-4" />
@@ -591,12 +704,10 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
             </div>
             <div className="p-6">
               <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg">
-                <iframe
-                  src={normalizeYouTubeEmbedUrl(landingData.introVideoUrl)}
+                <WorkshopVideoFrame
+                  url={landingData.introVideoUrl}
                   title="Workshop Intro Video"
-                  className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
+                  image={landingData.heroImage}
                 />
               </div>
             </div>
@@ -614,19 +725,25 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
               <div
                 key={`${v.title}-${idx}`}
                 className="group relative rounded-3xl border border-gray-200 bg-white shadow-md overflow-hidden hover:shadow-xl transition-all active:scale-[0.98] cursor-pointer"
-                onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(v.url))}
+                onClick={() => {
+                  if (isPlayableWorkshopVideoUrl(v.url)) {
+                    setActiveVideoModal(normalizeYouTubeEmbedUrl(v.url));
+                  }
+                }}
               >
                 <div className="aspect-video w-full bg-gray-100 relative">
-                  <iframe
-                    src={normalizeYouTubeEmbedUrl(v.url)}
+                  <WorkshopVideoFrame
+                    url={v.url}
                     title={v.title}
+                    image={landingData.heroImage}
+                    compact
                     className="w-full h-full pointer-events-none"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
                   />
-                  <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all flex items-center justify-center">
-                    <Play className="w-10 h-10 text-white drop-shadow-lg" fill="white" />
-                  </div>
+                  {isPlayableWorkshopVideoUrl(v.url) && (
+                    <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                      <Play className="w-10 h-10 text-white drop-shadow-lg" fill="white" />
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 bg-white border-t border-gray-100">
                   <div className="flex items-center gap-3">
@@ -768,19 +885,26 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
               <div
                 key={idx}
                 className="relative h-64 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer group"
-                onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(video.url))}
+                onClick={() => {
+                  if (isPlayableWorkshopVideoUrl(video.url)) {
+                    setActiveVideoModal(normalizeYouTubeEmbedUrl(video.url));
+                  }
+                }}
               >
-                <iframe
-                  src={normalizeYouTubeEmbedUrl(video.url)}
+                <WorkshopVideoFrame
+                  url={video.url}
                   title={video.title}
+                  image={landingData.heroImage}
+                  compact
                   className="w-full h-full pointer-events-none"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
-                  <div className="bg-white/0 group-hover:bg-white/20 rounded-full p-4 transition-all">
-                    <Play className="w-8 h-8 text-white" fill="white" />
+                {isPlayableWorkshopVideoUrl(video.url) && (
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                    <div className="bg-white/0 group-hover:bg-white/20 rounded-full p-4 transition-all">
+                      <Play className="w-8 h-8 text-white" fill="white" />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -842,19 +966,25 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                   >
                     <div
                       className="group relative rounded-3xl border border-gray-200 bg-white shadow-md overflow-hidden hover:shadow-xl transition-all active:scale-[0.99] cursor-pointer"
-                      onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(testimonial.url))}
+                      onClick={() => {
+                        if (isPlayableWorkshopVideoUrl(testimonial.url)) {
+                          setActiveVideoModal(normalizeYouTubeEmbedUrl(testimonial.url));
+                        }
+                      }}
                     >
                       <div className="aspect-video w-full bg-gray-100 relative">
-                        <iframe
-                          src={normalizeYouTubeEmbedUrl(testimonial.url)}
+                        <WorkshopVideoFrame
+                          url={testimonial.url}
                           title={testimonial.name}
+                          image={landingData.heroImage}
+                          compact
                           className="w-full h-full pointer-events-none"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                          allowFullScreen
                         />
-                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all flex items-center justify-center">
-                          <Play className="w-10 h-10 text-white drop-shadow-lg" fill="white" />
-                        </div>
+                        {isPlayableWorkshopVideoUrl(testimonial.url) && (
+                          <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                            <Play className="w-10 h-10 text-white drop-shadow-lg" fill="white" />
+                          </div>
+                        )}
                       </div>
                       <div className="p-4 bg-white border-t border-gray-100">
                         <div className="flex items-start justify-between gap-3">
@@ -879,20 +1009,26 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 <div
                   key={idx}
                   className="relative h-64 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer group"
-                  onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(testimonial.url))}
+                  onClick={() => {
+                    if (isPlayableWorkshopVideoUrl(testimonial.url)) {
+                      setActiveVideoModal(normalizeYouTubeEmbedUrl(testimonial.url));
+                    }
+                  }}
                 >
-                  <iframe
-                    src={normalizeYouTubeEmbedUrl(testimonial.url)}
+                  <WorkshopVideoFrame
+                    url={testimonial.url}
                     title={testimonial.name}
+                    image={landingData.heroImage}
+                    compact
                     className="w-full h-full pointer-events-none"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
-                    <div className="bg-white/0 group-hover:bg-white/20 rounded-full p-4 transition-all">
-                      <Play className="w-8 h-8 text-white" fill="white" />
+                  {isPlayableWorkshopVideoUrl(testimonial.url) && (
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                      <div className="bg-white/0 group-hover:bg-white/20 rounded-full p-4 transition-all">
+                        <Play className="w-8 h-8 text-white" fill="white" />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
