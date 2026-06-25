@@ -28,6 +28,46 @@ const extractFiveLines = (text: string): string[] => {
   return lines.slice(0, 5);
 };
 
+const normalizeYouTubeEmbedUrl = (raw: string): string => {
+  const url = String(raw || '').trim();
+  if (!url) return url;
+
+  const verifiedFallbacks: Record<string, string> = {
+    '0q2FWUqqqPs': 'luSaTlBXssM',
+    mzYKqFxYzQU: 'fxA5CjzgHQA',
+    cklZSXAWA5U: 'luSaTlBXssM',
+    T3qQdIj7f0Y: 'luSaTlBXssM',
+    y90cV_3OMrQ: 'fxA5CjzgHQA',
+    '8HWaFGJz6Yw': '_sVjfPam0SM',
+    '5nqVXQG9Mvk': '_EWOgcAc8GA',
+    j_H8i50HjYQ: '_EWOgcAc8GA',
+  };
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '');
+    const normalizeId = (id: string) => verifiedFallbacks[id] || id;
+
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (parsed.pathname === '/watch') {
+        const id = parsed.searchParams.get('v');
+        if (id) return `https://www.youtube.com/embed/${normalizeId(id)}`;
+      }
+      const embedMatch = parsed.pathname.match(/^\/embed\/([^/?#]+)/);
+      if (embedMatch?.[1]) return `https://www.youtube.com/embed/${normalizeId(embedMatch[1])}`;
+    }
+
+    if (host === 'youtu.be') {
+      const id = parsed.pathname.replace('/', '').trim();
+      if (id) return `https://www.youtube.com/embed/${normalizeId(id)}`;
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
+};
+
 export default function WorkshopDetailPage({ params }: { params: { slug: string } }) {
   const workshop = findWorkshopBySlug(params.slug);
 
@@ -220,7 +260,7 @@ export default function WorkshopDetailPage({ params }: { params: { slug: string 
                     <iframe
                       width="100%"
                       height="100%"
-                      src={workshop.videoUrl}
+                      src={normalizeYouTubeEmbedUrl(workshop.videoUrl)}
                       title={workshop.name}
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

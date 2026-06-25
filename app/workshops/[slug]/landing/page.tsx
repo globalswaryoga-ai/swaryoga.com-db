@@ -66,6 +66,17 @@ function pickDetailVideos(landingData: LandingPageData): Array<{ title: string; 
 function normalizeYouTubeEmbedUrl(raw: string): string {
   const url = String(raw || '').trim();
   if (!url) return url;
+  const verifiedFallbacks: Record<string, string> = {
+    '0q2FWUqqqPs': 'luSaTlBXssM',
+    mzYKqFxYzQU: 'fxA5CjzgHQA',
+    cklZSXAWA5U: 'luSaTlBXssM',
+    T3qQdIj7f0Y: 'luSaTlBXssM',
+    y90cV_3OMrQ: 'fxA5CjzgHQA',
+    '8HWaFGJz6Yw': '_sVjfPam0SM',
+    '5nqVXQG9Mvk': '_EWOgcAc8GA',
+    j_H8i50HjYQ: '_EWOgcAc8GA',
+  };
+  const normalizeId = (id: string) => verifiedFallbacks[id] || id;
 
   // Common cases:
   // - https://www.youtube.com/watch?v=VIDEO -> https://www.youtube.com/embed/VIDEO
@@ -76,13 +87,17 @@ function normalizeYouTubeEmbedUrl(raw: string): string {
     if (host === 'youtube.com' || host === 'm.youtube.com') {
       if (u.pathname === '/watch') {
         const id = u.searchParams.get('v');
-        if (id) return `https://www.youtube.com/embed/${id}`;
+        if (id) return `https://www.youtube.com/embed/${normalizeId(id)}`;
+      }
+      const embedMatch = u.pathname.match(/^\/embed\/([^/?#]+)/);
+      if (embedMatch?.[1]) {
+        return `https://www.youtube.com/embed/${normalizeId(embedMatch[1])}`;
       }
       return url;
     }
     if (host === 'youtu.be') {
       const id = u.pathname.replace('/', '').trim();
-      if (id) return `https://www.youtube.com/embed/${id}`;
+      if (id) return `https://www.youtube.com/embed/${normalizeId(id)}`;
       return url;
     }
     return url;
