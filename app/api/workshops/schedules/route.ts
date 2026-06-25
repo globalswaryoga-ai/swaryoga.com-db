@@ -13,6 +13,23 @@ export const dynamic = 'force-dynamic';
 
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const LIVE_SCHEDULES_API = 'https://swaryoga.com/api/workshops/schedules';
+
+function canUseLiveSchedulesFallback(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production') return false;
+  const host = request.nextUrl.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
+async function fetchLiveSchedulesFallback(request: NextRequest) {
+  const query = request.nextUrl.search;
+  const res = await fetch(`${LIVE_SCHEDULES_API}${query}`, { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(`Live schedules fallback failed with ${res.status}`);
+  }
+
+  return res.json();
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,6 +111,22 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: schedules });
   } catch (err) {
+    if (canUseLiveSchedulesFallback(request)) {
+      try {
+        const liveJson = await fetchLiveSchedulesFallback(request);
+        return NextResponse.json(liveJson, {
+          headers: {
+            'x-workshop-schedules-source': 'live-fallback',
+          },
+        });
+      } catch (fallbackErr) {
+        return NextResponse.json(
+          { error: String(err), fallbackError: String(fallbackErr) },
+          { status: 500 }
+        );
+      }
+    }
+
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

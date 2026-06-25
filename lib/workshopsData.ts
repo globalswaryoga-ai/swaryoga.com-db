@@ -31,7 +31,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     description: 'A 6-month masterclass combining Swar Yoga Levels 1 to 5. New batch starts every month (3 days/week).',
     detailedDescription:
       'This Master Swar Yoga program combines Levels 1–5 in a single guided 6-month journey. The curriculum includes: Level-1, Level-2 (Aham Brahmasmi), Level-3 (Astavakra), Level-4, and Level-5 (Bandhan Mukti). New batch starts every month. Classes run 3 days a week with timings and dates managed from Admin schedules. Choose monthly payment or a discounted 3-month plan.',
-    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    videoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
     duration: '6 months',
     level: 'Masterclass',
     category: 'Health',
@@ -46,7 +46,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     description: '2-day starter program (1.5 hours/day) to learn the fundamentals of Swar Yoga.',
     detailedDescription:
       'Swar Yoga Basic Program is a short 2-day introduction designed for beginners. Learn the core foundations of Swar Yoga in 1.5-hour classes. Schedules (next batch dates and timings) are controlled from Admin. Seats are limited per batch.',
-    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    videoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
     duration: '2 days',
     level: 'Beginner',
     category: 'Health',
@@ -60,7 +60,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800',
     description: 'A complete yogasana and sadhana practice program for disciplined daily growth.',
     detailedDescription: 'Master the fundamental yogasanas and integrate them into a daily sadhana (spiritual practice) that transforms your body, mind, and spirit. This comprehensive program covers classical yoga postures combined with breathing techniques and meditation. You will develop strength, flexibility, and inner awareness through consistent daily practice. Perfect for beginners and experienced practitioners seeking to deepen their practice. This program has helped thousands achieve better health, mental clarity, and spiritual growth.',
-    videoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
+    videoUrl: 'https://www.youtube.com/embed/fxA5CjzgHQA',
     duration: '30 days',
     level: 'All Levels',
     category: 'Health',
@@ -74,7 +74,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     description: 'First level comprehensive Swar Yoga training',
     detailedDescription: 'Unlock the ancient science of Swar Yoga and learn how to balance your body, mind, and energy through nasal breathing techniques. Level-1 introduces the fundamentals of alternating nostrils and their effects on consciousness. This workshop teaches you to harness the natural rhythm of your breath to improve health, energy levels, and decision-making abilities. Participants learn practical techniques that can be applied immediately in daily life for enhanced vitality and mental clarity.',
-    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    videoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     duration: '15 days',
     level: 'Beginner',
     category: 'Health',
@@ -88,7 +88,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=800',
     description: 'Advanced Swar Yoga for wealth creation and prosperity',
     detailedDescription: 'Build on Level-1 foundations with advanced Swar Yoga techniques specifically designed for wealth creation, prosperity, and success. Learn the deeper principles of lunar and solar energy cycles and how to align them with your intentions. This advanced workshop reveals ancient secrets used by successful entrepreneurs and leaders. Master timing for important decisions, business launches, and personal goals aligned with natural cycles.',
-    videoUrl: 'https://www.youtube.com/embed/5nqVXQG9Mvk',
+    videoUrl: 'https://www.youtube.com/embed/_EWOgcAc8GA',
     duration: '15 days',
     level: 'Intermediate',
     category: 'Wealth',
@@ -116,7 +116,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=800',
     description: 'Transform your body through Swar Yoga',
     detailedDescription: 'Achieve sustainable weight loss without restrictive diets using the holistic Swar Yoga approach. This program combines specialized breathing techniques, movement practices, and metabolic optimization. Learn how to activate your natural fat-burning mechanisms and maintain ideal weight long-term. Includes nutrition guidance aligned with your individual constitution and energy patterns.',
-    videoUrl: 'https://www.youtube.com/embed/cklZSXAWA5U',
+    videoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
     duration: '90 days',
     level: 'Intermediate',
     category: 'Health',
@@ -559,7 +559,7 @@ export interface WorkshopLandingData {
 export const workshopLandingPages: Record<string, WorkshopLandingData> = {
   'yogasana-sadhana': {
     heroImage: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
+    introVideoUrl: 'https://www.youtube.com/embed/fxA5CjzgHQA',
     whatYouWillLearn: [
       'Master fundamental yogasanas with proper alignment and breathing',
       'Integrate daily sadhana (spiritual practice) into your routine',
@@ -568,9 +568,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Transform your body, mind, and spirit through consistent practice'
     ],
     highlightVideos: [
-      { title: 'Yogasana Fundamentals', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Daily Sadhana Practice', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' },
-      { title: 'Success Transformations', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' }
+      { title: 'Yogasana Fundamentals', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Daily Sadhana Practice', url: 'https://www.youtube.com/embed/luSaTlBXssM' },
+      { title: 'Success Transformations', url: 'https://www.youtube.com/embed/_sVjfPam0SM' }
     ],
     mentorInfo: 'Our yoga masters have 25+ years of experience guiding thousands through authentic yogasana and sadhana practices. They provide personalized modifications and deep spiritual guidance throughout the program.',
     testimonials: [
@@ -580,10 +580,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'I finally understand the true purpose of yoga beyond just exercise.', name: 'Anjali Verma', place: 'Pune' }
     ],
     videoTestimonials: [
-      { name: 'Raj - IT Professional', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Priya - Student', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Vikram - Business Owner', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Anjali - Homemaker', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Raj - IT Professional', url: 'https://www.youtube.com/embed/luSaTlBXssM' },
+      { name: 'Priya - Student', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { name: 'Vikram - Business Owner', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Anjali - Homemaker', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     finalCTA: 'Join this 21-day transformative yogasana and sadhana program. Master the ancient practices that have guided thousands to health and spiritual growth.'
   },
@@ -709,7 +709,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
   },
   'weight-loss': {
     heroImage: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/cklZSXAWA5U',
+    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
     whatYouWillLearn: [
       'Activate your natural fat-burning mechanisms',
       'Achieve sustainable weight loss without restrictive diets',
@@ -718,9 +718,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Maintain ideal weight long-term through natural methods'
     ],
     highlightVideos: [
-      { title: 'Weight Loss Science', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { title: 'Breathing for Metabolism', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Transformation Stories', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'Weight Loss Science', url: 'https://www.youtube.com/embed/luSaTlBXssM' },
+      { title: 'Breathing for Metabolism', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Transformation Stories', url: 'https://www.youtube.com/embed/_sVjfPam0SM' }
     ],
     mentorInfo: 'Our weight loss specialists combine ancient Swar Yoga science with modern nutritional understanding. They provide personalized guidance for sustainable, healthy weight transformation.',
     testimonials: [
@@ -730,10 +730,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'Finally, a method that works with my body, not against it!', name: 'Participant', place: 'India' }
     ],
     videoTestimonials: [
-      { name: 'Swati - Lost 20kg', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Rahul - Lost 18kg', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Neha - Lost 15kg', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Amit - Lost 25kg', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Swati - Lost 20kg', url: 'https://www.youtube.com/embed/luSaTlBXssM' },
+      { name: 'Rahul - Lost 18kg', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { name: 'Neha - Lost 15kg', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Amit - Lost 25kg', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     finalCTA: 'Start your 90-day weight loss transformation. Achieve sustainable results using holistic Swar Yoga methods without diets or starvation.'
   },
@@ -1138,14 +1138,14 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Hereditary Health & Lifespan Secrets'
     ],
     highlightVideos: [
-      { title: 'Master Class Intro', url: 'https://www.youtube.com/embed/j_H8i50HjYQ' },
+      { title: 'Master Class Intro', url: 'https://www.youtube.com/embed/luSaTlBXssM' },
       { title: 'Level 1-5 Journey', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
-      { title: 'The Power of Mastery', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'The Power of Mastery', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' }
     ],
     detailVideos: [
       { title: 'Science of Swar', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
       { title: 'Meditation Depth', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
-      { title: 'Final Realization', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' }
+      { title: 'Final Realization', url: 'https://www.youtube.com/embed/luSaTlBXssM' }
     ],
     mentorInfo: 'The Master Swar Yoga program is mentored by masters with decades of experience in the lineage of absolute self-realization.',
     testimonials: [
@@ -1155,10 +1155,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { quote: 'The 6-month progression is perfectly designed.', name: 'Kavita', place: 'Delhi' }
     ],
     videoTestimonials: [
-      { name: 'Master Student 1', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Master Student 2', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Master Student 3', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Master Student 4', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Master Student 1', url: 'https://www.youtube.com/embed/luSaTlBXssM' },
+      { name: 'Master Student 2', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { name: 'Master Student 3', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { name: 'Master Student 4', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     finalCTA: 'Enroll in the 6-Month Master Swar Yoga Program. Complete your journey from Level 1 to Level 5.'
   }
