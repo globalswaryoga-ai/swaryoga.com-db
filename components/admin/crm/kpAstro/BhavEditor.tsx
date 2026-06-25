@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { computeConjunctions, computeDrishtiOnPlanets } from '@/lib/kpAstro/aspectAnalysis';
+import { housesOccupiedBy, housesOwnedBy, starLordOf, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 // Per-bhav (per-house) astrologer working sheet. Each row stays editable so
 // the astrologer can correct the auto-filled KP data before final prediction.
@@ -182,6 +184,8 @@ const TOOLKIT_REFERENCE_CARDS = [
   },
 ];
 
+type KaryeshPlanet = SignificatorPlanet & { retrograde?: boolean; combust?: boolean };
+
 function TextCell({ value, onChange, placeholder, rows = 2 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
   return (
     <textarea
@@ -246,6 +250,117 @@ function rowProgress(row: BhavAnalysisRow): { done: number; total: number } {
   return { done: fields.filter(Boolean).length, total: fields.length };
 }
 
+function houseList(values: number[]): string {
+  return values.length ? values.join(', ') : '-';
+}
+
+function parseHouseNumbers(value: string): number[] {
+  return [...value.matchAll(/\d+/g)]
+    .map((match) => Number(match[0]))
+    .filter((n) => n >= 1 && n <= 12);
+}
+
+function intersect(a: number[], b: number[]): number[] {
+  const bSet = new Set(b);
+  return [...new Set(a.filter((value) => bSet.has(value)))].sort((x, y) => x - y);
+}
+
+function KaryeshDataPill({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'yellow' | 'emerald' | 'red' }) {
+  const toneClass = {
+    slate: 'border-zinc-700 bg-zinc-950 text-zinc-100',
+    yellow: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-100',
+    emerald: 'border-emerald-700/60 bg-emerald-950/60 text-emerald-100',
+    red: 'border-red-700/60 bg-red-950/60 text-red-100',
+  }[tone];
+
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</div>
+      <div className="mt-1 min-h-[18px] text-xs font-semibold leading-snug">{value || '-'}</div>
+    </div>
+  );
+}
+
+function ManagedKaryeshView({
+  row,
+  houses,
+  planets,
+  onApplySuggestion,
+}: {
+  row: BhavAnalysisRow;
+  houses: SignificatorHouse[];
+  planets: KaryeshPlanet[];
+  onApplySuggestion: (result: string) => void;
+}) {
+  const house = houses.find((h) => h.house === row.house);
+  const subLordPlanet = planets.find((p) => p.planet === row.subLord);
+  const derivedStarOwner = subLordPlanet ? starLordOf(subLordPlanet) : undefined;
+  const starOwner = row.cslStarLordOwner || derivedStarOwner || '';
+  const starOwnerPlanet = planets.find((p) => p.planet === starOwner);
+  const subLordOccupied = housesOccupiedBy(planets, row.subLord);
+  const subLordOwned = housesOwnedBy(houses, row.subLord);
+  const starOwnerOccupied = housesOccupiedBy(planets, starOwner);
+  const starOwnerOwned = housesOwnedBy(houses, starOwner);
+  const starOwnerHouses = [...new Set([...starOwnerOccupied, ...starOwnerOwned])].sort((a, b) => a - b);
+  const supporting = parseHouseNumbers(row.toolkitSupportingHouses);
+  const opposing = parseHouseNumbers(row.toolkitOpposingHouses);
+  const supportingHits = intersect(starOwnerHouses, supporting);
+  const opposingHits = intersect(starOwnerHouses, opposing);
+  const conjunctions = computeConjunctions(planets)
+    .filter((c) => c.planetA === row.subLord || c.planetB === row.subLord)
+    .map((c) => `${c.planetA === row.subLord ? c.planetB : c.planetA} (${c.separation.toFixed(1)} deg)`);
+  const drishti = computeDrishtiOnPlanets(planets)
+    .filter((d) => d.from === row.subLord || d.to === row.subLord)
+    .map((d) => d.from === row.subLord ? `${d.from} -> ${d.to} (H${d.toHouse})` : `${d.from} -> ${d.to} (H${d.toHouse})`);
+  const suggestedResult = supportingHits.length && !opposingHits.length
+    ? `Supports matter through houses ${houseList(supportingHits)}`
+    : opposingHits.length && !supportingHits.length
+      ? `Denial/delay through houses ${houseList(opposingHits)}`
+      : supportingHits.length && opposingHits.length
+        ? `Mixed: supports ${houseList(supportingHits)}, opposes ${houseList(opposingHits)}`
+        : starOwnerHouses.length
+          ? `Judge manually from star-owner houses ${houseList(starOwnerHouses)}`
+          : 'Need CSL/star-owner data';
+
+  return (
+    <div className="rounded-xl border border-zinc-700 bg-black/60 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Managed Karyesh View</div>
+          <div className="text-[11px] text-zinc-500">Generated from saved chart data and editable Bhav fields.</div>
+        </div>
+        <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-[11px] font-semibold text-zinc-300">Bhav {row.house}</span>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <KaryeshDataPill label="Bhav Sign" value={house?.sign || '-'} />
+        <KaryeshDataPill label="Bhav Sub Lord" value={row.subLord || house?.subLord || '-'} tone="yellow" />
+        <KaryeshDataPill label="Sub Lord R/D" value={row.cslRetrogradeStatus || (subLordPlanet ? (subLordPlanet.retrograde ? 'Retrograde' : 'Direct') : '-')} />
+        <KaryeshDataPill label="CSL Star Lord" value={row.cslStarLord || subLordPlanet?.star || '-'} />
+        <KaryeshDataPill label="Owner of Star" value={starOwner || '-'} tone="yellow" />
+        <KaryeshDataPill label="Star Owner R/D" value={row.cslStarLordRetrogradeStatus || (starOwnerPlanet ? (starOwnerPlanet.retrograde ? 'Retrograde' : 'Direct') : '-')} />
+        <KaryeshDataPill label="Sub Lord In / Owns" value={`In ${houseList(subLordOccupied)}; owns ${houseList(subLordOwned)}`} />
+        <KaryeshDataPill label="Star Owner In / Owns" value={`In ${houseList(starOwnerOccupied)}; owns ${houseList(starOwnerOwned)}`} />
+        <KaryeshDataPill label="Conjunction" value={conjunctions.join('; ') || row.subLordConjunction || '-'} />
+        <KaryeshDataPill label="Opposition / Drishti" value={drishti.join('; ') || row.subLordDrishti || '-'} />
+        <KaryeshDataPill label="Favorable Hits" value={houseList(supportingHits)} tone={supportingHits.length ? 'emerald' : 'slate'} />
+        <KaryeshDataPill label="Denial Hits" value={houseList(opposingHits)} tone={opposingHits.length ? 'red' : 'slate'} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+        <div>
+          <span className="font-semibold text-yellow-300">Suggested result: </span>{suggestedResult}
+        </div>
+        <button
+          type="button"
+          onClick={() => onApplySuggestion(suggestedResult)}
+          className="rounded-lg bg-yellow-400 px-2.5 py-1.5 text-[11px] font-bold text-black hover:bg-yellow-300"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ToolkitReferenceCards() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
 
@@ -291,11 +406,25 @@ function ToolkitReferenceCards() {
   );
 }
 
-export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]; onChange: (rows: BhavAnalysisRow[]) => void }) {
+export default function BhavEditor({
+  rows,
+  onChange,
+  houses = [],
+  planets = [],
+}: {
+  rows: BhavAnalysisRow[];
+  onChange: (rows: BhavAnalysisRow[]) => void;
+  houses?: SignificatorHouse[];
+  planets?: KaryeshPlanet[];
+}) {
   const [openHouse, setOpenHouse] = useState(1);
 
   const updateRow = <K extends keyof BhavAnalysisRow>(house: number, key: K, value: BhavAnalysisRow[K]) => {
     onChange(rows.map((r) => (r.house === house ? { ...r, [key]: value } : r)));
+  };
+
+  const applyKaryeshSuggestion = (house: number, result: string) => {
+    onChange(rows.map((r) => (r.house === house ? { ...r, karyeshRuleResult: result, karyeshRuleConclusion: r.karyeshRuleConclusion || result } : r)));
   };
 
   return (
@@ -381,6 +510,8 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                       <TextCell value={row.subLordKaryeshBhav} onChange={(v) => updateRow(row.house, 'subLordKaryeshBhav', v)} rows={3} />
                     </FieldBox>
                   </div>
+
+                  <ManagedKaryeshView row={row} houses={houses} planets={planets} onApplySuggestion={(result) => applyKaryeshSuggestion(row.house, result)} />
 
                   <div className="overflow-hidden rounded-xl border border-yellow-500/30 bg-yellow-500/5">
                     <div className="border-b border-yellow-500/20 bg-black/50 px-3 py-3">

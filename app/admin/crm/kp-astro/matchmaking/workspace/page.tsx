@@ -172,11 +172,11 @@ export default function KpMatchmakingWorkspacePage() {
           <div className="grid lg:grid-cols-2 gap-6">
             <div>
               <h2 className="font-semibold text-gray-900 mb-2">Groom's 12-Bhav Analysis</h2>
-              <BhavEditor rows={groomRows} onChange={setGroomRows} />
+              <BhavEditor rows={groomRows} onChange={setGroomRows} houses={match.groomChartId?.houses || []} planets={match.groomChartId?.planets || []} />
             </div>
             <div>
               <h2 className="font-semibold text-gray-900 mb-2">Bride's 12-Bhav Analysis</h2>
-              <BhavEditor rows={brideRows} onChange={setBrideRows} />
+              <BhavEditor rows={brideRows} onChange={setBrideRows} houses={match.brideChartId?.houses || []} planets={match.brideChartId?.planets || []} />
             </div>
           </div>
         </>

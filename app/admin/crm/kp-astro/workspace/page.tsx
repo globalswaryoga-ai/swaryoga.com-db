@@ -328,7 +328,7 @@ export default function KpAstrologerWorkspacePage() {
               </div>
             )}
             {workView === 'analysis' ? (
-              <BhavEditor rows={bhavRows} onChange={setBhavRows} />
+              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} />
             ) : workView === 'abcd' ? (
               <ABCDSignificatorsPanel houses={chart.houses || []} planets={chart.planets || []} bhavRows={bhavRows} />
             ) : (
