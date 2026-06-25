@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { computeConjunctions, computeDrishtiOnPlanets } from '@/lib/kpAstro/aspectAnalysis';
+import { housesOccupiedBy, housesOwnedBy, starLordOf, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 // Per-bhav (per-house) astrologer working sheet. Each row stays editable so
 // the astrologer can correct the auto-filled KP data before final prediction.
@@ -182,6 +184,8 @@ const TOOLKIT_REFERENCE_CARDS = [
   },
 ];
 
+type KaryeshPlanet = SignificatorPlanet & { retrograde?: boolean; combust?: boolean };
+
 function TextCell({ value, onChange, placeholder, rows = 2 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
   return (
     <textarea
@@ -210,19 +214,169 @@ function FieldBox({ label, children, tone = 'slate' }: { label: string; children
   );
 }
 
+function InputCell({ value, onChange, placeholder, accent = 'slate' }: { value: string; onChange: (v: string) => void; placeholder?: string; accent?: 'slate' | 'yellow' | 'red' }) {
+  const accentClass = {
+    slate: 'border-zinc-700 text-zinc-100 focus:border-yellow-400',
+    yellow: 'border-yellow-500/40 text-yellow-100 focus:border-yellow-400',
+    red: 'border-red-700/60 text-zinc-100 focus:border-red-400',
+  }[accent];
+
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`w-full rounded-lg border bg-black px-3 py-2 text-sm shadow-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 ${accentClass}`}
+    />
+  );
+}
+
 function bhavLabel(house: number): string {
   return `${house}${house === 1 ? 'st' : house === 2 ? 'nd' : house === 3 ? 'rd' : 'th'} Bhav`;
+}
+
+function rowProgress(row: BhavAnalysisRow): { done: number; total: number } {
+  const fields = [
+    row.subLord,
+    row.subLordKaryeshBhav,
+    row.toolkitMatter,
+    row.cslRetrogradeStatus,
+    row.cslStarLord,
+    row.cslStarLordOwner,
+    row.cslStarLordSignification,
+    row.karyeshRuleResult,
+    row.karyeshRuleConclusion,
+  ];
+  return { done: fields.filter(Boolean).length, total: fields.length };
+}
+
+function houseList(values: number[]): string {
+  return values.length ? values.join(', ') : '-';
+}
+
+function parseHouseNumbers(value: string): number[] {
+  return [...value.matchAll(/\d+/g)]
+    .map((match) => Number(match[0]))
+    .filter((n) => n >= 1 && n <= 12);
+}
+
+function intersect(a: number[], b: number[]): number[] {
+  const bSet = new Set(b);
+  return [...new Set(a.filter((value) => bSet.has(value)))].sort((x, y) => x - y);
+}
+
+function KaryeshDataPill({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'yellow' | 'emerald' | 'red' }) {
+  const toneClass = {
+    slate: 'border-zinc-700 bg-zinc-950 text-zinc-100',
+    yellow: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-100',
+    emerald: 'border-emerald-700/60 bg-emerald-950/60 text-emerald-100',
+    red: 'border-red-700/60 bg-red-950/60 text-red-100',
+  }[tone];
+
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</div>
+      <div className="mt-1 min-h-[18px] text-xs font-semibold leading-snug">{value || '-'}</div>
+    </div>
+  );
+}
+
+function ManagedKaryeshView({
+  row,
+  houses,
+  planets,
+  onApplySuggestion,
+}: {
+  row: BhavAnalysisRow;
+  houses: SignificatorHouse[];
+  planets: KaryeshPlanet[];
+  onApplySuggestion: (result: string) => void;
+}) {
+  const house = houses.find((h) => h.house === row.house);
+  const subLordPlanet = planets.find((p) => p.planet === row.subLord);
+  const derivedStarOwner = subLordPlanet ? starLordOf(subLordPlanet) : undefined;
+  const starOwner = row.cslStarLordOwner || derivedStarOwner || '';
+  const starOwnerPlanet = planets.find((p) => p.planet === starOwner);
+  const subLordOccupied = housesOccupiedBy(planets, row.subLord);
+  const subLordOwned = housesOwnedBy(houses, row.subLord);
+  const starOwnerOccupied = housesOccupiedBy(planets, starOwner);
+  const starOwnerOwned = housesOwnedBy(houses, starOwner);
+  const starOwnerHouses = [...new Set([...starOwnerOccupied, ...starOwnerOwned])].sort((a, b) => a - b);
+  const supporting = parseHouseNumbers(row.toolkitSupportingHouses);
+  const opposing = parseHouseNumbers(row.toolkitOpposingHouses);
+  const supportingHits = intersect(starOwnerHouses, supporting);
+  const opposingHits = intersect(starOwnerHouses, opposing);
+  const conjunctions = computeConjunctions(planets)
+    .filter((c) => c.planetA === row.subLord || c.planetB === row.subLord)
+    .map((c) => `${c.planetA === row.subLord ? c.planetB : c.planetA} (${c.separation.toFixed(1)} deg)`);
+  const drishti = computeDrishtiOnPlanets(planets)
+    .filter((d) => d.from === row.subLord || d.to === row.subLord)
+    .map((d) => d.from === row.subLord ? `${d.from} -> ${d.to} (H${d.toHouse})` : `${d.from} -> ${d.to} (H${d.toHouse})`);
+  const suggestedResult = supportingHits.length && !opposingHits.length
+    ? `Supports matter through houses ${houseList(supportingHits)}`
+    : opposingHits.length && !supportingHits.length
+      ? `Denial/delay through houses ${houseList(opposingHits)}`
+      : supportingHits.length && opposingHits.length
+        ? `Mixed: supports ${houseList(supportingHits)}, opposes ${houseList(opposingHits)}`
+        : starOwnerHouses.length
+          ? `Judge manually from star-owner houses ${houseList(starOwnerHouses)}`
+          : 'Need CSL/star-owner data';
+
+  return (
+    <div className="rounded-xl border border-zinc-700 bg-black/60 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Managed Karyesh View</div>
+          <div className="text-[11px] text-zinc-500">Generated from saved chart data and editable Bhav fields.</div>
+        </div>
+        <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-[11px] font-semibold text-zinc-300">Bhav {row.house}</span>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <KaryeshDataPill label="Bhav Sign" value={house?.sign || '-'} />
+        <KaryeshDataPill label="Bhav Sub Lord" value={row.subLord || house?.subLord || '-'} tone="yellow" />
+        <KaryeshDataPill label="Sub Lord R/D" value={row.cslRetrogradeStatus || (subLordPlanet ? (subLordPlanet.retrograde ? 'Retrograde' : 'Direct') : '-')} />
+        <KaryeshDataPill label="CSL Star Lord" value={row.cslStarLord || subLordPlanet?.star || '-'} />
+        <KaryeshDataPill label="Owner of Star" value={starOwner || '-'} tone="yellow" />
+        <KaryeshDataPill label="Star Owner R/D" value={row.cslStarLordRetrogradeStatus || (starOwnerPlanet ? (starOwnerPlanet.retrograde ? 'Retrograde' : 'Direct') : '-')} />
+        <KaryeshDataPill label="Sub Lord In / Owns" value={`In ${houseList(subLordOccupied)}; owns ${houseList(subLordOwned)}`} />
+        <KaryeshDataPill label="Star Owner In / Owns" value={`In ${houseList(starOwnerOccupied)}; owns ${houseList(starOwnerOwned)}`} />
+        <KaryeshDataPill label="Conjunction" value={conjunctions.join('; ') || row.subLordConjunction || '-'} />
+        <KaryeshDataPill label="Opposition / Drishti" value={drishti.join('; ') || row.subLordDrishti || '-'} />
+        <KaryeshDataPill label="Favorable Hits" value={houseList(supportingHits)} tone={supportingHits.length ? 'emerald' : 'slate'} />
+        <KaryeshDataPill label="Denial Hits" value={houseList(opposingHits)} tone={opposingHits.length ? 'red' : 'slate'} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+        <div>
+          <span className="font-semibold text-yellow-300">Suggested result: </span>{suggestedResult}
+        </div>
+        <button
+          type="button"
+          onClick={() => onApplySuggestion(suggestedResult)}
+          className="rounded-lg bg-yellow-400 px-2.5 py-1.5 text-[11px] font-bold text-black hover:bg-yellow-300"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function ToolkitReferenceCards() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="grid gap-3 p-3 pt-0 lg:grid-cols-2">
+    <div className="border-b border-zinc-800 bg-black/80 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Reference</div>
+          <div className="text-[11px] text-zinc-500">Small cards stay collapsed until needed.</div>
+        </div>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
       {TOOLKIT_REFERENCE_CARDS.map((card) => {
         const open = !!openCards[card.title];
         return (
-          <div key={card.title} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950">
+          <div key={card.title} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
             <button
               type="button"
               onClick={() => setOpenCards((prev) => ({ ...prev, [card.title]: !open }))}
@@ -232,11 +386,14 @@ function ToolkitReferenceCards() {
                 {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
                 <span className="truncate text-sm font-semibold text-zinc-100">{card.title}</span>
               </div>
-              <span className="shrink-0 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-black">{card.badge}</span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-black">
+                {open ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {card.badge}
+              </span>
             </button>
             {open && (
               <div className="max-h-72 overflow-y-auto border-t border-zinc-800 px-4 py-3">
-                <ul className="space-y-2 text-xs leading-relaxed text-zinc-300">
+                <ul className="grid gap-2 text-xs leading-relaxed text-zinc-300">
                   {card.lines.map((line) => <li key={line}>{line}</li>)}
                 </ul>
               </div>
@@ -244,22 +401,38 @@ function ToolkitReferenceCards() {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
 
-export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]; onChange: (rows: BhavAnalysisRow[]) => void }) {
+export default function BhavEditor({
+  rows,
+  onChange,
+  houses = [],
+  planets = [],
+}: {
+  rows: BhavAnalysisRow[];
+  onChange: (rows: BhavAnalysisRow[]) => void;
+  houses?: SignificatorHouse[];
+  planets?: KaryeshPlanet[];
+}) {
   const [openHouse, setOpenHouse] = useState(1);
 
   const updateRow = <K extends keyof BhavAnalysisRow>(house: number, key: K, value: BhavAnalysisRow[K]) => {
     onChange(rows.map((r) => (r.house === house ? { ...r, [key]: value } : r)));
   };
 
+  const applyKaryeshSuggestion = (house: number, result: string) => {
+    onChange(rows.map((r) => (r.house === house ? { ...r, karyeshRuleResult: result, karyeshRuleConclusion: r.karyeshRuleConclusion || result } : r)));
+  };
+
   return (
-    <div className="rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-black px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold text-white">12 Bhav Working Dropdowns</h3>
+          <p className="mt-0.5 text-xs text-zinc-500">Open one Bhav, complete Karyesh logic, save, then generate final prediction.</p>
         </div>
         <div className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">12 bhavs</div>
       </div>
@@ -267,6 +440,8 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
       <div className="space-y-2 p-3">
         {rows.map((row) => {
           const open = openHouse === row.house;
+          const progress = rowProgress(row);
+          const isReady = progress.done >= 7 || Boolean(row.karyeshRuleConclusion);
 
           return (
             <div key={row.house} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
@@ -281,6 +456,10 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                   <span className="truncate text-sm font-medium text-zinc-100">{HOUSE_LABELS[row.house]}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <span className={`hidden rounded-full px-2.5 py-1 text-xs font-bold sm:inline ${isReady ? 'bg-emerald-900 text-emerald-200' : 'bg-zinc-800 text-zinc-400'}`}>
+                    {progress.done}/{progress.total}
+                  </span>
+                  {row.predictionOrder > 0 && <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-xs font-bold text-black">#{row.predictionOrder}</span>}
                   {row.subLord && <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-100">Sub: {row.subLord}</span>}
                   {row.dashaChain && <span className="hidden rounded-full bg-emerald-950 px-2.5 py-1 text-xs font-semibold text-emerald-300 sm:inline">{row.dashaChain}</span>}
                 </div>
@@ -290,18 +469,17 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                 <div className="space-y-3 border-t border-zinc-800 bg-black/70 p-4">
                   <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
                     <FieldBox label="Sub Lord Planet" tone="indigo">
-                      <input
+                      <InputCell
                         value={row.subLord}
-                        onChange={(e) => updateRow(row.house, 'subLord', e.target.value)}
-                        className="w-full rounded-lg border border-yellow-500/40 bg-black px-3 py-2 text-sm font-semibold text-yellow-200 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                        onChange={(v) => updateRow(row.house, 'subLord', v)}
+                        accent="yellow"
                       />
                     </FieldBox>
                     <FieldBox label="Maha-Antar-Vidasha">
-                      <input
+                      <InputCell
                         value={row.dashaChain}
-                        onChange={(e) => updateRow(row.house, 'dashaChain', e.target.value)}
+                        onChange={(v) => updateRow(row.house, 'dashaChain', v)}
                         placeholder="Sun-Moon-Saturn"
-                        className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                       />
                     </FieldBox>
                     <FieldBox label="Use">
@@ -333,79 +511,78 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                     </FieldBox>
                   </div>
 
-                  <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <ManagedKaryeshView row={row} houses={houses} planets={planets} onApplySuggestion={(result) => applyKaryeshSuggestion(row.house, result)} />
+
+                  <div className="overflow-hidden rounded-xl border border-yellow-500/30 bg-yellow-500/5">
+                    <div className="border-b border-yellow-500/20 bg-black/50 px-3 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Rule Template</div>
                         <div className="mt-1 text-[11px] text-zinc-400">{TOOLKIT_RULE_FIELDS.join(' -> ')}</div>
                       </div>
                       <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-bold text-black">Karyesh logic</span>
                     </div>
+                    </div>
+                    <div className="space-y-3 p-3">
                     <div className="grid gap-3 lg:grid-cols-3">
                       <FieldBox label="Matter / Event" tone="indigo">
-                        <input
+                        <InputCell
                           value={row.toolkitMatter}
-                          onChange={(e) => updateRow(row.house, 'toolkitMatter', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitMatter', v)}
                           placeholder="Marriage, Job, Stock, Health..."
-                          className="w-full rounded-lg border border-yellow-500/40 bg-black px-3 py-2 text-sm text-yellow-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          accent="yellow"
                         />
                       </FieldBox>
                       <FieldBox label="Primary House">
-                        <input
+                        <InputCell
                           value={row.toolkitPrimaryHouse}
-                          onChange={(e) => updateRow(row.house, 'toolkitPrimaryHouse', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitPrimaryHouse', v)}
                           placeholder={`${row.house}`}
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                       <FieldBox label="Supporting Houses">
-                        <input
+                        <InputCell
                           value={row.toolkitSupportingHouses}
-                          onChange={(e) => updateRow(row.house, 'toolkitSupportingHouses', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitSupportingHouses', v)}
                           placeholder="2, 7, 11"
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                     </div>
                     <div className="mt-3 grid gap-3 lg:grid-cols-4">
                       <FieldBox label="Opposing / Denial Houses" tone="red">
-                        <input
+                        <InputCell
                           value={row.toolkitOpposingHouses}
-                          onChange={(e) => updateRow(row.house, 'toolkitOpposingHouses', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitOpposingHouses', v)}
                           placeholder="1, 6, 10, 12"
-                          className="w-full rounded-lg border border-red-700/60 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          accent="red"
                         />
                       </FieldBox>
                       <FieldBox label="CSL R/D">
-                        <input
+                        <InputCell
                           value={row.cslRetrogradeStatus}
-                          onChange={(e) => updateRow(row.house, 'cslRetrogradeStatus', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'cslRetrogradeStatus', v)}
                           placeholder="Direct / Retrograde"
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                       <FieldBox label="Star of CSL">
-                        <input
+                        <InputCell
                           value={row.cslStarLord}
-                          onChange={(e) => updateRow(row.house, 'cslStarLord', e.target.value)}
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          onChange={(v) => updateRow(row.house, 'cslStarLord', v)}
                         />
                       </FieldBox>
                       <FieldBox label="Owner of Star">
-                        <input
+                        <InputCell
                           value={row.cslStarLordOwner}
-                          onChange={(e) => updateRow(row.house, 'cslStarLordOwner', e.target.value)}
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          onChange={(v) => updateRow(row.house, 'cslStarLordOwner', v)}
                         />
                       </FieldBox>
                     </div>
                     <div className="mt-3 grid gap-3 lg:grid-cols-3">
                       <FieldBox label="Star Owner R/D">
-                        <input
+                        <InputCell
                           value={row.cslStarLordRetrogradeStatus}
-                          onChange={(e) => updateRow(row.house, 'cslStarLordRetrogradeStatus', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'cslStarLordRetrogradeStatus', v)}
                           placeholder="Direct / Retrograde"
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                       <FieldBox label="Owner Signification">
@@ -419,6 +596,7 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                       <FieldBox label="Rule Conclusion" tone="emerald">
                         <TextCell value={row.karyeshRuleConclusion} onChange={(v) => updateRow(row.house, 'karyeshRuleConclusion', v)} rows={3} />
                       </FieldBox>
+                    </div>
                     </div>
                   </div>
 

@@ -198,7 +198,7 @@ export default function KpHoraryWorkspacePage() {
                 </button>
               </div>
             </div>
-            <BhavEditor rows={bhavRows} onChange={setBhavRows} />
+            <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} />
           </div>
         </div>
       )}
