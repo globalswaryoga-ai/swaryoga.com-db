@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 
 // Per-bhav (per-house) astrologer working sheet. Each row stays editable so
 // the astrologer can correct the auto-filled KP data before final prediction.
@@ -210,19 +210,58 @@ function FieldBox({ label, children, tone = 'slate' }: { label: string; children
   );
 }
 
+function InputCell({ value, onChange, placeholder, accent = 'slate' }: { value: string; onChange: (v: string) => void; placeholder?: string; accent?: 'slate' | 'yellow' | 'red' }) {
+  const accentClass = {
+    slate: 'border-zinc-700 text-zinc-100 focus:border-yellow-400',
+    yellow: 'border-yellow-500/40 text-yellow-100 focus:border-yellow-400',
+    red: 'border-red-700/60 text-zinc-100 focus:border-red-400',
+  }[accent];
+
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`w-full rounded-lg border bg-black px-3 py-2 text-sm shadow-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 ${accentClass}`}
+    />
+  );
+}
+
 function bhavLabel(house: number): string {
   return `${house}${house === 1 ? 'st' : house === 2 ? 'nd' : house === 3 ? 'rd' : 'th'} Bhav`;
+}
+
+function rowProgress(row: BhavAnalysisRow): { done: number; total: number } {
+  const fields = [
+    row.subLord,
+    row.subLordKaryeshBhav,
+    row.toolkitMatter,
+    row.cslRetrogradeStatus,
+    row.cslStarLord,
+    row.cslStarLordOwner,
+    row.cslStarLordSignification,
+    row.karyeshRuleResult,
+    row.karyeshRuleConclusion,
+  ];
+  return { done: fields.filter(Boolean).length, total: fields.length };
 }
 
 function ToolkitReferenceCards() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="grid gap-3 p-3 pt-0 lg:grid-cols-2">
+    <div className="border-b border-zinc-800 bg-black/80 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Reference</div>
+          <div className="text-[11px] text-zinc-500">Small cards stay collapsed until needed.</div>
+        </div>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
       {TOOLKIT_REFERENCE_CARDS.map((card) => {
         const open = !!openCards[card.title];
         return (
-          <div key={card.title} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950">
+          <div key={card.title} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
             <button
               type="button"
               onClick={() => setOpenCards((prev) => ({ ...prev, [card.title]: !open }))}
@@ -232,11 +271,14 @@ function ToolkitReferenceCards() {
                 {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
                 <span className="truncate text-sm font-semibold text-zinc-100">{card.title}</span>
               </div>
-              <span className="shrink-0 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-black">{card.badge}</span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-black">
+                {open ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {card.badge}
+              </span>
             </button>
             {open && (
               <div className="max-h-72 overflow-y-auto border-t border-zinc-800 px-4 py-3">
-                <ul className="space-y-2 text-xs leading-relaxed text-zinc-300">
+                <ul className="grid gap-2 text-xs leading-relaxed text-zinc-300">
                   {card.lines.map((line) => <li key={line}>{line}</li>)}
                 </ul>
               </div>
@@ -244,6 +286,7 @@ function ToolkitReferenceCards() {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -256,10 +299,11 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
   };
 
   return (
-    <div className="rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-black px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold text-white">12 Bhav Working Dropdowns</h3>
+          <p className="mt-0.5 text-xs text-zinc-500">Open one Bhav, complete Karyesh logic, save, then generate final prediction.</p>
         </div>
         <div className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">12 bhavs</div>
       </div>
@@ -267,6 +311,8 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
       <div className="space-y-2 p-3">
         {rows.map((row) => {
           const open = openHouse === row.house;
+          const progress = rowProgress(row);
+          const isReady = progress.done >= 7 || Boolean(row.karyeshRuleConclusion);
 
           return (
             <div key={row.house} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
@@ -281,6 +327,10 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                   <span className="truncate text-sm font-medium text-zinc-100">{HOUSE_LABELS[row.house]}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <span className={`hidden rounded-full px-2.5 py-1 text-xs font-bold sm:inline ${isReady ? 'bg-emerald-900 text-emerald-200' : 'bg-zinc-800 text-zinc-400'}`}>
+                    {progress.done}/{progress.total}
+                  </span>
+                  {row.predictionOrder > 0 && <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-xs font-bold text-black">#{row.predictionOrder}</span>}
                   {row.subLord && <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-100">Sub: {row.subLord}</span>}
                   {row.dashaChain && <span className="hidden rounded-full bg-emerald-950 px-2.5 py-1 text-xs font-semibold text-emerald-300 sm:inline">{row.dashaChain}</span>}
                 </div>
@@ -290,18 +340,17 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                 <div className="space-y-3 border-t border-zinc-800 bg-black/70 p-4">
                   <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
                     <FieldBox label="Sub Lord Planet" tone="indigo">
-                      <input
+                      <InputCell
                         value={row.subLord}
-                        onChange={(e) => updateRow(row.house, 'subLord', e.target.value)}
-                        className="w-full rounded-lg border border-yellow-500/40 bg-black px-3 py-2 text-sm font-semibold text-yellow-200 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                        onChange={(v) => updateRow(row.house, 'subLord', v)}
+                        accent="yellow"
                       />
                     </FieldBox>
                     <FieldBox label="Maha-Antar-Vidasha">
-                      <input
+                      <InputCell
                         value={row.dashaChain}
-                        onChange={(e) => updateRow(row.house, 'dashaChain', e.target.value)}
+                        onChange={(v) => updateRow(row.house, 'dashaChain', v)}
                         placeholder="Sun-Moon-Saturn"
-                        className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                       />
                     </FieldBox>
                     <FieldBox label="Use">
@@ -333,79 +382,76 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                     </FieldBox>
                   </div>
 
-                  <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="overflow-hidden rounded-xl border border-yellow-500/30 bg-yellow-500/5">
+                    <div className="border-b border-yellow-500/20 bg-black/50 px-3 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Rule Template</div>
                         <div className="mt-1 text-[11px] text-zinc-400">{TOOLKIT_RULE_FIELDS.join(' -> ')}</div>
                       </div>
                       <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-bold text-black">Karyesh logic</span>
                     </div>
+                    </div>
+                    <div className="space-y-3 p-3">
                     <div className="grid gap-3 lg:grid-cols-3">
                       <FieldBox label="Matter / Event" tone="indigo">
-                        <input
+                        <InputCell
                           value={row.toolkitMatter}
-                          onChange={(e) => updateRow(row.house, 'toolkitMatter', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitMatter', v)}
                           placeholder="Marriage, Job, Stock, Health..."
-                          className="w-full rounded-lg border border-yellow-500/40 bg-black px-3 py-2 text-sm text-yellow-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          accent="yellow"
                         />
                       </FieldBox>
                       <FieldBox label="Primary House">
-                        <input
+                        <InputCell
                           value={row.toolkitPrimaryHouse}
-                          onChange={(e) => updateRow(row.house, 'toolkitPrimaryHouse', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitPrimaryHouse', v)}
                           placeholder={`${row.house}`}
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                       <FieldBox label="Supporting Houses">
-                        <input
+                        <InputCell
                           value={row.toolkitSupportingHouses}
-                          onChange={(e) => updateRow(row.house, 'toolkitSupportingHouses', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitSupportingHouses', v)}
                           placeholder="2, 7, 11"
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                     </div>
                     <div className="mt-3 grid gap-3 lg:grid-cols-4">
                       <FieldBox label="Opposing / Denial Houses" tone="red">
-                        <input
+                        <InputCell
                           value={row.toolkitOpposingHouses}
-                          onChange={(e) => updateRow(row.house, 'toolkitOpposingHouses', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'toolkitOpposingHouses', v)}
                           placeholder="1, 6, 10, 12"
-                          className="w-full rounded-lg border border-red-700/60 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          accent="red"
                         />
                       </FieldBox>
                       <FieldBox label="CSL R/D">
-                        <input
+                        <InputCell
                           value={row.cslRetrogradeStatus}
-                          onChange={(e) => updateRow(row.house, 'cslRetrogradeStatus', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'cslRetrogradeStatus', v)}
                           placeholder="Direct / Retrograde"
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                       <FieldBox label="Star of CSL">
-                        <input
+                        <InputCell
                           value={row.cslStarLord}
-                          onChange={(e) => updateRow(row.house, 'cslStarLord', e.target.value)}
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          onChange={(v) => updateRow(row.house, 'cslStarLord', v)}
                         />
                       </FieldBox>
                       <FieldBox label="Owner of Star">
-                        <input
+                        <InputCell
                           value={row.cslStarLordOwner}
-                          onChange={(e) => updateRow(row.house, 'cslStarLordOwner', e.target.value)}
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                          onChange={(v) => updateRow(row.house, 'cslStarLordOwner', v)}
                         />
                       </FieldBox>
                     </div>
                     <div className="mt-3 grid gap-3 lg:grid-cols-3">
                       <FieldBox label="Star Owner R/D">
-                        <input
+                        <InputCell
                           value={row.cslStarLordRetrogradeStatus}
-                          onChange={(e) => updateRow(row.house, 'cslStarLordRetrogradeStatus', e.target.value)}
+                          onChange={(v) => updateRow(row.house, 'cslStarLordRetrogradeStatus', v)}
                           placeholder="Direct / Retrograde"
-                          className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                         />
                       </FieldBox>
                       <FieldBox label="Owner Signification">
@@ -419,6 +465,7 @@ export default function BhavEditor({ rows, onChange }: { rows: BhavAnalysisRow[]
                       <FieldBox label="Rule Conclusion" tone="emerald">
                         <TextCell value={row.karyeshRuleConclusion} onChange={(v) => updateRow(row.house, 'karyeshRuleConclusion', v)} rows={3} />
                       </FieldBox>
+                    </div>
                     </div>
                   </div>
 
