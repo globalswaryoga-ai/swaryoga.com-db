@@ -65,12 +65,15 @@ class MainActivity : AppCompatActivity() {
         errorView.visibility = View.GONE
 
         setupWebView()
-        handleDeepLink(intent)
 
-        if (isNetworkAvailable()) {
-            loadWebsite()
-        } else {
-            showError("No internet connection", "Please check your network and try again.")
+        val hasDeepLink = handleDeepLink(intent)
+
+        if (!hasDeepLink) {
+            if (isNetworkAvailable()) {
+                loadWebsite()
+            } else {
+                showError("No internet connection", "Please check your network and try again.")
+            }
         }
 
         // Setup retry button
@@ -182,9 +185,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Handle deep links from Play Store or external apps
+     * Handle deep links from Play Store or external apps.
+     * Returns true if a deep link was handled (caller should skip default load).
      */
-    private fun handleDeepLink(intent: Intent) {
+    private fun handleDeepLink(intent: Intent): Boolean {
         val data: Uri? = intent.data
         if (data != null && (data.host?.contains("swaryoga.com") == true)) {
             val deepLinkUrl = data.toString()
@@ -193,7 +197,9 @@ class MainActivity : AppCompatActivity() {
                 .replace("https://www.swaryoga.com", "https://swaryoga.com")
             Log.d(TAG, "Deep link: $correctedUrl")
             webView.loadUrl(correctedUrl)
+            return true
         }
+        return false
     }
 
     /**

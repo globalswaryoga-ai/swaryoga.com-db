@@ -31,7 +31,7 @@ class SwarYogaWebViewClient(
         private const val TAG = "SwarYogaWebView"
     }
 
-    // All Swar Yoga domains
+    // All Swar Yoga domains (exact match or subdomain match only)
     private val allowedDomains = listOf(
         "swaryoga.com",
         "www.swaryoga.com",
@@ -47,8 +47,8 @@ class SwarYogaWebViewClient(
         val url = request.url.toString()
         val host = request.url.host ?: ""
         
-        // Handle Swar Yoga URLs - load in WebView
-        if (allowedDomains.any { host.endsWith(it) }) {
+        // Handle Swar Yoga URLs - load in WebView (exact or subdomain match)
+        if (allowedDomains.any { host == it || host.endsWith(".$it") }) {
             view.loadUrl(url)
             return true
         }
