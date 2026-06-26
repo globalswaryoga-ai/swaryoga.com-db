@@ -150,9 +150,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             error: 'Video streaming not configured'
           }, { status: 500 });
         }
-        // Use Bunny mediadelivery player (iframe) to avoid CORS issues
-        // This is the same approach Sadhana uses
-        let playerUrl = `https://player.mediadelivery.net/play/${libraryId}/${video.bunnyVideoId}`;
+        // Use Bunny embed player (iframe) — designed for iframe embedding
+        let playerUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${video.bunnyVideoId}?preload=true&responsive=true`;
         const streamCdnKey = process.env.BUNNY_STREAM_CDN_KEY;
         if (streamCdnKey) {
           const expiry = Math.floor(Date.now() / 1000) + 3600;
@@ -160,7 +159,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             .createHash('sha256')
             .update(streamCdnKey + video.bunnyVideoId + expiry)
             .digest('hex');
-          playerUrl += `?token=${token}&expires=${expiry}`;
+          playerUrl += `&token=${token}&expires=${expiry}`;
         }
         streamingData = {
           playerUrl,

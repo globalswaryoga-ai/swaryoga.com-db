@@ -888,7 +888,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       src={videoStream.streaming.playerUrl}
                       style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                       allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                      sandbox="allow-scripts allow-same-origin allow-presentation"
+                      sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
                       loading="eager"
                       title="Video player"
                     />
