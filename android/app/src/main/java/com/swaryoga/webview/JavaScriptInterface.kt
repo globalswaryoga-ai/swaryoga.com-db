@@ -1,6 +1,8 @@
 package com.swaryoga.webview
 
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.webkit.JavascriptInterface
 import com.swaryoga.api.TokenManager
 import com.google.gson.Gson
@@ -78,9 +80,15 @@ class JavaScriptInterface(
      */
     @JavascriptInterface
     fun getAppVersion(): String {
-        return activity.packageManager
-            .getPackageInfo(activity.packageName, 0)
-            .versionName ?: "1.0.0"
+        val pm = activity.packageManager
+        val pn = activity.packageName
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageInfo(pn, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(pn, 0)
+        }
+        return info.versionName ?: "1.0.0"
     }
 
     /**

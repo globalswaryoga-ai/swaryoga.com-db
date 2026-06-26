@@ -33,7 +33,7 @@ android {
             debuggable true
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            buildConfigField "String", "API_BASE_URL", "\"https://swaryoga.com/api\""
+            buildConfigField "String", "API_BASE_URL", "\"https://swaryoga.com/api/\""
             buildConfigField "String", "WEB_BASE_URL", "\"https://swaryoga.com\""
         }
 
@@ -43,7 +43,7 @@ android {
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            buildConfigField "String", "API_BASE_URL", "\"https://swaryoga.com/api\""
+            buildConfigField "String", "API_BASE_URL", "\"https://swaryoga.com/api/\""
             buildConfigField "String", "WEB_BASE_URL", "\"https://swaryoga.com\""
         }
     }
