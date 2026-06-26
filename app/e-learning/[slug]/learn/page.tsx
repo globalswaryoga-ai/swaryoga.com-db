@@ -442,21 +442,29 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     }
   };
 
+  // Keep stable refs to avoid re-attaching listeners on every render
+  const handleVideoEndedRef = useRef(handleVideoEnded);
+  const updateProgressRef = useRef(updateProgress);
+  handleVideoEndedRef.current = handleVideoEnded;
+  updateProgressRef.current = updateProgress;
+
   // Attach event listeners to video ref for progress tracking
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    video.addEventListener('ended', handleVideoEnded);
+    const onEnded = () => handleVideoEndedRef.current();
+    const onPause = () => updateProgressRef.current(false);
+    video.addEventListener('ended', onEnded);
     video.addEventListener('timeupdate', handleTimeUpdate as any);
-    video.addEventListener('pause', () => updateProgress(false));
+    video.addEventListener('pause', onPause);
 
     return () => {
-      video.removeEventListener('ended', handleVideoEnded);
+      video.removeEventListener('ended', onEnded);
       video.removeEventListener('timeupdate', handleTimeUpdate as any);
-      video.removeEventListener('pause', () => updateProgress(false));
+      video.removeEventListener('pause', onPause);
     };
-  }, [currentVideo, autoplay]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentVideo, autoplay]);
 
   // Update progress periodically
   useEffect(() => {
