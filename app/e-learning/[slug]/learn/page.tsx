@@ -370,7 +370,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
         const query = new URLSearchParams({
           fingerprint: device.fingerprint,
           deviceName: device.deviceName,
-          deviceInfo: device.deviceInfo,
         });
         const response = await fetch(`/api/recorded-courses/video/${currentVideo._id}?${query.toString()}`, {
           headers: {
