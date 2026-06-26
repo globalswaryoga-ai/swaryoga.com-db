@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
 
     const booking = new ResortBooking({
       ...body,
+      grandTotal: body.totalAmount || 0,
       createdAt: new Date(),
     });
 
