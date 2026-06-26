@@ -234,6 +234,8 @@ export default function AdminVideosPage() {
     sessionNumber: 1,
     sessionTitle: '',
     tags: '',
+    workshopName: '',
+    batchNumber: 1,
   });
 
   // ─── Zoom Sync State ──────────────────────────────────────────────
@@ -425,6 +427,7 @@ export default function AdminVideosPage() {
       title: '', description: '', videoUrl: '', bunnyVideoId: '', bunnyEmbedUrl: '',
       thumbnailUrl: '', videoType: forType,
       duration: 0, sessionNumber: nextNum, sessionTitle: '', tags: '',
+      workshopName: '', batchNumber: 1,
     });
     setShowVideoModal(true);
   };
@@ -437,6 +440,7 @@ export default function AdminVideosPage() {
       thumbnailUrl: v.thumbnailUrl || '', videoType: v.videoType || 'speaker',
       duration: v.duration, sessionNumber: v.sessionNumber || 1,
       sessionTitle: v.sessionTitle || '', tags: v.tags?.join(', ') || '',
+      workshopName: (v as any).workshopName || '', batchNumber: (v as any).batchNumber || 1,
     });
     setShowVideoModal(true);
   };

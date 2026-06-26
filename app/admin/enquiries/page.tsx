@@ -311,6 +311,47 @@ export default function EnquiriesPage() {
     }
   };
 
+  const ensureLeadAndToggleLabel = async (enquiry: Enquiry, label: string, _updateDB: boolean): Promise<string> => {
+    if (enquiry.leadId) {
+      const res = await fetch(`/api/admin/crm/leads/${enquiry.leadId}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ addLabels: [label] }),
+      });
+      if (!res.ok) throw new Error('Failed to update lead labels');
+      return enquiry.leadId;
+    }
+    const digits = enquiry.mobile.replace(/\D/g, '');
+    const phone = digits.length === 10 ? `91${digits}` : digits;
+    const res = await fetch('/api/admin/crm/leads', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        name: enquiry.name,
+        phoneNumber: phone,
+        status: 'lead',
+        source: 'enquiry',
+        workshopName: enquiry.workshopName,
+        labels: ['enquiry', label],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 409 && err.duplicate && err.existingLead?._id) {
+        const id = err.existingLead._id;
+        await fetch(`/api/admin/crm/leads/${id}`, {
+          method: 'PATCH',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ addLabels: [label] }),
+        });
+        return id;
+      }
+      throw new Error(err.error || 'Failed to create lead');
+    }
+    const data = await res.json();
+    return data.data?._id || data.data?.id;
+  };
+
   const openInMeta = async (enquiry: Enquiry) => {
     const digits = enquiry.mobile.replace(/\D/g, '');
     const phone = digits.length === 10 ? `91${digits}` : digits;

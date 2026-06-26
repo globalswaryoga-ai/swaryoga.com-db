@@ -456,7 +456,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       video.removeEventListener('timeupdate', handleTimeUpdate as any);
       video.removeEventListener('pause', () => updateProgress(false));
     };
-  }, [currentVideo, autoplay]);
+  }, [currentVideo, autoplay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update progress periodically
   useEffect(() => {

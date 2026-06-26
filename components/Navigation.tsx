@@ -132,9 +132,9 @@ export default function Navigation() {
               </div>
               
               {/* Text - Poppins Font */}
-              <div className="flex flex-col tracking-tight hidden sm:block">
+              <div className="flex flex-col tracking-tight">
                 <span 
-                  className="text-lg sm:text-xl md:text-2xl font-bold leading-none" 
+                  className="text-sm sm:text-xl md:text-2xl font-bold leading-none" 
                   style={{
                     fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                     letterSpacing: "-0.01em",
@@ -145,7 +145,7 @@ export default function Navigation() {
                   Swar Yoga
                 </span>
                 <div 
-                  className="text-[10px] sm:text-xs font-semibold leading-tight" 
+                  className="text-[8px] sm:text-xs font-semibold leading-tight hidden xs:block sm:block" 
                   style={{
                     fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                     letterSpacing: "0.02em",

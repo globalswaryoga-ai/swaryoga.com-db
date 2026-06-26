@@ -371,7 +371,7 @@ function CheckoutInner() {
               Your cart is empty. Visit the <a href="/workshops" className="underline font-semibold">workshops page</a> to add a program before proceeding to PayU.
             </div>
           )}
-          <h1 className="text-5xl font-bold mb-12 text-yoga-700">Checkout</h1>
+          <h1 className="text-3xl sm:text-5xl font-bold mb-8 sm:mb-12 text-yoga-700">Checkout</h1>
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="md:col-span-2">
