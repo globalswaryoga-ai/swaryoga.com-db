@@ -27,7 +27,7 @@ export interface ComputedChart {
   julianDay: number;
   ascendant: ComputedPosition;
   houses: Array<{ house: number } & ComputedPosition>;
-  planets: Array<{ planet: string; house: number; retrograde: boolean } & ComputedPosition>;
+  planets: Array<{ planet: string; house: number; retrograde: boolean; combust: boolean } & ComputedPosition>;
 }
 
 const PLANETS: Array<{ name: string; id: number }> = [
@@ -114,19 +114,21 @@ export async function computeChart(params: {
   }
 
   const planets: ComputedChart['planets'] = [];
+  let sunLongitude = 0;
   for (const p of PLANETS) {
     const pos = swe.calc_ut(jd, p.id, SEFLG_SWIEPH | SEFLG_SIDEREAL);
     const longitude = pos[0];
-    const retrograde = pos[3] < 0; // negative daily motion in longitude = retrograde
-    planets.push({ planet: p.name, house: houseOfLongitude(longitude, cuspsSidereal), retrograde, ...positionFromLongitude(longitude) });
+    const retrograde = pos[3] < 0;
+    const combust = p.name === 'Sun' ? false : isCombust(longitude, sunLongitude, p.name);
+    if (p.name === 'Sun') sunLongitude = longitude;
+    planets.push({ planet: p.name, house: houseOfLongitude(longitude, cuspsSidereal), retrograde, combust, ...positionFromLongitude(longitude) });
   }
 
   const rahuPos = swe.calc_ut(jd, SE_MEAN_NODE, SEFLG_SWIEPH | SEFLG_SIDEREAL);
   const rahuLongitude = rahuPos[0];
   const ketuLongitude = (rahuLongitude + 180) % 360;
-  // Rahu/Ketu (lunar nodes) are conventionally always treated as retrograde in Vedic/KP practice.
-  planets.push({ planet: 'Rahu', house: houseOfLongitude(rahuLongitude, cuspsSidereal), retrograde: true, ...positionFromLongitude(rahuLongitude) });
-  planets.push({ planet: 'Ketu', house: houseOfLongitude(ketuLongitude, cuspsSidereal), retrograde: true, ...positionFromLongitude(ketuLongitude) });
+  planets.push({ planet: 'Rahu', house: houseOfLongitude(rahuLongitude, cuspsSidereal), retrograde: true, combust: false, ...positionFromLongitude(rahuLongitude) });
+  planets.push({ planet: 'Ketu', house: houseOfLongitude(ketuLongitude, cuspsSidereal), retrograde: true, combust: false, ...positionFromLongitude(ketuLongitude) });
 
   return {
     julianDay: jd,
@@ -161,4 +163,17 @@ export async function computeTransitLagna(date: Date, latitude: number, longitud
   const houseResult = swe.houses_ex(jd, SEFLG_SIDEREAL, latitude, longitude, 'P');
   const ascendantLongitude = houseResult.ascmc[0];
   return positionFromLongitude(ascendantLongitude);
+}
+
+const COMBUSTION_ORBS: Record<string, number> = {
+  Moon: 12, Mercury: 14, Venus: 10, Mars: 17, Jupiter: 11, Saturn: 15,
+};
+const COMBUST_IGNORE = new Set(['Sun', 'Rahu', 'Ketu']);
+
+function isCombust(planetLon: number, sunLon: number, planetName: string): boolean {
+  if (COMBUST_IGNORE.has(planetName)) return false;
+  const orb = COMBUSTION_ORBS[planetName];
+  if (!orb) return false;
+  const diff = Math.abs(planetLon - sunLon) % 360;
+  return diff <= orb || diff >= (360 - orb);
 }

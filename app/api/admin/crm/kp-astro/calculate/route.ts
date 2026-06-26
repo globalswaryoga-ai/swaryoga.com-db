@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
           house: h.house, sign: h.sign, signLord: h.signLord, star: h.star, starLord: h.starLord, subLord: h.subLord, degree: h.degree,
         })),
         planets: chart.planets.map((p) => ({
-          planet: p.planet, sign: p.sign, star: p.star, subLord: p.subLord, house: p.house, degree: p.degree, retrograde: p.retrograde,
+          planet: p.planet, sign: p.sign, star: p.star, subLord: p.subLord, house: p.house, degree: p.degree, retrograde: p.retrograde, combust: p.combust,
         })),
         mahadashas,
         dashaPeriods,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Clock3, Download, Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save } from 'lucide-react';
+import { Clock3, Download, Sparkles, Send, Loader2, RefreshCw, Pencil, X, Save, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import { KP_LANGUAGES } from '@/lib/kpAstro/languages';
@@ -100,6 +100,7 @@ export default function KpHoroscopeChartDetailPage() {
   const [editAscendantDegree, setEditAscendantDegree] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const fetchChart = useCallback(async () => {
     if (!token || !id) return;
@@ -142,6 +143,24 @@ export default function KpHoroscopeChartDetailPage() {
   };
   const updateEditPlanet = (idx: number, field: keyof ChartPlanet, value: string | boolean) => {
     setEditPlanets((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
+  };
+
+  const handleDelete = async () => {
+    if (!token || !id) return;
+    if (!window.confirm('Delete this chart permanently?')) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/crm/kp-astro/charts/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed to delete');
+      window.location.href = '/admin/crm/kp-astro/charts';
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete chart');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -259,9 +278,14 @@ export default function KpHoroscopeChartDetailPage() {
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">12 Bhav (Houses) &amp; Planets</h2>
           {!editing ? (
-            <button type="button" onClick={startEditing} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold text-indigo-600 hover:bg-indigo-50">
-              <Pencil className="h-4 w-4" /> Edit
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={startEditing} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold text-indigo-600 hover:bg-indigo-50">
+                <Pencil className="h-4 w-4" /> Edit
+              </button>
+              <button type="button" onClick={handleDelete} disabled={deleting} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Delete
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setEditing(false)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100">

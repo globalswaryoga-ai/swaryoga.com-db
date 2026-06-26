@@ -88,11 +88,14 @@ export default function KpHoroscopeChartsPage() {
   const [lookupCity, setLookupCity] = useState('');
   const [indiaCityLookup, setIndiaCityLookup] = useState('');
 
-  const fetchCharts = useCallback(async () => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchCharts = useCallback(async (search?: string) => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/kp-astro/charts', { headers: { Authorization: `Bearer ${token}` } });
+      const params = search ? `?search=${encodeURIComponent(search)}` : '';
+      const res = await fetch(`/api/admin/crm/kp-astro/charts${params}`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       setCharts(res.ok && Array.isArray(json.data) ? json.data : []);
     } catch {
@@ -102,7 +105,7 @@ export default function KpHoroscopeChartsPage() {
     }
   }, [token]);
 
-  useEffect(() => { fetchCharts(); }, [fetchCharts]);
+  useEffect(() => { fetchCharts(searchQuery); }, [fetchCharts, searchQuery]);
 
   const updateHouse = (idx: number, field: keyof HouseRow, value: string) => {
     setHouses((prev) => prev.map((h, i) => (i === idx ? { ...h, [field]: value } : h)));
@@ -175,7 +178,7 @@ export default function KpHoroscopeChartsPage() {
       })));
       setPlanets(data.planets.map((p: any) => ({
         planet: p.planet, sign: p.sign, star: p.star, subLord: p.subLord, house: String(p.house), degree: p.degree,
-        retrograde: false, combust: false,
+        retrograde: p.retrograde || false, combust: p.combust || false,
       })));
       setMahadashas(data.mahadashas.map((m: any) => ({ planet: m.planet, startDate: m.startDate, endDate: m.endDate })));
       setDashaPeriods(Array.isArray(data.dashaPeriods) ? data.dashaPeriods : []);
@@ -265,7 +268,7 @@ export default function KpHoroscopeChartsPage() {
 
       {showForm && (
         <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-6">
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <input value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Name *" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             <select value={gender} onChange={(e) => setGender(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
               <option value="">Gender</option>
@@ -299,7 +302,7 @@ export default function KpHoroscopeChartsPage() {
             </div>
             <details className="rounded-lg border border-indigo-100 bg-white/70 p-3">
               <summary className="cursor-pointer text-xs font-semibold text-indigo-700">Advanced country/state/city lookup</summary>
-              <div className="grid sm:grid-cols-3 gap-3 mt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
                 <select
                   value={lookupCountry}
                   onChange={(e) => { setLookupCountry(e.target.value); setLookupState(''); setLookupCity(''); setIndiaCityLookup(''); }}
@@ -328,7 +331,7 @@ export default function KpHoroscopeChartsPage() {
                 </select>
               </div>
             </details>
-            <div className="grid sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <input value={utcOffset} onChange={(e) => setUtcOffset(e.target.value)} placeholder='UTC offset (e.g. "+5:30")' className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
               <input value={birthLatitude} onChange={(e) => setBirthLatitude(e.target.value)} placeholder="Birth latitude (e.g. 28.6139)" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
               <input value={birthLongitude} onChange={(e) => setBirthLongitude(e.target.value)} placeholder="Birth longitude (e.g. 77.2090)" className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
@@ -419,10 +422,10 @@ export default function KpHoroscopeChartsPage() {
             <p className="text-xs text-gray-400 mb-2">Enter as many rows as you have (current + future). The system figures out which one is "current" from today's date — no need to label it.</p>
             <div className="space-y-2">
               {mahadashas.map((m, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input value={m.planet} onChange={(e) => updateDasha(idx, 'planet', e.target.value)} placeholder="Planet" className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                  <input type="date" value={m.startDate} onChange={(e) => updateDasha(idx, 'startDate', e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                  <input type="date" value={m.endDate} onChange={(e) => updateDasha(idx, 'endDate', e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <input value={m.planet} onChange={(e) => updateDasha(idx, 'planet', e.target.value)} placeholder="Planet" className="w-full sm:flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                  <input type="date" value={m.startDate} onChange={(e) => updateDasha(idx, 'startDate', e.target.value)} className="w-full sm:w-auto rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                  <input type="date" value={m.endDate} onChange={(e) => updateDasha(idx, 'endDate', e.target.value)} className="w-full sm:w-auto rounded-lg border border-gray-300 px-3 py-2 text-sm" />
                   {mahadashas.length > 1 && (
                     <button type="button" onClick={() => setMahadashas((prev) => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
                       <Trash2 className="h-4 w-4" />
@@ -453,7 +456,15 @@ export default function KpHoroscopeChartsPage() {
       )}
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5">
-        <h2 className="font-semibold text-gray-900 mb-3">Saved Charts</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <h2 className="font-semibold text-gray-900">Saved Charts</h2>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name…"
+            className="w-full sm:w-64 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+          />
+        </div>
         {loading ? (
           <p className="text-sm text-gray-400">Loading…</p>
         ) : charts.length === 0 ? (

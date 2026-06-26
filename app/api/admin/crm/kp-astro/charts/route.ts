@@ -21,9 +21,17 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    const { searchParams } = request.nextUrl;
+    const search = searchParams.get('search')?.trim();
+    const filter: any = {};
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.personName = { $regex: escaped, $options: 'i' };
+    }
+
     const KpHoroscopeChart = getKpHoroscopeChart();
     const charts = await (KpHoroscopeChart as any)
-      .find({})
+      .find(filter)
       .select('personName gender dob createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .limit(200)
@@ -65,7 +73,9 @@ export async function POST(request: NextRequest) {
       ascendant: body?.ascendant || undefined,
       houses: Array.isArray(body?.houses) ? body.houses : [],
       planets: Array.isArray(body?.planets) ? body.planets : [],
-      mahadashas: Array.isArray(body?.mahadashas) ? body.mahadashas : [],
+      mahadashas: Array.isArray(body?.mahadashas) ? body.mahadashas.map((m: any) => ({
+        ...m, startDate: m.startDate ? new Date(m.startDate) : undefined, endDate: m.endDate ? new Date(m.endDate) : undefined,
+      })) : [],
       doshas: body?.doshas || undefined,
       chartStyle: body?.chartStyle === 'south' ? 'south' : 'north',
       dashaPeriods: Array.isArray(body?.dashaPeriods) ? body.dashaPeriods : [],
