@@ -16,7 +16,10 @@
       "Bash(vercel ls *)",
       "Read(//Users/mohankalburgi/Library/LaunchAgents/**)",
       "Bash(node --check scripts/zoom-recording-uploader.mjs)",
-      "Bash(vercel inspect *)"
+      "Bash(vercel inspect *)",
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

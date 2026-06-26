@@ -49,7 +49,7 @@ interface Course {
   enrollmentCount: number;
 }
 
-export default function DLearningPage() {
+export default function ELearningPage() {
   const router = useRouter();
   const token = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -196,18 +196,12 @@ export default function DLearningPage() {
     if (!confirm('Delete this course? This cannot be undone.')) return;
 
     try {
-      console.log('🗑️ Deleting course:', courseId);
-      console.log('🔑 Token present:', !!token);
-
       const res = await fetch(`/api/admin/recorded-courses?id=${courseId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log('📡 Response status:', res.status, res.statusText);
-
       const data = await res.json();
-      console.log('📋 Response data:', data);
 
       if (res.ok && data.success) {
         setCourses(prev => prev.filter(c => c._id !== courseId));

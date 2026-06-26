@@ -152,6 +152,7 @@ export default function CourseDetailPage() {
   const originalPrice = priceINR;
   const discountedPrice = course.discount ? Math.round(priceINR * (1 - course.discount / 100)) : priceINR;
   const discountAmount = originalPrice - discountedPrice;
+  const displayedStudentCount = (course.defaultStudents ?? 15) + (course.enrolledCount || 0);
 
   return (
     <div className="min-h-screen bg-white">
@@ -265,7 +266,7 @@ export default function CourseDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Users size={20} />
-                <span>{15 + (course.enrolledCount || 0)} students</span>
+                <span>{displayedStudentCount} students</span>
               </div>
             </div>
 
@@ -279,7 +280,7 @@ export default function CourseDetailPage() {
             {/* Students Count */}
             <div className="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
               <p className="text-lg font-semibold text-gray-900">
-                👥 {(course.defaultStudents || 15) + (course.enrolledCount || 0)} Students Currently Learning
+                👥 {displayedStudentCount} Students Currently Learning
               </p>
             </div>
           </div>
@@ -343,7 +344,7 @@ export default function CourseDetailPage() {
               <div className="mb-6 pb-6 border-b-2 border-gray-200 flex items-center justify-around text-center">
                 <div>
                   <p className="text-sm text-gray-600">Students</p>
-                  <p className="text-lg font-bold text-gray-900">{15 + (course.enrolledCount || 0)}</p>
+                  <p className="text-lg font-bold text-gray-900">{displayedStudentCount}</p>
                 </div>
                 <div className="border-l border-gray-300"></div>
                 <div>

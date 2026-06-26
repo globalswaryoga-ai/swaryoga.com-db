@@ -169,6 +169,7 @@ interface Course {
     enabled: boolean;
     hours: number;
   };
+  defaultStudents?: number;
   enrolledCount: number;
   averageRating?: number;
   reviewCount?: number;
@@ -319,6 +320,9 @@ export default function CoursesPage() {
     const price = language === 'ne' ? (course.pricing.NPR?.price || course.pricing.INR.price) : course.pricing.INR.price;
     return `${symbol}${price?.toLocaleString() || '0'}`;
   };
+
+  const getDisplayedStudentCount = (course: Course) =>
+    (course.defaultStudents ?? 15) + (course.enrolledCount || 0);
 
   const getLevelBadgeColor = (level: string) => {
     switch (level) {
@@ -788,7 +792,7 @@ export default function CoursesPage() {
                       {/* Students count */}
                       <div className="flex items-center justify-end mb-3">
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {(15 + course.enrolledCount).toLocaleString()} {t.students}
+                          {getDisplayedStudentCount(course).toLocaleString()} {t.students}
                         </span>
                       </div>
 

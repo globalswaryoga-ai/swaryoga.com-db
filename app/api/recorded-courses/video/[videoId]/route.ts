@@ -152,7 +152,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }
         // Use Bunny mediadelivery player (iframe) to avoid CORS issues
         // This is the same approach Sadhana uses
-        const playerUrl = `https://player.mediadelivery.net/play/${libraryId}/${video.bunnyVideoId}`;
+        let playerUrl = `https://player.mediadelivery.net/play/${libraryId}/${video.bunnyVideoId}`;
+        const streamCdnKey = process.env.BUNNY_STREAM_CDN_KEY;
+        if (streamCdnKey) {
+          const expiry = Math.floor(Date.now() / 1000) + 3600;
+          const token = crypto
+            .createHash('sha256')
+            .update(streamCdnKey + video.bunnyVideoId + expiry)
+            .digest('hex');
+          playerUrl += `?token=${token}&expires=${expiry}`;
+        }
         streamingData = {
           playerUrl,
           bunnyVideoId: video.bunnyVideoId,

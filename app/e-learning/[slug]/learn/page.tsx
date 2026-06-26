@@ -170,6 +170,8 @@ interface Enrollment {
     expiresAt?: string;
   };
   completedVideos?: { videoId: string; completedAt: string }[];
+  videosWatched?: Array<string | { _id?: string }>;
+  lastWatchedVideoId?: string;
   lastVideoId?: string;
 }
 
@@ -319,8 +321,9 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           if (selectedVideo && selectedVideo.canWatch) {
             setCurrentVideo(selectedVideo);
           }
-        } else if (data.enrollment?.lastVideoId) {
-          const lastVideo = data.videos?.find((v: Video) => v._id === data.enrollment.lastVideoId);
+        } else if (data.enrollment?.lastWatchedVideoId || data.enrollment?.lastVideoId) {
+          const lastVideoId = String(data.enrollment.lastWatchedVideoId || data.enrollment.lastVideoId);
+          const lastVideo = data.videos?.find((v: Video) => v._id === lastVideoId);
           if (lastVideo) {
             setCurrentVideo(lastVideo);
           }
@@ -538,6 +541,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       if (!alreadyCompleted) {
         setEnrollment({
           ...enrollment,
+          videosWatched: [
+            ...(enrollment.videosWatched || []),
+            currentVideo._id,
+          ],
           completedVideos: [
             ...(enrollment.completedVideos || []),
             { videoId: currentVideo._id, completedAt: new Date().toISOString() },
@@ -564,7 +571,12 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   };
 
   const isVideoCompleted = (videoId: string) => {
-    return enrollment?.completedVideos?.some((cv) => cv.videoId === videoId) || false;
+    const watched = enrollment?.videosWatched?.some((watchedVideo) => {
+      const watchedId = typeof watchedVideo === 'string' ? watchedVideo : watchedVideo?._id;
+      return String(watchedId) === videoId;
+    });
+    const completed = enrollment?.completedVideos?.some((cv) => cv.videoId === videoId);
+    return watched || completed || false;
   };
 
   const formatDuration = (seconds: number) => {
@@ -573,7 +585,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const completedCount = enrollment?.completedVideos?.length || 0;
+  const completedCount = enrollment?.videosWatched?.length || enrollment?.completedVideos?.length || 0;
 
   if (loading) {
     return (

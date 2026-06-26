@@ -229,6 +229,7 @@ export async function GET(request: NextRequest) {
         promoCode: course.promoCode,
         isFree: course.isFree,
         giftHours: course.giftHours,
+        defaultStudents: course.defaultStudents,
         enrolledCount: course.enrolledCount,
         averageRating: course.averageRating,
         reviewCount: course.reviewCount,
