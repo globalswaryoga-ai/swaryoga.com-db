@@ -880,7 +880,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   </div>
                 ) : videoStream.streaming.playerUrl ? (
                   // Bunny mediadelivery player (iframe) - avoids CORS issues
-                  <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}>
+                  <div
+                    style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#000' }}
+                    onContextMenu={(e) => { e.preventDefault(); return false; }}
+                  >
                     <iframe
                       src={videoStream.streaming.playerUrl}
                       style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
@@ -888,22 +891,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       sandbox="allow-scripts allow-same-origin allow-presentation"
                       loading="eager"
                       title="Video player"
-                    />
-                    {/* Transparent overlay blocks controls and context menu */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 10,
-                        backgroundColor: 'transparent',
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        return false;
-                      }}
                     />
                   </div>
                 ) : videoStream.streaming.hlsUrl ? (
@@ -928,13 +915,17 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                   />
                 ) : videoStream.streaming.directUrl ? (
                   // Direct Video (protected)
-                  <div className="video-player-direct relative w-full h-full bg-black">
+                  <div
+                    className="video-player-direct relative w-full h-full bg-black"
+                    onContextMenu={(e) => { e.preventDefault(); return false; }}
+                  >
                     <video
                       ref={videoRef}
                       src={videoStream.streaming.directUrl}
                       autoPlay={autoplay}
                       muted={currentVideo.isFree}
                       playsInline
+                      controls
                       onPlay={startProgressTracking}
                       onEnded={handleVideoEnded}
                       onPause={() => updateProgress(false)}
@@ -942,23 +933,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
                       className="w-full h-full"
                       style={{ display: 'block' }}
                       crossOrigin="anonymous"
-                    />
-                    {/* Transparent overlay blocks context menu */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 10,
-                        cursor: 'none',
-                        backgroundColor: 'transparent',
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        return false;
-                      }}
                     />
                   </div>
                 ) : (
