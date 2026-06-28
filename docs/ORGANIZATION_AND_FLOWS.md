@@ -447,7 +447,7 @@ Fix:
 
 ## First 10 Practical Tasks
 
-1. Create `docs/ROUTE_INVENTORY_PUBLIC.md`.
+1. ✅ Create `docs/ROUTE_INVENTORY_PUBLIC.md` (completed June 28, 2026).
 2. Create `docs/ROUTE_INVENTORY_ADMIN_CRM.md`.
 3. Create `docs/WHATSAPP_FLOW.md`.
 4. Create `docs/PAYMENT_FLOW.md`.
@@ -468,7 +468,7 @@ Fix:
 
 ## Recommended Next Step
 
-Start with a route inventory for public pages. It is the easiest win and helps decide what users actually see first.
+Next, create the admin CRM route inventory. The public route inventory is now available in `docs/ROUTE_INVENTORY_PUBLIC.md`.
 
 ## Known Type-Check Errors
 
