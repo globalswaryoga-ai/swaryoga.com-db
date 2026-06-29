@@ -448,7 +448,7 @@ Fix:
 ## First 10 Practical Tasks
 
 1. ✅ Create `docs/ROUTE_INVENTORY_PUBLIC.md` (completed June 28, 2026).
-2. Create `docs/ROUTE_INVENTORY_ADMIN_CRM.md`.
+2. ✅ Create `docs/ROUTE_INVENTORY_ADMIN_CRM.md` (completed June 29, 2026).
 3. Create `docs/WHATSAPP_FLOW.md`.
 4. Create `docs/PAYMENT_FLOW.md`.
 5. Create `docs/SCRIPT_INVENTORY.md`.
@@ -468,7 +468,7 @@ Fix:
 
 ## Recommended Next Step
 
-Next, create the admin CRM route inventory. The public route inventory is now available in `docs/ROUTE_INVENTORY_PUBLIC.md`.
+Next, document the WhatsApp flow in `docs/WHATSAPP_FLOW.md`. The public and admin CRM route inventories are now available in `docs/ROUTE_INVENTORY_PUBLIC.md` and `docs/ROUTE_INVENTORY_ADMIN_CRM.md`.
 
 ## Known Type-Check Errors
 
