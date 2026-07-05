@@ -7,9 +7,9 @@
  */
 
 import { connectDB } from '@/lib/db';
-import { getLead, getWhatsAppAutomationRule, getQrWhatsAppMessage, getQrWhatsAppChat, getWhatsAppMessage, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppAutomationRule, getQrWhatsAppMessage, getQrWhatsAppChat, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
-import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { isQrTenantConnected, resolveQrTenantBridge, sendQrTenantMessage } from '@/lib/qrTenantBridge';
 
 function applySpintax(text: string): string {
   if (!text) return '';
@@ -17,28 +17,6 @@ function applySpintax(text: string): string {
     const options = group.split('|');
     return options[Math.floor(Math.random() * options.length)];
   });
-}
-
-async function getBridgeConfig(userId: string) {
-  const defaults = getWhatsAppBridgeConfig();
-  try {
-    const CRMUserSettings = getCRMUserSettings();
-    const s = await CRMUserSettings.findOne({ userId }, { qrBridgeUrl: 1, qrBridgeSecret: 1 }).lean() as any;
-    if (s?.qrBridgeUrl) return { bridgeUrl: s.qrBridgeUrl, bridgeSecret: s.qrBridgeSecret || defaults.secret };
-  } catch { /* fall through */ }
-  return { bridgeUrl: defaults.url, bridgeSecret: defaults.secret };
-}
-
-async function getSessionKey(bridgeUrl: string, bridgeSecret: string, userId: string): Promise<string | null> {
-  try {
-    const res = await fetch(`${bridgeUrl}/sessions`, { headers: { 'x-bridge-secret': bridgeSecret } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const sessions: any[] = data?.sessions || [];
-    const own = sessions.find((s) => s.userId === userId && s.status === 'connected');
-    const any = sessions.find((s) => s.status === 'connected');
-    return own?.sessionKey || any?.sessionKey || null;
-  } catch { return null; }
 }
 
 async function sendViaQrBridge(params: {
@@ -50,26 +28,11 @@ async function sendViaQrBridge(params: {
   ruleId: string;
 }): Promise<void> {
   const { userId, phone, text, connectedPhone, lead, ruleId } = params;
-  const { bridgeUrl, bridgeSecret } = await getBridgeConfig(userId);
-  const sessionKey = await getSessionKey(bridgeUrl, bridgeSecret, userId);
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-bridge-secret': bridgeSecret,
-    'x-user-id': userId,
-  };
-  if (sessionKey) headers['x-session-key'] = sessionKey;
+  const session = await resolveQrTenantBridge(userId);
+  if (!session || !(await isQrTenantConnected(session))) throw new Error('Tenant QR session is disconnected');
 
   const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-  const res = await fetch(`${bridgeUrl}/send`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ jid, type: 'text', text }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Bridge send failed (${res.status}): ${err.substring(0, 200)}`);
-  }
+  const sent = await sendQrTenantMessage(session, { to: jid, type: 'text', message: text });
 
   const now = new Date();
   const chatJid = jid;
@@ -84,8 +47,10 @@ async function sendViaQrBridge(params: {
     messageType: 'text',
     messageContent: text,
     status: 'sent',
+    waMessageId: sent.waMessageId,
+    senderNumber: connectedPhone || session.connectedPhone,
     sentAt: now,
-    metadata: { automation: { ruleId, qr: true } },
+    metadata: { automation: { ruleId, qr: true }, sessionKey: session.sessionKey, tenantId: session.tenantId },
     provider: 'whatsapp_web_bridge',
     bridgeUserId: userId,
     ownerId: userId,
@@ -93,7 +58,7 @@ async function sendViaQrBridge(params: {
 
   // Log to QrWhatsAppMessage
   const QrWhatsAppMessage = getQrWhatsAppMessage();
-  const msgId = `qrauto_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const msgId = sent.waMessageId || `qrauto_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   await QrWhatsAppMessage.findOneAndUpdate(
     { messageId: msgId, userId, connectedPhone },
     {
@@ -103,10 +68,10 @@ async function sendViaQrBridge(params: {
         text, type: 'text',
         participant: '', pushName: '',
         timestamp: timestampSeconds,
-        status: 2, hasMedia: false,
+        status: 1, hasMedia: false,
         mediaUrl: '', mediaMimetype: '', mediaFileName: '',
         quotedId: '', quotedText: '', quotedParticipant: '',
-        rawMessage: {}, metadata: { automation: { ruleId } },
+        rawMessage: {}, metadata: { automation: { ruleId }, sessionKey: session.sessionKey, tenantId: session.tenantId },
       },
       $setOnInsert: { createdAt: now },
     },

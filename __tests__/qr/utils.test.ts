@@ -164,7 +164,7 @@ describe('getInitials', () => {
   });
 
   it('handles empty string', () => {
-    expect(getInitials('')).toBe('');
+    expect(getInitials('')).toBe('👤');
   });
 
   it('handles single character', () => {

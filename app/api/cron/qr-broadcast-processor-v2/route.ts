@@ -8,79 +8,11 @@ import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnecti
 import { reserveMessageSend } from '@/lib/messageDeduplication';
 import { isQRSendAllowed } from '@/lib/qrTimeGuard';
 import { reserveSendSlot, DAILY_LIMIT, HOURLY_LIMIT } from '@/lib/qrSendRateLimit';
+import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
+import { isWithinTimeWindow, shouldRunToday } from '@/lib/qrGroupScheduleTime';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
-
-/**
- * Check if current time falls within a start-end time window (IST).
- * Handles windows that cross midnight (e.g. 23:50-00:20), which Group
- * Scheduler can produce since it allows any time of day.
- */
-function isWithinTimeWindow(startTime: string, endTime: string, timezone: string = 'Asia/Kolkata'): boolean {
-  const now = new Date();
-  const istTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-
-  const currentHours = istTime.getHours();
-  const currentMinutes = istTime.getMinutes();
-  const currentTimeInMinutes = currentHours * 60 + currentMinutes;
-
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
-
-  const startTimeInMinutes = startHour * 60 + startMin;
-  const endTimeInMinutes = endHour * 60 + endMin;
-
-  if (endTimeInMinutes < startTimeInMinutes) {
-    // Window wraps past midnight (e.g. 23:50-00:20)
-    return currentTimeInMinutes >= startTimeInMinutes || currentTimeInMinutes <= endTimeInMinutes;
-  }
-
-  return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
-}
-
-/**
- * Check if schedule should run today
- * For 'once' frequency, also checks firstRunDate (scheduled specific date)
- * For 'custom' frequency, checks customScheduleDates (e.g. a 15-day block with
- * specific days checked/unchecked by the admin)
- */
-function shouldRunToday(frequency: string, daysOfWeek: number[], firstRunDate?: Date, customScheduleDates?: Date[]): boolean {
-  if (frequency === 'once') {
-    // If a specific scheduled date was set, only run on that date (IST comparison)
-    if (firstRunDate) {
-      const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-      const scheduledIST = new Date(firstRunDate.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-      const todayStr = nowIST.toDateString();
-      const scheduledStr = scheduledIST.toDateString();
-      if (todayStr !== scheduledStr) {
-        console.log(`[QR Broadcast V2] 'once' schedule has firstRunDate ${scheduledStr}, today is ${todayStr}. Skipping.`);
-        return false;
-      }
-    }
-    return true;
-  }
-  if (frequency === 'daily') return true;
-
-  if (frequency === 'weekly') {
-    const today = new Date().getDay();
-    const shouldRun = daysOfWeek.includes(today);
-    return shouldRun;
-  }
-
-  if (frequency === 'custom') {
-    if (!Array.isArray(customScheduleDates) || customScheduleDates.length === 0) return false;
-    const todayIstStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
-    return customScheduleDates.some((d) => {
-      const dateIstStr = new Date(new Date(d).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toDateString();
-      return dateIstStr === todayIstStr;
-    });
-  }
-
-  // Unknown frequency — default to false (don't run)
-  console.warn(`[QR Broadcast V2] Unknown frequency: ${frequency}`);
-  return false;
-}
 
 /**
  * Send single message with deduplication check
@@ -92,22 +24,11 @@ function shouldRunToday(frequency: string, daysOfWeek: number[], firstRunDate?: 
 async function resolveSessionInfo(
   userId: string,
   bridgeUrl: string,
-  bridgeSecret: string
+  bridgeSecret: string,
+  storedSessionKey?: string,
 ): Promise<{ sessionKey: string; tenantId: string } | null> {
-  try {
-    const res = await fetch(`${bridgeUrl}/sessions`, {
-      headers: { 'x-bridge-secret': bridgeSecret },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const sessions: any[] = data?.sessions || [];
-    // STRICT: only return a session owned by this specific user — never fall back to another user's session
-    const own = sessions.find(s => s.userId === userId && s.status === 'connected');
-    if (!own) return null;
-    return { sessionKey: String(own.sessionKey), tenantId: String(own.tenantId || own.sessionKey) };
-  } catch {
-    return null;
-  }
+  const session = await resolveQrTenantBridge(userId, storedSessionKey);
+  return session ? { sessionKey: session.sessionKey, tenantId: session.tenantId } : null;
 }
 
 // Zero-width chars used to vary outgoing message payloads so WhatsApp
@@ -232,28 +153,39 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
   console.log(`[QR Broadcast Processor V2] Processing: ${schedule._id} (${schedule.name})`);
   console.log(`  Current time (IST): ${currentTimeStr}, Window: ${schedule.startTime}-${schedule.endTime}, Freq: ${schedule.frequency}, isActive: ${schedule.isActive}`);
 
-  // LOCK: Prevent concurrent processing of same schedule
   const db = mongoose.connection.db;
-  const locksCollection = db.collection('processor_locks');
-  const lockKey = `schedule_${schedule._id}`;
   const lockExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min lock
-
-  const existingLock = await locksCollection.findOne({ lockKey });
-  if (existingLock && existingLock.expiresAt > new Date()) {
+  const ScheduleModel = getQRBroadcastSchedule();
+  const claim = await ScheduleModel.updateOne(
+    {
+      _id: schedule._id,
+      $or: [
+        { processingLockUntil: { $exists: false } },
+        { processingLockUntil: { $lte: now } },
+      ],
+    },
+    { $set: { processingLockUntil: lockExpiry } }
+  );
+  if (!claim.modifiedCount) {
     console.log(`[QR Broadcast V2] ⚠️ Schedule is already being processed. Skipping.`);
     return { status: 'skipped', reason: 'already_being_processed' };
   }
 
-  // Acquire lock
-  await locksCollection.updateOne(
-    { lockKey },
-    { $set: { lockKey, expiresAt: lockExpiry, acquiredAt: new Date() } },
-    { upsert: true }
-  );
-
   try {
+    // Run cheap date/time checks before database session resolution or bridge
+    // health calls. Most of 1000+ tenant schedules are not due on a given tick.
+    if (!isWithinTimeWindow(schedule.startTime, schedule.endTime, schedule.timezone)) {
+      return { status: 'skipped', reason: 'outside_time_window' };
+    }
+    const earlyTotal = Array.isArray(schedule.recipientChatIds) ? schedule.recipientChatIds.length : 0;
+    const earlySent = Array.isArray(schedule.sentRecipientChatIds) ? schedule.sentRecipientChatIds.length : 0;
+    const earlyCarryOver = earlyTotal > 0 && earlySent > 0 && earlySent < earlyTotal;
+    if (!earlyCarryOver && !shouldRunToday(schedule.frequency, schedule.daysOfWeek, schedule.firstRunDate, schedule.customScheduleDates, schedule.timezone || 'Asia/Kolkata')) {
+      return { status: 'skipped', reason: 'not_scheduled_for_today' };
+    }
+
     // CHECK 0: Resolve session info dynamically (bridge needs BOTH x-session-key AND x-tenant-id)
-    const sessionInfo = await resolveSessionInfo(schedule.userId, bridgeUrl, bridgeSecret);
+    const sessionInfo = await resolveSessionInfo(schedule.userId, bridgeUrl, bridgeSecret, schedule.sessionKey);
     console.log(`[QR Broadcast V2] Session resolved for userId=${schedule.userId}: ${JSON.stringify(sessionInfo)}`);
 
     // If no connected session found for THIS user, pause — never send via another user's session
@@ -300,26 +232,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       };
     }
 
-    // Check time window
-    if (!isWithinTimeWindow(schedule.startTime, schedule.endTime, schedule.timezone)) {
-      console.log(`[QR Broadcast Processor V2] ⏰ Outside time window (${schedule.startTime}-${schedule.endTime})`);
-      return { status: 'skipped', reason: 'outside_time_window' };
-    }
-
-    // A schedule that was already started but still has un-sent recipients is a
-    // carry-over in progress (its earlier day hit the 150 cap). It must be allowed
-    // to keep sending on following days regardless of frequency/date gates —
-    // otherwise a one-time 300-recipient blast would strand the overflow forever.
-    const totalCount = Array.isArray(schedule.recipientChatIds) ? schedule.recipientChatIds.length : 0;
-    const sentCount = Array.isArray(schedule.sentRecipientChatIds) ? schedule.sentRecipientChatIds.length : 0;
-    const hasCarryOver = totalCount > 0 && sentCount > 0 && sentCount < totalCount;
-
-    // Check if should run today (skipped when a carry-over is mid-flight)
-    if (!hasCarryOver && !shouldRunToday(schedule.frequency, schedule.daysOfWeek, schedule.firstRunDate, schedule.customScheduleDates)) {
-      const today = new Date();
-      console.log(`[QR Broadcast Processor V2] 📅 Not scheduled for today (frequency: ${schedule.frequency}, daysOfWeek: ${schedule.daysOfWeek}, today: ${today.getDay()}, firstRunDate: ${schedule.firstRunDate})`);
-      return { status: 'skipped', reason: 'not_scheduled_for_today' };
-    }
+    // Date/frequency eligibility was checked before the network health call.
 
     // NOTE: We intentionally do NOT skip on "already ran today". This processor
     // now sends ~1 message per 5-min tick (drip pacing), so it must run many
@@ -592,6 +505,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
                   mediaUrl: hasMedia ? schedule.mediaUrls[0] : '',
                   mediaMimetype: '',
                   mediaFileName: '',
+                  metadata: { sessionKey: sessionInfo.sessionKey, tenantId: sessionInfo.tenantId, scheduleId: String(schedule._id) },
                 },
                 $setOnInsert: { createdAt: new Date() },
               },
@@ -689,10 +603,7 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       error: errMsg,
     };
   } finally {
-    // Release lock
-    const locksCollection = db.collection('processor_locks');
-    const lockKey = `schedule_${schedule._id}`;
-    await locksCollection.deleteOne({ lockKey }).catch(() => {});
+    await ScheduleModel.updateOne({ _id: schedule._id }, { $unset: { processingLockUntil: 1 } }).catch(() => {});
   }
 }
 
@@ -749,17 +660,15 @@ export async function GET(req: NextRequest) {
     }
 
     const results: any[] = [];
-    for (const schedule of schedules) {
-      if (schedule.frequency !== 'custom' && !sendAllowedNow) {
-        console.log(`[QR Broadcast V2] ⏰ Skipping "${schedule.name}" (${schedule._id}) — outside 5:00 AM – 10:30 PM IST window`);
-        continue;
-      }
-      const result = await processSchedule(schedule, bridgeUrl, bridgeSecret);
-      results.push({
-        scheduleId: schedule._id,
-        scheduleName: schedule.name,
-        ...result,
-      });
+    const eligible = schedules.filter((schedule) => schedule.frequency === 'custom' || sendAllowedNow);
+    const concurrency = 20;
+    for (let offset = 0; offset < eligible.length; offset += concurrency) {
+      const batch = eligible.slice(offset, offset + concurrency);
+      const batchResults = await Promise.all(batch.map(async (schedule) => {
+        const result = await processSchedule(schedule, bridgeUrl, bridgeSecret);
+        return { scheduleId: schedule._id, scheduleName: schedule.name, ...result };
+      }));
+      results.push(...batchResults);
     }
 
     return NextResponse.json({

@@ -923,8 +923,10 @@ export default function QRWhatsAppPage() {
         if (tabRef.current === 'connection') {
           fetchChatsRef.current?.();
         }
-      } else if (data?.qrAvailable || data?.hasQr) {
-        // QR available — fetch it (keep old QR showing during refresh)
+      } else {
+        // Asking /qr is also the explicit signal to restart a logged-out/stale
+        // bridge session. Waiting for qrAvailable here creates a deadlock:
+        // qrAvailable stays false until /qr starts the new socket.
         try {
           const qr = await bridgeCall('/qr');
           if (qr?.qr) setQrData(qr.qr);
@@ -1327,7 +1329,10 @@ export default function QRWhatsAppPage() {
       ]);
 
       const bridgeData = bridgeResult.status === 'fulfilled' ? bridgeResult.value : null;
-      const dbData = dbResult.status === 'fulfilled' ? dbResult.value : null;
+      const dbPayload = dbResult.status === 'fulfilled' ? dbResult.value : null;
+      // apiSuccess() wraps endpoint payloads in { success, data }. Accept the
+      // unwrapped shape too for backwards compatibility with older deployments.
+      const dbData = dbPayload?.data || dbPayload;
 
       // Map bridge messages
       const bridgeMessages: MessageItem[] = bridgeData?.messages
@@ -1487,14 +1492,24 @@ export default function QRWhatsAppPage() {
   useEffect(() => {
     if (presencePollRef.current) { clearInterval(presencePollRef.current); presencePollRef.current = null; }
     if (selectedChat && status?.connected && !selectedChat.endsWith('@g.us') && !selectedChat.endsWith('@lid')) {
-      const poll = () => {
+      const jid = selectedChat.replace('@c.us', '@s.whatsapp.net');
+      presenceSubRef.current = selectedChat;
+      const poll = async () => {
+        await bridgeCall(`/presence/subscribe/${encodeURIComponent(jid)}`, 'POST').catch(() => {});
         bridgeCall(`/presence/${encodeURIComponent(selectedChat)}`).then((d: any) => {
           if (d && presenceSubRef.current === selectedChat) setChatPresence({ presence: d.presence, lastSeen: d.lastSeen });
         }).catch(() => {});
       };
+      poll();
       presencePollRef.current = setInterval(poll, 10000);
+    } else {
+      presenceSubRef.current = null;
+      setChatPresence(null);
     }
-    return () => { if (presencePollRef.current) { clearInterval(presencePollRef.current); presencePollRef.current = null; } };
+    return () => {
+      if (presencePollRef.current) { clearInterval(presencePollRef.current); presencePollRef.current = null; }
+      presenceSubRef.current = null;
+    };
   }, [selectedChat, status?.connected, bridgeCall]);
 
   // ── Fetch group info ──

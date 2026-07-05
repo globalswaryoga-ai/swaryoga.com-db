@@ -6,19 +6,20 @@
  *
  * Bridge API reality:
  *   /health  — GET health
- *   /sessions — GET all sessions
+ *   /status  — GET the authenticated tenant session
  *   /send    — POST one message { to, message, type, imageUrl?, buttons? }
  *   NO /broadcast endpoint exists on the bridge.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getLead, getWhatsAppMessage, getQrWhatsAppMessage, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl, getWhatsAppBridgeSecret } from '@/lib/whatsappBridgeConfig';
 import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
 import { calculateVariableGapsWithBreaks, DEFAULT_GAP_STRATEGY } from '@/lib/whatsappGapCalculator';
 import { checkRateLimit, reserveSendSlot, DAILY_LIMIT, HOURLY_LIMIT } from '@/lib/qrSendRateLimit';
+import { isQrTenantConnected, resolveQrTenantBridge } from '@/lib/qrTenantBridge';
 
 // ── Human-like message variation ──────────────────────────────────────
 // WhatsApp's anti-spam fingerprints identical text sent to many recipients.
@@ -66,34 +67,18 @@ async function safeFetch(url: string, options: RequestInit): Promise<{ ok: boole
 
 /**
  * Find the connected session key for a given userId from the bridge.
- * Falls back to any connected session if userId match not found.
+ * Resolves only the authenticated tenant's permanent session.
  */
-type SessionInfo = { sessionKey: string; tenantId: string };
+type SessionInfo = { sessionKey: string; tenantId: string; bridgeUrl: string; bridgeSecret: string; userId: string; connectedPhone: string };
 
 async function findConnectedSession(
   bridgeUrl: string,
   bridgeSecret: string,
   userId: string
 ): Promise<SessionInfo | null> {
-  const result = await safeFetch(`${bridgeUrl}/sessions`, {
-    method: 'GET',
-    headers: { 'x-bridge-secret': bridgeSecret },
-  });
-
-  if (!result.ok || !Array.isArray(result.data?.sessions)) return null;
-
-  const sessions: any[] = result.data.sessions;
-  // Prefer a session owned by this userId that is connected
-  const ownConnected = sessions.find(
-    (s) => s.userId === userId && s.status === 'connected'
-  );
-  if (ownConnected) return { sessionKey: String(ownConnected.sessionKey), tenantId: String(ownConnected.tenantId || ownConnected.sessionKey) };
-
-  // Fallback: any connected session
-  const anyConnected = sessions.find((s) => s.status === 'connected');
-  if (anyConnected) return { sessionKey: String(anyConnected.sessionKey), tenantId: String(anyConnected.tenantId || anyConnected.sessionKey) };
-
-  return null;
+  const tenant = await resolveQrTenantBridge(userId);
+  if (!tenant || !(await isQrTenantConnected(tenant))) return null;
+  return { sessionKey: tenant.sessionKey, tenantId: tenant.tenantId, bridgeUrl: tenant.url, bridgeSecret: tenant.secret, userId: tenant.userId, connectedPhone: tenant.connectedPhone };
 }
 
 /**
@@ -107,38 +92,38 @@ async function sendOne(
   message: string,
   imageUrl?: string,
   buttons?: string[]
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; messageId?: string }> {
   // Preserve group IDs (@g.us) intact; only strip non-digits for individual phone numbers
   const toNormalized = to.includes('@g.us') ? to : to.replace(/\D/g, '');
 
   const bridgeHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-bridge-secret': bridgeSecret,
+    'x-user-id': session.userId,
     'x-session-key': session.sessionKey,
     'x-tenant-id': session.tenantId,   // ← required by bridge for routing
   };
 
-  // Use /send-template for images (same format as cron processor v2 — ensures image+text sends correctly)
+  // Send media through the bridge's real /send contract.
   if (imageUrl) {
-    const result = await safeFetch(`${bridgeUrl}/send-template`, {
+    const result = await safeFetch(`${bridgeUrl}/send`, {
       method: 'POST',
       headers: bridgeHeaders,
       body: JSON.stringify({
         to: toNormalized,
-        imageUrl,
-        bodyText: message || '',
-        footerText: '',
+        type: 'media',
+        media: imageUrl,
+        caption: message || '',
       }),
     });
-    if (result.ok && result.data?.success !== false) return { success: true };
+    if (result.ok && result.data?.success !== false) return { success: true, messageId: result.data?.messageId || result.data?.id || result.data?.key?.id };
     return { success: false, error: result.data?.error || `Bridge status ${result.status}` };
   }
 
   let payload: any = { to: toNormalized };
   if (buttons && buttons.length > 0) {
-    payload.type = 'buttons';
-    payload.message = message;
-    payload.buttons = buttons;
+    payload.type = 'text';
+    payload.message = `${message}\n\n${buttons.map((button, index) => `${index + 1}. ${button}`).join('\n')}`;
   } else {
     payload.type = 'text';
     payload.message = message;
@@ -151,7 +136,7 @@ async function sendOne(
   });
 
   if (result.ok && result.data?.success !== false) {
-    return { success: true };
+    return { success: true, messageId: result.data?.messageId || result.data?.id || result.data?.key?.id };
   }
   return { success: false, error: result.data?.error || `Bridge status ${result.status}` };
 }
@@ -402,7 +387,7 @@ export async function POST(request: NextRequest) {
 
       try {
         const result = await sendOne(
-          bridgeUrl, bridgeSecret, session,
+          session.bridgeUrl, session.bridgeSecret, session,
           firstRecipient, humanizeMessage(message, 0), imageUrl,
           Array.isArray(buttons) ? buttons.map((b: any) => String(b?.title || b).slice(0, 20)) : undefined
         );
@@ -416,12 +401,29 @@ export async function POST(request: NextRequest) {
             messageType: imageUrl ? 'media' : 'text',
             media: imageUrl ? { kind: 'image', url: imageUrl } : undefined,
             status: 'sent',
+            waMessageId: result.messageId,
+            senderNumber: session.connectedPhone,
             sentByUserId: viewerUserId,
             sentByLabel: viewerUserId,
             provider: 'whatsapp_web_bridge',
             sentAt: new Date(),
+            metadata: { channel: 'qr', sessionKey: session.sessionKey, tenantId: session.tenantId },
             recipientType: isGroup ? 'group' : 'individual',
           });
+          if (session.connectedPhone && result.messageId) {
+            const chatJid = isGroup ? firstRecipient : `${firstRecipient.replace(/\D/g, '')}@s.whatsapp.net`;
+            const timestamp = Math.floor(Date.now() / 1000);
+            await getQrWhatsAppMessage().updateOne(
+              { userId: viewerUserId, connectedPhone: session.connectedPhone, chatJid, messageId: result.messageId },
+              { $set: { userId: viewerUserId, connectedPhone: session.connectedPhone, chatJid, messageId: result.messageId, direction: 'outbound', fromMe: true, text: message || '', type: imageUrl ? 'image' : 'text', timestamp, status: 1, hasMedia: !!imageUrl, mediaUrl: imageUrl || '', metadata: { sessionKey: session.sessionKey, tenantId: session.tenantId } }, $setOnInsert: { createdAt: new Date() } },
+              { upsert: true }
+            );
+            await getQrWhatsAppChat().updateOne(
+              { userId: viewerUserId, connectedPhone: session.connectedPhone, chatJid },
+              { $set: { userId: viewerUserId, connectedPhone: session.connectedPhone, chatJid, lastMessage: message || '[media]', lastMessageTime: new Date(), lastMessageFromMe: true, conversationTimestamp: timestamp }, $setOnInsert: { name: firstRecipient, isGroup, unreadCount: 0, pinned: false, archived: false, profilePicUrl: '', createdAt: new Date() } },
+              { upsert: true }
+            );
+          }
         } else {
           failed++;
           errors.push(`${firstRecipient}: ${result.error}`);
@@ -460,6 +462,7 @@ export async function POST(request: NextRequest) {
         await QRBroadcastSchedule.create({
           userId: viewerUserId,
           tenantId: 'default',
+          sessionKey: session.sessionKey,
           name: `Auto-paced Broadcast — ${nowIST.toLocaleString('en-IN')}`,
           messageText: message,
           mediaUrls: imageUrl ? [imageUrl] : [],
@@ -524,23 +527,16 @@ export async function GET(request: NextRequest) {
     }
 
     const viewerUserId = getViewerUserId(decoded);
-    const bridgeUrl = getWhatsAppBridgeUrl();
-    const bridgeSecret = getWhatsAppBridgeSecret();
-
-    const result = await safeFetch(`${bridgeUrl}/sessions`, {
-      method: 'GET',
-      headers: { 'x-bridge-secret': bridgeSecret },
-    });
-
-    if (!result.ok) {
+    const session = await resolveQrTenantBridge(viewerUserId);
+    if (!session) {
       return NextResponse.json({ success: false, broadcasts: [], sessions: [] });
     }
-
-    const sessions = (result.data?.sessions || []).filter(
-      (s: any) => s.userId === viewerUserId || checkSuperAdmin(decoded)
-    );
-
-    return NextResponse.json({ success: true, broadcasts: [], sessions });
+    const connected = await isQrTenantConnected(session);
+    return NextResponse.json({
+      success: true,
+      broadcasts: [],
+      sessions: [{ userId: viewerUserId, sessionKey: session.sessionKey, tenantId: session.tenantId, status: connected ? 'connected' : 'disconnected' }],
+    });
   } catch (error: any) {
     console.error('[qr-broadcast] GET error:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Internal server error' }, { status: 500 });

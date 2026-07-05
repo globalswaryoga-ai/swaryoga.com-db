@@ -367,6 +367,7 @@ WhatsAppMessageSchema.index({ status: 1, sentAt: -1 }); // Messages by status/ti
 WhatsAppMessageSchema.index({ sentByUserId: 1, sentAt: -1 }); // Admin's messages
 WhatsAppMessageSchema.index({ senderNumber: 1, sentAt: -1 }); // Messages per number
 WhatsAppMessageSchema.index({ provider: 1, sentAt: -1 }); // Filter by provider
+WhatsAppMessageSchema.index({ waMessageId: 1, status: 1 }); // Receipt updates
 WhatsAppMessageSchema.index({ leadId: 1, status: 1 }); // Lead's message status
 
 // Idempotency for inbound webhook retries: meta message IDs (waMessageId) should not create duplicate
@@ -412,6 +413,7 @@ QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, direction: 1, time
 QrWhatsAppMessageSchema.index({ chatJid: 1, timestamp: -1 }); // Messages in a chat
 QrWhatsAppMessageSchema.index({ userId: 1, fromMe: 1, timestamp: -1 }); // User's outbound messages
 QrWhatsAppMessageSchema.index({ userId: 1, connectedPhone: 1, messageId: 1, chatJid: 1 }, { unique: true, sparse: true }); // Per-tenant dedupe — tenant-scoped so two tenants in the same WhatsApp group each keep their own copy (was global {messageId,chatJid} which collided)
+QrWhatsAppMessageSchema.index({ messageId: 1, 'metadata.sessionKey': 1, status: 1 }); // Tenant-scoped receipt updates
 
 // ============================================================================
 // 1a-QR-CHATS. QR WHATSAPP CHATS — Persistent chat list with metadata
@@ -1245,9 +1247,12 @@ const WhatsAppScheduledJobSchema = new mongoose.Schema(
     },
 
     // Target group selection
-    targetType: { type: String, enum: ['leadIds', 'filter'], default: 'leadIds' },
+    targetType: { type: String, enum: ['leadIds', 'filter', 'phone'], default: 'leadIds' },
     targetLeadIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
     targetFilter: mongoose.Schema.Types.Mixed, // { status, labelsAny, labelsAll, workshopName, assignedToUserId, createdByUserId }
+    targetPhone: { type: String, trim: true, index: true },
+    provider: { type: String, enum: ['meta', 'qr'], default: 'meta', index: true },
+    qrSessionKey: { type: String, trim: true },
 
     // Message payload (we currently execute text in scheduler; other types can be queued)
     messageType: {
@@ -1262,6 +1267,7 @@ const WhatsAppScheduledJobSchema = new mongoose.Schema(
     // Scheduling
     timezone: { type: String, default: 'Asia/Kolkata' },
     nextRunAt: { type: Date, index: true },
+    endAt: { type: Date },
     lastRunAt: Date,
     runCount: { type: Number, default: 0 },
     maxRuns: { type: Number, default: 0 }, // 0 means unlimited
@@ -1290,6 +1296,7 @@ const WhatsAppScheduledJobSchema = new mongoose.Schema(
 
 WhatsAppScheduledJobSchema.index({ status: 1, nextRunAt: 1 });
 WhatsAppScheduledJobSchema.index({ createdByUserId: 1, nextRunAt: -1 });
+WhatsAppScheduledJobSchema.index({ provider: 1, status: 1, nextRunAt: 1 });
 
 // ============================================================================
 // 11b. BROADCAST RUNS - Track a broadcast campaign and per-lead outcomes
@@ -1417,7 +1424,7 @@ const BroadcastRunMessageSchema = new mongoose.Schema(
 
 BroadcastRunMessageSchema.index({ runId: 1, status: 1 });
 BroadcastRunMessageSchema.index({ leadId: 1, createdAt: -1 });
-BroadcastRunMessageSchema.index({ waMessageId: 1 }); // For webhook status updates
+BroadcastRunMessageSchema.index({ waMessageId: 1, status: 1 }); // For webhook status updates
 
 // ============================================================================
 // 11c. BANK INCOME TRACKER - Uploaded bank statements + tagged income entries
@@ -4118,6 +4125,7 @@ const QRBroadcastScheduleSchema = new mongoose.Schema(
     // Schedule identification
     userId: { type: String, required: true, index: true },
     tenantId: { type: String, required: true, index: true },
+    sessionKey: { type: String, trim: true, index: true },
     name: { type: String, required: true }, // e.g., "Daily Notification - 9 AM"
 
     // Message details
@@ -4209,6 +4217,7 @@ const QRBroadcastScheduleSchema = new mongoose.Schema(
     // randomized timestamp (set to now + 120–360s after each send). Drives the
     // irregular, non-robotic send spacing (~15 msgs/hour). See qr-broadcast-processor-v2.
     nextSendAt: { type: Date },
+    processingLockUntil: { type: Date, index: true },
 
     // Execution stats
     stats: {
@@ -4243,6 +4252,7 @@ QRBroadcastScheduleSchema.index({ userId: 1, tenantId: 1 });
 QRBroadcastScheduleSchema.index({ isActive: 1, status: 1 });
 QRBroadcastScheduleSchema.index({ nextRunDate: 1, isActive: 1 });
 QRBroadcastScheduleSchema.index({ status: 1, frequency: 1 });
+QRBroadcastScheduleSchema.index({ isActive: 1, status: 1, processingLockUntil: 1 });
 
 export function getQRBroadcastSchedule() { return getModel('QRBroadcastSchedule', QRBroadcastScheduleSchema); }
 export const QRBroadcastSchedule = createModelProxy('QRBroadcastSchedule', QRBroadcastScheduleSchema);

@@ -429,6 +429,7 @@ export async function POST(req: NextRequest) {
                 mediaUrl: url || '',
                 mediaMimetype: '',
                 mediaFileName: '',
+                metadata: { sessionKey: bridgeConfig.bridgeSessionId, tenantId: bridgeConfig.tenantId || bridgeConfig.bridgeSessionId },
               },
               $setOnInsert: { createdAt: new Date() },
             },

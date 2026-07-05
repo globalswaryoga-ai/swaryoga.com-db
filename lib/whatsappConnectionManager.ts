@@ -23,8 +23,8 @@ interface SessionHealth {
 
 /**
  * Check if session is still connected
- * Uses GET /sessions endpoint (the bridge has no /session-health endpoint).
- * Matches by sessionKey first, then falls back to any connected session.
+ * Uses tenant-scoped GET /status. Never lists all sessions or falls back to
+ * another tenant's connected account.
  */
 export async function checkSessionHealth(
   userId: string,
@@ -33,10 +33,14 @@ export async function checkSessionHealth(
   bridgeSecret: string
 ): Promise<SessionHealth> {
   try {
-    // Use /sessions endpoint — the only reliable health check on this bridge
-    const response = await fetch(`${bridgeUrl}/sessions`, {
+    const response = await fetch(`${bridgeUrl}/status`, {
       method: 'GET',
-      headers: { 'x-bridge-secret': bridgeSecret },
+      headers: {
+        'x-bridge-secret': bridgeSecret,
+        'x-user-id': userId,
+        'x-session-key': sessionKey,
+        'x-tenant-id': sessionKey,
+      },
       signal: AbortSignal.timeout(8000),
     });
 
@@ -53,13 +57,7 @@ export async function checkSessionHealth(
     }
 
     const data = await response.json();
-    const sessions: any[] = Array.isArray(data?.sessions) ? data.sessions : [];
-
-    // 1. Look for the exact sessionKey match
-    const exactMatch = sessions.find(
-      (s: any) => String(s.sessionKey) === String(sessionKey) && s.status === 'connected'
-    );
-    if (exactMatch) {
+    if (data?.connected === true || data?.status === 'connected') {
       return {
         connected: true,
         lastHeartbeat: new Date(),
@@ -67,26 +65,10 @@ export async function checkSessionHealth(
         reconnectAttempts: 0,
         maxReconnectAttempts: 5,
         status: 'healthy',
-        message: `✅ Session ${sessionKey} connected (${exactMatch.phone?.id || 'no phone'})`,
+        message: `✅ Session ${sessionKey} connected (${data?.phone?.id || 'no phone'})`,
       };
     }
-
-    // 2. Any connected session (fallback — different sessionKey but still usable)
-    const anyConnected = sessions.find((s: any) => s.status === 'connected');
-    if (anyConnected) {
-      return {
-        connected: true,
-        lastHeartbeat: new Date(),
-        heartbeatIntervalMs: 300000,
-        reconnectAttempts: 0,
-        maxReconnectAttempts: 5,
-        status: 'healthy',
-        message: `✅ Active session found (key=${anyConnected.sessionKey}, phone=${anyConnected.phone?.id || 'none'})`,
-      };
-    }
-
-    // No connected sessions at all
-    const reconnecting = sessions.some((s: any) => s.status === 'connecting');
+    const reconnecting = data?.status === 'connecting';
     return {
       connected: false,
       lastHeartbeat: new Date(),
@@ -133,6 +115,9 @@ export async function reconnectSession(
       headers: {
         'Content-Type': 'application/json',
         'x-bridge-secret': bridgeSecret,
+        'x-user-id': userId,
+        'x-session-key': sessionKey,
+        'x-tenant-id': sessionKey,
       },
       body: JSON.stringify({
         userId,

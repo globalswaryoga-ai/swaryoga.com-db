@@ -180,6 +180,8 @@ export interface CreateTenantRequest {
   slug: string;
   ownerEmail: string;
   ownerUserId: string;
+  /** Initial password for the CRM owner's login account. */
+  password: string;
   plan?: PlanTier;
   customDomain?: string;
 }

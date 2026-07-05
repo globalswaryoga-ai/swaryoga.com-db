@@ -3,6 +3,8 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getQRBroadcastSchedule } from '@/lib/schemas/enterpriseSchemas';
 import { timeToMinutes, minutesToTime, resolveStartTime } from '@/lib/qrGroupScheduleGap';
+import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
+import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,9 @@ export async function POST(req: NextRequest) {
     }
 
     const uid = getUserId(decoded);
+    const ownerSessionKey = await resolveOwnerSessionKey({ userId: uid, tenantSlug: decoded?.tenantSlug });
+    const qrSession = await resolveQrTenantBridge(uid, ownerSessionKey || undefined);
+    if (!qrSession) return NextResponse.json({ error: 'QR WhatsApp session is not provisioned for this tenant' }, { status: 409 });
     const recipients = Array.isArray(body.recipientChatIds) ? body.recipientChatIds : [];
 
     const frequency = body.frequency || 'once';
@@ -77,6 +82,7 @@ export async function POST(req: NextRequest) {
     const schedule = await QRBroadcastSchedule.create({
       userId: uid,
       tenantId: decoded?.tenantId || 'default',
+      sessionKey: qrSession.sessionKey,
       name: body.name.trim(),
       messageText: body.messageText.trim(),
       mediaUrls: body.mediaUrls || [],

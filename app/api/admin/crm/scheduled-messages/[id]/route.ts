@@ -63,8 +63,10 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
       'targetType',
       'targetLeadIds',
       'targetFilter',
+      'targetPhone',
       'recurrence',
       'maxRuns',
+      'endAt',
       'status',
     ];
 

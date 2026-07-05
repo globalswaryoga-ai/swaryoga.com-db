@@ -11,6 +11,7 @@
 
 import { NextRequest } from 'next/server';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiSuccess, apiError } from '@/lib/api-error';
@@ -114,6 +115,15 @@ export async function POST(request: NextRequest) {
   if (!body.slug?.trim()) return apiError('VALIDATION_ERROR', 'slug is required');
   if (!body.ownerEmail?.trim()) return apiError('VALIDATION_ERROR', 'ownerEmail is required');
   if (!body.ownerUserId?.trim()) return apiError('VALIDATION_ERROR', 'ownerUserId is required');
+  if (!body.password || body.password.length < 6) {
+    return apiError('VALIDATION_ERROR', 'password must be at least 6 characters');
+  }
+
+  const ownerEmail = body.ownerEmail.trim().toLowerCase();
+  const ownerUserId = body.ownerUserId.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) {
+    return apiError('VALIDATION_ERROR', 'Invalid owner email');
+  }
 
   // Slug format: 3-50 lowercase alphanumeric + hyphens
   const slugRe = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
@@ -123,11 +133,22 @@ export async function POST(request: NextRequest) {
   }
 
   const Tenant = getTenantModel();
+  const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
 
   // Check uniqueness
   const existing = await Tenant.findOne({ slug });
   if (existing) {
     return apiError('DUPLICATE_ENTRY', `Tenant with slug "${slug}" already exists`);
+  }
+
+  // A tenant created here must also have a CRM login. Check both identifiers
+  // case-insensitively so legacy mixed-case accounts cannot be duplicated.
+  const existingLogin = await crmDb.collection('admin_users').findOne(
+    { $or: [{ email: ownerEmail }, { userId: ownerUserId }] },
+    { collation: { locale: 'en', strength: 2 } },
+  );
+  if (existingLogin) {
+    return apiError('DUPLICATE_ENTRY', 'An account with this owner email or user ID already exists');
   }
 
   // Derive DB name
@@ -143,11 +164,12 @@ export async function POST(request: NextRequest) {
     : expandGroups(PLAN_DEFAULT_GROUPS[plan] || PLAN_DEFAULT_GROUPS.free);
 
   // Create tenant document
+  const passwordHash = await bcrypt.hash(body.password, 12);
   const tenant = await Tenant.create({
     slug,
     name: body.name.trim(),
-    ownerEmail: body.ownerEmail.trim().toLowerCase(),
-    ownerUserId: body.ownerUserId.trim(),
+    ownerEmail,
+    ownerUserId,
     plan,
     enabledModules: [],
     moduleKeys,
@@ -161,6 +183,31 @@ export async function POST(request: NextRequest) {
     currentUserCount: 0,
     currentStorageMB: 0,
   });
+
+  try {
+    const now = new Date();
+    await crmDb.collection('admin_users').insertOne({
+      userId: ownerUserId,
+      email: ownerEmail,
+      password: passwordHash,
+      name: body.name.trim(),
+      role: 'admin',
+      isAdmin: true,
+      isActive: true,
+      status: 'active',
+      tenantSlug: slug,
+      planId: plan,
+      planName: plan,
+      setupComplete: false,
+      loginCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (error) {
+    // Do not leave a tenant that can never log in if account creation fails.
+    await Tenant.deleteOne({ _id: tenant._id });
+    throw error;
+  }
 
   // Provision the tenant's database (create collections + seed)
   const provisionResult = await provisionTenantDb(slug);

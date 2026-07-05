@@ -17,12 +17,31 @@ export type NormalizedQRMessage = {
   media?: NormalizedQRMedia;
   type?: string; // 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
   pushName?: string; // WhatsApp display name of the sender
+  chatJid?: string;
+  participant?: string;
 };
 
 function asString(v: unknown): string | undefined {
   if (typeof v === 'string') return v;
   if (typeof v === 'number') return String(v);
   return undefined;
+}
+
+/** Preserve the WhatsApp conversation namespace while normalizing bare phones. */
+export function normalizeQRChatJid(rawValue: string): string {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  if (raw.includes('@g.us') || raw.includes('@lid') || raw.includes('@s.whatsapp.net')) return raw;
+  const digits = raw.split(':')[0].split('@')[0].replace(/\D/g, '');
+  return digits ? `${digits}@s.whatsapp.net` : '';
+}
+
+/** Use a resolved sender phone for CRM matching, never an internal @lid ID. */
+export function resolveQRContactPhone(message: NormalizedQRMessage, sourceJid: string): string {
+  const isGroup = String(sourceJid || '').endsWith('@g.us');
+  return isGroup && !message.fromMe
+    ? String(message.participant || message.from || '')
+    : String(message.from || sourceJid || '');
 }
 
 /**
@@ -99,6 +118,9 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
           hasMedia: !!media,
           media,
           type: media ? media.kind : 'text',
+          chatJid: asString(m.originalJid || m.chatJid || m.key?.remoteJid),
+          participant: asString(m.participant || m.key?.participant),
+          pushName: asString(m.pushName || m.notifyName || m.senderName),
         },
       ].filter((m) => !!m.from || m.fromMe);
     }
@@ -143,6 +165,8 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         media,
         type: media ? media.kind : 'text',
         ...(pushName ? { pushName } : {}),
+        chatJid: asString(m.originalJid || m.chatJid || m?.key?.remoteJid),
+        participant: asString(m.participant || m?.key?.participant),
       } as NormalizedQRMessage;
     })
     // Keep messages if they have: a valid from field, OR it's fromMe, OR it has a messageId (fallback for incoming messages without from)

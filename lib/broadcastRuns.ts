@@ -878,6 +878,7 @@ export async function processDueBroadcastRuns(options?: {
                       mediaUrl: hasImage ? (mediaUrl || '') : '',
                       mediaMimetype: '',
                       mediaFileName: '',
+                      metadata: { sessionKey, tenantId: sessionKey, runId: String((run as any)._id) },
                     },
                     $setOnInsert: { createdAt: new Date() },
                   },

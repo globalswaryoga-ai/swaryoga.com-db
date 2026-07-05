@@ -10,6 +10,13 @@ function getUserId(decoded: any): string {
   return decoded?.userId || decoded?.username || decoded?.id || '';
 }
 
+function istDateBoundary(date: string, addDays = 0): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return null;
+  const utc = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + addDays);
+  return Math.floor((utc - 330 * 60 * 1000) / 1000);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get('authorization')?.replace('Bearer ', '');
@@ -40,16 +47,20 @@ export async function GET(req: NextRequest) {
 
     if (startDate || endDate) {
       filter.timestamp = {};
-      if (startDate) filter.timestamp.$gte = Math.floor(new Date(startDate).getTime() / 1000);
+      if (startDate) {
+        const boundary = istDateBoundary(startDate);
+        if (boundary !== null) filter.timestamp.$gte = boundary;
+      }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        filter.timestamp.$lt = Math.floor(end.getTime() / 1000);
+        const boundary = istDateBoundary(endDate, 1);
+        if (boundary !== null) filter.timestamp.$lt = boundary;
       }
     }
 
     // Baileys numeric status: 0=pending, 1=sent, 2=delivered, 3=read, -1=failed
-    if (status === 'sent')    filter.status = { $gte: 1 };
+    if (status === 'sent')    filter.status = 1;
+    else if (status === 'delivered') filter.status = 2;
+    else if (status === 'read') filter.status = 3;
     else if (status === 'pending') filter.status = 0;
     else if (status === 'failed')  filter.status = -1;
 
@@ -60,10 +71,17 @@ export async function GET(req: NextRequest) {
 
     // ── Period boundaries (Unix seconds for qr_whatsapp_messages, Date for qr_message_queue) ──
     const now = new Date();
-    const todayStart  = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+    const part = (type: string) => Number(parts.find((p) => p.type === type)?.value || 0);
+    const istOffsetMs = 330 * 60 * 1000;
+    const istBoundary = (year: number, month: number, day: number) => Math.floor((Date.UTC(year, month - 1, day) - istOffsetMs) / 1000);
+    const year = part('year');
+    const month = part('month');
+    const day = part('day');
+    const todayStart  = istBoundary(year, month, day);
     const weekStart   = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
-    const monthStart  = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
-    const yearStart   = Math.floor(new Date(now.getFullYear(), 0, 1).getTime() / 1000);
+    const monthStart  = istBoundary(year, month, 1);
+    const yearStart   = istBoundary(year, 1, 1);
 
     const todayDate  = new Date(todayStart  * 1000);
     const weekDate   = new Date(weekStart   * 1000);
@@ -73,6 +91,8 @@ export async function GET(req: NextRequest) {
     const outGroup = {
       _id: null,
       sent:     { $sum: { $cond: [{ $gte: ['$status', 1] },  1, 0] } }, // 1=sent, 2=delivered, 3=read
+      delivered:{ $sum: { $cond: [{ $gte: ['$status', 2] },  1, 0] } },
+      read:     { $sum: { $cond: [{ $eq:  ['$status', 3] },  1, 0] } },
       pending:  { $sum: { $cond: [{ $eq:  ['$status', 0] },  1, 0] } }, // 0=queued/sending
       failed:   { $sum: { $cond: [{ $eq:  ['$status', -1] }, 1, 0] } }, // -1=error
     };
@@ -108,6 +128,8 @@ export async function GET(req: NextRequest) {
 
     const extract = (outArr: any[], received: number, blocked: number) => ({
       sent:     (outArr[0]?.sent    || 0) as number,
+      delivered:(outArr[0]?.delivered || 0) as number,
+      read:     (outArr[0]?.read || 0) as number,
       pending:  (outArr[0]?.pending || 0) as number,
       failed:   (outArr[0]?.failed  || 0) as number,
       received,

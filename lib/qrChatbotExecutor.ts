@@ -12,6 +12,7 @@ import { connectDB } from '@/lib/db';
 import { getChatbotScheduledAction, getChatbotFlow, getLead, getQrWhatsAppMessage, getQrWhatsAppChat, getCRMUserSettings, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
 
 export type QrChatbotSchedulerResult = {
   scannedActions: number;
@@ -63,19 +64,8 @@ async function getBridgeConfig(userId: string): Promise<{ bridgeUrl: string; bri
 
 /** Resolve active session key for the given user from the bridge. */
 async function getSessionKey(bridgeUrl: string, bridgeSecret: string, userId: string): Promise<string | null> {
-  try {
-    const res = await fetch(`${bridgeUrl}/sessions`, {
-      headers: { 'x-bridge-secret': bridgeSecret },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const sessions: any[] = data?.sessions || [];
-    const own = sessions.find((s) => s.userId === userId && s.status === 'connected');
-    const any = sessions.find((s) => s.status === 'connected');
-    return own?.sessionKey || any?.sessionKey || null;
-  } catch {
-    return null;
-  }
+  const session = await resolveQrTenantBridge(userId);
+  return session?.sessionKey || null;
 }
 
 function buildHeaders(bridgeSecret: string, sessionKey: string | null, userId: string): Record<string, string> {
@@ -85,6 +75,8 @@ function buildHeaders(bridgeSecret: string, sessionKey: string | null, userId: s
     'x-user-id': userId,
   };
   if (sessionKey) h['x-session-key'] = sessionKey;
+  if (sessionKey) h['x-tenant-id'] = sessionKey;
+  h['x-owner-user-id'] = userId;
   return h;
 }
 
@@ -94,7 +86,7 @@ async function sendQrText(bridgeUrl: string, bridgeSecret: string, sessionKey: s
   const res = await fetch(`${bridgeUrl}/send`, {
     method: 'POST',
     headers: buildHeaders(bridgeSecret, sessionKey, userId),
-    body: JSON.stringify({ jid, type: 'text', text }),
+    body: JSON.stringify({ to: jid, type: 'text', message: text }),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -104,7 +96,7 @@ async function sendQrText(bridgeUrl: string, bridgeSecret: string, sessionKey: s
   return { messageId: data?.messageId || data?.id || undefined };
 }
 
-/** Send a list/button message via the EC2 bridge. Falls back to numbered text automatically at bridge level. */
+/** Send button choices as numbered text (the Baileys bridge has no /send-buttons endpoint). */
 async function sendQrButtons(
   bridgeUrl: string,
   bridgeSecret: string,
@@ -115,21 +107,23 @@ async function sendQrButtons(
   buttons: Array<{ id: string; title: string }>
 ): Promise<{ messageId?: string }> {
   const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-  const res = await fetch(`${bridgeUrl}/send-buttons`, {
+  const choices = buttons.map((button, index) => `${index + 1}. ${button.title}`).join('\n');
+  const message = bodyText ? `${bodyText}\n\n${choices}` : choices;
+  const res = await fetch(`${bridgeUrl}/send`, {
     method: 'POST',
     headers: buildHeaders(bridgeSecret, sessionKey, userId),
-    body: JSON.stringify({ to: jid, text: bodyText, buttons }),
+    body: JSON.stringify({ to: jid, type: 'text', message }),
   });
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Bridge send-buttons failed (${res.status}): ${err.substring(0, 200)}`);
+    throw new Error(`Bridge button fallback failed (${res.status}): ${err.substring(0, 200)}`);
   }
   const data = await res.json();
   return { messageId: data?.messageId || data?.id || undefined };
 }
 
 /** Persist outbound QR message to both WhatsAppMessage and QrWhatsAppMessage. */
-async function logQrOutbound(userId: string, connectedPhone: string, lead: any, phone: string, text: string, flowId: string, nodeId?: string): Promise<void> {
+async function logQrOutbound(userId: string, connectedPhone: string, lead: any, phone: string, text: string, flowId: string, nodeId?: string, messageId?: string, sessionKey?: string | null): Promise<void> {
   const WhatsAppMessage = getWhatsAppMessage();
   const QrWhatsAppMessage = getQrWhatsAppMessage();
   const QrWhatsAppChat = getQrWhatsAppChat();
@@ -143,15 +137,17 @@ async function logQrOutbound(userId: string, connectedPhone: string, lead: any, 
     direction: 'outbound',
     messageType: 'text',
     messageContent: text,
-    status: 'queued',
+    status: 'sent',
+    waMessageId: messageId,
+    senderNumber: connectedPhone,
     sentAt: now,
-    metadata: { chatbot: { flowId, nodeId, qr: true, scheduled: true } },
+    metadata: { chatbot: { flowId, nodeId, qr: true, scheduled: true }, sessionKey: sessionKey || undefined },
     provider: 'whatsapp_web_bridge',
     bridgeUserId: userId,
     ownerId: userId,
   });
 
-  const msgId = `qrcb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const msgId = messageId || `qrcb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   await QrWhatsAppMessage.findOneAndUpdate(
     { messageId: msgId, userId, connectedPhone },
     {
@@ -161,10 +157,10 @@ async function logQrOutbound(userId: string, connectedPhone: string, lead: any, 
         text, type: 'text',
         participant: '', pushName: '',
         timestamp: timestampSeconds,
-        status: 2, hasMedia: false,
+        status: 1, hasMedia: false,
         mediaUrl: '', mediaMimetype: '', mediaFileName: '',
         quotedId: '', quotedText: '', quotedParticipant: '',
-        rawMessage: {}, metadata: { chatbot: { flowId, nodeId } },
+        rawMessage: {}, metadata: { chatbot: { flowId, nodeId }, sessionKey: sessionKey || undefined },
       },
       $setOnInsert: { createdAt: now },
     },
@@ -278,7 +274,7 @@ async function executeQrAction(action: any): Promise<{ status: 'ok' | 'error'; e
         const result = await sendQrText(bridgeUrl, bridgeSecret, sessionKey, userId, phone, text);
         messageId = result.messageId;
       }
-      await logQrOutbound(userId, connectedPhone, lead, phone, logText, String(flow._id), nodeId);
+      await logQrOutbound(userId, connectedPhone, lead, phone, logText, String(flow._id), nodeId, messageId, sessionKey);
       return { messageId };
     };
 
@@ -615,14 +611,14 @@ async function runQrFlowFromNode(params: {
 
   const buttons = result.interactiveButtons;
   if (buttons && buttons.length > 0) {
-    await sendQrButtons(bridgeUrl, bridgeSecret, sessionKey, userId, phone, result.text || '', buttons);
+    const sent = await sendQrButtons(bridgeUrl, bridgeSecret, sessionKey, userId, phone, result.text || '', buttons);
     const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
     const logText = result.text ? `${result.text}\n\n${labels}` : labels;
-    await logQrOutbound(userId, connectedPhone, lead, phone, logText, String(flow._id), node.nodeId);
+    await logQrOutbound(userId, connectedPhone, lead, phone, logText, String(flow._id), node.nodeId, sent.messageId, sessionKey);
   } else {
     const plainText = result.text || '';
-    await sendQrText(bridgeUrl, bridgeSecret, sessionKey, userId, phone, plainText);
-    await logQrOutbound(userId, connectedPhone, lead, phone, plainText, String(flow._id), node.nodeId);
+    const sent = await sendQrText(bridgeUrl, bridgeSecret, sessionKey, userId, phone, plainText);
+    await logQrOutbound(userId, connectedPhone, lead, phone, plainText, String(flow._id), node.nodeId, sent.messageId, sessionKey);
   }
 
   const flowId = String(flow._id);

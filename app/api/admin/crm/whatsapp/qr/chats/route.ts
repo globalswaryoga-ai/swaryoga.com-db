@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { getLead, getCRMUserSettings, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,9 +38,15 @@ export async function GET(req: NextRequest) {
       { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1 }
     ).lean() as any;
 
+    const ownerSessionKey = superAdmin ? null : await resolveOwnerSessionKey({ userId: viewerUserId, tenantSlug: decoded?.tenantSlug });
+    const ownerSettings: any = ownerSessionKey
+      ? await CRMUserSettings.findOne({ permanentTenantId: ownerSessionKey }, { userId: 1, qrConnectedPhoneNumber: 1 }).lean()
+      : null;
+    const sessionOwnerUserId = String(ownerSettings?.userId || viewerUserId);
+
     let bridgeUrl = BRIDGE_URL;
     let bridgeSecret = BRIDGE_SECRET;
-    let sessionKey: string | null = userSettings?.permanentTenantId || null;
+    let sessionKey: string | null = ownerSessionKey || userSettings?.permanentTenantId || null;
 
     // Legacy: user with their own custom bridge URL keys by userId.
     if (!sessionKey && userSettings?.qrBridgeUrl) {
@@ -66,27 +73,27 @@ export async function GET(req: NextRequest) {
     const sessionHeaders: Record<string, string> = {
       'x-bridge-secret': bridgeSecret,
       'x-user-id': viewerUserId,
+      'x-owner-user-id': sessionOwnerUserId,
       'x-session-key': sessionKey,
+      'x-tenant-id': sessionKey,
     };
 
     // Authoritative "currently connected phone" for this session — used to scope
     // the DB chat merge so OLD sessions/phones under the same userId never leak.
     // Prefer the live bridge session phone; fall back to the stored phone.
-    let connectedPhone: string = String(userSettings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
+    let connectedPhone: string = String(ownerSettings?.qrConnectedPhoneNumber || userSettings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
     // The bridge uses the OWNER's own push name as a fallback chat name when it
     // never captured the contact's name — detect it so we can treat it as a
     // placeholder (same as bare digits) during name enrichment below.
     let ownerName = '';
     try {
-      const sessionsRes = await fetch(`${bridgeUrl}/sessions`, {
+      const sessionsRes = await fetch(`${bridgeUrl}/status`, {
         method: 'GET',
-        headers: { 'x-bridge-secret': bridgeSecret },
+        headers: sessionHeaders,
       });
       if (sessionsRes.ok) {
-        const sessionsData = await sessionsRes.json();
-        const sessions: any[] = sessionsData?.sessions || [];
-        const liveSession = sessions.find(s => s.sessionKey === sessionKey && s.status === 'connected');
-        const livePhone = String(liveSession?.phone?.id || '').split(':')[0].replace(/\D/g, '');
+        const liveSession = await sessionsRes.json();
+        const livePhone = String(liveSession?.phone?.id || liveSession?.phoneNumber || '').split(':')[0].replace(/\D/g, '');
         if (livePhone) connectedPhone = livePhone;
         ownerName = String(liveSession?.phone?.name || '').trim();
       }

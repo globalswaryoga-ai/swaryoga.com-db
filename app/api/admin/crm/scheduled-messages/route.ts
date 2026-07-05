@@ -12,6 +12,10 @@ import {
 
 export const dynamic = 'force-dynamic';
 import { WhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
+import { normalizePhone } from '@/lib/whatsapp';
+import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
+import { verifyToken } from '@/lib/auth';
+import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
@@ -26,10 +30,12 @@ export async function GET(request: NextRequest) {
 
     const status = url.searchParams.get('status');
     const q = url.searchParams.get('q');
+    const phoneNumber = normalizePhone(url.searchParams.get('phoneNumber') || '');
 
     const filter: any = { createdByUserId: String(userId) };
     if (status && status !== 'all') filter.status = status;
     if (q && q.trim()) filter.name = { $regex: q.trim(), $options: 'i' };
+    if (phoneNumber) filter.targetPhone = phoneNumber;
 
     const jobs = await WhatsAppScheduledJob.find(filter)
       .sort({ nextRunAt: 1, createdAt: -1 })
@@ -61,12 +67,15 @@ export async function POST(request: NextRequest) {
       targetType,
       targetLeadIds,
       targetFilter,
+      targetPhone,
+      provider,
       // Scheduling inputs
       sendAt,
       delayMinutes,
       recurrence,
       timezone,
       maxRuns,
+      endAt,
     } = body;
 
     const normalizedType = String(messageType || 'text');
@@ -94,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tt = String(targetType || 'leadIds');
-    if (tt !== 'leadIds' && tt !== 'filter') {
+    if (!['leadIds', 'filter', 'phone'].includes(tt)) {
       return NextResponse.json({ error: 'Invalid targetType' }, { status: 400 });
     }
 
@@ -112,11 +121,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'targetFilter is required when targetType=filter' }, { status: 400 });
     }
 
+    const normalizedPhone = tt === 'phone' ? normalizePhone(String(targetPhone || '')) : '';
+    if (tt === 'phone' && (normalizedPhone.length < 10 || normalizedPhone.length > 15)) {
+      return NextResponse.json({ error: 'A valid targetPhone is required when targetType=phone' }, { status: 400 });
+    }
+
+    const normalizedProvider = provider === 'qr' ? 'qr' : 'meta';
+    if (tt === 'phone' && normalizedProvider !== 'qr') {
+      return NextResponse.json({ error: 'Direct phone schedules require provider=qr' }, { status: 400 });
+    }
+
     if (templateId && !isValidObjectId(String(templateId))) {
       return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
     }
 
     await connectDB();
+
+    const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+    const decoded: any = verifyToken(token);
+    const sharedOwnerKey = normalizedProvider === 'qr'
+      ? await resolveOwnerSessionKey({ userId: String(userId), tenantSlug: decoded?.tenantSlug })
+      : null;
+    const qrSession = normalizedProvider === 'qr' ? await resolveQrTenantBridge(String(userId), sharedOwnerKey || undefined) : null;
+    if (normalizedProvider === 'qr' && !qrSession) {
+      return NextResponse.json({ error: 'QR WhatsApp session is not provisioned for this tenant' }, { status: 409 });
+    }
 
     const job = await WhatsAppScheduledJob.create({
       name: String(name || 'Scheduled Message').trim(),
@@ -125,6 +154,9 @@ export async function POST(request: NextRequest) {
       targetType: tt,
       targetLeadIds: tt === 'leadIds' ? leadIds.map((id: any) => toObjectId(String(id))) : [],
       targetFilter: tt === 'filter' ? filter : undefined,
+      targetPhone: tt === 'phone' ? normalizedPhone : undefined,
+      provider: normalizedProvider,
+      qrSessionKey: qrSession?.sessionKey,
       messageType: normalizedType,
       messageContent: content,
       templateId: templateId ? toObjectId(String(templateId)) : undefined,
@@ -133,6 +165,7 @@ export async function POST(request: NextRequest) {
       nextRunAt,
       recurrence: recurrence || { frequency: 'none' },
       maxRuns: typeof maxRuns === 'number' ? Math.max(0, maxRuns) : 0,
+      endAt: endAt ? new Date(endAt) : undefined,
     });
 
     return formatCrmSuccess(job);

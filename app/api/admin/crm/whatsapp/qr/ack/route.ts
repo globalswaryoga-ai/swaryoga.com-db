@@ -1,23 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppBridgeSecret } from '@/lib/whatsappBridgeConfig';
+import { applyQrStatusUpdate } from '@/lib/qrStatusUpdates';
 
 /**
  * ACK Webhook - receives message delivery/read status updates from bridge
  * ack values: 0=pending, 1=sent, 2=delivered, 3=read, 4=played
  */
 
-const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
-
-// Map ack numbers to status strings
-const ACK_TO_STATUS: Record<number, string> = {
-  0: 'pending',
-  1: 'sent',
-  2: 'delivered',
-  3: 'read',
-  4: 'played', // for audio/video
-};
+const BRIDGE_SECRET = getWhatsAppBridgeSecret();
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,35 +25,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: true, reason: 'no_messageId' });
     }
 
-    await connectDB();
-    const WhatsAppMessage = getWhatsAppMessage();
-
-    // Find message by WhatsApp message ID
-    const message = await WhatsAppMessage.findOne({ waMessageId: messageId });
-    
-    if (!message) {
-      // Message not found - might be from before we started tracking
-      return NextResponse.json({ success: true, skipped: true, reason: 'message_not_found' });
-    }
-
-    // Only update if new status is "higher" (more confirmed)
-    const currentStatus = message.status;
-    const newStatus = ACK_TO_STATUS[ack] || status || 'unknown';
-    
-    // Status progression: pending -> sent -> delivered -> read
-    const statusOrder = ['pending', 'sent', 'delivered', 'read', 'played'];
-    const currentIndex = statusOrder.indexOf(currentStatus);
-    const newIndex = statusOrder.indexOf(newStatus);
-    
-    if (newIndex > currentIndex) {
-      await WhatsAppMessage.updateOne(
-        { _id: message._id },
-        { status: newStatus }
-      );
-      console.log('[ACK] Updated', messageId, 'to', newStatus);
-    }
-
-    return NextResponse.json({ success: true, status: newStatus });
+    // Legacy whatsapp-web.js ACKs are 0..4; convert them to Baileys 1..5.
+    const receiptStatus = status || (typeof ack === 'number' ? ack + 1 : ack);
+    const result = await applyQrStatusUpdate(
+      { messageId, status: receiptStatus },
+      req.headers.get('x-user-id') || undefined
+    );
+    return NextResponse.json({ success: true, ...result });
   } catch (err: any) {
     console.error('[ACK ERROR]:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

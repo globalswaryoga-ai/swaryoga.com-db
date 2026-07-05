@@ -414,7 +414,7 @@ export default function TenantsPage() {
   const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', slug: '', ownerEmail: '', ownerUserId: '', plan: 'free', subscriptionEndsAt: '' });
+  const [form, setForm] = useState({ name: '', slug: '', ownerEmail: '', ownerUserId: '', password: '', plan: 'free', subscriptionEndsAt: '' });
   const [createModules, setCreateModules] = useState<Set<string>>(new Set());
   const [createLimits, setCreateLimits] = useState<Limits>({});
   const [createPricing, setCreatePricing] = useState<Pricing>({ billingCycle: 'monthly' });
@@ -494,7 +494,7 @@ export default function TenantsPage() {
       const res = await fetch('/api/admin/tenants/reset-password', {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify({ email, newPassword }),
+        body: JSON.stringify({ email, ownerUserId: t.ownerUserId, newPassword }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to reset password');
@@ -623,7 +623,7 @@ export default function TenantsPage() {
   };
 
   const openCreate = () => {
-    setForm({ name: '', slug: '', ownerEmail: '', ownerUserId: '', plan: 'free', subscriptionEndsAt: '' });
+    setForm({ name: '', slug: '', ownerEmail: '', ownerUserId: '', password: '', plan: 'free', subscriptionEndsAt: '' });
     applyPlanDefaults('free', 'create');
     setShowCreate(true);
   };
@@ -932,6 +932,10 @@ export default function TenantsPage() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Owner User ID</label>
                   <input value={form.ownerUserId} onChange={(e) => setForm((f) => ({ ...f, ownerUserId: e.target.value }))} className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="admin_user_id" />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Initial Login Password</label>
+                  <input value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full border rounded-xl px-3 py-2 text-sm" type="password" minLength={6} autoComplete="new-password" placeholder="Minimum 6 characters" />
+                </div>
               </div>
 
               <div>
@@ -963,7 +967,7 @@ export default function TenantsPage() {
             </div>
             <div className="flex justify-end gap-3 p-6 border-t sticky bottom-0 bg-white rounded-b-2xl">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm border rounded-xl hover:bg-gray-50 font-medium">Cancel</button>
-              <button onClick={handleCreate} disabled={creating || !form.name || !form.slug || !form.ownerEmail || !form.ownerUserId} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 font-semibold">
+              <button onClick={handleCreate} disabled={creating || !form.name || !form.slug || !form.ownerEmail || !form.ownerUserId || form.password.length < 6} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 font-semibold">
                 {creating ? 'Creating…' : 'Create Tenant'}
               </button>
             </div>
