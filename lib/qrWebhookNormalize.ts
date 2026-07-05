@@ -27,6 +27,27 @@ function asString(v: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Baileys' messageTimestamp is sometimes a Long-like object ({ low, high,
+ * unsigned }) rather than a plain number once it's round-tripped through
+ * JSON. `Number(...)` on that shape is NaN, which produces `new Date(NaN)`
+ * ("Invalid Date") and fails Mongoose's cast — silently dropping the
+ * message. Guard against that here instead of trusting the caller.
+ */
+function asTimestamp(raw: unknown): Date | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? new Date(raw < 10_000_000_000 ? raw * 1000 : raw) : undefined;
+  }
+  if (typeof raw === 'string') {
+    const n = Number(raw);
+    if (!Number.isNaN(n)) return new Date(n < 10_000_000_000 ? n * 1000 : n);
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+  return undefined;
+}
+
 /** Preserve the WhatsApp conversation namespace while normalizing bare phones. */
 export function normalizeQRChatJid(rawValue: string): string {
   const raw = String(rawValue || '').trim();
@@ -113,7 +134,7 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
           to: asString(m.to || m.receiver),
           text: asString(m.text || m.body || m.message || m?.content?.text),
           messageId: asString(m.id?._serialized || m.id || m.messageId || m.msgId),
-          timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000) : undefined,
+          timestamp: asTimestamp(m.timestamp),
           fromMe: !!m.fromMe,
           hasMedia: !!media,
           media,
@@ -136,20 +157,7 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         asString(m?.content?.text) ||
         asString(m?.text?.body);
 
-      const tsRaw = m.timestamp ?? m.ts ?? m.time ?? m.createdAt;
-      let timestamp: Date | undefined;
-      if (typeof tsRaw === 'number') {
-        // providers may send seconds or ms - handle both
-        timestamp = new Date(tsRaw < 10_000_000_000 ? tsRaw * 1000 : tsRaw);
-      } else if (typeof tsRaw === 'string' && tsRaw) {
-        const n = Number(tsRaw);
-        if (!Number.isNaN(n)) {
-          timestamp = new Date(n < 10_000_000_000 ? n * 1000 : n);
-        } else {
-          const d = new Date(tsRaw);
-          if (!Number.isNaN(d.getTime())) timestamp = d;
-        }
-      }
+      const timestamp = asTimestamp(m.timestamp ?? m.ts ?? m.time ?? m.createdAt);
 
       const media = extractMediaInfo(m);
 
