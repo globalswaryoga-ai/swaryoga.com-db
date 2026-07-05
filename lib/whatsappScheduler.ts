@@ -182,7 +182,10 @@ export async function runDueWhatsAppScheduledJobs(options?: {
         },
         { $set: { 'metadata.executionLockUntil': leaseUntil, 'metadata.executionStartedAt': now } }
       );
-      if (!claim.modifiedCount) continue;
+      // This job is running inside an async map callback, not the enclosing
+      // batch loop. Another worker already owns the lease, so finish this
+      // callback without attempting a duplicate send.
+      if (!claim.modifiedCount) return;
 
       const leads = await resolveLeadsForJob(job, leadsPerJobLimit);
 
