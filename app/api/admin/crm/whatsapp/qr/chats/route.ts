@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
     const bridgeGroupsUrl = `${bridgeUrl}/groups`;
     console.log('[QR Chats API] Calling bridge chats:', bridgeChatsUrl, '| sessionKey:', sessionKey);
 
-    const [chatsRes, groupsRes]: [Response | null, Response | null] = await Promise.all([
+    const [chatsRes, groupsRes, lidMapRes]: [Response | null, Response | null, Response | null] = await Promise.all([
       fetch(bridgeChatsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
         console.warn('[QR Chats API] Chats bridge unreachable:', err.message);
         return null;
@@ -116,8 +116,28 @@ export async function GET(req: NextRequest) {
       fetch(bridgeGroupsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
         console.warn('[QR Chats API] Groups endpoint failed:', err.message);
         return null;
-      })
+      }),
+      fetch(`${bridgeUrl}/lid-map`, { method: 'GET', headers: sessionHeaders }).catch(() => null),
     ]);
+
+    // Resolves a chat's stable phone digits for the same-contact dedup below —
+    // either straight from an @s.whatsapp.net/@c.us JID, or via the bridge's
+    // learned lid→phone map for an @lid JID.
+    let lidToPhone: Record<string, string> = {};
+    if (lidMapRes?.ok) {
+      try {
+        const lidJson = await lidMapRes.json();
+        lidToPhone = lidJson?.map || {};
+      } catch { /* non-fatal */ }
+    }
+    const phoneDigitsForJid = (jid: string): string => {
+      if (!jid) return '';
+      if (jid.endsWith('@lid')) {
+        const mapped = lidToPhone[jid];
+        return mapped ? mapped.split('@')[0].replace(/\D/g, '') : '';
+      }
+      return jid.split('@')[0].replace(/\D/g, '');
+    };
 
     let chatsData: any = { chats: [] };
     if (!chatsRes || !chatsRes.ok) {
@@ -218,11 +238,17 @@ export async function GET(req: NextRequest) {
         .limit(1000)  // Increased from 500 to include more historical
         .lean();
 
-      const bridgeJidSet = new Set<string>(
-        data.chats.map((c: any) => {
-          const id = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-          return id;
-        })
+      const bridgeIds = data.chats.map((c: any) => (typeof c.id === 'string' ? c.id : (c.id?._serialized || '')));
+      const bridgeJidSet = new Set<string>(bridgeIds);
+      // A contact can be persisted under both its @lid JID and its resolved
+      // phone JID as the bridge learns the mapping over time (see
+      // phoneDigitsForJid above). Track phones already shown by the bridge so
+      // a stale @lid record for the SAME contact isn't re-added as a second,
+      // unmerged row once the bridge has already reconciled it.
+      const bridgePhoneSet = new Set<string>(
+        data.chats
+          .map((c: any) => String(c.resolvedPhone || '').replace(/\D/g, '') || phoneDigitsForJid(typeof c.id === 'string' ? c.id : ''))
+          .filter(Boolean)
       );
 
       for (const dc of dbChatDocs as any[]) {
@@ -234,6 +260,10 @@ export async function GET(req: NextRequest) {
           });
         }
         if (bridgeJidSet.has(dc.chatJid)) continue;
+        if (!dc.isGroup) {
+          const dcPhone = phoneDigitsForJid(dc.chatJid);
+          if (dcPhone && bridgePhoneSet.has(dcPhone)) continue;
+        }
         // Enrich name from Lead if only phone stored
         let chatName = dc.name || dc.chatJid.split('@')[0];
         data.chats.push({
