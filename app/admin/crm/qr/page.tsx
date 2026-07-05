@@ -969,6 +969,26 @@ export default function QRWhatsAppPage() {
       pollRef.current = null;
     };
   }, [token, fetchStatus, bridgeConfigured]);
+  // ── Fast QR refresh ──
+  // The bridge rotates the WhatsApp QR roughly every 20s (WhatsApp's own limit).
+  // The 20-30s status poll above is out of phase with that rotation, so the
+  // code on screen is often already stale by the time it's scanned — the scan
+  // silently fails. Refresh just the QR image on a tighter loop so what's
+  // shown always matches what the bridge currently has active.
+  useEffect(() => {
+    if (!token || bridgeConfigured !== true) return;
+    if (status?.connected) return;
+    if (tab !== 'connection') return;
+    const id = setInterval(async () => {
+      try {
+        const qr = await bridgeCall('/qr');
+        if (qr?.qr) setQrData(qr.qr);
+      } catch {
+        // Keep existing QR if fetch fails
+      }
+    }, 4000);
+    return () => clearInterval(id);
+  }, [token, bridgeConfigured, status?.connected, tab, bridgeCall]);
   // ── Auto-switch to inbox when connected ──
   useEffect(() => {
     // Only auto-switch once per session when first connected
