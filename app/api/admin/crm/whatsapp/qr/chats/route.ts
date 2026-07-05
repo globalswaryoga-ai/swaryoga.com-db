@@ -193,7 +193,47 @@ export async function GET(req: NextRequest) {
       }))
     ];
 
-    const data = { chats: combinedChats };
+    // ── Dedup same-contact rows the bridge itself may still return separately ──
+    // A brand-new contact is addressed by its @lid JID until the bridge learns
+    // the real phone number (from an inbound message's senderPn). If that
+    // resolution lands mid-poll, the bridge's own /chats response can still
+    // contain both the @lid row and the resolved phone-JID row for the same
+    // contact in the same call — collapse them here by resolved phone so the
+    // inbox never shows one contact as two rows.
+    const isUsefulChatDisplayName = (name: any): boolean => {
+      const v = String(name || '').trim();
+      return !!v && !/^\d+$/.test(v) && !v.includes('@');
+    };
+    function dedupeChatsByPhone(chats: any[]): any[] {
+      const byPhone = new Map<string, any>();
+      const out: any[] = [];
+      for (const c of chats) {
+        const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+        if (c.isGroup || idStr.endsWith('@g.us')) { out.push(c); continue; }
+        const phone = String(c.resolvedPhone || '').replace(/\D/g, '') || phoneDigitsForJid(idStr);
+        if (!phone) { out.push(c); continue; }
+        const existing = byPhone.get(phone);
+        if (!existing) {
+          const entry = { ...c, resolvedPhone: phone };
+          byPhone.set(phone, entry);
+          out.push(entry);
+          continue;
+        }
+        const existingTime = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
+        const candidateTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+        const preferCandidateId = idStr.endsWith('@s.whatsapp.net') && !String(existing.id || '').endsWith('@s.whatsapp.net');
+        if (preferCandidateId) existing.id = idStr;
+        if (!isUsefulChatDisplayName(existing.name) && isUsefulChatDisplayName(c.name)) existing.name = c.name;
+        existing.unreadCount = Math.max(existing.unreadCount || 0, c.unreadCount || 0);
+        if (candidateTime > existingTime) {
+          existing.lastMessage = c.lastMessage;
+          existing.lastMessageTime = c.lastMessageTime;
+        }
+      }
+      return out;
+    }
+
+    const data = { chats: dedupeChatsByPhone(combinedChats) };
 
     console.log('[QR Chats API] 📊 Combined result:', {
       totalChats: combinedChats.length,
