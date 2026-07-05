@@ -44,6 +44,9 @@ interface CrmSubNavProps {
   moreItems?: SubNavItem[];
   /** Callback to toggle sidebar on mobile */
   onMenuClick?: () => void;
+  /** Show the menu button on desktop too (used when the sidebar is force-hidden
+   *  there, e.g. the QR WhatsApp inbox while a chat is open) */
+  showMenuButtonOnDesktop?: boolean;
 }
 
 /** A portal-based dropdown panel that renders at the body level to avoid overflow clipping */
@@ -250,6 +253,7 @@ export default function CrmSubNav({
   items,
   moreItems = [],
   onMenuClick,
+  showMenuButtonOnDesktop = false,
 }: CrmSubNavProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -358,7 +362,8 @@ export default function CrmSubNav({
           {onMenuClick && (
             <button
               onClick={onMenuClick}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition"
+              className={`${showMenuButtonOnDesktop ? '' : 'md:hidden'} p-2 rounded-lg hover:bg-gray-100 transition`}
+              title="Show sidebar"
             >
               <Menu className="h-5 w-5 text-gray-700" />
             </button>

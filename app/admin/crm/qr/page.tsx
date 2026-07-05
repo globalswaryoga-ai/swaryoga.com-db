@@ -29,6 +29,7 @@ import {
 } from './components';
 import ChatSidebar from './components/ChatSidebar';
 import ChatArea from './components/ChatArea';
+import { useCrmSidebarAutoHide } from '@/components/admin/crm/CrmShell';
 
 function isPlaceholderChatName(name: string | undefined | null): boolean {
   const value = String(name || '').trim();
@@ -341,6 +342,10 @@ export default function QRWhatsAppPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as any) || 'connection';
   const [tab, setTab] = useState<'connection' | 'inbox' | 'templates' | 'broadcast' | 'history' | 'settings'>(initialTab);
+  // Reclaim full width for the conversation by hiding the CRM sidebar while a
+  // chat is open in the inbox — a menu button appears in the header to bring
+  // it back as an overlay.
+  useCrmSidebarAutoHide(tab === 'inbox' && !!selectedChat);
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [downloadingExtension, setDownloadingExtension] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);

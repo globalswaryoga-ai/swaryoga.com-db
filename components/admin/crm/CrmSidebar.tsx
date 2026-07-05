@@ -14,6 +14,10 @@ interface CrmSidebarProps {
   onClose: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** When true, the sidebar is fully hidden on desktop too (not just mobile) and
+   *  only shown as a temporary overlay while `isOpen` — used by pages like the
+   *  QR WhatsApp inbox that need the full width while a chat is open. */
+  hiddenOnDesktop?: boolean;
 }
 
 // Sections only super-admins should see.
@@ -54,7 +58,7 @@ function landingHref(s: SectionConfig): string {
  * page; that module's sub-pages then appear as tabs in the CrmSubNav header.
  * Driven by the same `sectionConfigs` as the header, so the two never drift.
  */
-export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }: CrmSidebarProps) {
+export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggleCollapse, hiddenOnDesktop = false }: CrmSidebarProps) {
   const pathname = usePathname() || '';
   const router = useRouter();
 
@@ -236,14 +240,17 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile overlay (also shown on desktop when the sidebar is force-hidden there) */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity" onClick={onClose} />
+        <div
+          className={`fixed inset-0 bg-black/50 z-40 transition-opacity ${hiddenOnDesktop ? '' : 'md:hidden'}`}
+          onClick={onClose}
+        />
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-[10000] ${width} bg-gray-900 text-white transform transition-all duration-300 ease-in-out flex flex-col ${
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        className={`fixed ${hiddenOnDesktop ? '' : 'md:static'} inset-y-0 left-0 z-[10000] ${width} bg-gray-900 text-white transform transition-all duration-300 ease-in-out flex flex-col ${
+          isOpen ? 'translate-x-0' : (hiddenOnDesktop ? '-translate-x-full' : '-translate-x-full md:translate-x-0')
         }`}
       >
         {/* Header */}
@@ -253,7 +260,7 @@ export default function CrmSidebar({ isOpen, onClose, collapsed = false, onToggl
               <img src="/logo.png" alt="Swar Yoga" className="w-8 h-8 rounded-lg flex-shrink-0" />
               {!collapsed && <h2 className="font-bold text-base truncate text-white">Swar Yoga</h2>}
             </div>
-            <button onClick={onClose} className="md:hidden p-1 rounded-lg hover:bg-gray-800 transition">
+            <button onClick={onClose} className={`${hiddenOnDesktop ? '' : 'md:hidden'} p-1 rounded-lg hover:bg-gray-800 transition`}>
               <X className="h-5 w-5" />
             </button>
           </div>
