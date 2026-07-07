@@ -10,6 +10,14 @@ import { CartProvider } from '@/lib/context/CartContext';
 import { Space_Grotesk } from 'next/font/google';
 import { siteConfig } from '@/lib/seo';
 import { OrganizationJsonLd, WebsiteJsonLd } from '@/components/seo/JsonLd';
+import { startSadhanaScheduler } from '@/lib/sadhanaSchedulerServiceV2';
+
+// Initialize Sadhana Scheduler on server start
+if (typeof window === 'undefined') {
+  startSadhanaScheduler().catch(err => {
+    console.error('[App] Failed to start Sadhana scheduler:', err);
+  });
+}
 
 const spaceGrotesk = Space_Grotesk({ 
   subsets: ['latin'],
