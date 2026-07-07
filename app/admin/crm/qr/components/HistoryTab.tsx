@@ -11,6 +11,8 @@ import {
 
 interface PeriodStats {
   sent: number;       // status >= 1 (confirmed by bridge)
+  delivered: number;  // status >= 2
+  read: number;       // status = 3
   pending: number;    // status = 0 (sending / awaiting confirmation)
   failed: number;     // status = -1
   received: number;   // inbound messages received
@@ -187,6 +189,14 @@ function StatCard({ label, period }: { label: string; period: PeriodStats }) {
           <span className="text-base font-bold text-green-600">{period.sent}</span>
         </div>
         <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500 flex items-center gap-1.5"><CheckCheck className="w-3 h-3 text-gray-400" /> Delivered</span>
+          <span className="text-base font-bold text-gray-500">{period.delivered}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500 flex items-center gap-1.5"><Eye className="w-3 h-3 text-blue-500" /> Read</span>
+          <span className="text-base font-bold text-blue-600">{period.read}</span>
+        </div>
+        <div className="flex items-center justify-between">
           <span className="text-xs text-gray-500 flex items-center gap-1.5">
             <Clock className="w-3 h-3 text-yellow-400" /> Sending
           </span>
@@ -230,10 +240,10 @@ export function HistoryTab({ token }: HistoryTabProps) {
   const [qrMessages, setQrMessages] = useState<QrMessage[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastSchedule[]>([]);
   const [stats, setStats] = useState<StatsDashboard>({
-    today: { sent: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
-    week:  { sent: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
-    month: { sent: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
-    year:  { sent: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
+    today: { sent: 0, delivered: 0, read: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
+    week:  { sent: 0, delivered: 0, read: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
+    month: { sent: 0, delivered: 0, read: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
+    year:  { sent: 0, delivered: 0, read: 0, pending: 0, failed: 0, received: 0, blocked: 0 },
   });
   const [loading, setLoading]           = useState(true);
   const [refreshing, setRefreshing]     = useState(false);
@@ -252,9 +262,9 @@ export function HistoryTab({ token }: HistoryTabProps) {
   const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo,   setDateTo]   = useState(defaultTo);
 
-  const fetchData = useCallback(async (silent = false) => {
+  const fetchData = useCallback(async (silent = false, showRefreshing = silent) => {
     if (!token) return;
-    if (!silent) setLoading(true); else setRefreshing(true);
+    if (!silent) setLoading(true); else if (showRefreshing) setRefreshing(true);
     setError(null);
 
     try {
@@ -301,6 +311,14 @@ export function HistoryTab({ token }: HistoryTabProps) {
   }, [token, filterStatus, filterDirection, dateFrom, dateTo]);
 
   useEffect(() => { if (token) fetchData(); }, [token, filterStatus, filterDirection, dateFrom, dateTo, fetchData]);
+
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchData(true, false);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [token, fetchData]);
 
   const deleteSchedule = async (id: string) => {
     if (!token || !confirm('Delete this scheduled broadcast?')) return;
@@ -428,7 +446,9 @@ export function HistoryTab({ token }: HistoryTabProps) {
             className="text-xs px-2.5 py-1.5 border rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-400"
           >
             <option value="all">All Statuses</option>
-            <option value="sent">Sent / Delivered / Read</option>
+            <option value="sent">Sent</option>
+            <option value="delivered">Delivered</option>
+            <option value="read">Read</option>
             <option value="pending">Sending (pending)</option>
             <option value="failed">Failed</option>
           </select>

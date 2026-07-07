@@ -349,7 +349,10 @@ export default function QRGroupSchedulerPage() {
         customScheduleDates: selectedDates.map(d => `${d}T00:00:00+05:30`),
         mediaUrls: mediaUrl ? [mediaUrl] : [],
         startTime: sendTime,
-        endTime: addMinutes(sendTime, 30),
+        // Keep the window open long enough for the processor's ~15-minute safe
+        // gap between every selected group; otherwise groups after the second
+        // recipient would be stranded outside the 30-minute window.
+        endTime: addMinutes(sendTime, Math.max(30, (groupJids.length - 1) * 15 + 5)),
         status: 'scheduled',
         isActive: true,
       };

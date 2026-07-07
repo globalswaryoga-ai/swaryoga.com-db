@@ -78,7 +78,7 @@ function evictStaleBridgeCache() {
 }
 
 type BridgeResolution = 
-  | { ok: true; url: string; secret: string; userId: string; bridgeSessionId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
+  | { ok: true; url: string; secret: string; userId: string; ownerUserId: string; bridgeSessionId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
   | { ok: false; reason: 'no_bridge' | 'unauthorized' };
 
 async function resolveUserBridge(authHeader: string | null): Promise<BridgeResolution> {
@@ -123,6 +123,14 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
         ? null
         : await resolveOwnerSessionKey({ userId: decoded.userId, tenantSlug: (decoded as any).tenantSlug });
       const sessionKey = ownerSessionKey || permanentTenantId;
+      const ownerSettings: any = ownerSessionKey
+        ? await CRMUserSettings.findOne(
+            { permanentTenantId: ownerSessionKey },
+            { userId: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1 }
+          ).lean()
+        : null;
+      const sessionOwnerUserId = String(ownerSettings?.userId || decoded.userId);
+      const sessionStoredPhone = normalizeConnectedPhone(ownerSettings?.qrConnectedPhoneNumber || storedPhone);
 
       // ── PERMANENT TENANT ID ──
       // The live bridge isolates users by the x-session-key header.
@@ -134,11 +142,12 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
           url: FALLBACK_BRIDGE_URL,
           secret: FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
+          ownerUserId: sessionOwnerUserId,
           bridgeSessionId: sessionKey,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
-          storedPhone,
-          phoneChangedAt,
+          storedPhone: sessionStoredPhone,
+          phoneChangedAt: ownerSettings?.qrPhoneChangedAt || phoneChangedAt,
           senderDisplayName,
           tenantId: sessionKey,
         };
@@ -156,6 +165,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
           url: settings.qrBridgeUrl,
           secret: settings.qrBridgeSecret || FALLBACK_BRIDGE_SECRET,
           userId: decoded.userId,
+          ownerUserId: decoded.userId,
           bridgeSessionId: decoded.userId,
           isSuperAdmin: superAdmin,
           hasOwnBridge: true,
@@ -197,6 +207,7 @@ async function resetBridgeSessionData(resolved: Extract<BridgeResolution, { ok: 
         'Content-Type': 'application/json',
         'x-bridge-secret': resolved.secret,
         'x-user-id': resolved.userId,
+        'x-owner-user-id': resolved.ownerUserId,
         'x-session-key': resolved.bridgeSessionId,
         ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
       },
@@ -318,6 +329,7 @@ async function validateOwnBridgeLivePhone(resolved: Extract<BridgeResolution, { 
         'Content-Type': 'application/json',
         'x-bridge-secret': resolved.secret,
         'x-user-id': resolved.userId,
+        'x-owner-user-id': resolved.ownerUserId,
         'x-session-key': resolved.bridgeSessionId,
         ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
       },
@@ -880,6 +892,8 @@ export async function POST(req: NextRequest) {
         const queueCol = queueDb.collection('qr_message_queue');
         await queueCol.insertOne({
           userId,
+          sessionKey: bridgeSessionId,
+          tenantId: resolved.tenantId || bridgeSessionId,
           to: body?.to || body?.chatId || body?.jid || '',
           message: body?.message || body?.text || body?.caption || '',
           type: body?.url || body?.media ? 'image' : 'text',
@@ -970,6 +984,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'x-bridge-secret': BRIDGE_SECRET,
         'x-user-id': userId,
+        'x-owner-user-id': resolved.ownerUserId,
         'x-session-key': bridgeSessionId,
         ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
         'Content-Type': 'application/json',
@@ -1234,20 +1249,28 @@ export async function POST(req: NextRequest) {
         if (toJid && (messageText || body.media || body.hasMedia)) {
           const QrMsg = getQrWhatsAppMessage();
           const QrChat = getQrWhatsAppChat();
-          const chatJid = toJid.includes('@') ? toJid : `${toJid.replace(/\D/g, '')}@s.whatsapp.net`;
+          const rawChatJid = toJid.includes('@') ? toJid : `${toJid.replace(/\D/g, '')}@s.whatsapp.net`;
+          const chatJid = normalizeJidFormat(rawChatJid);
           const nowSeconds = Math.floor(Date.now() / 1000);
-          const msgFilter: any = { userId, connectedPhone: resolved.storedPhone, chatJid };
-          if (sentMsgId) msgFilter.messageId = sentMsgId;
+          const persistedMessageId = sentMsgId || `proxy-${userId}-${Date.now()}`;
+          const hasMedia = !!(body.url || body.media || body.hasMedia);
+          const mediaUrl = String(body.cdnUrl || body.url || (typeof body.media === 'string' && body.media.startsWith('http') ? body.media : '') || '');
+          const messageType = hasMedia ? (String(body.mimetype || '').startsWith('video/') ? 'video' : String(body.mimetype || '').startsWith('audio/') ? 'audio' : String(body.mimetype || '').startsWith('application/') ? 'document' : 'image') : 'text';
+          const msgFilter = { userId, connectedPhone: resolved.storedPhone, chatJid, messageId: persistedMessageId };
           await QrMsg.updateOne(
             msgFilter,
             {
               $set: {
                 userId, connectedPhone: resolved.storedPhone, chatJid,
-                messageId: sentMsgId || `proxy-${Date.now()}`,
+                messageId: persistedMessageId,
                 direction: 'outbound', fromMe: true,
-                text: messageText, type: body.media ? 'media' : 'text',
+                text: messageText, type: messageType,
                 timestamp: nowSeconds, status: 1,
-                hasMedia: !!(body.media || body.hasMedia),
+                hasMedia,
+                mediaUrl,
+                mediaMimetype: String(body.mimetype || ''),
+                mediaFileName: String(body.fileName || ''),
+                metadata: { sessionKey: resolved.bridgeSessionId, tenantId: resolved.tenantId || resolved.bridgeSessionId },
               },
               $setOnInsert: { createdAt: new Date() },
             },
@@ -1272,20 +1295,28 @@ export async function POST(req: NextRequest) {
           // Also save to WhatsAppMessage (stats/history page reads this collection)
           try {
             const WaMsg = getWhatsAppMessage();
-            const phoneNum = chatJid.split('@')[0];
-            const hasMedia = !!(body.url || body.media || body.hasMedia);
-            await WaMsg.create({
-              phoneNumber: phoneNum,
-              direction: 'outbound',
-              messageContent: messageText || '[media]',
-              messageType: hasMedia ? 'media' : 'text',
-              media: hasMedia ? { kind: 'image', url: body.url || '' } : undefined,
-              status: 'sent',
-              sentByUserId: userId,
-              sentByLabel: userId,
-              provider: 'whatsapp_web_bridge',
-              sentAt: new Date(),
-            });
+            const phoneNum = chatJid.split('@')[0].replace(/\D/g, '') || chatJid.split('@')[0];
+            await WaMsg.updateOne(
+              { waMessageId: persistedMessageId, direction: 'outbound' },
+              {
+                $set: {
+                  phoneNumber: phoneNum,
+                  direction: 'outbound',
+                  messageContent: messageText || '[media]',
+                  messageType: hasMedia ? 'media' : 'text',
+                  ...(hasMedia ? { media: { kind: messageType, url: mediaUrl, fileName: String(body.fileName || ''), mimeType: String(body.mimetype || '') } } : {}),
+                  status: 'sent',
+                  waMessageId: persistedMessageId,
+                  senderNumber: resolved.storedPhone,
+                  sentByUserId: userId,
+                  sentByLabel: resolved.senderDisplayName || userId,
+                  provider: 'whatsapp_web_bridge',
+                  sentAt: new Date(),
+                  metadata: { channel: 'qr', chatJid, sessionKey: resolved.bridgeSessionId },
+                },
+              },
+              { upsert: true }
+            );
           } catch (waErr: any) {
             // Non-fatal — QrWhatsAppMessage already saved successfully
             if (!waErr.message?.includes('duplicate')) {
@@ -1481,6 +1512,7 @@ export async function GET(req: NextRequest) {
         headers: {
           'x-bridge-secret': BRIDGE_SECRET,
           'x-user-id': userId,
+          'x-owner-user-id': resolved.ownerUserId,
           'x-session-key': bridgeSessionId,
           ...(resolved.tenantId ? { 'x-tenant-id': resolved.tenantId } : {}),
           'ngrok-skip-browser-warning': 'true',

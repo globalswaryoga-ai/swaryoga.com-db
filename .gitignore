@@ -8,9 +8,13 @@ out/
 *.tsbuildinfo
 # Documentation files
 *.md
+!docs/QR_WHATSAPP_REPAIR_TODO.md
 !README.md
 !docs/QR_WHATSAPP_ACCEPTANCE_PLAYBOOK.md
 !docs/REPO_GUIDE.md
+
+# Never commit bridge/VPS private keys (including files restored from history).
+deploy/wa-bridge/*.pem
 !docs/ORGANIZATION_AND_FLOWS.md
 !docs/ROUTE_INVENTORY_PUBLIC.md
 !docs/ROUTE_INVENTORY_ADMIN_CRM.md

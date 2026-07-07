@@ -52,9 +52,9 @@ export function EditFunnelLabelModal({
         />
         <p className="text-[10px] text-gray-500 mb-1.5">Color</p>
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {(editModal.type === 'funnel' ? FUNNEL_COLORS : LABEL_COLORS).map(c => (
+          {(editModal.type === 'funnel' ? FUNNEL_COLORS : LABEL_COLORS).map((c, index) => (
             <button
-              key={c}
+              key={`${c}-${index}`}
               onClick={() => setEditColor(c)}
               className={`w-6 h-6 rounded-full border-2 transition ${c.split(' ')[0]} ${editColor === c ? 'border-gray-800 scale-110' : 'border-transparent hover:border-gray-400'}`}
               title={c}

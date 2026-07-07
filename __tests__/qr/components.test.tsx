@@ -81,15 +81,15 @@ describe('GroupCreateModal', () => {
     expect(btn.closest('button')).toBeDisabled();
   });
 
-  it('enables Create button when name is provided', () => {
-    render(<GroupCreateModal {...defaultProps} newGroupName="Test Group" />);
+  it('enables Create button when name and a member are provided', () => {
+    render(<GroupCreateModal {...defaultProps} newGroupName="Test Group" newGroupMembers="919876543210" />);
     const btn = screen.getByText('Create Group');
     expect(btn.closest('button')).not.toBeDisabled();
   });
 
   it('calls handleCreateGroup when create button is clicked', () => {
     const mockCreate = jest.fn();
-    render(<GroupCreateModal {...defaultProps} newGroupName="Test Group" handleCreateGroup={mockCreate} />);
+    render(<GroupCreateModal {...defaultProps} newGroupName="Test Group" newGroupMembers="919876543210" handleCreateGroup={mockCreate} />);
     const btn = screen.getByText('Create Group');
     fireEvent.click(btn.closest('button')!);
     expect(mockCreate).toHaveBeenCalled();

@@ -7,7 +7,6 @@ import ErrorCatcher from '@/components/ErrorCatcher';
 import { RootErrorBoundary } from '@/components/RootErrorBoundary';
 import { PerformanceMonitor } from '@/components/PerformanceMonitor';
 import { CartProvider } from '@/lib/context/CartContext';
-import { Space_Grotesk } from 'next/font/google';
 import { siteConfig } from '@/lib/seo';
 import { OrganizationJsonLd, WebsiteJsonLd } from '@/components/seo/JsonLd';
 import { startSadhanaScheduler } from '@/lib/sadhanaSchedulerServiceV2';
@@ -18,12 +17,6 @@ if (typeof window === 'undefined') {
     console.error('[App] Failed to start Sadhana scheduler:', err);
   });
 }
-
-const spaceGrotesk = Space_Grotesk({ 
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-space-grotesk',
-});
 
 export const metadata: Metadata = {
   title: {
@@ -92,7 +85,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={spaceGrotesk.variable}>
+    <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />

@@ -617,7 +617,10 @@ async function useMongoDBAuthState(sessionKey, ownerUserId = sessionKey) {
       }
     },
     saveCreds: async () => {
-      // We pass session's sock ref through a closure below
+      // Baileys mutates the `creds` object supplied in `state`. Persist that
+      // exact live object on every creds.update so a PM2/VPS restart can resume
+      // the linked device without asking for another QR scan.
+      await writeData('creds', creds);
     }
   };
 }
@@ -641,7 +644,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       session.sock = null;
     }
 
-    const { state, saveCreds: _saveCreds } = await useMongoDBAuthState(session.sessionKey, session.ownerUserId);
+    const { state, saveCreds } = await useMongoDBAuthState(session.sessionKey, session.ownerUserId);
     const { version } = await fetchLatestBaileysVersion();
 
     console.log(`[${session.ownerUserId}] Starting Baileys v${version.join('.')} for session ${session.sessionKey}`);
@@ -678,21 +681,10 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
 
     session.sock = sock;
 
-    // Save creds function needs to reference this session's sock
-    session.saveCreds = async () => {
-      if (session.sock?.authState?.creds) {
-        const client = await getMongoClient();
-        if (client) {
-          const col = client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION);
-          const keyPrefix = `${session.sessionKey}:`;
-          await col.updateOne(
-            { key: `${keyPrefix}creds` },
-            { $set: { key: `${keyPrefix}creds`, value: session.sock.authState.creds, updatedAt: new Date() } },
-            { upsert: true }
-          );
-        }
-      }
-    };
+    // Keep the auth-store callback returned for this exact state instance.
+    // makeWASocket does not expose `sock.authState`; reading it silently skipped
+    // every credential write and caused logout after bridge restarts.
+    session.saveCreds = saveCreds;
 
     // ── Connection Updates ───────────────────
     sock.ev.on('connection.update', async (update) => {
@@ -716,6 +708,10 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         session.retryCount = 0;
         session.intentionalDisconnect = false;
         session.phoneInfo = sock.user || null;
+        // Flush the final paired identity before reporting the session ready.
+        // creds.update normally does this too; this extra write closes the small
+        // restart window immediately after a successful QR scan.
+        try { await saveCreds(); } catch (e) { console.error(`[${session.ownerUserId}] Initial creds save failed:`, e.message); }
         console.log(`[${session.ownerUserId}] Connected session ${session.sessionKey} as: ${sock.user?.id} ${sock.user?.name || ''}`);
 
         session.startKeepalive();
@@ -747,6 +743,10 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         const hadRecentQR = session.lastQrTime && (Date.now() - session.lastQrTime < 120000);
         if (!hadRecentQR) session.connectionState = 'disconnected';
         session.phoneInfo = null;
+        // A closed Baileys socket is not reusable. Leaving this reference set
+        // prevents /qr from starting a replacement and strands the scanner in
+        // logged_out/disconnected forever.
+        if (session.sock === sock) session.sock = null;
         const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
         const reason = lastDisconnect?.error?.message || 'unknown';
 
@@ -1029,7 +1029,12 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         // Without this the DB status stayed at 2 (single grey tick) forever.
         // status 0 = ERROR (send failed) is also forwarded so "failed" shows up.
         if (typeof update.status === 'number' && (update.status === 0 || update.status >= 2) && key.id) {
-          forwardToWebhook(session, { type: 'status_update', messageId: key.id, status: update.status });
+          forwardToWebhook(session, {
+            type: 'status_update',
+            messageId: key.id,
+            status: update.status,
+            connectedPhone: session.phoneInfo?.id?.split(':')[0] || '',
+          });
         }
       }
     });
@@ -1039,12 +1044,18 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
     sock.ev.on('presence.update', ({ id, presences }) => {
       if (!presences) return;
       for (const [participant, info] of Object.entries(presences)) {
-        const presenceKey = id.endsWith('@g.us') ? `${id}:${participant}` : id;
-        session.presenceMap.set(presenceKey, {
+        const presenceValue = {
           lastKnownPresence: info.lastKnownPresence,
           lastSeen: info.lastSeen || null,
           updatedAt: Date.now(),
-        });
+        };
+        if (id.endsWith('@g.us')) {
+          session.presenceMap.set(`${id}:${participant}`, presenceValue);
+        } else {
+          for (const alias of getChatAliasJids(session, id)) {
+            session.presenceMap.set(alias, presenceValue);
+          }
+        }
       }
     });
 
@@ -1201,6 +1212,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
             text, body: text, messageId, timestamp: msg.messageTimestamp,
             fromMe: isFromMe, hasMedia: !!mediaInfo, type: mediaInfo?.kind || 'text',
             originalJid: from,
+            participant: msg.key?.participant || '',
+            pushName: msg.pushName || '',
           };
           if (mediaInfo) {
             webhookPayload.media = { ...mediaInfo, data: mediaBase64 };
@@ -1327,17 +1340,18 @@ app.use(authCheck);
 // Extract CRM owner userId plus production session key from headers (set by proxy)
 app.use((req, res, next) => {
   req.userId = req.headers['x-user-id'] || 'default';
+  req.ownerUserId = req.headers['x-owner-user-id'] || req.userId;
   req.tenantId = req.headers['x-tenant-id'] || '';
   req.sessionKey = req.headers['x-session-key'] || req.tenantId || req.userId;
   next();
 });
 
 function getSessionForRequest(req) {
-  return getOrCreateSession(req.sessionKey || req.userId, req.userId, req.tenantId || null);
+  return getOrCreateSession(req.sessionKey || req.userId, req.ownerUserId, req.tenantId || null);
 }
 
 function startSessionForRequest(req) {
-  return startSocket(req.sessionKey || req.userId, req.userId, req.tenantId || null);
+  return startSocket(req.sessionKey || req.userId, req.ownerUserId, req.tenantId || null);
 }
 
 function escapeRegex(value) {
@@ -1411,8 +1425,18 @@ app.get('/status', async (req, res) => {
 app.get('/qr', async (req, res) => {
   const session = getSessionForRequest(req);
 
-  // Auto-start if needed
-  if (!session.sock && !session.isStarting && !session.intentionalDisconnect) {
+  // Visiting /qr is an explicit user request to connect/reconnect. It must be
+  // able to recover from a previous logout or intentional disconnect. Never
+  // restart an active `connecting` socket: Baileys refreshes QR codes on that
+  // same socket, and replacing it on every UI poll causes WhatsApp to reject
+  // linking with "Can't link new devices right now".
+  const needsFreshSocket = !session.sock || ['logged_out', 'disconnected'].includes(session.connectionState);
+  if (session.connectionState !== 'connected' && needsFreshSocket && !session.isStarting) {
+    session.intentionalDisconnect = false;
+    if (session.sock) {
+      try { session.sock.ev.removeAllListeners(); session.sock.end(undefined); } catch {}
+      session.sock = null;
+    }
     startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
     await new Promise(r => setTimeout(r, 2000));
   }
@@ -1701,7 +1725,8 @@ app.post('/presence/subscribe/:jid', async (req, res) => {
     if (!session.sock || session.connectionState !== 'connected') {
       return res.json({ ok: false, error: 'Not connected' });
     }
-    const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
+    const jidRaw = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
+    const jid = jidRaw.replace('@c.us', '@s.whatsapp.net');
     await session.sock.presenceSubscribe(jid);
     res.json({ ok: true });
   } catch (e) { res.json({ ok: false, error: e.message }); }
@@ -1710,8 +1735,11 @@ app.post('/presence/subscribe/:jid', async (req, res) => {
 app.get('/presence/:jid', (req, res) => {
   const session = getSessionForRequest(req);
   try {
-    const jid = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
-    const presence = session.presenceMap.get(jid);
+    const jidRaw = req.params.jid.includes('@') ? req.params.jid : `${req.params.jid}@s.whatsapp.net`;
+    const jid = jidRaw.replace('@c.us', '@s.whatsapp.net');
+    const presence = getChatAliasJids(session, jid)
+      .map(alias => session.presenceMap.get(alias))
+      .find(Boolean);
     res.json({
       jid,
       presence: presence?.lastKnownPresence || 'unavailable',

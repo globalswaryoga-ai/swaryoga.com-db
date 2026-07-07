@@ -145,7 +145,7 @@ export function StarPopup({
       });
       if (!res.ok) throw new Error(`Failed: ${res.status}`);
       const data = await res.json().catch(() => null);
-      setScheduledMessages((data?.jobs) || []);
+      setScheduledMessages((data?.data?.jobs) || []);
     } catch (e) {
       console.error('Failed to load scheduled messages:', e);
     }
@@ -209,14 +209,15 @@ export function StarPopup({
     setScheduling(true);
     try {
       const phone = selectedChat.replace('@c.us', '').replace('@s.whatsapp.net', '');
-      const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`);
+      const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}:00+05:30`);
       
       await crmFetch('/api/admin/crm/scheduled-messages', {
         method: 'POST',
         body: {
           name: `Scheduled to ${phone}`,
-          targetType: 'leadIds',
-          targetLeadIds: [], // Will use phone number
+          targetType: 'phone',
+          targetPhone: phone,
+          provider: 'qr',
           messageType: scheduleTemplateId ? 'template' : 'text',
           messageContent: scheduleText.trim(),
           templateId: scheduleTemplateId || undefined,
@@ -240,7 +241,7 @@ export function StarPopup({
     setSavingRepeat(true);
     try {
       const phone = selectedChat.replace('@c.us', '').replace('@s.whatsapp.net', '');
-      const startAt = new Date(`${repeatStartDate}T${repeatStartTime}`);
+      const startAt = new Date(`${repeatStartDate}T${repeatStartTime}:00+05:30`);
       
       // Map recurrence type to API format
       const recurrence: any = { frequency: repeatType, interval: repeatInterval };
@@ -249,14 +250,16 @@ export function StarPopup({
         method: 'POST',
         body: {
           name: `Repeat ${repeatType} to ${phone}`,
-          targetType: 'leadIds',
-          targetLeadIds: [],
+          targetType: 'phone',
+          targetPhone: phone,
+          provider: 'qr',
           messageType: repeatTemplateId ? 'template' : 'text',
           messageContent: repeatText.trim(),
           templateId: repeatTemplateId || undefined,
           sendAt: startAt.toISOString(),
           recurrence,
-          maxRuns: repeatEndDate ? 0 : 365, // If no end date, max 365 runs
+          maxRuns: 365,
+          endAt: repeatEndDate ? new Date(`${repeatEndDate}T23:59:59+05:30`).toISOString() : undefined,
         },
       });
       setRepeatText('');
@@ -278,7 +281,7 @@ export function StarPopup({
   const handleDeleteScheduled = async (id: string) => {
     if (!confirm('Delete this scheduled message?')) return;
     try {
-      await crmFetch(`/api/admin/crm/scheduled-messages?id=${id}`, { method: 'DELETE' });
+      await crmFetch(`/api/admin/crm/scheduled-messages/${id}`, { method: 'DELETE' });
       fetchScheduledMessages();
     } catch (e) {
       console.error('Failed to delete:', e);

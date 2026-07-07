@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { getLead, getCRMUserSettings, getQrWhatsAppChat } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,9 +38,15 @@ export async function GET(req: NextRequest) {
       { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1 }
     ).lean() as any;
 
+    const ownerSessionKey = superAdmin ? null : await resolveOwnerSessionKey({ userId: viewerUserId, tenantSlug: decoded?.tenantSlug });
+    const ownerSettings: any = ownerSessionKey
+      ? await CRMUserSettings.findOne({ permanentTenantId: ownerSessionKey }, { userId: 1, qrConnectedPhoneNumber: 1 }).lean()
+      : null;
+    const sessionOwnerUserId = String(ownerSettings?.userId || viewerUserId);
+
     let bridgeUrl = BRIDGE_URL;
     let bridgeSecret = BRIDGE_SECRET;
-    let sessionKey: string | null = userSettings?.permanentTenantId || null;
+    let sessionKey: string | null = ownerSessionKey || userSettings?.permanentTenantId || null;
 
     // Legacy: user with their own custom bridge URL keys by userId.
     if (!sessionKey && userSettings?.qrBridgeUrl) {
@@ -66,27 +73,27 @@ export async function GET(req: NextRequest) {
     const sessionHeaders: Record<string, string> = {
       'x-bridge-secret': bridgeSecret,
       'x-user-id': viewerUserId,
+      'x-owner-user-id': sessionOwnerUserId,
       'x-session-key': sessionKey,
+      'x-tenant-id': sessionKey,
     };
 
     // Authoritative "currently connected phone" for this session — used to scope
     // the DB chat merge so OLD sessions/phones under the same userId never leak.
     // Prefer the live bridge session phone; fall back to the stored phone.
-    let connectedPhone: string = String(userSettings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
+    let connectedPhone: string = String(ownerSettings?.qrConnectedPhoneNumber || userSettings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
     // The bridge uses the OWNER's own push name as a fallback chat name when it
     // never captured the contact's name — detect it so we can treat it as a
     // placeholder (same as bare digits) during name enrichment below.
     let ownerName = '';
     try {
-      const sessionsRes = await fetch(`${bridgeUrl}/sessions`, {
+      const sessionsRes = await fetch(`${bridgeUrl}/status`, {
         method: 'GET',
-        headers: { 'x-bridge-secret': bridgeSecret },
+        headers: sessionHeaders,
       });
       if (sessionsRes.ok) {
-        const sessionsData = await sessionsRes.json();
-        const sessions: any[] = sessionsData?.sessions || [];
-        const liveSession = sessions.find(s => s.sessionKey === sessionKey && s.status === 'connected');
-        const livePhone = String(liveSession?.phone?.id || '').split(':')[0].replace(/\D/g, '');
+        const liveSession = await sessionsRes.json();
+        const livePhone = String(liveSession?.phone?.id || liveSession?.phoneNumber || '').split(':')[0].replace(/\D/g, '');
         if (livePhone) connectedPhone = livePhone;
         ownerName = String(liveSession?.phone?.name || '').trim();
       }
@@ -101,7 +108,7 @@ export async function GET(req: NextRequest) {
     const bridgeGroupsUrl = `${bridgeUrl}/groups`;
     console.log('[QR Chats API] Calling bridge chats:', bridgeChatsUrl, '| sessionKey:', sessionKey);
 
-    const [chatsRes, groupsRes]: [Response | null, Response | null] = await Promise.all([
+    const [chatsRes, groupsRes, lidMapRes]: [Response | null, Response | null, Response | null] = await Promise.all([
       fetch(bridgeChatsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
         console.warn('[QR Chats API] Chats bridge unreachable:', err.message);
         return null;
@@ -109,8 +116,28 @@ export async function GET(req: NextRequest) {
       fetch(bridgeGroupsUrl, { method: 'GET', headers: sessionHeaders }).catch(err => {
         console.warn('[QR Chats API] Groups endpoint failed:', err.message);
         return null;
-      })
+      }),
+      fetch(`${bridgeUrl}/lid-map`, { method: 'GET', headers: sessionHeaders }).catch(() => null),
     ]);
+
+    // Resolves a chat's stable phone digits for the same-contact dedup below —
+    // either straight from an @s.whatsapp.net/@c.us JID, or via the bridge's
+    // learned lid→phone map for an @lid JID.
+    let lidToPhone: Record<string, string> = {};
+    if (lidMapRes?.ok) {
+      try {
+        const lidJson = await lidMapRes.json();
+        lidToPhone = lidJson?.map || {};
+      } catch { /* non-fatal */ }
+    }
+    const phoneDigitsForJid = (jid: string): string => {
+      if (!jid) return '';
+      if (jid.endsWith('@lid')) {
+        const mapped = lidToPhone[jid];
+        return mapped ? mapped.split('@')[0].replace(/\D/g, '') : '';
+      }
+      return jid.split('@')[0].replace(/\D/g, '');
+    };
 
     let chatsData: any = { chats: [] };
     if (!chatsRes || !chatsRes.ok) {
@@ -166,7 +193,47 @@ export async function GET(req: NextRequest) {
       }))
     ];
 
-    const data = { chats: combinedChats };
+    // ── Dedup same-contact rows the bridge itself may still return separately ──
+    // A brand-new contact is addressed by its @lid JID until the bridge learns
+    // the real phone number (from an inbound message's senderPn). If that
+    // resolution lands mid-poll, the bridge's own /chats response can still
+    // contain both the @lid row and the resolved phone-JID row for the same
+    // contact in the same call — collapse them here by resolved phone so the
+    // inbox never shows one contact as two rows.
+    const isUsefulChatDisplayName = (name: any): boolean => {
+      const v = String(name || '').trim();
+      return !!v && !/^\d+$/.test(v) && !v.includes('@');
+    };
+    function dedupeChatsByPhone(chats: any[]): any[] {
+      const byPhone = new Map<string, any>();
+      const out: any[] = [];
+      for (const c of chats) {
+        const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
+        if (c.isGroup || idStr.endsWith('@g.us')) { out.push(c); continue; }
+        const phone = String(c.resolvedPhone || '').replace(/\D/g, '') || phoneDigitsForJid(idStr);
+        if (!phone) { out.push(c); continue; }
+        const existing = byPhone.get(phone);
+        if (!existing) {
+          const entry = { ...c, resolvedPhone: phone };
+          byPhone.set(phone, entry);
+          out.push(entry);
+          continue;
+        }
+        const existingTime = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
+        const candidateTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+        const preferCandidateId = idStr.endsWith('@s.whatsapp.net') && !String(existing.id || '').endsWith('@s.whatsapp.net');
+        if (preferCandidateId) existing.id = idStr;
+        if (!isUsefulChatDisplayName(existing.name) && isUsefulChatDisplayName(c.name)) existing.name = c.name;
+        existing.unreadCount = Math.max(existing.unreadCount || 0, c.unreadCount || 0);
+        if (candidateTime > existingTime) {
+          existing.lastMessage = c.lastMessage;
+          existing.lastMessageTime = c.lastMessageTime;
+        }
+      }
+      return out;
+    }
+
+    const data = { chats: dedupeChatsByPhone(combinedChats) };
 
     console.log('[QR Chats API] 📊 Combined result:', {
       totalChats: combinedChats.length,
@@ -211,11 +278,17 @@ export async function GET(req: NextRequest) {
         .limit(1000)  // Increased from 500 to include more historical
         .lean();
 
-      const bridgeJidSet = new Set<string>(
-        data.chats.map((c: any) => {
-          const id = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-          return id;
-        })
+      const bridgeIds = data.chats.map((c: any) => (typeof c.id === 'string' ? c.id : (c.id?._serialized || '')));
+      const bridgeJidSet = new Set<string>(bridgeIds);
+      // A contact can be persisted under both its @lid JID and its resolved
+      // phone JID as the bridge learns the mapping over time (see
+      // phoneDigitsForJid above). Track phones already shown by the bridge so
+      // a stale @lid record for the SAME contact isn't re-added as a second,
+      // unmerged row once the bridge has already reconciled it.
+      const bridgePhoneSet = new Set<string>(
+        data.chats
+          .map((c: any) => String(c.resolvedPhone || '').replace(/\D/g, '') || phoneDigitsForJid(typeof c.id === 'string' ? c.id : ''))
+          .filter(Boolean)
       );
 
       for (const dc of dbChatDocs as any[]) {
@@ -227,6 +300,10 @@ export async function GET(req: NextRequest) {
           });
         }
         if (bridgeJidSet.has(dc.chatJid)) continue;
+        if (!dc.isGroup) {
+          const dcPhone = phoneDigitsForJid(dc.chatJid);
+          if (dcPhone && bridgePhoneSet.has(dcPhone)) continue;
+        }
         // Enrich name from Lead if only phone stored
         let chatName = dc.name || dc.chatJid.split('@')[0];
         data.chats.push({

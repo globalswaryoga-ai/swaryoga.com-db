@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useContext, createContext } from 'react';
 import { usePathname } from 'next/navigation';
 import CrmSidebar from './CrmSidebar';
 import CrmSubNav from './CrmSubNav';
@@ -16,6 +16,31 @@ import { PATH_TO_MODULE, CrmModule } from '@/lib/crm-site/planConfig';
 import { useOnboarding } from './hooks/useOnboarding';
 import { ToastProvider } from './ui/Toast';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
+
+interface CrmSidebarControl {
+  /** True while a page has asked to hide the persistent sidebar on desktop too. */
+  hiddenOnDesktop: boolean;
+  setHiddenOnDesktop: (hidden: boolean) => void;
+}
+
+const CrmSidebarControlContext = createContext<CrmSidebarControl | null>(null);
+
+/**
+ * Lets a CRM page (e.g. the QR WhatsApp inbox while a chat is open) hide the
+ * persistent left sidebar to reclaim width. A small menu button appears in
+ * the header instead — clicking it previews the sidebar as an overlay.
+ * Automatically restores the sidebar when `hide` goes back to false or the
+ * calling page unmounts.
+ */
+export function useCrmSidebarAutoHide(hide: boolean) {
+  const ctx = useContext(CrmSidebarControlContext);
+  useEffect(() => {
+    if (!ctx) return;
+    ctx.setHiddenOnDesktop(hide);
+    return () => ctx.setHiddenOnDesktop(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hide, ctx]);
+}
 
 /**
  * CrmShell wraps all CRM pages with:
@@ -33,6 +58,11 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [hiddenOnDesktop, setHiddenOnDesktop] = useState(false);
+  const sidebarControl = useMemo<CrmSidebarControl>(
+    () => ({ hiddenOnDesktop, setHiddenOnDesktop }),
+    [hiddenOnDesktop]
+  );
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [currentPlan, setCurrentPlan] = useState<string>('');
@@ -110,6 +140,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
+    <CrmSidebarControlContext.Provider value={sidebarControl}>
     <PlanProvider>
     <ToastProvider>
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -156,6 +187,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
         onClose={() => setSidebarOpen(false)}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
+        hiddenOnDesktop={hiddenOnDesktop}
       />
 
       {/* Read-only paywall when the free trial has ended (unpaid) */}
@@ -174,6 +206,7 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
             items={section.items}
             moreItems={section.moreItems}
             onMenuClick={() => setSidebarOpen(true)}
+            showMenuButtonOnDesktop={hiddenOnDesktop}
           />
         )}
 
@@ -213,5 +246,6 @@ export default function CrmShell({ children }: { children: React.ReactNode }) {
     </div>
     </ToastProvider>
     </PlanProvider>
+    </CrmSidebarControlContext.Provider>
   );
 }

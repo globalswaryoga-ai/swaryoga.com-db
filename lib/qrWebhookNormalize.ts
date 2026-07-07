@@ -17,12 +17,52 @@ export type NormalizedQRMessage = {
   media?: NormalizedQRMedia;
   type?: string; // 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
   pushName?: string; // WhatsApp display name of the sender
+  chatJid?: string;
+  participant?: string;
 };
 
 function asString(v: unknown): string | undefined {
   if (typeof v === 'string') return v;
   if (typeof v === 'number') return String(v);
   return undefined;
+}
+
+/**
+ * Baileys' messageTimestamp is sometimes a Long-like object ({ low, high,
+ * unsigned }) rather than a plain number once it's round-tripped through
+ * JSON. `Number(...)` on that shape is NaN, which produces `new Date(NaN)`
+ * ("Invalid Date") and fails Mongoose's cast — silently dropping the
+ * message. Guard against that here instead of trusting the caller.
+ */
+function asTimestamp(raw: unknown): Date | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? new Date(raw < 10_000_000_000 ? raw * 1000 : raw) : undefined;
+  }
+  if (typeof raw === 'string') {
+    const n = Number(raw);
+    if (!Number.isNaN(n)) return new Date(n < 10_000_000_000 ? n * 1000 : n);
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+  return undefined;
+}
+
+/** Preserve the WhatsApp conversation namespace while normalizing bare phones. */
+export function normalizeQRChatJid(rawValue: string): string {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  if (raw.includes('@g.us') || raw.includes('@lid') || raw.includes('@s.whatsapp.net')) return raw;
+  const digits = raw.split(':')[0].split('@')[0].replace(/\D/g, '');
+  return digits ? `${digits}@s.whatsapp.net` : '';
+}
+
+/** Use a resolved sender phone for CRM matching, never an internal @lid ID. */
+export function resolveQRContactPhone(message: NormalizedQRMessage, sourceJid: string): string {
+  const isGroup = String(sourceJid || '').endsWith('@g.us');
+  return isGroup && !message.fromMe
+    ? String(message.participant || message.from || '')
+    : String(message.from || sourceJid || '');
 }
 
 /**
@@ -94,11 +134,14 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
           to: asString(m.to || m.receiver),
           text: asString(m.text || m.body || m.message || m?.content?.text),
           messageId: asString(m.id?._serialized || m.id || m.messageId || m.msgId),
-          timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000) : undefined,
+          timestamp: asTimestamp(m.timestamp),
           fromMe: !!m.fromMe,
           hasMedia: !!media,
           media,
           type: media ? media.kind : 'text',
+          chatJid: asString(m.originalJid || m.chatJid || m.key?.remoteJid),
+          participant: asString(m.participant || m.key?.participant),
+          pushName: asString(m.pushName || m.notifyName || m.senderName),
         },
       ].filter((m) => !!m.from || m.fromMe);
     }
@@ -114,20 +157,7 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         asString(m?.content?.text) ||
         asString(m?.text?.body);
 
-      const tsRaw = m.timestamp ?? m.ts ?? m.time ?? m.createdAt;
-      let timestamp: Date | undefined;
-      if (typeof tsRaw === 'number') {
-        // providers may send seconds or ms - handle both
-        timestamp = new Date(tsRaw < 10_000_000_000 ? tsRaw * 1000 : tsRaw);
-      } else if (typeof tsRaw === 'string' && tsRaw) {
-        const n = Number(tsRaw);
-        if (!Number.isNaN(n)) {
-          timestamp = new Date(n < 10_000_000_000 ? n * 1000 : n);
-        } else {
-          const d = new Date(tsRaw);
-          if (!Number.isNaN(d.getTime())) timestamp = d;
-        }
-      }
+      const timestamp = asTimestamp(m.timestamp ?? m.ts ?? m.time ?? m.createdAt);
 
       const media = extractMediaInfo(m);
 
@@ -143,6 +173,8 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         media,
         type: media ? media.kind : 'text',
         ...(pushName ? { pushName } : {}),
+        chatJid: asString(m.originalJid || m.chatJid || m?.key?.remoteJid),
+        participant: asString(m.participant || m?.key?.participant),
       } as NormalizedQRMessage;
     })
     // Keep messages if they have: a valid from field, OR it's fromMe, OR it has a messageId (fallback for incoming messages without from)

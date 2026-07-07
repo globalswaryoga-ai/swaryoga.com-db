@@ -6,16 +6,9 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 // NOTE: handleInboundWhatsAppAutomations intentionally NOT imported here.
 // QR inbound messages must NOT trigger Meta Cloud API automations/auto-replies
 // to prevent QR contacts from appearing in the Meta inbox.
-import { normalizeQRIncomingMessages } from '@/lib/qrWebhookNormalize';
-
-function extractChatJid(rawValue: string): string {
-  const raw = String(rawValue || '').trim();
-  if (!raw) return '';
-  if (raw.includes('@g.us')) return raw;
-  const digits = raw.split(':')[0].split('@')[0].replace(/\D/g, '');
-  if (!digits) return '';
-  return `${digits}@s.whatsapp.net`;
-}
+import { normalizeQRIncomingMessages, normalizeQRChatJid, resolveQRContactPhone } from '@/lib/qrWebhookNormalize';
+import { QR_MESSAGE_STATUS } from '@/lib/qrMessageStatus';
+import { applyQrStatusUpdate } from '@/lib/qrStatusUpdates';
 
 function normalizeConnectedPhone(value: string): string {
   return normalizePhone(String(value || '').split(':')[0].split('@')[0]);
@@ -93,85 +86,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/**
- * Persist a delivery/read receipt to the QR message stores, only ever upgrading the tick
- * (receipts can arrive out of order).
- *
- * The bridge sends the raw Baileys ack code: 0=error, 1=pending, 2=sent (server_ack),
- * 3=delivered (delivery_ack), 4=read, 5=played. That's converted here to the scale
- * QrWhatsAppMessage.status actually uses everywhere else (qr-messages API, History tab
- * MsgStatus): -1=failed, 1=sent, 2=delivered, 3=read (played is treated as read).
- */
-async function applyQrStatusUpdate(payload: any, bridgeUserId?: string) {
-  const messageId = String(payload.messageId || payload.id || '').trim();
-  if (!messageId) return { skipped: true, reason: 'no_messageId' };
-
-  const raw = payload.status ?? payload.ack;
-  let baileysStatus: number | null = null;
-  if (typeof raw === 'number') {
-    baileysStatus = raw;
-  } else if (typeof raw === 'string') {
-    const map: Record<string, number> = {
-      error: 0, failed: 0,
-      pending: 1,
-      sent: 2, server_ack: 2,
-      delivered: 3, delivery_ack: 3,
-      read: 4,
-      played: 5,
-    };
-    baileysStatus = map[raw.toLowerCase()] ?? null;
-  }
-  // "pending" (1) carries no tick info; anything else unrecognized is ignored.
-  if (baileysStatus == null || baileysStatus === 1) return { skipped: true, reason: 'unmapped_status' };
-
-  // -1=failed, 1=sent, 2=delivered, 3=read/played
-  const uiStatus = baileysStatus === 0 ? -1 : Math.min(baileysStatus - 1, 3);
-
-  await connectDB();
-  const { getQrWhatsAppMessage, getWhatsAppMessage, getBroadcastRunMessage } = await import('@/lib/schemas/enterpriseSchemas');
-  const QrWhatsAppMessage = getQrWhatsAppMessage();
-  const WhatsAppMessage = getWhatsAppMessage();
-  const BroadcastRunMessage = getBroadcastRunMessage();
-
-  // qr_whatsapp_messages: never downgrade an existing tick. "failed" only applies
-  // while the message is still unconfirmed (status 0) - a later real delivery/read
-  // receipt should win over a stray error.
-  const qrFilter: any = { messageId, status: uiStatus === -1 ? 0 : { $lt: uiStatus } };
-  if (bridgeUserId) qrFilter.userId = bridgeUserId;
-  const qrRes = await QrWhatsAppMessage.updateMany(qrFilter, { $set: { status: uiStatus } });
-
-  // Mirror to the unified WhatsAppMessage store (string status) for the combined inbox.
-  const strStatus = uiStatus === 3 ? 'read' : uiStatus === 2 ? 'delivered' : uiStatus === 1 ? 'sent' : 'failed';
-  const waSet: any = { status: strStatus };
-  if (uiStatus === 3) waSet.readAt = new Date();
-  else if (uiStatus === 2) waSet.deliveredAt = new Date();
-  await WhatsAppMessage.updateOne({ waMessageId: messageId }, { $set: waSet });
-
-  // Mirror to BroadcastRunMessage so QR broadcast reports reflect delivery/read
-  // ticks (previously only WhatsAppMessage was updated, so reports stayed on
-  // "sent" forever). Never downgrade an already-higher status.
-  const statusRank: Record<string, number> = { failed: -1, pending: 0, sending: 0, sent: 1, delivered: 2, read: 3 };
-  const broadcastSet: any = { status: strStatus, updatedAt: new Date() };
-  if (uiStatus === 2) broadcastSet.deliveredAt = new Date();
-  if (uiStatus === 3) { broadcastSet.deliveredAt = new Date(); broadcastSet.readAt = new Date(); }
-  const lowerStatuses = Object.keys(statusRank).filter((s) => statusRank[s] < statusRank[strStatus]);
-  const broadcastMsg = await BroadcastRunMessage.findOneAndUpdate(
-    { waMessageId: messageId, status: { $in: lowerStatuses } },
-    { $set: broadcastSet },
-    { projection: { runId: 1 } }
-  );
-  // Recompute the run-level stats (Total/Sent/Delivered/Read/Failed shown on the
-  // Broadcast Reports page) now that this message's status changed - otherwise
-  // those counters are only ever set once when the run finishes sending and stay
-  // stuck on "sent" forever even after delivery/read receipts arrive.
-  if (broadcastMsg?.runId) {
-    const { markRunStats } = await import('@/lib/broadcastRuns');
-    await markRunStats(broadcastMsg.runId);
-  }
-
-  return { updated: qrRes.modifiedCount || 0, status: uiStatus };
-}
-
 async function ingestQRPayload(payload: any) {
   const messages = normalizeQRIncomingMessages(payload);
   if (!messages.length) {
@@ -225,7 +139,12 @@ async function ingestQRPayload(payload: any) {
     // Allow messages with media even if no text
     if (!text && !hasMedia) continue;
 
-    const fromPhone = m.fromMe ? (m.to || m.from) : m.from;
+    const sourceJid = m.chatJid || (m.fromMe ? (m.to || m.from) : m.from);
+    // `sourceJid` identifies the conversation, but an @lid value is not a
+    // dialable phone number. The bridge already resolves `m.from` to the real
+    // sender phone; use that for lead lookup/validation while retaining the
+    // original JID for message persistence.
+    const fromPhone = resolveQRContactPhone(m, sourceJid);
     const normalizedPhone = normalizePhone(fromPhone);
     
     // Validate phone number - skip if it looks invalid (e.g., timestamp, group ID)
@@ -246,7 +165,7 @@ async function ingestQRPayload(payload: any) {
       phoneNumber: normalizedPhone,
       messageContent,
       messageType,
-      status: 'delivered',
+      status: m.fromMe ? 'sent' : 'received',
       waMessageId: m.messageId,
       sentAt: messageTimestamp,
       timestamp: messageTimestamp,
@@ -259,6 +178,8 @@ async function ingestQRPayload(payload: any) {
         instanceId: process.env.QR_CHAT_INSTANCE_ID || undefined,
         to: m.to,
         bridgeUserId: payload.bridgeUserId || undefined,
+        sessionKey: payload.bridgeSessionId || undefined,
+        tenantId: payload.bridgeTenantId || undefined,
       },
     };
 
@@ -364,7 +285,7 @@ async function ingestQRPayload(payload: any) {
     created++;
 
     if (bridgeUserId && connectedPhone) {
-      const chatJid = extractChatJid(m.fromMe ? (m.to || m.from) : m.from);
+      const chatJid = normalizeQRChatJid(sourceJid);
       const timestampMs = m.timestamp instanceof Date ? m.timestamp.getTime() : Date.now();
       const timestampSeconds = Math.floor(timestampMs / 1000);
 
@@ -382,10 +303,10 @@ async function ingestQRPayload(payload: any) {
                 fromMe: !!m.fromMe,
                 text: messageContent,
                 type: m.media?.kind || m.type || 'text',
-                participant: '',
+                participant: m.participant || '',
                 pushName: typeof lead.name === 'string' ? lead.name : '',
                 timestamp: timestampSeconds,
-                status: m.fromMe ? 2 : 0,
+                status: m.fromMe ? QR_MESSAGE_STATUS.SENT : QR_MESSAGE_STATUS.PENDING,
                 hasMedia: !!hasMedia,
                 mediaUrl: doc.media?.url || '',
                 mediaMimetype: doc.media?.mimeType || '',
