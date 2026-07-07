@@ -20,6 +20,10 @@ import {
 import {
   sendBatchReminders,
 } from '@/lib/sadhanaReminderService';
+import {
+  startHLSStream,
+  stopHLSStream,
+} from '@/lib/zoomHLSStreamService';
 
 let schedulerRunning = false;
 let schedulerInterval: any = null;
@@ -221,28 +225,35 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
     }
 
     // ============================================
-    // STEP 3: Wait 3 minutes then START OBS VIDEO
+    // STEP 3: START HLS STREAMING TO ZOOM
     // ============================================
-    console.log(
-      `[SadhanaScheduler] ⏳ Step 3: Waiting 3 minutes before starting OBS video...`
-    );
-    await new Promise((resolve) => setTimeout(resolve, 3 * 60 * 1000));
+    console.log(`[SadhanaScheduler] ⏳ Step 3: Starting HLS stream from Bunny to Zoom...`);
 
-    console.log(`[SadhanaScheduler] 🎬 Step 3: STARTING OBS VIDEO FOR ALL PARTICIPANTS...`);
+    // Check if videoUrl is HLS or MP4
+    let hlsUrl = videoUrl;
+    if (videoUrl.endsWith('.mp4')) {
+      // Convert MP4 to HLS format (Bunny supports this)
+      // Format: https://swaryoga.b-cdn.net/video.mp4 → https://swaryoga.b-cdn.net/video-hls.m3u8
+      hlsUrl = videoUrl.replace('.mp4', '-hls.m3u8');
+      console.log(`[SadhanaScheduler] 🔄 Converted MP4 to HLS: ${hlsUrl}`);
+    }
 
-    const playbackResult = await startSadhanaVideo(videoUrl, videoDuration);
+    const streamResult = await startHLSStream({
+      meetingId,
+      meetingPassword: password,
+      hlsUrl,
+      duration: videoDuration,
+    });
 
-    if (!playbackResult.success) {
+    if (streamResult.status !== 'streaming') {
       console.error(
-        `[SadhanaScheduler] ❌ Video playback failed: ${playbackResult.message}`
+        `[SadhanaScheduler] ❌ Stream failed: ${streamResult.error}`
       );
-      // Try to notify participants
       try {
-        await sendCountdownMessage({
+        await sendMessageToMeeting(
           meetingId,
-          meetingPassword: password,
-          countdownSeconds: 1, // Send error message
-        });
+          `⚠️ Video stream failed to start. Error: ${streamResult.error}`
+        );
       } catch (e) {
         console.warn('[SadhanaScheduler] Could not send error notification');
       }
@@ -250,26 +261,26 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
     }
 
     console.log(
-      `[SadhanaScheduler] ✅✅✅ OBS VIDEO STARTED - ALL PARTICIPANTS NOW SEE: [LIVE VIDEO PLAYING]`
+      `[SadhanaScheduler] ✅✅✅ HLS STREAM ACTIVE - ALL PARTICIPANTS NOW SEE: [BUNNY VIDEO PLAYING IN ZOOM]`
     );
 
     // ============================================
-    // STEP 4: Auto-close meeting after video
+    // STEP 4: Auto-stop stream after video duration
     // ============================================
     const closeDelayMs = (videoDuration + 2) * 60 * 1000; // 2 min buffer
     console.log(
-      `[SadhanaScheduler] ⏳ Step 4: Video playing for ${videoDuration} minutes, then will close meeting...`
+      `[SadhanaScheduler] ⏳ Step 4: Stream will run for ${videoDuration} minutes...`
     );
 
-    // Setup auto-close timeout
+    // Setup auto-stop timeout (will be handled by startHLSStream, but add backup)
     const closeTimeout = setTimeout(async () => {
       try {
         console.log(
-          `[SadhanaScheduler] 🛑 Step 4: Video duration complete, stopping playback...`
+          `[SadhanaScheduler] 🛑 Step 4: Video duration complete, stopping HLS stream...`
         );
 
-        // Stop video playback
-        const stopResult = await stopSadhanaVideo();
+        // Stop HLS stream
+        const stopResult = await stopHLSStream(meetingId);
         console.log(`[SadhanaScheduler] ${stopResult.success ? '✅' : '❌'} ${stopResult.message}`);
 
         // Send completion message
