@@ -47,6 +47,7 @@ interface SadhanaSchedule {
   participantPhones?: string[]; // Min: 1, Max: 299 (WhatsApp numbers)
   enableEmailReminders?: boolean; // Send email 30 & 15 min before
   enableWhatsAppReminders?: boolean; // Send WhatsApp 30 & 15 min before
+  whatsappProvider?: 'qr' | 'meta' | 'both'; // QR = QR WhatsApp Bridge, Meta = Meta Business API, both = try both
 }
 
 /**
@@ -366,6 +367,7 @@ async function runSchedulerLoop(): Promise<void> {
               participantPhones: [String], // Max 299 WhatsApp numbers
               enableEmailReminders: Boolean,
               enableWhatsAppReminders: Boolean,
+              whatsappProvider: { type: String, enum: ['qr', 'meta', 'both'], default: 'qr' },
             },
             { collection: 'sadhana_schedules' }
           )
