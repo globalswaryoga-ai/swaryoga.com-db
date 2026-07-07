@@ -54,6 +54,25 @@ export default function SadhanaForm({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Participant Management
+  const [participantEmails, setParticipantEmails] = useState<string[]>(
+    initialData?.participantEmails || []
+  );
+  const [participantPhones, setParticipantPhones] = useState<string[]>(
+    initialData?.participantPhones || []
+  );
+  const [emailInput, setEmailInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [enableEmailReminders, setEnableEmailReminders] = useState(
+    initialData?.enableEmailReminders !== false
+  );
+  const [enableWhatsAppReminders, setEnableWhatsAppReminders] = useState(
+    initialData?.enableWhatsAppReminders !== false
+  );
+  const [whatsappProvider, setWhatsappProvider] = useState<'qr' | 'meta' | 'both'>(
+    initialData?.whatsappProvider || 'qr'
+  );
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
@@ -253,9 +272,49 @@ export default function SadhanaForm({
       ...(formData.zoomType === 'link'
         ? { zoomLink: formData.zoomLink, zoomId: null, zoomPassword: null }
         : { zoomId: formData.zoomId, zoomPassword: formData.zoomPassword, zoomLink: null }),
+      // Participant information
+      participantEmails,
+      participantPhones,
+      enableEmailReminders,
+      enableWhatsAppReminders,
+      whatsappProvider,
     };
 
     onSubmit(submitData);
+  };
+
+  // Helper functions for participant management
+  const addEmail = () => {
+    if (emailInput.trim() && !participantEmails.includes(emailInput.trim())) {
+      if (participantEmails.length < 299) {
+        setParticipantEmails([...participantEmails, emailInput.trim()]);
+        setEmailInput('');
+      } else {
+        alert('Maximum 299 emails allowed');
+      }
+    }
+  };
+
+  const removeEmail = (email: string) => {
+    setParticipantEmails(participantEmails.filter(e => e !== email));
+  };
+
+  const addPhone = () => {
+    if (phoneInput.trim()) {
+      const normalized = phoneInput.replace(/\D/g, '');
+      if (!participantPhones.includes(normalized)) {
+        if (participantPhones.length < 299) {
+          setParticipantPhones([...participantPhones, normalized]);
+          setPhoneInput('');
+        } else {
+          alert('Maximum 299 phone numbers allowed');
+        }
+      }
+    }
+  };
+
+  const removePhone = (phone: string) => {
+    setParticipantPhones(participantPhones.filter(p => p !== phone));
   };
 
   return (
@@ -742,6 +801,143 @@ export default function SadhanaForm({
               <option value="Europe/London">Europe/London (GMT)</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      {/* Participant Management */}
+      <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-white mb-4">👥 Participant Management</h3>
+
+        {/* Email Reminders Section */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="emailReminders"
+              checked={enableEmailReminders}
+              onChange={(e) => setEnableEmailReminders(e.target.checked)}
+              className="w-4 h-4 rounded cursor-pointer"
+            />
+            <label htmlFor="emailReminders" className="text-sm font-medium text-gray-300">
+              📧 Enable Email Reminders (30 & 15 min before)
+            </label>
+          </div>
+
+          {enableEmailReminders && (
+            <div className="space-y-2 pl-7">
+              <label className="block text-sm text-gray-400">Add Email Addresses (Max 299)</label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addEmail()}
+                  placeholder="participant@example.com"
+                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  type="button"
+                  onClick={addEmail}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition"
+                >
+                  Add
+                </button>
+              </div>
+
+              {/* Email List */}
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {participantEmails.map((email) => (
+                  <div key={email} className="flex items-center justify-between bg-gray-700 px-3 py-2 rounded text-sm">
+                    <span className="text-gray-300">{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeEmail(email)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500">{participantEmails.length}/299 emails added</p>
+            </div>
+          )}
+        </div>
+
+        {/* WhatsApp Reminders Section */}
+        <div className="space-y-3 pt-4 border-t border-gray-700">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="whatsappReminders"
+              checked={enableWhatsAppReminders}
+              onChange={(e) => setEnableWhatsAppReminders(e.target.checked)}
+              className="w-4 h-4 rounded cursor-pointer"
+            />
+            <label htmlFor="whatsappReminders" className="text-sm font-medium text-gray-300">
+              💬 Enable WhatsApp Reminders (15 min before)
+            </label>
+          </div>
+
+          {enableWhatsAppReminders && (
+            <div className="space-y-2 pl-7">
+              {/* WhatsApp Provider Selection */}
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">WhatsApp Provider</label>
+                <select
+                  value={whatsappProvider}
+                  onChange={(e) => setWhatsappProvider(e.target.value as 'qr' | 'meta' | 'both')}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="qr">🔗 QR WhatsApp Bridge (Recommended)</option>
+                  <option value="meta">📱 Meta Business API</option>
+                  <option value="both">🔄 Both (Auto-Fallback - Most Reliable)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {whatsappProvider === 'qr' && 'Uses your existing QR WhatsApp service'}
+                  {whatsappProvider === 'meta' && 'Uses official Meta WhatsApp Business API'}
+                  {whatsappProvider === 'both' && 'Tries QR first, then Meta if QR fails'}
+                </p>
+              </div>
+
+              {/* Phone Input */}
+              <label className="block text-sm text-gray-400">Add WhatsApp Numbers (Max 299)</label>
+              <div className="flex gap-2">
+                <input
+                  type="tel"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addPhone()}
+                  placeholder="91-9876543210 or 919876543210"
+                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  type="button"
+                  onClick={addPhone}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition"
+                >
+                  Add
+                </button>
+              </div>
+
+              {/* Phone List */}
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {participantPhones.map((phone) => (
+                  <div key={phone} className="flex items-center justify-between bg-gray-700 px-3 py-2 rounded text-sm">
+                    <span className="text-gray-300">+91 {phone.slice(-10)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removePhone(phone)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500">{participantPhones.length}/299 phone numbers added</p>
+            </div>
+          )}
         </div>
       </div>
 
