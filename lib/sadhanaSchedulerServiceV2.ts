@@ -17,6 +17,9 @@ import {
   validateVideoFile,
   getPlaybackStatus,
 } from '@/lib/obsControlServiceV2';
+import {
+  sendBatchReminders,
+} from '@/lib/sadhanaReminderService';
 
 let schedulerRunning = false;
 let schedulerInterval: any = null;
@@ -39,6 +42,11 @@ interface SadhanaSchedule {
     timezone: string;
   };
   status: 'active' | 'paused';
+  // Participant contact information (1-299 each)
+  participantEmails?: string[]; // Min: 1, Max: 299
+  participantPhones?: string[]; // Min: 1, Max: 299 (WhatsApp numbers)
+  enableEmailReminders?: boolean; // Send email 30 & 15 min before
+  enableWhatsAppReminders?: boolean; // Send WhatsApp 30 & 15 min before
 }
 
 /**
@@ -354,6 +362,10 @@ async function runSchedulerLoop(): Promise<void> {
                 timezone: String,
               },
               status: String,
+              participantEmails: [String], // Max 299 emails
+              participantPhones: [String], // Max 299 WhatsApp numbers
+              enableEmailReminders: Boolean,
+              enableWhatsAppReminders: Boolean,
             },
             { collection: 'sadhana_schedules' }
           )
@@ -369,7 +381,57 @@ async function runSchedulerLoop(): Promise<void> {
       for (const schedule of schedules) {
         const timezone = schedule.schedule.timezone || 'Asia/Kolkata';
 
-        // Check if bot should start (at scheduled time)
+        // ============================================
+        // SEND REMINDERS (30 & 15 minutes before)
+        // ============================================
+        const reminderId = `${schedule._id}_remind`;
+
+        // 30 minutes before
+        if (shouldTrigger(schedule, now, timezone, -30) && !triggeredSchedules.has(`${reminderId}_30`)) {
+          console.log(`[SadhanaScheduler] 📧 Sending 30-minute reminder for: ${schedule.name}`);
+          triggeredSchedules.add(`${reminderId}_30`);
+
+          try {
+            if (schedule.enableEmailReminders && schedule.participantEmails?.length > 0) {
+              await sendBatchReminders({
+                programName: schedule.name,
+                startTime: new Date(now.getTime() + 30 * 60 * 1000),
+                zoomLink: schedule.zoomLink || '',
+                videoDuration: schedule.videoDuration || 40,
+                participantEmails: schedule.participantEmails,
+              }).catch(err => console.warn('[SadhanaScheduler] Email reminder failed:', err));
+            }
+            if (schedule.enableWhatsAppReminders && schedule.participantPhones?.length > 0) {
+              // WhatsApp sent at 15 min (see below)
+            }
+          } catch (err) {
+            console.warn('[SadhanaScheduler] Reminder error:', err);
+          }
+        }
+
+        // 15 minutes before
+        if (shouldTrigger(schedule, now, timezone, -15) && !triggeredSchedules.has(`${reminderId}_15`)) {
+          console.log(`[SadhanaScheduler] 💬 Sending 15-minute reminder for: ${schedule.name}`);
+          triggeredSchedules.add(`${reminderId}_15`);
+
+          try {
+            if (schedule.enableWhatsAppReminders && schedule.participantPhones?.length > 0) {
+              await sendBatchReminders({
+                programName: schedule.name,
+                startTime: new Date(now.getTime() + 15 * 60 * 1000),
+                zoomLink: schedule.zoomLink || '',
+                videoDuration: schedule.videoDuration || 40,
+                participantPhones: schedule.participantPhones,
+              }).catch(err => console.warn('[SadhanaScheduler] WhatsApp reminder failed:', err));
+            }
+          } catch (err) {
+            console.warn('[SadhanaScheduler] Reminder error:', err);
+          }
+        }
+
+        // ============================================
+        // TRIGGER BOT ACTIONS (at scheduled time)
+        // ============================================
         if (shouldTrigger(schedule, now, timezone, 0)) {
           if (!triggeredSchedules.has(schedule._id.toString())) {
             console.log(

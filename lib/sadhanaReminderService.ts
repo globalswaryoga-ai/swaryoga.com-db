@@ -221,7 +221,110 @@ export async function sendSMSReminder(
 }
 
 /**
- * Schedule reminders for upcoming session
+ * Send reminders to multiple participants (from email and phone lists)
+ */
+export async function sendBatchReminders(
+  sessionData: {
+    programName: string;
+    startTime: Date;
+    zoomLink: string;
+    videoDuration?: number;
+    participantEmails?: string[]; // Array of emails
+    participantPhones?: string[]; // Array of WhatsApp numbers
+  }
+): Promise<any> {
+  try {
+    const results = {
+      emailsSent: 0,
+      emailsFailed: 0,
+      whatsappSent: 0,
+      whatsappFailed: 0,
+      total: 0,
+    };
+
+    const startTime = new Date(sessionData.startTime);
+    const timeStr = `${startTime.getHours()}:${String(startTime.getMinutes()).padStart(2, '0')}`;
+    const duration = sessionData.videoDuration || 40;
+
+    console.log(`[Reminder] 📧 Sending batch reminders for: ${sessionData.programName}`);
+
+    // Send emails (min 1, max 299)
+    if (sessionData.participantEmails && sessionData.participantEmails.length > 0) {
+      const emailCount = Math.min(sessionData.participantEmails.length, 299);
+      console.log(`[Reminder] 📧 Sending to ${emailCount} email addresses...`);
+
+      for (let i = 0; i < emailCount; i++) {
+        const email = sessionData.participantEmails[i];
+        if (!email) continue;
+
+        try {
+          const emailResult = await sendEmailReminder(email, {
+            programName: sessionData.programName,
+            startTime: timeStr,
+            duration: duration,
+            zoomLink: sessionData.zoomLink,
+            minutesBefore: 30,
+          });
+
+          if (emailResult.success) {
+            results.emailsSent++;
+          } else {
+            results.emailsFailed++;
+          }
+          results.total++;
+        } catch (err) {
+          console.warn(`[Reminder] ⚠️ Email failed for ${email}:`, err);
+          results.emailsFailed++;
+          results.total++;
+        }
+      }
+
+      console.log(`[Reminder] ✅ Emails: ${results.emailsSent}/${emailCount} sent`);
+    }
+
+    // Send WhatsApp (min 1, max 299)
+    if (sessionData.participantPhones && sessionData.participantPhones.length > 0) {
+      const phoneCount = Math.min(sessionData.participantPhones.length, 299);
+      console.log(`[Reminder] 💬 Sending to ${phoneCount} WhatsApp numbers...`);
+
+      for (let i = 0; i < phoneCount; i++) {
+        const phone = sessionData.participantPhones[i];
+        if (!phone) continue;
+
+        try {
+          const whatsappResult = await sendWhatsAppReminder(phone, {
+            programName: sessionData.programName,
+            startTime: timeStr,
+            minutesBefore: 15,
+            zoomLink: sessionData.zoomLink,
+          });
+
+          if (whatsappResult.success) {
+            results.whatsappSent++;
+          } else {
+            results.whatsappFailed++;
+          }
+          results.total++;
+        } catch (err) {
+          console.warn(`[Reminder] ⚠️ WhatsApp failed for ${phone}:`, err);
+          results.whatsappFailed++;
+          results.total++;
+        }
+      }
+
+      console.log(`[Reminder] ✅ WhatsApp: ${results.whatsappSent}/${phoneCount} sent`);
+    }
+
+    console.log(`[Reminder] 📊 Summary:`, results);
+    return results;
+  } catch (err) {
+    console.error('[Reminder] Error sending batch reminders:', err);
+    throw err;
+  }
+}
+
+/**
+ * Schedule reminders for upcoming session (legacy - kept for compatibility)
  */
 export async function scheduleSessionReminders(
   sessionData: {
