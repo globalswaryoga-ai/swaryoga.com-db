@@ -6,16 +6,17 @@
 
 import mongoose from 'mongoose';
 import {
-  botJoinMeeting,
-  sendCountdownMessage,
-  autoCloseMeeting,
-} from '@/lib/zoomBotService';
+  sendMessageToMeeting,
+  getMeetingInfo,
+  sendSessionStartNotification,
+  sendCountdownToMeeting,
+} from '@/lib/zoomBotServiceSimple';
 import {
   startSadhanaVideo,
   stopSadhanaVideo,
   validateVideoFile,
   getPlaybackStatus,
-} from '@/lib/obsControlService';
+} from '@/lib/obsControlServiceV2';
 
 let schedulerRunning = false;
 let schedulerInterval: any = null;
@@ -163,38 +164,51 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
     );
 
     // ============================================
-    // STEP 1: Bot sends ready message to meeting
+    // STEP 1: Verify meeting exists & send ready
     // ============================================
     console.log(
-      `[SadhanaScheduler] ⏱️ Step 1: Bot sending ready message to meeting...`
+      `[SadhanaScheduler] ⏱️ Step 1: Verifying meeting and sending notification...`
     );
 
     try {
-      await botJoinMeeting({
+      const meetingCheck = await getMeetingInfo(meetingId);
+      if (!meetingCheck.success) {
+        console.error(
+          `[SadhanaScheduler] ❌ Meeting ${meetingId} not found!`,
+          meetingCheck.error
+        );
+        return;
+      }
+
+      const readyMsg = await sendMessageToMeeting(
         meetingId,
-        meetingPassword: password,
-        videoDurationMinutes: videoDuration,
-      });
-      console.log(`[SadhanaScheduler] ✅ Bot ready message sent`);
+        `🧘 **SADHANA SESSION STARTING NOW** 🧘\n⏱️ Duration: ${videoDuration} minutes\n📹 Recording: Active\nPlease be ready! Namaste 🙏`
+      );
+
+      if (readyMsg.success) {
+        console.log(`[SadhanaScheduler] ✅ Meeting found and notified`);
+      } else {
+        console.warn(`[SadhanaScheduler] ⚠️ Could not send notification:`, readyMsg.message);
+      }
     } catch (err) {
-      console.error('[SadhanaScheduler] ⚠️ Bot join failed:', err);
-      // Continue anyway - video will still play
+      console.error('[SadhanaScheduler] ⚠️ Meeting verification failed:', err);
     }
 
     // ============================================
     // STEP 2: Send countdown message (3 minutes)
     // ============================================
-    console.log(`[SadhanaScheduler] ⏰ Step 2: Sending countdown to participants...`);
+    console.log(`[SadhanaScheduler] ⏰ Step 2: Sending 3-minute countdown...`);
 
     try {
-      await sendCountdownMessage({
+      const countdownMsg = await sendCountdownToMeeting(
         meetingId,
-        meetingPassword: password,
-        countdownSeconds: 180, // 3 minute countdown
-      });
-      console.log(`[SadhanaScheduler] ✅ Countdown started`);
+        3 // 3 minutes
+      );
+      if (countdownMsg.success) {
+        console.log(`[SadhanaScheduler] ✅ Countdown sent`);
+      }
     } catch (err) {
-      console.warn('[SadhanaScheduler] ⚠️ Countdown message failed:', err);
+      console.warn('[SadhanaScheduler] ⚠️ Countdown failed:', err);
     }
 
     // ============================================
