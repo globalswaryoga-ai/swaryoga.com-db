@@ -10,11 +10,12 @@ import {
   getMeetingInfo,
   sendSessionStartNotification,
   sendCountdownToMeeting,
+  autoCloseMeeting,
 } from '@/lib/zoomBotServiceSimple';
 import {
   startSadhanaVideo,
   stopSadhanaVideo,
-  validateVideoFile,
+  validateVideoSource,
   getPlaybackStatus,
 } from '@/lib/obsControlServiceV2';
 import {
@@ -168,10 +169,10 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
     }
 
     // Validate video file exists
-    const validation = validateVideoFile(videoUrl);
+    const validation = validateVideoSource(videoUrl);
     if (!validation.valid) {
       console.error(
-        `[SadhanaScheduler] ❌ Video file invalid: ${videoUrl}`,
+        `[SadhanaScheduler] ❌ Video source invalid: ${videoUrl}`,
         validation
       );
       return;
@@ -326,11 +327,7 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
 
         // Send completion message
         try {
-          await sendCountdownMessage({
-            meetingId,
-            meetingPassword: password,
-            countdownSeconds: 1, // Use for final message
-          });
+          await sendCountdownToMeeting(meetingId, 0);
         } catch (e) {
           console.warn('[SadhanaScheduler] Could not send completion message');
         }

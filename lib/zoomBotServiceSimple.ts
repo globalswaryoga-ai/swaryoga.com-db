@@ -280,6 +280,53 @@ export async function simpleBotReady(config: {
   }
 }
 
+/**
+ * Auto-close meeting after session ends
+ */
+export async function autoCloseMeeting(config: {
+  meetingId: string;
+  meetingPassword?: string;
+  videoDurationMinutes: number;
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const token = await getZoomToken();
+
+    console.log(`[ZoomBot] 🛑 Auto-closing meeting ${config.meetingId}...`);
+
+    const response = await axios.put(
+      `https://zoom.us/api/v2/meetings/${config.meetingId}/status`,
+      { action: 'end' },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        validateStatus: () => true,
+      }
+    );
+
+    if (response.status === 204 || response.status === 200) {
+      console.log(`[ZoomBot] ✅ Meeting closed successfully`);
+      return {
+        success: true,
+        message: 'Meeting closed',
+      };
+    } else {
+      console.warn(`[ZoomBot] ⚠️ Close failed (${response.status}):`, response.data);
+      return {
+        success: false,
+        message: `Failed to close meeting: ${response.data?.message || response.statusText}`,
+      };
+    }
+  } catch (err: any) {
+    console.error('[ZoomBot] ❌ Error closing meeting:', err.message);
+    return {
+      success: false,
+      message: `Error: ${err.message}`,
+    };
+  }
+}
+
 export default {
   getZoomToken,
   sendMessageToMeeting,
@@ -289,4 +336,5 @@ export default {
   sendReadyMessage,
   botJoinMeetingSimple,
   simpleBotReady,
+  autoCloseMeeting,
 };
