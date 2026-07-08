@@ -256,7 +256,7 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
       hlsUrl,
       duration: videoDuration,
       rtmpUrl: `rtmp://stream.zoom.us/apple/${meetingId}`,
-      programName: name,
+      programName: schedule.name,
       scheduleId: schedule._id?.toString(),
     });
 
