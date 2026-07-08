@@ -24,6 +24,11 @@ import {
   startHLSStream,
   stopHLSStream,
 } from '@/lib/zoomHLSStreamService';
+import {
+  startHetznerStream,
+  stopHetznerStream,
+  checkHetznerHealth,
+} from '@/lib/hetznerStreamingIntegration';
 
 let schedulerRunning = false;
 let schedulerInterval: any = null;
@@ -225,9 +230,9 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
     }
 
     // ============================================
-    // STEP 3: START HLS STREAMING TO ZOOM
+    // STEP 3: START HETZNER STREAMING TO ZOOM
     // ============================================
-    console.log(`[SadhanaScheduler] ⏳ Step 3: Starting HLS stream from Bunny to Zoom...`);
+    console.log(`[SadhanaScheduler] ⏳ Step 3: Starting Hetzner stream from Bunny to Zoom...`);
 
     // Check if videoUrl is HLS or MP4
     let hlsUrl = videoUrl;
@@ -238,31 +243,61 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
       console.log(`[SadhanaScheduler] 🔄 Converted MP4 to HLS: ${hlsUrl}`);
     }
 
-    const streamResult = await startHLSStream({
+    // Check Hetzner health first
+    const hetznerHealthy = await checkHetznerHealth();
+    if (!hetznerHealthy) {
+      console.warn(`[SadhanaScheduler] ⚠️ Hetzner streaming service not available, attempting fallback to HLS...`);
+    }
+
+    // Try Hetzner streaming first (Docker container on Hetzner server)
+    const streamResult = await startHetznerStream({
       meetingId,
-      meetingPassword: password,
       hlsUrl,
       duration: videoDuration,
+      rtmpUrl: `rtmp://stream.zoom.us/apple/${meetingId}`,
+      programName: name,
+      scheduleId: schedule._id?.toString(),
     });
 
-    if (streamResult.status !== 'streaming') {
+    if (!streamResult.success) {
       console.error(
-        `[SadhanaScheduler] ❌ Stream failed: ${streamResult.error}`
+        `[SadhanaScheduler] ❌ Hetzner stream failed: ${streamResult.error}`
       );
+      // Fallback to local HLS streaming if Hetzner fails
+      console.log(`[SadhanaScheduler] 🔄 Falling back to local HLS streaming...`);
       try {
-        await sendMessageToMeeting(
+        const fallbackResult = await startHLSStream({
           meetingId,
-          `⚠️ Video stream failed to start. Error: ${streamResult.error}`
-        );
-      } catch (e) {
-        console.warn('[SadhanaScheduler] Could not send error notification');
+          meetingPassword: password,
+          hlsUrl,
+          duration: videoDuration,
+        });
+
+        if (fallbackResult.status !== 'streaming') {
+          console.error(
+            `[SadhanaScheduler] ❌ Fallback stream also failed: ${fallbackResult.error}`
+          );
+          try {
+            await sendMessageToMeeting(
+              meetingId,
+              `⚠️ Video stream failed to start. Error: ${fallbackResult.error}`
+            );
+          } catch (e) {
+            console.warn('[SadhanaScheduler] Could not send error notification');
+          }
+          return;
+        }
+      } catch (fallbackErr) {
+        console.error(`[SadhanaScheduler] ❌ Fallback streaming error:`, fallbackErr);
+        return;
       }
-      return;
     }
 
     console.log(
-      `[SadhanaScheduler] ✅✅✅ HLS STREAM ACTIVE - ALL PARTICIPANTS NOW SEE: [BUNNY VIDEO PLAYING IN ZOOM]`
+      `[SadhanaScheduler] ✅✅✅ STREAM ACTIVE - ALL PARTICIPANTS NOW SEE: [BUNNY VIDEO PLAYING IN ZOOM]`
     );
+    console.log(`[SadhanaScheduler] 📡 Streaming via: ${streamResult.success ? 'Hetzner Docker' : 'Local HLS'}`);
+    console.log(`[SadhanaScheduler] 📝 Session ID: ${streamResult.sessionId}`);
 
     // ============================================
     // STEP 4: Auto-stop stream after video duration
@@ -272,16 +307,22 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
       `[SadhanaScheduler] ⏳ Step 4: Stream will run for ${videoDuration} minutes...`
     );
 
-    // Setup auto-stop timeout (will be handled by startHLSStream, but add backup)
+    // Setup auto-stop timeout (will be handled by Hetzner, but add backup)
     const closeTimeout = setTimeout(async () => {
       try {
         console.log(
-          `[SadhanaScheduler] 🛑 Step 4: Video duration complete, stopping HLS stream...`
+          `[SadhanaScheduler] 🛑 Step 4: Video duration complete, stopping stream...`
         );
 
-        // Stop HLS stream
-        const stopResult = await stopHLSStream(meetingId);
-        console.log(`[SadhanaScheduler] ${stopResult.success ? '✅' : '❌'} ${stopResult.message}`);
+        // Stop Hetzner stream first
+        if (streamResult.success) {
+          const stopResult = await stopHetznerStream(meetingId);
+          console.log(`[SadhanaScheduler] ${stopResult.success ? '✅' : '❌'} Hetzner stream stopped`);
+        }
+
+        // Also stop local HLS stream as backup
+        const stopHLSResult = await stopHLSStream(meetingId);
+        console.log(`[SadhanaScheduler] ${stopHLSResult.success ? '✅' : '❌'} Local HLS stopped`);
 
         // Send completion message
         try {
