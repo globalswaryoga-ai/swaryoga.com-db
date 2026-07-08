@@ -433,6 +433,31 @@ async function runSchedulerLoop(): Promise<void> {
         const timezone = schedule.schedule.timezone || 'Asia/Kolkata';
 
         // ============================================
+        // BOT JOIN MEETING (5 minutes before)
+        // ============================================
+        const botJoinMinutes = schedule.botJoinMinutes || 5;
+        const botId = `${schedule._id}_bot_join`;
+
+        if (shouldTrigger(schedule, now, timezone, -botJoinMinutes) && !triggeredSchedules.has(botId)) {
+          const meetingId = extractZoomMeetingId(schedule);
+          if (meetingId) {
+            console.log(`[SadhanaScheduler] 🤖 BOT JOINING in ${botJoinMinutes} minutes: "${schedule.name}"`);
+            triggeredSchedules.add(botId);
+
+            try {
+              // Bot joins and sends ready message
+              await sendMessageToMeeting(
+                meetingId,
+                `🟢 **SADHANA BOT ONLINE** 🟢\n\nSession starting in ${botJoinMinutes} minutes!\n\n📍 ${schedule.name}\n⏱️ Duration: ${schedule.videoDuration || 40} min\n🎥 Video: Ready\n\nNameste 🙏`
+              );
+              console.log(`[SadhanaScheduler] ✅ Bot joined successfully - ready message sent`);
+            } catch (err) {
+              console.error(`[SadhanaScheduler] ❌ Bot join failed:`, err);
+            }
+          }
+        }
+
+        // ============================================
         // SEND REMINDERS (30 & 15 minutes before)
         // ============================================
         const reminderId = `${schedule._id}_remind`;
