@@ -12,6 +12,7 @@ interface StreamingConfig {
   rtmpUrl?: string;
   programName?: string;
   scheduleId?: string;
+  startTime?: number; // Start video from this many seconds (for late joins)
 }
 
 interface StreamingResponse {
@@ -44,12 +45,17 @@ export async function startHetznerStream(config: StreamingConfig): Promise<Strea
     }
 
     // Prepare request payload
-    const payload = {
+    const payload: any = {
       meetingId: config.meetingId,
       hlsUrl: config.hlsUrl,
       duration: config.duration,
       rtmpUrl: config.rtmpUrl || `rtmp://stream.zoom.us/apple/${config.meetingId}`,
     };
+
+    if (config.startTime && config.startTime > 0) {
+      payload.startTime = config.startTime; // Skip to this many seconds
+      console.log(`[HetznerStreaming] ⏩ Starting video from ${Math.floor(config.startTime / 60)} minutes (late join)`);
+    }
 
     console.log(`[HetznerStreaming] 📤 Sending request to Hetzner...`);
 
