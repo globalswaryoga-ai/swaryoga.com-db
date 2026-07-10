@@ -3702,6 +3702,10 @@ export default function QRWhatsAppPage() {
         setSelectedStatusUser={setSelectedStatusUser}
         currentStatusIndex={currentStatusIndex}
         setCurrentStatusIndex={setCurrentStatusIndex}
+        onPostStatus={async (text: string) => {
+          const data = await bridgeCall('/post-status', 'POST', { text });
+          return data?.audienceSize || data?.data?.audienceSize || 0;
+        }}
       />
       <ExtensionModal
         showExtensionModal={showExtensionModal}

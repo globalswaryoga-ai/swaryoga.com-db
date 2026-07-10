@@ -2160,6 +2160,30 @@ app.post('/send-contact', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Post WhatsApp Status (story) ─────────────────────────────────────────
+app.post('/post-status', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { text, imageUrl, caption, backgroundColor } = req.body || {};
+  if (!text && !imageUrl) return res.status(400).json({ error: 'text or imageUrl required' });
+  // A status is only visible to JIDs in statusJidList — build the audience
+  // from every individual contact/chat this session knows about.
+  const audience = new Set();
+  for (const jid of session.contactsCache.keys()) if (typeof jid === 'string' && jid.endsWith('@s.whatsapp.net')) audience.add(jid);
+  for (const jid of session.chatMap.keys()) if (typeof jid === 'string' && jid.endsWith('@s.whatsapp.net')) audience.add(jid);
+  const statusJidList = Array.from(audience).slice(0, 3000);
+  if (!statusJidList.length) return res.status(400).json({ error: 'No contacts to share the status with yet' });
+  try {
+    const content = imageUrl
+      ? { image: { url: String(imageUrl) }, caption: String(caption || text || '') }
+      : { text: String(text) };
+    const opts = { statusJidList };
+    if (!imageUrl && backgroundColor) opts.backgroundColor = String(backgroundColor);
+    const result = await session.sock.sendMessage('status@broadcast', content, opts);
+    res.json({ success: true, messageId: result?.key?.id, audienceSize: statusJidList.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Typing Indicator ─────────────────────────────────────────────────────
 app.post('/typing', async (req, res) => {
   const session = getSessionForRequest(req);

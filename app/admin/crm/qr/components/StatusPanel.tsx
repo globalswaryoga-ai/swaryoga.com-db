@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { X, RefreshCw, Eye, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Image as ImageIcon } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, RefreshCw, Eye, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Image as ImageIcon, Send } from 'lucide-react';
 import { getAvatarColor } from '../utils';
 
 interface StatusUser {
@@ -27,6 +27,7 @@ interface StatusPanelProps {
   setSelectedStatusUser: (u: StatusUser | null) => void;
   currentStatusIndex: number;
   setCurrentStatusIndex: (i: number) => void;
+  onPostStatus?: (text: string) => Promise<number | void>;
 }
 
 export function StatusPanel({
@@ -39,7 +40,28 @@ export function StatusPanel({
   setSelectedStatusUser,
   currentStatusIndex,
   setCurrentStatusIndex,
+  onPostStatus,
 }: StatusPanelProps) {
+  const [composeText, setComposeText] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [postResult, setPostResult] = useState('');
+
+  const handlePost = async () => {
+    if (!composeText.trim() || posting || !onPostStatus) return;
+    setPosting(true);
+    setPostResult('');
+    try {
+      const audience = await onPostStatus(composeText.trim());
+      setComposeText('');
+      setPostResult(typeof audience === 'number' && audience > 0 ? `✅ Posted to ${audience} contacts` : '✅ Status posted');
+      setTimeout(() => setPostResult(''), 4000);
+    } catch (e: any) {
+      setPostResult(`❌ ${e?.message || 'Failed to post status'}`);
+    } finally {
+      setPosting(false);
+    }
+  };
+
   if (!showStatusPanel) return null;
 
   return (
@@ -63,6 +85,32 @@ export function StatusPanel({
             </button>
           </div>
         </div>
+
+        {/* Post-your-status composer */}
+        {onPostStatus && !selectedStatusUser && (
+          <div className="px-4 py-3 border-b bg-green-50/60 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={composeText}
+                onChange={(e) => setComposeText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handlePost()}
+                placeholder="Post a status update (offers, class reminders)…"
+                maxLength={700}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+              />
+              <button
+                onClick={handlePost}
+                disabled={posting || !composeText.trim()}
+                className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 transition"
+                title="Post status"
+              >
+                {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </button>
+            </div>
+            {postResult && <p className="text-[11px] mt-1.5 text-gray-600">{postResult}</p>}
+          </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
