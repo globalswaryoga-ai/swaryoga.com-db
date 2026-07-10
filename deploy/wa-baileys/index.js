@@ -2129,6 +2129,37 @@ app.post('/send-location', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Send Contact Card (vCard) ────────────────────────────────────────────
+app.post('/send-contact', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { to, contactName, contactPhone, organization } = req.body || {};
+  if (!to || !contactName || !contactPhone) return res.status(400).json({ error: 'to, contactName and contactPhone required' });
+  const toStr = String(to);
+  const jid = toStr.includes('@') ? toStr : `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+  const phoneDigits = String(contactPhone).replace(/[^0-9]/g, '');
+  if (!phoneDigits || phoneDigits.length < 7) return res.status(400).json({ error: 'Valid contactPhone required' });
+  const safeName = String(contactName).slice(0, 100).replace(/[\r\n;]/g, ' ');
+  const safeOrg = organization ? String(organization).slice(0, 100).replace(/[\r\n;]/g, ' ') : '';
+  const vcard =
+    'BEGIN:VCARD\n' +
+    'VERSION:3.0\n' +
+    `FN:${safeName}\n` +
+    (safeOrg ? `ORG:${safeOrg}\n` : '') +
+    `TEL;type=CELL;type=VOICE;waid=${phoneDigits}:+${phoneDigits}\n` +
+    'END:VCARD';
+  try {
+    const result = await session.sock.sendMessage(jid, {
+      contacts: { displayName: safeName, contacts: [{ displayName: safeName, vcard }] },
+    });
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
+    res.json({ success: true, messageId: result?.key?.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Typing Indicator ─────────────────────────────────────────────────────
 app.post('/typing', async (req, res) => {
   const session = getSessionForRequest(req);

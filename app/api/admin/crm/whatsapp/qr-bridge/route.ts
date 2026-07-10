@@ -699,6 +699,7 @@ const BODY_TARGET_PATHS = new Set([
   '/send',
   '/send-poll',
   '/send-location',
+  '/send-contact',
   '/reply',
   '/react',
   '/delete-message',
