@@ -505,6 +505,8 @@ export interface ICourseVideo extends Document {
   duration: number; // In seconds
   transcript?: string;
   aiSummary?: string;
+  transcriptI18n?: Record<string, string>;
+  aiSummaryI18n?: Record<string, string>;
   ragEnabled?: boolean;
 
   // Access
@@ -547,6 +549,11 @@ const CourseVideoSchema = new Schema<ICourseVideo>({
   duration: { type: Number, default: 0 },
   transcript: { type: String, default: '' },
   aiSummary: { type: String, default: '' },
+  // Per-language RAG content, e.g. { hi: '…', ne: '…' }. `transcript`/`aiSummary`
+  // stay the source-language default; the video assistant picks the learner's
+  // language first and falls back to the default.
+  transcriptI18n: { type: Schema.Types.Mixed, default: undefined },
+  aiSummaryI18n: { type: Schema.Types.Mixed, default: undefined },
   ragEnabled: { type: Boolean, default: false },
 
   accessType: { type: String, enum: ['free', 'preview', 'paid', 'gift'], default: 'paid' },
@@ -612,6 +619,8 @@ export interface ICourseMaterial extends Document {
   downloadable: boolean;
   order: number;
   isActive: boolean;
+  ragText?: string;
+  ragTextI18n?: Record<string, string>;
 
   createdAt: Date;
   updatedAt: Date;
@@ -633,6 +642,10 @@ const CourseMaterialSchema = new Schema<ICourseMaterial>({
   downloadable: { type: Boolean, default: true },
   order: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
+  // Extracted text of the e-book/PDF for the course assistant (RAG). Paste the
+  // book's text here; `ragTextI18n` holds translations, e.g. { hi: '…' }.
+  ragText: { type: String, default: '' },
+  ragTextI18n: { type: Schema.Types.Mixed, default: undefined },
 }, { timestamps: true });
 
 CourseMaterialSchema.index({ courseId: 1, order: 1 });

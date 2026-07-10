@@ -426,7 +426,7 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ question, history }),
+        body: JSON.stringify({ question, history, lang: language }),
       });
       const data = await response.json();
 
