@@ -89,6 +89,10 @@ const SESSION_IDLE_TIMEOUT = 24 * 60 * 60 * 1000; // 24h — cleanup idle sessio
 const SESSION_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Check every 1h
 const MAX_RETRIES = Number(process.env.WA_BRIDGE_MAX_RETRIES || 12);
 const QR_RETRY_DELAY_MS = Number(process.env.WA_BRIDGE_QR_RETRY_DELAY_MS || 60000);
+// How many unattended pairing-socket cycles (each shows several QRs, then
+// times out with 408) may run before we stop and require a manual Reconnect.
+// Unlimited unwatched pairing attempts look robotic to WhatsApp (ban risk).
+const MAX_UNATTENDED_QR_CYCLES = Number(process.env.WA_BRIDGE_MAX_QR_CYCLES || 3);
 // 515 (restartRequired) fires right after a QR is scanned — WhatsApp forces a
 // stream restart to move off the pairing socket. It must be reconnected
 // almost immediately; waiting the full QR-timeout delay here lets WhatsApp
@@ -141,6 +145,7 @@ class UserSession {
     this.isStarting = false;
     this.intentionalDisconnect = false;
     this.reconnectTimer = null;
+    this.qrRestartCount = 0;
     this.saveCreds = null;
 
     // Per-user in-memory data
@@ -693,6 +698,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         session.qrCode = null;
         session.qrBase64 = null;
         session.retryCount = 0;
+        session.qrRestartCount = 0;
         session.intentionalDisconnect = false;
         session.phoneInfo = sock.user || null;
         console.log(`[${session.ownerUserId}] Connected session ${session.sessionKey} as: ${sock.user?.id} ${sock.user?.name || ''}`);
@@ -738,6 +744,22 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
 
           if (!isQrTimeout && !isRestartRequired) session.retryCount++;
           else session.retryCount = 0;
+
+          // Cap unattended QR pairing cycles. Each cycle already shows
+          // several QR codes; if nobody scanned after MAX_UNATTENDED_QR_CYCLES
+          // socket restarts, stop until a manual /reconnect — endless pairing
+          // attempts are a bot signal (ban risk). The dead sock reference is
+          // kept on purpose: it blocks the /status—/qr auto-start guards.
+          if (isQrTimeout) {
+            session.qrRestartCount++;
+            if (session.qrRestartCount >= MAX_UNATTENDED_QR_CYCLES) {
+              console.log(`[${session.ownerUserId}] QR not scanned after ${session.qrRestartCount} pairing cycles — stopping session ${session.sessionKey} until manual Reconnect`);
+              session.connectionState = 'qr_expired';
+              session.qrCode = null;
+              session.qrBase64 = null;
+              return;
+            }
+          }
 
           if (session.retryCount > MAX_RETRIES) {
             console.log(`[${session.ownerUserId}] Max retries reached for session ${session.sessionKey} — stopping`);
@@ -1312,6 +1334,25 @@ function getAuthPrefixesForRequest(req) {
   return Array.from(new Set(prefixes.filter(Boolean)));
 }
 
+// A background poll (/status) may only auto-start a socket to RESUME a
+// previously paired login (registered creds saved in Mongo — e.g. after a
+// bridge restart). It must never spawn an unattended QR pairing socket:
+// endless unwatched pairing attempts are a strong bot signal (ban risk).
+// Pairing starts only from explicit user actions (/qr, /reconnect).
+async function hasRegisteredCreds(req) {
+  try {
+    const client = await getMongoClient();
+    if (!client) return true; // file-auth dev fallback — keep legacy behavior
+    const collection = client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION);
+    const keys = getAuthPrefixesForRequest(req).map(p => `${p}:creds`);
+    const doc = await collection.findOne({ key: { $in: keys } });
+    return doc?.value?.registered === true;
+  } catch (e) {
+    console.error(`[${req.userId}] hasRegisteredCreds check failed:`, e.message);
+    return false;
+  }
+}
+
 // ── Health (no session needed) ──────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
@@ -1340,15 +1381,20 @@ app.get('/sessions', (req, res) => {
   res.json({ sessions: list, total: sessions.size, maxSessions: MAX_SESSIONS });
 });
 
-// ── Status (auto-starts session) ────────────────────────────────────────
+// ── Status (auto-resumes previously paired session) ─────────────────────
 app.get('/status', async (req, res) => {
   const session = getSessionForRequest(req);
 
-  // Auto-start socket if session hasn't been started yet
+  // Auto-start only to resume a paired login (registered creds). Background
+  // polls must never spawn an unattended QR pairing socket.
   if (!session.sock && !session.isStarting && !session.intentionalDisconnect) {
-    startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
-    // Give it a moment to initialize
-    await new Promise(r => setTimeout(r, 1500));
+    if (await hasRegisteredCreds(req)) {
+      startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
+      // Give it a moment to initialize
+      await new Promise(r => setTimeout(r, 1500));
+    } else if (session.connectionState === 'disconnected') {
+      session.connectionState = 'logged_out';
+    }
   }
 
   res.json({
@@ -1373,14 +1419,18 @@ app.get('/status', async (req, res) => {
 app.get('/qr', async (req, res) => {
   const session = getSessionForRequest(req);
 
-  // Auto-start if needed
-  if (!session.sock && !session.isStarting && !session.intentionalDisconnect) {
+  // Auto-start if needed — but not once the unattended-QR cap tripped;
+  // then only an explicit Reconnect re-arms pairing.
+  if (!session.sock && !session.isStarting && !session.intentionalDisconnect && session.connectionState !== 'qr_expired') {
     startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
     await new Promise(r => setTimeout(r, 2000));
   }
 
   if (session.connectionState === 'connected') {
     return res.json({ connected: true, message: 'Already connected', qr: null });
+  }
+  if (session.connectionState === 'qr_expired') {
+    return res.json({ connected: false, qr: null, expired: true, message: 'QR expired after repeated attempts — click Reconnect to get a fresh QR.' });
   }
   if (!session.qrBase64) {
     return res.json({ connected: false, qr: null, message: 'QR not yet generated. Waiting...' });
@@ -1753,6 +1803,7 @@ app.post('/reconnect', async (req, res) => {
     session.clearReconnectTimer();
     session.connectionState = 'connecting';
     session.retryCount = 0;
+    session.qrRestartCount = 0; // manual action re-arms the unattended-QR cap
     if (session.sock) {
       try { session.sock.ev.removeAllListeners(); session.sock.end(undefined); } catch {}
       session.sock = null;

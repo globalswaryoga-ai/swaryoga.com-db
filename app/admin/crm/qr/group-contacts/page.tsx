@@ -327,34 +327,22 @@ export default function QRGroupContactsPage() {
           // Step 1: Immediate 5-second wait (let socket breathe)
           await new Promise(r => setTimeout(r, 5000));
           
-          // Step 2: FORCE activity - call /status to wake up the session
-          // This forces the bridge to verify the connection and keeps it alive
+          // Step 2: Verify the session — but NEVER auto-fire /reconnect here.
+          // If WhatsApp logged us out, an automatic reconnect restarts QR
+          // pairing unattended and fights the user's manual reconnect —
+          // rapid socket churn is a bot signal (ban risk). Manual only.
           try {
             const statusData = await bridgeCall('/status', 'GET', {});
             if (statusData?.connected) {
               console.log(`✅ Post-merge status check: Connection ACTIVE`);
               setMergeProgress(`✅ Connection verified! WhatsApp is responsive.`);
             } else {
-              console.warn(`⚠️ Post-merge: Status shows not connected, attempting reconnect...`);
-              // Try to reconnect if status shows disconnected
-              try {
-                await bridgeCall('/reconnect', 'POST', {});
-                console.log(`✅ Reconnection triggered after disconnect`);
-                setMergeProgress(`✅ Reconnection initiated. Please wait 10 seconds...`);
-                await new Promise(r => setTimeout(r, 10000));
-              } catch (reconnectErr: any) {
-                console.warn('Reconnect attempt result:', reconnectErr?.message?.substring(0, 50));
-              }
+              console.warn(`⚠️ Post-merge: Status shows not connected`);
+              setMergeProgress(`⚠️ WhatsApp disconnected during the merge. Open the QR page and click Reconnect to restore the session.`);
             }
           } catch (statusErr: any) {
             console.warn('Post-merge status check failed:', statusErr?.message?.substring(0, 40));
-            // Try force reconnect anyway
-            try {
-              await bridgeCall('/reconnect', 'POST', {});
-              console.log(`✅ Force reconnect triggered after status failure`);
-            } catch (e) {
-              // Silent fail - connection might recover on its own
-            }
+            setMergeProgress(`⚠️ Could not verify the WhatsApp connection. If it stays disconnected, click Reconnect on the QR page.`);
           }
           
           // Step 3: Final verification - try to fetch chats (proves session is responsive)

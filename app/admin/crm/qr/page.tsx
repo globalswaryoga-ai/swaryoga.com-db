@@ -939,7 +939,15 @@ export default function QRWhatsAppPage() {
         // qrAvailable stays false until /qr starts the new socket.
         try {
           const qr = await bridgeCall('/qr');
-          if (qr?.qr) setQrData(qr.qr);
+          if (qr?.expired) {
+            // Bridge stopped unattended QR pairing (anti-ban cap) — clear the
+            // stale code and tell the user to reconnect manually.
+            setQrData(null);
+            setError('QR expired — click Reconnect to get a fresh code.');
+          } else if (qr?.qr) {
+            setQrData(qr.qr);
+            setError(null);
+          }
         } catch {
           // Keep existing QR if fetch fails
         }
@@ -992,7 +1000,13 @@ export default function QRWhatsAppPage() {
     const id = setInterval(async () => {
       try {
         const qr = await bridgeCall('/qr');
-        if (qr?.qr) setQrData(qr.qr);
+        if (qr?.expired) {
+          setQrData(null);
+          setError('QR expired — click Reconnect to get a fresh code.');
+        } else if (qr?.qr) {
+          setQrData(qr.qr);
+          setError(null);
+        }
       } catch {
         // Keep existing QR if fetch fails
       }
