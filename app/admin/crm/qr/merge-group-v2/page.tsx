@@ -25,6 +25,16 @@ interface GroupAddRequest {
   operationType: 'add' | 'remove';
 }
 
+interface GroupChat {
+  id: string;
+  name: string;
+}
+
+interface GroupMember {
+  id: string;
+  admin: string | null;
+}
+
 export default function MergeGroupV2Page() {
   const [operations, setOperations] = useState<MergeOperation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,6 +47,111 @@ export default function MergeGroupV2Page() {
   const [participantText, setParticipantText] = useState('');
   const [operationType, setOperationType] = useState<'add' | 'remove'>('add');
   const [submitting, setSubmitting] = useState(false);
+
+  // Group member picker
+  const [groups, setGroups] = useState<GroupChat[]>([]);
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [ownPhone, setOwnPhone] = useState('');
+  const [memberError, setMemberError] = useState('');
+  const [enqueuing, setEnqueuing] = useState(false);
+
+  async function bridgeGet(path: string): Promise<any> {
+    const token = await getToken();
+    const url = new URL('/api/admin/crm/whatsapp/qr-bridge', window.location.origin);
+    url.searchParams.append('path', path);
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json?.error || `Bridge request failed (${res.status})`);
+    return json?.data ?? json;
+  }
+
+  // Load the tenant's groups for the dropdown + own phone (to exclude self from member lists)
+  useEffect(() => {
+    (async () => {
+      try {
+        const [chatsData, statusData] = await Promise.all([
+          bridgeGet('/chats').catch(() => null),
+          bridgeGet('/status').catch(() => null),
+        ]);
+        const chats: any[] = Array.isArray(chatsData) ? chatsData : chatsData?.chats || [];
+        setGroups(
+          chats
+            .filter((c: any) => String(c.id || '').endsWith('@g.us'))
+            .map((c: any) => ({ id: c.id, name: c.name || c.id.split('@')[0] }))
+            .sort((a: GroupChat, b: GroupChat) => a.name.localeCompare(b.name))
+        );
+        const phone = String(statusData?.phone?.id || '').replace(/\D/g, '');
+        if (phone) setOwnPhone(phone);
+      } catch {
+        // group dropdown is a convenience — the manual JID field still works
+      }
+    })();
+  }, []);
+
+  async function loadMembers(groupJid: string) {
+    if (!groupJid.endsWith('@g.us')) {
+      setMemberError('Enter or pick a group ID ending in @g.us first');
+      return;
+    }
+    setLoadingMembers(true);
+    setMemberError('');
+    setMembers([]);
+    setSelectedMembers(new Set());
+    try {
+      const info = await bridgeGet(`/group-info/${encodeURIComponent(groupJid)}`);
+      const list: GroupMember[] = (info?.participants || [])
+        .map((p: any) => ({ id: String(p.id || ''), admin: p.admin || null }))
+        .filter((p: GroupMember) => {
+          if (!p.id) return false;
+          // Exclude the connected account itself — it can't remove itself; it
+          // leaves automatically when the group is emptied (auto-delete).
+          const digits = p.id.split('@')[0].replace(/\D/g, '');
+          return !ownPhone || digits !== ownPhone;
+        });
+      setMembers(list);
+      if (!list.length) setMemberError('No members visible in this group (besides your own account).');
+    } catch (err) {
+      setMemberError(err instanceof Error ? err.message : 'Failed to load members');
+    } finally {
+      setLoadingMembers(false);
+    }
+  }
+
+  async function enqueueRemoval(ids: string[], deleteGroupIntent: boolean) {
+    if (!isAdmin) { setMemberError('Only an admin can remove members'); return; }
+    if (!sessionKey.trim()) { setMemberError('Fill the Session Key field first'); return; }
+    if (ids.length === 0) return;
+    if (ids.length > 60) {
+      setMemberError(`WhatsApp safety cap: max 60 removals per job. Select up to 60 (you picked ${ids.length}) and run again for the rest.`);
+      return;
+    }
+    const label = deleteGroupIntent
+      ? `Remove ALL ${ids.length} members? When the group is empty it will be deleted automatically.`
+      : `Remove ${ids.length} member(s) from this group?`;
+    if (!confirm(label + '\n\nRemovals are paced safely (~15/hour) to protect your WhatsApp number.')) return;
+
+    setEnqueuing(true);
+    setMemberError('');
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/admin/crm/qr/merge-group-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sessionKey, targetGroupId, participantIds: ids, operationType: 'remove' }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to schedule removal');
+      alert(`✅ ${data.message}${deleteGroupIntent ? '\n🗑️ The group will be deleted automatically once it is empty.' : ''}`);
+      setSelectedMembers(new Set());
+      await loadOperations();
+    } catch (err) {
+      setMemberError(err instanceof Error ? err.message : 'Failed to schedule removal');
+    } finally {
+      setEnqueuing(false);
+    }
+  }
 
   // Load operations on mount
   useEffect(() => {
@@ -199,15 +314,110 @@ export default function MergeGroupV2Page() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Target Group ID</label>
+                <label className="block text-sm font-medium mb-1">Target Group</label>
+                <select
+                  value={groups.some((g) => g.id === targetGroupId) ? targetGroupId : ''}
+                  onChange={(e) => {
+                    const jid = e.target.value;
+                    if (!jid) return;
+                    setTargetGroupId(jid);
+                    loadMembers(jid);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded mb-2"
+                >
+                  <option value="">— Pick a group —</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
                 <input
                   type="text"
                   value={targetGroupId}
                   onChange={(e) => setTargetGroupId(e.target.value)}
-                  placeholder="Group ID to add/remove from"
+                  placeholder="…or paste a group ID (…@g.us)"
                   className="w-full px-3 py-2 border border-gray-300 rounded"
                 />
               </div>
+            </div>
+
+            {/* Group Members panel */}
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold">👥 Group Members {members.length > 0 && `(${members.length})`}</h3>
+                <button
+                  type="button"
+                  onClick={() => loadMembers(targetGroupId)}
+                  disabled={loadingMembers || !targetGroupId}
+                  className="text-xs bg-gray-700 text-white px-3 py-1.5 rounded hover:bg-gray-600 disabled:bg-gray-300"
+                >
+                  {loadingMembers ? 'Loading…' : '🔄 Load members'}
+                </button>
+              </div>
+
+              {memberError && <p className="text-xs text-red-600 mb-2">{memberError}</p>}
+
+              {members.length > 0 && (
+                <>
+                  <label className="flex items-center gap-2 text-xs font-medium mb-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedMembers.size === members.length}
+                      onChange={(e) =>
+                        setSelectedMembers(e.target.checked ? new Set(members.map((m) => m.id)) : new Set())
+                      }
+                    />
+                    Select all ({members.length})
+                  </label>
+                  <div className="max-h-56 overflow-y-auto space-y-1 mb-3 bg-white border rounded p-2">
+                    {members.map((m) => {
+                      const digits = m.id.split('@')[0].replace(/\D/g, '');
+                      const display = digits.length >= 10 && digits.length <= 15 ? `+${digits}` : m.id.split('@')[0];
+                      return (
+                        <label key={m.id} className="flex items-center gap-2 text-xs py-1 px-1 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedMembers.has(m.id)}
+                            onChange={(e) => {
+                              setSelectedMembers((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(m.id);
+                                else next.delete(m.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="font-mono">{display}</span>
+                          {m.admin && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">{m.admin === 'superadmin' ? 'owner' : 'admin'}</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => enqueueRemoval(Array.from(selectedMembers), selectedMembers.size === members.length)}
+                      disabled={!isAdmin || enqueuing || selectedMembers.size === 0}
+                      className="text-xs bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-500 disabled:bg-gray-300"
+                      title={!isAdmin ? 'Admin only' : ''}
+                    >
+                      {enqueuing ? 'Scheduling…' : `➖ Remove selected (${selectedMembers.size})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => enqueueRemoval(members.map((m) => m.id), true)}
+                      disabled={!isAdmin || enqueuing || members.length === 0}
+                      className="text-xs bg-red-800 text-white px-3 py-1.5 rounded hover:bg-red-700 disabled:bg-gray-300"
+                      title={!isAdmin ? 'Admin only' : ''}
+                    >
+                      🗑️ Remove ALL &amp; delete group
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    Removals are paced ~15/hour for WhatsApp safety (max 60 per job). When the last member is
+                    removed, the group is deleted automatically. {!isAdmin && '⚠️ Removal is admin-only.'}
+                  </p>
+                </>
+              )}
             </div>
 
             <div>
