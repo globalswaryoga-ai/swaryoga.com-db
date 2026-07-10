@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, Shield, Crown, Tag, Funnel, Download, CheckSquare, Square, Trash2 } from 'lucide-react';
 import type { ChatItem, MessageItem, FunnelStage, LabelPreset, GroupInfo } from '../types';
 import { formatPhoneNumber, getAvatarColor, getInitials } from '../utils';
+import { TeamInboxSection } from './TeamInboxSection';
 
 export interface DetailsPanelProps {
   selectedChat: string;
@@ -36,6 +37,7 @@ export interface DetailsPanelProps {
   handleLeaveGroup: () => void;
   setDetailsPanel: (v: boolean) => void;
   setLightboxImage: (v: string | null) => void;
+  token?: string | null;
 }
 
 export function DetailsPanel({
@@ -49,6 +51,7 @@ export function DetailsPanel({
   bulkRemoveParticipants,
   handleRenameGroup, handleLeaveGroup,
   setDetailsPanel, setLightboxImage,
+  token,
 }: DetailsPanelProps) {
   const selectedChatInfo = chats.find(c => c.id === selectedChat);
   const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
@@ -153,6 +156,9 @@ export function DetailsPanel({
           <span className="text-[10px] text-gray-500">Chat</span>
         </button>
       </div>
+
+      {/* Team Inbox: assignment, claim, internal notes */}
+      {token && <TeamInboxSection chatJid={selectedChat} token={token} />}
 
       {/* Contact About / Bio */}
       {!isGroupChat && contactAbout && (

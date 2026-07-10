@@ -3685,6 +3685,7 @@ export default function QRWhatsAppPage() {
               handleLeaveGroup={handleLeaveGroup}
               setDetailsPanel={setDetailsPanel}
               setLightboxImage={setLightboxImage}
+              token={token}
             />
           )}
         </div>

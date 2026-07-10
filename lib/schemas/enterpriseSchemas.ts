@@ -434,6 +434,12 @@ const QrWhatsAppChatSchema = new mongoose.Schema(
     archived: { type: Boolean, default: false },
     profilePicUrl: { type: String, default: '' },
     metadata: { type: mongoose.Schema.Types.Mixed },
+    // ── Team inbox ──
+    assignedToUserId: { type: String, default: '', index: true }, // agent this chat is assigned to
+    assignedToName: { type: String, default: '' },
+    claimedByUserId: { type: String, default: '' },               // agent currently replying (soft lock)
+    claimedByName: { type: String, default: '' },
+    claimedAt: { type: Date },                                     // claim is stale after CLAIM_TTL
   },
   { timestamps: true, collection: 'qr_whatsapp_chats' }
 );
@@ -442,6 +448,21 @@ QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1 }, { uniqu
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, archived: 1, conversationTimestamp: -1 }); // Active chats
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, pinned: 1 }); // Pinned chats
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, unreadCount: 1 }); // Unread filtering
+
+// ============================================================================
+// 1a-TEAM. QR CHAT NOTES — internal team notes on a chat (never sent to the contact)
+// ============================================================================
+const QrChatNoteSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },  // tenant owner (matches qr_whatsapp_chats.userId)
+    chatJid: { type: String, required: true, index: true },
+    authorId: { type: String, required: true },             // agent who wrote the note
+    authorName: { type: String, default: '' },
+    text: { type: String, required: true, maxlength: 2000 },
+  },
+  { timestamps: true, collection: 'qr_chat_notes' }
+);
+QrChatNoteSchema.index({ userId: 1, chatJid: 1, createdAt: -1 });
 
 // ============================================================================
 // 1a-SOCIAL. SOCIAL INBOX CONVERSATIONS — Messenger / Instagram DM threads
@@ -3129,6 +3150,7 @@ export function getDeletedLead() { return getModel('DeletedLead', DeletedLeadSch
 export function getWhatsAppMessage() { return getModel('WhatsAppMessage', WhatsAppMessageSchema); }
 export function getQrWhatsAppMessage() { return getModel('QrWhatsAppMessage', QrWhatsAppMessageSchema); }
 export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsAppChatSchema); }
+export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
 export function getSocialInboxConversation() { return getModel('SocialInboxConversation', SocialInboxConversationSchema); }
 export function getSocialInboxMessage() { return getModel('SocialInboxMessage', SocialInboxMessageSchema); }
 export function getWhatsAppWebhookEvent() { return getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema); }
