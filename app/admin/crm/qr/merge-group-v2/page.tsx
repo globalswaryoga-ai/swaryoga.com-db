@@ -44,9 +44,6 @@ export default function MergeGroupV2Page() {
   // Form states
   const [sessionKey, setSessionKey] = useState('');
   const [targetGroupId, setTargetGroupId] = useState('');
-  const [participantText, setParticipantText] = useState('');
-  const [operationType, setOperationType] = useState<'add' | 'remove'>('add');
-  const [submitting, setSubmitting] = useState(false);
 
   // Group member picker
   const [groups, setGroups] = useState<GroupChat[]>([]);
@@ -194,62 +191,6 @@ export default function MergeGroupV2Page() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError('');
-
-    try {
-      const participantIds = participantText
-        .split(/[\n,]+/)
-        .map((p) => p.trim())
-        .filter((p) => p);
-
-      if (!targetGroupId || participantIds.length === 0) {
-        throw new Error('Fill all fields');
-      }
-
-      if (operationType === 'remove' && !isAdmin) {
-        throw new Error('Only an admin can remove participants from a merged group');
-      }
-
-      const token = await getToken();
-      const response = await fetch('/api/admin/crm/qr/merge-group-v2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          sessionKey,
-          targetGroupId,
-          participantIds,
-          operationType,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create operation');
-      }
-
-      const result = await response.json();
-      alert(`✅ ${result.message}\nGap strategy: ${result.gapStrategy}`);
-
-      // Reset form
-      setSessionKey('');
-      setTargetGroupId('');
-      setParticipantText('');
-
-      // Reload operations
-      await loadOperations();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error creating operation');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function handleCancel(id: string) {
     if (!confirm('Cancel this operation?')) return;
 
@@ -300,50 +241,35 @@ export default function MergeGroupV2Page() {
           </ul>
         </div>
 
-        {/* Create New Operation */}
+        {/* Delete Group Members */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-bold mb-4">📝 Create New Operation</h2>
+          <h2 className="text-xl font-bold mb-4">🗑️ Delete Group Members</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Session Key</label>
-                <input
-                  type="text"
-                  value={sessionKey}
-                  onChange={(e) => setSessionKey(e.target.value)}
-                  placeholder="Auto-detected from settings"
-                  className="w-full px-3 py-2 border border-gray-300 rounded bg-gray-50 text-gray-600"
-                  readOnly
-                  title="Auto-detected from your account settings"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Target Group</label>
-                <select
-                  value={groups.some((g) => g.id === targetGroupId) ? targetGroupId : ''}
-                  onChange={(e) => {
-                    const jid = e.target.value;
-                    if (!jid) return;
-                    setTargetGroupId(jid);
-                    loadMembers(jid);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded mb-2"
-                >
-                  <option value="">— Pick a group —</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={targetGroupId}
-                  onChange={(e) => setTargetGroupId(e.target.value)}
-                  placeholder="…or paste a group ID (…@g.us)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded"
-                />
-              </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Target Group</label>
+              <select
+                value={groups.some((g) => g.id === targetGroupId) ? targetGroupId : ''}
+                onChange={(e) => {
+                  const jid = e.target.value;
+                  if (!jid) return;
+                  setTargetGroupId(jid);
+                  loadMembers(jid);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded mb-2"
+              >
+                <option value="">— Pick a group —</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={targetGroupId}
+                onChange={(e) => setTargetGroupId(e.target.value)}
+                placeholder="…or paste a group ID (…@g.us)"
+                className="w-full px-3 py-2 border border-gray-300 rounded"
+              />
             </div>
 
             {/* Group Members panel */}
@@ -419,69 +345,13 @@ export default function MergeGroupV2Page() {
                     </button>
                   </div>
                   <p className="text-[11px] text-gray-500 mt-2">
-                    Removals are paced ~15/hour for WhatsApp safety (max 60 per job). When the last member is
+                    Removals are paced ~15/hour for WhatsApp safety (max 300 per job). When the last member is
                     removed, the group is deleted automatically. {!isAdmin && '⚠️ Removal is admin-only.'}
                   </p>
                 </>
               )}
             </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Operation Type</label>
-              <select
-                value={operationType}
-                onChange={(e) => setOperationType(e.target.value as 'add' | 'remove')}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-              >
-                <option value="add">➕ Add Participants</option>
-                <option value="remove" disabled={!isAdmin}>
-                  ➖ Remove Participants{!isAdmin ? ' (admin only)' : ''}
-                </option>
-              </select>
-              {operationType === 'remove' && (
-                <p className="text-xs text-gray-500 mt-1">
-                  If this empties the group out, it's automatically disbanded.
-                </p>
-              )}
-              {!isAdmin && (
-                <p className="text-xs text-amber-600 mt-1">
-                  Only an admin can remove participants from a merged group.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Participant IDs (one per line or comma-separated)
-              </label>
-              <textarea
-                value={participantText}
-                onChange={(e) => setParticipantText(e.target.value)}
-                placeholder="123456789
-987654321
-..."
-                rows={6}
-                className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {participantText.split(/[\n,]+/).filter((p) => p.trim()).length} participants
-              </p>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full bg-blue-600 text-white py-2 rounded font-medium hover:bg-blue-700 disabled:bg-gray-400"
-            >
-              {submitting ? 'Creating...' : '✅ Create Operation'}
-            </button>
-          </form>
+          </div>
         </div>
 
         {/* Operations List */}
