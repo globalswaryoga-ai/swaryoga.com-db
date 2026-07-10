@@ -428,6 +428,156 @@ export async function sendWhatsAppText(toRaw: string, body: string, creds?: What
 }
 
 /**
+ * Shared Meta Cloud send wrapper: env/creds resolution, circuit breaker,
+ * retry, appsecret proof, and message-id extraction — used by the
+ * list/location/contact senders below (same behavior as sendWhatsAppText).
+ */
+async function sendMetaPayload(
+  label: string,
+  toRaw: string,
+  buildPayload: (to: string) => Record<string, unknown>,
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  const env = creds || getWhatsAppEnv();
+  const to = normalizePhone(toRaw);
+
+  if (!env) {
+    throw new Error('WhatsApp sending failed: Meta Cloud API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
+  }
+  if (isCircuitOpen('meta')) {
+    throw new Error('WhatsApp sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
+  }
+
+  try {
+    const result = await withRetry(async () => {
+      const { accessToken, phoneNumberId, appSecret } = env;
+      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+      const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ messaging_product: 'whatsapp', to, ...buildPayload(to) }),
+        cache: 'no-store',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const waMessageId =
+          Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+        if (!waMessageId) {
+          throw new Error(`Meta API returned success but no message ID. Response: ${JSON.stringify(data)}`);
+        }
+        console.log(`[${label}] ✅ Success: ${waMessageId}`);
+        return { waMessageId, raw: { ...data, provider: 'meta' } };
+      }
+      console.error(`[${label}] ❌ Meta API error (${res.status}):`, JSON.stringify(data));
+      throw new Error(data?.error?.message || data?.error?.error_data?.details || 'Meta API error');
+    }, { maxRetries: 2 });
+
+    recordSuccess('meta');
+    return result;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    recordFailure('meta', msg);
+    throw new Error(`WhatsApp sending failed via Meta Cloud API: ${msg}`);
+  }
+}
+
+export interface WhatsAppListSection {
+  title: string;
+  rows: Array<{ id: string; title: string; description?: string }>;
+}
+
+/**
+ * Send an interactive LIST message (menu of up to 10 rows across sections) —
+ * richer than reply buttons (max 3) for class schedules, service menus, etc.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-list-messages
+ */
+export async function sendWhatsAppInteractiveList(
+  toRaw: string,
+  opts: {
+    bodyText: string;
+    buttonText: string; // the button that opens the list, max 20 chars
+    sections: WhatsAppListSection[];
+    headerText?: string;
+    footerText?: string;
+  },
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  const totalRows = opts.sections.reduce((n, s) => n + (s.rows?.length || 0), 0);
+  if (!totalRows || totalRows > 10) {
+    throw new Error(`Interactive list needs 1–10 rows total (got ${totalRows})`);
+  }
+  return sendMetaPayload('sendWhatsAppInteractiveList', toRaw, () => ({
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      ...(opts.headerText ? { header: { type: 'text', text: opts.headerText.slice(0, 60) } } : {}),
+      body: { text: opts.bodyText.slice(0, 4096) },
+      ...(opts.footerText ? { footer: { text: opts.footerText.slice(0, 60) } } : {}),
+      action: {
+        button: opts.buttonText.slice(0, 20),
+        sections: opts.sections.map((s) => ({
+          title: s.title.slice(0, 24),
+          rows: s.rows.map((r) => ({
+            id: String(r.id).slice(0, 200),
+            title: r.title.slice(0, 24),
+            ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+          })),
+        })),
+      },
+    },
+  }), creds);
+}
+
+/** Send a map-pin location message. */
+export async function sendWhatsAppLocation(
+  toRaw: string,
+  opts: { latitude: number; longitude: number; name?: string; address?: string },
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  if (!isFinite(opts.latitude) || !isFinite(opts.longitude)) {
+    throw new Error('Valid latitude and longitude required');
+  }
+  return sendMetaPayload('sendWhatsAppLocation', toRaw, () => ({
+    type: 'location',
+    location: {
+      latitude: opts.latitude,
+      longitude: opts.longitude,
+      ...(opts.name ? { name: String(opts.name).slice(0, 100) } : {}),
+      ...(opts.address ? { address: String(opts.address).slice(0, 200) } : {}),
+    },
+  }), creds);
+}
+
+/** Send a tappable contact card. */
+export async function sendWhatsAppContactCard(
+  toRaw: string,
+  opts: { name: string; phone: string; organization?: string },
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  const phoneDigits = String(opts.phone || '').replace(/\D/g, '');
+  if (!opts.name || phoneDigits.length < 7) {
+    throw new Error('Contact name and a valid phone required');
+  }
+  return sendMetaPayload('sendWhatsAppContactCard', toRaw, () => ({
+    type: 'contacts',
+    contacts: [
+      {
+        name: { formatted_name: String(opts.name).slice(0, 100), first_name: String(opts.name).split(' ')[0] },
+        ...(opts.organization ? { org: { company: String(opts.organization).slice(0, 100) } } : {}),
+        phones: [{ phone: `+${phoneDigits}`, type: 'CELL', wa_id: phoneDigits }],
+      },
+    ],
+  }), creds);
+}
+
+/**
  * Extract YouTube video ID from common URL formats.
  * Returns null if not a YouTube URL.
  */
