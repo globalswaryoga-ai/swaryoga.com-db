@@ -9,6 +9,10 @@ import { ObjectId } from 'mongodb';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
 
+// How many times a transient (network/bridge) failure may retry the same
+// participant before giving up and counting them as failed.
+const MAX_TRANSIENT_RETRIES = 3;
+
 /**
  * Execute single add/remove operation with WhatsApp bridge.
  *
@@ -25,7 +29,7 @@ async function executeGroupOperation(
   sessionKey: string,
   bridgeUrl: string,
   bridgeSecret: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; transient?: boolean }> {
   try {
     const response = await fetch(`${bridgeUrl}/group-participants/${encodeURIComponent(groupId)}`, {
       method: 'POST',
@@ -40,20 +44,27 @@ async function executeGroupOperation(
         action: operation,
         participants: [participantId],
       }),
+      signal: AbortSignal.timeout(20000),
     });
 
     if (!response.ok) {
       return {
         success: false,
         error: `Bridge returned ${response.status}`,
+        // 5xx (incl. the bridge's 503 "Not connected"), 429 and 408 are
+        // bridge/connection problems, not WhatsApp rejecting this member —
+        // the same participant should be retried, not skipped.
+        transient: response.status >= 500 || response.status === 429 || response.status === 408,
       };
     }
 
     return { success: true };
   } catch (error) {
+    // fetch threw: network failure or timeout — always retryable
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      transient: true,
     };
   }
 }
@@ -158,6 +169,18 @@ async function processMergeOperation(
         status: 'paused',
         reason: 'auto_signout_detected',
       };
+    }
+
+    // Session is healthy — if this job was paused by a disconnect, resume it.
+    if (item.status === 'paused') {
+      await collection.updateOne(
+        { _id: item._id },
+        {
+          $set: { status: 'in-progress', updatedAt: new Date() },
+          $unset: { lastError: '' },
+        }
+      );
+      console.log(`[Group Merge V2] ▶️ Session healthy again — resuming ${item._id}`);
     }
 
     // Check if should proceed (based on delay)
@@ -271,13 +294,17 @@ async function processMergeOperation(
     const nextDelay = getNextGroupOperationGap(item.completedOperations + item.failedOperations);
     const nextOperationTime = new Date(now.getTime() + nextDelay);
 
+    const retryCount = item.currentRetryCount || 0;
+
     if (result.success) {
       await collection.updateOne(
         { _id: item._id },
         {
           $set: {
+            status: 'in-progress',
             completedOperations: item.completedOperations + 1,
             currentParticipantIndex: item.currentParticipantIndex + 1,
+            currentRetryCount: 0,
             lastOperationTime: now,
             nextOperationTime,
             operationDelayMs: nextDelay,
@@ -289,13 +316,37 @@ async function processMergeOperation(
       console.log(
         `[Group Merge V2] ✓ ${item.operationType} ${item.completedOperations + 1}/${item.totalOperations} (${(nextDelay / 1000).toFixed(1)}s delay)`
       );
+    } else if (result.transient && retryCount < MAX_TRANSIENT_RETRIES) {
+      // Temporary bridge/network problem — retry the SAME member after the
+      // normal gap. Don't skip them and don't count this toward the 20%
+      // failure breaker; only real WhatsApp rejections should trip it.
+      await collection.updateOne(
+        { _id: item._id },
+        {
+          $set: {
+            status: 'in-progress',
+            currentRetryCount: retryCount + 1,
+            lastOperationTime: now,
+            nextOperationTime,
+            operationDelayMs: nextDelay,
+            lastError: `Temporary: ${result.error} (retry ${retryCount + 1}/${MAX_TRANSIENT_RETRIES} for same member)`,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      console.warn(
+        `[Group Merge V2] ↻ ${item.operationType} temporary failure (${result.error}) — will retry same member (${retryCount + 1}/${MAX_TRANSIENT_RETRIES})`
+      );
     } else {
       await collection.updateOne(
         { _id: item._id },
         {
           $set: {
+            status: 'in-progress',
             failedOperations: item.failedOperations + 1,
             currentParticipantIndex: item.currentParticipantIndex + 1,
+            currentRetryCount: 0,
             lastOperationTime: now,
             nextOperationTime,
             operationDelayMs: nextDelay,
@@ -381,10 +432,12 @@ export async function GET(req: NextRequest) {
     const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
     const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
-    // Find in-progress operations
+    // Find active operations. 'paused' is included so jobs paused by a
+    // disconnect are re-checked every tick and auto-resume once the session
+    // health check passes again.
     const operations = await collection
       .find({
-        status: { $in: ['pending', 'in-progress'] },
+        status: { $in: ['pending', 'in-progress', 'paused'] },
       })
       .toArray();
 

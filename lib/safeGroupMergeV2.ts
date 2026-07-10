@@ -32,6 +32,8 @@ interface MergeGroupV2Item {
   // Current operation
   currentParticipantIndex: number;
   currentParticipantId?: string;
+  // Transient-failure retries used on the current participant (reset on advance)
+  currentRetryCount?: number;
 
   // Safety & timing
   lastOperationTime: Date;
@@ -43,7 +45,7 @@ interface MergeGroupV2Item {
   errorLog: Array<{ participantId: string; error: string; timestamp: Date }>;
 
   // Status
-  status: 'pending' | 'in-progress' | 'completed' | 'failed' | 'blocked';
+  status: 'pending' | 'in-progress' | 'paused' | 'completed' | 'failed' | 'blocked' | 'cancelled';
 
   // Timestamps
   createdAt: Date;
@@ -170,6 +172,7 @@ export function createMergeGroupV2Entry(
     skippedOperations: 0,
 
     currentParticipantIndex: 0,
+    currentRetryCount: 0,
 
     lastOperationTime: now,
     nextOperationTime: new Date(now.getTime() + gaps[0]),
