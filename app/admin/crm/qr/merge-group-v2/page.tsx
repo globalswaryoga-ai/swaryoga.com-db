@@ -67,13 +67,15 @@ export default function MergeGroupV2Page() {
     return json?.data ?? json;
   }
 
-  // Load the tenant's groups for the dropdown + own phone (to exclude self from member lists)
+  // Load the tenant's groups for the dropdown + own phone + session key
   useEffect(() => {
     (async () => {
       try {
-        const [chatsData, statusData] = await Promise.all([
+        const [chatsData, statusData, settingsData] = await Promise.all([
           bridgeGet('/chats').catch(() => null),
           bridgeGet('/status').catch(() => null),
+          fetch('/api/admin/crm/settings', { headers: { Authorization: `Bearer ${await getToken()}` } })
+            .then(r => r.json()).catch(() => null),
         ]);
         const chats: any[] = Array.isArray(chatsData) ? chatsData : chatsData?.chats || [];
         setGroups(
@@ -84,6 +86,8 @@ export default function MergeGroupV2Page() {
         );
         const phone = String(statusData?.phone?.id || '').replace(/\D/g, '');
         if (phone) setOwnPhone(phone);
+        const tenantId = settingsData?.permanentTenantId || '';
+        if (tenantId) setSessionKey(tenantId);
       } catch {
         // group dropdown is a convenience — the manual JID field still works
       }
@@ -121,7 +125,6 @@ export default function MergeGroupV2Page() {
 
   async function enqueueRemoval(ids: string[], deleteGroupIntent: boolean) {
     if (!isAdmin) { setMemberError('Only an admin can remove members'); return; }
-    if (!sessionKey.trim()) { setMemberError('Fill the Session Key field first'); return; }
     if (ids.length === 0) return;
     if (ids.length > 60) {
       setMemberError(`WhatsApp safety cap: max 60 removals per job. Select up to 60 (you picked ${ids.length}) and run again for the rest.`);
@@ -201,7 +204,7 @@ export default function MergeGroupV2Page() {
         .map((p) => p.trim())
         .filter((p) => p);
 
-      if (!sessionKey || !targetGroupId || participantIds.length === 0) {
+      if (!targetGroupId || participantIds.length === 0) {
         throw new Error('Fill all fields');
       }
 
@@ -308,8 +311,10 @@ export default function MergeGroupV2Page() {
                   type="text"
                   value={sessionKey}
                   onChange={(e) => setSessionKey(e.target.value)}
-                  placeholder="WhatsApp session key"
-                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  placeholder="Auto-detected from settings"
+                  className="w-full px-3 py-2 border border-gray-300 rounded bg-gray-50 text-gray-600"
+                  readOnly
+                  title="Auto-detected from your account settings"
                 />
               </div>
 
