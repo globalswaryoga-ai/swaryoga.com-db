@@ -465,6 +465,48 @@ const QrChatNoteSchema = new mongoose.Schema(
 QrChatNoteSchema.index({ userId: 1, chatJid: 1, createdAt: -1 });
 
 // ============================================================================
+// 1a-DRIP. QR DRIP SEQUENCES — multi-step lead journeys with stop-on-reply
+// ============================================================================
+const QrDripSequenceSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true }, // tenant owner
+    name: { type: String, required: true },
+    active: { type: Boolean, default: true },
+    stopOnReply: { type: Boolean, default: true },
+    steps: [
+      {
+        dayOffset: { type: Number, required: true, min: 0 },   // days after enrollment (0 = same day)
+        timeOfDay: { type: String, default: '09:00' },          // HH:mm in IST
+        messageText: { type: String, required: true, maxlength: 4000 },
+      },
+    ],
+  },
+  { timestamps: true, collection: 'qr_drip_sequences' }
+);
+QrDripSequenceSchema.index({ userId: 1, active: 1 });
+
+const QrDripEnrollmentSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },     // tenant owner
+    sequenceId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    phone: { type: String, required: true },                    // digits only
+    chatJid: { type: String, default: '' },
+    enrolledAt: { type: Date, default: Date.now },
+    currentStep: { type: Number, default: 0 },
+    nextSendAt: { type: Date, index: true },
+    stopOnReply: { type: Boolean, default: true },              // copied from sequence at enroll time
+    status: { type: String, enum: ['active', 'completed', 'stopped'], default: 'active', index: true },
+    stoppedReason: { type: String, default: '' },
+    sentCount: { type: Number, default: 0 },
+    lastError: { type: String, default: '' },
+  },
+  { timestamps: true, collection: 'qr_drip_enrollments' }
+);
+QrDripEnrollmentSchema.index({ status: 1, nextSendAt: 1 });
+QrDripEnrollmentSchema.index({ userId: 1, phone: 1, status: 1 });
+QrDripEnrollmentSchema.index({ userId: 1, sequenceId: 1, phone: 1 }, { unique: true });
+
+// ============================================================================
 // 1a-SOCIAL. SOCIAL INBOX CONVERSATIONS — Messenger / Instagram DM threads
 // ============================================================================
 const SocialInboxConversationSchema = new mongoose.Schema(
@@ -3151,6 +3193,8 @@ export function getWhatsAppMessage() { return getModel('WhatsAppMessage', WhatsA
 export function getQrWhatsAppMessage() { return getModel('QrWhatsAppMessage', QrWhatsAppMessageSchema); }
 export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsAppChatSchema); }
 export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
+export function getQrDripSequence() { return getModel('QrDripSequence', QrDripSequenceSchema); }
+export function getQrDripEnrollment() { return getModel('QrDripEnrollment', QrDripEnrollmentSchema); }
 export function getSocialInboxConversation() { return getModel('SocialInboxConversation', SocialInboxConversationSchema); }
 export function getSocialInboxMessage() { return getModel('SocialInboxMessage', SocialInboxMessageSchema); }
 export function getWhatsAppWebhookEvent() { return getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema); }

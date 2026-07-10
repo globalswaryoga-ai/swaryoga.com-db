@@ -55,6 +55,9 @@
     },
     "app/api/cron/qr-queue-processor/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/cron/qr-drip-processor/route.ts": {
+      "maxDuration": 120
     }
   },
   "crons": [
@@ -116,6 +119,10 @@
     },
     {
       "path": "/api/cron/qr-queue-processor",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/qr-drip-processor",
       "schedule": "* * * * *"
     }
   ],

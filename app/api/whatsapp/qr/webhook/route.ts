@@ -395,6 +395,19 @@ async function ingestQRPayload(payload: any) {
         console.warn('[QR WEBHOOK] Opt-out check failed (non-fatal):', optErr.message);
       }
 
+      // ── DRIP STOP-ON-REPLY ──
+      // A contact who writes back is engaged — stop their automated drip
+      // journeys (only sequences created with stopOnReply enabled).
+      try {
+        const { getQrDripEnrollment } = await import('@/lib/schemas/enterpriseSchemas');
+        await getQrDripEnrollment().updateMany(
+          { userId: bridgeUserId, phone: normalizedPhone, status: 'active', stopOnReply: true },
+          { $set: { status: 'stopped', stoppedReason: 'replied' } }
+        );
+      } catch (dripErr: any) {
+        console.warn('[QR WEBHOOK] Drip stop-on-reply failed (non-fatal):', dripErr.message);
+      }
+
       try {
         const { triggerQrChatbotFlow } = await import('@/lib/qrChatbotExecutor');
         await triggerQrChatbotFlow({
