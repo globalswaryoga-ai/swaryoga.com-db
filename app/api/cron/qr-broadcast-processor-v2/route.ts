@@ -277,7 +277,36 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
     const alreadySent: Set<string> = new Set(
       Array.isArray(schedule.sentRecipientChatIds) ? schedule.sentRecipientChatIds : []
     );
-    const pending = allRecipients.filter((id) => !alreadySent.has(id));
+    let pending = allRecipients.filter((id) => !alreadySent.has(id));
+
+    // ── OPT-OUT COMPLIANCE ──
+    // Contacts who replied STOP are never broadcast to again (until they reply
+    // START). Filtered out up front — in bulk — so they neither consume a
+    // 15-minute send slot nor get retried (they're marked into the cursor and
+    // counted as skipped immediately).
+    try {
+      const { getOptedOutPhoneSet } = await import('@/lib/qrOptOut');
+      const optedOut = await getOptedOutPhoneSet(schedule.userId);
+      if (optedOut.size > 0) {
+        const optedOutIds = pending.filter(
+          (id) => !id.endsWith('@g.us') && optedOut.has(String(id).split('@')[0].replace(/\D/g, ''))
+        );
+        if (optedOutIds.length > 0) {
+          pending = pending.filter((id) => !optedOutIds.includes(id));
+          await QRBroadcastScheduleModel.updateOne(
+            { _id: schedule._id },
+            {
+              $addToSet: { sentRecipientChatIds: { $each: optedOutIds } },
+              $inc: { 'stats.totalSkipped': optedOutIds.length },
+            }
+          );
+          optedOutIds.forEach((id) => alreadySent.add(id));
+          console.log(`[QR Broadcast V2] 🚫 ${optedOutIds.length} opted-out contact(s) excluded from this broadcast`);
+        }
+      }
+    } catch (optErr: any) {
+      console.warn('[QR Broadcast V2] Opt-out filter failed (continuing without it):', optErr.message);
+    }
 
     // Nothing left for this pass.
     if (pending.length === 0) {

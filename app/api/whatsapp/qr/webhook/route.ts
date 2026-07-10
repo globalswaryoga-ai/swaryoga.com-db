@@ -375,6 +375,26 @@ async function ingestQRPayload(payload: any) {
       const msgText = text || messageContent;
       const isFirstInbound = created === 1 && !m.fromMe; // rough heuristic: first message we stored
 
+      // ── OPT-OUT COMPLIANCE (runs before chatbot/automations) ──
+      // STOP/UNSUBSCRIBE adds the sender to the tenant's opt-out list and
+      // confirms; START opts back in. Either way the command message itself
+      // must not trigger chatbot flows or automation rules. An already
+      // opted-out contact is also excluded from all automated replies.
+      try {
+        const { handleQrOptOutKeyword, isOptedOut } = await import('@/lib/qrOptOut');
+        const wasOptCommand = await handleQrOptOutKeyword({
+          userId: bridgeUserId,
+          phoneNumber: normalizedPhone,
+          chatJid,
+          messageText: msgText,
+        });
+        if (wasOptCommand || (await isOptedOut(bridgeUserId, normalizedPhone))) {
+          continue;
+        }
+      } catch (optErr: any) {
+        console.warn('[QR WEBHOOK] Opt-out check failed (non-fatal):', optErr.message);
+      }
+
       try {
         const { triggerQrChatbotFlow } = await import('@/lib/qrChatbotExecutor');
         await triggerQrChatbotFlow({
