@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { jwtDecode } from 'jwt-decode';
 import { getToken } from '@/lib/auth-client';
 
 interface MergeOperation {
@@ -12,6 +13,7 @@ interface MergeOperation {
   completed: number;
   failed: number;
   successRate: number;
+  groupDeleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +29,7 @@ export default function MergeGroupV2Page() {
   const [operations, setOperations] = useState<MergeOperation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Form states
   const [sessionKey, setSessionKey] = useState('');
@@ -40,6 +43,19 @@ export default function MergeGroupV2Page() {
     loadOperations();
     const interval = setInterval(loadOperations, 5000); // Refresh every 5s
     return () => clearInterval(interval);
+  }, []);
+
+  // Removing members (and the auto-delete-when-empty that follows) is admin-only.
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        const decoded: any = jwtDecode(token);
+        setIsAdmin(!!decoded?.isAdmin);
+      } catch {
+        setIsAdmin(false);
+      }
+    })();
   }, []);
 
   async function loadOperations() {
@@ -72,6 +88,10 @@ export default function MergeGroupV2Page() {
 
       if (!sessionKey || !targetGroupId || participantIds.length === 0) {
         throw new Error('Fill all fields');
+      }
+
+      if (operationType === 'remove' && !isAdmin) {
+        throw new Error('Only an admin can remove participants from a merged group');
       }
 
       const token = await getToken();
@@ -198,8 +218,20 @@ export default function MergeGroupV2Page() {
                 className="w-full px-3 py-2 border border-gray-300 rounded"
               >
                 <option value="add">➕ Add Participants</option>
-                <option value="remove">➖ Remove Participants</option>
+                <option value="remove" disabled={!isAdmin}>
+                  ➖ Remove Participants{!isAdmin ? ' (admin only)' : ''}
+                </option>
               </select>
+              {operationType === 'remove' && (
+                <p className="text-xs text-gray-500 mt-1">
+                  If this empties the group out, it's automatically disbanded.
+                </p>
+              )}
+              {!isAdmin && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Only an admin can remove participants from a merged group.
+                </p>
+              )}
             </div>
 
             <div>
@@ -286,6 +318,9 @@ export default function MergeGroupV2Page() {
                       </td>
                       <td className={`px-6 py-3 text-sm font-semibold ${statusColor(op.status)}`}>
                         {op.status}
+                        {op.groupDeleted && (
+                          <span className="ml-2 text-xs font-normal text-red-600">🗑️ group deleted (emptied out)</span>
+                        )}
                       </td>
                       <td className="px-6 py-3 text-sm">
                         {op.successRate}% ({op.completed}✓ {op.failed}✗)

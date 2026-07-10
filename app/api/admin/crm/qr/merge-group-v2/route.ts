@@ -51,6 +51,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Removing people from a merged group (and the auto-delete-when-empty
+    // behavior that follows) is admin-only — team/non-admin logins must not
+    // be able to shrink or disband a group.
+    if (operationType === 'remove' && !decoded.isAdmin) {
+      return NextResponse.json(
+        { error: 'Only an admin can remove participants from a merged group' },
+        { status: 403 }
+      );
+    }
+
     if (!Array.isArray(participantIds) || participantIds.length === 0) {
       return NextResponse.json(
         { error: 'participantIds must be a non-empty array' },
@@ -162,6 +172,7 @@ export async function GET(req: NextRequest) {
           op.completedOperations + op.failedOperations > 0
             ? Math.round((op.completedOperations / (op.completedOperations + op.failedOperations)) * 100)
             : 0,
+        groupDeleted: !!op.groupDeleted,
         createdAt: op.createdAt,
         updatedAt: op.updatedAt,
       })),
