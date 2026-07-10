@@ -83,7 +83,7 @@ export default function MergeGroupV2Page() {
         );
         const phone = String(statusData?.phone?.id || '').replace(/\D/g, '');
         if (phone) setOwnPhone(phone);
-        const tenantId = settingsData?.permanentTenantId || '';
+        const tenantId = settingsData?.data?.permanentTenantId || '';
         if (tenantId) setSessionKey(tenantId);
       } catch {
         // group dropdown is a convenience — the manual JID field still works
