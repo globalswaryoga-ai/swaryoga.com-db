@@ -25,6 +25,15 @@ interface Analytics {
   busiestHoursIST: Array<{ hour: number; count: number }>;
 }
 
+interface CsatStats {
+  sent: number;
+  rated: number;
+  responseRate: number | null;
+  avgRating: number | null;
+  distribution: Record<number, number>;
+  perAgent: Array<{ userId: string; name: string; responses: number; avgRating: number }>;
+}
+
 function fmtMins(mins: number | null): string {
   if (mins === null) return '—';
   if (mins < 1) return '< 1 min';
@@ -41,6 +50,7 @@ function fmtHour(h: number): string {
 
 export default function AgentReportPage() {
   const [data, setData] = useState<Analytics | null>(null);
+  const [csat, setCsat] = useState<CsatStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [days, setDays] = useState(7);
@@ -52,13 +62,17 @@ export default function AgentReportPage() {
       setError('');
       try {
         const token = await getToken();
-        const res = await fetch(`/api/admin/crm/whatsapp/qr/agent-analytics?days=${days}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
+        const [res, csatRes] = await Promise.all([
+          fetch(`/api/admin/crm/whatsapp/qr/agent-analytics?days=${days}`, { headers }),
+          fetch(`/api/admin/crm/whatsapp/qr/csat?days=${days}`, { headers }),
+        ]);
         const d = await res.json();
+        const c = await csatRes.json();
         if (!cancelled) {
           if (d.success) setData(d);
           else setError(d.error || 'Failed to load analytics');
+          setCsat(c.success ? c : null);
         }
       } catch (e: any) {
         if (!cancelled) setError(e.message || 'Failed to load analytics');
@@ -119,6 +133,37 @@ export default function AgentReportPage() {
               </div>
             </div>
 
+            {/* CSAT */}
+            {csat && csat.sent > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border p-5 mb-8">
+                <h2 className="font-semibold mb-3">⭐ Customer Ratings (CSAT)</h2>
+                <div className="flex flex-wrap items-center gap-6 mb-3">
+                  <div>
+                    <div className="text-3xl font-bold">{csat.avgRating !== null ? `${csat.avgRating} / 5` : '—'}</div>
+                    <div className="text-xs text-gray-500">average rating</div>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {csat.rated} of {csat.sent} requests answered
+                    {csat.responseRate !== null && <span className="text-gray-400"> ({csat.responseRate}%)</span>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {[5, 4, 3, 2, 1].map((r) => {
+                    const max = Math.max(1, ...Object.values(csat.distribution));
+                    return (
+                      <div key={r} className="flex items-center gap-2 text-xs">
+                        <span className="w-8 text-right text-gray-500">{r} ★</span>
+                        <div className="flex-1 bg-gray-100 rounded h-3 overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded" style={{ width: `${((csat.distribution[r] || 0) / max) * 100}%` }} />
+                        </div>
+                        <span className="w-8 text-gray-600">{csat.distribution[r] || 0}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Per-agent table */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden mb-8">
               <div className="px-5 py-3 border-b"><h2 className="font-semibold">👥 Per Agent</h2></div>
@@ -135,17 +180,22 @@ export default function AgentReportPage() {
                         <th className="px-5 py-2.5 font-semibold">Messages sent</th>
                         <th className="px-5 py-2.5 font-semibold">Chats handled</th>
                         <th className="px-5 py-2.5 font-semibold">Msgs / chat</th>
+                        <th className="px-5 py-2.5 font-semibold">CSAT</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.perAgent.map((a) => (
-                        <tr key={a.userId} className="border-b last:border-b-0 hover:bg-gray-50">
-                          <td className="px-5 py-2.5 font-medium">{a.name || a.userId}</td>
-                          <td className="px-5 py-2.5">{a.messagesSent}</td>
-                          <td className="px-5 py-2.5">{a.chatsHandled}</td>
-                          <td className="px-5 py-2.5 text-gray-500">{a.chatsHandled > 0 ? (a.messagesSent / a.chatsHandled).toFixed(1) : '—'}</td>
-                        </tr>
-                      ))}
+                      {data.perAgent.map((a) => {
+                        const agentCsat = csat?.perAgent.find((c) => c.userId === a.userId);
+                        return (
+                          <tr key={a.userId} className="border-b last:border-b-0 hover:bg-gray-50">
+                            <td className="px-5 py-2.5 font-medium">{a.name || a.userId}</td>
+                            <td className="px-5 py-2.5">{a.messagesSent}</td>
+                            <td className="px-5 py-2.5">{a.chatsHandled}</td>
+                            <td className="px-5 py-2.5 text-gray-500">{a.chatsHandled > 0 ? (a.messagesSent / a.chatsHandled).toFixed(1) : '—'}</td>
+                            <td className="px-5 py-2.5">{agentCsat ? `${agentCsat.avgRating} ★ (${agentCsat.responses})` : '—'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

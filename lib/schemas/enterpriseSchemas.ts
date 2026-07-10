@@ -465,6 +465,25 @@ const QrChatNoteSchema = new mongoose.Schema(
 QrChatNoteSchema.index({ userId: 1, chatJid: 1, createdAt: -1 });
 
 // ============================================================================
+// 1a-CSAT. QR CSAT — "rate us 1-5" requests and captured numeric replies
+// ============================================================================
+const QrCsatSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },  // tenant owner
+    phone: { type: String, required: true, index: true },    // digits only
+    chatJid: { type: String, default: '' },
+    sentByUserId: { type: String, default: '' },             // agent who requested the rating
+    sentByName: { type: String, default: '' },
+    sentAt: { type: Date, default: Date.now },
+    rating: { type: Number, min: 1, max: 5 },                // set when the contact replies 1-5
+    ratedAt: { type: Date },
+  },
+  { timestamps: true, collection: 'qr_csat' }
+);
+QrCsatSchema.index({ userId: 1, phone: 1, sentAt: -1 });
+QrCsatSchema.index({ userId: 1, ratedAt: -1 });
+
+// ============================================================================
 // 1a-DRIP. QR DRIP SEQUENCES — multi-step lead journeys with stop-on-reply
 // ============================================================================
 const QrDripSequenceSchema = new mongoose.Schema(
@@ -3195,6 +3214,7 @@ export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsA
 export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
 export function getQrDripSequence() { return getModel('QrDripSequence', QrDripSequenceSchema); }
 export function getQrDripEnrollment() { return getModel('QrDripEnrollment', QrDripEnrollmentSchema); }
+export function getQrCsat() { return getModel('QrCsat', QrCsatSchema); }
 export function getSocialInboxConversation() { return getModel('SocialInboxConversation', SocialInboxConversationSchema); }
 export function getSocialInboxMessage() { return getModel('SocialInboxMessage', SocialInboxMessageSchema); }
 export function getWhatsAppWebhookEvent() { return getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema); }

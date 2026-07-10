@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Loader2, Lock, Unlock, StickyNote, Trash2, UserCircle, Send } from 'lucide-react';
+import { Loader2, Lock, Unlock, StickyNote, Trash2, UserCircle, Send, Star } from 'lucide-react';
 
 interface TeamNote {
   id: string;
@@ -115,6 +115,25 @@ export function TeamInboxSection({ chatJid, token }: TeamInboxSectionProps) {
     if (d.success) setNotes((prev) => prev.filter((n) => n.id !== noteId));
   };
 
+  const [csatStatus, setCsatStatus] = useState('');
+  const handleSendCsat = async () => {
+    if (busy === 'csat') return;
+    setBusy('csat');
+    setCsatStatus('');
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/qr/csat', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatJid }),
+      });
+      const d = await res.json();
+      setCsatStatus(d.success ? '✅ Rating request sent' : `❌ ${d.error || 'Failed'}`);
+      setTimeout(() => setCsatStatus(''), 4000);
+    } catch (e: any) {
+      setCsatStatus(`❌ ${e.message}`);
+    } finally { setBusy(''); }
+  };
+
   if (!token) return null;
 
   return (
@@ -169,6 +188,21 @@ export function TeamInboxSection({ chatJid, token }: TeamInboxSectionProps) {
               </button>
             )}
           </div>
+
+          {/* CSAT rating request (individual chats only) */}
+          {!chatJid.endsWith('@g.us') && (
+            <div>
+              <button
+                onClick={handleSendCsat}
+                disabled={busy === 'csat'}
+                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition"
+              >
+                {busy === 'csat' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Star className="w-3.5 h-3.5" />}
+                Ask for a 1–5 rating
+              </button>
+              {csatStatus && <p className="text-[11px] mt-1 text-gray-600">{csatStatus}</p>}
+            </div>
+          )}
 
           {/* Internal notes */}
           <div>

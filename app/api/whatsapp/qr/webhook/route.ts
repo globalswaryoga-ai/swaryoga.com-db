@@ -395,9 +395,7 @@ async function ingestQRPayload(payload: any) {
         console.warn('[QR WEBHOOK] Opt-out check failed (non-fatal):', optErr.message);
       }
 
-      // ── DRIP STOP-ON-REPLY ──
-      // A contact who writes back is engaged — stop their automated drip
-      // journeys (only sequences created with stopOnReply enabled).
+      // ── DRIP STOP-ON-REPLY (runs before CSAT so a rating reply also stops journeys) ──
       try {
         const { getQrDripEnrollment } = await import('@/lib/schemas/enterpriseSchemas');
         await getQrDripEnrollment().updateMany(
@@ -406,6 +404,44 @@ async function ingestQRPayload(payload: any) {
         );
       } catch (dripErr: any) {
         console.warn('[QR WEBHOOK] Drip stop-on-reply failed (non-fatal):', dripErr.message);
+      }
+
+      // ── CSAT RATING CAPTURE ──
+      // A bare 1-5 reply within 48h of a pending rating request is the
+      // customer's rating: record it, thank them, and don't let the digit
+      // trigger chatbot flows or keyword automations.
+      const csatRating = /^[1-5]$/.test(msgText.trim()) ? parseInt(msgText.trim(), 10) : null;
+      if (csatRating !== null) {
+        try {
+          const { getQrCsat } = await import('@/lib/schemas/enterpriseSchemas');
+          const QrCsat = getQrCsat();
+          const pending = await QrCsat.findOneAndUpdate(
+            {
+              userId: bridgeUserId,
+              phone: normalizedPhone,
+              rating: { $exists: false },
+              sentAt: { $gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+            },
+            { $set: { rating: csatRating, ratedAt: new Date() } },
+            { sort: { sentAt: -1 } }
+          );
+          if (pending) {
+            try {
+              const { resolveQrTenantBridge, isQrTenantConnected, sendQrTenantMessage } = await import('@/lib/qrTenantBridge');
+              const session = await resolveQrTenantBridge(bridgeUserId);
+              if (session && (await isQrTenantConnected(session))) {
+                await sendQrTenantMessage(session, {
+                  to: `${normalizedPhone}@s.whatsapp.net`,
+                  type: 'text',
+                  message: 'Thank you for your feedback! 🙏',
+                });
+              }
+            } catch { /* thank-you is best-effort */ }
+            continue; // rating captured — skip chatbot/automations for this digit
+          }
+        } catch (csatErr: any) {
+          console.warn('[QR WEBHOOK] CSAT capture failed (non-fatal):', csatErr.message);
+        }
       }
 
       try {
