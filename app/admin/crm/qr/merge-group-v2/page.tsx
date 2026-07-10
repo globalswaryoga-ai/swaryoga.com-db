@@ -126,14 +126,15 @@ export default function MergeGroupV2Page() {
   async function enqueueRemoval(ids: string[], deleteGroupIntent: boolean) {
     if (!isAdmin) { setMemberError('Only an admin can remove members'); return; }
     if (ids.length === 0) return;
-    if (ids.length > 60) {
-      setMemberError(`WhatsApp safety cap: max 60 removals per job. Select up to 60 (you picked ${ids.length}) and run again for the rest.`);
+    if (ids.length > 300) {
+      setMemberError(`WhatsApp safety cap: max 300 removals per job (15/hr over 20 hr). Select up to 300 (you picked ${ids.length}) and run again for the rest.`);
       return;
     }
     const label = deleteGroupIntent
       ? `Remove ALL ${ids.length} members? When the group is empty it will be deleted automatically.`
       : `Remove ${ids.length} member(s) from this group?`;
-    if (!confirm(label + '\n\nRemovals are paced safely (~15/hour) to protect your WhatsApp number.')) return;
+    const hrs = Math.ceil(ids.length / 15);
+    if (!confirm(label + `\n\nRemovals are paced safely (~15/hr, ~${hrs} hr total) with random 2-5 min gaps to protect your WhatsApp number.`)) return;
 
     setEnqueuing(true);
     setMemberError('');
@@ -291,7 +292,7 @@ export default function MergeGroupV2Page() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
           <h2 className="font-bold mb-2">📋 How It Works</h2>
           <ul className="text-sm space-y-1 text-gray-700">
-            <li>✅ <strong>~15 participants per hour</strong> (30s × 2 warm-up, then 2–6 min random gaps)</li>
+            <li>✅ <strong>~15 participants per hour</strong> (30s × 2 warm-up, then 2–5 min random gaps)</li>
             <li>✅ <strong>Remove at the same safe ~15/hr pace</strong></li>
             <li>✅ <strong>No repeated gaps, irregular timing</strong> (100% human-like)</li>
             <li>✅ <strong>Auto-stops on 20%+ failures</strong> (prevents bans)</li>
@@ -565,8 +566,9 @@ export default function MergeGroupV2Page() {
         <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <h3 className="font-bold mb-2">⚠️ Safety Notes</h3>
           <ul className="text-sm text-gray-700 space-y-1">
-            <li>• Gap strategy: First 2 at 30s warm-up, rest at 2–6 min random (no repeats, irregular)</li>
-            <li>• Max rate: ~15 operations per hour (matches QR message-send pace)</li>
+            <li>• Gap strategy: First 2 at 30s warm-up, rest at 2–5 min random (no repeats, irregular)</li>
+            <li>• Max rate: ~15 operations per hour (2-5 min random gaps, non-robotic)</li>
+            <li>• Max per job: 300 removals (~20 hours at 15/hr)</li>
             <li>• Auto-stops if 20%+ operations fail (prevents cascading bans)</li>
             <li>• Each operation fully isolated (not concurrent)</li>
             <li>• Participant order randomized (not systematic/bot-like)</li>

@@ -62,7 +62,7 @@ interface MergeOperationGaps {
  * Calculate variable gaps for group operations (~15/hour, matches QR send pace)
  * Pattern:
  * - Operations 1-2: 30 second warm-up
- * - Operations 3+: Random 120-360 second gaps (2–6 min, ~15/hr)
+ * - Operations 3+: Random 120-300 second gaps (2–5 min, ~15/hr)
  * - No repeated gaps (ensures human-like, non-robotic behavior)
  */
 export function calculateGroupOperationGaps(totalOperations: number): MergeOperationGaps {
@@ -76,10 +76,10 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
       // First 2 operations: 30 second warm-up
       gap = 30000;
     } else {
-      // Rest: Random 120-360 second gaps (2–6 min, ~15/hr — matches message pace)
+      // Rest: Random 120-300 second gaps (2–5 min, ~15/hr — non-robotic)
       let attempts = 0;
       do {
-        gap = Math.random() * (360000 - 120000) + 120000;
+        gap = Math.random() * (300000 - 120000) + 120000;
         attempts++;
       } while (gap === lastGap && attempts < 10);
     }
@@ -95,7 +95,7 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
     gaps,
     totalMs,
     totalMinutes,
-    strategy: `First 2: 30s | Rest: 2–6 min random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
+    strategy: `First 2: 30s | Rest: 2–5 min random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
   };
 }
 
@@ -198,9 +198,9 @@ export function getNextGroupOperationGap(operationIndex: number, lastGap?: numbe
   let attempts = 0;
 
   do {
-    // 120–360s random (mean 240s = 4 min) → ~15 operations/hour, matching the
-    // QR message-send pace. No repeated gaps keeps it human/non-robotic.
-    gap = Math.random() * (360000 - 120000) + 120000;
+    // 120–300s random (mean 210s = 3.5 min) → ~15-17 operations/hour, non-robotic.
+    // No repeated gaps keeps it human/non-robotic.
+    gap = Math.random() * (300000 - 120000) + 120000;
     attempts++;
   } while (lastGap && gap === lastGap && attempts < 10);
 

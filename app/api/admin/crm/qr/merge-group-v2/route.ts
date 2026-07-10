@@ -68,8 +68,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate compliance (60 ops in 60 minutes = 60/hour - safe)
-    const compliance = validateGroupOperationCompliance(participantIds.length, 1);
+    // Validate compliance (~15 ops/hr, spread over calculated hours)
+    const spreadHours = Math.max(1, Math.ceil(participantIds.length / 15));
+    const compliance = validateGroupOperationCompliance(participantIds.length, spreadHours);
     if (!compliance.valid) {
       return NextResponse.json(
         {
