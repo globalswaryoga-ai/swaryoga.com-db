@@ -2102,6 +2102,33 @@ app.post('/send-poll', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Send Location ────────────────────────────────────────────────────────
+app.post('/send-location', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { to, latitude, longitude, name, address } = req.body || {};
+  if (!to) return res.status(400).json({ error: 'to required' });
+  const lat = Number(latitude), lng = Number(longitude);
+  if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return res.status(400).json({ error: 'Valid latitude and longitude required' });
+  const toStr = String(to);
+  const jid = toStr.includes('@') ? toStr : `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+  try {
+    const result = await session.sock.sendMessage(jid, {
+      location: {
+        degreesLatitude: lat,
+        degreesLongitude: lng,
+        ...(name ? { name: String(name).slice(0, 100) } : {}),
+        ...(address ? { address: String(address).slice(0, 200) } : {}),
+      },
+    });
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
+    res.json({ success: true, messageId: result?.key?.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Typing Indicator ─────────────────────────────────────────────────────
 app.post('/typing', async (req, res) => {
   const session = getSessionForRequest(req);
