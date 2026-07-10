@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
+import { activateCourseEnrollmentForOrder } from '@/lib/courseEnrollmentActivation';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,6 +97,18 @@ export async function GET(request: NextRequest) {
         await Order.updateOne({ _id: order._id }, { $set: { seatInventoryAdjusted: true } });
       } catch (seatError) {
         console.error('⚠️ Failed to adjust seat inventory:', seatError);
+      }
+    }
+
+    // ✅ E-learning: activate the buyer's course enrollment right here.
+    // The webhook does this too, but the return redirect is the one path
+    // guaranteed to run when the user comes back — without this, a missed
+    // webhook left paid users unable to see their videos.
+    if (paymentStatus === 'completed' && (order as any).courseId) {
+      try {
+        await activateCourseEnrollmentForOrder(order as any, cashfreeOrderId);
+      } catch (enrollmentError) {
+        console.error('⚠️ Failed to activate course enrollment on return:', enrollmentError);
       }
     }
 

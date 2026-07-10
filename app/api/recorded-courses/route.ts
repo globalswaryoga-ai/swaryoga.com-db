@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
+import connectDB, { Order } from '@/lib/db';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import {
   getRecordedCourse,
@@ -15,6 +15,11 @@ import {
   getCourseEnrollment,
   getCourseReview,
 } from '@/lib/schemas/recordedCourseSchemas';
+import { activateCourseEnrollmentForOrder } from '@/lib/courseEnrollmentActivation';
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -127,8 +132,44 @@ export async function GET(request: NextRequest) {
           courseId: course._id,
           status: { $in: ['active', 'completed'] },
         }).lean();
-        
+
         canAccessPaidContent = !!enrollment;
+
+        // ── SELF-HEAL: paid but not enrolled ──
+        // Historically the e-learning payment flow could complete an Order
+        // without ever creating the CourseEnrollment (missed webhook / old
+        // initiate flow), locking paying users out of their videos. If this
+        // viewer has a completed order for this course, activate it now.
+        if (!enrollment) {
+          try {
+            const orderMatch: any[] = [{ userId: String(userId) }];
+            if (decoded?.email) {
+              orderMatch.push({
+                'shippingAddress.email': new RegExp(`^${escapeRegex(String(decoded.email).trim())}$`, 'i'),
+              });
+            }
+            const paidOrder: any = await Order.findOne({
+              courseId: course._id,
+              paymentStatus: 'completed',
+              $or: orderMatch,
+            }).sort({ createdAt: -1 });
+
+            if (paidOrder) {
+              await activateCourseEnrollmentForOrder(paidOrder, paidOrder.cashfreeOrderId || String(paidOrder._id));
+              enrollment = await CourseEnrollment.findOne({
+                userId,
+                courseId: course._id,
+                status: { $in: ['active', 'completed'] },
+              }).lean();
+              canAccessPaidContent = !!enrollment;
+              if (enrollment) {
+                console.log(`[Recorded Courses] Self-healed enrollment for user ${userId} on course ${course.slug}`);
+              }
+            }
+          } catch (healErr: any) {
+            console.error('[Recorded Courses] Self-heal check failed:', healErr?.message);
+          }
+        }
       }
       
       // Calculate gift hours availability
