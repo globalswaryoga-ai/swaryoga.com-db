@@ -335,6 +335,22 @@ async function handleWebhookPayload(payload: any) {
             update.failureCode = err?.code?.toString() || undefined;
           }
 
+          // REAL BILLING CAPTURE: Meta attaches the actual conversation +
+          // pricing info to 'sent' statuses. Store it so cost reports can use
+          // Meta's real billing category instead of guessing from price tables.
+          if (st?.pricing || st?.conversation) {
+            update['metadata.metaBilling'] = {
+              conversationId: st?.conversation?.id || undefined,
+              originType: st?.conversation?.origin?.type || undefined,
+              category: st?.pricing?.category || st?.conversation?.origin?.type || undefined,
+              billable: st?.pricing?.billable !== false,
+              pricingModel: st?.pricing?.pricing_model || undefined,
+              expiresAt: st?.conversation?.expiration_timestamp
+                ? new Date(Number(st.conversation.expiration_timestamp) * 1000)
+                : undefined,
+            };
+          }
+
           // Update WhatsAppMessage (single message tracking)
           await WhatsAppMessage.updateOne(
             { $or: [{ waMessageId }, { externalMessageId: waMessageId }] },
@@ -763,16 +779,46 @@ async function handleWebhookPayload(payload: any) {
             });
 
             // ================================================================
-            // STOP / BLOCK KEYWORD DETECTION
-            // If user sends "stop", "unsubscribe", "block" etc → auto-delete lead
+            // STOP / OPT-OUT DETECTION (compliance)
+            // STOP/UNSUBSCRIBE/BLOCK → BLOCK the lead (never delete: deleting
+            // erases the opt-out itself, so a re-imported lead would get
+            // broadcasts again) + confirm. START/UNSTOP → unblock + confirm.
+            // Exact-match keywords only — "cancel" and sentences like "please
+            // stop by the studio" must NOT opt anyone out.
             // ================================================================
-            const stopKeywords = ['stop', 'unsubscribe', 'block', 'opt out', 'opt-out', 'cancel'];
-            const normalizedBody = (body || '').toLowerCase().trim();
-            if (stopKeywords.includes(normalizedBody)) {
-              console.log(`🗑️ [AUTO-DELETE] Lead ${lead._id} (${from}) opted out — keyword: "${normalizedBody}"`);
-              await Lead.deleteOne({ _id: lead._id });
-              if (FunnelStageHistory) await FunnelStageHistory.deleteMany({ leadId: lead._id });
-              continue;
+            try {
+              const { detectOptOutIntent } = await import('@/lib/qrOptOut');
+              const normalizedBody = (body || '').toLowerCase().trim();
+              const optIntent = detectOptOutIntent(body || '') || (normalizedBody === 'block' ? 'opt_out' : null);
+
+              if (optIntent === 'opt_out') {
+                await Lead.updateOne(
+                  { _id: lead._id },
+                  { $set: { isBlocked: true, status: 'blocked', waBlockedReason: `User replied "${normalizedBody}"`, waBlockedAt: now } }
+                );
+                console.log(`🚫 [OPT-OUT] Lead ${lead._id} (${from}) blocked — keyword: "${normalizedBody}"`);
+                const { sendWhatsAppText } = await import('@/lib/whatsapp');
+                sendWhatsAppText(
+                  from,
+                  'You have been unsubscribed and will not receive further messages. Reply START anytime to subscribe again. 🙏',
+                  tenantCreds
+                ).catch((e) => console.warn('[OPT-OUT] Confirmation send failed:', e?.message));
+                continue;
+              }
+
+              if (optIntent === 'opt_in' && lead.isBlocked) {
+                await Lead.updateOne(
+                  { _id: lead._id },
+                  { $set: { isBlocked: false }, $unset: { waBlockedReason: 1, waBlockedAt: 1 } }
+                );
+                console.log(`✅ [OPT-IN] Lead ${lead._id} (${from}) unblocked`);
+                const { sendWhatsAppText } = await import('@/lib/whatsapp');
+                sendWhatsAppText(from, 'Welcome back! You are subscribed again. 🙏', tenantCreds)
+                  .catch((e) => console.warn('[OPT-IN] Confirmation send failed:', e?.message));
+                continue;
+              }
+            } catch (optErr: any) {
+              console.warn('[OPT-OUT] Detection failed (non-fatal):', optErr?.message);
             }
 
             // If lead is already blocked, skip automations but still store message
