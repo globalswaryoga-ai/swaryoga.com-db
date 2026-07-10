@@ -1211,6 +1211,52 @@ export default function QRWhatsAppPage() {
           }
         }
 
+        // ── SECOND PASS: merge unresolved @lid twins by display name ──
+        // An @lid chat whose lid→phone mapping isn't known yet has NO phone key
+        // (lids are 14+ digits and correctly rejected as phones), so the pass
+        // above can't merge it and the contact shows twice. When two non-group
+        // chats share the exact same meaningful name and exactly one of them
+        // has a resolvable phone, they're the same person — merge the
+        // phone-less twin into the phone-bearing one (which is also the only
+        // JID that's safe to send to).
+        {
+          const byName = new Map<string, ChatItem[]>();
+          for (const c of deduped) {
+            if (c.isGroup) continue;
+            const name = String(c.name || '').trim().toLowerCase();
+            if (name.length < 4 || /^[\d\s+\-()]+$/.test(name)) continue; // skip short/phone-like names
+            if (!byName.has(name)) byName.set(name, []);
+            byName.get(name)!.push(c);
+          }
+          const dropIds = new Set<string>();
+          for (const entries of byName.values()) {
+            if (entries.length < 2) continue;
+            const withPhone = entries.filter((c) => extractBestChatPhone(c as any));
+            const withoutPhone = entries.filter((c) => !extractBestChatPhone(c as any));
+            if (withPhone.length !== 1 || withoutPhone.length === 0) continue;
+            const survivor = withPhone[0];
+            for (const twin of withoutPhone) {
+              survivor.unreadCount = (survivor.unreadCount || 0) + (twin.unreadCount || 0);
+              const sTime = survivor.lastMessageTime ? new Date(survivor.lastMessageTime).getTime() : 0;
+              const tTime = twin.lastMessageTime ? new Date(twin.lastMessageTime).getTime() : 0;
+              if (tTime > sTime) {
+                survivor.lastMessage = twin.lastMessage;
+                survivor.lastMessageTime = twin.lastMessageTime;
+              }
+              const droppedReadAt = readChatsRef.current.get(twin.id);
+              if (droppedReadAt && !readChatsRef.current.has(survivor.id)) {
+                readChatsRef.current.set(survivor.id, droppedReadAt);
+              }
+              dropIds.add(twin.id);
+            }
+          }
+          if (dropIds.size > 0) {
+            for (let i = deduped.length - 1; i >= 0; i--) {
+              if (dropIds.has(deduped[i].id)) deduped.splice(i, 1);
+            }
+          }
+        }
+
         // The QR inbox must reflect WhatsApp session chats only.
         // Do NOT fetch or inject CRM leads into the QR list directly.
         // A chat should appear here only if it exists in the user's WhatsApp session.
