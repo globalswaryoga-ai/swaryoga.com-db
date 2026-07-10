@@ -1335,10 +1335,13 @@ function getAuthPrefixesForRequest(req) {
 }
 
 // A background poll (/status) may only auto-start a socket to RESUME a
-// previously paired login (registered creds saved in Mongo — e.g. after a
-// bridge restart). It must never spawn an unattended QR pairing socket:
-// endless unwatched pairing attempts are a strong bot signal (ban risk).
-// Pairing starts only from explicit user actions (/qr, /reconnect).
+// previously paired login (creds saved in Mongo — e.g. after a bridge
+// restart). It must never spawn an unattended QR pairing socket: endless
+// unwatched pairing attempts are a strong bot signal (ban risk). Pairing
+// starts only from explicit user actions (/qr, /reconnect).
+// NOTE: QR-linked sessions keep `registered: false` for life — the flag is
+// only for the pairing-code flow. What proves a completed pairing is the
+// linked identity `me` (absent on creds saved mid-pairing, before the scan).
 async function hasRegisteredCreds(req) {
   try {
     const client = await getMongoClient();
@@ -1346,7 +1349,7 @@ async function hasRegisteredCreds(req) {
     const collection = client.db(AUTH_DB_NAME).collection(AUTH_COLLECTION);
     const keys = getAuthPrefixesForRequest(req).map(p => `${p}:creds`);
     const doc = await collection.findOne({ key: { $in: keys } });
-    return doc?.value?.registered === true;
+    return !!doc?.value?.me?.id || doc?.value?.registered === true;
   } catch (e) {
     console.error(`[${req.userId}] hasRegisteredCreds check failed:`, e.message);
     return false;
