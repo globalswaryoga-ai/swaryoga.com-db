@@ -398,6 +398,11 @@ export default function QRWhatsAppPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showPollComposer, setShowPollComposer] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [pollMultiSelect, setPollMultiSelect] = useState(false);
+  const [sendingPoll, setSendingPoll] = useState(false);
   const [showStarPopup, setShowStarPopup] = useState(false);
   const [starTab, setStarTab] = useState<'quick' | 'template' | 'broadcast' | 'schedule' | 'repeat'>('quick');
   const [broadcastChats, setBroadcastChats] = useState<Set<string>>(new Set());
@@ -1853,6 +1858,32 @@ export default function QRWhatsAppPage() {
       sendLockRef.current = false; // Release lock
     }
   }, [composerText, mediaPreview, selectedChat, sending, bridgeCall, fetchMessages, token, replyingTo]);
+
+  // ── Send a poll ──
+  const handleSendPoll = useCallback(async () => {
+    const opts = pollOptions.map(o => o.trim()).filter(Boolean);
+    if (!selectedChat || !pollQuestion.trim() || opts.length < 2 || sendingPoll) return;
+    setSendingPoll(true);
+    try {
+      const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
+      const to = isGroupChat ? selectedChat : selectedChat.replace('@s.whatsapp.net', '');
+      await bridgeCall('/send-poll', 'POST', {
+        to,
+        name: pollQuestion.trim(),
+        options: opts,
+        selectableCount: pollMultiSelect ? opts.length : 1,
+      });
+      setShowPollComposer(false);
+      setPollQuestion('');
+      setPollOptions(['', '']);
+      setPollMultiSelect(false);
+      setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), 800);
+    } catch (e: any) {
+      setError(e.message || 'Failed to send poll');
+    } finally {
+      setSendingPoll(false);
+    }
+  }, [selectedChat, pollQuestion, pollOptions, pollMultiSelect, sendingPoll, bridgeCall, fetchMessages]);
 
   // ── React to a message ──
   const handleReaction = useCallback(async (messageId: string, emoji: string, participant?: string) => {
@@ -3491,6 +3522,59 @@ export default function QRWhatsAppPage() {
                       <button onClick={() => { handleFileSelect('video/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Video className="w-4 h-4 text-indigo-600" /> Video</button>
                       <button onClick={() => { handleFileSelect('.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><FileText className="w-4 h-4 text-orange-500" /> Document</button>
                       <button onClick={() => { handleFileSelect('audio/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Mic className="w-4 h-4 text-purple-500" /> Audio</button>
+                      <button onClick={() => { setShowPollComposer(true); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><CheckSquare className="w-4 h-4 text-sky-600" /> Poll</button>
+                    </div>
+                  )}
+
+                  {/* Poll Composer Modal */}
+                  {showPollComposer && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                      <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-bold text-gray-900">📊 Create Poll</h3>
+                          <button onClick={() => setShowPollComposer(false)} className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
+                        </div>
+                        <input
+                          type="text"
+                          value={pollQuestion}
+                          onChange={(e) => setPollQuestion(e.target.value)}
+                          placeholder="Ask a question…"
+                          maxLength={255}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                        <div className="space-y-2 mb-3">
+                          {pollOptions.map((opt, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={opt}
+                                onChange={(e) => setPollOptions(prev => prev.map((o, i) => (i === idx ? e.target.value : o)))}
+                                placeholder={`Option ${idx + 1}`}
+                                maxLength={100}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                              />
+                              {pollOptions.length > 2 && (
+                                <button onClick={() => setPollOptions(prev => prev.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {pollOptions.length < 12 && (
+                          <button onClick={() => setPollOptions(prev => [...prev, ''])} className="text-sm text-green-600 hover:text-green-700 font-medium mb-3">+ Add option</button>
+                        )}
+                        <label className="flex items-center gap-2 text-sm text-gray-700 mb-4 cursor-pointer">
+                          <input type="checkbox" checked={pollMultiSelect} onChange={(e) => setPollMultiSelect(e.target.checked)} className="rounded" />
+                          Allow multiple answers
+                        </label>
+                        <button
+                          onClick={handleSendPoll}
+                          disabled={sendingPoll || !pollQuestion.trim() || pollOptions.filter(o => o.trim()).length < 2}
+                          className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                        >
+                          {sendingPoll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                          {sendingPoll ? 'Sending…' : 'Send Poll'}
+                        </button>
+                      </div>
                     </div>
                   )}
 

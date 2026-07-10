@@ -697,6 +697,7 @@ const SUPER_ADMIN_ONLY_PATHS = new Set([
  */
 const BODY_TARGET_PATHS = new Set([
   '/send',
+  '/send-poll',
   '/reply',
   '/react',
   '/delete-message',

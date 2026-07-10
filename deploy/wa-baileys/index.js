@@ -2076,6 +2076,32 @@ app.post('/delete-message', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Send Poll ────────────────────────────────────────────────────────────
+app.post('/send-poll', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { to, name, options, selectableCount } = req.body || {};
+  if (!to || !name) return res.status(400).json({ error: 'to and name required' });
+  if (!Array.isArray(options) || options.length < 2) return res.status(400).json({ error: 'At least 2 options required' });
+  if (options.length > 12) return res.status(400).json({ error: 'Maximum 12 options' });
+  const toStr = String(to);
+  const jid = toStr.includes('@') ? toStr : `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+  try {
+    const result = await session.sock.sendMessage(jid, {
+      poll: {
+        name: String(name).slice(0, 255),
+        values: options.map(o => String(o).slice(0, 100)),
+        selectableCount: Math.max(1, Math.min(parseInt(selectableCount, 10) || 1, options.length)),
+      },
+    });
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
+    res.json({ success: true, messageId: result?.key?.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Typing Indicator ─────────────────────────────────────────────────────
 app.post('/typing', async (req, res) => {
   const session = getSessionForRequest(req);
