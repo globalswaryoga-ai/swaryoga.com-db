@@ -2652,6 +2652,9 @@ export default function QRWhatsAppPage() {
             <a href="/admin/crm/qr/broadcast-report" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 transition" title="QR Broadcast Reports">
               📊 QR Reports
             </a>
+            <a href="/admin/crm/qr/merge-group-v2" className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 border border-red-200 flex items-center gap-1.5 transition" title="Group members: remove one/some/all — group auto-deletes when empty">
+              🗑️ Group Delete
+            </a>
           </div>
         </div>
 
