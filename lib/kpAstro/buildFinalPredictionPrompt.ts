@@ -7,6 +7,38 @@
 // already married; reframe it as e.g. "deepening of married life" instead).
 
 import { KP_LANGUAGE_NAMES } from './languages';
+import { horoscopeSections } from './horoscopeSections';
+import { findSubTableRow, diseasesByNo, mindsetByNo, professionsByNo, gemstoneByPlanet } from './index';
+
+export interface FinalPredictionHouseInput {
+  house: number;
+  sign?: string;
+  star?: string;
+  subLord?: string;
+}
+
+// Rulebook text sources keyed by the house whose cusp sub-lord position the
+// content was authored for (same 249-division lookup as the report flow).
+const HOUSE_RULEBOOK: Record<number, { label: string; data: Record<string, string> }> = {
+  3: { label: 'Mindset rulebook (3rd cusp)', data: mindsetByNo },
+  6: { label: 'Diseases rulebook (6th cusp)', data: diseasesByNo },
+  10: { label: 'Profession rulebook (10th cusp)', data: professionsByNo },
+};
+
+function buildRulebookBlock(houses: FinalPredictionHouseInput[] | undefined): string {
+  if (!houses?.length) return '';
+  const lines: string[] = [];
+  for (const h of houses) {
+    const source = HOUSE_RULEBOOK[h.house];
+    if (!source) continue;
+    const matched = findSubTableRow(h.sign, h.star, h.subLord);
+    if (!matched) continue;
+    const text = source.data[String(matched.no)];
+    if (text) lines.push(`- ${source.label}, Sub Lord match #${matched.no}: ${text}`);
+  }
+  if (!lines.length) return '';
+  return `\nCURATED KP RULEBOOK CONTENT for this chart (authoritative — weave these findings into the matching life sections):\n${lines.join('\n')}\n`;
+}
 
 export interface FinalPredictionBhavInput {
   house: number;
@@ -97,8 +129,9 @@ export function buildFinalPredictionPrompt(params: {
   lifeStageNotes: string;
   orderedBhavs: FinalPredictionBhavInput[];
   currentMahadasha?: { planet: string; startDate: string; endDate: string };
+  houses?: FinalPredictionHouseInput[];
 }): string {
-  const { personName, dob, gender, language, lifeStageNotes, orderedBhavs, currentMahadasha } = params;
+  const { personName, dob, gender, language, lifeStageNotes, orderedBhavs, currentMahadasha, houses } = params;
   const age = currentAge(dob);
   const langName = KP_LANGUAGE_NAMES[language] || 'English';
 
@@ -106,11 +139,26 @@ export function buildFinalPredictionPrompt(params: {
     ? orderedBhavs.map((b, i) => `${i + 1}. ${formatBhav(b)}`).join('\n\n')
     : '(No bhav analysis was saved by the astrologer yet.)';
 
+  // Fixed life-area structure for the output — each section names its KP
+  // houses so the AI knows exactly which saved bhav rows to draw from.
+  const sectionBlock = horoscopeSections
+    .map((s, i) => {
+      const housesLabel = s.houses.length ? ` [houses ${s.houses.join(', ')}]` : '';
+      return `${i + 1}. ${s.title}${housesLabel}${s.notes ? ` — ${s.notes}` : ''}`;
+    })
+    .join('\n');
+
+  const rulebookBlock = buildRulebookBlock(houses);
+
+  const gemstoneBlock = `\nGEMSTONE REFERENCE (planet → stone; recommend only for a clearly weak/afflicted planet):\n${Object.entries(gemstoneByPlanet)
+    .map(([planet, stone]) => `  ${planet}: ${stone}`)
+    .join('\n')}\n`;
+
   return `You are a KP (Krishnamurti Paddhati) astrology assistant writing the FINAL prediction for an admin astrologer at Swar Yoga, to share with their client ("sadhak").
 
-CRITICAL RULE — do not skip this: the astrologer has already done the per-bhav analytical work below, IN THE ORDER GIVEN. That order is deliberate — it is the priority order for this prediction. Use ONLY this analysis as your factual basis; do not invent planetary facts beyond it.
+CRITICAL RULE — do not skip this: the astrologer has already done the per-bhav analytical work below. Use ONLY this analysis (plus the curated rulebook content, if provided) as your factual basis; do not invent planetary facts beyond it.
 
-KARYESH TOOLKIT RULE — when a bhav includes the "Toolkit Karyesh rule template", treat it as the controlling rule logic for that point. Use the Matter, Primary House, CSL, CSL R/D, Star of CSL, Owner of Star of CSL, star-owner signification, Result, and Conclusion exactly as the astrologer saved them. If CSL is marked Retrograde, describe delay/slow delivery. If the star-owner is marked Retrograde, treat the result as denial, weakness, or delayed fulfillment unless the astrologer's conclusion clearly says otherwise. Compare the star-owner significations with supporting houses and opposing/denial houses; do not override the astrologer's conclusion.
+KARYESH TOOLKIT RULE — when a bhav includes the "Toolkit Karyesh rule template", treat it as the controlling rule logic for every life section that draws on that house. Use the Matter, Primary House, CSL, CSL R/D, Star of CSL, Owner of Star of CSL, star-owner signification, Result, and Conclusion exactly as the astrologer saved them. If CSL is marked Retrograde, describe delay/slow delivery. If the star-owner is marked Retrograde, treat the result as denial, weakness, or delayed fulfillment unless the astrologer's conclusion clearly says otherwise. Compare the star-owner significations with supporting houses and opposing/denial houses; do not override the astrologer's conclusion.
 
 NATIVE: ${personName}${gender ? `, ${gender}` : ''}${age !== null ? `, currently ${age} years old` : ''}.
 ${currentMahadasha ? `Current Mahadasha: ${currentMahadasha.planet} (${currentMahadasha.startDate} to ${currentMahadasha.endDate}).` : ''}
@@ -120,10 +168,18 @@ LIFE-STAGE ETHICS RULE (apply this strictly): astrological indications describe 
 - If the native's age or the known life facts make an indicated event already past or already fulfilled (e.g. a dasha "supports marriage" but the life facts say the native is already married, or supports a career change but they're already retired), do NOT predict that event as upcoming. Reframe the astrological support constructively for the native's ACTUAL current situation instead (e.g. "this period deepens and stabilizes the married life already begun" rather than "marriage is coming").
 - If an indicated event is genuinely still ahead given the native's age and life facts, predict it normally, with approximate timing from the dasha periods given.
 - Never contradict a stated life fact. If life facts are silent on a matter, use age as a reasonable default judgment (e.g. don't predict a first marriage for someone in their 60s without it being stated as still pending).
+- Age-gate the education sections: for a native past student age, describe how those periods PLAYED OUT (past tense) briefly, or their relevance to children/further learning — never predict school education as upcoming for an adult.
 
-ASTROLOGER'S BHAV ANALYSIS, IN PRIORITY ORDER (point 1 = the astrologer's chosen first prediction point, etc.):
+ASTROLOGER'S BHAV ANALYSIS (house-by-house factual basis):
 
 ${bhavBlock}
+${rulebookBlock}${gemstoneBlock}
+TASK: Write the final prediction entirely in ${langName}, addressing the reader as "sadhak" (or the ${langName} equivalent), in a warm, confident, personal tone.
 
-TASK: Write the final prediction entirely in ${langName}, addressing the reader as "sadhak" (or the ${langName} equivalent), in a warm, confident, personal tone. Structure it as numbered points following the SAME order as the bhav analysis above (point 1 first, etc.) — each point should read as a complete, standalone prediction statement grounded in that house's analysis, applying the life-stage ethics rule. Close with a brief one-paragraph overall summary. Keep each point focused (2-5 sentences), not an essay.`;
+Structure the output EXACTLY as the following numbered life sections, in this order, translating each section title into ${langName} (keep the numbering). For each section, ground your statements in the saved analysis of the houses listed for that section — sub lords, A/B/C/D significators, karyesh toolkit conclusions, and dasha context. Where the analysis for a section's houses is thin, give a brief, honest indication from whatever IS saved rather than inventing detail.
+
+LIFE SECTIONS (fixed structure — every section must appear):
+${sectionBlock}
+
+Keep each section focused (2-6 sentences; the Do's & Don'ts section uses two short bullet lists instead). After the last section, close with a brief one-paragraph overall summary. Do not add sections beyond these.`;
 }

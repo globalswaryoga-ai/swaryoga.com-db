@@ -8,6 +8,25 @@ import { housesOccupiedBy, housesOwnedBy, starLordOf, type SignificatorHouse, ty
 // Per-bhav (per-house) astrologer working sheet. Each row stays editable so
 // the astrologer can correct the auto-filled KP data before final prediction.
 
+// The nine KP planets, in Vimshottari order — options for the Sub Lord dropdown.
+const KP_PLANETS = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury'];
+
+// Per-house color accents so each bhav box is visually distinct at a glance.
+const HOUSE_COLORS: Record<number, { badge: string; border: string }> = {
+  1:  { badge: 'bg-red-400 text-black',     border: 'border-red-500/40' },
+  2:  { badge: 'bg-orange-400 text-black',  border: 'border-orange-500/40' },
+  3:  { badge: 'bg-amber-400 text-black',   border: 'border-amber-500/40' },
+  4:  { badge: 'bg-yellow-400 text-black',  border: 'border-yellow-500/40' },
+  5:  { badge: 'bg-lime-400 text-black',    border: 'border-lime-500/40' },
+  6:  { badge: 'bg-emerald-400 text-black', border: 'border-emerald-500/40' },
+  7:  { badge: 'bg-teal-400 text-black',    border: 'border-teal-500/40' },
+  8:  { badge: 'bg-cyan-400 text-black',    border: 'border-cyan-500/40' },
+  9:  { badge: 'bg-sky-400 text-black',     border: 'border-sky-500/40' },
+  10: { badge: 'bg-indigo-400 text-black',  border: 'border-indigo-500/40' },
+  11: { badge: 'bg-violet-400 text-black',  border: 'border-violet-500/40' },
+  12: { badge: 'bg-pink-400 text-black',    border: 'border-pink-500/40' },
+};
+
 export interface BhavAnalysisRow {
   house: number;
   subLord: string;
@@ -443,8 +462,10 @@ export default function BhavEditor({
           const progress = rowProgress(row);
           const isReady = progress.done >= 7 || Boolean(row.karyeshRuleConclusion);
 
+          const colors = HOUSE_COLORS[row.house] || HOUSE_COLORS[1];
+
           return (
-            <div key={row.house} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
+            <div key={row.house} className={`overflow-hidden rounded-xl border bg-zinc-950 shadow-sm ${open ? colors.border : 'border-zinc-700'}`}>
               <button
                 type="button"
                 onClick={() => setOpenHouse(open ? 0 : row.house)}
@@ -452,7 +473,7 @@ export default function BhavEditor({
               >
                 <div className="flex min-w-0 items-center gap-3">
                   {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
-                  <span className="shrink-0 rounded-full bg-yellow-400 px-2.5 py-1 text-xs font-bold text-black">{bhavLabel(row.house)}</span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${colors.badge}`}>{bhavLabel(row.house)}</span>
                   <span className="truncate text-sm font-medium text-zinc-100">{HOUSE_LABELS[row.house]}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -469,11 +490,19 @@ export default function BhavEditor({
                 <div className="space-y-3 border-t border-zinc-800 bg-black/70 p-4">
                   <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
                     <FieldBox label="Sub Lord Planet" tone="indigo">
-                      <InputCell
+                      <select
                         value={row.subLord}
-                        onChange={(v) => updateRow(row.house, 'subLord', v)}
-                        accent="yellow"
-                      />
+                        onChange={(e) => updateRow(row.house, 'subLord', e.target.value)}
+                        className="w-full rounded-lg border border-yellow-500/40 bg-black px-3 py-2 text-sm text-yellow-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                      >
+                        <option value="">— select —</option>
+                        {KP_PLANETS.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                        {row.subLord && !KP_PLANETS.includes(row.subLord) && (
+                          <option value={row.subLord}>{row.subLord}</option>
+                        )}
+                      </select>
                     </FieldBox>
                     <FieldBox label="Maha-Antar-Vidasha">
                       <InputCell

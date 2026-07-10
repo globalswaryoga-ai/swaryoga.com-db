@@ -69,6 +69,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       lifeStageNotes: chart.lifeStageNotes || '',
       orderedBhavs,
       currentMahadasha,
+      // Cusp positions let the prompt pull the curated rulebook texts
+      // (mindset/diseases/profession) matched to this chart's sub lords.
+      houses: Array.isArray(chart.houses)
+        ? chart.houses.map((h: any) => ({ house: h.house, sign: h.sign, star: h.star, subLord: h.subLord }))
+        : undefined,
     });
 
     const reportText = await callAI(systemPrompt, [], 'Generate the final prediction now.', 4000);
