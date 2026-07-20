@@ -1539,58 +1539,79 @@ app.get('/profile-pic/:jid', async (req, res) => {
   }
 });
 
-// ── Group Info ───────────────────────────────────────────────────────────
-// groupMetadata() can transiently fail — a momentary socket hiccup, a slow
-// query timeout, WhatsApp briefly rate-limiting — and previously any such
-// failure surfaced immediately as a hard 500 with no retry, which is what
-// admins saw as a generic "Bridge error" in the CRM. Retry a couple of times
-// on anything that doesn't look like a permanent failure before giving up.
-const GROUP_INFO_MAX_ATTEMPTS = 3;
-const GROUP_INFO_PERMANENT_ERROR_HINTS = ['not-authorized', 'forbidden', 'item-not-found', 'bad-request'];
+// ── Retry helper for read-only lookups ──────────────────────────────────
+// Several GET endpoints do a single, side-effect-free Baileys network call
+// (groupMetadata, groupInviteCode, media download) that can transiently fail
+// — a momentary socket hiccup, a slow query, WhatsApp briefly rate-limiting.
+// Previously any such failure surfaced immediately as a hard 500 with no
+// retry, which is what admins saw as a generic "Bridge error" in the CRM.
+// This retries a couple of times on anything that doesn't look like a
+// permanent failure before giving up.
+//
+// IMPORTANT: only wrap read-only/idempotent operations with this. Anything
+// that mutates state (sending a message, adding/removing participants,
+// creating a group) must NOT be blindly retried — if the first attempt
+// partially succeeded before throwing, a retry could duplicate the action
+// (e.g. double-send a message, double-process a batch). Those routes already
+// surface their real error message via e.message; that's the correct and
+// sufficient fix for them.
+const RETRYABLE_MAX_ATTEMPTS = 3;
+const RETRYABLE_PERMANENT_ERROR_HINTS = ['not-authorized', 'forbidden', 'item-not-found', 'bad-request'];
 
+async function withRetry(label, id, fn) {
+  let lastError;
+  for (let attempt = 1; attempt <= RETRYABLE_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastError = e;
+      const isPermanent = RETRYABLE_PERMANENT_ERROR_HINTS.some((hint) => (e.message || '').toLowerCase().includes(hint));
+      if (isPermanent) {
+        console.warn(`[${label}] permanent failure for ${id}: ${e.message}`);
+        e.isPermanent = true;
+        throw e;
+      }
+      if (attempt === RETRYABLE_MAX_ATTEMPTS) break;
+      console.warn(`[${label}] attempt ${attempt}/${RETRYABLE_MAX_ATTEMPTS} failed for ${id}: ${e.message} — retrying`);
+      await new Promise((r) => setTimeout(r, attempt * 1000)); // 1s, then 2s
+    }
+  }
+  console.error(`[${label}] failed for ${id} after ${RETRYABLE_MAX_ATTEMPTS} attempts: ${lastError?.message}`);
+  lastError.retriesExhausted = true;
+  throw lastError;
+}
+
+// ── Group Info ───────────────────────────────────────────────────────────
 app.get('/group-info/:jid', async (req, res) => {
   const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
 
-  let lastError;
-  for (let attempt = 1; attempt <= GROUP_INFO_MAX_ATTEMPTS; attempt++) {
-    try {
-      const metadata = await session.sock.groupMetadata(jid);
-      let participants = metadata.participants || [];
-      const mappedParticipants = participants.map(p => ({
-        id: p.jid || p.id, lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined), admin: p.admin || null,
-      }));
-      const cachedMembers = session.groupMembersCache.get(jid);
-      if (cachedMembers) {
-        const existingIds = new Set(mappedParticipants.map(p => p.id));
-        const existingLids = new Set(mappedParticipants.map(p => p.lid).filter(Boolean));
-        for (const memberId of cachedMembers) {
-          if (!existingIds.has(memberId) && !existingLids.has(memberId))
-            mappedParticipants.push({ id: memberId, lid: memberId.endsWith('@lid') ? memberId : undefined, admin: null });
-        }
+  try {
+    const metadata = await withRetry('group-info', jid, () => session.sock.groupMetadata(jid));
+    let participants = metadata.participants || [];
+    const mappedParticipants = participants.map(p => ({
+      id: p.jid || p.id, lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined), admin: p.admin || null,
+    }));
+    const cachedMembers = session.groupMembersCache.get(jid);
+    if (cachedMembers) {
+      const existingIds = new Set(mappedParticipants.map(p => p.id));
+      const existingLids = new Set(mappedParticipants.map(p => p.lid).filter(Boolean));
+      for (const memberId of cachedMembers) {
+        if (!existingIds.has(memberId) && !existingLids.has(memberId))
+          mappedParticipants.push({ id: memberId, lid: memberId.endsWith('@lid') ? memberId : undefined, admin: null });
       }
-      const actualSize = Math.max(metadata.size || participants.length, mappedParticipants.length);
-      return res.json({
-        id: metadata.id, subject: metadata.subject, subjectOwner: metadata.subjectOwner,
-        subjectTime: metadata.subjectTime, desc: metadata.desc || '', descOwner: metadata.descOwner,
-        creation: metadata.creation, owner: metadata.owner, size: actualSize, participants: mappedParticipants,
-      });
-    } catch (e) {
-      lastError = e;
-      const isPermanent = GROUP_INFO_PERMANENT_ERROR_HINTS.some((hint) => (e.message || '').toLowerCase().includes(hint));
-      if (isPermanent) {
-        console.warn(`[group-info] permanent failure for ${jid}: ${e.message}`);
-        return res.status(400).json({ error: e.message });
-      }
-      if (attempt === GROUP_INFO_MAX_ATTEMPTS) break;
-      console.warn(`[group-info] attempt ${attempt}/${GROUP_INFO_MAX_ATTEMPTS} failed for ${jid}: ${e.message} — retrying`);
-      await new Promise((r) => setTimeout(r, attempt * 1000)); // 1s, then 2s
     }
+    const actualSize = Math.max(metadata.size || participants.length, mappedParticipants.length);
+    res.json({
+      id: metadata.id, subject: metadata.subject, subjectOwner: metadata.subjectOwner,
+      subjectTime: metadata.subjectTime, desc: metadata.desc || '', descOwner: metadata.descOwner,
+      creation: metadata.creation, owner: metadata.owner, size: actualSize, participants: mappedParticipants,
+    });
+  } catch (e) {
+    res.status(e.isPermanent ? 400 : 503).json({ error: e.message, retriesExhausted: !!e.retriesExhausted });
   }
-  console.error(`[group-info] failed for ${jid} after ${GROUP_INFO_MAX_ATTEMPTS} attempts: ${lastError?.message}`);
-  res.status(503).json({ error: lastError?.message || 'Unknown error', retriesExhausted: true });
 });
 
 // ── LID Map ──────────────────────────────────────────────────────────────
@@ -1853,8 +1874,12 @@ app.get('/media/:messageId', async (req, res) => {
 
     let buffer;
     try {
-      buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: session.sock?.updateMediaMessage });
-    } catch (e) { return res.status(500).json({ error: 'Failed to download media: ' + e.message }); }
+      buffer = await withRetry('media-download', messageId, () =>
+        downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: session.sock?.updateMediaMessage })
+      );
+    } catch (e) {
+      return res.status(e.isPermanent ? 400 : 503).json({ error: 'Failed to download media: ' + e.message, retriesExhausted: !!e.retriesExhausted });
+    }
     if (!buffer) return res.status(404).json({ error: 'Media buffer is empty' });
 
     const innerMessage = msg.message?.viewOnceMessage?.message || msg.message?.ephemeralMessage?.message || msg.message;
@@ -1871,7 +1896,7 @@ app.get('/media/:messageId', async (req, res) => {
     res.setHeader('Content-Length', buffer.length);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(buffer);
-  } catch (e) { res.status(500).json({ error: 'Failed to download media' }); }
+  } catch (e) { res.status(500).json({ error: 'Failed to download media: ' + e.message }); }
 });
 
 // ── Group Admin Endpoints ────────────────────────────────────────────────
@@ -1902,8 +1927,12 @@ app.get('/group-invite/:jid', async (req, res) => {
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
-  try { const code = await session.sock.groupInviteCode(jid); res.json({ code, link: `https://chat.whatsapp.com/${code}` }); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  try {
+    const code = await withRetry('group-invite', jid, () => session.sock.groupInviteCode(jid));
+    res.json({ code, link: `https://chat.whatsapp.com/${code}` });
+  } catch (e) {
+    res.status(e.isPermanent ? 400 : 503).json({ error: e.message, retriesExhausted: !!e.retriesExhausted });
+  }
 });
 
 app.post('/group-revoke-invite/:jid', async (req, res) => {
