@@ -1107,8 +1107,12 @@ export async function POST(req: NextRequest) {
         // Not JSON, use generic message
       }
       
-      // Handle specific error codes with helpful messages
-      let errorMessage = 'Bridge error';
+      // Handle specific error codes with helpful messages. Any status not
+      // explicitly handled below (including 500) falls through to the last
+      // branch, which surfaces the bridge's own error text instead of a
+      // generic "Bridge error" — a real 500 from Baileys (e.g. groupMetadata
+      // failing) used to show as an opaque, undiagnosable message.
+      let errorMessage = bridgeSpecificMessage || 'Bridge error';
       if (res.status === 404) {
         errorMessage = `Endpoint not found: ${decodedPath}`;
       } else if (res.status === 503 || res.status === 502) {
@@ -1658,8 +1662,12 @@ export async function GET(req: NextRequest) {
         // Not JSON, use generic message
       }
       
-      // Handle specific error codes with helpful messages
-      let errorMessage = 'Bridge error';
+      // Handle specific error codes with helpful messages. Any status not
+      // explicitly handled below (including 500) falls through to the last
+      // branch, which surfaces the bridge's own error text instead of a
+      // generic "Bridge error" — a real 500 from Baileys (e.g. groupMetadata
+      // failing) used to show as an opaque, undiagnosable message.
+      let errorMessage = bridgeSpecificMessage || 'Bridge error';
       if (res.status === 404) {
         errorMessage = `Endpoint not found: ${path}`;
       } else if (res.status === 503 || res.status === 502) {
@@ -1670,7 +1678,7 @@ export async function GET(req: NextRequest) {
         // Use bridge's specific message if available (e.g., "QR not available")
         errorMessage = bridgeSpecificMessage || 'Invalid request format';
       }
-      
+
       // For group chats that fail, return empty messages instead of error
       if (path.includes('/messages') && path.includes('@lid')) {
         console.warn(`[QR Bridge Proxy] Group chat message fetch failed (${res.status}), returning empty array`);

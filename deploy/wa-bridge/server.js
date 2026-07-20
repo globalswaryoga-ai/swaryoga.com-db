@@ -1540,35 +1540,57 @@ app.get('/profile-pic/:jid', async (req, res) => {
 });
 
 // ── Group Info ───────────────────────────────────────────────────────────
+// groupMetadata() can transiently fail — a momentary socket hiccup, a slow
+// query timeout, WhatsApp briefly rate-limiting — and previously any such
+// failure surfaced immediately as a hard 500 with no retry, which is what
+// admins saw as a generic "Bridge error" in the CRM. Retry a couple of times
+// on anything that doesn't look like a permanent failure before giving up.
+const GROUP_INFO_MAX_ATTEMPTS = 3;
+const GROUP_INFO_PERMANENT_ERROR_HINTS = ['not-authorized', 'forbidden', 'item-not-found', 'bad-request'];
+
 app.get('/group-info/:jid', async (req, res) => {
   const session = getSessionForRequest(req);
   if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
   const jid = req.params.jid;
   if (!jid.endsWith('@g.us')) return res.status(400).json({ error: 'Not a group JID' });
-  try {
-    const metadata = await session.sock.groupMetadata(jid);
-    let participants = metadata.participants || [];
-    const mappedParticipants = participants.map(p => ({
-      id: p.jid || p.id, lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined), admin: p.admin || null,
-    }));
-    const cachedMembers = session.groupMembersCache.get(jid);
-    if (cachedMembers) {
-      const existingIds = new Set(mappedParticipants.map(p => p.id));
-      const existingLids = new Set(mappedParticipants.map(p => p.lid).filter(Boolean));
-      for (const memberId of cachedMembers) {
-        if (!existingIds.has(memberId) && !existingLids.has(memberId))
-          mappedParticipants.push({ id: memberId, lid: memberId.endsWith('@lid') ? memberId : undefined, admin: null });
+
+  let lastError;
+  for (let attempt = 1; attempt <= GROUP_INFO_MAX_ATTEMPTS; attempt++) {
+    try {
+      const metadata = await session.sock.groupMetadata(jid);
+      let participants = metadata.participants || [];
+      const mappedParticipants = participants.map(p => ({
+        id: p.jid || p.id, lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined), admin: p.admin || null,
+      }));
+      const cachedMembers = session.groupMembersCache.get(jid);
+      if (cachedMembers) {
+        const existingIds = new Set(mappedParticipants.map(p => p.id));
+        const existingLids = new Set(mappedParticipants.map(p => p.lid).filter(Boolean));
+        for (const memberId of cachedMembers) {
+          if (!existingIds.has(memberId) && !existingLids.has(memberId))
+            mappedParticipants.push({ id: memberId, lid: memberId.endsWith('@lid') ? memberId : undefined, admin: null });
+        }
       }
+      const actualSize = Math.max(metadata.size || participants.length, mappedParticipants.length);
+      return res.json({
+        id: metadata.id, subject: metadata.subject, subjectOwner: metadata.subjectOwner,
+        subjectTime: metadata.subjectTime, desc: metadata.desc || '', descOwner: metadata.descOwner,
+        creation: metadata.creation, owner: metadata.owner, size: actualSize, participants: mappedParticipants,
+      });
+    } catch (e) {
+      lastError = e;
+      const isPermanent = GROUP_INFO_PERMANENT_ERROR_HINTS.some((hint) => (e.message || '').toLowerCase().includes(hint));
+      if (isPermanent) {
+        console.warn(`[group-info] permanent failure for ${jid}: ${e.message}`);
+        return res.status(400).json({ error: e.message });
+      }
+      if (attempt === GROUP_INFO_MAX_ATTEMPTS) break;
+      console.warn(`[group-info] attempt ${attempt}/${GROUP_INFO_MAX_ATTEMPTS} failed for ${jid}: ${e.message} — retrying`);
+      await new Promise((r) => setTimeout(r, attempt * 1000)); // 1s, then 2s
     }
-    const actualSize = Math.max(metadata.size || participants.length, mappedParticipants.length);
-    res.json({
-      id: metadata.id, subject: metadata.subject, subjectOwner: metadata.subjectOwner,
-      subjectTime: metadata.subjectTime, desc: metadata.desc || '', descOwner: metadata.descOwner,
-      creation: metadata.creation, owner: metadata.owner, size: actualSize, participants: mappedParticipants,
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
   }
+  console.error(`[group-info] failed for ${jid} after ${GROUP_INFO_MAX_ATTEMPTS} attempts: ${lastError?.message}`);
+  res.status(503).json({ error: lastError?.message || 'Unknown error', retriesExhausted: true });
 });
 
 // ── LID Map ──────────────────────────────────────────────────────────────
