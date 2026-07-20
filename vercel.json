@@ -86,10 +86,6 @@
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/admin/crm/group-merge-scheduler/run",
-      "schedule": "* * * * *"
-    },
-    {
       "path": "/api/crm-site/capacity",
       "schedule": "0 * * * *"
     },

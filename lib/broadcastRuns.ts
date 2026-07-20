@@ -1095,6 +1095,24 @@ export async function processDueBroadcastRuns(options?: {
               }
             );
             console.error(`[Broadcast QR] 🚫 Restriction detected — run ${(run as any)._id} paused 24h until ${pauseUntil.toISOString()}`);
+
+            // Also record it against the account itself (shared with group-op
+            // code via lib/whatsappRestriction.ts) so it's visible/enforced
+            // everywhere, not just within this one broadcast run.
+            try {
+              const runUserId = String((run as any).createdByUserId || '');
+              const userSettings = runUserId
+                ? await CRMUserSettings.findOne({ userId: runUserId }, { qrConnectedPhoneNumber: 1 }).lean()
+                : null;
+              const connectedPhone = (userSettings as any)?.qrConnectedPhoneNumber;
+              if (connectedPhone) {
+                const { markQRAccountRestricted } = await import('@/lib/whatsappRestriction');
+                await markQRAccountRestricted(connectedPhone, `Broadcast blocked by WhatsApp: ${errorMsg}`);
+              }
+            } catch (markErr) {
+              console.warn('[Broadcast QR] Failed to record account-level restriction:', markErr);
+            }
+
             qrHardStopped = true;
             break;
           }

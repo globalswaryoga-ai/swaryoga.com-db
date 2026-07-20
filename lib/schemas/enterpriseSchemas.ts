@@ -847,7 +847,7 @@ const WhatsAppAccountSchema = new mongoose.Schema(
     // Connection status
     status: {
       type: String,
-      enum: ['connected', 'disconnected', 'pending', 'error'],
+      enum: ['connected', 'disconnected', 'pending', 'error', 'restricted'],
       default: 'disconnected',
       index: true,
     },
@@ -858,6 +858,12 @@ const WhatsAppAccountSchema = new mongoose.Schema(
       enum: ['healthy', 'degraded', 'down'],
       default: 'down',
     },
+
+    // WhatsApp-side restriction/ban tracking (QR accounts). Lets a
+    // restriction pause the account instead of requiring deletion — see
+    // lib/whatsappRestriction.ts for the shared read/write helpers.
+    restrictedUntil: { type: Date, sparse: true },
+    restrictionReason: { type: String, sparse: true },
 
     // Configuration
     isDefault: { type: Boolean, default: false, index: true }, // Default account for sending

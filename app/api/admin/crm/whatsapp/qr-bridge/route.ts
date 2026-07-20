@@ -951,6 +951,52 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── RESTRICTION PREFLIGHT: block group ops while account is restricted ──
+    // If a prior call already detected a WhatsApp-side block/restriction on
+    // this number (see the post-fetch check below), refuse further group
+    // ops until the restriction window passes instead of letting them
+    // through and deepening the ban.
+    if (basePath === '/group-participants' && resolved.storedPhone) {
+      const { getQRAccountRestriction } = await import('@/lib/whatsappRestriction');
+      const restriction = await getQRAccountRestriction(resolved.storedPhone);
+      if (restriction.restricted) {
+        return NextResponse.json({
+          success: false,
+          error: `This WhatsApp number is restricted until ${restriction.restrictedUntil.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST (${restriction.reason || 'WhatsApp flagged recent activity'}). Group operations are paused to avoid deepening the restriction.`,
+          restricted: true,
+          restrictedUntil: restriction.restrictedUntil.toISOString(),
+        }, { status: 423 });
+      }
+    }
+
+    // ── GROUP-OP RATE LIMIT: cap group participant add/remove ops ──
+    // Adding/removing many group members quickly is a strong WhatsApp ban
+    // signal. Reserve one slot per participant from the same persisted
+    // hourly/daily budget used by the background bulk-group-merge job, so
+    // the cap holds no matter which UI feature calls this proxy (merge,
+    // bulk-remove, etc.) and survives tab closes/reloads/concurrent users.
+    if (basePath === '/group-participants' && body && (body.action === 'add' || body.action === 'remove') && Array.isArray(body.participants)) {
+      const { reserveGroupOpSlot } = await import('@/lib/qrGroupOpRateLimit');
+      const allowedParticipants: string[] = [];
+      for (const p of body.participants) {
+        const r = await reserveGroupOpSlot(userId);
+        if (r.allowed) {
+          allowedParticipants.push(p);
+        } else {
+          console.warn(`[QR Bridge Proxy] Group-op rate limit hit for userId=${userId}, reason=${r.reason}`);
+          break;
+        }
+      }
+      if (allowedParticipants.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'Group operation rate limit reached (max 15/hour, 150/day) to protect this WhatsApp number from being banned. Please wait and try again.',
+          rateLimited: true,
+        }, { status: 429 });
+      }
+      body.participants = allowedParticipants;
+    }
+
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
@@ -1073,7 +1119,20 @@ export async function POST(req: NextRequest) {
         // Use bridge's specific message if available (e.g., "QR not available")
         errorMessage = bridgeSpecificMessage || 'Invalid request format';
       }
-      
+
+      // ── DETECT WHATSAPP-SIDE RESTRICTION ON GROUP OPS ──
+      // If the bridge's error looks like a WhatsApp block/restriction signal
+      // (same keyword check used for broadcast hard-stops), record it against
+      // this account so future group ops are paused for 24h instead of
+      // someone having to delete the account doc to "reset" it.
+      if (basePath === '/group-participants' && resolved.storedPhone) {
+        const { isWhatsAppBlockedSignal, markQRAccountRestricted } = await import('@/lib/whatsappRestriction');
+        const signal = `${bridgeSpecificMessage || ''} ${errorText}`;
+        if (isWhatsAppBlockedSignal(signal)) {
+          await markQRAccountRestricted(resolved.storedPhone, `Group operation blocked by WhatsApp: ${bridgeSpecificMessage || errorText.substring(0, 150)}`);
+        }
+      }
+
       return NextResponse.json(
         { 
           error: errorMessage,

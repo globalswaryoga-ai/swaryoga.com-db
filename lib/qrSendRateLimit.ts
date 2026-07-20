@@ -1,5 +1,5 @@
 /**
- * QR WhatsApp Send Rate Limiter — HARD CAPS
+ * QR WhatsApp Send Rate Limiter — HARD CAPS, PER WHATSAPP NUMBER
  *
  * Enforces:
  *   - 150 messages per day (resets at 5:00 AM IST)
@@ -9,19 +9,22 @@
  * the manual broadcast endpoint AND the cron processor. Once a cap is hit,
  * NO MORE messages send until the next reset — no UI override possible.
  *
- * These caps + the 5 AM–10 PM IST send window + ~1 msg/5 min pacing keep a
+ * These caps + the 5 AM–10:30 PM IST send window + ~1 msg/5 min pacing keep a
  * single number well under WhatsApp's spam-detection thresholds.
  *
- * NOTE: counters are stored on the existing `crm_user_settings` doc
- * (metadata.qrSendRateCounter) rather than a dedicated collection — the
- * Atlas cluster is at its 500-collection hard cap, so creating a brand-new
- * `qr_send_rate_counters` collection fails with "cannot create a new
- * collection -- already using 500 collections of 500". That failure used to
- * happen AFTER the WhatsApp send already succeeded, so every QR broadcast
- * message was wrongly marked "failed".
+ * IMPORTANT: the budget is keyed by the WhatsApp NUMBER (via `whatsapp_accounts`,
+ * looked up from the caller's connected phone), not by the logged-in user —
+ * same reasoning as [qrGroupOpRateLimit.ts]. If two team members send from the
+ * same shared WhatsApp number, they draw from the SAME 15/hour, 150/day pool;
+ * otherwise N people sharing one number could each get their own 15/hour,
+ * multiplying real send traffic to that number by N. Every call still takes a
+ * `userId` (unchanged signature for existing callers); it's resolved to the
+ * connected phone number internally via `CRMUserSettings.qrConnectedPhoneNumber`.
+ * If no connected phone can be resolved yet, falls back to a per-user key so
+ * the caller isn't blocked outright.
  */
 import { connectDB } from '@/lib/db';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getCRMUserSettings, getWhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 
 export const DAILY_LIMIT = 150;
 export const HOURLY_LIMIT = 15;
@@ -60,17 +63,46 @@ function getNextHour(now = new Date()): Date {
   return next;
 }
 
+/** Resolve a userId's connected WhatsApp number, and a stable rate-limit key for it. */
+async function resolveRateLimitKey(userId: string): Promise<{ key: string; isPhoneKeyed: boolean }> {
+  await connectDB();
+  const CRMUserSettings = getCRMUserSettings();
+  const settings: any = await CRMUserSettings.findOne({ userId }, { qrConnectedPhoneNumber: 1 }).lean();
+  const digits = String(settings?.qrConnectedPhoneNumber || '').replace(/\D/g, '');
+  if (digits) return { key: `phone:${digits}`, isPhoneKeyed: true };
+  // No connected phone yet — fall back to per-user so callers aren't blocked outright.
+  return { key: `user:${userId}`, isPhoneKeyed: false };
+}
+
+/**
+ * Find (or lazily create) the counter-holding document for a rate-limit key.
+ * Phone-keyed budgets live on the `whatsapp_accounts` doc for that number
+ * (shared across every user of that number); user-keyed fallback budgets
+ * live on `crm_user_settings` as before.
+ */
+async function getCounterDoc(rateKey: { key: string; isPhoneKeyed: boolean }) {
+  if (rateKey.isPhoneKeyed) {
+    const WhatsAppAccount = getWhatsAppAccount();
+    const digits = rateKey.key.slice('phone:'.length);
+    return { Model: WhatsAppAccount, filter: { commonPhoneNumber: `+${digits}` }, upsertExtra: { accountName: digits, accountType: 'common', commonProvider: 'manual', createdByUserId: 'system-rate-limiter', isActive: true } };
+  }
+  const CRMUserSettings = getCRMUserSettings();
+  const userId = rateKey.key.slice('user:'.length);
+  return { Model: CRMUserSettings, filter: { userId }, upsertExtra: { userId } };
+}
+
 /**
  * Check (without incrementing) whether one more send is allowed for this user.
  * Use this before queuing a broadcast — gives a clear yes/no plus current counts.
  */
 export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
   await connectDB();
-  const CRMUserSettings = getCRMUserSettings();
+  const rateKey = await resolveRateLimitKey(userId);
+  const { Model, filter } = await getCounterDoc(rateKey);
 
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
-  const doc = await CRMUserSettings.findOne({ userId }, { 'metadata.qrSendRateCounter': 1 }).lean();
+  const doc = await Model.findOne(filter, { 'metadata.qrSendRateCounter': 1 }).lean();
   const counter: any = (doc as any)?.metadata?.qrSendRateCounter;
 
   const daySent = counter?.dayKey === dayKey ? (counter?.daySent || 0) : 0;
@@ -98,16 +130,17 @@ export async function checkRateLimit(userId: string): Promise<RateCheckResult> {
  */
 export async function reserveSendSlot(userId: string): Promise<RateCheckResult> {
   await connectDB();
-  const CRMUserSettings = getCRMUserSettings();
+  const rateKey = await resolveRateLimitKey(userId);
+  const { Model, filter, upsertExtra } = await getCounterDoc(rateKey);
 
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
 
   // Reset the whole counter if we rolled into a new day (5 AM IST cutover).
   try {
-    await CRMUserSettings.updateOne(
+    await Model.updateOne(
       {
-        userId,
+        ...filter,
         $or: [
           { 'metadata.qrSendRateCounter.dayKey': { $ne: dayKey } },
           { 'metadata.qrSendRateCounter': { $exists: false } },
@@ -116,27 +149,27 @@ export async function reserveSendSlot(userId: string): Promise<RateCheckResult> 
       },
       {
         $set: { 'metadata.qrSendRateCounter': { dayKey, daySent: 0, hourKey, hourSent: 0, lastUpdated: new Date() } },
-        $setOnInsert: { userId },
+        $setOnInsert: upsertExtra,
       },
       { upsert: true }
     );
   } catch (err: any) {
-    // E11000: another concurrent call already upserted this user's settings
-    // doc (Atlas unique index on userId). The doc now exists either way, so
-    // it's safe to fall through to the hour-reset and reservation steps below.
+    // E11000: another concurrent call already upserted this doc (unique index
+    // on userId or commonPhoneNumber). The doc now exists either way, so it's
+    // safe to fall through to the hour-reset and reservation steps below.
     if (err?.code !== 11000) throw err;
   }
 
   // Reset the hour counter if we moved to a new clock-hour (same day).
-  await CRMUserSettings.updateOne(
-    { userId, 'metadata.qrSendRateCounter.dayKey': dayKey, 'metadata.qrSendRateCounter.hourKey': { $ne: hourKey } },
+  await Model.updateOne(
+    { ...filter, 'metadata.qrSendRateCounter.dayKey': dayKey, 'metadata.qrSendRateCounter.hourKey': { $ne: hourKey } },
     { $set: { 'metadata.qrSendRateCounter.hourKey': hourKey, 'metadata.qrSendRateCounter.hourSent': 0 } }
   );
 
   // Atomic check-and-increment: only increment if BOTH caps would still be respected.
-  const updated: any = await CRMUserSettings.findOneAndUpdate(
+  const updated: any = await Model.findOneAndUpdate(
     {
-      userId,
+      ...filter,
       'metadata.qrSendRateCounter.dayKey': dayKey,
       'metadata.qrSendRateCounter.hourKey': hourKey,
       'metadata.qrSendRateCounter.daySent': { $lt: DAILY_LIMIT },
@@ -151,7 +184,7 @@ export async function reserveSendSlot(userId: string): Promise<RateCheckResult> 
 
   if (!updated) {
     // Reservation failed — figure out which cap blocked it
-    const current: any = await CRMUserSettings.findOne({ userId }, { 'metadata.qrSendRateCounter': 1 }).lean();
+    const current: any = await Model.findOne(filter, { 'metadata.qrSendRateCounter': 1 }).lean();
     const counter = current?.metadata?.qrSendRateCounter;
     const daySent = (counter?.daySent as number) || 0;
     const hourSent = counter?.hourKey === hourKey ? ((counter?.hourSent as number) || 0) : 0;
@@ -176,11 +209,12 @@ export async function reserveSendSlot(userId: string): Promise<RateCheckResult> 
 /** Read current counts without mutating — for UI/status display. */
 export async function getCurrentCounts(userId: string): Promise<{ daySent: number; hourSent: number; dayRemaining: number; hourRemaining: number }> {
   await connectDB();
-  const CRMUserSettings = getCRMUserSettings();
+  const rateKey = await resolveRateLimitKey(userId);
+  const { Model, filter } = await getCounterDoc(rateKey);
 
   const dayKey = getDayKeyIST();
   const hourKey = getHourKeyIST();
-  const doc = await CRMUserSettings.findOne({ userId }, { 'metadata.qrSendRateCounter': 1 }).lean();
+  const doc = await Model.findOne(filter, { 'metadata.qrSendRateCounter': 1 }).lean();
   const counter: any = (doc as any)?.metadata?.qrSendRateCounter;
 
   const daySent = counter?.dayKey === dayKey ? (counter?.daySent || 0) : 0;

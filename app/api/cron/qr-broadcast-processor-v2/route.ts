@@ -681,15 +681,20 @@ export async function GET(req: NextRequest) {
     }
 
     // ── GLOBAL TIME GUARD: Never send QR messages after 10:30 PM or before 5:00 AM IST ──
-    // EXCEPTION: 'custom' frequency schedules (Group Scheduler — recurring messages to
-    // groups on specific calendar days) are allowed to send at any time, 24 hours a day.
+    // Previously 'custom' frequency schedules (Group Scheduler — recurring
+    // messages to groups on specific calendar days) were exempted from this
+    // window entirely. That's backwards: off-hours group activity is the
+    // single most bot-like signal (see group-merge-processor-v2's own 5am-
+    // 10pm window), so group schedules get the SAME guard as everything else.
     const sendAllowedNow = isQRSendAllowed();
     if (!sendAllowedNow) {
-      console.log('[QR Broadcast V2] ⏰ Outside allowed hours (5:00 AM – 10:30 PM IST). Skipping non-custom schedules.');
+      console.log('[QR Broadcast V2] ⏰ Outside allowed hours (5:00 AM – 10:30 PM IST). Skipping all schedules.');
     }
 
     const results: any[] = [];
-    const eligible = schedules.filter((schedule) => schedule.frequency === 'custom' || sendAllowedNow);
+    // No more 'custom'-frequency exemption — every schedule respects the same
+    // 5am-10:30pm IST window (see comment above).
+    const eligible = schedules.filter(() => sendAllowedNow);
     const concurrency = 20;
     for (let offset = 0; offset < eligible.length; offset += concurrency) {
       const batch = eligible.slice(offset, offset + concurrency);

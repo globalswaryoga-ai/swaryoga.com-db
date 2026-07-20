@@ -1697,14 +1697,21 @@ export default function QRWhatsAppPage() {
   // ── Bulk remove participants from group ──
   const bulkRemoveParticipants = useCallback(async (jids: string[]) => {
     if (!selectedChat || jids.length === 0) return;
+    // Batches are small and delays are short here because the real hard cap
+    // (15/hour, 150/day) is enforced server-side at the qr-bridge proxy —
+    // this pacing is just to look human, not the safety mechanism itself.
     const batchSize = 5;
     for (let i = 0; i < jids.length; i += batchSize) {
       const batch = jids.slice(i, i + batchSize);
       if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 4000));
       try {
         await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'remove', participants: batch });
-      } catch {
-        // some may fail
+      } catch (e: any) {
+        if (String(e?.message || '').includes('rate limit reached')) {
+          setError('Reached the hourly/daily group-operation limit — remaining members were not removed. Please try again later.');
+          break;
+        }
+        // some may fail for other reasons (privacy settings etc) — keep going
       }
     }
     await fetchGroupInfo(selectedChat);
@@ -2085,36 +2092,48 @@ export default function QRWhatsAppPage() {
       const { getRandomMergeBatchSize, getRandomMergeDelay } = await import('@/lib/whatsappRateLimiter');
       
       let added = 0;
+      const failedToAdd = new Set<string>();
       if (allNewJids.length > 0) {
         const totalBatches = Math.ceil(allNewJids.length / 2.5); // Average 2-3 per batch
-        const totalMinutes = Math.ceil((totalBatches * 120) / 60); // Average 120s per batch
-        
-        for (let i = 0; i < allNewJids.length; i += 1) {
+        let batchIndex = 0;
+        let processed = 0;
+
+        while (processed < allNewJids.length) {
           const batchSize = getRandomMergeBatchSize(); // 2-3 only (Option B)
-          const batch = allNewJids.slice(i, Math.min(i + batchSize, allNewJids.length));
-          
+          const batch = allNewJids.slice(processed, Math.min(processed + batchSize, allNewJids.length));
+
           if (batch.length === 0) break;
-          
+
           // OPTION B: 60-180 second delays (1-3 minutes between batches)
           // Makes merge look 100% human, prevents WhatsApp bans
-          if (i > 0) {
+          if (batchIndex > 0) {
             const delayMs = getRandomMergeDelay(); // 60-180 sec
             await new Promise(r => setTimeout(r, delayMs));
           }
-          
-          const batchNum = Math.ceil((i + 1) / 2.5);
-          const estimatedRemaining = Math.ceil(((allNewJids.length - (i + batchSize)) / 2.5) * 2); // minutes
-          setMergeProgressText(`🔄 Batch ${batchNum}/${totalBatches}: Adding ${batch.length} members (${i + batch.length}/${allNewJids.length})\n⏱️ Option B: 60-180s delays ~ ${estimatedRemaining}+ min remaining\n🛡️ Ultra-safe (2-3 per batch, no bans, no auto-logout)`);
+
+          const estimatedRemaining = Math.ceil(((allNewJids.length - (processed + batch.length)) / 2.5) * 2); // minutes
+          setMergeProgressText(`🔄 Batch ${batchIndex + 1}/${totalBatches}: Adding ${batch.length} members (${processed + batch.length}/${allNewJids.length})\n⏱️ Option B: 60-180s delays ~ ${estimatedRemaining}+ min remaining\n🛡️ Ultra-safe (2-3 per batch, no bans, no auto-logout)`);
           try {
             await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
               action: 'add',
               participants: batch,
             });
             added += batch.length;
-          } catch {
-            // some may fail (privacy settings etc)
+          } catch (e: any) {
+            // some may fail (privacy settings etc) — don't remove these from source later
+            batch.forEach(id => failedToAdd.add(id));
+            if (String(e?.message || '').includes('rate limit reached')) {
+              // Mark everything not yet attempted as failed-to-add too, so the
+              // removal step below doesn't strand them out of both groups.
+              allNewJids.slice(processed + batch.length).forEach(id => failedToAdd.add(id));
+              setMergeProgressText('⏸️ Hit the hourly/daily group-operation limit — stopping here to protect this WhatsApp number. Remaining members were not added.');
+              processed = allNewJids.length;
+              break;
+            }
           }
-          setMergeProgress(30 + Math.round(((i + batch.length) / allNewJids.length) * 35));
+          processed += batch.length;
+          batchIndex += 1;
+          setMergeProgress(30 + Math.round((processed / allNewJids.length) * 35));
         }
       }
 
@@ -2127,29 +2146,40 @@ export default function QRWhatsAppPage() {
         for (let g = 0; g < sourceArr.length; g++) {
           const groupId = sourceArr[g];
           const members = sourceGroupMembers[groupId] || [];
-          // Remove all non-owner members
-          const toRemove = members.filter(p => p.admin !== 'superadmin').map(p => p.id);
+          // Remove all non-owner members, EXCEPT anyone who was supposed to be
+          // added to the target group but failed — removing them from source
+          // without a successful add would leave them in neither group.
+          const toRemove = members.filter(p => p.admin !== 'superadmin' && !failedToAdd.has(p.id)).map(p => p.id);
           if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += 1) {
+            let processed = 0;
+            let batchIndex = 0;
+            while (processed < toRemove.length) {
               const removalBatchSize = getBatchSize(); // 2-3 for removal too
-              const batch = toRemove.slice(i, Math.min(i + removalBatchSize, toRemove.length));
-              
+              const batch = toRemove.slice(processed, Math.min(processed + removalBatchSize, toRemove.length));
+
               // OPTION B: Safe delays for removal too
-              if (i > 0) {
+              if (batchIndex > 0) {
                 const delayMs = getDelay(); // 60-180 sec
                 await new Promise(r => setTimeout(r, delayMs));
               }
-              
-              setMergeProgressText(`🗑️ Removing from group ${g + 1}/${sourceArr.length}: batch (${i + batch.length}/${toRemove.length})\n⏱️ Option B delays active`);
+
+              setMergeProgressText(`🗑️ Removing from group ${g + 1}/${sourceArr.length}: batch (${processed + batch.length}/${toRemove.length})\n⏱️ Option B delays active`);
               try {
                 await bridgeCall(`/group-participants/${groupId}`, 'POST', {
                   action: 'remove',
                   participants: batch,
                 });
                 removedFromSource += batch.length;
-              } catch {
-                // some may fail
+              } catch (e: any) {
+                if (String(e?.message || '').includes('rate limit reached')) {
+                  setMergeProgressText('⏸️ Hit the hourly/daily group-operation limit — stopping here to protect this WhatsApp number. Remaining members were not removed from source groups.');
+                  g = sourceArr.length; // stop the outer loop too
+                  break;
+                }
+                // some may fail for other reasons
               }
+              processed += batch.length;
+              batchIndex += 1;
             }
           }
           setMergeProgress(65 + Math.round(((g + 1) / sourceArr.length) * 35));

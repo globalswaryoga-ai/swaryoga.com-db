@@ -154,6 +154,17 @@ async function ingestQRPayload(payload: any) {
       continue;
     }
 
+    // Never auto-create/attach a lead for the bridge's OWN connected number —
+    // e.g. self-messages, or a group getting misattributed to its numeric-ish
+    // id, otherwise the business's own WhatsApp number ends up as a fake lead
+    // (seen in production: the same connected number imported as 4 different
+    // "leads" under fabricated names).
+    if (connectedPhone && normalizedPhone === connectedPhone) {
+      console.warn(`[QR WEBHOOK] Skipping message where phone matches bridge's own connected number: ${normalizedPhone}`);
+      skippedInvalidPhone++;
+      continue;
+    }
+
     // Determine message type
     const messageType = hasMedia ? 'media' : 'text';
     const messageContent = text || (hasMedia ? `[${m.media?.kind || 'media'} message]` : '');
