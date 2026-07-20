@@ -15,6 +15,23 @@ jest.mock('@/lib/qrTimeGuard', () => ({
   getCurrentISTTime: () => '12:00 PM IST',
 }));
 
+// Default: always grant a slot, so existing tests don't need to know about
+// the shared rate limiter. Individual tests override this via mockReserve.
+type GroupOpCheck =
+  | { allowed: true; daySent: number; hourSent: number; dayRemaining: number; hourRemaining: number }
+  | { allowed: false; reason: 'daily_cap' | 'hourly_cap'; daySent: number; hourSent: number; resetAt: Date };
+
+const mockReserve = jest.fn<Promise<GroupOpCheck>, [string]>(async () => ({
+  allowed: true,
+  daySent: 0,
+  hourSent: 0,
+  dayRemaining: 150,
+  hourRemaining: 15,
+}));
+jest.mock('@/lib/qrGroupOpRateLimit', () => ({
+  reserveGroupOpSlot: (userId: string) => mockReserve(userId),
+}));
+
 // In-memory stand-in for the merge_group_v2_queue collection
 let docs: any[] = [];
 
@@ -208,5 +225,26 @@ describe('group-merge-processor-v2 cron', () => {
     expect(docs[0].currentParticipantIndex).toBe(0);
     expect(docs[0].failedOperations).toBe(0);
     expect(docs[0].currentRetryCount).toBe(1);
+  });
+
+  it('defers (without failing) when the shared per-number rate limit is exhausted', async () => {
+    docs = [makeJob()];
+    mockBridge({ statusConnected: true, participantsStatus: 200 });
+    const resetAt = new Date(Date.now() + 20 * 60000);
+    mockReserve.mockResolvedValueOnce({
+      allowed: false,
+      reason: 'hourly_cap',
+      daySent: 15,
+      hourSent: 15,
+      resetAt,
+    });
+
+    await GET(makeReq());
+
+    // Deferred, not failed or skipped — the bridge call never happened.
+    expect(docs[0].currentParticipantIndex).toBe(0);
+    expect(docs[0].completedOperations).toBe(0);
+    expect(docs[0].failedOperations).toBe(0);
+    expect(docs[0].nextOperationTime.getTime()).toBe(resetAt.getTime());
   });
 });

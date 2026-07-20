@@ -280,6 +280,28 @@ async function processMergeOperation(
     // Execute operation for current participant
     const participantId = item.participantIds[item.currentParticipantIndex];
 
+    // ── SHARED RATE LIMIT (per WhatsApp number, not per job) ──
+    // This cron calls the bridge directly, bypassing the qr-bridge proxy's
+    // own group-op rate-limit gate — so without this check, N concurrent v2
+    // jobs on the same number would each pace themselves to ~15/hr
+    // independently, multiplying real traffic to that number by N. Reserve a
+    // slot from the same shared budget everything else draws from before
+    // performing the operation.
+    const { reserveGroupOpSlot } = await import('@/lib/qrGroupOpRateLimit');
+    const rateCheck = await reserveGroupOpSlot(item.userId);
+    if (!rateCheck.allowed) {
+      console.warn(`[Group Merge V2] ⏸️ Shared group-op rate limit hit (${rateCheck.reason}) — deferring ${item._id} until ${rateCheck.resetAt.toISOString()}`);
+      await collection.updateOne(
+        { _id: item._id },
+        { $set: { nextOperationTime: rateCheck.resetAt, updatedAt: new Date() } }
+      );
+      return {
+        status: 'waiting',
+        reason: 'rate_limited',
+        nextCheckIn: rateCheck.resetAt.getTime() - now.getTime(),
+      };
+    }
+
     const result = await executeGroupOperation(
       item.operationType,
       item.targetGroupId,
