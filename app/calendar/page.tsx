@@ -117,6 +117,7 @@ const SwarCalendar: React.FC = () => {
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showManualCoordinates, setShowManualCoordinates] = useState<boolean>(false);
   
   // Download form states
   const [showDownloadForm, setShowDownloadForm] = useState<boolean>(false);
@@ -143,6 +144,15 @@ const SwarCalendar: React.FC = () => {
   } | null>(null);
 
   const availableCountries = [...getCountryNames(), 'Other'];
+
+  // The user's explicitly selected timezone offset (e.g. New York -05:00).
+  // Must be threaded into every calculateHinduCalendar() call — without it,
+  // the function falls back to a crude longitude/15 guess that ignores DST
+  // and real-world timezone boundaries (wrong for many non-Indian cities).
+  const getTimezoneOffset = (): number => {
+    const tz = TIMEZONE_DATA.find((t) => t.name === timezoneSelect);
+    return tz?.offset ?? 5.5;
+  };
 
   const updateCoordinates = (country: string, state: string, city: string) => {
     const coords = getCityCoordinates(country, state, city);
@@ -264,7 +274,7 @@ const SwarCalendar: React.FC = () => {
   };
 
   // Generate monthly calendar data
-  const generateMonthlyCalendarData = async (startDate: string, endDate: string, lat: number, lng: number): Promise<MonthlyCalendarData[]> => {
+  const generateMonthlyCalendarData = async (startDate: string, endDate: string, lat: number, lng: number, timezone: number): Promise<MonthlyCalendarData[]> => {
     const data: MonthlyCalendarData[] = [];
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -283,7 +293,7 @@ const SwarCalendar: React.FC = () => {
     
     while (currentDate <= actualEndDate) {
       const dateString = currentDate.toISOString().split('T')[0];
-      const hinduData = await calculateHinduCalendar(dateString, lat, lng);
+      const hinduData = await calculateHinduCalendar(dateString, lat, lng, timezone);
       const panchang = calculateCompletePanchang(currentDate);
       
       const dayOfWeek = currentDate.getDay();
@@ -301,9 +311,11 @@ const SwarCalendar: React.FC = () => {
         tithiEnergy = krishnaGroupMoon.includes(normalizedTithi) ? '☽' : '☉';
       }
       
-      // Determine dominant energy (simplified: count Moon vs Sun)
-      const moonCount = [dayEnergy, nakshatraEnergy, tithiEnergy].filter(e => e === '☽').length;
-      const dominant = moonCount >= 2 ? 'Prakruti' as const : 'Purusha' as const;
+      // Determine dominant energy using the same canonical 5-factor calculation
+      // (ayana, paksha, tithi, day, nakshatra) as the single-day view, instead of
+      // a separate simplified 3-factor recount — otherwise this monthly view and
+      // the single-day view could disagree on the same date.
+      const dominant = panchang.swarYoga.dominant.includes('Moon') ? 'Prakruti' as const : 'Purusha' as const;
       
       // Calculate yoga for full day (may show combined yoga if it changes during the day)
       const dayYoga = calculateDayYoga(currentDate, lat, lng);
@@ -353,7 +365,7 @@ const SwarCalendar: React.FC = () => {
     setDownloadLoading(true);
     
     try {
-      const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude);
+      const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude, getTimezoneOffset());
       setPreviewData(monthlyData);
       setShowPreview(true);
       setShowDownloadForm(false);
@@ -388,7 +400,7 @@ const SwarCalendar: React.FC = () => {
       // Dynamic import of jspdf
       const { jsPDF } = await import('jspdf');
       
-      const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude);
+      const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude, getTimezoneOffset());
       
       // Get month-year and ayana from first data point
       const monthYear = new Date(downloadStartDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -662,7 +674,7 @@ const SwarCalendar: React.FC = () => {
     
     try {
       // First get basic calendar data
-      const hinduData = await calculateHinduCalendar(selectedDate, latitude, longitude);
+      const hinduData = await calculateHinduCalendar(selectedDate, latitude, longitude, timezone);
       
       if (!hinduData) {
         throw new Error('Failed to calculate Hindu calendar data');
@@ -709,7 +721,7 @@ const SwarCalendar: React.FC = () => {
         },
         dayQuality: jsPanchang.dayQuality,
         vaidhriti: jsPanchang.yoga.name === 'Vaidhriti',
-        vyatipat: jsPanchang.yoga.name === 'Vyatipat',
+        vatiapat: jsPanchang.yoga.name === 'Vyatipat',
         recommendations: {
           avoid: jsPanchang.dayQuality === 'Inauspicious' 
             ? ['Starting new ventures', 'Long journeys', 'Important decisions']
@@ -766,7 +778,7 @@ const SwarCalendar: React.FC = () => {
       const tomorrowDate = new Date(selectedDate);
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
       const tomorrowDateString = tomorrowDate.toISOString().split('T')[0];
-      const tomorrowHinduData = await calculateHinduCalendar(tomorrowDateString, latitude, longitude);
+      const tomorrowHinduData = await calculateHinduCalendar(tomorrowDateString, latitude, longitude, timezone);
       const tomorrowPanchang = calculateCompletePanchang(tomorrowDate);
       
       // Determine tomorrow's dominant energy
@@ -785,9 +797,9 @@ const SwarCalendar: React.FC = () => {
         // Subtract 3 hours
         let switchHours = hours - 3;
         if (switchHours < 0) switchHours += 24;
-        const switchAmPm = switchHours >= 12 ? 'AM' : 'AM';
+        const switchAmPm = switchHours >= 12 ? 'PM' : 'AM';
         const displayHours = switchHours > 12 ? switchHours - 12 : (switchHours === 0 ? 12 : switchHours);
-        sleepSwitchTime = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} AM`;
+        sleepSwitchTime = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${switchAmPm}`;
       }
       
       setTomorrowData({
@@ -963,83 +975,33 @@ const SwarCalendar: React.FC = () => {
       
       <div className="container mx-auto px-4 py-8 space-y-8 min-h-screen">
         {/* Hero Section */}
-        <section className="text-center py-20 bg-gradient-to-r from-swar-primary via-swar-accent to-swar-primary text-white rounded-3xl shadow-2xl overflow-hidden relative">
+        <section className="text-center py-10 px-6 bg-gradient-to-r from-swar-primary via-swar-accent to-swar-primary text-white rounded-3xl shadow-xl overflow-hidden relative">
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full mix-blend-multiply filter blur-3xl"></div>
             <div className="absolute top-0 right-0 w-96 h-96 bg-swar-primary-light rounded-full mix-blend-multiply filter blur-3xl"></div>
           </div>
-          <div className="relative z-10">
-            <Calendar className="w-20 h-20 mx-auto mb-6 animate-pulse" />
-            <h1 className="text-5xl md:text-6xl font-bold mb-4">Swar Calendar</h1>
-            <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto leading-relaxed">
-              Discover the ancient wisdom of Hindu astrology and astronomy. Calculate Paksh, Tithi, Nadi, and sunrise times with precise astronomical accuracy.
+          <div className="relative z-10 max-w-4xl mx-auto">
+            <Calendar className="w-12 h-12 mx-auto mb-3" />
+            <h1 className="text-3xl md:text-4xl font-bold mb-3">Swar Calendar</h1>
+            <p className="text-base md:text-lg mb-6 max-w-2xl mx-auto leading-relaxed text-white/90">
+              Ancient Hindu astrology, calculated precisely for your exact location.
             </p>
-            <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
-              <div className="inline-flex items-center space-x-2 bg-white bg-opacity-20 text-white px-6 py-3 rounded-full backdrop-blur-md border border-white border-opacity-30">
-                <Sun className="w-5 h-5" />
-                <span>Sunrise Calculations</span>
+            <div className="flex flex-wrap gap-3 justify-center items-center">
+              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
+                <Sun className="w-4 h-4" />
+                <span>Sunrise Time</span>
               </div>
-              <div className="inline-flex items-center space-x-2 bg-white bg-opacity-20 text-white px-6 py-3 rounded-full backdrop-blur-md border border-white border-opacity-30">
-                <Calendar className="w-5 h-5" />
-                <span>Lunar Phases</span>
+              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
+                <Calendar className="w-4 h-4" />
+                <span>Paksh &amp; Tithi</span>
               </div>
-              <div className="inline-flex items-center space-x-2 bg-white bg-opacity-20 text-white px-6 py-3 rounded-full backdrop-blur-md border border-white border-opacity-30">
-                <MapPin className="w-5 h-5" />
-                <span>Location Based</span>
+              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
+                <span>☄️</span>
+                <span>Nadi Analysis</span>
               </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Features Section */}
-        <section className="py-16 bg-gradient-to-b from-gray-50 to-white rounded-3xl">
-          <div className="space-y-12">
-            <h2 className="text-4xl font-bold text-center text-swar-text">
-              Powerful Astrological Features
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {/* Sunrise Calculations */}
-              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-l-4 border-orange-500">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                  <Sun className="w-6 h-6 text-orange-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3 text-swar-text">Sunrise Time</h3>
-                <p className="text-swar-text-secondary leading-relaxed">
-                  Precise sunrise calculations based on your exact latitude and longitude coordinates.
-                </p>
-              </div>
-
-              {/* Paksh & Tithi */}
-              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-l-4 border-blue-500">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <Calendar className="w-6 h-6 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3 text-swar-text">Paksh & Tithi</h3>
-                <p className="text-swar-text-secondary leading-relaxed">
-                  Accurate determination of Shukla/Krishna Paksh and detailed Tithi (lunar day) calculations.
-                </p>
-              </div>
-
-              {/* Nadi Analysis */}
-              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-l-4 border-purple-500">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <div className="w-6 h-6 text-purple-600 text-lg">☄️</div>
-                </div>
-                <h3 className="text-xl font-semibold mb-3 text-swar-text">Nadi Analysis</h3>
-                <p className="text-swar-text-secondary leading-relaxed">
-                  Surya and Chandra Nadi calculations based on traditional Hindu astrology principles.
-                </p>
-              </div>
-
-              {/* Location Based */}
-              <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-l-4 border-green-500">
-                <div className="w-12 h-12 bg-swar-primary-light rounded-lg flex items-center justify-center mb-4">
-                  <MapPin className="w-6 h-6 text-swar-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3 text-swar-text">Global Coverage</h3>
-                <p className="text-swar-text-secondary leading-relaxed">
-                  Calculations tailored to 100+ countries and thousands of cities worldwide.
-                </p>
+              <div className="inline-flex items-center space-x-2 bg-white/15 text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/25 text-sm">
+                <MapPin className="w-4 h-4" />
+                <span>100+ Countries</span>
               </div>
             </div>
           </div>
@@ -1156,43 +1118,6 @@ const SwarCalendar: React.FC = () => {
                 )}
               </div>
               
-              {/* Latitude */}
-              <div>
-                <label htmlFor="latitude" className="block text-sm font-medium text-swar-text mb-1">
-                  Latitude
-                </label>
-                <input
-                  type="number"
-                  id="latitude"
-                  value={latitude}
-                  onChange={(e) => setLatitude(parseFloat(e.target.value) || 0)}
-                  step="0.000001"
-                  placeholder="e.g., 19.0760"
-                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  required
-                />
-              </div>
-              
-              {/* Longitude */}
-              <div>
-                <label htmlFor="longitude" className="block text-sm font-medium text-swar-text mb-1">
-                  Longitude
-                </label>
-                <input
-                  type="number"
-                  id="longitude"
-                  value={longitude}
-                  onChange={(e) => setLongitude(parseFloat(e.target.value) || 0)}
-                  step="0.000001"
-                  placeholder="e.g., 72.8777"
-                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  required
-                />
-                <p className="text-xs text-swar-text-secondary mt-1">
-                  Coordinates auto-fill from the selected city so sunrise time reflects the exact location.
-                </p>
-              </div>
-
               {/* Timezone */}
               <div>
                 <label htmlFor="timezone" className="block text-sm font-medium text-swar-text mb-1">
@@ -1217,11 +1142,63 @@ const SwarCalendar: React.FC = () => {
                 </p>
               </div>
             </div>
-            
+
+            {/* Advanced: manual coordinate override — coordinates already auto-fill
+                from the selected city, so this is tucked away by default and only
+                needed to fine-tune within a city or double-check the exact values. */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowManualCoordinates((v) => !v)}
+                className="text-sm font-medium text-swar-primary hover:text-swar-primary-hover inline-flex items-center gap-1"
+              >
+                <span>{showManualCoordinates ? '▾' : '▸'}</span>
+                Advanced: fine-tune coordinates manually
+                <span className="text-swar-text-secondary font-normal">
+                  ({latitude.toFixed(4)}°, {longitude.toFixed(4)}°)
+                </span>
+              </button>
+              {showManualCoordinates && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 p-4 bg-swar-bg rounded-lg border border-swar-border">
+                  <div>
+                    <label htmlFor="latitude" className="block text-sm font-medium text-swar-text mb-1">
+                      Latitude
+                    </label>
+                    <input
+                      type="number"
+                      id="latitude"
+                      value={latitude}
+                      onChange={(e) => setLatitude(parseFloat(e.target.value) || 0)}
+                      step="0.000001"
+                      placeholder="e.g., 19.0760"
+                      className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="longitude" className="block text-sm font-medium text-swar-text mb-1">
+                      Longitude
+                    </label>
+                    <input
+                      type="number"
+                      id="longitude"
+                      value={longitude}
+                      onChange={(e) => setLongitude(parseFloat(e.target.value) || 0)}
+                      step="0.000001"
+                      placeholder="e.g., 72.8777"
+                      className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    />
+                    <p className="text-xs text-swar-text-secondary mt-1">
+                      Overrides the city's default coordinates for this calculation only.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               type="submit"
               disabled={loading || !selectedDate || !selectedCountry || !latitude || !longitude || !timezoneSelect}
-              className="w-full bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-swar-primary hover:bg-swar-primary-hover text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>
@@ -1240,7 +1217,7 @@ const SwarCalendar: React.FC = () => {
 
         {/* Error Display */}
         {connectionError && (
-          <div className="bg-red-50 border border-red-200 text-swar-primary px-4 py-3 rounded-lg">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {connectionError}
           </div>
         )}
@@ -1444,31 +1421,25 @@ const SwarCalendar: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left Side - 5 Factors */}
                   <div>
-                    <h4 className="font-semibold text-indigo-700 mb-3">📊 Today's 5 Factors</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
-                        <span className="text-gray-700">1. Ayana</span>
-                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.ayana.value} → <span className={calendarData.panchang.swarYoga.factors.ayana.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.ayana.energy}</span></span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
-                        <span className="text-gray-700">2. Paksha</span>
-                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.paksha.value.replace(' Paksha', '')} → <span className={calendarData.panchang.swarYoga.factors.paksha.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.paksha.energy}</span></span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
-                        <span className="text-gray-700">3. Tithi</span>
-                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.tithi.value} → <span className={calendarData.panchang.swarYoga.factors.tithi.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.tithi.energy}</span></span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
-                        <span className="text-gray-700">4. Nakshatra</span>
-                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.nakshatra.value} ({calendarData.panchang.swarYoga.factors.nakshatra.planet}) → <span className={calendarData.panchang.swarYoga.factors.nakshatra.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.nakshatra.energy}</span></span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
-                        <span className="text-gray-700">5. Day</span>
-                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.day.value} → <span className={calendarData.panchang.swarYoga.factors.day.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.day.energy}</span></span>
-                      </div>
+                    <h4 className="font-semibold text-indigo-700 mb-2 text-sm">📊 Today's 5 Factors</h4>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([
+                        ['Ayana', calendarData.panchang.swarYoga.factors.ayana.value, calendarData.panchang.swarYoga.factors.ayana.energy],
+                        ['Paksha', calendarData.panchang.swarYoga.factors.paksha.value.replace(' Paksha', ''), calendarData.panchang.swarYoga.factors.paksha.energy],
+                        ['Tithi', calendarData.panchang.swarYoga.factors.tithi.value, calendarData.panchang.swarYoga.factors.tithi.energy],
+                        ['Nakshatra', `${calendarData.panchang.swarYoga.factors.nakshatra.value} (${calendarData.panchang.swarYoga.factors.nakshatra.planet})`, calendarData.panchang.swarYoga.factors.nakshatra.energy],
+                        ['Day', calendarData.panchang.swarYoga.factors.day.value, calendarData.panchang.swarYoga.factors.day.energy],
+                      ] as [string, string | number, string][]).map(([label, value, energy]) => (
+                        <div key={label} className="text-xs bg-white/50 rounded-lg px-2 py-1.5">
+                          <div className="text-gray-600">{label}</div>
+                          <div className="font-medium truncate">
+                            {value} <span className={energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{energy}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                     {/* Summary */}
-                    <div className="mt-4 p-3 bg-white rounded-lg border border-indigo-200">
+                    <div className="mt-3 p-3 bg-white rounded-lg border border-indigo-200">
                       <div className="flex justify-between items-center">
                         <span className="text-blue-600 font-medium">☽ Moon: {calendarData.panchang.swarYoga.moonCount}</span>
                         <span className="text-orange-600 font-medium">☉ Sun: {calendarData.panchang.swarYoga.sunCount}</span>
