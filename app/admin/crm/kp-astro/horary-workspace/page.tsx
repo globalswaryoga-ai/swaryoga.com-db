@@ -9,7 +9,31 @@ import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
+import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
+import { KpLanguageProvider, useKpLanguage } from '@/components/admin/crm/kpAstro/KpLanguageContext';
 import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
+
+// Light-themed variant of KpLanguageToggle (which is styled dark to match
+// the zinc/black chart tables) — this one sits in the light toolbar next to
+// the North/South and Planet/Bhav toggles.
+function LanguageToggleLight() {
+  const { lang, setLang } = useKpLanguage();
+  return (
+    <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+      {(['en', 'hi'] as const).map((code) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => setLang(code)}
+          className={`px-2 py-1 text-xs font-medium rounded-md ${lang === code ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+        >
+          {code === 'en' ? 'EN' : 'हिं'}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 interface HoraryListItem { _id: string; questionText: string; horaryNumber: number; updatedAt: string; }
 
@@ -49,6 +73,7 @@ export default function KpHoraryWorkspacePage() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [chartDisplayMode, setChartDisplayMode] = useState<'planet' | 'bhav'>('planet');
   const [bhavRows, setBhavRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
+  const [workView, setWorkView] = useState<'analysis' | 'abcd' | 'details'>('analysis');
 
   useEffect(() => {
     if (!token) return;
@@ -100,6 +125,7 @@ export default function KpHoraryWorkspacePage() {
   const rp = chart?.rulingPlanets;
 
   return (
+    <KpLanguageProvider>
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       <PageHeader
         title={
@@ -147,10 +173,19 @@ export default function KpHoraryWorkspacePage() {
                       </button>
                     ))}
                   </div>
-                  <select value={chartStyle} onChange={(e) => setChartStyle(e.target.value as 'north' | 'south')} className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                    <option value="north">North Indian</option>
-                    <option value="south">South Indian</option>
-                  </select>
+                  <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+                    {(['north', 'south'] as const).map((style) => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setChartStyle(style)}
+                        className={`px-2 py-1 text-xs font-medium rounded-md ${chartStyle === style ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        {style === 'north' ? 'North' : 'South'}
+                      </button>
+                    ))}
+                  </div>
+                  <LanguageToggleLight />
                 </div>
               </div>
               <div className="flex justify-center">
@@ -185,8 +220,28 @@ export default function KpHoraryWorkspacePage() {
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
-              <h2 className="font-semibold text-gray-900">12-Bhav Analysis</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="font-semibold text-gray-900">
+                  {workView === 'analysis' ? '12-Bhav Analysis' : workView === 'abcd' ? 'ABCD Significators' : 'Houses & Planets'}
+                </h2>
+                <div className="inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm">
+                  {([
+                    ['analysis', '12 Bhav'],
+                    ['abcd', 'ABCD Sig.'],
+                    ['details', 'Houses & Planets'],
+                  ] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setWorkView(mode)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex items-center gap-3">
                 {savedAt && <span className="text-xs text-emerald-600">Saved {savedAt.toLocaleTimeString()}</span>}
                 <Link href={`/admin/crm/kp-astro/final-prediction?horaryChartId=${chartId}`} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
@@ -198,7 +253,13 @@ export default function KpHoraryWorkspacePage() {
                 </button>
               </div>
             </div>
-            <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} />
+            {workView === 'analysis' ? (
+              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} />
+            ) : workView === 'abcd' ? (
+              <ABCDSignificatorsPanel houses={chart.houses || []} planets={chart.planets || []} bhavRows={bhavRows} />
+            ) : (
+              <ChartDetailsPanel houses={chart.houses || []} planets={chart.planets || []} />
+            )}
           </div>
         </div>
       )}
@@ -209,5 +270,6 @@ export default function KpHoraryWorkspacePage() {
         </div>
       )}
     </div>
+    </KpLanguageProvider>
   );
 }

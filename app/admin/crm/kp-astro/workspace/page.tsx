@@ -13,7 +13,30 @@ import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
 import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
 import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
 import EventTimingPanel from '@/components/admin/crm/kpAstro/EventTimingPanel';
+import { KpLanguageProvider, KpLanguageToggle } from '@/components/admin/crm/kpAstro/KpLanguageContext';
 import { housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { useKpLanguage } from '@/components/admin/crm/kpAstro/KpLanguageContext';
+
+// Light-themed variant of KpLanguageToggle (which is styled dark to match
+// the zinc/black chart tables) — this one sits in the light toolbar next to
+// the North/South and Planet/Bhav toggles.
+function LanguageToggleLight() {
+  const { lang, setLang } = useKpLanguage();
+  return (
+    <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+      {(['en', 'hi'] as const).map((code) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => setLang(code)}
+          className={`px-2 py-1 text-xs font-medium rounded-md ${lang === code ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+        >
+          {code === 'en' ? 'EN' : 'हिं'}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 interface ChartListItem { _id: string; personName: string; gender?: string; updatedAt: string; }
 
@@ -146,6 +169,7 @@ export default function KpAstrologerWorkspacePage() {
   };
 
   return (
+    <KpLanguageProvider>
     <div className="p-4 md:p-6 max-w-[1500px] mx-auto space-y-6">
       <PageHeader
         title={
@@ -228,10 +252,19 @@ export default function KpAstrologerWorkspacePage() {
                       </button>
                     ))}
                   </div>
-                  <select value={chartStyle} onChange={(e) => setChartStyle(e.target.value as 'north' | 'south')} className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                    <option value="north">North Indian</option>
-                    <option value="south">South Indian</option>
-                  </select>
+                  <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+                    {(['north', 'south'] as const).map((style) => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setChartStyle(style)}
+                        className={`px-2 py-1 text-xs font-medium rounded-md ${chartStyle === style ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        {style === 'north' ? 'North' : 'South'}
+                      </button>
+                    ))}
+                  </div>
+                  <LanguageToggleLight />
                 </div>
               </div>
               <div className="flex justify-center">
@@ -346,5 +379,6 @@ export default function KpAstrologerWorkspacePage() {
         </div>
       )}
     </div>
+    </KpLanguageProvider>
   );
 }

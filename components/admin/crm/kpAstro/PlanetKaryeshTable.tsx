@@ -1,6 +1,7 @@
 'use client';
 
 import { computeFourStepSignificators, housesOwnedBy, starLordOf, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { functionalNature } from '@/lib/kpAstro/planetNature';
 
 type PlanetRow = SignificatorPlanet & { retrograde?: boolean; combust?: boolean };
 
@@ -21,19 +22,6 @@ function planetShortName(name: string): string {
     Ketu: 'Ke',
   };
   return map[name] || name;
-}
-
-function planetNature(houses: SignificatorHouse[], planetName: string): 'Benefic' | 'Malefic' {
-  if (planetName === 'Rahu') return 'Benefic';
-  if (planetName === 'Ketu') return 'Malefic';
-
-  const owned = housesOwnedBy(houses, planetName);
-  if (!owned.length) {
-    return ['Jupiter', 'Venus', 'Mercury', 'Moon'].includes(planetName) ? 'Benefic' : 'Malefic';
-  }
-
-  const strongBeneficHouses = new Set([1, 2, 4, 5, 7, 9, 10]);
-  return owned.some((house) => strongBeneficHouses.has(house)) ? 'Benefic' : 'Malefic';
 }
 
 export default function PlanetKaryeshTable({ houses, planets }: { houses: SignificatorHouse[]; planets: PlanetRow[] }) {
@@ -75,7 +63,7 @@ export default function PlanetKaryeshTable({ houses, planets }: { houses: Signif
             {planets.map((planet) => {
               const sig = fourStep.find((item) => item.planet === planet.planet);
               const starLord = starLordOf(planet);
-              const nature = planetNature(houses, planet.planet);
+              const nature = functionalNature(planet.planet, houses);
 
               return (
                 <tr key={planet.planet} className="group align-top">

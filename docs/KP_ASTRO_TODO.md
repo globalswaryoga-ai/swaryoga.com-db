@@ -41,3 +41,14 @@
 - [ ] Add tenant/user isolation before opening KP Astro beyond superadmin.
 - [ ] Add export/import backup for KP chart data.
 - [ ] Add chart search and filters by name, DOB, date, and report availability.
+
+## Chart Style, Tables & Language (reference-software parity)
+
+- [x] North/South chart style as a button toggle instead of a dropdown (workspace + horary-workspace).
+- [x] Houses & Planets table: add a Planets-view mode (Sign, Position, Star, Sign/Star/Sub Lord, Nature, Occupies, Owns), toggled the same way as the Houses view.
+- [x] New Planetary Aspects table (Conjunction/Semi-sextile/Semi-square/Sextile/Square/Trine/Sesquisquare/Quincunx/Opposition grid, degree-based with orbs).
+- [x] New Planet Signification and Strength table (Star Lord/Sub Lord/Conjunction Lords/Opposition Lords/Self, each Dep+Own) with a Select House filter (significator finder for a chosen Bhav).
+- [x] Wire Houses & Planets / Planetary Aspects / Signification & Strength into the horary workspace too (previously only in the main birth-chart workspace).
+- [x] Hindi/English toggle for the interactive workspace UI (table headers, toggle labels, Nature values) — separate from the AI final-prediction report language, which already supported many more languages.
+- [ ] Nature (Malefic/Benefic) rule note: per-planet table uses natural/fixed classification (Moon by waxing/waning, Mercury by conjunction); Bhav/Karyesh work area uses the existing functional per-ascendant rule (kendra+trikona+2nd = supportive) — confirm both against your reference tool if any label looks off, the exact "Conjunction/Opposition Lords" convention in the Signification & Strength table was reverse-engineered without full certainty.
+- [ ] Consider translating planet/sign/star names themselves (currently left in standard English/Sanskrit form in both languages).

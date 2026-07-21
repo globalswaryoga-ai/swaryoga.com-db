@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { BhavAnalysisRow } from './BhavEditor';
 import { computeFourStepSignificators, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { t } from '@/lib/kpAstro/uiLabels';
+import { useKpLanguage } from './KpLanguageContext';
 
 type PlanetRow = SignificatorPlanet & { retrograde?: boolean; combust?: boolean };
 
@@ -38,13 +40,14 @@ export default function ABCDSignificatorsPanel({
   planets: PlanetRow[];
   bhavRows: BhavAnalysisRow[];
 }) {
+  const { lang } = useKpLanguage();
   const [view, setView] = useState<'houses' | 'planets'>('planets');
   const fourStep = computeFourStepSignificators(houses, planets);
 
   return (
     <div className="rounded-2xl border border-zinc-700 bg-black p-3 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
-        <h3 className="text-sm font-semibold text-white">ABCD Significators</h3>
+        <h3 className="text-sm font-semibold text-white">{t('abcdSignificators', lang)}</h3>
         <div className="inline-flex rounded-xl border border-zinc-700 bg-zinc-950 p-1">
           {(['houses', 'planets'] as const).map((mode) => (
             <button
@@ -53,7 +56,7 @@ export default function ABCDSignificatorsPanel({
               onClick={() => setView(mode)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${view === mode ? 'bg-yellow-400 text-black shadow-sm' : 'text-zinc-300 hover:bg-zinc-900 hover:text-white'}`}
             >
-              {mode === 'houses' ? 'Houses' : 'Planets'}
+              {mode === 'houses' ? t('houses', lang) : t('planets', lang)}
             </button>
           ))}
         </div>
