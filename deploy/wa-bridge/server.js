@@ -84,6 +84,7 @@ function normalizeMsgTimestamp(ts) {
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGODB_URI_MAIN || '';
 const AUTH_COLLECTION = 'baileys_auth_state';
 const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
+const LID_MAP_COLLECTION = 'qr_whatsapp_lid_map';
 const MAX_SESSIONS = 1000;
 const SESSION_IDLE_TIMEOUT = 24 * 60 * 60 * 1000; // 24h — cleanup idle sessions
 const SESSION_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Check every 1h
@@ -163,6 +164,7 @@ class UserSession {
     this.contactsCache = new Map();
     this.lidToPhoneMap = new Map();
     this.phoneToLidMap = new Map();
+    this.lidMapLoaded = false; // guards the one-time DB restore in startSocket
     this.statusStore = [];
     this.presenceMap = new Map();
 
@@ -222,8 +224,16 @@ function clearSessionRuntimeData(session) {
   session.groupSubjectCache.clear();
   session.groupMembersCache.clear();
   session.contactsCache.clear();
-  session.lidToPhoneMap.clear();
-  session.phoneToLidMap.clear();
+  // NOTE: lidToPhoneMap/phoneToLidMap are intentionally NOT cleared here.
+  // A WhatsApp lid is a permanent identifier tied to one phone number for the
+  // life of that account — it's an identity fact, not per-connection chat
+  // state, so there's nothing to "resync" by wiping it. Baileys only sends a
+  // full contacts/history sync on a fresh QR pairing, not on ordinary
+  // reconnects (see the syncFullHistory comment in startSocket), so wiping
+  // this map on every /reconnect and /disconnect meant it could take a long
+  // time — or a fresh inbound message — to relearn a mapping that was already
+  // known, which is what caused already-resolved contacts to reappear as a
+  // duplicate unresolved "Contact" row after any reconnect.
   session.statusStore = [];
   session.presenceMap.clear();
 }
@@ -290,11 +300,54 @@ function storeLidPhoneMapping(session, lidJid, phoneJid) {
   const phoneNorm = phoneJid.includes('@') ? phoneJid : `${phoneJid}@s.whatsapp.net`;
   const phoneNum = phoneNorm.split('@')[0];
   if (/^\d{14,}$/.test(phoneNum)) return;
+  const isNew = session.lidToPhoneMap.get(lidNorm) !== phoneNorm;
   session.lidToPhoneMap.set(lidNorm, phoneNorm);
   session.phoneToLidMap.set(phoneNorm, lidNorm);
   const lidNum = lidNorm.split('@')[0];
   const lidAsPhone = `${lidNum}@s.whatsapp.net`;
   session.lidToPhoneMap.set(lidAsPhone, phoneNorm);
+  // Persist so this identity fact (a WhatsApp lid is permanently tied to one
+  // phone number) survives reconnects/restarts — see persistLidMapping below
+  // for why this matters: it previously lived ONLY in this in-memory Map and
+  // was wiped by clearSessionRuntimeData() on every /reconnect and /disconnect,
+  // which is exactly what caused the same contact to keep reappearing as two
+  // separate sidebar rows (a named phone-JID row + an unresolved "Contact"
+  // @lid row) after any reconnect, until the contact happened to message again.
+  if (isNew) persistLidMapping(session.sessionKey, lidNorm, phoneNorm).catch(() => {});
+}
+
+// ── LID↔Phone mapping persistence (survives reconnects/restarts) ──────────
+async function persistLidMapping(sessionKey, lidJid, phoneJid) {
+  try {
+    const client = await getMongoClient();
+    if (!client) return;
+    await client.db(AUTH_DB_NAME).collection(LID_MAP_COLLECTION).updateOne(
+      { sessionKey, lidJid },
+      { $set: { sessionKey, lidJid, phoneJid, updatedAt: new Date() } },
+      { upsert: true }
+    );
+  } catch (e) {
+    console.warn(`[LID-MAP] Failed to persist ${lidJid} -> ${phoneJid}:`, e.message);
+  }
+}
+
+async function loadLidMappingsFromDb(session) {
+  try {
+    const client = await getMongoClient();
+    if (!client) return;
+    const docs = await client.db(AUTH_DB_NAME).collection(LID_MAP_COLLECTION)
+      .find({ sessionKey: session.sessionKey }).toArray();
+    for (const d of docs) {
+      if (!d.lidJid || !d.phoneJid) continue;
+      session.lidToPhoneMap.set(d.lidJid, d.phoneJid);
+      session.phoneToLidMap.set(d.phoneJid, d.lidJid);
+      const lidNum = d.lidJid.split('@')[0];
+      session.lidToPhoneMap.set(`${lidNum}@s.whatsapp.net`, d.phoneJid);
+    }
+    if (docs.length > 0) console.log(`[${session.userId}] Restored ${docs.length} lid↔phone mapping(s) from DB`);
+  } catch (e) {
+    console.warn(`[LID-MAP] Failed to load mappings for ${session.sessionKey}:`, e.message);
+  }
 }
 
 function resolveToPhone(session, jid) {
@@ -631,6 +684,15 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
     if (session.sock) {
       try { session.sock.ev.removeAllListeners(); session.sock.end(undefined); } catch {}
       session.sock = null;
+    }
+
+    // Restore previously-learned lid↔phone mappings once per process lifetime
+    // for this session — these no longer get wiped on reconnect (see
+    // clearSessionRuntimeData), but a full process restart (pm2 restart/VPS
+    // reboot) still starts with empty in-memory Maps, so reload from Mongo.
+    if (!session.lidMapLoaded) {
+      session.lidMapLoaded = true;
+      await loadLidMappingsFromDb(session);
     }
 
     const { state, saveCreds: _saveCreds } = await useMongoDBAuthState(session.sessionKey, session.ownerUserId);
