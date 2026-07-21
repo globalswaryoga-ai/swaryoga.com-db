@@ -31,6 +31,26 @@ import ChatSidebar from './components/ChatSidebar';
 import ChatArea from './components/ChatArea';
 import { useCrmSidebarAutoHide } from '@/components/admin/crm/CrmShell';
 
+// Message timestamps are stored in ms (some in seconds from older records) —
+// normalize before comparing days so the separator logic is consistent.
+function toMs(timestamp: number): number {
+  return timestamp > 1e12 ? timestamp : timestamp * 1000;
+}
+
+function isSameDay(aTs: number, bTs: number): boolean {
+  return new Date(toMs(aTs)).toDateString() === new Date(toMs(bTs)).toDateString();
+}
+
+function dateSeparatorLabel(timestamp: number): string {
+  const date = new Date(toMs(timestamp));
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 function isPlaceholderChatName(name: string | undefined | null): boolean {
   const value = String(name || '').trim();
   if (!value) return true;
@@ -1530,7 +1550,12 @@ export default function QRWhatsAppPage() {
               return stripAttribution(sv.text) === stripAttribution(opt.text);
             });
           });
-          return [...merged, ...remainingOptimistic];
+          // Re-sort after appending — an optimistic message's client-side
+          // Date.now() can occasionally land earlier than a just-synced
+          // server message's timestamp (clock skew, or archived history
+          // arriving in the same poll), and a plain concat would leave it
+          // stuck out of chronological order until the next full refresh.
+          return [...merged, ...remainingOptimistic].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         });
         setFailedInlineMediaIds(prev => {
           if (prev.size === 0) return prev;
@@ -3379,7 +3404,8 @@ export default function QRWhatsAppPage() {
                   {messages.length === 0 && (
                     <div className="text-center text-gray-400 text-sm py-10">No messages yet</div>
                   )}
-                  {messages.map(msg => {
+                  {messages.map((msg, msgIdx) => {
+                    const showDateSeparator = msgIdx === 0 || !isSameDay(messages[msgIdx - 1].timestamp || 0, msg.timestamp || 0);
                     const isGroupChat = selectedChat?.endsWith('@g.us');
                     const senderName = msg.pushName || msg.participant?.split('@')[0] || '';
                     const senderColor = senderName ? getAvatarColor(senderName) : '';
@@ -3400,7 +3426,15 @@ export default function QRWhatsAppPage() {
                     const hasOnlyMedia = hasMediaPreview && !msg.text;
                     const reactionEntries = msg.reactions ? Object.entries(msg.reactions).filter(([, v]) => v) : [];
                     return (
-                    <div key={msg.id} className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} group/msg relative`}>
+                    <React.Fragment key={msg.id}>
+                    {showDateSeparator && (
+                      <div className="flex justify-center py-2">
+                        <span className="bg-white/90 shadow-sm border border-gray-200 rounded-full px-3 py-1 text-[11px] font-medium text-gray-500">
+                          {dateSeparatorLabel(msg.timestamp || 0)}
+                        </span>
+                      </div>
+                    )}
+                    <div className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} group/msg relative`}>
                       {/* Message action buttons — visible on hover */}
                       <div className={`absolute ${msg.fromMe ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} top-1 hidden group-hover/msg:flex items-center gap-0.5 z-10`}>
                         <button onClick={() => setReplyingTo(msg)} className="p-1 rounded-full bg-white shadow hover:bg-gray-100" title="Reply">
@@ -3559,6 +3593,7 @@ export default function QRWhatsAppPage() {
                         </div>
                       )}
                     </div>
+                    </React.Fragment>
                     );
                   })}
                 </div>
