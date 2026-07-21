@@ -470,7 +470,7 @@ export default function QRWhatsAppPage() {
   const isSuperAdminRef = useRef(isSuperAdminUser);
   const pinnedChatsRef = useRef(pinnedChats);
   const messengerRef = useRef<HTMLDivElement>(null);
-  const composerInputRef = useRef<HTMLInputElement>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const tabRef = useRef(tab);
   const isResizing = useRef(false);
   const settingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1911,6 +1911,7 @@ export default function QRWhatsAppPage() {
       }
       const hadMedia = !!mediaPreview;
       setComposerText('');
+      if (composerInputRef.current) composerInputRef.current.style.height = 'auto';
       setReplyingTo(null);
       // Refresh messages — longer delay for media (webhook needs time to upload & set CDN URL)
       setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), hadMedia ? 1500 : 500);
@@ -3709,16 +3710,30 @@ export default function QRWhatsAppPage() {
                       >
                         <Type className="w-4 h-4" />
                       </button>
-                      {/* Text Input */}
-                      <input
+                      {/* Text Input — textarea so multi-line/pasted paragraphs keep their
+                          line breaks instead of being silently flattened to one line
+                          (an <input> can never hold a newline, no matter what's typed
+                          or pasted into it). Enter sends, Shift+Enter adds a new line. */}
+                      <textarea
                         ref={composerInputRef}
-                        type="text"
+                        rows={1}
                         value={composerText}
-                        onChange={e => { setComposerText(e.target.value); handleTyping(); }}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
+                        onChange={e => {
+                          setComposerText(e.target.value);
+                          handleTyping();
+                          const el = e.target;
+                          el.style.height = 'auto';
+                          el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSend();
+                          }
+                        }}
                         onFocus={closeComposerPopups}
                         placeholder={replyingTo ? `Reply to ${replyingTo.pushName || replyingTo.from}...` : mediaPreview ? 'Add caption...' : 'Type a message...'}
-                        className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                        className="flex-1 resize-none px-4 py-2 border rounded-2xl text-sm leading-normal max-h-[120px] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-green-300"
                         disabled={!isConnected || sending}
                       />
                       {/* Star button — Quick Actions */}
