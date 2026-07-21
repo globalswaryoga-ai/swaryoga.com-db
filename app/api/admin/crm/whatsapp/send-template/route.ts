@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getLead, getWhatsAppMessage, getWhatsAppTemplate, getAnalyticsEvent } from '@/lib/schemas/enterpriseSchemas';
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { ensurePermanentUrl, isMetaCdnUrl } from '@/lib/migrateMetaImageToBunny';
 import crypto from 'crypto';
 
@@ -191,7 +192,10 @@ export async function POST(request: NextRequest) {
     console.log(`[send-template:${requestId}] Cloud input:`, JSON.stringify(cloudInput, null, 2));
 
     try {
-      const apiResult = await sendWhatsAppTemplate(cloudInput);
+      // Tenant's own connected WABA when configured; falls back to the
+      // shared/default number otherwise (never mixes tenants).
+      const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
+      const apiResult = await sendWhatsAppTemplate(cloudInput, tenantCreds);
       console.log(`[send-template:${requestId}] Meta helper response:`, JSON.stringify(apiResult?.raw || {}, null, 2));
       const waMessageId = apiResult?.waMessageId;
       

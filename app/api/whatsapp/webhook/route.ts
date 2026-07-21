@@ -16,6 +16,7 @@ import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 import { normalizePhone as normalizePhoneDigits, resubscribeWABAWebhooks } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { getMetaCredentialsByPhoneNumberId } from '@/lib/whatsappAccounts';
+import { META_WHATSAPP_OWNER_IDS } from '@/lib/crm-handlers';
 
 // Import media helpers
 import { 
@@ -375,7 +376,15 @@ async function handleWebhookPayload(payload: any) {
           }).lean();
 
           if ((isBlockedError || status === 'failed') && recipientPhone && metaMsg) {
-            let failedLead = await Lead.findOne({ phoneNumber: recipientPhone });
+            // Scope to the owning tenant when this phone_number_id resolved to
+            // one — otherwise a status update on the shared/legacy number could
+            // silently match (and block/auto-delete) a different tenant's lead
+            // for the same phone number.
+            const failedLeadFilter: any = { phoneNumber: recipientPhone };
+            failedLeadFilter.$or = tenantUserId
+              ? [{ assignedToUserId: tenantUserId }, { createdByUserId: tenantUserId }]
+              : [{ createdByUserId: { $in: META_WHATSAPP_OWNER_IDS } }, { createdByUserId: { $exists: false } }];
+            let failedLead = await Lead.findOne(failedLeadFilter);
 
             // ── NUMBER NOT IN LEADS ──
             // Blocked/failed for a number that was never a lead (e.g. direct API send,
@@ -397,6 +406,7 @@ async function handleWebhookPayload(payload: any) {
                   waBlockedAt: now,
                   createdAt: now,
                   updatedAt: now,
+                  ...(tenantUserId ? { createdByUserId: tenantUserId, assignedToUserId: tenantUserId } : {}),
                 });
               } catch (createErr) {
                 console.warn('[AUTO-DELETE] Could not create lead record for blocked number:', createErr);
@@ -646,10 +656,17 @@ async function handleWebhookPayload(payload: any) {
             const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
             const profileName = contacts.find((c: any) => normalizePhone(String(c.wa_id)) === from)?.profile?.name || '';
 
-            // Ensure Lead exists
+            // Ensure Lead exists. When no tenant resolved (message arrived via
+            // the shared/default number, which belongs to the super admin
+            // only — never "any tenant") scope to that owner explicitly
+            // instead of a wide-open phoneNumber match that could otherwise
+            // hit a different tenant's lead for the same number created via
+            // an unrelated channel (e.g. their own QR WhatsApp).
             console.log(`[WEBHOOK DEBUG] Finding lead for ${from}`);
             let lead = await Lead.findOne(
-              tenantUserId ? { phoneNumber: from, createdByUserId: tenantUserId } : { phoneNumber: from }
+              tenantUserId
+                ? { phoneNumber: from, createdByUserId: tenantUserId }
+                : { phoneNumber: from, $or: [{ createdByUserId: { $in: META_WHATSAPP_OWNER_IDS } }, { createdByUserId: { $exists: false } }] }
             );
             let wasFirstInbound = false;
 

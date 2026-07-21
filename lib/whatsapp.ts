@@ -15,6 +15,7 @@ import {
   isCircuitOpen,
   resetCircuit,
   withRetry,
+  metaCircuitKey,
   type ProviderType
 } from './whatsappProtection';
 import type { WhatsAppCredentials } from './whatsappAccounts';
@@ -358,11 +359,12 @@ export function buildGraphMessagesUrl(phoneNumberId: string, appSecretProof?: st
 export async function sendWhatsAppText(toRaw: string, body: string, creds?: WhatsAppCredentials): Promise<WhatsAppSendTextResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
-  console.log(`[sendWhatsAppText] to=${to}, envConfigured=${!!env}, circuitOpen=${isCircuitOpen('meta')}`);
+  console.log(`[sendWhatsAppText] to=${to}, envConfigured=${!!env}, circuitOpen=${isCircuitOpen(circuitKey)}`);
 
   // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
-  if (env && !isCircuitOpen('meta')) {
+  if (env && !isCircuitOpen(circuitKey)) {
     try {
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
@@ -411,15 +413,15 @@ export async function sendWhatsAppText(toRaw: string, body: string, creds?: What
         throw new Error(errorMsg);
       }, { maxRetries: 2 });
       
-      recordSuccess('meta');
+      recordSuccess(circuitKey);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordFailure('meta', msg);
+      recordFailure(circuitKey, msg);
       // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
       throw new Error(`WhatsApp sending failed via Meta Cloud API: ${msg}`);
     }
-  } else if (isCircuitOpen('meta')) {
+  } else if (isCircuitOpen(circuitKey)) {
     console.warn('[WHATSAPP] Meta circuit breaker OPEN');
     throw new Error('WhatsApp sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
   }
@@ -440,11 +442,12 @@ async function sendMetaPayload(
 ): Promise<WhatsAppSendTextResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
   if (!env) {
     throw new Error('WhatsApp sending failed: Meta Cloud API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
   }
-  if (isCircuitOpen('meta')) {
+  if (isCircuitOpen(circuitKey)) {
     throw new Error('WhatsApp sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
   }
 
@@ -479,11 +482,11 @@ async function sendMetaPayload(
       throw new Error(data?.error?.message || data?.error?.error_data?.details || 'Meta API error');
     }, { maxRetries: 2 });
 
-    recordSuccess('meta');
+    recordSuccess(circuitKey);
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    recordFailure('meta', msg);
+    recordFailure(circuitKey, msg);
     throw new Error(`WhatsApp sending failed via Meta Cloud API: ${msg}`);
   }
 }
@@ -612,6 +615,7 @@ export async function sendWhatsAppInteractiveButtons(
 ): Promise<WhatsAppSendTextResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
   // WhatsApp reply buttons: max 3 buttons, title max 20 chars
   // Smart truncation: cut at word boundary to avoid mid-word cuts
@@ -693,11 +697,11 @@ export async function sendWhatsAppInteractiveButtons(
       throw new Error(data?.error?.message || 'Meta Interactive API error');
     }, { maxRetries: 2 });
 
-    recordSuccess('meta');
+    recordSuccess(circuitKey);
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    recordFailure('meta', msg);
+    recordFailure(circuitKey, msg);
     console.warn('[sendWhatsAppInteractiveButtons] Meta failed, falling back to text:', msg);
     // Fallback to numbered text
     const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
@@ -749,12 +753,13 @@ export async function sendWhatsAppMedia(
 ): Promise<WhatsAppSendMediaResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
-  
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
+
   // Convert S3 URLs to publicly accessible signed URLs
   const publicMediaUrl = await getPublicMediaUrl(mediaUrl);
 
   // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
-  if (env && !isCircuitOpen('meta')) {
+  if (env && !isCircuitOpen(circuitKey)) {
     try {
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
@@ -816,15 +821,15 @@ export async function sendWhatsAppMedia(
         throw new Error(errorMsg);
       }, { maxRetries: 2 });
 
-      recordSuccess('meta');
+      recordSuccess(circuitKey);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordFailure('meta', msg);
+      recordFailure(circuitKey, msg);
       // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
       throw new Error(`WhatsApp media sending failed via Meta Cloud API: ${msg}`);
     }
-  } else if (isCircuitOpen('meta')) {
+  } else if (isCircuitOpen(circuitKey)) {
     console.warn('[WHATSAPP] Meta circuit breaker OPEN');
     throw new Error('WhatsApp media sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
   }
@@ -932,6 +937,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
   const to = normalizePhone(input.to);
   const templateName = String(input.templateName || '').trim();
   if (!templateName) throw new Error('templateName is required');
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
   // Check if Meta API is configured
   if (!env) {
@@ -944,7 +950,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
   }
 
   // Try Meta Cloud API first (with circuit breaker)
-  if (!isCircuitOpen('meta')) {
+  if (!isCircuitOpen(circuitKey)) {
     try {
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
@@ -1018,11 +1024,11 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
         return { waMessageId, raw: { ...data, provider: 'meta' } };
       }, { maxRetries: 2 });
 
-      recordSuccess('meta');
+      recordSuccess(circuitKey);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordFailure('meta', msg);
+      recordFailure(circuitKey, msg);
       throw new Error(`WhatsApp template sending failed via Meta API: ${msg}`);
     }
   }

@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppMedia } from '@/lib/whatsapp';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 export const dynamic = 'force-dynamic';
@@ -119,8 +120,10 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      // Send via Cloud API
-      const apiResult = await sendWhatsAppMedia(to, mediaUrl, mediaType, caption);
+      // Send via Cloud API — use the tenant's own connected WABA when
+      // configured, falling back to the shared/default number otherwise.
+      const tenantCreds = (await getMetaCredentialsForTenant(String(decoded.userId))) || undefined;
+      const apiResult = await sendWhatsAppMedia(to, mediaUrl, mediaType, caption, tenantCreds);
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',

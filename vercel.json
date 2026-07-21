@@ -61,6 +61,9 @@
     },
     "app/api/cron/qr-chat-archive/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/cron/meta-chat-archive/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -103,6 +106,10 @@
     {
       "path": "/api/cron/qr-chat-archive",
       "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/meta-chat-archive",
+      "schedule": "45 20 * * *"
     },
     {
       "path": "/api/cron/export",

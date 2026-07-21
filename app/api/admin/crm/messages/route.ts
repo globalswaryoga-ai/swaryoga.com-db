@@ -65,16 +65,11 @@ export async function GET(request: NextRequest) {
     // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
     // - provider=all: everything (admin analytics/reports)
     //
-    // The Meta channel is a single shared WABA owned by META_WHATSAPP_OWNER_IDS
-    // (super admin). Tenants who don't own it have no Meta messages of their own.
-    if (providerParam === 'all') {
-      if (!superAdmin) {
-        filter.provider = { $ne: 'meta' };
-      }
-    } else {
-      if (!superAdmin) {
-        return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
-      }
+    // Meta is multi-tenant, same as QR: a tenant can connect their own WABA
+    // (lib/whatsappAccounts.ts) or use the shared/default super-admin
+    // number. Either way, access is governed by lead ownership below —
+    // never a blanket block/allow by provider alone.
+    if (providerParam !== 'all') {
       // Default & 'meta': strictly Meta Cloud API messages only
       filter.provider = 'meta';
     }
@@ -96,6 +91,22 @@ export async function GET(request: NextRequest) {
         $or: [
           { sentAt: dateRange },
           { sentAt: { $exists: false }, createdAt: dateRange },
+        ],
+      });
+    }
+
+    // "Load older messages" cursor — fetch strictly older than this timestamp.
+    // Used together with the Bunny archive fallback below once Mongo's hot
+    // (~1 day) window is exhausted for a conversation.
+    const beforeParam = url.searchParams.get('before');
+    let beforeDate: Date | null = null;
+    if (beforeParam) {
+      beforeDate = new Date(beforeParam);
+      if (!filter.$and) filter.$and = [];
+      filter.$and.push({
+        $or: [
+          { sentAt: { $lt: beforeDate } },
+          { sentAt: { $exists: false }, createdAt: { $lt: beforeDate } },
         ],
       });
     }
@@ -140,7 +151,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const messages = await WhatsAppMessage.find(filter)
+    let messages: any[] = await WhatsAppMessage.find(filter)
       .sort({ sentAt: sortDir, createdAt: sortDir }) // createdAt fallback for messages without sentAt
       .skip(skip)
       .limit(limit)
@@ -148,7 +159,67 @@ export async function GET(request: NextRequest) {
       .lean();
 
     const total = await WhatsAppMessage.countDocuments(filter);
-    const meta = buildMetadata(total, limit, skip);
+    let fromArchive = false;
+
+    // Once Mongo's hot (~1 day) window is exhausted for this specific
+    // conversation, fall back to the Bunny archive (see
+    // lib/metaWhatsappArchive.ts) so "load older messages" can reach all
+    // the way back to the 1-year retention boundary instead of stopping
+    // dead at whatever's still sitting in Mongo.
+    const isMetaSingleConversation = filter.provider === 'meta' && (!!filter.leadId || !!filter.phoneNumber);
+    if (isMetaSingleConversation && messages.length < limit) {
+      try {
+        const leadDoc = filter.leadId
+          ? await Lead.findById(filter.leadId, { assignedToUserId: 1, createdByUserId: 1, phoneNumber: 1 }).lean()
+          : await Lead.findOne({ phoneNumber: filter.phoneNumber }, { assignedToUserId: 1, createdByUserId: 1, phoneNumber: 1 }).lean();
+        const tenantUserId = (leadDoc as any)?.assignedToUserId || (leadDoc as any)?.createdByUserId || 'shared';
+        const phoneNumber = (leadDoc as any)?.phoneNumber || filter.phoneNumber;
+        const resolvedLeadId = filter.leadId || (leadDoc as any)?._id;
+
+        const { getArchivedMessages, dateKeyForTimestamp, RETENTION_DAYS } = await import('@/lib/metaWhatsappArchive');
+        const untilTs = beforeDate ? Math.floor(beforeDate.getTime() / 1000) : Math.floor(Date.now() / 1000);
+        const untilDateKey = dateKeyForTimestamp(untilTs);
+        const sinceDateKey = dateKeyForTimestamp(Math.max(
+          untilTs - 30 * 24 * 60 * 60,
+          Math.floor(Date.now() / 1000) - RETENTION_DAYS * 24 * 60 * 60
+        ));
+
+        const archived = phoneNumber ? await getArchivedMessages(tenantUserId, phoneNumber, sinceDateKey, untilDateKey) : [];
+        if (archived.length) {
+          fromArchive = true;
+          const archivedAsMessages = archived
+            .filter((m) => !beforeDate || m.sentAt < Math.floor(beforeDate.getTime() / 1000))
+            .map((m) => ({
+              _id: m.messageId,
+              leadId: resolvedLeadId,
+              phoneNumber,
+              direction: m.direction,
+              messageContent: m.text,
+              headerText: m.headerText || undefined,
+              footerText: m.footerText || undefined,
+              messageType: m.messageType,
+              status: m.status,
+              provider: 'meta',
+              sentByUserId: m.sentByUserId || undefined,
+              sentAt: new Date(m.sentAt * 1000),
+              createdAt: new Date(m.sentAt * 1000),
+              ...(m.hasMedia ? { media: { kind: m.mediaKind, url: m.mediaUrl } } : {}),
+              archived: true,
+            }));
+
+          const combined = [...messages, ...archivedAsMessages].sort((a, b) => {
+            const at = new Date(a.sentAt || a.createdAt).getTime();
+            const bt = new Date(b.sentAt || b.createdAt).getTime();
+            return sortDir === 1 ? at - bt : bt - at;
+          });
+          messages = combined.slice(0, limit);
+        }
+      } catch (archiveErr) {
+        console.warn('[Messages] Archive fallback failed (non-fatal):', archiveErr instanceof Error ? archiveErr.message : archiveErr);
+      }
+    }
+
+    const meta = { ...buildMetadata(total, limit, skip), fromArchive };
 
     return formatCrmSuccess({ messages, total }, meta);
   } catch (error) {

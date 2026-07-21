@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -183,16 +184,20 @@ export async function POST(request: NextRequest) {
         deliveryResult = { waMessageId: whatsappMessageId };
       } else {
         console.log(`[SEND:${requestId}] 🌐 Sending via Meta API`);
+        // Use the tenant's own connected WABA when they have one; falls back
+        // to the shared/default number otherwise (never mixes tenants).
+        const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
         if (media?.url) {
           console.log(`[SEND:${requestId}] 🖼 Sending media via Meta API:`, media.url);
           deliveryResult = await sendWhatsAppMedia(
-            normalizedPhone, 
-            media.url, 
-            media.kind || 'image', 
-            finalMessageContent // Use the version with the admin tag
+            normalizedPhone,
+            media.url,
+            media.kind || 'image',
+            finalMessageContent, // Use the version with the admin tag
+            tenantCreds
           );
         } else {
-          deliveryResult = await sendWhatsAppText(normalizedPhone, finalMessageContent); // Use the version with the admin tag
+          deliveryResult = await sendWhatsAppText(normalizedPhone, finalMessageContent, tenantCreds); // Use the version with the admin tag
         }
       }
 

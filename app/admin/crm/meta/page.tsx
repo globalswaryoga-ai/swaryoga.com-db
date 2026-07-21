@@ -147,6 +147,8 @@ export default function MetaInboxPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messageLimit, setMessageLimit] = useState(5);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatStatusFilter, setChatStatusFilter] = useState<ChatStatus | 'all'>('all'); // Chat status filter
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'last_week'>('all'); // Date filter
@@ -662,6 +664,41 @@ export default function MetaInboxPage() {
     }
   };
 
+  // Fetches messages strictly older than the oldest one currently loaded —
+  // merges hot Mongo data with the Bunny archive server-side (see
+  // /api/admin/crm/messages) once Mongo's ~1 day hot window is exhausted,
+  // so this can reach back to the full 1-year retention boundary.
+  const loadOlderMessages = async () => {
+    if (!selected || loadingOlderMessages || !hasMoreHistory) return;
+    const id = selected.leadId || selected._id || selected.phoneNumber;
+    if (!id) return;
+    const oldest = messages[0];
+    if (!oldest) return;
+
+    setLoadingOlderMessages(true);
+    try {
+      const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
+      const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
+      params.provider = providerScope;
+      params.before = new Date((oldest as any).sentAt || (oldest as any).createdAt).toISOString();
+      params.limit = 20;
+
+      const data = await crmFetch(`/api/admin/crm/messages`, { params, silent: true });
+      const older = Array.isArray(data?.messages) ? [...data.messages].reverse() : [];
+      if (older.length === 0) {
+        setHasMoreHistory(false);
+      } else {
+        setMessages((prev) => [...older, ...prev]);
+        setMessageLimit((prev) => prev + older.length);
+        if (older.length < 20) setHasMoreHistory(false);
+      }
+    } catch (err) {
+      console.error('Failed to load older messages:', err);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  };
+
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
       const container = messagesEndRef.current.parentElement;
@@ -994,6 +1031,7 @@ export default function MetaInboxPage() {
   const handleSelectConversation = (conv: ConversationRow) => {
     setSelected(conv);
     setMessageLimit(5);
+    setHasMoreHistory(true);
     loadMessages(conv.leadId || conv._id || conv.phoneNumber);
     
     // Map legacy status values to new funnel stages
@@ -2727,16 +2765,23 @@ export default function MetaInboxPage() {
                   </div>
                 ) : (
                   <>
-                    {messages.length > messageLimit && (
+                    {(messages.length > messageLimit || hasMoreHistory) && (
                       <div className="flex justify-center pb-4">
-                        <button 
-                           onClick={() => setMessageLimit(prev => prev + 20)}
-                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-[#1E7F43] hover:text-white transition-all duration-300 hover:scale-105"
+                        <button
+                           disabled={loadingOlderMessages}
+                           onClick={() => {
+                             if (messages.length > messageLimit) {
+                               setMessageLimit(prev => prev + 20);
+                             } else {
+                               loadOlderMessages();
+                             }
+                           }}
+                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-[#1E7F43] hover:text-white transition-all duration-300 hover:scale-105 disabled:opacity-60"
                            style={{ background: 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))', border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.08)' }}
                            onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, #1E7F43, #28964F)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(30,127,67,0.3)'; }}
                            onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(30,127,67,0.08)'; }}
                         >
-                           View Earlier Conversations
+                           {loadingOlderMessages ? 'Loading…' : 'View Earlier Conversations'}
                         </button>
                       </div>
                     )}

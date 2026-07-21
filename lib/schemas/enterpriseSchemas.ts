@@ -515,6 +515,46 @@ const QrWhatsappDriveConnectionSchema = new mongoose.Schema(
 );
 
 // ============================================================================
+// META WHATSAPP CHAT ARCHIVAL — mirrors the QR retention pipeline, but for
+// the Meta Cloud API channel (WhatsAppMessage/provider:'meta') and a
+// 1-year retention window instead of 6 months.
+//
+// Meta doesn't have a per-tenant "connectedPhone" the way QR does (a tenant
+// may use their own WABA or the shared/default super-admin number), so the
+// archive is keyed by (tenantUserId, phoneNumber) instead of
+// (userId, connectedPhone, chatJid) — tenantUserId is the Lead's
+// assignedToUserId/createdByUserId, or the literal string 'shared' for
+// messages on the default number with no resolvable tenant owner.
+// ============================================================================
+const MetaWhatsappStorageUsageSchema = new mongoose.Schema(
+  {
+    tenantUserId: { type: String, required: true, index: true }, // or 'shared'
+    bunnyBytes: { type: Number, default: 0 },
+    bunnyFileCount: { type: Number, default: 0 },
+    bunnyMessageCount: { type: Number, default: 0 },
+    lastArchivedAt: { type: Date },
+    lastPurgedAt: { type: Date },
+  },
+  { timestamps: true, collection: 'meta_whatsapp_storage_usage' }
+);
+MetaWhatsappStorageUsageSchema.index({ tenantUserId: 1 }, { unique: true });
+
+const MetaWhatsappArchiveManifestSchema = new mongoose.Schema(
+  {
+    tenantUserId: { type: String, required: true, index: true },
+    phoneNumber: { type: String, required: true, index: true },
+    dateKey: { type: String, required: true }, // 'YYYY-MM-DD'
+    bunnyPath: { type: String, required: true },
+    byteSize: { type: Number, required: true },
+    messageCount: { type: Number, required: true },
+    archivedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'meta_whatsapp_archive_manifest' }
+);
+MetaWhatsappArchiveManifestSchema.index({ tenantUserId: 1, phoneNumber: 1, dateKey: 1 }, { unique: true });
+MetaWhatsappArchiveManifestSchema.index({ dateKey: 1 }); // for the 1-year purge sweep
+
+// ============================================================================
 // 1a-TEAM. QR CHAT NOTES — internal team notes on a chat (never sent to the contact)
 // ============================================================================
 const QrChatNoteSchema = new mongoose.Schema(
@@ -3285,6 +3325,8 @@ export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsA
 export function getQrWhatsappStorageUsage() { return getModel('QrWhatsappStorageUsage', QrWhatsappStorageUsageSchema); }
 export function getQrWhatsappArchiveManifest() { return getModel('QrWhatsappArchiveManifest', QrWhatsappArchiveManifestSchema); }
 export function getQrWhatsappDriveConnection() { return getModel('QrWhatsappDriveConnection', QrWhatsappDriveConnectionSchema); }
+export function getMetaWhatsappStorageUsage() { return getModel('MetaWhatsappStorageUsage', MetaWhatsappStorageUsageSchema); }
+export function getMetaWhatsappArchiveManifest() { return getModel('MetaWhatsappArchiveManifest', MetaWhatsappArchiveManifestSchema); }
 export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
 export function getQrDripSequence() { return getModel('QrDripSequence', QrDripSequenceSchema); }
 export function getQrDripEnrollment() { return getModel('QrDripEnrollment', QrDripEnrollmentSchema); }
