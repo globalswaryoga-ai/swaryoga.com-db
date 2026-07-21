@@ -646,8 +646,14 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
         keys: makeCacheableSignalKeyStore(state.keys, logger),
       },
       generateHighQualityLinkPreview: false,
-      syncFullHistory: false,
-      shouldSyncHistoryMessage: () => false,
+      // History sync must be enabled for old chats to backfill into the
+      // inbox after a QR scan (see messaging-history.set handler below).
+      // WhatsApp itself decides how far back it actually sends — this asks
+      // for the fullest history available, capped downstream to the 6-month
+      // retention window. Only fires on a fresh pairing (new QR scan), not
+      // on every reconnect of an already-linked session.
+      syncFullHistory: true,
+      shouldSyncHistoryMessage: () => true,
       markOnlineThrottleMs: 15000,
       markOnlineOnConnect: false, // human-like: not perpetually online
       // Resend message content when a recipient's device asks for a retry
