@@ -206,10 +206,33 @@ export async function GET(req: NextRequest) {
     };
     function dedupeChatsByPhone(chats: any[]): any[] {
       const byPhone = new Map<string, any>();
+      const byGroupJid = new Map<string, any>();
       const out: any[] = [];
       for (const c of chats) {
         const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
-        if (c.isGroup || idStr.endsWith('@g.us')) { out.push(c); continue; }
+        if (c.isGroup || idStr.endsWith('@g.us')) {
+          // The same group can arrive from BOTH the bridge /chats endpoint
+          // (recent-activity row) and the /groups endpoint (metadata row) —
+          // merge them by JID instead of showing the group twice.
+          if (!idStr) { out.push(c); continue; }
+          const existingGroup = byGroupJid.get(idStr);
+          if (!existingGroup) {
+            byGroupJid.set(idStr, c);
+            out.push(c);
+            continue;
+          }
+          if (!isUsefulChatDisplayName(existingGroup.name) && isUsefulChatDisplayName(c.name)) existingGroup.name = c.name;
+          existingGroup.unreadCount = Math.max(existingGroup.unreadCount || 0, c.unreadCount || 0);
+          const existingGroupTime = existingGroup.lastMessageTime ? new Date(existingGroup.lastMessageTime).getTime() : 0;
+          const candidateGroupTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+          if (candidateGroupTime > existingGroupTime) {
+            existingGroup.lastMessage = c.lastMessage;
+            existingGroup.lastMessageTime = c.lastMessageTime;
+          }
+          if (!existingGroup.participants?.length && c.participants?.length) existingGroup.participants = c.participants;
+          existingGroup.isGroup = true;
+          continue;
+        }
         const phone = String(c.resolvedPhone || '').replace(/\D/g, '') || phoneDigitsForJid(idStr);
         if (!phone) { out.push(c); continue; }
         const existing = byPhone.get(phone);
@@ -303,7 +326,12 @@ export async function GET(req: NextRequest) {
         if (!dc.isGroup) {
           const dcPhone = phoneDigitsForJid(dc.chatJid);
           if (dcPhone && bridgePhoneSet.has(dcPhone)) continue;
+          if (dcPhone) bridgePhoneSet.add(dcPhone);
         }
+        // Mark this JID/phone as emitted so a second DB doc for the SAME
+        // contact (e.g. a stale @c.us or @lid twin of an @s.whatsapp.net
+        // chat persisted at different times) can't add a duplicate row.
+        bridgeJidSet.add(dc.chatJid);
         // Enrich name from Lead if only phone stored
         let chatName = dc.name || dc.chatJid.split('@')[0];
         data.chats.push({

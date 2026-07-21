@@ -1131,9 +1131,6 @@ export default function QRWhatsAppPage() {
 
   // ── Fetch profile picture for a JID ──
   const fetchProfilePic = useCallback(async (jid: string) => {
-    // Groups use a group icon and their profile-pic proxy is access-gated (401),
-    // so never spend a bridge round-trip on them.
-    if (jid.endsWith('@g.us')) return;
     if (profilePicLoadedRef.current.has(jid)) return;
     try {
       const data = await bridgeCall(`/profile-pic/${encodeURIComponent(jid)}`);
@@ -1180,6 +1177,22 @@ export default function QRWhatsAppPage() {
       if (data?.chats) {
         // Deduplicate: merge LID and phone JIDs for the same contact (optimized with early exits)
         const phoneMap = new Map<string, ChatItem>();
+        // Exact-JID dedupe for rows that have no phone key: the same group can
+        // arrive from both the bridge /chats and /groups endpoints, and the
+        // same unresolved @lid row from both the bridge and the DB merge.
+        const jidMap = new Map<string, ChatItem>();
+        const mergeTwinIntoExisting = (existing: ChatItem, c: ChatItem) => {
+          existing.unreadCount = Math.max(existing.unreadCount || 0, c.unreadCount || 0);
+          const eT = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
+          const cT = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+          if (cT > eT) {
+            existing.lastMessage = c.lastMessage;
+            existing.lastMessageTime = c.lastMessageTime;
+          }
+          if (isPlaceholderChatName(existing.name) && !isPlaceholderChatName(c.name)) existing.name = c.name;
+          const eAny = existing as any, cAny = c as any;
+          if (!eAny.participants?.length && cAny.participants?.length) eAny.participants = cAny.participants;
+        };
         const deduped: ChatItem[] = [];
         for (const c of data.chats as any[]) {
           // Skip if chat has no ID
@@ -1208,16 +1221,27 @@ export default function QRWhatsAppPage() {
             c.lastMessage = '';
           }
           if (c.isGroup) {
-            deduped.push(c);
+            const gid = String(c.id || '');
+            const existingGroup = gid ? jidMap.get(gid) : undefined;
+            if (existingGroup) {
+              mergeTwinIntoExisting(existingGroup, c);
+            } else {
+              if (gid) jidMap.set(gid, c);
+              deduped.push(c);
+            }
             continue;
           }
 
           // Extract phone from resolvedPhone, name, or JID
           const phone = extractBestChatPhone(c);
+          // Key by the trailing 10 digits so the same contact keyed with and
+          // without a country code ("919876…" vs "9876…") still collapses —
+          // both render identically as "+91 …" in the sidebar.
+          const phoneKey = phone.length > 10 ? phone.slice(-10) : phone;
 
-          if (phone && phoneMap.has(phone)) {
+          if (phone && phoneMap.has(phoneKey)) {
             // Merge: keep the entry with more recent message, combine unread counts
-            const existing = phoneMap.get(phone)!;
+            const existing = phoneMap.get(phoneKey)!;
             const eTime = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
             const cTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
             if (cTime > eTime) {
@@ -1228,7 +1252,7 @@ export default function QRWhatsAppPage() {
               if (droppedReadAt && !readChatsRef.current.has(c.id)) {
                 readChatsRef.current.set(c.id, droppedReadAt);
               }
-              phoneMap.set(phone, c);
+              phoneMap.set(phoneKey, c);
               const idx = deduped.indexOf(existing);
               if (idx >= 0) deduped[idx] = c;
             } else {
@@ -1239,9 +1263,20 @@ export default function QRWhatsAppPage() {
                 readChatsRef.current.set(existing.id, droppedReadAt);
               }
             }
-          } else {
-            if (phone) phoneMap.set(phone, c);
+          } else if (phone) {
+            phoneMap.set(phoneKey, c);
             deduped.push(c);
+          } else {
+            // No resolvable phone (unresolved @lid) — dedupe by exact JID so
+            // the same row from the bridge and the DB merge can't both render.
+            const idKey = String(c.id || '');
+            const existing = idKey ? jidMap.get(idKey) : undefined;
+            if (existing) {
+              mergeTwinIntoExisting(existing, c);
+            } else {
+              if (idKey) jidMap.set(idKey, c);
+              deduped.push(c);
+            }
           }
         }
 
@@ -1283,6 +1318,45 @@ export default function QRWhatsAppPage() {
               }
               dropIds.add(twin.id);
             }
+          }
+          if (dropIds.size > 0) {
+            for (let i = deduped.length - 1; i >= 0; i--) {
+              if (dropIds.has(deduped[i].id)) deduped.splice(i, 1);
+            }
+          }
+        }
+
+        // ── THIRD PASS: merge unresolved @lid twins by identical last message ──
+        // When the lid→phone mapping is unknown AND the two rows carry DIFFERENT
+        // names (e.g. the phone row shows the CRM lead name while the @lid row
+        // shows nothing → "Contact"), neither pass above can match them. But both
+        // JIDs mirror the same conversation, so their last message is identical —
+        // merge the phone-less row into the phone-bearing one when the last
+        // messages match exactly and landed within 2 minutes of each other,
+        // and exactly ONE phone-bearing candidate matches (ambiguity = keep both).
+        {
+          const dropIds = new Set<string>();
+          const phonelessRows = deduped.filter(c => !c.isGroup && !extractBestChatPhone(c as any));
+          const phoneRows = deduped.filter(c => !c.isGroup && !!extractBestChatPhone(c as any));
+          for (const twin of phonelessRows) {
+            const msg = typeof twin.lastMessage === 'string' ? twin.lastMessage.trim() : '';
+            const tTime = twin.lastMessageTime ? new Date(twin.lastMessageTime).getTime() : 0;
+            if (!msg || !tTime) continue;
+            const matches = phoneRows.filter(c => {
+              const cMsg = typeof c.lastMessage === 'string' ? c.lastMessage.trim() : '';
+              if (!cMsg || cMsg !== msg) return false;
+              const cTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+              return !!cTime && Math.abs(cTime - tTime) <= 2 * 60 * 1000;
+            });
+            if (matches.length !== 1) continue;
+            const survivor = matches[0];
+            survivor.unreadCount = Math.max(survivor.unreadCount || 0, twin.unreadCount || 0);
+            if (isPlaceholderChatName(survivor.name) && !isPlaceholderChatName(twin.name)) survivor.name = twin.name;
+            const droppedReadAt = readChatsRef.current.get(twin.id);
+            if (droppedReadAt && !readChatsRef.current.has(survivor.id)) {
+              readChatsRef.current.set(survivor.id, droppedReadAt);
+            }
+            dropIds.add(twin.id);
           }
           if (dropIds.size > 0) {
             for (let i = deduped.length - 1; i >= 0; i--) {
@@ -1333,16 +1407,16 @@ export default function QRWhatsAppPage() {
         setChats(sorted);
         setError(null);
         chatsRef.current = sorted;
-        // Preload avatars for ALL individual chats (not just first 30).
-        // Groups are skipped inside fetchProfilePic (group icon + access-gated
-        // proxy), and profilePicLoadedRef guarantees each JID is fetched at most
+        // Preload avatars for ALL chats — groups included (the bridge's
+        // profilePictureUrl works for group JIDs and returns the group photo).
+        // profilePicLoadedRef guarantees each JID is fetched at most
         // once per session (failed/timed-out fetches are NOT marked, so they
         // retry on the next 30s chat poll instead of being stuck forever).
         // Fetch in small concurrent batches instead of one-at-a-time with a
         // 100ms stagger — with 100+ chats the old approach took 10s+ just to
         // *start* the last request, which is why only the first couple avatars
         // ever showed up before the user navigated away.
-        const individualChats = sorted.filter((c: ChatItem) => !c.isGroup && !profilePicLoadedRef.current.has(c.id));
+        const individualChats = sorted.filter((c: ChatItem) => !profilePicLoadedRef.current.has(c.id));
         console.log(`[QR Avatar] Loading ${individualChats.length} profile pictures...`);
         const PIC_CONCURRENCY = 6;
         (async () => {

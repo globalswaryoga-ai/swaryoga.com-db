@@ -683,6 +683,12 @@ function extractPhoneFromPath(path: string): string {
   const parts = path.split('/').filter(Boolean);
   if (parts.length >= 2) {
     const jid = decodeURIComponent(parts[1]);
+    // Group JIDs are not phones. Lead-ownership checks don't apply to groups
+    // (they're scoped by the session key itself — see the /chats route), and a
+    // modern digits-only group JID ("120363…@g.us") stripped to digits would
+    // masquerade as a "phone" that fails the lead lookup and wrongly blocks
+    // group endpoints like /profile-pic/ and /group-info/.
+    if (jid.split('?')[0].endsWith('@g.us')) return '';
     return extractPhoneFromJid(jid);
   }
   return '';
@@ -1553,7 +1559,14 @@ export async function GET(req: NextRequest) {
     // current stored QR session. This prevents stale or foreign bridge data from leaking.
     if (resolved.hasOwnBridge && resolved.storedPhone && isPathTargetEndpoint(path)) {
       const chatJid = extractChatJidFromPath(path);
-      if (chatJid) {
+      // Group profile pictures self-scope at the bridge: the current session's
+      // socket can only fetch photos of groups the connected account is in, so
+      // a stale/foreign group simply yields url:null. Groups also often have no
+      // qr_whatsapp_chats row (they come from the bridge /groups endpoint), so
+      // running them through the per-chat session gate blanked out every group
+      // avatar.
+      const skipGateForGroupPic = chatJid.endsWith('@g.us') && path.startsWith('/profile-pic/');
+      if (chatJid && !skipGateForGroupPic) {
         const allowed = await isChatAllowedInCurrentSession(userId, resolved.storedPhone, chatJid);
         if (!allowed) {
           // For /messages/ requests: auto-register the chat if it comes from the bridge
