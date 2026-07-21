@@ -705,9 +705,13 @@ const ALWAYS_ALLOWED_PATHS = new Set([
  */
 const SUPER_ADMIN_ONLY_PATHS = new Set([
   '/reconnect',
-  '/disconnect', 
+  '/disconnect',
   '/logout',
-  '/group-create',   // Creating groups from Super Admin's WhatsApp
+  '/group-create',       // Creating groups from Super Admin's WhatsApp
+  '/community-create',   // Creating announcement communities — same session-level action as
+                         // /group-create (no target lead/phone to check ownership against),
+                         // was missing from this set so a shared-bridge team member could
+                         // create a community from the bridge owner's number unrestricted.
 ]);
 
 /**
@@ -1006,6 +1010,35 @@ export async function POST(req: NextRequest) {
         }
       }
       if (allowedParticipants.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'Group operation rate limit reached (max 15/hour, 150/day) to protect this WhatsApp number from being banned. Please wait and try again.',
+          rateLimited: true,
+        }, { status: 429 });
+      }
+      body.participants = allowedParticipants;
+    }
+
+    // /group-create and /community-create add participants via the exact
+    // same groupParticipantsUpdate WhatsApp API as /group-participants above
+    // (both directly at creation and in the bridge's own follow-up batches)
+    // — without this, creating groups/communities was a way to add members
+    // in bulk that never touched the shared ban-protection budget at all.
+    if ((basePath === '/group-create' || basePath === '/community-create') && body && Array.isArray(body.participants) && body.participants.length > 0) {
+      const { reserveGroupOpSlot } = await import('@/lib/qrGroupOpRateLimit');
+      const allowedParticipants: string[] = [];
+      for (const p of body.participants) {
+        const r = await reserveGroupOpSlot(userId);
+        if (r.allowed) {
+          allowedParticipants.push(p);
+        } else {
+          console.warn(`[QR Bridge Proxy] Group-op rate limit hit for userId=${userId} on ${basePath}, reason=${r.reason}`);
+          break;
+        }
+      }
+      // /group-create requires at least one participant to form the group —
+      // /community-create can still proceed with zero (invite-link-only growth).
+      if (allowedParticipants.length === 0 && basePath === '/group-create') {
         return NextResponse.json({
           success: false,
           error: 'Group operation rate limit reached (max 15/hour, 150/day) to protect this WhatsApp number from being banned. Please wait and try again.',
