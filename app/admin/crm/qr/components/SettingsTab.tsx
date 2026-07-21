@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key } from 'lucide-react';
+import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive } from 'lucide-react';
 import type { FunnelStage, LabelPreset } from '../types';
 
 type QRAccessUser = {
@@ -59,6 +59,11 @@ export function SettingsTab({
   const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
   const [showBridgeSecret, setShowBridgeSecret] = useState(false);
+
+  // ── Chat Storage Usage (informational only, no quota/enforcement) ──
+  const [storageUsage, setStorageUsage] = useState<{
+    bunnyBytes: number; bunnyMessageCount: number; lastArchivedAt: string | null; retentionDays: number;
+  } | null>(null);
 
   // Toggle bridge secret visibility for a user
   const toggleSecretVisibility = (userId: string) => {
@@ -127,6 +132,19 @@ export function SettingsTab({
     loadAccessList();
     return () => { cancelled = true; };
   }, [isSuperAdmin, token]);
+
+  // Load chat storage usage (informational display, no enforcement)
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch('/api/admin/crm/whatsapp/qr-storage-usage', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (!cancelled && data) setStorageUsage(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token]);
 
   // Toggle QR access for a user
   const toggleUserAccess = useCallback(async (targetUserId: string, enabled: boolean) => {
@@ -229,6 +247,39 @@ export function SettingsTab({
               Your messages are isolated server-side by your account session — no data is shared between accounts
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* ── Chat Storage Usage ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+            <HardDrive className="w-4 h-4 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Chat Storage</h3>
+            <p className="text-xs text-gray-500">Your WhatsApp chat history, archived to secure cloud storage</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          {storageUsage ? (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Archived chat history</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {(storageUsage.bunnyBytes / (1024 * 1024)).toFixed(storageUsage.bunnyBytes > 1024 * 1024 * 1024 ? 2 : 1)}
+                  {storageUsage.bunnyBytes > 1024 * 1024 * 1024 ? ' GB' : ' MB'}
+                  {' '}({storageUsage.bunnyMessageCount.toLocaleString()} messages)
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                Messages older than a day move here automatically each night; kept for {storageUsage.retentionDays} days ({Math.round(storageUsage.retentionDays / 30)} months), then removed.
+                {storageUsage.lastArchivedAt && ` Last updated ${new Date(storageUsage.lastArchivedAt).toLocaleString()}.`}
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-gray-400">Loading storage usage…</p>
+          )}
         </div>
       </div>
 

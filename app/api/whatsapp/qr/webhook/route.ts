@@ -57,6 +57,19 @@ export async function POST(req: NextRequest) {
       return apiSuccess({ ok: true, ...result });
     }
 
+    // ── History-sync backfill (old messages after a fresh QR scan) ──
+    // The bridge tags these `type: 'history_sync'` and sends them in
+    // batches. This is old data, not a live event: it must NOT create
+    // leads/CRM WhatsAppMessage rows, trigger chatbot automations, opt-out
+    // handling, drip stop-on-reply, or CSAT capture — it only needs to
+    // backfill qr_whatsapp_messages/qr_whatsapp_chats so the inbox shows
+    // history. Handled before the forensic log so a burst of backfill
+    // batches doesn't flood the events collection.
+    if (payload?.type === 'history_sync') {
+      const result = await ingestQRHistorySync(payload);
+      return apiSuccess({ ok: true, ...result });
+    }
+
     // Store raw events first for forensics.
     await logQREvent({
       kind: 'unknown',
@@ -485,6 +498,134 @@ async function ingestQRPayload(payload: any) {
   }
 
   return { count: created, skippedInvalidPhone, mediaProcessed, mediaUrl: lastMediaUrl };
+}
+
+/**
+ * Bulk backfill path for `{ type: 'history_sync' }` batches from the bridge.
+ * Insert-only: never overwrites a message/chat that already exists (whether
+ * created by a live message or an earlier history-sync batch), so a
+ * historical backfill can never clobber fresher live data. Strictly scoped
+ * by bridgeUserId + connectedPhone — never a cross-tenant write.
+ */
+async function ingestQRHistorySync(payload: any) {
+  const bridgeUserId = String(payload.bridgeUserId || '').trim();
+  if (!bridgeUserId) return { count: 0, reason: 'missing_bridge_user' };
+
+  const messages = normalizeQRIncomingMessages(payload);
+  if (!messages.length) return { count: 0, reason: 'no_messages_detected' };
+
+  await connectDB();
+  const { getQrWhatsAppMessage, getQrWhatsAppChat, getCRMUserSettings } = await import('@/lib/schemas/enterpriseSchemas');
+  const QrWhatsAppMessage = getQrWhatsAppMessage();
+  const QrWhatsAppChat = getQrWhatsAppChat();
+  const CRMUserSettings = getCRMUserSettings();
+
+  const bridgeSettings = await CRMUserSettings.findOne({ userId: bridgeUserId }, { qrConnectedPhoneNumber: 1 }).lean();
+  const connectedPhone = normalizeConnectedPhone(
+    payload.connectedPhone || (bridgeSettings as any)?.qrConnectedPhoneNumber || ''
+  );
+  if (!connectedPhone) return { count: 0, reason: 'missing_connected_phone' };
+
+  const msgOps: any[] = [];
+  const chatCandidates = new Map<
+    string,
+    { chatJid: string; isGroup: boolean; name: string; lastMessage: string; lastMessageTime: Date; conversationTimestamp: number; fromMe: boolean }
+  >();
+
+  for (const m of messages) {
+    if (!m.messageId) continue;
+    const sourceJid = m.chatJid || (m.fromMe ? (m.to || m.from) : m.from);
+    const chatJid = normalizeQRChatJid(String(sourceJid || ''));
+    if (!chatJid) continue;
+
+    const text = (m.text || '').trim();
+    const hasMedia = !!(m.hasMedia && m.media);
+    const messageContent = text || (hasMedia ? `[${m.media?.kind || 'media'} message]` : '');
+    if (!messageContent) continue;
+
+    const timestampMs = m.timestamp instanceof Date ? m.timestamp.getTime() : Date.now();
+    const timestampSeconds = Math.floor(timestampMs / 1000);
+
+    msgOps.push({
+      updateOne: {
+        filter: { messageId: m.messageId, userId: bridgeUserId, connectedPhone },
+        update: {
+          $setOnInsert: {
+            userId: bridgeUserId,
+            connectedPhone,
+            chatJid,
+            direction: m.fromMe ? 'outbound' : 'inbound',
+            fromMe: !!m.fromMe,
+            text: messageContent,
+            type: m.media?.kind || m.type || 'text',
+            participant: m.participant || '',
+            pushName: m.pushName || '',
+            timestamp: timestampSeconds,
+            status: m.fromMe ? QR_MESSAGE_STATUS.SENT : QR_MESSAGE_STATUS.PENDING,
+            hasMedia,
+            mediaUrl: '',
+            mediaMimetype: '',
+            mediaFileName: '',
+            quotedId: '',
+            quotedText: '',
+            quotedParticipant: '',
+            createdAt: new Date(),
+          },
+        },
+      },
+      upsert: true,
+    });
+
+    const existing = chatCandidates.get(chatJid);
+    if (!existing || timestampSeconds > existing.conversationTimestamp) {
+      chatCandidates.set(chatJid, {
+        chatJid,
+        isGroup: chatJid.endsWith('@g.us'),
+        name: m.pushName || chatJid.split('@')[0],
+        lastMessage: messageContent,
+        lastMessageTime: new Date(timestampMs),
+        conversationTimestamp: timestampSeconds,
+        fromMe: !!m.fromMe,
+      });
+    }
+  }
+
+  if (msgOps.length) {
+    await QrWhatsAppMessage.bulkWrite(msgOps, { ordered: false });
+  }
+
+  // Chat docs: $setOnInsert only — if the chat already exists (e.g. a live
+  // message already created it), leave its preview fields untouched rather
+  // than risk overwriting newer data with this (by definition, older) backfill.
+  const chatOps = Array.from(chatCandidates.values()).map((c) => ({
+    updateOne: {
+      filter: { userId: bridgeUserId, connectedPhone, chatJid: c.chatJid },
+      update: {
+        $setOnInsert: {
+          userId: bridgeUserId,
+          connectedPhone,
+          chatJid: c.chatJid,
+          isGroup: c.isGroup,
+          name: c.name,
+          lastMessage: c.lastMessage,
+          lastMessageTime: c.lastMessageTime,
+          lastMessageFromMe: c.fromMe,
+          conversationTimestamp: c.conversationTimestamp,
+          pinned: false,
+          archived: false,
+          profilePicUrl: '',
+          unreadCount: 0,
+          createdAt: new Date(),
+        },
+      },
+      upsert: true,
+    },
+  }));
+  if (chatOps.length) {
+    await QrWhatsAppChat.bulkWrite(chatOps, { ordered: false });
+  }
+
+  return { count: msgOps.length, chats: chatOps.length, historySync: true };
 }
 
 async function logQREvent(event: {

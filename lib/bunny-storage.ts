@@ -209,7 +209,7 @@ export const uploadToS3 = uploadToBunnyStorage;
 /**
  * Upload to a specific path (without content-addressing)
  */
-async function uploadToPath(
+export async function uploadToPath(
   fileBuffer: Buffer,
   path: string,
   contentType?: string

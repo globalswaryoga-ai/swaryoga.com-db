@@ -107,6 +107,11 @@ const MAX_MSGS_PER_CHAT = 100;
 const MAX_RAW_CACHE = 500;
 const MAX_STATUS_STORE = 50;
 const ENABLE_DB_CHAT_HYDRATION = process.env.WHATSAPP_BRIDGE_ENABLE_DB_HYDRATION === 'true';
+// Mirrors RETENTION_DAYS in lib/qrWhatsappArchive.ts — no point persisting
+// history-sync messages already past the retention window, since they'd
+// just be archived-then-immediately-purged on the next cron pass.
+const HISTORY_SYNC_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+const HISTORY_SYNC_BATCH_SIZE = 200;
 
 // ── Logging ─────────────────────────────────────────────────────────────
 const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
@@ -971,6 +976,79 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
           }
         }
         if (msgsSynced > 0) console.log(`[${session.userId}] History sync: ${msgsSynced} messages processed for chatMap enrichment`);
+      }
+
+      // ── Persist history-sync messages so old chats show up in the inbox ──
+      // Separate from the chatMap-only enrichment above. Never downloads
+      // media here — a full/initial sync can carry thousands of messages
+      // in one event, so this only sends the text/placeholder needed for
+      // the inbox; a user can still fetch a specific media item on demand
+      // via the existing /media/:messageId route once it's live again.
+      if (messages && messages.length > 0) {
+        const ownPhone = sock.user?.id?.split(':')[0] || '';
+        const cutoffMs = Date.now() - HISTORY_SYNC_RETENTION_MS;
+        const historyBatch = [];
+        for (const msg of messages) {
+          try {
+            const jid = msg.key?.remoteJid;
+            if (!jid || jid === 'status@broadcast' || !msg.key?.id) continue;
+            if (msg.message?.protocolMessage || msg.message?.senderKeyDistributionMessage) continue;
+
+            const tsMs = typeof msg.messageTimestamp === 'number'
+              ? (msg.messageTimestamp < 10000000000 ? msg.messageTimestamp * 1000 : msg.messageTimestamp)
+              : Date.now();
+            if (tsMs < cutoffMs) continue; // older than the 6-month retention window — don't bother
+
+            const inner = msg.message?.viewOnceMessage?.message
+              || msg.message?.viewOnceMessageV2?.message
+              || msg.message?.ephemeralMessage?.message
+              || msg.message;
+            const text = inner?.conversation
+              || inner?.extendedTextMessage?.text
+              || inner?.imageMessage?.caption
+              || inner?.videoMessage?.caption
+              || inner?.documentMessage?.caption
+              || '';
+            const mediaKind = inner?.imageMessage ? 'image'
+              : inner?.videoMessage ? 'video'
+              : inner?.audioMessage ? 'audio'
+              : inner?.documentMessage ? 'document'
+              : inner?.stickerMessage ? 'sticker'
+              : null;
+            if (!text && !mediaKind) continue;
+
+            const fromMe = !!msg.key?.fromMe;
+            const participant = msg.key?.participant || '';
+            const rawSender = participant || jid;
+            const senderPhone = resolveToPhone(session, rawSender) || rawSender.split('@')[0];
+
+            historyBatch.push({
+              from: fromMe ? ownPhone : senderPhone,
+              to: fromMe ? senderPhone : ownPhone,
+              text,
+              messageId: msg.key.id,
+              timestamp: tsMs,
+              fromMe,
+              type: mediaKind || 'text',
+              hasMedia: !!mediaKind,
+              originalJid: jid,
+              participant,
+              pushName: msg.pushName || '',
+            });
+          } catch (e) {
+            // Skip individual message parse errors during history persistence
+          }
+        }
+
+        if (historyBatch.length > 0) {
+          console.log(`[${session.userId}] History sync: persisting ${historyBatch.length} messages to inbox (syncType=${syncType})`);
+          (async () => {
+            for (let i = 0; i < historyBatch.length; i += HISTORY_SYNC_BATCH_SIZE) {
+              const chunk = historyBatch.slice(i, i + HISTORY_SYNC_BATCH_SIZE);
+              await forwardToWebhook(session, { type: 'history_sync', connectedPhone: ownPhone, messages: chunk });
+            }
+          })().catch((e) => console.error(`[${session.userId}] History persistence failed:`, e.message));
+        }
       }
 
       // Update chatMap names for resolved LID contacts

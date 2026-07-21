@@ -450,6 +450,50 @@ QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, pinned: 1 }); // Pinn
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, unreadCount: 1 }); // Unread filtering
 
 // ============================================================================
+// 1a-QR-STORAGE. QR WHATSAPP STORAGE USAGE — per-tenant Bunny archive ledger
+// One doc per (userId, connectedPhone). Incrementally updated by the daily
+// archival cron (bytes added when messages move Mongo -> Bunny) and the
+// 6-month purge job (bytes removed when archives are finally deleted).
+// Avoids needing to query Bunny's API live for size (no such endpoint is
+// wired up), and avoids summing potentially millions of Mongo docs on read.
+// ============================================================================
+const QrWhatsappStorageUsageSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    connectedPhone: { type: String, required: true, index: true },
+    bunnyBytes: { type: Number, default: 0 },          // total bytes currently archived in Bunny
+    bunnyFileCount: { type: Number, default: 0 },       // number of archive files currently in Bunny
+    bunnyMessageCount: { type: Number, default: 0 },    // number of messages currently archived in Bunny
+    lastArchivedAt: { type: Date },                     // last time the 2am job moved data here
+    lastPurgedAt: { type: Date },                        // last time 6-month-old archives were deleted
+  },
+  { timestamps: true, collection: 'qr_whatsapp_storage_usage' }
+);
+QrWhatsappStorageUsageSchema.index({ userId: 1, connectedPhone: 1 }, { unique: true });
+
+// One row per (userId, connectedPhone, chatJid, dateKey) archive file actually
+// written to Bunny. This is the authoritative index of what's archived —
+// used both to retrieve old messages for a chat (look up which day-files
+// exist) and to find/purge archives older than 6 months, without needing to
+// list Bunny's storage directories (which the existing listFiles() helper
+// can't do reliably across the archive's nested user/phone/chat structure).
+const QrWhatsappArchiveManifestSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    connectedPhone: { type: String, required: true, index: true },
+    chatJid: { type: String, required: true, index: true },
+    dateKey: { type: String, required: true },     // 'YYYY-MM-DD', the day these messages belong to
+    bunnyPath: { type: String, required: true },
+    byteSize: { type: Number, required: true },
+    messageCount: { type: Number, required: true },
+    archivedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_archive_manifest' }
+);
+QrWhatsappArchiveManifestSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1, dateKey: 1 }, { unique: true });
+QrWhatsappArchiveManifestSchema.index({ dateKey: 1 }); // for the 6-month purge sweep
+
+// ============================================================================
 // 1a-TEAM. QR CHAT NOTES — internal team notes on a chat (never sent to the contact)
 // ============================================================================
 const QrChatNoteSchema = new mongoose.Schema(
@@ -3217,6 +3261,8 @@ export function getDeletedLead() { return getModel('DeletedLead', DeletedLeadSch
 export function getWhatsAppMessage() { return getModel('WhatsAppMessage', WhatsAppMessageSchema); }
 export function getQrWhatsAppMessage() { return getModel('QrWhatsAppMessage', QrWhatsAppMessageSchema); }
 export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsAppChatSchema); }
+export function getQrWhatsappStorageUsage() { return getModel('QrWhatsappStorageUsage', QrWhatsappStorageUsageSchema); }
+export function getQrWhatsappArchiveManifest() { return getModel('QrWhatsappArchiveManifest', QrWhatsappArchiveManifestSchema); }
 export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
 export function getQrDripSequence() { return getModel('QrDripSequence', QrDripSequenceSchema); }
 export function getQrDripEnrollment() { return getModel('QrDripEnrollment', QrDripEnrollmentSchema); }
