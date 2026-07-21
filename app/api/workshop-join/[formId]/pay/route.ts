@@ -63,7 +63,10 @@ export async function POST(
       order_amount: Number(price.toFixed(2)),
       order_currency: currency,
       customer_details: {
-        customer_id: String(userId).slice(-48),
+        // Cashfree requires customer_id to be alphanumeric + underscore/hyphen
+        // only — "guest:<phone>" (colon) was rejected outright with a 400,
+        // which surfaced to the user as a generic "Failed to initiate payment".
+        customer_id: String(userId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(-48),
         customer_name: firstName + (lastName ? ` ${lastName}` : ''),
         customer_email: payerEmail,
         customer_phone: phone,
