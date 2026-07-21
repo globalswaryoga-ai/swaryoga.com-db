@@ -4,6 +4,7 @@ import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 import { sendTextViaQrBridge } from '@/lib/qrBridgeSend';
+import { resolveWorkshopFee } from '@/lib/workshopFees';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,12 @@ export async function POST(
     const form = await EnquiryForm.findOne({ formId: params.formId, isActive: true }).lean() as any;
     if (!form) return NextResponse.json({ error: 'Form not found or inactive' }, { status: 404 });
 
-    const price = Math.max(0, Number(form.price) || 0);
+    const body = await req.json();
+    const { price, label: feeLabel, index: feeOptionIndex } = resolveWorkshopFee(form, body?.feeOptionIndex);
     if (price <= 0) {
       return NextResponse.json({ error: 'This workshop is free — no payment needed' }, { status: 400 });
     }
 
-    const body = await req.json();
     const name = String(body?.name || '').trim();
     const phone = normalizePhone(String(body?.mobile || '')) || String(body?.mobile || '').replace(/\D/g, '');
     if (!name || !phone) {
@@ -39,8 +40,11 @@ export async function POST(
     const firstName = name.split(' ')[0] || name;
 
     // Pay link → the join page in pay mode, pre-filled so they can pay in 1 tap.
+    // Carries the already-resolved fee index so they land back on the SAME
+    // tier they were quoted, instead of defaulting to the first option.
     const origin = getRequestBaseUrl(req);
-    const payLink = `${origin}/workshop-join/${params.formId}?pay=1&n=${encodeURIComponent(firstName)}&m=${phone.replace(/^91/, '')}`;
+    const feeParam = feeOptionIndex >= 0 ? `&fee=${feeOptionIndex}` : '';
+    const payLink = `${origin}/workshop-join/${params.formId}?pay=1&n=${encodeURIComponent(firstName)}&m=${phone.replace(/^91/, '')}${feeParam}`;
 
     // Mark the lead payment-pending (lead was created on Join submit).
     try {
@@ -67,8 +71,9 @@ export async function POST(
     }
 
     // Auto-send the pay link on WhatsApp.
+    const feeSuffix = feeLabel ? ` (${feeLabel})` : '';
     const message =
-      `Namaste ${firstName}! 🙏\n\nTo confirm your seat for *${form.workshopName}*, please complete your payment of *${symbol}${price}*:\n${payLink}\n\nWe look forward to seeing you. — Swar Yoga`;
+      `Namaste ${firstName}! 🙏\n\nTo confirm your seat for *${form.workshopName}*, please complete your payment of *${symbol}${price}${feeSuffix}*:\n${payLink}\n\nWe look forward to seeing you. — Swar Yoga`;
     const sent = await sendTextViaQrBridge(phone, message);
 
     return NextResponse.json({ success: true, whatsappSent: sent, payLink });

@@ -14,6 +14,7 @@ interface FormData {
   workshopImage: string;
   price?: number;
   currency?: string;
+  feeOptions?: { label: string; price: number }[];
   groupLink?: string;
 }
 
@@ -22,10 +23,10 @@ const MODE_LABELS: Record<string, string> = { online: 'Online', offline: 'Offlin
 const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', NPR: 'रू' };
 
 export default function JoinFormClient({ formData, paid = false, payFailed = false }: { formData: FormData; paid?: boolean; payFailed?: boolean }) {
-  const price = Math.max(0, Number(formData.price) || 0);
+  const feeOptions = formData.feeOptions || [];
+  const hasFeeOptions = feeOptions.length > 0;
   const currency = (formData.currency || 'INR').toUpperCase();
   const symbol = CURRENCY_SYMBOL[currency] || '';
-  const isPaid = price > 0;
 
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
@@ -39,13 +40,38 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
   const [payLaterState, setPayLaterState] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [payLaterSentWhatsApp, setPayLaterSentWhatsApp] = useState(false);
   const [payLaterLink, setPayLaterLink] = useState('');
+  const [feeOptionIndex, setFeeOptionIndex] = useState(0);
 
-  // Pre-fill from a pay link (?pay=1&n=&m=) sent on WhatsApp for "Pay Later".
+  // The amount driving the UI: the selected fee tier when the form has
+  // multiple, otherwise the legacy single price.
+  const price = hasFeeOptions
+    ? Math.max(0, Number(feeOptions[feeOptionIndex]?.price) || 0)
+    : Math.max(0, Number(formData.price) || 0);
+  const isPaid = hasFeeOptions ? feeOptions.some((f) => f.price > 0) : price > 0;
+
+  // Badge shown BEFORE the registrant has picked a tier (intro screen) — a
+  // single amount if all paid tiers cost the same, otherwise "From ₹X".
+  const introPriceLabel = (() => {
+    if (!isPaid) return 'Free';
+    if (!hasFeeOptions) return `${symbol}${price}`;
+    const paidAmounts = feeOptions.filter((f) => f.price > 0).map((f) => f.price);
+    const min = Math.min(...paidAmounts);
+    const max = Math.max(...paidAmounts);
+    return min === max ? `${symbol}${min}` : `From ${symbol}${min}`;
+  })();
+
+  // Pre-fill from a pay link (?pay=1&n=&m=&fee=) sent on WhatsApp for "Pay Later".
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search);
     if (q.get('n')) setName(q.get('n') || '');
     if (q.get('m')) setMobile((q.get('m') || '').replace(/\D/g, '').slice(0, 10));
+    const feeParam = q.get('fee');
+    if (feeParam !== null) {
+      const idx = Number(feeParam);
+      if (Number.isInteger(idx) && idx >= 0 && idx < feeOptions.length) setFeeOptionIndex(idx);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,7 +103,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
       const res = await fetch(`/api/workshop-join/${formData.formId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country }),
+        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex }),
       });
       const data = await res.json();
       if (!res.ok || !data.success || !data.paymentSessionId) {
@@ -108,7 +134,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
       const res = await fetch(`/api/workshop-join/${formData.formId}/pay-later`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country }),
+        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex }),
       });
       const data = await res.json().catch(() => ({}));
       setPayLaterSentWhatsApp(!!data.whatsappSent);
@@ -190,8 +216,40 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
           {/* Step 2 — Payment (only when the workshop has a price) */}
           {isPaid && (
             <div className="border-t border-gray-100 pt-4 mt-1">
-              <p className="text-sm text-gray-600 mb-1">Workshop fee</p>
-              <p className="text-2xl font-extrabold text-[#1b4332] mb-3">{symbol}{price}</p>
+              {hasFeeOptions && feeOptions.length > 1 ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-2 text-left">Choose your fee option</p>
+                  <div className="space-y-2 mb-3 text-left">
+                    {feeOptions.map((fee, idx) => (
+                      <label
+                        key={idx}
+                        className={`flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border cursor-pointer transition ${
+                          feeOptionIndex === idx ? 'border-[#2d6a4f] bg-[#f0f7ee]' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                          <input
+                            type="radio"
+                            name="feeOption"
+                            checked={feeOptionIndex === idx}
+                            onChange={() => setFeeOptionIndex(idx)}
+                            className="accent-[#2d6a4f]"
+                          />
+                          {fee.label || `Option ${idx + 1}`}
+                        </span>
+                        <span className="text-sm font-bold text-[#1b4332]">
+                          {fee.price > 0 ? `${symbol}${fee.price}` : 'Free'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-1">Workshop fee</p>
+                  <p className="text-2xl font-extrabold text-[#1b4332] mb-3">{symbol}{price}</p>
+                </>
+              )}
 
               {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm mb-3">{error}</div>}
 
@@ -251,7 +309,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
                   {MODE_ICONS[formData.workshopMode]} {MODE_LABELS[formData.workshopMode] || formData.workshopMode}
                 </span>
                 <span className="text-xs bg-white text-[#1b4332] px-3 py-1 rounded-full font-bold">
-                  {isPaid ? `${symbol}${price}` : 'Free'}
+                  {introPriceLabel}
                 </span>
               </div>
               <h1 className="text-xl font-bold text-white leading-tight">{formData.workshopName}</h1>
@@ -335,7 +393,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
             {loading ? <Loader className="animate-spin" size={18} /> : 'Join Now →'}
           </button>
           <p className="text-center text-xs text-gray-400 pb-1">
-            {isPaid ? `Next: join the group & pay ${symbol}${price} (now or later).` : 'We’ll contact you on WhatsApp within 24 hours.'}
+            {isPaid ? `Next: join the group & pay ${introPriceLabel} (now or later).` : 'We’ll contact you on WhatsApp within 24 hours.'}
           </p>
         </form>
       </div>

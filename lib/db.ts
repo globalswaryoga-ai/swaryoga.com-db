@@ -2294,8 +2294,19 @@ const enquiryFormSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     workshopImage: { type: String, default: '' },     // banner image URL
     // Payment (optional): when price > 0 the public form shows Pay Now / Pay Later.
+    // Legacy single-price field — kept for backward compatibility with forms
+    // created before feeOptions existed, and as a display fallback. When
+    // feeOptions has entries, it is the one that drives the public form.
     price: { type: Number, default: 0 },               // 0 = free / no payment
-    currency: { type: String, default: 'INR' },
+    currency: { type: String, default: 'INR' },        // applies to all feeOptions too
+    // Multiple selectable fee tiers (e.g. "Early Bird", "Standard"). The public
+    // registrant picks one; the SELECTED INDEX (never a client-sent amount) is
+    // what the pay/pay-later routes look up server-side to get the amount —
+    // same amount-tampering protection as the legacy single `price` field.
+    feeOptions: {
+      type: [{ label: { type: String, default: '' }, price: { type: Number, default: 0 } }],
+      default: [],
+    },
     groupLink: { type: String, default: '' },          // WhatsApp group invite link shown after join
     isActive: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, default: 'admin' },

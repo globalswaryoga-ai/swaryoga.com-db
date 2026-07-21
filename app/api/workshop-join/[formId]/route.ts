@@ -28,6 +28,7 @@ export async function GET(
       workshopImage: form.workshopImage || '',
       price: form.price || 0,
       currency: form.currency || 'INR',
+      feeOptions: Array.isArray(form.feeOptions) ? form.feeOptions.map((f: any) => ({ label: f.label || '', price: f.price || 0 })) : [],
       groupLink: form.groupLink || '',
     },
   });

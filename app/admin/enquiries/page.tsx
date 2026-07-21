@@ -32,6 +32,7 @@ interface EnquiryForm {
   workshopImage?: string;
   price?: number;
   currency?: string;
+  feeOptions?: { label: string; price: number }[];
   groupLink?: string;
   isActive: boolean;
   submissionCount: number;
@@ -68,8 +69,8 @@ export default function EnquiriesPage() {
   const [newWsMode, setNewWsMode] = useState('online');
   const [newWsDesc, setNewWsDesc] = useState('');
   const [newWsImage, setNewWsImage] = useState('');
-  const [newWsPrice, setNewWsPrice] = useState('');
   const [newWsCurrency, setNewWsCurrency] = useState('INR');
+  const [newWsFeeOptions, setNewWsFeeOptions] = useState<{ label: string; price: string }[]>([{ label: '', price: '' }]);
   const [newWsGroupLink, setNewWsGroupLink] = useState('');
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -164,13 +165,13 @@ export default function EnquiriesPage() {
     setEditingFormId(null);
     setFormSaveError('');
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
-    setNewWsDesc(''); setNewWsImage(''); setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsDesc(''); setNewWsImage(''); setNewWsFeeOptions([{ label: '', price: '' }]); setNewWsCurrency('INR'); setNewWsGroupLink('');
   };
 
   const openCreateForm = () => {
     setEditingFormId(null);
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
-    setNewWsDesc(''); setNewWsImage(''); setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsDesc(''); setNewWsImage(''); setNewWsFeeOptions([{ label: '', price: '' }]); setNewWsCurrency('INR'); setNewWsGroupLink('');
     setFormSaveError('');
     setShowAddForm(true);
   };
@@ -183,18 +184,33 @@ export default function EnquiriesPage() {
     setNewWsMode(form.workshopMode || 'online');
     setNewWsDesc(form.description || '');
     setNewWsImage(form.workshopImage || '');
-    setNewWsPrice(form.price ? String(form.price) : '');
+    // Migrate an old single-price form into one repeater row so editing it
+    // doesn't silently drop the existing price.
+    const existingFees = form.feeOptions && form.feeOptions.length
+      ? form.feeOptions.map((f) => ({ label: f.label || '', price: String(f.price ?? '') }))
+      : form.price
+        ? [{ label: 'Fee', price: String(form.price) }]
+        : [{ label: '', price: '' }];
+    setNewWsFeeOptions(existingFees);
     setNewWsCurrency(form.currency || 'INR');
     setNewWsGroupLink(form.groupLink || '');
     setFormSaveError('');
     setShowAddForm(true);
   };
 
+  const addFeeOptionRow = () => setNewWsFeeOptions((prev) => [...prev, { label: '', price: '' }]);
+  const removeFeeOptionRow = (idx: number) => setNewWsFeeOptions((prev) => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+  const updateFeeOptionRow = (idx: number, field: 'label' | 'price', value: string) =>
+    setNewWsFeeOptions((prev) => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+
   const saveNewForm = async () => {
     if (!newWsName.trim()) { setFormSaveError('Workshop name is required'); return; }
     setSavingForm(true);
     setFormSaveError('');
     try {
+      const feeOptions = newWsFeeOptions
+        .map((f) => ({ label: f.label.trim(), price: Math.max(0, Number(f.price) || 0) }))
+        .filter((f) => f.label || f.price > 0);
       const payload = {
         workshopName: newWsName.trim(),
         workshopDate: newWsDate,
@@ -202,7 +218,7 @@ export default function EnquiriesPage() {
         workshopMode: newWsMode,
         description: newWsDesc.trim(),
         workshopImage: newWsImage,
-        price: Math.max(0, Number(newWsPrice) || 0),
+        feeOptions,
         currency: newWsCurrency || 'INR',
         groupLink: newWsGroupLink.trim(),
       };
@@ -1160,19 +1176,52 @@ export default function EnquiriesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Price <span className="font-normal text-gray-400">(0 = free)</span></label>
-                  <input type="number" min="0" value={newWsPrice} onChange={(e) => setNewWsPrice(e.target.value)} placeholder="e.g. 999" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Currency</label>
-                  <select value={newWsCurrency} onChange={(e) => setNewWsCurrency(e.target.value)} className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 bg-white">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-semibold text-gray-700">Fees <span className="font-normal text-gray-400">(leave blank/0 for free)</span></label>
+                  <select value={newWsCurrency} onChange={(e) => setNewWsCurrency(e.target.value)} className="h-8 px-2 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 bg-white">
                     <option value="INR">₹ INR</option>
                     <option value="USD">$ USD</option>
                     <option value="NPR">रू NPR</option>
                   </select>
                 </div>
+                <div className="space-y-2">
+                  {newWsFeeOptions.map((fee, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={fee.label}
+                        onChange={(e) => updateFeeOptionRow(idx, 'label', e.target.value)}
+                        placeholder="e.g. Early Bird"
+                        className="flex-1 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={fee.price}
+                        onChange={(e) => updateFeeOptionRow(idx, 'price', e.target.value)}
+                        placeholder="Amount"
+                        className="w-28 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeFeeOptionRow(idx)}
+                        disabled={newWsFeeOptions.length === 1}
+                        className="w-11 h-11 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:border-gray-200 shrink-0"
+                        title="Remove this fee option"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addFeeOptionRow}
+                  className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-[#2d6a4f] hover:text-[#1b4332]"
+                >
+                  <Plus className="w-4 h-4" /> Add Fee Option
+                </button>
               </div>
 
               <div>

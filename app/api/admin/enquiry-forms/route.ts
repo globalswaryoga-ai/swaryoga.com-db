@@ -6,6 +6,14 @@ import { nanoid } from 'nanoid';
 
 export const dynamic = 'force-dynamic';
 
+/** Sanitize a client-submitted feeOptions array into a safe, valid shape. */
+function sanitizeFeeOptions(raw: unknown): { label: string; price: number }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((f: any) => ({ label: String(f?.label || '').trim(), price: Math.max(0, Number(f?.price) || 0) }))
+    .filter((f) => f.label || f.price > 0);
+}
+
 /** GET — list all enquiry forms (superadmin only) */
 export async function GET(req: NextRequest) {
   const token = (req.headers.get('authorization') || '').replace('Bearer ', '').trim();
@@ -26,13 +34,19 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(decoded)) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
 
   const body = await req.json();
-  const { workshopName, workshopDate, workshopTime, workshopMode, workshopId, description, workshopImage, price, currency, groupLink } = body;
+  const { workshopName, workshopDate, workshopTime, workshopMode, workshopId, description, workshopImage, price, currency, groupLink, feeOptions } = body;
 
   if (!workshopName?.trim()) {
     return NextResponse.json({ error: 'Workshop name is required' }, { status: 400 });
   }
 
   const formId = nanoid(8); // e.g. "aB3xY7qW"
+  const sanitizedFeeOptions = sanitizeFeeOptions(feeOptions);
+  // Legacy `price` mirrors the lowest fee option so any code still reading it
+  // directly (list views, etc.) shows a sane value.
+  const legacyPrice = sanitizedFeeOptions.length
+    ? Math.min(...sanitizedFeeOptions.map((f) => f.price))
+    : Math.max(0, Number(price) || 0);
 
   await connectDB();
   const form = await EnquiryForm.create({
@@ -44,8 +58,9 @@ export async function POST(req: NextRequest) {
     workshopId: workshopId?.trim() || '',
     description: description?.trim() || '',
     workshopImage: workshopImage?.trim() || '',
-    price: Math.max(0, Number(price) || 0),
+    price: legacyPrice,
     currency: (currency?.trim() || 'INR').toUpperCase(),
+    feeOptions: sanitizedFeeOptions,
     groupLink: groupLink?.trim() || '',
     isActive: true,
   });
@@ -65,6 +80,12 @@ export async function PATCH(req: NextRequest) {
   if (!formId) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
   const body = await req.json();
+  if (body.feeOptions !== undefined) {
+    body.feeOptions = sanitizeFeeOptions(body.feeOptions);
+    if (body.feeOptions.length) {
+      body.price = Math.min(...body.feeOptions.map((f: { price: number }) => f.price));
+    }
+  }
   await connectDB();
   const updated = await EnquiryForm.findOneAndUpdate({ formId }, { $set: body }, { new: true });
   if (!updated) return NextResponse.json({ error: 'Form not found' }, { status: 404 });
