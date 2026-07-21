@@ -13,18 +13,18 @@ const KP_PLANETS = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', '
 
 // Per-house color accents so each bhav box is visually distinct at a glance.
 const HOUSE_COLORS: Record<number, { badge: string; border: string }> = {
-  1:  { badge: 'bg-red-400 text-black',     border: 'border-red-500/40' },
-  2:  { badge: 'bg-orange-400 text-black',  border: 'border-orange-500/40' },
-  3:  { badge: 'bg-amber-400 text-black',   border: 'border-amber-500/40' },
-  4:  { badge: 'bg-yellow-400 text-black',  border: 'border-yellow-500/40' },
-  5:  { badge: 'bg-lime-400 text-black',    border: 'border-lime-500/40' },
-  6:  { badge: 'bg-emerald-400 text-black', border: 'border-emerald-500/40' },
-  7:  { badge: 'bg-teal-400 text-black',    border: 'border-teal-500/40' },
-  8:  { badge: 'bg-cyan-400 text-black',    border: 'border-cyan-500/40' },
-  9:  { badge: 'bg-sky-400 text-black',     border: 'border-sky-500/40' },
-  10: { badge: 'bg-indigo-400 text-black',  border: 'border-indigo-500/40' },
-  11: { badge: 'bg-violet-400 text-black',  border: 'border-violet-500/40' },
-  12: { badge: 'bg-pink-400 text-black',    border: 'border-pink-500/40' },
+  1:  { badge: 'bg-red-500 text-white',     border: 'border-red-300' },
+  2:  { badge: 'bg-orange-500 text-white',  border: 'border-orange-300' },
+  3:  { badge: 'bg-amber-500 text-white',   border: 'border-amber-300' },
+  4:  { badge: 'bg-yellow-500 text-white',  border: 'border-yellow-300' },
+  5:  { badge: 'bg-lime-600 text-white',    border: 'border-lime-300' },
+  6:  { badge: 'bg-emerald-600 text-white', border: 'border-emerald-300' },
+  7:  { badge: 'bg-teal-600 text-white',    border: 'border-teal-300' },
+  8:  { badge: 'bg-cyan-600 text-white',    border: 'border-cyan-300' },
+  9:  { badge: 'bg-sky-600 text-white',     border: 'border-sky-300' },
+  10: { badge: 'bg-indigo-600 text-white',  border: 'border-indigo-300' },
+  11: { badge: 'bg-violet-600 text-white',  border: 'border-violet-300' },
+  12: { badge: 'bg-pink-600 text-white',    border: 'border-pink-300' },
 };
 
 export interface BhavAnalysisRow {
@@ -212,17 +212,17 @@ function TextCell({ value, onChange, placeholder, rows = 2 }: { value: string; o
       onChange={(e) => onChange(e.target.value)}
       rows={rows}
       placeholder={placeholder}
-      className="w-full resize-y rounded-lg border border-zinc-700 bg-black/60 px-2.5 py-2 text-xs leading-relaxed text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+      className="w-full resize-y rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs leading-relaxed text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
     />
   );
 }
 
 function FieldBox({ label, children, tone = 'slate' }: { label: string; children: ReactNode; tone?: 'slate' | 'indigo' | 'emerald' | 'red' }) {
   const toneClass = {
-    slate: 'bg-zinc-900/80 border-zinc-700 text-zinc-300',
-    indigo: 'bg-yellow-500/10 border-yellow-500/40 text-yellow-300',
-    emerald: 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300',
-    red: 'bg-red-950/60 border-red-700/60 text-red-300',
+    slate: 'bg-gray-50 border-gray-200 text-gray-600',
+    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    red: 'bg-red-50 border-red-200 text-red-700',
   }[tone];
 
   return (
@@ -235,9 +235,9 @@ function FieldBox({ label, children, tone = 'slate' }: { label: string; children
 
 function InputCell({ value, onChange, placeholder, accent = 'slate' }: { value: string; onChange: (v: string) => void; placeholder?: string; accent?: 'slate' | 'yellow' | 'red' }) {
   const accentClass = {
-    slate: 'border-zinc-700 text-zinc-100 focus:border-yellow-400',
-    yellow: 'border-yellow-500/40 text-yellow-100 focus:border-yellow-400',
-    red: 'border-red-700/60 text-zinc-100 focus:border-red-400',
+    slate: 'border-gray-300 text-gray-800 focus:border-indigo-400',
+    yellow: 'border-amber-300 text-gray-800 focus:border-amber-400',
+    red: 'border-red-300 text-gray-800 focus:border-red-400',
   }[accent];
 
   return (
@@ -245,7 +245,7 @@ function InputCell({ value, onChange, placeholder, accent = 'slate' }: { value: 
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`w-full rounded-lg border bg-black px-3 py-2 text-sm shadow-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 ${accentClass}`}
+      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${accentClass}`}
     />
   );
 }
@@ -286,10 +286,10 @@ function intersect(a: number[], b: number[]): number[] {
 
 function KaryeshDataPill({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'yellow' | 'emerald' | 'red' }) {
   const toneClass = {
-    slate: 'border-zinc-700 bg-zinc-950 text-zinc-100',
-    yellow: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-100',
-    emerald: 'border-emerald-700/60 bg-emerald-950/60 text-emerald-100',
-    red: 'border-red-700/60 bg-red-950/60 text-red-100',
+    slate: 'border-gray-200 bg-gray-50 text-gray-700',
+    yellow: 'border-amber-200 bg-amber-50 text-amber-800',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    red: 'border-red-200 bg-red-50 text-red-800',
   }[tone];
 
   return (
@@ -342,13 +342,13 @@ function ManagedKaryeshView({
           : 'Need CSL/star-owner data';
 
   return (
-    <div className="rounded-xl border border-zinc-700 bg-black/60 p-3">
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Managed Karyesh View</div>
-          <div className="text-[11px] text-zinc-500">Generated from saved chart data and editable Bhav fields.</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Managed Karyesh View</div>
+          <div className="text-[11px] text-gray-500">Generated from saved chart data and editable Bhav fields.</div>
         </div>
-        <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-[11px] font-semibold text-zinc-300">Bhav {row.house}</span>
+        <span className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600">Bhav {row.house}</span>
       </div>
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         <KaryeshDataPill label="Bhav Sign" value={house?.sign || '-'} />
@@ -364,14 +364,14 @@ function ManagedKaryeshView({
         <KaryeshDataPill label="Favorable Hits" value={houseList(supportingHits)} tone={supportingHits.length ? 'emerald' : 'slate'} />
         <KaryeshDataPill label="Denial Hits" value={houseList(opposingHits)} tone={opposingHits.length ? 'red' : 'slate'} />
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
         <div>
-          <span className="font-semibold text-yellow-300">Suggested result: </span>{suggestedResult}
+          <span className="font-semibold text-indigo-700">Suggested result: </span>{suggestedResult}
         </div>
         <button
           type="button"
           onClick={() => onApplySuggestion(suggestedResult)}
-          className="rounded-lg bg-yellow-400 px-2.5 py-1.5 text-[11px] font-bold text-black hover:bg-yellow-300"
+          className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700"
         >
           Apply
         </button>
@@ -384,35 +384,35 @@ function ToolkitReferenceCards() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="border-b border-zinc-800 bg-black/80 p-3">
+    <div className="border-b border-gray-200 bg-gray-50 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Reference</div>
-          <div className="text-[11px] text-zinc-500">Small cards stay collapsed until needed.</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Toolkit Reference</div>
+          <div className="text-[11px] text-gray-500">Small cards stay collapsed until needed.</div>
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
       {TOOLKIT_REFERENCE_CARDS.map((card) => {
         const open = !!openCards[card.title];
         return (
-          <div key={card.title} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
+          <div key={card.title} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <button
               type="button"
               onClick={() => setOpenCards((prev) => ({ ...prev, [card.title]: !open }))}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-900"
+              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-gray-50"
             >
               <div className="flex min-w-0 items-center gap-2">
-                {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
-                <span className="truncate text-sm font-semibold text-zinc-100">{card.title}</span>
+                {open ? <ChevronDown className="h-4 w-4 shrink-0 text-indigo-600" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+                <span className="truncate text-sm font-semibold text-gray-900">{card.title}</span>
               </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-black">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-bold text-white">
                 {open ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 {card.badge}
               </span>
             </button>
             {open && (
-              <div className="max-h-72 overflow-y-auto border-t border-zinc-800 px-4 py-3">
-                <ul className="grid gap-2 text-xs leading-relaxed text-zinc-300">
+              <div className="max-h-72 overflow-y-auto border-t border-gray-200 px-4 py-3">
+                <ul className="grid gap-2 text-xs leading-relaxed text-gray-600">
                   {card.lines.map((line) => <li key={line}>{line}</li>)}
                 </ul>
               </div>
@@ -447,13 +447,13 @@ export default function BhavEditor({
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-black px-4 py-3">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-white">12 Bhav Working Dropdowns</h3>
-          <p className="mt-0.5 text-xs text-zinc-500">Open one Bhav, complete Karyesh logic, save, then generate final prediction.</p>
+          <h3 className="text-sm font-semibold text-gray-900">12 Bhav Working Dropdowns</h3>
+          <p className="mt-0.5 text-xs text-gray-500">Open one Bhav, complete Karyesh logic, save, then generate final prediction.</p>
         </div>
-        <div className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">12 bhavs</div>
+        <div className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">12 bhavs</div>
       </div>
       <ToolkitReferenceCards />
       <div className="space-y-2 p-3">
@@ -465,35 +465,35 @@ export default function BhavEditor({
           const colors = HOUSE_COLORS[row.house] || HOUSE_COLORS[1];
 
           return (
-            <div key={row.house} className={`overflow-hidden rounded-xl border bg-zinc-950 shadow-sm ${open ? colors.border : 'border-zinc-700'}`}>
+            <div key={row.house} className={`overflow-hidden rounded-xl border bg-white shadow-sm ${open ? colors.border : 'border-gray-200'}`}>
               <button
                 type="button"
                 onClick={() => setOpenHouse(open ? 0 : row.house)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-900"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
+                  {open ? <ChevronDown className="h-4 w-4 shrink-0 text-indigo-600" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${colors.badge}`}>{bhavLabel(row.house)}</span>
-                  <span className="truncate text-sm font-medium text-zinc-100">{HOUSE_LABELS[row.house]}</span>
+                  <span className="truncate text-sm font-medium text-gray-800">{HOUSE_LABELS[row.house]}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className={`hidden rounded-full px-2.5 py-1 text-xs font-bold sm:inline ${isReady ? 'bg-emerald-900 text-emerald-200' : 'bg-zinc-800 text-zinc-400'}`}>
+                  <span className={`hidden rounded-full px-2.5 py-1 text-xs font-bold sm:inline ${isReady ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                     {progress.done}/{progress.total}
                   </span>
-                  {row.predictionOrder > 0 && <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-xs font-bold text-black">#{row.predictionOrder}</span>}
-                  {row.subLord && <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-100">Sub: {row.subLord}</span>}
-                  {row.dashaChain && <span className="hidden rounded-full bg-emerald-950 px-2.5 py-1 text-xs font-semibold text-emerald-300 sm:inline">{row.dashaChain}</span>}
+                  {row.predictionOrder > 0 && <span className="rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white">#{row.predictionOrder}</span>}
+                  {row.subLord && <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Sub: {row.subLord}</span>}
+                  {row.dashaChain && <span className="hidden rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 sm:inline">{row.dashaChain}</span>}
                 </div>
               </button>
 
               {open && (
-                <div className="space-y-3 border-t border-zinc-800 bg-black/70 p-4">
+                <div className="space-y-3 border-t border-gray-200 bg-white p-4">
                   <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
                     <FieldBox label="Sub Lord Planet" tone="indigo">
                       <select
                         value={row.subLord}
                         onChange={(e) => updateRow(row.house, 'subLord', e.target.value)}
-                        className="w-full rounded-lg border border-yellow-500/40 bg-black px-3 py-2 text-sm text-yellow-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                        className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       >
                         <option value="">— select —</option>
                         {KP_PLANETS.map((p) => (
@@ -517,7 +517,7 @@ export default function BhavEditor({
                           type="checkbox"
                           checked={row.includeInPrediction}
                           onChange={(e) => updateRow(row.house, 'includeInPrediction', e.target.checked)}
-                          className="h-5 w-5 rounded border-zinc-600 bg-black text-yellow-400 focus:ring-yellow-500/30"
+                          className="h-5 w-5 rounded border-gray-300 bg-white text-indigo-600 focus:ring-indigo-200"
                         />
                       </div>
                     </FieldBox>
@@ -526,7 +526,7 @@ export default function BhavEditor({
                         type="number"
                         value={row.predictionOrder || ''}
                         onChange={(e) => updateRow(row.house, 'predictionOrder', Number(e.target.value) || 0)}
-                        className="w-20 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                        className="w-20 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       />
                     </FieldBox>
                   </div>
@@ -542,14 +542,14 @@ export default function BhavEditor({
 
                   <ManagedKaryeshView row={row} houses={houses} planets={planets} onApplySuggestion={(result) => applyKaryeshSuggestion(row.house, result)} />
 
-                  <div className="overflow-hidden rounded-xl border border-yellow-500/30 bg-yellow-500/5">
-                    <div className="border-b border-yellow-500/20 bg-black/50 px-3 py-3">
+                  <div className="overflow-hidden rounded-xl border border-indigo-200 bg-indigo-50/40">
+                    <div className="border-b border-indigo-100 bg-indigo-50 px-3 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Rule Template</div>
-                        <div className="mt-1 text-[11px] text-zinc-400">{TOOLKIT_RULE_FIELDS.join(' -> ')}</div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Toolkit Rule Template</div>
+                        <div className="mt-1 text-[11px] text-gray-500">{TOOLKIT_RULE_FIELDS.join(' -> ')}</div>
                       </div>
-                      <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-bold text-black">Karyesh logic</span>
+                      <span className="rounded-full bg-indigo-600 px-2.5 py-1 text-[11px] font-bold text-white">Karyesh logic</span>
                     </div>
                     </div>
                     <div className="space-y-3 p-3">

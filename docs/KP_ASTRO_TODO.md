@@ -52,3 +52,10 @@
 - [x] Hindi/English toggle for the interactive workspace UI (table headers, toggle labels, Nature values) — separate from the AI final-prediction report language, which already supported many more languages.
 - [ ] Nature (Malefic/Benefic) rule note: per-planet table uses natural/fixed classification (Moon by waxing/waning, Mercury by conjunction); Bhav/Karyesh work area uses the existing functional per-ascendant rule (kendra+trikona+2nd = supportive) — confirm both against your reference tool if any label looks off, the exact "Conjunction/Opposition Lords" convention in the Signification & Strength table was reverse-engineered without full certainty.
 - [ ] Consider translating planet/sign/star names themselves (currently left in standard English/Sanskrit form in both languages).
+
+## Visual Consistency (white theme + planet/number colors)
+
+- [x] Converted every dark (black/zinc) panel to the same light theme as the rest of the page: HousesPlanetsTable, PlanetaryAspectsTable, SignificationStrengthTable, ABCDSignificatorsPanel, ChartDetailsPanel, BhavEditor (including the Toolkit Reference cards and per-Bhav working panels), KpLanguageContext toggle.
+- [x] Added lib/kpAstro/planetColors.ts — a consistent per-planet color (Sun=orange, Moon=sky blue, Mars=red, Mercury=green, Jupiter=amber, Venus=pink, Saturn=indigo, Rahu=stone, Ketu=slate) used for planet badges/chips across every table, and a separate indigo accent for house-number badges so numbers and planets are never visually confused.
+- [x] KundaliChart: planet abbreviations inside the chart itself are now colored per-planet (previously plain black text); house numbers in Bhav-display-mode are indigo instead of black.
+- [x] Removed PlanetKaryeshTable.tsx (dead code — its content was superseded by HousesPlanetsTable's Planets view; nothing imported it anymore) and the duplicated per-page LanguageToggleLight components (now just reuse the shared KpLanguageToggle, which was also converted to the light theme).

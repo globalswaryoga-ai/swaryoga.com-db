@@ -25,6 +25,25 @@ const PLANET_ABBR: Record<string, string> = {
   Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
 };
 
+// SVG fill colors (hex, not Tailwind classes) matching lib/kpAstro/planetColors.ts
+// so a planet reads the same color inside the chart as it does in every table.
+const PLANET_SVG_COLOR: Record<string, string> = {
+  Sun: '#f97316', Moon: '#0ea5e9', Mars: '#dc2626', Mercury: '#059669',
+  Jupiter: '#f59e0b', Venus: '#ec4899', Saturn: '#4338ca', Rahu: '#57534e', Ketu: '#64748b',
+};
+
+function PlanetLabels({ names, x, y, fontSize }: { names: string[]; x: number; y: number; fontSize: number }) {
+  return (
+    <text x={x} y={y} fontSize={fontSize} fontWeight="700" textAnchor="middle">
+      {names.map((name, i) => (
+        <tspan key={name} fill={PLANET_SVG_COLOR[name] || '#111827'}>
+          {i > 0 ? ' ' : ''}{PLANET_ABBR[name] || name.slice(0, 2)}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 export interface KundaliChartProps {
   chartStyle: 'north' | 'south';
   ascendantSign: string;
@@ -90,8 +109,7 @@ export default function KundaliChart({ chartStyle, ascendantSign, houses = [], p
   for (const p of planets) {
     const house = p.house ?? (p.sign ? signToHouse.get(p.sign) : undefined);
     if (!house) continue;
-    const abbr = PLANET_ABBR[p.planet] || p.planet.slice(0, 2);
-    planetsByHouse.set(house, [...(planetsByHouse.get(house) || []), abbr]);
+    planetsByHouse.set(house, [...(planetsByHouse.get(house) || []), p.planet]);
   }
 
   if (chartStyle === 'south') {
@@ -108,9 +126,13 @@ export default function KundaliChart({ chartStyle, ascendantSign, houses = [], p
               <rect x={col * cell} y={row * cell} width={cell} height={cell} fill={isAsc ? '#ede9fe' : 'white'} stroke="#9ca3af" strokeWidth={1} />
               <text x={col * cell + 6} y={row * cell + 16} fontSize={11} fill="#6b7280">{sign.slice(0, 3)}{house ? ` (${house})` : ''}</text>
               {isAsc && <text x={col * cell + cell - 18} y={row * cell + 16} fontSize={11} fontWeight="bold" fill="#7c3aed">Asc</text>}
-              <text x={col * cell + cell / 2} y={row * cell + cell / 2 + 8} fontSize={displayMode === 'bhav' ? 16 : 13} fontWeight="600" fill="#111827" textAnchor="middle">
-                {displayMode === 'bhav' ? (house ? `Bhav ${house}` : '') : planetLabels.join(' ')}
-              </text>
+              {displayMode === 'bhav' ? (
+                <text x={col * cell + cell / 2} y={row * cell + cell / 2 + 8} fontSize={16} fontWeight="700" fill="#4338ca" textAnchor="middle">
+                  {house ? `Bhav ${house}` : ''}
+                </text>
+              ) : (
+                <PlanetLabels names={planetLabels} x={col * cell + cell / 2} y={row * cell + cell / 2 + 8} fontSize={13} />
+              )}
             </g>
           );
         })}
@@ -131,9 +153,11 @@ export default function KundaliChart({ chartStyle, ascendantSign, houses = [], p
           <g key={house}>
             <polygon points={points} fill={house === 1 ? '#ede9fe' : 'white'} stroke="none" />
             <text x={lx} y={ly - 10} fontSize={11} fill="#6b7280" textAnchor="middle">{sign.slice(0, 3)}</text>
-            <text x={lx} y={ly + 14} fontSize={displayMode === 'bhav' ? 16 : 13} fontWeight="600" fill="#111827" textAnchor="middle">
-              {displayMode === 'bhav' ? house : planetLabels.join(' ')}
-            </text>
+            {displayMode === 'bhav' ? (
+              <text x={lx} y={ly + 14} fontSize={16} fontWeight="700" fill="#4338ca" textAnchor="middle">{house}</text>
+            ) : (
+              <PlanetLabels names={planetLabels} x={lx} y={ly + 14} fontSize={13} />
+            )}
           </g>
         );
       })}

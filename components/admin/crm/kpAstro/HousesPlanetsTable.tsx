@@ -12,6 +12,7 @@ import { naturalNature, type PlanetNature } from '@/lib/kpAstro/planetNature';
 import { SIGN_LORDS } from '@/lib/kpAstro';
 import { t } from '@/lib/kpAstro/uiLabels';
 import { useKpLanguage } from './KpLanguageContext';
+import { planetColorOf, HOUSE_BADGE } from '@/lib/kpAstro/planetColors';
 
 function natureLabel(nature: PlanetNature, lang: 'en' | 'hi'): string {
   return nature === 'Benefic' ? t('benefic', lang) : nature === 'Malefic' ? t('malefic', lang) : t('neutral', lang);
@@ -25,6 +26,31 @@ function planetShortName(name: string): string {
   return map[name] || name;
 }
 
+function HouseBadge({ houseNum }: { houseNum: number }) {
+  return <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${HOUSE_BADGE}`}>{houseNum}</span>;
+}
+
+function PlanetBadge({ name }: { name: string }) {
+  const color = planetColorOf(name);
+  return <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${color.bg} ${color.text}`}>{planetShortName(name)}</span>;
+}
+
+function planetChips(names: string[]) {
+  if (!names.length) return <span className="text-gray-400">-</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {names.map((name) => {
+        const color = planetColorOf(name);
+        return (
+          <span key={name} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${color.chip}`}>
+            {planetShortName(name)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function houseList(values: number[]): string {
   return values.length ? values.join(', ') : '-';
 }
@@ -35,18 +61,18 @@ function HousesView({ houses, planets }: { houses: SignificatorHouse[]; planets:
 
   return (
     <table className="w-full border-separate border-spacing-0 text-xs">
-      <thead className="text-left text-[11px] uppercase tracking-wide text-zinc-400">
+      <thead className="text-left text-[11px] uppercase tracking-wide text-gray-500">
         <tr>
-          <th className="sticky left-0 z-20 min-w-[90px] border-b border-zinc-800 bg-zinc-950 p-3">{t('house', lang)}</th>
-          <th className="min-w-[105px] border-b border-zinc-800 bg-zinc-950 p-3">{t('sign', lang)}</th>
-          <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">{t('position', lang)}</th>
-          <th className="min-w-[150px] border-b border-zinc-800 bg-zinc-950 p-3">{t('star', lang)}</th>
-          <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">{t('signLord', lang)}</th>
-          <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">{t('starLord', lang)}</th>
-          <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">{t('subLord', lang)}</th>
-          <th className="min-w-[160px] border-b border-zinc-800 bg-zinc-950 p-3">{t('occupants', lang)}</th>
-          <th className="min-w-[170px] border-b border-zinc-800 bg-zinc-950 p-3">{t('drishti', lang)}</th>
-          <th className="min-w-[210px] border-b border-zinc-800 bg-zinc-950 p-3">{t('subLordSignifies', lang)}</th>
+          <th className="sticky left-0 z-20 min-w-[70px] border-b border-gray-200 bg-gray-50 p-3">{t('house', lang)}</th>
+          <th className="min-w-[105px] border-b border-gray-200 bg-gray-50 p-3">{t('sign', lang)}</th>
+          <th className="min-w-[120px] border-b border-gray-200 bg-gray-50 p-3">{t('position', lang)}</th>
+          <th className="min-w-[150px] border-b border-gray-200 bg-gray-50 p-3">{t('star', lang)}</th>
+          <th className="min-w-[120px] border-b border-gray-200 bg-gray-50 p-3">{t('signLord', lang)}</th>
+          <th className="min-w-[120px] border-b border-gray-200 bg-gray-50 p-3">{t('starLord', lang)}</th>
+          <th className="min-w-[120px] border-b border-gray-200 bg-gray-50 p-3">{t('subLord', lang)}</th>
+          <th className="min-w-[160px] border-b border-gray-200 bg-gray-50 p-3">{t('occupants', lang)}</th>
+          <th className="min-w-[170px] border-b border-gray-200 bg-gray-50 p-3">{t('drishti', lang)}</th>
+          <th className="min-w-[210px] border-b border-gray-200 bg-gray-50 p-3">{t('subLordSignifies', lang)}</th>
         </tr>
       </thead>
       <tbody>
@@ -56,19 +82,19 @@ function HousesView({ houses, planets }: { houses: SignificatorHouse[]; planets:
           const aspectedBy = drishtiHits.filter((d) => d.toHouse === houseNum).map((d) => d.planet);
           const cusp = cuspSubLordSignification(houses, planets, houseNum);
           return (
-            <tr key={houseNum} className="group align-top">
-              <td className="sticky left-0 z-10 border-b border-zinc-800 bg-black p-3 group-hover:bg-zinc-900">
-                <span className="inline-flex rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-bold text-black">{houseNum}</span>
+            <tr key={houseNum} className="group align-top hover:bg-gray-50">
+              <td className="sticky left-0 z-10 border-b border-gray-100 bg-white p-3 group-hover:bg-gray-50">
+                <HouseBadge houseNum={houseNum} />
               </td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{h?.sign || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{h?.degree || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{h?.star || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{h?.signLord || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{h?.starLord || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 font-semibold text-yellow-300 group-hover:bg-zinc-900">{h?.subLord || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{occupants.length ? occupants.join(', ') : '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{aspectedBy.length ? aspectedBy.join(', ') : '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-300 group-hover:bg-zinc-900">
+              <td className="border-b border-gray-100 p-3 text-gray-700">{h?.sign || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{h?.degree || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{h?.star || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{h?.signLord || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{h?.starLord || '-'}</td>
+              <td className="border-b border-gray-100 p-3 font-semibold text-indigo-700">{h?.subLord || '-'}</td>
+              <td className="border-b border-gray-100 p-3">{planetChips(occupants)}</td>
+              <td className="border-b border-gray-100 p-3">{planetChips(aspectedBy)}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-600">
                 {cusp.subLord ? `${t('dep', lang)}: ${cusp.byDeposition.join(', ') || '-'} | ${t('own', lang)}: ${cusp.byOwnership.join(', ') || '-'}` : '-'}
               </td>
             </tr>
@@ -83,18 +109,18 @@ function PlanetsView({ houses, planets }: { houses: SignificatorHouse[]; planets
   const { lang } = useKpLanguage();
   return (
     <table className="w-full border-separate border-spacing-0 text-xs">
-      <thead className="text-left text-[11px] uppercase tracking-wide text-zinc-400">
+      <thead className="text-left text-[11px] uppercase tracking-wide text-gray-500">
         <tr>
-          <th className="sticky left-0 z-20 min-w-[90px] border-b border-zinc-800 bg-zinc-950 p-3">{t('planet', lang)}</th>
-          <th className="min-w-[100px] border-b border-zinc-800 bg-zinc-950 p-3">{t('sign', lang)}</th>
-          <th className="min-w-[120px] border-b border-zinc-800 bg-zinc-950 p-3">{t('position', lang)}</th>
-          <th className="min-w-[150px] border-b border-zinc-800 bg-zinc-950 p-3">{t('star', lang)}</th>
-          <th className="min-w-[110px] border-b border-zinc-800 bg-zinc-950 p-3">{t('signLord', lang)}</th>
-          <th className="min-w-[110px] border-b border-zinc-800 bg-zinc-950 p-3">{t('starLord', lang)}</th>
-          <th className="min-w-[110px] border-b border-zinc-800 bg-zinc-950 p-3">{t('subLord', lang)}</th>
-          <th className="min-w-[100px] border-b border-zinc-800 bg-zinc-950 p-3">{t('nature', lang)}</th>
-          <th className="min-w-[100px] border-b border-zinc-800 bg-zinc-950 p-3">{t('occupies', lang)}</th>
-          <th className="min-w-[100px] border-b border-zinc-800 bg-zinc-950 p-3">{t('owns', lang)}</th>
+          <th className="sticky left-0 z-20 min-w-[70px] border-b border-gray-200 bg-gray-50 p-3">{t('planet', lang)}</th>
+          <th className="min-w-[100px] border-b border-gray-200 bg-gray-50 p-3">{t('sign', lang)}</th>
+          <th className="min-w-[120px] border-b border-gray-200 bg-gray-50 p-3">{t('position', lang)}</th>
+          <th className="min-w-[150px] border-b border-gray-200 bg-gray-50 p-3">{t('star', lang)}</th>
+          <th className="min-w-[110px] border-b border-gray-200 bg-gray-50 p-3">{t('signLord', lang)}</th>
+          <th className="min-w-[110px] border-b border-gray-200 bg-gray-50 p-3">{t('starLord', lang)}</th>
+          <th className="min-w-[110px] border-b border-gray-200 bg-gray-50 p-3">{t('subLord', lang)}</th>
+          <th className="min-w-[100px] border-b border-gray-200 bg-gray-50 p-3">{t('nature', lang)}</th>
+          <th className="min-w-[100px] border-b border-gray-200 bg-gray-50 p-3">{t('occupies', lang)}</th>
+          <th className="min-w-[100px] border-b border-gray-200 bg-gray-50 p-3">{t('owns', lang)}</th>
         </tr>
       </thead>
       <tbody>
@@ -104,21 +130,21 @@ function PlanetsView({ houses, planets }: { houses: SignificatorHouse[]; planets
           const owns = housesOwnedBy(houses, p.planet);
           const nature = naturalNature(p, planets);
           return (
-            <tr key={p.planet} className="group align-top">
-              <td className="sticky left-0 z-10 border-b border-zinc-800 bg-black p-3 group-hover:bg-zinc-900">
-                <span className="font-semibold text-yellow-300">{planetShortName(p.planet)}</span>
+            <tr key={p.planet} className="group align-top hover:bg-gray-50">
+              <td className="sticky left-0 z-10 border-b border-gray-100 bg-white p-3 group-hover:bg-gray-50">
+                <PlanetBadge name={p.planet} />
               </td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{p.sign || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{p.degree || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{p.star || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{signLord || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{starLord || '-'}</td>
-              <td className="border-b border-zinc-800 p-3 font-semibold text-yellow-300 group-hover:bg-zinc-900">{p.subLord || '-'}</td>
-              <td className={`border-b border-zinc-800 p-3 font-semibold group-hover:bg-zinc-900 ${nature === 'Benefic' ? 'text-emerald-400' : nature === 'Malefic' ? 'text-red-500' : 'text-zinc-400'}`}>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{p.sign || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{p.degree || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{p.star || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{signLord || '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{starLord || '-'}</td>
+              <td className="border-b border-gray-100 p-3 font-semibold text-indigo-700">{p.subLord || '-'}</td>
+              <td className={`border-b border-gray-100 p-3 font-semibold ${nature === 'Benefic' ? 'text-emerald-600' : nature === 'Malefic' ? 'text-red-600' : 'text-gray-500'}`}>
                 {natureLabel(nature, lang)}
               </td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{p.house ?? '-'}</td>
-              <td className="border-b border-zinc-800 p-3 text-zinc-100 group-hover:bg-zinc-900">{houseList(owns)}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{p.house ?? '-'}</td>
+              <td className="border-b border-gray-100 p-3 text-gray-700">{houseList(owns)}</td>
             </tr>
           );
         })}
@@ -138,7 +164,7 @@ export default function HousesPlanetsTable({
 }) {
   const { lang } = useKpLanguage();
   if (!houses.length && !planets.length) {
-    return <p className="text-sm text-slate-400">{t('noHouseData', lang)}</p>;
+    return <p className="text-sm text-gray-400">{t('noHouseData', lang)}</p>;
   }
 
   return (

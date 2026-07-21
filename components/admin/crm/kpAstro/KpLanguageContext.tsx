@@ -26,15 +26,15 @@ export function useKpLanguage() {
 export function KpLanguageToggle() {
   const { lang, setLang } = useKpLanguage();
   return (
-    <div className="inline-flex rounded-lg border border-zinc-700 bg-zinc-950 p-0.5">
+    <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
       {(['en', 'hi'] as const).map((code) => (
         <button
           key={code}
           type="button"
           onClick={() => setLang(code)}
-          className={`px-2 py-1 text-xs font-medium rounded-md ${lang === code ? 'bg-yellow-400 text-black' : 'text-zinc-300 hover:text-white'}`}
+          className={`px-2 py-1 text-xs font-medium rounded-md ${lang === code ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
         >
-          {code === 'en' ? 'English' : 'हिंदी'}
+          {code === 'en' ? 'EN' : 'हिं'}
         </button>
       ))}
     </div>
