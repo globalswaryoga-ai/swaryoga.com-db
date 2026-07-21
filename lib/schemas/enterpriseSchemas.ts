@@ -493,6 +493,27 @@ const QrWhatsappArchiveManifestSchema = new mongoose.Schema(
 QrWhatsappArchiveManifestSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1, dateKey: 1 }, { unique: true });
 QrWhatsappArchiveManifestSchema.index({ dateKey: 1 }); // for the 6-month purge sweep
 
+// One row per tenant that has connected their own personal Google Drive so
+// their WhatsApp chat archive also gets mirrored there (in addition to
+// Bunny, which remains the system of record). refreshToken is encrypted at
+// rest. needsReconnect flips true the moment a refresh attempt fails (e.g.
+// the 7-day token expiry Google enforces for unverified OAuth apps) so the
+// daily sync stops retrying a dead token until the user reconnects.
+const QrWhatsappDriveConnectionSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, unique: true, index: true },
+    connectedPhone: { type: String, default: '' },
+    googleEmail: { type: String, default: '' },
+    refreshToken: { type: String, required: true }, // encrypted via lib/encryption
+    folderId: { type: String, default: '' },          // cached Drive folder id
+    needsReconnect: { type: Boolean, default: false },
+    lastSyncedAt: { type: Date },
+    lastError: { type: String, default: '' },
+    connectedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_drive_connections' }
+);
+
 // ============================================================================
 // 1a-TEAM. QR CHAT NOTES — internal team notes on a chat (never sent to the contact)
 // ============================================================================
@@ -3263,6 +3284,7 @@ export function getQrWhatsAppMessage() { return getModel('QrWhatsAppMessage', Qr
 export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsAppChatSchema); }
 export function getQrWhatsappStorageUsage() { return getModel('QrWhatsappStorageUsage', QrWhatsappStorageUsageSchema); }
 export function getQrWhatsappArchiveManifest() { return getModel('QrWhatsappArchiveManifest', QrWhatsappArchiveManifestSchema); }
+export function getQrWhatsappDriveConnection() { return getModel('QrWhatsappDriveConnection', QrWhatsappDriveConnectionSchema); }
 export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
 export function getQrDripSequence() { return getModel('QrDripSequence', QrDripSequenceSchema); }
 export function getQrDripEnrollment() { return getModel('QrDripEnrollment', QrDripEnrollmentSchema); }

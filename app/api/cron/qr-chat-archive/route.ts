@@ -17,8 +17,11 @@ export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getQrWhatsAppMessage, getQrWhatsappDriveConnection } from '@/lib/schemas/enterpriseSchemas';
 import { archiveChatDay, purgeExpiredArchives, listArchivedTenants, dateKeyForTimestamp, type ArchivedMessage } from '@/lib/qrWhatsappArchive';
+import { decryptCredential } from '@/lib/encryption';
+import { refreshAccessToken, ensureDriveFolder, upsertFileInDriveFolder } from '@/lib/googleDriveSync';
+import { buildChatHistoryExport, renderChatHistoryHtml } from '@/lib/qrWhatsappChatExport';
 
 // Stop starting new buckets after this much wall-clock time, so we always
 // return cleanly within maxDuration rather than getting killed mid-write.
@@ -118,11 +121,55 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Mirror to each tenant's own connected Google Drive, if they've opted
+    // in (see qr-drive-connect). Best-effort and isolated per tenant — one
+    // tenant's dead/expired token must never block another tenant's mirror
+    // or the archive run itself.
+    let driveMirrored = 0;
+    let driveSkipped = 0;
+    if (Date.now() - startedAt < TIME_BUDGET_MS && processedTenants.size > 0) {
+      const DriveConn = getQrWhatsappDriveConnection();
+      const userIds = Array.from(processedTenants).map((key) => key.split('::')[0]);
+      const connections = await DriveConn.find({ userId: { $in: userIds }, needsReconnect: false }).lean();
+
+      for (const conn of connections as any[]) {
+        if (Date.now() - startedAt > TIME_BUDGET_MS) break;
+        if (!conn.connectedPhone) continue;
+        try {
+          const accessToken = await refreshAccessToken(decryptCredential(conn.refreshToken));
+          const folderId = conn.folderId || (await ensureDriveFolder(accessToken));
+          const { chats, truncated } = await buildChatHistoryExport(conn.userId, conn.connectedPhone);
+          const html = renderChatHistoryHtml(conn.connectedPhone, chats, truncated);
+          await upsertFileInDriveFolder(
+            accessToken,
+            folderId,
+            `whatsapp-chat-history-${conn.connectedPhone}.html`,
+            Buffer.from(html, 'utf-8'),
+            'text/html'
+          );
+          await DriveConn.updateOne(
+            { userId: conn.userId },
+            { $set: { lastSyncedAt: new Date(), lastError: '', folderId } }
+          );
+          driveMirrored++;
+        } catch (driveErr: any) {
+          driveSkipped++;
+          const isDeadToken = driveErr?.code === 'invalid_grant';
+          await DriveConn.updateOne(
+            { userId: conn.userId },
+            { $set: { needsReconnect: isDeadToken, lastError: driveErr?.message || 'Drive sync failed' } }
+          );
+          console.error(`[QR Chat Archive] Drive mirror failed for ${conn.userId}:`, driveErr?.message || driveErr);
+        }
+      }
+    }
+
     const summary = {
       success: true,
       bucketsProcessed, messagesArchived, messagesDeleted, errors,
       tenantsTouched: processedTenants.size,
       purgedFiles, purgedBytes,
+      driveMirrored, driveSkipped,
       durationMs: Date.now() - startedAt,
     };
     console.log('[QR Chat Archive] Run complete:', summary);

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive, Download, CloudUpload, AlertTriangle } from 'lucide-react';
 import type { FunnelStage, LabelPreset } from '../types';
 
 type QRAccessUser = {
@@ -64,6 +65,103 @@ export function SettingsTab({
   const [storageUsage, setStorageUsage] = useState<{
     bunnyBytes: number; bunnyMessageCount: number; lastArchivedAt: string | null; retentionDays: number;
   } | null>(null);
+
+  // ── Google Drive Backup ──
+  const searchParams = useSearchParams();
+  const [driveStatus, setDriveStatus] = useState<{
+    connected: boolean; googleEmail?: string; needsReconnect?: boolean; lastSyncedAt?: string | null; lastError?: string;
+  } | null>(null);
+  const [driveConnecting, setDriveConnecting] = useState(false);
+  const [driveBackingUp, setDriveBackingUp] = useState(false);
+  const [driveDisconnecting, setDriveDisconnecting] = useState(false);
+  const [driveBanner, setDriveBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const refreshDriveStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/qr-drive-status', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) setDriveStatus(await res.json());
+    } catch {
+      // non-fatal
+    }
+  }, [token]);
+
+  useEffect(() => { refreshDriveStatus(); }, [refreshDriveStatus]);
+
+  // Show a banner after returning from the Google OAuth redirect
+  useEffect(() => {
+    const driveConnect = searchParams?.get('driveConnect');
+    if (!driveConnect) return;
+    if (driveConnect === 'success') {
+      const email = searchParams.get('email');
+      setDriveBanner({ type: 'success', message: email ? `Connected to Google Drive as ${email}.` : 'Connected to Google Drive.' });
+      refreshDriveStatus();
+    } else if (driveConnect === 'error') {
+      const reason = searchParams.get('reason') || 'unknown_error';
+      setDriveBanner({ type: 'error', message: `Couldn't connect Google Drive: ${reason.replace(/_/g, ' ')}` });
+    }
+  }, [searchParams, refreshDriveStatus]);
+
+  const connectDrive = useCallback(async () => {
+    if (!token) return;
+    setDriveConnecting(true);
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/qr-drive-connect', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data?.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setDriveBanner({ type: 'error', message: data?.error || 'Failed to start Google Drive connection' });
+      }
+    } catch (e: any) {
+      setDriveBanner({ type: 'error', message: e?.message || 'Failed to start Google Drive connection' });
+    } finally {
+      setDriveConnecting(false);
+    }
+  }, [token]);
+
+  const disconnectDrive = useCallback(async () => {
+    if (!token) return;
+    setDriveDisconnecting(true);
+    try {
+      await fetch('/api/admin/crm/whatsapp/qr-drive-connect/disconnect', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      setDriveStatus({ connected: false });
+      setDriveBanner(null);
+    } finally {
+      setDriveDisconnecting(false);
+    }
+  }, [token]);
+
+  const backupNowToDrive = useCallback(async () => {
+    if (!token) return;
+    setDriveBackingUp(true);
+    setDriveBanner(null);
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/qr-drive-backup', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDriveBanner({ type: 'success', message: `Backed up ${data.totalMessages?.toLocaleString?.() || 0} messages across ${data.chatsCount || 0} chats to Drive.` });
+        refreshDriveStatus();
+      } else {
+        setDriveBanner({ type: 'error', message: data?.error || 'Backup failed' });
+        if (res.status === 409) refreshDriveStatus();
+      }
+    } catch (e: any) {
+      setDriveBanner({ type: 'error', message: e?.message || 'Backup failed' });
+    } finally {
+      setDriveBackingUp(false);
+    }
+  }, [token, refreshDriveStatus]);
 
   // Toggle bridge secret visibility for a user
   const toggleSecretVisibility = (userId: string) => {
@@ -276,9 +374,111 @@ export function SettingsTab({
                 Messages older than a day move here automatically each night; kept for {storageUsage.retentionDays} days ({Math.round(storageUsage.retentionDays / 30)} months), then removed.
                 {storageUsage.lastArchivedAt && ` Last updated ${new Date(storageUsage.lastArchivedAt).toLocaleString()}.`}
               </p>
+              <a
+                href={`/api/admin/crm/whatsapp/qr-chat-export?token=${encodeURIComponent(token || '')}`}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+              >
+                <Download className="w-3.5 h-3.5" /> Download my chat history
+              </a>
             </>
           ) : (
             <p className="text-xs text-gray-400">Loading storage usage…</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Google Drive Backup ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+            <CloudUpload className="w-4 h-4 text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Google Drive Backup</h3>
+            <p className="text-xs text-gray-500">Mirror your WhatsApp chat history to your own Google Drive</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          {driveBanner && (
+            <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-xs ${
+              driveBanner.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {driveBanner.type === 'success' ? <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+              <span>{driveBanner.message}</span>
+            </div>
+          )}
+
+          {!driveStatus ? (
+            <p className="text-xs text-gray-400">Loading…</p>
+          ) : !driveStatus.connected ? (
+            <>
+              <p className="text-xs text-gray-500">
+                Connect your Google Drive so a copy of your archived chat history lands there too — accessible independently of this app, any time.
+              </p>
+              <button
+                type="button"
+                onClick={connectDrive}
+                disabled={driveConnecting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition"
+              >
+                {driveConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                Connect Google Drive
+              </button>
+              <p className="text-[10px] text-gray-400">
+                Google may show an "unverified app" warning during connect — that's expected until this integration completes Google's app review; choose Advanced → Go to app to continue.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs text-gray-700">Connected as <strong>{driveStatus.googleEmail || 'your Google account'}</strong></span>
+                </div>
+              </div>
+              {driveStatus.needsReconnect && (
+                <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>Your Drive connection expired (Google requires reconnecting periodically for this app). Reconnect to resume backups.</span>
+                </div>
+              )}
+              <p className="text-[10px] text-gray-400">
+                {driveStatus.lastSyncedAt ? `Last backed up ${new Date(driveStatus.lastSyncedAt).toLocaleString()}. ` : ''}
+                Backs up automatically every night alongside the regular archive.
+              </p>
+              <div className="flex items-center gap-2">
+                {driveStatus.needsReconnect ? (
+                  <button
+                    type="button"
+                    onClick={connectDrive}
+                    disabled={driveConnecting}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition"
+                  >
+                    {driveConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Reconnect
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={backupNowToDrive}
+                    disabled={driveBackingUp}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition"
+                  >
+                    {driveBackingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                    Backup Now
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={disconnectDrive}
+                  disabled={driveDisconnecting}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 hover:bg-gray-50 disabled:opacity-60 text-gray-600 text-xs font-medium rounded-lg transition"
+                >
+                  {driveDisconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unplug className="w-3.5 h-3.5" />}
+                  Disconnect
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
