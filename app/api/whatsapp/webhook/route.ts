@@ -187,10 +187,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    // Recommended: verify Meta webhook signature if APP_SECRET is available.
-    // Clean approach: only verify if explicitly not skipped
+    // Verify Meta webhook signature whenever an app secret is configured.
+    // Fail closed: signature verification is ON by default and must be
+    // explicitly opted out of (e.g. for local dev without a configured
+    // secret) via SKIP_WEBHOOK_SIGNATURE=true — it must never default to
+    // skipping in an environment that already has an app secret set.
     const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
-    const rawSkipFlag = (process.env.SKIP_WEBHOOK_SIGNATURE || 'true').trim().toLowerCase().replace(/['"\\n]/g, '');
+    const rawSkipFlag = (process.env.SKIP_WEBHOOK_SIGNATURE || 'false').trim().toLowerCase().replace(/['"\\n]/g, '');
     let skipSignatureVerification = rawSkipFlag === 'true' || !appSecret;
     
     console.log(`🔐 Signature Check: appSecret=${appSecret ? 'SET' : 'NOT SET'}, skipSignatureVerification=${skipSignatureVerification}`);

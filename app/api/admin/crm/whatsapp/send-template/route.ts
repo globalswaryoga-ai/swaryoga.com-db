@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         source: 'whatsapp',
         status: 'lead',
         assignedToUserId: userId,
-        createdBy: userId,
+        createdByUserId: userId,
       });
       console.log(`[send-template:${requestId}] Created new lead for phone: ${normalizedPhone}`);
     }

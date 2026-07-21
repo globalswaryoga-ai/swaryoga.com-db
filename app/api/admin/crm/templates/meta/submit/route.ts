@@ -159,13 +159,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Update local template with Meta info
+    // Update local template with Meta info. Must persist the mapped
+    // language code (e.g. 'en' -> 'en_US') Meta actually approved the
+    // template under — leaving the old local `language` here means every
+    // future send uses a code that no longer matches the approved template
+    // and fails with an opaque "template does not exist" error from Meta.
     const updated = await WhatsAppTemplate.findOneAndUpdate(
       { _id: templateId, ...tf },
       {
         $set: {
           metaTemplateId: result.metaTemplateId,
           metaTemplateName: metaFormat.name,
+          language: metaFormat.language,
           status: 'pending_approval',
           metaStatus: result.status || 'PENDING',
           submittedToMetaAt: new Date(),

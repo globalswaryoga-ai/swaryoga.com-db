@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         source: 'whatsapp-template-meta',
         status: 'lead',
         assignedToUserId: decoded?.userId,
-        createdBy: decoded?.userId,
+        createdByUserId: decoded?.userId,
       });
     }
 

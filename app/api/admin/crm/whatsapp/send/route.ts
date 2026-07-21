@@ -232,20 +232,24 @@ export async function POST(request: NextRequest) {
       console.log(`[SEND:${requestId}] ⚠️  Delivery error: ${errorMsg}`);
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'pending',
+        status: 'failed',
         errorMessage: errorMsg.substring(0, 500),
       });
 
+      // Must be a non-2xx status with no truthy `data` — the frontend's
+      // useCRM hook treats any 2xx response, or a body with `result.data`
+      // set, as success regardless of the `success` flag. A failed send
+      // (e.g. 24h window closed) was previously reported to the UI as
+      // delivered: the composer cleared and the chat auto-closed with no
+      // error shown, while the message silently sat at status 'pending'
+      // forever with no retry.
       return NextResponse.json(
         {
-          success: true,
-          data: {
-            messageId: messageRecord._id,
-            status: 'pending',
-            error: errorMsg.substring(0, 120),
-          },
+          success: false,
+          error: errorMsg.substring(0, 200),
+          messageId: messageRecord._id,
         },
-        { status: 202 }
+        { status: 502 }
       );
     }
 
