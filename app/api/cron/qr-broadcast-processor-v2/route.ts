@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { getQRBroadcastSchedule, getWhatsAppMessage, getQrWhatsAppMessage, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getQRBroadcastSchedule, getWhatsAppMessage, getQrWhatsAppMessage, getQrWhatsAppChat, getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { shuffleArray } from '@/lib/whatsappRateLimiter';
 import { getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
@@ -540,6 +540,36 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
               },
               { upsert: true }
             );
+
+            // Also upsert qr_whatsapp_chats so this group/chat's last-activity
+            // date in the inbox reflects this broadcast — without this, groups
+            // that only ever receive broadcasts (no two-way reply) show a
+            // stale/frozen date forever. Strictly scoped to THIS schedule's
+            // own tenant (schedule.userId) — never touch another tenant's chat
+            // record even if they share the same connectedPhone.
+            try {
+              const QrChat = getQrWhatsAppChat();
+              const nowSeconds = Math.floor(Date.now() / 1000);
+              await QrChat.findOneAndUpdate(
+                { userId: schedule.userId, connectedPhone, chatJid },
+                {
+                  $set: {
+                    userId: schedule.userId,
+                    connectedPhone,
+                    chatJid,
+                    isGroup: chatJid.endsWith('@g.us'),
+                    lastMessage: schedule.messageText || (hasMedia ? '[media]' : ''),
+                    lastMessageTime: new Date(),
+                    lastMessageFromMe: true,
+                    conversationTimestamp: nowSeconds,
+                  },
+                  $setOnInsert: { name: chatId, pinned: false, archived: false, profilePicUrl: '', unreadCount: 0, createdAt: new Date() },
+                },
+                { upsert: true }
+              );
+            } catch (chatErr) {
+              console.warn(`[QR Broadcast V2] Warning: Failed to update qr_whatsapp_chats:`, chatErr instanceof Error ? chatErr.message : String(chatErr));
+            }
           }
         } catch (qrErr) {
           console.warn(`[QR Broadcast V2] Warning: Failed to save message to qr_whatsapp_messages:`, qrErr instanceof Error ? qrErr.message : String(qrErr));

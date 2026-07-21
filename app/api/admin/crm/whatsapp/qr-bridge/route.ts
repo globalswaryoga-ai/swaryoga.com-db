@@ -483,31 +483,49 @@ async function syncMongoSessionChats(userId: string, connectedPhone: string, cha
 
     const ops = chats
       .filter((chat: any) => chat?.id)
-      .map((chat: any) => ({
-        updateOne: {
-          filter: { userId, connectedPhone, chatJid: chat.id },
-          update: {
-            $set: {
-              userId,
-              connectedPhone,
-              chatJid: chat.id,
-              name: chat.name || chat.id,
-              isGroup: !!chat.isGroup,
-              lastMessage: typeof chat.lastMessage === 'string' ? chat.lastMessage : (chat?.lastMessage?.body || ''),
-              lastMessageTime: chat.lastMessageTime ? new Date(chat.lastMessageTime) : undefined,
-              lastMessageFromMe: !!chat.lastMessageFromMe,
-              unreadCount: Number(chat.unreadCount || 0),
-              conversationTimestamp: Number(chat.conversationTimestamp || 0),
-              pinned: !!chat.pinned,
-              archived: !!chat.archived,
-              profilePicUrl: chat.profilePicUrl || '',
-              metadata: chat.metadata || {},
+      .map((chat: any) => {
+        // The bridge's live in-memory chat object can be stale/empty for a
+        // given group (e.g. right after a restart, before history-sync has
+        // repopulated it) — this poll runs every 30s while the inbox is
+        // open, so unconditionally writing a falsy/zero value here would
+        // repeatedly clobber a genuinely correct conversationTimestamp/
+        // lastMessage that a send/webhook path already wrote. Only include
+        // these fields in $set when the bridge actually has something to
+        // say; otherwise leave the existing stored value untouched.
+        const incomingTs = Number(chat.conversationTimestamp || 0);
+        const incomingLastMessage = typeof chat.lastMessage === 'string' ? chat.lastMessage : (chat?.lastMessage?.body || '');
+        const hasFreshPreview = incomingTs > 0 || Boolean(incomingLastMessage.trim());
+
+        const set: Record<string, any> = {
+          userId,
+          connectedPhone,
+          chatJid: chat.id,
+          name: chat.name || chat.id,
+          isGroup: !!chat.isGroup,
+          unreadCount: Number(chat.unreadCount || 0),
+          pinned: !!chat.pinned,
+          archived: !!chat.archived,
+          profilePicUrl: chat.profilePicUrl || '',
+          metadata: chat.metadata || {},
+        };
+        if (hasFreshPreview) {
+          set.lastMessage = incomingLastMessage;
+          set.lastMessageTime = chat.lastMessageTime ? new Date(chat.lastMessageTime) : undefined;
+          set.lastMessageFromMe = !!chat.lastMessageFromMe;
+          set.conversationTimestamp = incomingTs;
+        }
+
+        return {
+          updateOne: {
+            filter: { userId, connectedPhone, chatJid: chat.id },
+            update: {
+              $set: set,
+              $setOnInsert: { createdAt: new Date() },
             },
-            $setOnInsert: { createdAt: new Date() },
+            upsert: true,
           },
-          upsert: true,
-        },
-      }));
+        };
+      });
 
     if (ops.length > 0) {
       await QrChat.bulkWrite(ops, { ordered: false });
