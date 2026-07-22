@@ -6,8 +6,8 @@ import { PageHeader } from '@/components/admin/crm';
 
 export default function KpDataEntryHubPage() {
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
-      <PageHeader
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+      <PageHeader theme="light"
         title={
           <span className="flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-indigo-500" />

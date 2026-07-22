@@ -148,8 +148,8 @@ export default function KpAstrologerWorkspacePage() {
 
   return (
     <KpLanguageProvider>
-    <div className="p-4 md:p-6 max-w-[1500px] mx-auto space-y-6">
-      <PageHeader
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      <PageHeader theme="light"
         title={
           <span className="flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-indigo-500" />
@@ -166,16 +166,16 @@ export default function KpAstrologerWorkspacePage() {
         }
       />
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm font-semibold text-zinc-700">
+        <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
           <ClipboardList className="h-4 w-4 text-indigo-500" />
           Chart
         </label>
         <select
           value={chartId}
           onChange={(e) => router.push(e.target.value ? `/admin/crm/kp-astro/workspace?chartId=${e.target.value}` : '/admin/crm/kp-astro/workspace')}
-          className="min-h-[42px] rounded-xl border border-zinc-300 px-3 py-2 text-sm flex-1 min-w-[220px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="min-h-[42px] rounded-xl border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[220px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
         >
           <option value="">— select a birth chart —</option>
           {chartList.map((c) => <option key={c._id} value={c._id}>{c.personName}</option>)}
@@ -268,13 +268,12 @@ export default function KpAstrologerWorkspacePage() {
           </div>
 
           <div className="space-y-3">
-            <div className="sticky top-0 z-10 rounded-2xl border border-zinc-800 bg-black/95 px-3 py-3 shadow-lg backdrop-blur">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-semibold text-white">
+                <h2 className="font-semibold text-gray-900">
                   {workView === 'analysis' ? '12 Bhav Analysis' : workView === 'abcd' ? 'ABCD Significators' : 'Houses & Planets'}
                 </h2>
-                <div className="inline-flex rounded-xl border border-zinc-700 bg-zinc-950 p-1 shadow-sm">
+                <div className="inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm">
                   {([
                     ['analysis', '12 Bhav'],
                     ['abcd', 'ABCD Sig.'],
@@ -284,7 +283,7 @@ export default function KpAstrologerWorkspacePage() {
                       key={mode}
                       type="button"
                       onClick={() => setWorkView(mode)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-yellow-400 text-black shadow-sm' : 'text-zinc-300 hover:bg-zinc-900 hover:text-white'}`}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                     >
                       {label}
                     </button>
@@ -292,11 +291,11 @@ export default function KpAstrologerWorkspacePage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {savedAt && <span className="text-xs text-emerald-400">Saved {savedAt.toLocaleTimeString()}</span>}
+                {savedAt && <span className="text-xs text-emerald-600">Saved {savedAt.toLocaleTimeString()}</span>}
                 <button
                   type="button"
                   onClick={handleAutoFillNeedful}
-                  className="flex min-h-[38px] items-center gap-2 rounded-xl border border-yellow-500/50 bg-zinc-950 px-3 py-2 text-sm font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black"
+                  className="flex min-h-[38px] items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
                 >
                   <Wand2 className="h-4 w-4" />
                   Auto Fill
@@ -305,7 +304,6 @@ export default function KpAstrologerWorkspacePage() {
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Save
                 </button>
-              </div>
               </div>
             </div>
             {(currentMaha || currentAntar) && (

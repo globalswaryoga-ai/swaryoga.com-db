@@ -9,6 +9,10 @@ import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
+import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
+import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
+import { KpLanguageProvider, KpLanguageToggle } from '@/components/admin/crm/kpAstro/KpLanguageContext';
 import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
 
 interface MatchListItem { _id: string; label?: string; groomChartId?: { personName: string }; brideChartId?: { personName: string }; }
@@ -17,8 +21,9 @@ interface ChartRef {
   personName: string;
   ascendant?: { sign?: string };
   houses?: SignificatorHouse[];
-  planets?: SignificatorPlanet[];
+  planets?: Array<SignificatorPlanet & { retrograde?: boolean; combust?: boolean }>;
   chartStyle?: 'north' | 'south';
+  dashaPeriods?: DashaRow[];
 }
 
 interface MatchDetail {
@@ -29,6 +34,92 @@ interface MatchDetail {
   groomBhavAnalysis?: BhavAnalysisRow[];
   brideBhavAnalysis?: BhavAnalysisRow[];
   compatibilityNotes?: string;
+}
+
+type WorkView = 'analysis' | 'abcd' | 'details';
+
+function PartnerPanel({
+  label,
+  person,
+  chartStyle,
+  chartDisplayMode,
+  rows,
+  onRowsChange,
+  workView,
+  setWorkView,
+  dashaPeriods,
+  onLoadDeeperDasha,
+}: {
+  label: string;
+  person?: ChartRef;
+  chartStyle: 'north' | 'south';
+  chartDisplayMode: 'planet' | 'bhav';
+  rows: BhavAnalysisRow[];
+  onRowsChange: (rows: BhavAnalysisRow[]) => void;
+  workView: WorkView;
+  setWorkView: (v: WorkView) => void;
+  dashaPeriods: DashaRow[];
+  onLoadDeeperDasha: (newRows: DashaRow[]) => void;
+}) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+      <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col items-center">
+          <h2 className="font-semibold text-gray-900 text-sm mb-2">{label} — {person?.personName || '—'}</h2>
+          <KundaliChart
+            chartStyle={chartStyle}
+            ascendantSign={person?.ascendant?.sign || ''}
+            houses={person?.houses}
+            planets={person?.planets}
+            size={280}
+            displayMode={chartDisplayMode}
+          />
+        </div>
+
+        {dashaPeriods.length > 0 ? (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Vimshottari Dasha</h3>
+            <DashaDrillDown rows={dashaPeriods} onLoadDeeper={onLoadDeeperDasha} />
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 px-1">No dasha tree saved on this chart yet.</p>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-semibold text-gray-900">
+              {workView === 'analysis' ? '12 Bhav Analysis' : workView === 'abcd' ? 'ABCD Significators' : 'Houses & Planets'}
+            </h2>
+            <div className="inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm">
+              {([
+                ['analysis', '12 Bhav'],
+                ['abcd', 'ABCD Sig.'],
+                ['details', 'Houses & Planets'],
+              ] as const).map(([mode, tabLabel]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setWorkView(mode)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                >
+                  {tabLabel}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {workView === 'analysis' ? (
+          <BhavEditor rows={rows} onChange={onRowsChange} houses={person?.houses || []} planets={person?.planets || []} />
+        ) : workView === 'abcd' ? (
+          <ABCDSignificatorsPanel houses={person?.houses || []} planets={person?.planets || []} bhavRows={rows} />
+        ) : (
+          <ChartDetailsPanel houses={person?.houses || []} planets={person?.planets || []} />
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function KpMatchmakingWorkspacePage() {
@@ -48,6 +139,12 @@ export default function KpMatchmakingWorkspacePage() {
   const [brideRows, setBrideRows] = useState<BhavAnalysisRow[]>(normalizeBhavAnalysis(undefined));
   const [compatibilityNotes, setCompatibilityNotes] = useState('');
   const [chartDisplayMode, setChartDisplayMode] = useState<'planet' | 'bhav'>('planet');
+  const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
+
+  const [groomWorkView, setGroomWorkView] = useState<WorkView>('analysis');
+  const [brideWorkView, setBrideWorkView] = useState<WorkView>('analysis');
+  const [groomDashaPeriods, setGroomDashaPeriods] = useState<DashaRow[]>([]);
+  const [brideDashaPeriods, setBrideDashaPeriods] = useState<DashaRow[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -69,6 +166,10 @@ export default function KpMatchmakingWorkspacePage() {
       setGroomRows(autoFillBhavRows(groomRows, json.data.groomChartId?.houses || [], json.data.groomChartId?.planets || []));
       setBrideRows(autoFillBhavRows(brideRows, json.data.brideChartId?.houses || [], json.data.brideChartId?.planets || []));
       setCompatibilityNotes(json.data.compatibilityNotes || '');
+      setGroomDashaPeriods(Array.isArray(json.data.groomChartId?.dashaPeriods) ? json.data.groomChartId.dashaPeriods : []);
+      setBrideDashaPeriods(Array.isArray(json.data.brideChartId?.dashaPeriods) ? json.data.brideChartId.dashaPeriods : []);
+      setGroomWorkView('analysis');
+      setBrideWorkView('analysis');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load match');
     } finally {
@@ -99,8 +200,9 @@ export default function KpMatchmakingWorkspacePage() {
   };
 
   return (
+    <KpLanguageProvider>
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-      <PageHeader
+      <PageHeader theme="light"
         title={<span className="flex items-center gap-2"><Heart className="h-6 w-6 text-indigo-500" />Matchmaking Workspace</span>}
         subtitle="Work through both partners' bhavs before generating a compatibility prediction"
         action={
@@ -112,17 +214,44 @@ export default function KpMatchmakingWorkspacePage() {
         }
       />
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-wrap items-center gap-3">
-        <label className="text-sm text-gray-500">Match:</label>
-        <select
-          value={matchId}
-          onChange={(e) => router.push(e.target.value ? `/admin/crm/kp-astro/matchmaking/workspace?matchId=${e.target.value}` : '/admin/crm/kp-astro/matchmaking/workspace')}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[200px]"
-        >
-          <option value="">— select a match —</option>
-          {matchList.map((m) => <option key={m._id} value={m._id}>{m.label || `${m.groomChartId?.personName || '?'} ↔ ${m.brideChartId?.personName || '?'}`}</option>)}
-        </select>
-        <Link href="/admin/crm/kp-astro/matchmaking/data-entry" className="text-sm text-indigo-600 hover:underline whitespace-nowrap">+ New match</Link>
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm font-semibold text-gray-700">Match</label>
+          <select
+            value={matchId}
+            onChange={(e) => router.push(e.target.value ? `/admin/crm/kp-astro/matchmaking/workspace?matchId=${e.target.value}` : '/admin/crm/kp-astro/matchmaking/workspace')}
+            className="min-h-[42px] rounded-xl border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[220px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          >
+            <option value="">— select a match —</option>
+            {matchList.map((m) => <option key={m._id} value={m._id}>{m.label || `${m.groomChartId?.personName || '?'} ↔ ${m.brideChartId?.personName || '?'}`}</option>)}
+          </select>
+          <Link href="/admin/crm/kp-astro/matchmaking/data-entry" className="rounded-xl border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 whitespace-nowrap">+ New match</Link>
+          <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+            {(['planet', 'bhav'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setChartDisplayMode(mode)}
+                className={`px-2 py-1 text-xs font-medium rounded-md ${chartDisplayMode === mode ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                {mode === 'planet' ? 'Planet' : 'Bhav'}
+              </button>
+            ))}
+          </div>
+          <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+            {(['north', 'south'] as const).map((style) => (
+              <button
+                key={style}
+                type="button"
+                onClick={() => setChartStyle(style)}
+                className={`px-2 py-1 text-xs font-medium rounded-md ${chartStyle === style ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                {style === 'north' ? 'North' : 'South'}
+              </button>
+            ))}
+          </div>
+          <KpLanguageToggle />
+        </div>
       </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
@@ -130,30 +259,12 @@ export default function KpMatchmakingWorkspacePage() {
 
       {!loading && match && (
         <>
-          <div className="flex justify-end">
-            <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
-              {(['planet', 'bhav'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setChartDisplayMode(mode)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md ${chartDisplayMode === mode ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
-                >
-                  {mode === 'planet' ? 'Planet' : 'Bhav'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col items-center">
-              <h2 className="font-semibold text-gray-900 text-sm mb-2">Groom — {match.groomChartId?.personName}</h2>
-              <KundaliChart chartStyle={match.groomChartId?.chartStyle || 'north'} ascendantSign={match.groomChartId?.ascendant?.sign || ''} houses={match.groomChartId?.houses} planets={match.groomChartId?.planets} size={260} displayMode={chartDisplayMode} />
-            </div>
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col items-center">
-              <h2 className="font-semibold text-gray-900 text-sm mb-2">Bride — {match.brideChartId?.personName}</h2>
-              <KundaliChart chartStyle={match.brideChartId?.chartStyle || 'north'} ascendantSign={match.brideChartId?.ascendant?.sign || ''} houses={match.brideChartId?.houses} planets={match.brideChartId?.planets} size={260} displayMode={chartDisplayMode} />
-            </div>
+          <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-3">
+            {savedAt ? <span className="text-xs text-emerald-600">Saved {savedAt.toLocaleTimeString()}</span> : <span />}
+            <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save
+            </button>
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-white p-4">
@@ -161,24 +272,33 @@ export default function KpMatchmakingWorkspacePage() {
             <textarea value={compatibilityNotes} onChange={(e) => setCompatibilityNotes(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
           </div>
 
-          <div className="flex items-center justify-end sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
-            {savedAt && <span className="text-xs text-emerald-600 mr-3">Saved {savedAt.toLocaleTimeString()}</span>}
-            <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save
-            </button>
-          </div>
+          <PartnerPanel
+            label="Groom"
+            person={match.groomChartId}
+            chartStyle={chartStyle}
+            chartDisplayMode={chartDisplayMode}
+            rows={groomRows}
+            onRowsChange={setGroomRows}
+            workView={groomWorkView}
+            setWorkView={setGroomWorkView}
+            dashaPeriods={groomDashaPeriods}
+            onLoadDeeperDasha={(newRows) => setGroomDashaPeriods((prev) => [...prev, ...newRows])}
+          />
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            <div>
-              <h2 className="font-semibold text-gray-900 mb-2">Groom's 12-Bhav Analysis</h2>
-              <BhavEditor rows={groomRows} onChange={setGroomRows} houses={match.groomChartId?.houses || []} planets={match.groomChartId?.planets || []} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-gray-900 mb-2">Bride's 12-Bhav Analysis</h2>
-              <BhavEditor rows={brideRows} onChange={setBrideRows} houses={match.brideChartId?.houses || []} planets={match.brideChartId?.planets || []} />
-            </div>
-          </div>
+          <div className="border-t border-gray-200" />
+
+          <PartnerPanel
+            label="Bride"
+            person={match.brideChartId}
+            chartStyle={chartStyle}
+            chartDisplayMode={chartDisplayMode}
+            rows={brideRows}
+            onRowsChange={setBrideRows}
+            workView={brideWorkView}
+            setWorkView={setBrideWorkView}
+            dashaPeriods={brideDashaPeriods}
+            onLoadDeeperDasha={(newRows) => setBrideDashaPeriods((prev) => [...prev, ...newRows])}
+          />
         </>
       )}
 
@@ -188,5 +308,6 @@ export default function KpMatchmakingWorkspacePage() {
         </div>
       )}
     </div>
+    </KpLanguageProvider>
   );
 }

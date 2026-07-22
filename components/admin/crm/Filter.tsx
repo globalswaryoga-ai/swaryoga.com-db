@@ -123,6 +123,7 @@ export function PageHeader({
   onFilterChange,
   onClearFilters,
   className = '',
+  theme = 'dark',
 }: {
   title: string | React.ReactNode;
   subtitle?: string;
@@ -136,22 +137,28 @@ export function PageHeader({
   onFilterChange?: (key: string, value: string | number) => void;
   onClearFilters?: () => void;
   className?: string;
+  theme?: 'dark' | 'light';
 }) {
+  const isLight = theme === 'light';
   return (
     <div className={`mb-8 space-y-6 ${className}`}>
       {/* Title Section */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Link 
+          <Link
             href="/admin/crm"
-            className="mt-1 p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 rounded-xl transition-all shadow-lg group active:scale-95"
+            className={
+              isLight
+                ? 'mt-1 p-2 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-900 border border-gray-200 rounded-xl transition-all shadow-sm group active:scale-95'
+                : 'mt-1 p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 rounded-xl transition-all shadow-lg group active:scale-95'
+            }
             title="Back to CRM Dashboard"
           >
             <i className="ph ph-house text-xl group-hover:scale-110 transition-transform"></i>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-white">{title}</h1>
-            {subtitle && <p className="text-slate-400 mt-2">{subtitle}</p>}
+            <h1 className={`text-3xl font-bold ${isLight ? 'text-gray-900' : 'text-white'}`}>{title}</h1>
+            {subtitle && <p className={`mt-2 ${isLight ? 'text-gray-500' : 'text-slate-400'}`}>{subtitle}</p>}
           </div>
         </div>
         {action && <div>{action}</div>}

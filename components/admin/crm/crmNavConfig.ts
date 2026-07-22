@@ -798,7 +798,6 @@ export const sectionConfigs: SectionConfig[] = [
           { label: 'Instagram',       href: '/admin/crm/instagram',      icon: Share2 },
           { label: 'Messenger',       href: '/admin/crm/messenger',      icon: MessageSquare },
           { label: 'Tally',           href: '/admin/crm/tally',          icon: Calculator },
-          { label: 'KP Astro',        href: '/admin/crm/kp-astro',       icon: Moon },
           { label: 'Onboarding',      href: '/admin/crm/onboarding',     icon: ClipboardCheck },
           { label: 'Chatbot (old)',   href: '/admin/crm/chatbot',        icon: Bot },
           { label: 'Chatbot Editor',  href: '/admin/crm/chatbots/editor', icon: FileEdit },

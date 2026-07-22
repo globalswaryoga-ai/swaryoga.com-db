@@ -87,7 +87,7 @@ export default function KpMatchmakingDataEntryPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
-      <PageHeader
+      <PageHeader theme="light"
         title={<span className="flex items-center gap-2"><Heart className="h-6 w-6 text-indigo-500" />Match Making</span>}
         subtitle="Pick two existing birth charts to compare for Kundali Milan"
         action={
