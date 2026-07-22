@@ -266,7 +266,12 @@ export default function BroadcastPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterWorkshop, setFilterWorkshop] = useState('all');
   const [filterAssignedUser, setFilterAssignedUser] = useState('all');
-  const [filterDeliveryStatus, setFilterDeliveryStatus] = useState('all');
+  // Multi-select — mirrors the checkbox-dropdown pattern in
+  // app/admin/crm/reports/meta/page.tsx (messageFilters/toggleFilter) so
+  // multiple delivery statuses (e.g. Delivered + Read) can be picked at once.
+  const [filterDeliveryStatus, setFilterDeliveryStatus] = useState<Set<string>>(new Set());
+  const [deliveryFilterOpen, setDeliveryFilterOpen] = useState(false);
+  const deliveryFilterRef = useRef<HTMLDivElement>(null);
   const [templateSearch, setTemplateSearch] = useState('');
   
   // CSV Upload State
@@ -559,6 +564,26 @@ export default function BroadcastPage() {
     validateSelection();
   }, [validateSelection]);
 
+  // Close the delivery-status filter dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (deliveryFilterRef.current && !deliveryFilterRef.current.contains(e.target as Node)) {
+        setDeliveryFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggleDeliveryFilter = (status: string) => {
+    setFilterDeliveryStatus(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
+
   // ============================================================================
   // FILTERED DATA
   // ============================================================================
@@ -602,7 +627,7 @@ export default function BroadcastPage() {
       const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
       const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
-      const matchesDeliveryStatus = filterDeliveryStatus === 'all' || lead.deliveryStatus === filterDeliveryStatus;
+      const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
       return matchesSearch && matchesStatus && matchesWorkshop && matchesUser && matchesDeliveryStatus;
     });
   }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus]);
@@ -1541,18 +1566,50 @@ export default function BroadcastPage() {
               {/* Delivery Status Filter — from each lead's most recent Meta
                   message (see broadcast-runs/latest-status), not the CRM lead
                   status above. Lets you re-target people who were previously
-                  delivered/read directly. */}
-              <select
-                value={filterDeliveryStatus}
-                onChange={(e) => setFilterDeliveryStatus(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[150px]"
-              >
-                <option value="all">All Delivery Status</option>
-                <option value="delivered">📨 Delivered</option>
-                <option value="read">👁️ Read</option>
-                <option value="failed">❌ Failed</option>
-                <option value="blocked">🚫 Blocked</option>
-              </select>
+                  delivered/read directly. Multi-select checkboxes so e.g.
+                  Delivered + Read can both be picked at once. */}
+              <div className="relative" ref={deliveryFilterRef}>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryFilterOpen(o => !o)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[150px] flex items-center gap-2"
+                >
+                  <span className="flex-1 text-left truncate">
+                    {filterDeliveryStatus.size === 0
+                      ? 'All Delivery Status'
+                      : Array.from(filterDeliveryStatus).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}
+                  </span>
+                  <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {deliveryFilterOpen && (
+                  <div className="absolute left-0 mt-1 w-44 bg-white border rounded-xl shadow-lg z-50 py-1">
+                    {([
+                      ['delivered', '📨 Delivered'],
+                      ['read', '👁️ Read'],
+                      ['failed', '❌ Failed'],
+                      ['blocked', '🚫 Blocked'],
+                    ] as const).map(([value, label]) => (
+                      <label key={value} className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={filterDeliveryStatus.has(value)}
+                          onChange={() => toggleDeliveryFilter(value)}
+                          className="w-4 h-4 rounded accent-indigo-600"
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                    {filterDeliveryStatus.size > 0 && (
+                      <button
+                        onClick={() => setFilterDeliveryStatus(new Set())}
+                        className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-t mt-1"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Workshop Filter */}
               {uniqueWorkshops.length > 0 && (
@@ -1583,13 +1640,13 @@ export default function BroadcastPage() {
               )}
 
               {/* Clear Filters */}
-              {(filterStatus !== 'all' || filterWorkshop !== 'all' || filterAssignedUser !== 'all' || filterDeliveryStatus !== 'all') && (
+              {(filterStatus !== 'all' || filterWorkshop !== 'all' || filterAssignedUser !== 'all' || filterDeliveryStatus.size > 0) && (
                 <button
                   onClick={() => {
                     setFilterStatus('all');
                     setFilterWorkshop('all');
                     setFilterAssignedUser('all');
-                    setFilterDeliveryStatus('all');
+                    setFilterDeliveryStatus(new Set());
                   }}
                   className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
                 >
