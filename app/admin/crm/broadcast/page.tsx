@@ -21,6 +21,12 @@ interface Lead {
   userName?: string;
   isCSV?: boolean; // Flag for CSV-imported contacts
   email?: string;
+  // Most recent Meta WhatsApp message status for this lead (delivered/read/
+  // failed/blocked/...), merged in from broadcast-runs/latest-status — lets
+  // the recipient panel filter by it to re-target previously-delivered/read
+  // people directly.
+  deliveryStatus?: string;
+  deliveryStatusAt?: string;
 }
 
 interface CSVContact {
@@ -141,6 +147,27 @@ function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'sm' | 'm
   );
 }
 
+// Shows a lead's most recent Meta message status (delivered/read/failed/
+// blocked/...) — distinct from StatusBadge above, which is the CRM lead
+// status, not a WhatsApp delivery state.
+function DeliveryStatusBadge({ status }: { status: string }) {
+  const configs: Record<string, { bg: string; text: string; icon: string }> = {
+    delivered: { bg: 'bg-blue-100', text: 'text-blue-700', icon: '📨' },
+    read: { bg: 'bg-emerald-100', text: 'text-emerald-700', icon: '👁️' },
+    failed: { bg: 'bg-red-100', text: 'text-red-700', icon: '❌' },
+    blocked: { bg: 'bg-rose-100', text: 'text-rose-700', icon: '🚫' },
+    sent: { bg: 'bg-gray-100', text: 'text-gray-600', icon: '✓' },
+    pending: { bg: 'bg-gray-100', text: 'text-gray-500', icon: '⏳' },
+  };
+  const config = configs[status] || { bg: 'bg-gray-100', text: 'text-gray-500', icon: '•' };
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full font-medium px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>
+      <span>{config.icon}</span>
+      <span className="capitalize">{status}</span>
+    </span>
+  );
+}
+
 function ProgressBar({ value, max, color = 'blue' }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   const colorMap: Record<string, string> = {
@@ -239,6 +266,7 @@ export default function BroadcastPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterWorkshop, setFilterWorkshop] = useState('all');
   const [filterAssignedUser, setFilterAssignedUser] = useState('all');
+  const [filterDeliveryStatus, setFilterDeliveryStatus] = useState('all');
   const [templateSearch, setTemplateSearch] = useState('');
   
   // CSV Upload State
@@ -340,10 +368,37 @@ export default function BroadcastPage() {
         bulkRes.json(),
       ]);
       
-      setLeads(leadsData.data?.leads || leadsData.leads || []);
+      const loadedLeads: Lead[] = leadsData.data?.leads || leadsData.leads || [];
+      setLeads(loadedLeads);
       setTemplates(templatesData.data?.templates || templatesData.templates || []);
       setRecentRuns(runsData.data?.runs || runsData.runs || []);
       if (bulkData.success) setBulkStats(bulkData.data);
+
+      // Merge in each lead's most recent Meta message status (delivered/read/
+      // failed/blocked) so the recipient panel can filter by it. Non-fatal —
+      // if this fails, the panel still works without the delivery-status filter.
+      if (loadedLeads.length > 0) {
+        try {
+          const statusRes = await fetch('/api/admin/crm/broadcast-runs/latest-status', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ leadIds: loadedLeads.map((l) => l._id) }),
+          });
+          const statusData = await statusRes.json();
+          const statusMap: Record<string, { status: string; updatedAt: string }> = statusData?.data || {};
+          if (Object.keys(statusMap).length > 0) {
+            setLeads((prev) =>
+              prev.map((l) =>
+                statusMap[l._id]
+                  ? { ...l, deliveryStatus: statusMap[l._id].status, deliveryStatusAt: statusMap[l._id].updatedAt }
+                  : l
+              )
+            );
+          }
+        } catch (statusErr) {
+          console.warn('[Broadcast] Failed to load delivery statuses (non-fatal):', statusErr);
+        }
+      }
     } catch (err) {
       console.error('[Broadcast] Failed to fetch data:', err);
     } finally {
@@ -547,9 +602,10 @@ export default function BroadcastPage() {
       const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
       const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
-      return matchesSearch && matchesStatus && matchesWorkshop && matchesUser;
+      const matchesDeliveryStatus = filterDeliveryStatus === 'all' || lead.deliveryStatus === filterDeliveryStatus;
+      return matchesSearch && matchesStatus && matchesWorkshop && matchesUser && matchesDeliveryStatus;
     });
-  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser]);
+  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -806,7 +862,11 @@ export default function BroadcastPage() {
   // VALIDATION
   // ============================================================================
   const canProceedToStep2 = selectedLeads.size > 0;
-  const canProceedToStep3 = selectedTemplate !== null && selectedTemplate.metaStatus === 'APPROVED';
+  // Gate on the schema-backed `status` field (draft|pending_approval|approved|
+  // rejected|disabled) — `metaStatus` is written by the sync/submit routes but
+  // isn't declared on WhatsAppTemplateSchema, so Mongoose's strict mode silently
+  // drops it on every save; it's always undefined regardless of real Meta status.
+  const canProceedToStep3 = selectedTemplate !== null && selectedTemplate.status === 'approved';
   
   const realLeadCount = useMemo(
     () => Array.from(selectedLeads).filter(id => !id.startsWith('csv_')).length,
@@ -1478,6 +1538,22 @@ export default function BroadcastPage() {
                 ))}
               </select>
 
+              {/* Delivery Status Filter — from each lead's most recent Meta
+                  message (see broadcast-runs/latest-status), not the CRM lead
+                  status above. Lets you re-target people who were previously
+                  delivered/read directly. */}
+              <select
+                value={filterDeliveryStatus}
+                onChange={(e) => setFilterDeliveryStatus(e.target.value)}
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[150px]"
+              >
+                <option value="all">All Delivery Status</option>
+                <option value="delivered">📨 Delivered</option>
+                <option value="read">👁️ Read</option>
+                <option value="failed">❌ Failed</option>
+                <option value="blocked">🚫 Blocked</option>
+              </select>
+
               {/* Workshop Filter */}
               {uniqueWorkshops.length > 0 && (
                 <select
@@ -1507,12 +1583,13 @@ export default function BroadcastPage() {
               )}
 
               {/* Clear Filters */}
-              {(filterStatus !== 'all' || filterWorkshop !== 'all' || filterAssignedUser !== 'all') && (
+              {(filterStatus !== 'all' || filterWorkshop !== 'all' || filterAssignedUser !== 'all' || filterDeliveryStatus !== 'all') && (
                 <button
                   onClick={() => {
                     setFilterStatus('all');
                     setFilterWorkshop('all');
                     setFilterAssignedUser('all');
+                    setFilterDeliveryStatus('all');
                   }}
                   className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
                 >
@@ -1601,7 +1678,10 @@ export default function BroadcastPage() {
                         )}
                       </div>
                     </div>
-                    <StatusBadge status={lead.status || 'lead'} />
+                    <div className="flex flex-col items-end gap-1">
+                      <StatusBadge status={lead.status || 'lead'} />
+                      {lead.deliveryStatus && <DeliveryStatusBadge status={lead.deliveryStatus} />}
+                    </div>
                   </label>
                 ))
               )}
@@ -1671,7 +1751,7 @@ export default function BroadcastPage() {
                 </div>
               ) : (
                 filteredTemplates.map((t) => {
-                  const isApproved = t.metaStatus === 'APPROVED';
+                  const isApproved = t.status === 'approved';
                   return (
                   <div
                     key={t._id}
@@ -1701,18 +1781,20 @@ export default function BroadcastPage() {
                       {t.buttons?.length ? (
                         <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">🔘 {t.buttons.length}</span>
                       ) : null}
-                      {/* Meta Approval Status Badge */}
+                      {/* Meta Approval Status Badge — driven by the schema-backed `status`
+                          field (see canProceedToStep3 above for why, not `metaStatus`) */}
                       {t.metaTemplateId ? (
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          t.metaStatus === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                          t.metaStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
-                          t.metaStatus === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                          t.status === 'approved' ? 'bg-green-100 text-green-700' :
+                          t.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-700' :
+                          t.status === 'rejected' ? 'bg-red-100 text-red-700' :
                           'bg-gray-100 text-gray-600'
                         }`}>
-                          {t.metaStatus === 'APPROVED' ? '✅ Approved' :
-                           t.metaStatus === 'PENDING' ? '⏳ Pending' :
-                           t.metaStatus === 'REJECTED' ? '❌ Rejected' :
-                           `📋 ${t.metaStatus || 'Submitted'}`}
+                          {t.status === 'approved' ? '✅ Approved' :
+                           t.status === 'pending_approval' ? '⏳ Pending' :
+                           t.status === 'rejected' ? '❌ Rejected' :
+                           t.status === 'disabled' ? '🚫 Disabled' :
+                           `📋 ${t.status || 'Submitted'}`}
                         </span>
                       ) : (
                         <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
