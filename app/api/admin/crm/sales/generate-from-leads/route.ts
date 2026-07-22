@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { formatPersonName } from '@/lib/formatName';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
 
           const saleRecord = {
             leadId: lead._id,
-            customerName: lead.name || 'Unknown',
+            customerName: formatPersonName(lead.name) || 'Unknown',
             customerPhone: lead.phoneNumber,
             workshopName: workshop.workshopName,
             saleAmount: actualFee,

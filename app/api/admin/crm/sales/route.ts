@@ -18,6 +18,7 @@ import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
 import { notifyRefundSuccessful, notifyAmountReceived } from '@/lib/notifications';
 import { autoLeadForSale } from '@/lib/crm/autoLead';
+import { formatPersonName } from '@/lib/formatName';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
@@ -402,7 +403,7 @@ export async function POST(request: NextRequest) {
     const safeLabels = normalizeLabels(labels);
 
     const safeCustomerId = customerId !== undefined && customerId !== null ? String(customerId).trim() : '';
-    const safeCustomerName = customerName !== undefined && customerName !== null ? String(customerName).trim() : '';
+    const safeCustomerName = customerName !== undefined && customerName !== null ? formatPersonName(customerName) : '';
     const safeCustomerPhone = customerPhone !== undefined && customerPhone !== null ? String(customerPhone).trim() : '';
     const safeCustomerEmail = customerEmail !== undefined && customerEmail !== null ? String(customerEmail).trim().toLowerCase() : '';
     const safeWorkshopName = workshopName !== undefined && workshopName !== null ? String(workshopName).trim() : '';
@@ -553,7 +554,7 @@ export async function PUT(request: NextRequest) {
     if (updates.certificateState !== undefined) safeUpdates.certificateState = String(updates.certificateState || '').trim() || undefined;
     if (updates.certificateCountry !== undefined) safeUpdates.certificateCountry = String(updates.certificateCountry || '').trim() || undefined;
     if (updates.customerId !== undefined) safeUpdates.customerId = String(updates.customerId || '').trim() || undefined;
-    if (updates.customerName !== undefined) safeUpdates.customerName = String(updates.customerName || '').trim() || undefined;
+    if (updates.customerName !== undefined) safeUpdates.customerName = formatPersonName(updates.customerName) || undefined;
     if (updates.customerPhone !== undefined) safeUpdates.customerPhone = String(updates.customerPhone || '').trim() || undefined;
     if (updates.customerEmail !== undefined) safeUpdates.customerEmail = String(updates.customerEmail || '').trim().toLowerCase() || undefined;
     if (updates.workshopName !== undefined) safeUpdates.workshopName = String(updates.workshopName || '').trim() || undefined;

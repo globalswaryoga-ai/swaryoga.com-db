@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { Lead, CrmReceipt, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
+import { formatPersonName } from '@/lib/formatName';
 
 // Builds the payment/workshop snapshot for a receipt from the actual sale
 // record (SalesReport), which is the source of truth for amounts — the
@@ -172,7 +173,10 @@ export async function POST(request: NextRequest) {
         receiptNumber,
         issuedByUserId: viewerUserId,
         issuedAt: new Date(),
-        customerName: sale?.customerName || lead.name || lead.userName,
+        // Receipts are an immutable snapshot at issue time — format the name
+        // now so a badly-typed run-on name (e.g. "sushamabhargav") never gets
+        // frozen into the printed receipt in the first place.
+        customerName: formatPersonName(sale?.customerName || lead.name || lead.userName),
         customerPhone: sale?.customerPhone || lead.phoneNumber,
         customerEmail: sale?.customerEmail || lead.email,
         workshopName,

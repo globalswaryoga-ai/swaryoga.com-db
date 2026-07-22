@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
+import { formatPersonName } from '@/lib/formatName';
 
 interface SaleRecord {
   _id: string;
@@ -391,7 +392,10 @@ export default function CertificatePage() {
   }
 
   const certNo = sale.receiptNumber || (sale._id || id || '').slice(-10).toUpperCase();
-  const customerName = sale.certificateName?.trim() || sale.customerName || 'Participant';
+  // An explicit certificateName override is respected as typed (admin chose that
+  // exact display form for the cursive certificate) — only the customerName
+  // fallback gets auto-formatted.
+  const customerName = sale.certificateName?.trim() || formatPersonName(sale.customerName) || 'Participant';
   const workshopName = sale.workshopName || 'Swar Yoga Workshop';
   const completionDate = formatMonthYear(sale.batchDate || sale.saleDate || sale.createdAt);
   const certTitle = sale.certificateTitle?.trim();
