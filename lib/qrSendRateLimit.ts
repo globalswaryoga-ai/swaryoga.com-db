@@ -28,6 +28,12 @@ import { getCRMUserSettings, getWhatsAppAccount } from '@/lib/schemas/enterprise
 
 export const DAILY_LIMIT = 150;
 export const HOURLY_LIMIT = 15;
+// Floor between ANY two sends on the same WhatsApp number, regardless of
+// which schedule/broadcast run triggered them. The hour/day caps above limit
+// total volume but don't stop two DIFFERENT concurrent schedules from both
+// coming due in the same 1-minute cron tick and firing near-simultaneously
+// into different groups — see reserveSendGap().
+export const MIN_SEND_GAP_MS = 60000;
 
 /** Day key = YYYY-MM-DD in IST, with cutover at 5:00 AM (not midnight). */
 function getDayKeyIST(now = new Date()): string {
@@ -204,6 +210,56 @@ export async function reserveSendSlot(userId: string): Promise<RateCheckResult> 
     dayRemaining: DAILY_LIMIT - daySent,
     hourRemaining: HOURLY_LIMIT - hourSent,
   };
+}
+
+export type GapCheckResult =
+  | { allowed: true }
+  | { allowed: false; msSinceLastSend: number };
+
+/**
+ * Atomically enforce a minimum gap between ANY two sends on the same
+ * WhatsApp number (phone-keyed, same as reserveSendSlot), regardless of which
+ * schedule/broadcast run triggered them. reserveSendSlot() caps total
+ * hourly/daily volume per number but doesn't stop two DIFFERENT concurrent
+ * schedules from both firing in the same cron tick — a fan-out-to-many-groups
+ * pattern that's a well-known WhatsApp spam-detection trigger. Call this
+ * right alongside reserveSendSlot, immediately before the actual bridge send.
+ */
+export async function reserveSendGap(userId: string, minGapMs: number = MIN_SEND_GAP_MS): Promise<GapCheckResult> {
+  await connectDB();
+  const rateKey = await resolveRateLimitKey(userId);
+  const { Model, filter, upsertExtra } = await getCounterDoc(rateKey);
+
+  // Ensure the doc exists — benign no-op if reserveSendSlot (called just
+  // before this in the processor) already created it.
+  try {
+    await Model.updateOne(filter, { $setOnInsert: upsertExtra }, { upsert: true });
+  } catch (err: any) {
+    if (err?.code !== 11000) throw err; // concurrent upsert already created it
+  }
+
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - minGapMs);
+
+  // Atomic check-and-set: only succeeds if no send is recorded yet, or the
+  // last one is old enough. Whoever wins this race claims the gap.
+  const updated: any = await Model.findOneAndUpdate(
+    {
+      ...filter,
+      $or: [
+        { 'metadata.qrLastSendAt': { $exists: false } },
+        { 'metadata.qrLastSendAt': { $lte: cutoff } },
+      ],
+    },
+    { $set: { 'metadata.qrLastSendAt': now } },
+    { new: true }
+  ).lean();
+
+  if (updated) return { allowed: true };
+
+  const current: any = await Model.findOne(filter, { 'metadata.qrLastSendAt': 1 }).lean();
+  const lastSendAt = current?.metadata?.qrLastSendAt ? new Date(current.metadata.qrLastSendAt).getTime() : 0;
+  return { allowed: false, msSinceLastSend: Math.max(0, now.getTime() - lastSendAt) };
 }
 
 /** Read current counts without mutating — for UI/status display. */

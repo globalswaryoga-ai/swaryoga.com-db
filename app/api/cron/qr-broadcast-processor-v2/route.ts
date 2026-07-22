@@ -7,9 +7,10 @@ import { getWhatsAppComplianceStatus } from '@/lib/whatsappGapCalculator';
 import { checkSessionHealth, sendSessionHeartbeat } from '@/lib/whatsappConnectionManager';
 import { reserveMessageSend } from '@/lib/messageDeduplication';
 import { isQRSendAllowed } from '@/lib/qrTimeGuard';
-import { reserveSendSlot, DAILY_LIMIT, HOURLY_LIMIT } from '@/lib/qrSendRateLimit';
+import { reserveSendSlot, reserveSendGap, DAILY_LIMIT, HOURLY_LIMIT } from '@/lib/qrSendRateLimit';
 import { resolveQrTenantBridge } from '@/lib/qrTenantBridge';
 import { isWithinTimeWindow, shouldRunToday } from '@/lib/qrGroupScheduleTime';
+import { isWhatsAppBlockedSignal, getQRAccountRestriction, markQRAccountRestricted } from '@/lib/whatsappRestriction';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
@@ -33,13 +34,20 @@ async function resolveSessionInfo(
 
 // Zero-width chars used to vary outgoing message payloads so WhatsApp
 // can't fingerprint identical-text spam patterns. Visible content unchanged.
+//
+// This used to derive its randomness from a per-tick `index` argument, but
+// this processor only ever sends ONE message per cron tick (perTickMax = 1),
+// so that index was always 0 — every call produced the exact same
+// deterministic output (`base + ' '`). Every group got byte-identical text.
+// Each call here is already a distinct send event, so we draw fresh
+// randomness directly instead of depending on a caller-supplied index.
 const ZW_CHARS = ['​', '‌', '‍', '﻿'];
-function humanizeMessage(base: string, index: number): string {
+function humanizeMessage(base: string): string {
   if (!base) return base;
-  const zwCount = index % 3;
+  const zwCount = Math.floor(Math.random() * 3); // 0-2 invisible chars
   let suffix = '';
   for (let i = 0; i < zwCount; i++) suffix += ZW_CHARS[Math.floor(Math.random() * ZW_CHARS.length)];
-  if (index % 4 === 0) suffix += ' ';
+  if (Math.random() < 0.5) suffix += ' ';
   return base + suffix;
 }
 
@@ -54,7 +62,6 @@ async function sendMessageWithGaps(
   db: any,
   mediaUrls?: string[],
   sessionInfo?: { sessionKey: string; tenantId: string },
-  messageIndex: number = 0,
 ): Promise<{ success: boolean; error?: string; sendTimeMs?: number; skipped?: boolean; restricted?: boolean; waMessageId?: string }> {
   try {
     // CHECK 1: Atomic deduplication - reserve message slot before sending
@@ -82,8 +89,12 @@ async function sendMessageWithGaps(
     let waMessageId: string | undefined;
 
     if (hasMedia) {
-      // Send image with caption via /send (type:media) — bridge fetches URL and sends via Baileys
+      // Send image with caption via /send (type:media) — bridge fetches URL and sends via Baileys.
+      // Caption gets the same invisible-variation treatment as text sends (below) — media
+      // blasts previously sent the caption completely raw, so every group got byte-identical
+      // captions on top of byte-identical media.
       const mediaUrl = mediaUrls![0];
+      const variedCaption = humanizeMessage(messageText || '');
       console.log(`[QR Broadcast V2] Sending image via /send type:media: ${mediaUrl} to ${chatId}`);
 
       const res = await fetch(`${bridgeUrl}/send`, {
@@ -93,7 +104,7 @@ async function sendMessageWithGaps(
           to: chatId,
           type: 'media',
           media: mediaUrl,
-          caption: messageText || '',
+          caption: variedCaption,
         }),
       });
       const resData = await res.json().catch(() => ({}));
@@ -102,11 +113,19 @@ async function sendMessageWithGaps(
         waMessageId = resData?.id || resData?.messageId || resData?.key?.id;
         console.log(`[QR Broadcast V2] ✓ Image sent to ${chatId}`);
       } else {
-        console.warn(`[QR Broadcast V2] Image send failed for ${mediaUrl}: ${resData?.error || res.status}`);
+        const errMsg = resData?.error || `Bridge ${res.status}`;
+        console.warn(`[QR Broadcast V2] Image send failed for ${mediaUrl}: ${errMsg}`);
+        const sendTimeMs = Date.now() - startTime;
+        return {
+          success: false,
+          error: errMsg,
+          restricted: isWhatsAppBlockedSignal(errMsg),
+          sendTimeMs,
+        };
       }
     } else if (messageText && messageText.trim()) {
-      // Apply per-recipient invisible variation so payloads aren't byte-identical
-      const variedText = humanizeMessage(messageText, messageIndex);
+      // Apply invisible variation so payloads aren't byte-identical across groups
+      const variedText = humanizeMessage(messageText);
       const res = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
         headers: bridgeHeaders,
@@ -115,12 +134,17 @@ async function sendMessageWithGaps(
       const resData = await res.json().catch(() => ({}));
       sendOk = res.ok && resData?.success !== false;
       if (!sendOk) {
-        console.warn(`[QR Broadcast V2] Text send failed: ${resData?.error || res.status}`);
+        const errMsg = resData?.error || `Bridge ${res.status}`;
+        console.warn(`[QR Broadcast V2] Text send failed: ${errMsg}`);
         const sendTimeMs = Date.now() - startTime;
         return {
           success: false,
-          error: resData?.error || `Bridge ${res.status}`,
-          restricted: !!resData?.restricted,
+          error: errMsg,
+          // The bridge never returns a structured `restricted` field — it only ever
+          // returns a free-text `error` (see deploy/wa-bridge/server.js /send handler).
+          // Classify the real error text with the same shared keyword logic
+          // lib/broadcastRuns.ts already uses for contact broadcasts.
+          restricted: isWhatsAppBlockedSignal(errMsg),
           sendTimeMs,
         };
       }
@@ -246,6 +270,26 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
       { qrConnectedPhoneNumber: 1 }
     ).lean();
     const connectedPhone = String((ownerSettings as any)?.qrConnectedPhoneNumber || '').split(':')[0].split('@')[0].replace(/\D/g, '');
+
+    // ── ACCOUNT-LEVEL RESTRICTION PREFLIGHT ──
+    // lib/whatsappRestriction.ts is the shared "is this number currently
+    // WhatsApp-restricted" signal (built from the Merge Groups ban incident;
+    // also consulted by the contact-broadcast path in lib/broadcastRuns.ts).
+    // This processor previously never checked it, so a number already flagged
+    // restricted by another feature — or by this one, moments ago — kept
+    // getting hit every tick. Go quiet for the same window everything else
+    // already respects, without touching nextSendAt/counters.
+    if (connectedPhone) {
+      const restriction = await getQRAccountRestriction(connectedPhone);
+      if (restriction.restricted) {
+        console.warn(`[QR Broadcast V2] 🚫 ${connectedPhone} is WhatsApp-restricted until ${restriction.restrictedUntil.toISOString()} — skipping.`);
+        return {
+          status: 'restricted_skip',
+          reason: restriction.reason || 'account_restricted',
+          restrictedUntil: restriction.restrictedUntil.toISOString(),
+        };
+      }
+    }
 
     const QRBroadcastScheduleModel = (await connectDB(), (await import('@/lib/schemas/enterpriseSchemas')).getQRBroadcastSchedule());
 
@@ -444,6 +488,37 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
         };
       }
 
+      // ── MINIMUM-GAP GUARD ACROSS CONCURRENT SCHEDULES ON THE SAME NUMBER ──
+      // reserveSendSlot() above caps total hourly/daily volume per number, but
+      // doesn't stop two DIFFERENT schedules on the same number from both
+      // coming due in the same 1-minute cron tick and firing near-simultaneously
+      // into different groups — each schedule's own ~15min nextSendAt pacing
+      // only coordinates against itself. This is a shared floor (default 60s)
+      // between ANY two sends on the same number, regardless of which schedule.
+      const gapSlot = await reserveSendGap(schedule.userId);
+      if (!gapSlot.allowed) {
+        console.log(`[QR Broadcast V2] ⏳ Min-gap guard: another schedule on this number sent ${gapSlot.msSinceLastSend}ms ago. Deferring to next tick.`);
+        const update: any = {
+          status: 'in-progress',
+          'stats.totalAttempted': (schedule.stats?.totalAttempted || 0) + (sent + failed + skipped),
+          'stats.totalSent': (schedule.stats?.totalSent || 0) + sent,
+          'stats.totalFailed': (schedule.stats?.totalFailed || 0) + failed,
+          'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
+        };
+        const gapUpdateOp: any = { $set: update };
+        if (newlySentIds.length > 0) gapUpdateOp.$addToSet = { sentRecipientChatIds: { $each: newlySentIds } };
+        await QRBroadcastScheduleModel.updateOne({ _id: schedule._id }, gapUpdateOp);
+        return {
+          status: 'gap_wait',
+          reason: 'min_gap_guard',
+          sent,
+          failed,
+          skipped,
+          pending: pending.length - newlySentIds.length,
+          message: `Another schedule on this number sent recently. Deferred to next tick.`,
+        };
+      }
+
       const result = await sendMessageWithGaps(
         chatId,
         schedule.messageText,
@@ -457,7 +532,6 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
           ? schedule.mediaUrls
           : undefined,
         sessionInfo || undefined,  // passes both sessionKey + tenantId
-        i,                          // index drives invisible message variation
       );
 
       // ── HARD STOP on WhatsApp restriction signal ──
@@ -477,6 +551,17 @@ async function processSchedule(schedule: any, bridgeUrl: string, bridgeSecret: s
             'stats.totalSkipped': (schedule.stats?.totalSkipped || 0) + skipped,
           }
         );
+        // Record the ban account-wide (shared with Merge Groups' own preflight
+        // check via lib/whatsappRestriction.ts) — previously this hard-stop only
+        // paused THIS schedule, leaving the number's restricted state invisible
+        // to every other feature that touches it.
+        if (connectedPhone) {
+          try {
+            await markQRAccountRestricted(connectedPhone, `Group/broadcast scheduler blocked by WhatsApp: ${result.error}`);
+          } catch (markErr) {
+            console.warn('[QR Broadcast V2] Failed to record account-level restriction:', markErr);
+          }
+        }
         return {
           status: 'aborted',
           reason: 'whatsapp_restricted',
