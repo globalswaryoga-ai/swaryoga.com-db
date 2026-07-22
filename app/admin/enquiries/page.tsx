@@ -20,6 +20,7 @@ interface Enquiry {
   status: 'new' | 'contacted' | 'registered';
   notes?: string;
   labels?: string[];
+  timeSlot?: { label: string; groupLink: string } | null;
 }
 
 interface EnquiryForm {
@@ -34,6 +35,7 @@ interface EnquiryForm {
   currency?: string;
   feeOptions?: { label: string; price: number }[];
   groupLink?: string;
+  timeSlots?: { label: string; groupLink: string }[];
   isActive: boolean;
   submissionCount: number;
   createdAt: string;
@@ -72,6 +74,7 @@ export default function EnquiriesPage() {
   const [newWsCurrency, setNewWsCurrency] = useState('INR');
   const [newWsFeeOptions, setNewWsFeeOptions] = useState<{ label: string; price: string }[]>([{ label: '', price: '' }]);
   const [newWsGroupLink, setNewWsGroupLink] = useState('');
+  const [newWsTimeSlots, setNewWsTimeSlots] = useState<{ label: string; groupLink: string }[]>([{ label: '', groupLink: '' }]);
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [savingForm, setSavingForm] = useState(false);
@@ -166,12 +169,14 @@ export default function EnquiriesPage() {
     setFormSaveError('');
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
     setNewWsDesc(''); setNewWsImage(''); setNewWsFeeOptions([{ label: '', price: '' }]); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsTimeSlots([{ label: '', groupLink: '' }]);
   };
 
   const openCreateForm = () => {
     setEditingFormId(null);
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
     setNewWsDesc(''); setNewWsImage(''); setNewWsFeeOptions([{ label: '', price: '' }]); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsTimeSlots([{ label: '', groupLink: '' }]);
     setFormSaveError('');
     setShowAddForm(true);
   };
@@ -194,6 +199,14 @@ export default function EnquiriesPage() {
     setNewWsFeeOptions(existingFees);
     setNewWsCurrency(form.currency || 'INR');
     setNewWsGroupLink(form.groupLink || '');
+    // Migrate an old single groupLink form into one repeater row so editing it
+    // doesn't silently drop the existing group link.
+    const existingTimeSlots = form.timeSlots && form.timeSlots.length
+      ? form.timeSlots.map((t) => ({ label: t.label || '', groupLink: t.groupLink || '' }))
+      : form.groupLink
+        ? [{ label: '', groupLink: form.groupLink }]
+        : [{ label: '', groupLink: '' }];
+    setNewWsTimeSlots(existingTimeSlots);
     setFormSaveError('');
     setShowAddForm(true);
   };
@@ -203,6 +216,11 @@ export default function EnquiriesPage() {
   const updateFeeOptionRow = (idx: number, field: 'label' | 'price', value: string) =>
     setNewWsFeeOptions((prev) => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
 
+  const addTimeSlotRow = () => setNewWsTimeSlots((prev) => [...prev, { label: '', groupLink: '' }]);
+  const removeTimeSlotRow = (idx: number) => setNewWsTimeSlots((prev) => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+  const updateTimeSlotRow = (idx: number, field: 'label' | 'groupLink', value: string) =>
+    setNewWsTimeSlots((prev) => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+
   const saveNewForm = async () => {
     if (!newWsName.trim()) { setFormSaveError('Workshop name is required'); return; }
     setSavingForm(true);
@@ -211,6 +229,9 @@ export default function EnquiriesPage() {
       const feeOptions = newWsFeeOptions
         .map((f) => ({ label: f.label.trim(), price: Math.max(0, Number(f.price) || 0) }))
         .filter((f) => f.label || f.price > 0);
+      const timeSlots = newWsTimeSlots
+        .map((t) => ({ label: t.label.trim(), groupLink: t.groupLink.trim() }))
+        .filter((t) => t.label || t.groupLink);
       const payload = {
         workshopName: newWsName.trim(),
         workshopDate: newWsDate,
@@ -221,6 +242,7 @@ export default function EnquiriesPage() {
         feeOptions,
         currency: newWsCurrency || 'INR',
         groupLink: newWsGroupLink.trim(),
+        timeSlots,
       };
       if (editingFormId) {
         const res = await fetch(`/api/admin/enquiry-forms?id=${editingFormId}`, {
@@ -873,6 +895,14 @@ export default function EnquiriesPage() {
                                             <div className="text-xs text-swar-text-secondary space-y-1">
                                               <p><strong>ID:</strong> {enquiry.id}</p>
                                               <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
+                                              <p>
+                                                <strong>Time Slot:</strong> {enquiry.timeSlot?.label || '—'}
+                                                {enquiry.timeSlot?.groupLink && (
+                                                  <a href={enquiry.timeSlot.groupLink} target="_blank" rel="noopener noreferrer" className="ml-2 text-[#2d6a4f] underline">
+                                                    Group Link
+                                                  </a>
+                                                )}
+                                              </p>
                                             </div>
                                           </td>
                                         </tr>
@@ -1047,6 +1077,14 @@ export default function EnquiriesPage() {
                                             <td colSpan={6} className="px-5 py-3 text-xs text-swar-text-secondary space-y-1">
                                               <p><strong>ID:</strong> {enquiry.id}</p>
                                               <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
+                                              <p>
+                                                <strong>Time Slot:</strong> {enquiry.timeSlot?.label || '—'}
+                                                {enquiry.timeSlot?.groupLink && (
+                                                  <a href={enquiry.timeSlot.groupLink} target="_blank" rel="noopener noreferrer" className="ml-2 text-[#2d6a4f] underline">
+                                                    Group Link
+                                                  </a>
+                                                )}
+                                              </p>
                                             </td>
                                           </tr>
                                         )}
@@ -1225,8 +1263,43 @@ export default function EnquiriesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">WhatsApp Group Link <span className="font-normal text-gray-400">(optional)</span></label>
-                <input type="url" value={newWsGroupLink} onChange={(e) => setNewWsGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/…" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Batch Time Slots <span className="font-normal text-gray-400">(each with its own WhatsApp group — leave blank for a single default group)</span></label>
+                <div className="space-y-2">
+                  {newWsTimeSlots.map((slot, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={slot.label}
+                        onChange={(e) => updateTimeSlotRow(idx, 'label', e.target.value)}
+                        placeholder="e.g. Morning"
+                        className="w-32 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <input
+                        type="url"
+                        value={slot.groupLink}
+                        onChange={(e) => updateTimeSlotRow(idx, 'groupLink', e.target.value)}
+                        placeholder="https://chat.whatsapp.com/…"
+                        className="flex-1 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeTimeSlotRow(idx)}
+                        disabled={newWsTimeSlots.length === 1}
+                        className="w-11 h-11 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:border-gray-200 shrink-0"
+                        title="Remove this time slot"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addTimeSlotRow}
+                  className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-[#2d6a4f] hover:text-[#1b4332]"
+                >
+                  <Plus className="w-4 h-4" /> Add Time Slot
+                </button>
               </div>
 
               <div>

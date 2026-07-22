@@ -14,6 +14,14 @@ function sanitizeFeeOptions(raw: unknown): { label: string; price: number }[] {
     .filter((f) => f.label || f.price > 0);
 }
 
+/** Sanitize a client-submitted timeSlots array into a safe, valid shape. */
+function sanitizeTimeSlots(raw: unknown): { label: string; groupLink: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((t: any) => ({ label: String(t?.label || '').trim(), groupLink: String(t?.groupLink || '').trim() }))
+    .filter((t) => t.label || t.groupLink);
+}
+
 /** GET — list all enquiry forms (superadmin only) */
 export async function GET(req: NextRequest) {
   const token = (req.headers.get('authorization') || '').replace('Bearer ', '').trim();
@@ -34,7 +42,7 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(decoded)) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
 
   const body = await req.json();
-  const { workshopName, workshopDate, workshopTime, workshopMode, workshopId, description, workshopImage, price, currency, groupLink, feeOptions } = body;
+  const { workshopName, workshopDate, workshopTime, workshopMode, workshopId, description, workshopImage, price, currency, groupLink, feeOptions, timeSlots } = body;
 
   if (!workshopName?.trim()) {
     return NextResponse.json({ error: 'Workshop name is required' }, { status: 400 });
@@ -42,6 +50,7 @@ export async function POST(req: NextRequest) {
 
   const formId = nanoid(8); // e.g. "aB3xY7qW"
   const sanitizedFeeOptions = sanitizeFeeOptions(feeOptions);
+  const sanitizedTimeSlots = sanitizeTimeSlots(timeSlots);
   // Legacy `price` mirrors the lowest fee option so any code still reading it
   // directly (list views, etc.) shows a sane value.
   const legacyPrice = sanitizedFeeOptions.length
@@ -62,6 +71,7 @@ export async function POST(req: NextRequest) {
     currency: (currency?.trim() || 'INR').toUpperCase(),
     feeOptions: sanitizedFeeOptions,
     groupLink: groupLink?.trim() || '',
+    timeSlots: sanitizedTimeSlots,
     isActive: true,
   });
 
@@ -85,6 +95,9 @@ export async function PATCH(req: NextRequest) {
     if (body.feeOptions.length) {
       body.price = Math.min(...body.feeOptions.map((f: { price: number }) => f.price));
     }
+  }
+  if (body.timeSlots !== undefined) {
+    body.timeSlots = sanitizeTimeSlots(body.timeSlots);
   }
   await connectDB();
   const updated = await EnquiryForm.findOneAndUpdate({ formId }, { $set: body }, { new: true });

@@ -30,6 +30,7 @@ export async function GET(
       currency: form.currency || 'INR',
       feeOptions: Array.isArray(form.feeOptions) ? form.feeOptions.map((f: any) => ({ label: f.label || '', price: f.price || 0 })) : [],
       groupLink: form.groupLink || '',
+      timeSlots: Array.isArray(form.timeSlots) ? form.timeSlots.map((t: any) => ({ label: t.label || '', groupLink: t.groupLink || '' })) : [],
     },
   });
 }

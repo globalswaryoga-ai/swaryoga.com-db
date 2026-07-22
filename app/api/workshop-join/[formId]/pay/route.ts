@@ -37,6 +37,13 @@ export async function POST(
       return NextResponse.json({ error: 'This workshop is free — no payment needed' }, { status: 400 });
     }
 
+    // Client sends only the INDEX of the time slot picked — resolved
+    // server-side from the form's own timeSlots so the group link/index
+    // pair can't be tampered with (same protection as the fee tier above).
+    const timeSlotIndex = Number.isInteger(Number(body?.timeSlotIndex)) ? Number(body.timeSlotIndex) : -1;
+    const timeSlots = Array.isArray(form.timeSlots) ? form.timeSlots : [];
+    const timeSlot = timeSlotIndex >= 0 && timeSlotIndex < timeSlots.length ? timeSlots[timeSlotIndex] : null;
+
     const name = String(body?.name || '').trim();
     const mobileRaw = String(body?.mobile || '').trim();
     const email = String(body?.email || '').trim();
@@ -102,6 +109,7 @@ export async function POST(
       paymentMethod: 'cashfree',
       cashfreeOrderId,
       cashfreePaymentSessionId: paymentSessionId,
+      ...(timeSlot ? { workshopTimeSlot: { index: timeSlotIndex, label: timeSlot.label || '', groupLink: timeSlot.groupLink || '' } } : {}),
       cashfreeOrderStatus: cf?.order_status || undefined,
       shippingAddress: { firstName, lastName, email: payerEmail, phone, city, address: '', state: '', zip: '' },
     });

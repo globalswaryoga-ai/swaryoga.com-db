@@ -16,6 +16,7 @@ interface FormData {
   currency?: string;
   feeOptions?: { label: string; price: number }[];
   groupLink?: string;
+  timeSlots?: { label: string; groupLink: string }[];
 }
 
 const MODE_ICONS: Record<string, string> = { online: '💻', offline: '📍', residential: '🏡', recorded: '🎥' };
@@ -27,6 +28,8 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
   const hasFeeOptions = feeOptions.length > 0;
   const currency = (formData.currency || 'INR').toUpperCase();
   const symbol = CURRENCY_SYMBOL[currency] || '';
+  const timeSlots = formData.timeSlots || [];
+  const hasTimeSlots = timeSlots.length > 0;
 
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
@@ -41,6 +44,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
   const [payLaterSentWhatsApp, setPayLaterSentWhatsApp] = useState(false);
   const [payLaterLink, setPayLaterLink] = useState('');
   const [feeOptionIndex, setFeeOptionIndex] = useState(0);
+  const [timeSlotIndex, setTimeSlotIndex] = useState(0);
 
   // The amount driving the UI: the selected fee tier when the form has
   // multiple, otherwise the legacy single price.
@@ -48,6 +52,35 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
     ? Math.max(0, Number(feeOptions[feeOptionIndex]?.price) || 0)
     : Math.max(0, Number(formData.price) || 0);
   const isPaid = hasFeeOptions ? feeOptions.some((f) => f.price > 0) : price > 0;
+
+  // The group link driving the UI: the selected time slot's OWN group when
+  // the form has multiple slots, otherwise the legacy single group link.
+  const effectiveGroupLink = hasTimeSlots
+    ? (timeSlots[timeSlotIndex]?.groupLink || '')
+    : (formData.groupLink || '');
+
+  // Save the chosen time slot onto the just-created lead the moment it's
+  // picked — works for free AND paid workshops alike (unlike fee choice,
+  // which only rides along on the pay/pay-later calls).
+  const saveTimeSlot = (idx: number) => {
+    fetch(`/api/workshop-join/${formData.formId}/time-slot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mobile: '+91' + mobile, timeSlotIndex: idx }),
+    }).catch(() => { /* best-effort — admin can still see it was submitted without a slot */ });
+  };
+  const chooseTimeSlot = (idx: number) => {
+    setTimeSlotIndex(idx);
+    saveTimeSlot(idx);
+  };
+
+  // Auto-save the default slot (index 0) the moment the confirmation screen
+  // appears — otherwise a single-time-slot form (nothing to click) or a
+  // registrant who never touches the radio would never get a saved slot.
+  useEffect(() => {
+    if (submitted && hasTimeSlots) saveTimeSlot(timeSlotIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted]);
 
   // Badge shown BEFORE the registrant has picked a tier (intro screen) — a
   // single amount if all paid tiers cost the same, otherwise "From ₹X".
@@ -70,6 +103,13 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
     if (feeParam !== null) {
       const idx = Number(feeParam);
       if (Number.isInteger(idx) && idx >= 0 && idx < feeOptions.length) setFeeOptionIndex(idx);
+    }
+    // Restore the chosen time slot — either from a "Pay Later" WhatsApp deep
+    // link (&slot=) or from the redirect back after a completed Cashfree payment.
+    const slotParam = q.get('slot');
+    if (slotParam !== null) {
+      const idx = Number(slotParam);
+      if (Number.isInteger(idx) && idx >= 0 && idx < timeSlots.length) setTimeSlotIndex(idx);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -103,7 +143,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
       const res = await fetch(`/api/workshop-join/${formData.formId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex }),
+        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex, timeSlotIndex }),
       });
       const data = await res.json();
       if (!res.ok || !data.success || !data.paymentSessionId) {
@@ -134,7 +174,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
       const res = await fetch(`/api/workshop-join/${formData.formId}/pay-later`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex }),
+        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex, timeSlotIndex }),
       });
       const data = await res.json().catch(() => ({}));
       setPayLaterSentWhatsApp(!!data.whatsappSent);
@@ -159,9 +199,9 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
           <p className="text-gray-500 text-sm mb-5">
             You&apos;re confirmed for <strong>{formData.workshopName}</strong>.
           </p>
-          {formData.groupLink ? (
+          {effectiveGroupLink ? (
             <a
-              href={formData.groupLink}
+              href={effectiveGroupLink}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full h-12 bg-[#25D366] text-white rounded-xl font-bold text-sm hover:brightness-95 transition flex items-center justify-center gap-2"
@@ -194,12 +234,39 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
             for <strong>{formData.workshopName}</strong>.
           </p>
 
+          {/* Choose your batch time slot — independent of payment (applies to
+              free workshops too), since which group you join depends on it. */}
+          {hasTimeSlots && (
+            <div className="mb-4 text-left">
+              <p className="text-sm text-gray-600 mb-2">Choose your batch time slot</p>
+              <div className="space-y-2">
+                {timeSlots.map((slot, idx) => (
+                  <label
+                    key={idx}
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border cursor-pointer transition ${
+                      timeSlotIndex === idx ? 'border-[#2d6a4f] bg-[#f0f7ee]' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="timeSlot"
+                      checked={timeSlotIndex === idx}
+                      onChange={() => chooseTimeSlot(idx)}
+                      className="accent-[#2d6a4f]"
+                    />
+                    <span className="text-sm font-medium text-gray-800">{slot.label || `Slot ${idx + 1}`}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Step 1 — Join the WhatsApp group.
               For FREE workshops the link shows immediately. For PAID workshops it
               stays LOCKED until payment completes (revealed on the paid screen). */}
-          {formData.groupLink && !isPaid && (
+          {effectiveGroupLink && !isPaid && (
             <a
-              href={formData.groupLink}
+              href={effectiveGroupLink}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full h-12 mb-3 bg-[#25D366] text-white rounded-xl font-bold text-sm hover:brightness-95 transition flex items-center justify-center gap-2"
@@ -207,7 +274,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
               <Users size={18} /> Join WhatsApp Group
             </a>
           )}
-          {formData.groupLink && isPaid && (
+          {effectiveGroupLink && isPaid && (
             <div className="w-full mb-3 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 text-sm flex items-center justify-center gap-2">
               <Lock size={15} /> WhatsApp group unlocks after payment
             </div>

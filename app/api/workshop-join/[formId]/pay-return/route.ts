@@ -62,9 +62,15 @@ export async function GET(
       if (form && phone) {
         const currency = (form.currency || 'INR').toUpperCase();
         const symbol = CURRENCY_SYMBOL[currency] || '';
-        if (form.groupLink) {
+        // Use the slot resolved+stored at checkout (pay/route.ts) — each time
+        // slot has its own group — falling back to the legacy single group
+        // link for forms with no time slots.
+        const slot = (order as any).workshopTimeSlot;
+        const effectiveGroupLink = slot?.groupLink || form.groupLink;
+        if (effectiveGroupLink) {
+          const slotSuffix = slot?.label ? ` (${slot.label})` : '';
           const msg =
-            `Payment received, ${firstName}! ✅\n\nThank you for joining *${form.workshopName}* (${symbol}${form.price}).\n\nJoin the workshop WhatsApp group here:\n${form.groupLink}\n\n— Swar Yoga 🙏`;
+            `Payment received, ${firstName}! ✅\n\nThank you for joining *${form.workshopName}*${slotSuffix} (${symbol}${form.price}).\n\nJoin the workshop WhatsApp group here:\n${effectiveGroupLink}\n\n— Swar Yoga 🙏`;
           await sendTextViaQrBridge(phone, msg);
         }
 
@@ -94,7 +100,11 @@ export async function GET(
       console.error('[pay-return] post-payment delivery failed:', e);
     }
 
-    return back(`paid=${encodeURIComponent(cashfreeOrderId)}`);
+    // Carry the chosen time slot back in the redirect URL so the client can
+    // restore it on mount (the page fully reloads after the Cashfree round trip).
+    const returnedSlotIndex = (order as any).workshopTimeSlot?.index;
+    const slotParam = Number.isInteger(returnedSlotIndex) ? `&slot=${returnedSlotIndex}` : '';
+    return back(`paid=${encodeURIComponent(cashfreeOrderId)}${slotParam}`);
   } catch (err) {
     console.error('[workshop-join/pay-return] error:', err);
     return back('payfailed=1');

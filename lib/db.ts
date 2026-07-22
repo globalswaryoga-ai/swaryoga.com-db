@@ -312,6 +312,15 @@ const orderSchema = new mongoose.Schema({
 
   transactionId: { type: String },
   failureReason: { type: String },
+  // The workshop-join batch time slot chosen at checkout (if the form has
+  // any) — resolved server-side from EnquiryForm.timeSlots, never trusted
+  // from the client. Lets pay-return reveal/WhatsApp the RIGHT group link
+  // (each slot has its own) instead of always the legacy default.
+  workshopTimeSlot: {
+    index: Number,
+    label: String,
+    groupLink: String,
+  },
   shippingAddress: {
     firstName: String,
     lastName: String,
@@ -2307,7 +2316,15 @@ const enquiryFormSchema = new mongoose.Schema(
       type: [{ label: { type: String, default: '' }, price: { type: Number, default: 0 } }],
       default: [],
     },
-    groupLink: { type: String, default: '' },          // WhatsApp group invite link shown after join
+    groupLink: { type: String, default: '' },          // legacy single WhatsApp group link — fallback when timeSlots is empty
+    // Multiple selectable batch time slots (e.g. "Morning", "Evening"), each
+    // paired with its OWN WhatsApp group link (different batches meet in
+    // different groups). Same relationship to the legacy `groupLink` field
+    // above that feeOptions has to the legacy `price` field.
+    timeSlots: {
+      type: [{ label: { type: String, default: '' }, groupLink: { type: String, default: '' } }],
+      default: [],
+    },
     isActive: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, default: 'admin' },
     submissionCount: { type: Number, default: 0 },

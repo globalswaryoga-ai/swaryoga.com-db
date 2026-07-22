@@ -29,6 +29,15 @@ export async function POST(
       return NextResponse.json({ error: 'This workshop is free — no payment needed' }, { status: 400 });
     }
 
+    // Resolve the chosen time slot server-side (same protection as the fee
+    // tier) so the pay-later link brings them back to the SAME slot instead
+    // of defaulting to the first one.
+    const timeSlotIndexRaw = Number(body?.timeSlotIndex);
+    const timeSlots = Array.isArray(form.timeSlots) ? form.timeSlots : [];
+    const timeSlotIndex = Number.isInteger(timeSlotIndexRaw) && timeSlotIndexRaw >= 0 && timeSlotIndexRaw < timeSlots.length
+      ? timeSlotIndexRaw
+      : -1;
+
     const name = String(body?.name || '').trim();
     const phone = normalizePhone(String(body?.mobile || '')) || String(body?.mobile || '').replace(/\D/g, '');
     if (!name || !phone) {
@@ -44,7 +53,8 @@ export async function POST(
     // tier they were quoted, instead of defaulting to the first option.
     const origin = getRequestBaseUrl(req);
     const feeParam = feeOptionIndex >= 0 ? `&fee=${feeOptionIndex}` : '';
-    const payLink = `${origin}/workshop-join/${params.formId}?pay=1&n=${encodeURIComponent(firstName)}&m=${phone.replace(/^91/, '')}${feeParam}`;
+    const slotParam = timeSlotIndex >= 0 ? `&slot=${timeSlotIndex}` : '';
+    const payLink = `${origin}/workshop-join/${params.formId}?pay=1&n=${encodeURIComponent(firstName)}&m=${phone.replace(/^91/, '')}${feeParam}${slotParam}`;
 
     // Mark the lead payment-pending (lead was created on Join submit).
     try {

@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
             : 'new',
           notes: l.notes || '',
           labels: l.labels || [],
+          timeSlot: meta.timeSlot || null,
         };
       });
       if (workshopId) {
