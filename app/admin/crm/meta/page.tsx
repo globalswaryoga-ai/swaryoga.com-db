@@ -148,6 +148,7 @@ export default function MetaInboxPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messageLimit, setMessageLimit] = useState(5);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [loadingFullHistory, setLoadingFullHistory] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatStatusFilter, setChatStatusFilter] = useState<ChatStatus | 'all'>('all'); // Chat status filter
@@ -337,9 +338,16 @@ export default function MetaInboxPage() {
   const selectedRef = useRef<ConversationRow | null>(null);
   const pendingPhoneRef = useRef<string | null>(null);
   const pendingNameRef = useRef<string | null>(null);
+  // Mirrors `messages` for use inside loadAllOldMessages' tight loop, where
+  // reading the closed-over `messages` state directly would be stale between
+  // iterations (see loadAllOldMessages below).
+  const messagesRef = useRef<Message[]>([]);
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // Right Sidebar state
   const [sidebarData, setSidebarData] = useState({
@@ -646,15 +654,32 @@ export default function MetaInboxPage() {
       });
       if (data?.messages) {
         // Reverse needed so oldest is at top (standard chat view)
-        const newMsgs = [...data.messages].reverse();
-        
-        // Only trigger scroll to bottom if new messages arrived
-        const hasNew = newMsgs.length !== messages.length || 
-                     (newMsgs.length > 0 && newMsgs[newMsgs.length-1]._id !== messages[messages.length-1]?._id);
-        
-        setMessages(newMsgs);
-        if (hasNew) {
-          setTimeout(() => scrollToBottom(), 100);
+        const fresh = [...data.messages].reverse();
+
+        if (silent) {
+          // The 10s poll only ever asks for the server's most-recent window.
+          // Overwriting state with just that would silently discard any
+          // older history the user had already paged back through via
+          // "View Earlier Conversations" / "Show Old Chat" — so merge
+          // instead: keep everything we'd loaded that's older than this
+          // fresh window, and refresh the recent window itself (picks up
+          // new messages + status ticks on recent ones).
+          setMessages((prev) => {
+            const earliestFreshTs = fresh.length ? new Date((fresh[0] as any).sentAt || (fresh[0] as any).createdAt).getTime() : Infinity;
+            const freshIds = new Set(fresh.map((m: any) => m._id));
+            const olderKept = prev.filter((m: any) =>
+              !freshIds.has(m._id) && new Date(m.sentAt || m.createdAt).getTime() < earliestFreshTs
+            );
+            return [...olderKept, ...fresh];
+          });
+          const prevLast = messagesRef.current[messagesRef.current.length - 1];
+          const hasNew = fresh.length > 0 && fresh[fresh.length - 1]._id !== prevLast?._id;
+          if (hasNew) setTimeout(() => scrollToBottom(), 100);
+        } else {
+          const hasNew = fresh.length !== messages.length ||
+            (fresh.length > 0 && fresh[fresh.length - 1]._id !== messages[messages.length - 1]?._id);
+          setMessages(fresh);
+          if (hasNew) setTimeout(() => scrollToBottom(), 100);
         }
       }
     } catch (err) {
@@ -664,38 +689,75 @@ export default function MetaInboxPage() {
     }
   };
 
-  // Fetches messages strictly older than the oldest one currently loaded —
-  // merges hot Mongo data with the Bunny archive server-side (see
-  // /api/admin/crm/messages) once Mongo's ~1 day hot window is exhausted,
-  // so this can reach back to the full 1-year retention boundary.
+  // Fetches ONE page of messages strictly older than the oldest one
+  // currently loaded — merges hot Mongo data with the Bunny archive
+  // server-side (see /api/admin/crm/messages) once Mongo's ~1 day hot
+  // window is exhausted, so this can reach back to the full 1-year
+  // retention boundary. Reads selected/messages via refs (not closed-over
+  // state) so it's safe to call repeatedly in the loadAllOldMessages loop
+  // below without waiting for a re-render between calls.
+  // Returns true if a full page came back (there is likely more history).
+  const fetchOlderPage = async (): Promise<boolean> => {
+    const c = selectedRef.current;
+    if (!c) return false;
+    const id = c.leadId || c._id || c.phoneNumber;
+    if (!id) return false;
+    const oldest = messagesRef.current[0];
+    if (!oldest) return false;
+
+    const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
+    const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
+    params.provider = providerScope;
+    params.before = new Date((oldest as any).sentAt || (oldest as any).createdAt).toISOString();
+    params.limit = 20;
+
+    const data = await crmFetch(`/api/admin/crm/messages`, { params, silent: true });
+    const older = Array.isArray(data?.messages) ? [...data.messages].reverse() : [];
+    if (older.length === 0) {
+      setHasMoreHistory(false);
+      return false;
+    }
+    setMessages((prev) => [...older, ...prev]);
+    setMessageLimit((prev) => prev + older.length);
+    const more = older.length >= 20;
+    if (!more) setHasMoreHistory(false);
+    return more;
+  };
+
   const loadOlderMessages = async () => {
     if (!selected || loadingOlderMessages || !hasMoreHistory) return;
-    const id = selected.leadId || selected._id || selected.phoneNumber;
-    if (!id) return;
-    const oldest = messages[0];
-    if (!oldest) return;
-
     setLoadingOlderMessages(true);
     try {
-      const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
-      const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
-      params.provider = providerScope;
-      params.before = new Date((oldest as any).sentAt || (oldest as any).createdAt).toISOString();
-      params.limit = 20;
-
-      const data = await crmFetch(`/api/admin/crm/messages`, { params, silent: true });
-      const older = Array.isArray(data?.messages) ? [...data.messages].reverse() : [];
-      if (older.length === 0) {
-        setHasMoreHistory(false);
-      } else {
-        setMessages((prev) => [...older, ...prev]);
-        setMessageLimit((prev) => prev + older.length);
-        if (older.length < 20) setHasMoreHistory(false);
-      }
+      await fetchOlderPage();
     } catch (err) {
       console.error('Failed to load older messages:', err);
     } finally {
       setLoadingOlderMessages(false);
+    }
+  };
+
+  // "Show Old Chat" — loads the ENTIRE available history for the selected
+  // conversation (up to the ~1 year retention boundary — see RETENTION_DAYS
+  // in lib/metaWhatsappArchive.ts) in one action, instead of repeatedly
+  // clicking "View Earlier Conversations" one 20-message page at a time.
+  const loadAllOldMessages = async () => {
+    if (!selected || loadingFullHistory || loadingOlderMessages) return;
+    setLoadingFullHistory(true);
+    try {
+      let more = hasMoreHistory;
+      let guard = 0;
+      const MAX_PAGES = 100; // 100 * 20 = up to 2000 messages — generous safety cap
+      while (more && guard < MAX_PAGES) {
+        more = await fetchOlderPage();
+        guard++;
+      }
+      // Each fetchOlderPage() call already grows messageLimit by exactly
+      // the number of messages it merged in, so the whole loaded history
+      // is revealed by the time this loop ends — no extra step needed.
+    } catch (err) {
+      console.error('Failed to load full chat history:', err);
+    } finally {
+      setLoadingFullHistory(false);
     }
   };
 
@@ -2766,9 +2828,9 @@ export default function MetaInboxPage() {
                 ) : (
                   <>
                     {(messages.length > messageLimit || hasMoreHistory) && (
-                      <div className="flex justify-center pb-4">
+                      <div className="flex justify-center gap-2 pb-4">
                         <button
-                           disabled={loadingOlderMessages}
+                           disabled={loadingOlderMessages || loadingFullHistory}
                            onClick={() => {
                              if (messages.length > messageLimit) {
                                setMessageLimit(prev => prev + 20);
@@ -2783,6 +2845,17 @@ export default function MetaInboxPage() {
                         >
                            {loadingOlderMessages ? 'Loading…' : 'View Earlier Conversations'}
                         </button>
+                        {hasMoreHistory && (
+                          <button
+                             disabled={loadingOlderMessages || loadingFullHistory}
+                             onClick={loadAllOldMessages}
+                             title="Load the full available chat history (up to 1 year) for this conversation"
+                             className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white transition-all duration-300 hover:scale-105 disabled:opacity-60"
+                             style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)', boxShadow: '0 2px 8px rgba(30,127,67,0.25)' }}
+                          >
+                             {loadingFullHistory ? 'Loading full history…' : 'Show Old Chat'}
+                          </button>
+                        )}
                       </div>
                     )}
                     {messages.slice(-messageLimit).map((msg) => (
