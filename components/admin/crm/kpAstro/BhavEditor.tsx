@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { computeFreshTemplate } from './bhavAutoFill';
 
 // Per-bhav (per-house) astrologer working sheet — the "Prediction Template":
 // pick a Matter + its Primary House, the sub-lord chain auto-derives (sub
@@ -282,6 +283,18 @@ function bhavLabel(house: number): string {
   return `${house}${house === 1 ? 'st' : house === 2 ? 'nd' : house === 3 ? 'rd' : 'th'} Bhav`;
 }
 
+// A row counts as "in use" once the astrologer has actually put something
+// into it — otherwise it stays hidden behind the "+ Add Matter" control so
+// the workspace only shows the matters actually being worked on.
+function hasRowContent(row: BhavAnalysisRow): boolean {
+  const pt = row.predictionTemplate;
+  return Boolean(
+    row.toolkitMatter || row.subLord || row.dashaChain ||
+    pt.subLordStar || pt.starLord || pt.summary || pt.conclusion || pt.rule ||
+    [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some((b) => b.present)
+  );
+}
+
 function ToolkitReferenceCards() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
 
@@ -483,6 +496,16 @@ export default function BhavEditor({
   planets?: KaryeshPlanet[];
 }) {
   const [openHouse, setOpenHouse] = useState(1);
+  // Slots the astrologer explicitly added this session but hasn't typed into
+  // yet — kept visible until they either fill it in (then hasRowContent takes
+  // over) or reload without saving anything into it.
+  const [manuallyAdded, setManuallyAdded] = useState<Set<number>>(new Set());
+
+  const contentHouses = rows.filter(hasRowContent).map((r) => r.house);
+  const activeHouseSet = new Set<number>([...contentHouses, ...manuallyAdded]);
+  if (activeHouseSet.size === 0) activeHouseSet.add(rows[0]?.house ?? 1);
+  const activeRows = rows.filter((r) => activeHouseSet.has(r.house)).sort((a, b) => a.house - b.house);
+  const unusedHouses = rows.map((r) => r.house).filter((h) => !activeHouseSet.has(h));
 
   const updateRow = <K extends keyof BhavAnalysisRow>(house: number, key: K, value: BhavAnalysisRow[K]) => {
     onChange(rows.map((r) => (r.house === house ? { ...r, [key]: value } : r)));
@@ -490,6 +513,14 @@ export default function BhavEditor({
 
   const updateTemplate = <K extends keyof PredictionTemplate>(house: number, key: K, value: PredictionTemplate[K]) => {
     onChange(rows.map((r) => (r.house === house ? { ...r, predictionTemplate: { ...r.predictionTemplate, [key]: value } } : r)));
+  };
+
+  // Changing the Primary House means the whole sub-lord/star-lord chain and
+  // all four aspect blocks now describe a DIFFERENT house — recompute every
+  // dependent field fresh instead of leaving the old house's values behind.
+  const applyFreshTemplate = (house: number, newPrimaryHouse: number) => {
+    const { subLord, predictionTemplate } = computeFreshTemplate(newPrimaryHouse, houses, planets);
+    onChange(rows.map((r) => (r.house === house ? { ...r, subLord, predictionTemplate } : r)));
   };
 
   const updateAspectBlock = <K extends keyof AspectBlock>(
@@ -507,17 +538,17 @@ export default function BhavEditor({
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">12 Bhav Prediction Template</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Open one Bhav, complete the template, save, then generate final prediction.</p>
+          <h3 className="text-sm font-semibold text-gray-900">Bhav Prediction Template</h3>
+          <p className="mt-0.5 text-xs text-gray-500">Add a matter, complete the template, save, then generate final prediction.</p>
         </div>
-        <div className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">12 bhavs</div>
+        <div className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">{activeRows.length} {activeRows.length === 1 ? 'matter' : 'matters'}</div>
       </div>
       <ToolkitReferenceCards />
       <div className="space-y-2 p-3">
-        {rows.map((row) => {
+        {activeRows.map((row) => {
           const open = openHouse === row.house;
           const pt = row.predictionTemplate;
-          const colors = HOUSE_COLORS[row.house] || HOUSE_COLORS[1];
+          const colors = HOUSE_COLORS[pt.primaryHouse] || HOUSE_COLORS[1];
           const hasConjOrOpp = [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some((b) => b.present === 'Yes');
 
           return (
@@ -529,7 +560,7 @@ export default function BhavEditor({
               >
                 <div className="flex min-w-0 items-center gap-3">
                   {open ? <ChevronDown className="h-4 w-4 shrink-0 text-indigo-600" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${colors.badge}`}>{bhavLabel(row.house)}</span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${colors.badge}`}>{bhavLabel(pt.primaryHouse)}</span>
                   <span className="truncate text-sm font-medium text-gray-800">{row.toolkitMatter || 'Untitled matter'}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -584,10 +615,10 @@ export default function BhavEditor({
                         className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       />
                     </SheetRow>
-                    <SheetRow label="Primary House of Matter in Question">
+                    <SheetRow label="Primary House of Matter in Question" hint="Changing this recalculates the whole chain below from scratch">
                       <select
                         value={pt.primaryHouse}
-                        onChange={(e) => updateTemplate(row.house, 'primaryHouse', Number(e.target.value))}
+                        onChange={(e) => applyFreshTemplate(row.house, Number(e.target.value))}
                         className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       >
                         {HOUSE_NUMBERS.map((h) => <option key={h} value={h}>{h}</option>)}
@@ -680,6 +711,21 @@ export default function BhavEditor({
             </div>
           );
         })}
+        {unusedHouses.length > 0 && (
+          <select
+            value=""
+            onChange={(e) => {
+              const h = Number(e.target.value);
+              if (!h) return;
+              setManuallyAdded((prev) => new Set(prev).add(h));
+              setOpenHouse(h);
+            }}
+            className="w-full rounded-xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          >
+            <option value="">+ Add Matter</option>
+            {unusedHouses.map((h) => <option key={h} value={h}>{bhavLabel(h)}</option>)}
+          </select>
+        )}
       </div>
     </div>
   );

@@ -199,6 +199,47 @@ function autoFillPredictionTemplate(
   };
 }
 
+// Recomputes the ENTIRE sub-lord chain + all four aspect blocks from scratch
+// for a newly-chosen Primary House, ignoring whatever was there before (unlike
+// autoFillPredictionTemplate's never-overwrite convention). Used when the
+// astrologer changes the Primary House dropdown on a matter — at that point
+// the old computed values describe a different house and must not linger.
+export function computeFreshTemplate(
+  primaryHouse: number,
+  houses: SignificatorHouse[],
+  planets: AutoFillPlanet[]
+): { subLord: string; predictionTemplate: PredictionTemplate } {
+  const aspectRows = computePlanetaryAspects(planets);
+  const primaryHouseData = houses.find((h) => h.house === primaryHouse);
+  const subLord = primaryHouseData?.subLord || '';
+  const subLordPlanet = planets.find((p) => p.planet === subLord);
+  const starLord = (subLordPlanet ? starLordOf(subLordPlanet) : undefined) || '';
+  const starLordPlanet = planets.find((p) => p.planet === starLord);
+  const starLordOccupied = housesOccupiedBy(planets, starLord);
+  const starLordOwned = housesOwnedBy(houses, starLord);
+  const connecting = [...new Set([...starLordOccupied, ...starLordOwned])].filter((h) => [6, 8, 12].includes(h)).sort((a, b) => a - b);
+
+  return {
+    subLord,
+    predictionTemplate: {
+      primaryHouse,
+      subLordRetrograde: retrogradeStatus(subLordPlanet),
+      subLordStar: subLordPlanet?.star || '',
+      starLord,
+      starLordRetrograde: retrogradeStatus(starLordPlanet),
+      starLordHouses: `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`,
+      starLordConnecting: connecting.length ? `Yes (House ${connecting.join(', ')})` : 'No',
+      subLordConjunct: computeAspectBlock(subLord, 'Conjunction', aspectRows, houses, planets),
+      starLordConjunct: computeAspectBlock(starLord, 'Conjunction', aspectRows, houses, planets),
+      subLordOpposed: computeAspectBlock(subLord, 'Opposition', aspectRows, houses, planets),
+      starLordOpposed: computeAspectBlock(starLord, 'Opposition', aspectRows, houses, planets),
+      summary: '',
+      conclusion: '',
+      rule: '',
+    },
+  };
+}
+
 export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: AutoFillPlanet[], dashaChain = ''): BhavAnalysisRow[] {
   const drishtiHits = computeDrishtiOnHouses(planets);
   const planetDrishti = computeDrishtiOnPlanets(planets);
