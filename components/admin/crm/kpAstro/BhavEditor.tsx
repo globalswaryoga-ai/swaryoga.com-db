@@ -283,15 +283,18 @@ function bhavLabel(house: number): string {
   return `${house}${house === 1 ? 'st' : house === 2 ? 'nd' : house === 3 ? 'rd' : 'th'} Bhav`;
 }
 
-// A row counts as "in use" once the astrologer has actually put something
-// into it — otherwise it stays hidden behind the "+ Add Matter" control so
-// the workspace only shows the matters actually being worked on.
+// A row counts as "in use" only once the astrologer has actually typed into
+// it — NOT once the chart's auto-fill has touched it. subLord, dashaChain,
+// starLord, and the aspect blocks' "present" flag are all computed for every
+// one of the 12 houses on every auto-fill pass regardless of which matter
+// the astrologer cares about, so they can't be used as the "in use" signal
+// (that was the bug: it made every row look active). Matter/Summary/
+// Conclusion/Rule/Favorable are the only fields never touched by auto-fill.
 function hasRowContent(row: BhavAnalysisRow): boolean {
   const pt = row.predictionTemplate;
   return Boolean(
-    row.toolkitMatter || row.subLord || row.dashaChain ||
-    pt.subLordStar || pt.starLord || pt.summary || pt.conclusion || pt.rule ||
-    [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some((b) => b.present)
+    row.toolkitMatter.trim() || pt.summary.trim() || pt.conclusion.trim() || pt.rule.trim() ||
+    [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some((b) => b.favorable.trim())
   );
 }
 
