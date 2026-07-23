@@ -618,14 +618,23 @@ export default function BhavEditor({
                         className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       />
                     </SheetRow>
-                    <SheetRow label="Primary House of Matter in Question" hint="Changing this recalculates the whole chain below from scratch">
-                      <select
-                        value={pt.primaryHouse}
-                        onChange={(e) => applyFreshTemplate(row.house, Number(e.target.value))}
-                        className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                      >
-                        {HOUSE_NUMBERS.map((h) => <option key={h} value={h}>{h}</option>)}
-                      </select>
+                    <SheetRow label="Primary House of Matter in Question" hint="Calculate fills the whole chain below from this house's chart data">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={pt.primaryHouse}
+                          onChange={(e) => applyFreshTemplate(row.house, Number(e.target.value))}
+                          className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                        >
+                          {HOUSE_NUMBERS.map((h) => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => applyFreshTemplate(row.house, pt.primaryHouse)}
+                          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                        >
+                          Calculate
+                        </button>
+                      </div>
                     </SheetRow>
                     <SheetRow label={`Sub Lord of the Primary House No.: ${pt.primaryHouse}`}>
                       <PlanetSelect value={row.subLord} onChange={(v) => updateRow(row.house, 'subLord', v)} />

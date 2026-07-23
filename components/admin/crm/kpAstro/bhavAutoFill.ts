@@ -160,6 +160,21 @@ function computeAspectBlock(
   };
 }
 
+// Drafts a starting "Rule" sentence from the sub-lord/star-lord retrograde
+// findings, applying the exact interpretive rule already curated in this
+// file's own "Prediction Template" toolkit reference card (retrograde CSL =
+// delay, retrograde star owner = denial, use star-owner's houses for
+// Result/Conclusion) — a real KP rule-of-thumb, not fabricated text. Always
+// editable afterwards; the astrologer can refine or replace it.
+function composeBaseRule(subLordRetrograde: string, starLordRetrograde: string, starLordHouses: string): string {
+  const lines: string[] = [];
+  if (subLordRetrograde === 'Retrograde') lines.push('Sub Lord is retrograde — expect delay.');
+  if (starLordRetrograde === 'Retrograde') lines.push('Star Lord is retrograde — treat as denial/weak delivery unless notes override.');
+  if (!lines.length) lines.push('Sub Lord and Star Lord are both direct — no delay/denial expected from retrogression.');
+  lines.push(`Use Star Lord's house signification for Result and Conclusion: ${starLordHouses}.`);
+  return lines.join(' ');
+}
+
 // Auto-fills the detailed prediction-template worksheet (see BhavEditor.tsx's
 // PredictionTemplate type): sub-lord chain (sub lord -> its star -> that
 // star's lord) plus the four conjunction/opposition blocks. Never overwrites
@@ -181,13 +196,17 @@ function autoFillPredictionTemplate(
   const starLordOwned = housesOwnedBy(houses, templateStarLord);
   const connecting = [...new Set([...starLordOccupied, ...starLordOwned])].filter((h) => [6, 8, 12].includes(h)).sort((a, b) => a - b);
 
+  const resolvedSubLordRetrograde = pt.subLordRetrograde || retrogradeStatus(templateSubLordPlanet);
+  const resolvedStarLordRetrograde = pt.starLordRetrograde || retrogradeStatus(templateStarLordPlanet);
+  const resolvedStarLordHouses = pt.starLordHouses || `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`;
+
   return {
     primaryHouse,
-    subLordRetrograde: pt.subLordRetrograde || retrogradeStatus(templateSubLordPlanet),
+    subLordRetrograde: resolvedSubLordRetrograde,
     subLordStar: pt.subLordStar || templateSubLordPlanet?.star || '',
     starLord: templateStarLord,
-    starLordRetrograde: pt.starLordRetrograde || retrogradeStatus(templateStarLordPlanet),
-    starLordHouses: pt.starLordHouses || `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`,
+    starLordRetrograde: resolvedStarLordRetrograde,
+    starLordHouses: resolvedStarLordHouses,
     starLordConnecting: pt.starLordConnecting || (connecting.length ? `Yes (House ${connecting.join(', ')})` : 'No'),
     subLordConjunct: aspectBlockHasValue(pt.subLordConjunct) ? pt.subLordConjunct : computeAspectBlock(templateSubLord, 'Conjunction', aspectRows, houses, planets),
     starLordConjunct: aspectBlockHasValue(pt.starLordConjunct) ? pt.starLordConjunct : computeAspectBlock(templateStarLord, 'Conjunction', aspectRows, houses, planets),
@@ -195,7 +214,7 @@ function autoFillPredictionTemplate(
     starLordOpposed: aspectBlockHasValue(pt.starLordOpposed) ? pt.starLordOpposed : computeAspectBlock(templateStarLord, 'Opposition', aspectRows, houses, planets),
     summary: pt.summary,
     conclusion: pt.conclusion,
-    rule: pt.rule,
+    rule: pt.rule || composeBaseRule(resolvedSubLordRetrograde, resolvedStarLordRetrograde, resolvedStarLordHouses),
   };
 }
 
@@ -218,16 +237,19 @@ export function computeFreshTemplate(
   const starLordOccupied = housesOccupiedBy(planets, starLord);
   const starLordOwned = housesOwnedBy(houses, starLord);
   const connecting = [...new Set([...starLordOccupied, ...starLordOwned])].filter((h) => [6, 8, 12].includes(h)).sort((a, b) => a - b);
+  const subLordRetrograde = retrogradeStatus(subLordPlanet);
+  const starLordRetrograde = retrogradeStatus(starLordPlanet);
+  const starLordHouses = `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`;
 
   return {
     subLord,
     predictionTemplate: {
       primaryHouse,
-      subLordRetrograde: retrogradeStatus(subLordPlanet),
+      subLordRetrograde,
       subLordStar: subLordPlanet?.star || '',
       starLord,
-      starLordRetrograde: retrogradeStatus(starLordPlanet),
-      starLordHouses: `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`,
+      starLordRetrograde,
+      starLordHouses,
       starLordConnecting: connecting.length ? `Yes (House ${connecting.join(', ')})` : 'No',
       subLordConjunct: computeAspectBlock(subLord, 'Conjunction', aspectRows, houses, planets),
       starLordConjunct: computeAspectBlock(starLord, 'Conjunction', aspectRows, houses, planets),
@@ -235,7 +257,7 @@ export function computeFreshTemplate(
       starLordOpposed: computeAspectBlock(starLord, 'Opposition', aspectRows, houses, planets),
       summary: '',
       conclusion: '',
-      rule: '',
+      rule: composeBaseRule(subLordRetrograde, starLordRetrograde, starLordHouses),
     },
   };
 }
