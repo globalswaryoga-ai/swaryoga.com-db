@@ -46,17 +46,20 @@ export default function CourseVideosPage() {
   const [error, setError] = useState<string | null>(null);
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
   const [token, setToken] = useState('');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token') || '';
     setToken(storedToken);
-    setIsLoggedIn(!!storedToken);
 
     const fetchCourse = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/recorded-courses?slug=${slug}`);
+        // Send the auth token so the API can tell us which videos this
+        // specific viewer can actually watch (canWatch is computed
+        // server-side from real enrollment/payment status, not just
+        // whether they happen to be logged in — see the fix below).
+        const headers: Record<string, string> = storedToken ? { Authorization: `Bearer ${storedToken}` } : {};
+        const res = await fetch(`/api/recorded-courses?slug=${slug}`, { headers });
         const data = await res.json();
 
         if (data.success && data.course) {
@@ -97,11 +100,11 @@ export default function CourseVideosPage() {
   }
 
   const handleVideoClick = (video: Video, index: number) => {
-    if (video.isFree === true || isLoggedIn) {
-      // Free video or user is logged in
+    if (video.canWatch) {
       return;
     } else {
-      // Paid video and not logged in
+      // Paid video and this viewer doesn't have access — being logged in
+      // isn't enough, they need to actually be enrolled/paid.
       setShowEnrollmentModal(true);
     }
   };
@@ -130,7 +133,7 @@ export default function CourseVideosPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((video, index) => {
               const isFree = video.isFree === true;
-              const isLocked = !isFree && !isLoggedIn;
+              const isLocked = !video.canWatch;
 
               return (
                 <div
@@ -212,14 +215,7 @@ export default function CourseVideosPage() {
                     )}
 
                     {/* Action Button */}
-                    {isFree ? (
-                      <button
-                        onClick={() => router.push(`/e-learning/${slug}/learn?video=${video._id}`)}
-                        className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <Play size={16} /> Play Video
-                      </button>
-                    ) : isLoggedIn ? (
+                    {video.canWatch ? (
                       <button
                         onClick={() => router.push(`/e-learning/${slug}/learn?video=${video._id}`)}
                         className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"

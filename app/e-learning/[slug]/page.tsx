@@ -66,6 +66,7 @@ export default function CourseDetailPage() {
 
   const [course, setCourse] = useState<Course | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [canAccessPaidContent, setCanAccessPaidContent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
@@ -108,12 +109,19 @@ export default function CourseDetailPage() {
     const fetchCourse = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}`);
+        // Send the auth token so the API can tell us whether this viewer
+        // already has paid access — without it, canAccessPaidContent always
+        // comes back false and "Start Learning" would send a paying,
+        // enrolled student through the payment flow again.
+        const storedToken = localStorage.getItem('token') || '';
+        const headers: Record<string, string> = storedToken ? { Authorization: `Bearer ${storedToken}` } : {};
+        const res = await fetch(`/api/recorded-courses?slug=${slug}&lang=${language}`, { headers });
         const data = await res.json();
 
         if (data.success && data.course) {
           setCourse(data.course);
           setVideos(data.videos || []);
+          setCanAccessPaidContent(!!data.canAccessPaidContent);
         } else {
           setError('Course not found');
         }
@@ -363,7 +371,7 @@ export default function CourseDetailPage() {
               </Link>
 
               <button
-                onClick={() => setShowEnrollmentModal(true)}
+                onClick={() => canAccessPaidContent ? router.push(`/e-learning/${slug}/learn`) : setShowEnrollmentModal(true)}
                 className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
               >
                 <Play size={20} />
