@@ -20,8 +20,8 @@ export interface TokenPayload {
   managedUserIds?: string[]; // For managers: list of user IDs they supervise
 }
 
-export const generateToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+export const generateToken = (payload: TokenPayload, expiresIn: jwt.SignOptions['expiresIn'] = '7d'): string => {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
 export const verifyToken = (token?: string): TokenPayload | null => {

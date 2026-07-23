@@ -107,10 +107,15 @@ export async function POST(request: NextRequest) {
     // Generate token
     let token;
     try {
+      // The client persists this login for 1 year (see lib/sessionManager.ts),
+      // so the JWT itself must last as long — otherwise it silently expires
+      // after the default 7 days while the UI still shows the user as logged
+      // in, degrading every authenticated API call (e.g. paid course video
+      // access) to guest access with no visible error.
       token = generateToken({
         userId: user._id.toString(),
         email: user.email,
-      });
+      }, '365d');
     } catch (tokenError) {
       logApiError(requestContext, 'Token generation failed', 500);
       logError('login/generateToken', tokenError);

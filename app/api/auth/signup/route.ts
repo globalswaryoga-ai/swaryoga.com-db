@@ -266,10 +266,12 @@ export async function POST(request: NextRequest) {
       // Generate token
       let token;
       try {
+        // See app/api/auth/login/route.ts for why this must match the
+        // client's 1-year session persistence (lib/sessionManager.ts).
         token = generateToken({
           userId: user._id.toString(),
           email: user.email,
-        });
+        }, '365d');
       } catch (tokenError) {
         logError('signup/generateToken', tokenError);
         return apiError('SERVER_ERROR', 'Token generation failed');
