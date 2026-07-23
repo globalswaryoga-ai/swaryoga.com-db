@@ -101,6 +101,45 @@ type LeadFormValues = {
   assignedToUserId?: string;
 };
 
+// Lead Stage filter values shown in the inbox filter bar. "negotiation" is
+// relabelled "Connected" here — it means the lead is interested and ready to pay.
+type LeadStageFilter = 'all' | 'new_lead' | 'interested' | 'negotiation';
+
+const LEAD_STAGE_LEGACY_MAP: Record<string, string> = {
+  'lead': 'new_lead', 'hot': 'interested', 'prospect': 'contacted', 'customer': 'enrolled',
+};
+
+const LEAD_STAGE_COLOR_MAP: Record<string, string> = {
+  'new_lead': 'text-blue-700 bg-blue-50 border border-blue-100',
+  'contacted': 'text-sky-700 bg-sky-50 border border-sky-100',
+  'interested': 'text-cyan-700 bg-cyan-50 border border-cyan-100',
+  'demo_trial': 'text-purple-700 bg-purple-50 border border-purple-100',
+  'negotiation': 'text-amber-700 bg-amber-50 border border-amber-100',
+  'enrolled': 'text-emerald-700 bg-emerald-50 border border-emerald-100',
+  'completed': 'text-rose-700 bg-rose-50 border border-rose-100',
+  'inactive': 'text-slate-500 bg-slate-100 border border-slate-200',
+  'repeater': 'text-orange-700 bg-orange-50 border border-orange-100',
+  'old_sadhak': 'text-teal-700 bg-teal-50 border border-teal-100',
+  'only_for_post': 'text-indigo-700 bg-indigo-50 border border-indigo-100',
+};
+
+const LEAD_STAGE_LABEL_MAP: Record<string, string> = {
+  'new_lead': 'New Lead', 'contacted': 'Contacted', 'interested': 'Interested',
+  'demo_trial': 'Demo/Trial', 'negotiation': 'Connected', 'enrolled': 'Enrolled',
+  'completed': 'Completed', 'inactive': 'Inactive', 'repeater': 'Repeater',
+  'old_sadhak': 'Old Sadhak', 'only_for_post': 'Only for Post',
+};
+
+function mapLeadStage(rawStatus?: string | null): { key: string; label: string; colorClass: string } {
+  const raw = (rawStatus || 'new_lead').toLowerCase();
+  const key = LEAD_STAGE_LEGACY_MAP[raw] || raw;
+  return {
+    key,
+    label: LEAD_STAGE_LABEL_MAP[key] || key.replace(/_/g, ' '),
+    colorClass: LEAD_STAGE_COLOR_MAP[key] || 'text-blue-700 bg-blue-50 border border-blue-100',
+  };
+}
+
 /**
  * Convert S3 URLs to proxied URLs for authenticated access
  * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
@@ -151,6 +190,7 @@ export default function MetaInboxPage() {
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatStatusFilter, setChatStatusFilter] = useState<ChatStatus | 'all'>('all'); // Chat status filter
+  const [leadStageFilter, setLeadStageFilter] = useState<LeadStageFilter>('all'); // Lead stage filter (New/Interested/Connected)
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'last_week'>('all'); // Date filter
   const [archivedPhones, setArchivedPhones] = useState<Set<string>>(new Set()); // Archived conversations
   const [showArchived, setShowArchived] = useState(false); // Toggle archived view
@@ -1418,6 +1458,39 @@ export default function MetaInboxPage() {
     }
   };
 
+  // Export the checked rows as a CSV file (checked rows only, not the whole filtered list).
+  const handleDownloadSelected = () => {
+    const rows = filteredConversations.filter((c) => bulkSelected[c._id]);
+    if (rows.length === 0) return;
+
+    const headers = ['Lead ID', 'Name', 'Phone', 'Lead Stage', 'Chat Status', 'Assigned To'];
+    const csvRows = rows.map((c) => {
+      const stage = mapLeadStage(c.status).label;
+      const chatStatus = getChatStatusInfo(c.lastMessageAt, c.chatStatus, c.lastInboundAt, c.lastDirection).label;
+      const assignedName = adminUsers.find((u) => u.userId === c.assignedToUserId)?.name || 'Unassigned';
+      return [
+        c.leadNumber ? String(c.leadNumber).padStart(6, '0') : '',
+        c.name || '',
+        c.phoneNumber || '',
+        stage,
+        chatStatus,
+        assignedName,
+      ];
+    });
+
+    const escapeCsv = (val: string) => `"${String(val).replace(/"/g, '""')}"`;
+    const csvContent = [headers, ...csvRows].map((r) => r.map(escapeCsv).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leads-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleBlockSingle = async (leadId: string, block: boolean, reason?: string) => {
     try {
       await crmFetch('/api/admin/crm/leads/bulk-update', {
@@ -1609,6 +1682,11 @@ export default function MetaInboxPage() {
       });
     }
 
+    // Filter by lead stage (New / Interested / Connected)
+    if (leadStageFilter !== 'all') {
+      result = result.filter(c => mapLeadStage(c.status).key === leadStageFilter);
+    }
+
     // Filter by date
     if (dateFilter !== 'all') {
       const now = new Date();
@@ -1625,7 +1703,7 @@ export default function MetaInboxPage() {
         return true;
       });
     }
-    
+
     // Sort: unread first (blue dot), then by most recent
     result = [...result].sort((a, b) => {
       const aUnread = (a.unreadCount || 0) > 0 ? 1 : 0;
@@ -1635,9 +1713,9 @@ export default function MetaInboxPage() {
       const dateB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
       return dateB - dateA;
     });
-    
+
     return result;
-  }, [conversations, searchQuery, chatStatusFilter, dateFilter, archivedPhones, showArchived, showBlocked]);
+  }, [conversations, searchQuery, chatStatusFilter, leadStageFilter, dateFilter, archivedPhones, showArchived, showBlocked]);
 
   // Group filtered conversations by date sections
   const groupedConversations = useMemo(() => {
@@ -2025,6 +2103,18 @@ export default function MetaInboxPage() {
               <option value="closed">✓ Closed</option>
             </select>
 
+            {/* Lead Stage Dropdown */}
+            <select
+              value={leadStageFilter}
+              onChange={(e) => setLeadStageFilter(e.target.value as LeadStageFilter)}
+              className="text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1E7F43] focus:border-[#1E7F43] cursor-pointer"
+            >
+              <option value="all">All Stages</option>
+              <option value="new_lead">New</option>
+              <option value="interested">Interested</option>
+              <option value="negotiation">Connected</option>
+            </select>
+
             {/* Date Dropdown */}
             <select
               value={showArchived ? 'archived' : showBlocked ? 'blocked' : dateFilter}
@@ -2078,6 +2168,7 @@ export default function MetaInboxPage() {
                       bulkClear();
                     }
                     else if (v === 'block') { showBlocked ? handleBulkUnblock() : handleBulkBlock(); }
+                    else if (v === 'download') handleDownloadSelected();
                   }}
                   disabled={bulkActionLoading}
                 >
@@ -2087,6 +2178,7 @@ export default function MetaInboxPage() {
                   <option value="labels">🏷 Labels</option>
                   <option value="archive">{showArchived ? '↩ Unarchive' : '📦 Archive'}</option>
                   <option value="block">{showBlocked ? '🔓 Unblock' : '🚫 Block'}</option>
+                  <option value="download">⬇ Download list</option>
                 </select>
                 <i className="ph ph-caret-down text-[7px] text-[#1E7F43] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
               </div>
@@ -2534,34 +2626,10 @@ export default function MetaInboxPage() {
 
                       {/* Lead Stage */}
                       {(() => {
-                        // Map legacy status values to new funnel names
-                        const statusMap: Record<string, string> = {
-                          'lead': 'new_lead', 'hot': 'interested', 'prospect': 'contacted', 'customer': 'enrolled',
-                        };
-                        const raw = (conv.status || 'new_lead').toLowerCase();
-                        const mapped = statusMap[raw] || raw;
-                        const colorMap: Record<string, string> = {
-                          'new_lead': 'text-blue-700 bg-blue-50 border border-blue-100',
-                          'contacted': 'text-sky-700 bg-sky-50 border border-sky-100',
-                          'interested': 'text-cyan-700 bg-cyan-50 border border-cyan-100',
-                          'demo_trial': 'text-purple-700 bg-purple-50 border border-purple-100',
-                          'negotiation': 'text-amber-700 bg-amber-50 border border-amber-100',
-                          'enrolled': 'text-emerald-700 bg-emerald-50 border border-emerald-100',
-                          'completed': 'text-rose-700 bg-rose-50 border border-rose-100',
-                          'inactive': 'text-slate-500 bg-slate-100 border border-slate-200',
-                          'repeater': 'text-orange-700 bg-orange-50 border border-orange-100',
-                          'old_sadhak': 'text-teal-700 bg-teal-50 border border-teal-100',
-                          'only_for_post': 'text-indigo-700 bg-indigo-50 border border-indigo-100',
-                        };
-                        const labelMap: Record<string, string> = {
-                          'new_lead': 'New Lead', 'contacted': 'Contacted', 'interested': 'Interested',
-                          'demo_trial': 'Demo/Trial', 'negotiation': 'Negotiation', 'enrolled': 'Enrolled',
-                          'completed': 'Completed', 'inactive': 'Inactive', 'repeater': 'Repeater',
-                          'old_sadhak': 'Old Sadhak', 'only_for_post': 'Only for Post',
-                        };
+                        const stage = mapLeadStage(conv.status);
                         return (
-                          <span className={`text-[9px] font-[800] px-1.5 py-0.5 rounded uppercase ${colorMap[mapped] || 'text-blue-700 bg-blue-50 border border-blue-100'}`}>
-                            {labelMap[mapped] || mapped.replace(/_/g, ' ')}
+                          <span className={`text-[9px] font-[800] px-1.5 py-0.5 rounded uppercase ${stage.colorClass}`}>
+                            {stage.label}
                           </span>
                         );
                       })()}
