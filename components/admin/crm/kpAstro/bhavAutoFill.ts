@@ -203,9 +203,21 @@ function planetKaryeshHouses(
   return [...new Set([...occupied, ...owned, ...drishti])].sort((a, b) => a - b);
 }
 
+// Rahu and Ketu sit 180deg apart on the same nodal axis, so in KP wherever
+// one signifies, the other is treated as equally strong a significator for
+// the same matter — if a line names one node, add the other alongside it.
+function expandNodeAxis(names: string[]): string[] {
+  if (!names.includes('Rahu') && !names.includes('Ketu')) return names;
+  const result = new Set(names);
+  if (result.has('Rahu')) result.add('Ketu');
+  if (result.has('Ketu')) result.add('Rahu');
+  return Array.from(result);
+}
+
 function formatPlanetKaryesh(houses: SignificatorHouse[], planets: AutoFillPlanet[], names: string[], includeDrishti: boolean): string {
-  if (!names.length) return '-';
-  return names
+  const expanded = expandNodeAxis(names);
+  if (!expanded.length) return '-';
+  return expanded
     .map((name) => `${name} - Karyesh(${formatHouseNumbers(planetKaryeshHouses(houses, planets, name, includeDrishti))})`)
     .join(', ');
 }
@@ -214,7 +226,8 @@ function formatPlanetKaryesh(houses: SignificatorHouse[], planets: AutoFillPlane
 // House, every connected planet at each of the four significator steps
 // (A/B/C/D) plus that planet's own Karyesh Bhav houses — flat, just the
 // planet and its house numbers, no nested sub-breakdown. Drishti/aspect
-// houses fold into D only.
+// houses fold into D only. Rahu/Ketu are expanded together per the nodal-
+// axis rule (see expandNodeAxis) on every line, not just D.
 function composeBaseSummary(houses: SignificatorHouse[], planets: AutoFillPlanet[], primaryHouse: number): string {
   const sig = primaryHouseSignificatorPlanets(houses, planets, primaryHouse);
   return [
