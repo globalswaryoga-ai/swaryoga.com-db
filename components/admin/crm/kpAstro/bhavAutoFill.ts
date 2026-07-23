@@ -160,6 +160,23 @@ function computeAspectBlock(
   };
 }
 
+// Drafts a starting "Summary of the analysis" from the Primary House's
+// four-step significator planets (A: star lord of occupant, B: occupant,
+// C: owner, D: star lord of owner) — each planet name already carries its
+// own karyesh-bhav houses in brackets via planetKaryesLabel, so this is the
+// full "connected planet + karyesh bhav in A,B,C,D order" the astrologer
+// needs on hand while writing the Conclusion below.
+function composeBaseSummary(houses: SignificatorHouse[], planets: AutoFillPlanet[], primaryHouse: number): string {
+  const sig = computeBhavAutoSignificators(houses, planets, primaryHouse);
+  const fmt = (label: string, values: string[]) => `${label}: ${values.length ? values.join(', ') : '-'}`;
+  return [
+    fmt('A (star lord of occupant)', sig.significatorsA),
+    fmt('B (occupant)', sig.significatorsB),
+    fmt('C (owner)', sig.significatorsC),
+    fmt('D (star lord of owner)', sig.significatorsD),
+  ].join(' | ');
+}
+
 // Drafts a starting "Rule" sentence from the sub-lord/star-lord retrograde
 // findings, applying the exact interpretive rule already curated in this
 // file's own "Prediction Template" toolkit reference card (retrograde CSL =
@@ -212,7 +229,7 @@ function autoFillPredictionTemplate(
     starLordConjunct: aspectBlockHasValue(pt.starLordConjunct) ? pt.starLordConjunct : computeAspectBlock(templateStarLord, 'Conjunction', aspectRows, houses, planets),
     subLordOpposed: aspectBlockHasValue(pt.subLordOpposed) ? pt.subLordOpposed : computeAspectBlock(templateSubLord, 'Opposition', aspectRows, houses, planets),
     starLordOpposed: aspectBlockHasValue(pt.starLordOpposed) ? pt.starLordOpposed : computeAspectBlock(templateStarLord, 'Opposition', aspectRows, houses, planets),
-    summary: pt.summary,
+    summary: pt.summary || composeBaseSummary(houses, planets, primaryHouse),
     conclusion: pt.conclusion,
     rule: pt.rule || composeBaseRule(resolvedSubLordRetrograde, resolvedStarLordRetrograde, resolvedStarLordHouses),
   };
@@ -255,7 +272,7 @@ export function computeFreshTemplate(
       starLordConjunct: computeAspectBlock(starLord, 'Conjunction', aspectRows, houses, planets),
       subLordOpposed: computeAspectBlock(subLord, 'Opposition', aspectRows, houses, planets),
       starLordOpposed: computeAspectBlock(starLord, 'Opposition', aspectRows, houses, planets),
-      summary: '',
+      summary: composeBaseSummary(houses, planets, primaryHouse),
       conclusion: '',
       rule: composeBaseRule(subLordRetrograde, starLordRetrograde, starLordHouses),
     },

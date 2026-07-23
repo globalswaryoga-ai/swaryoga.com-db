@@ -285,17 +285,17 @@ function bhavLabel(house: number): string {
 
 // A row counts as "in use" only once the astrologer has actually typed into
 // it — NOT once the chart's auto-fill has touched it. subLord, dashaChain,
-// starLord, the aspect blocks' "present" flag, and now Rule (auto-drafted
-// from the retrograde findings, see composeBaseRule in bhavAutoFill.ts) are
-// all computed for every one of the 12 houses on every auto-fill pass
+// starLord, the aspect blocks' "present" flag, Rule, and now Summary (both
+// auto-drafted, see composeBaseRule/composeBaseSummary in bhavAutoFill.ts)
+// are all computed for every one of the 12 houses on every auto-fill pass
 // regardless of which matter the astrologer cares about, so none of them can
-// be used as the "in use" signal (that was the bug, twice now: it made every
-// row look active). Matter/Summary/Conclusion/Favorable are the only fields
+// be used as the "in use" signal (that was the bug, three times now: it made
+// every row look active). Matter/Conclusion/Favorable are the only fields
 // auto-fill never touches.
 function hasRowContent(row: BhavAnalysisRow): boolean {
   const pt = row.predictionTemplate;
   return Boolean(
-    row.toolkitMatter.trim() || pt.summary.trim() || pt.conclusion.trim() ||
+    row.toolkitMatter.trim() || pt.conclusion.trim() ||
     [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some((b) => b.favorable.trim())
   );
 }
