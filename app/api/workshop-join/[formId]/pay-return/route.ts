@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order, EnquiryForm } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { sendTextViaQrBridge } from '@/lib/qrBridgeSend';
 
@@ -92,7 +92,37 @@ export async function GET(
               },
             };
             lead.labels = Array.from(new Set([...(lead.labels || []).filter((l: string) => l !== 'payment-pending'), 'paid']));
+            lead.status = 'customer';
             await lead.save();
+
+            // Auto-add to Sales — this is the only place a payment-link payment
+            // gets recorded, since the CRM's Sales page reads a separate
+            // sales_reports collection and nothing else creates a row here for
+            // this flow (unlike a manual admin conversion, which does).
+            try {
+              const SalesReport = getSalesReport();
+              const existingSale = await SalesReport.findOne({ transactionId: cashfreeOrderId });
+              if (!existingSale) {
+                await SalesReport.create({
+                  leadId: lead._id,
+                  customerId: lead.leadNumber || lead._id.toString(),
+                  customerName: lead.name || firstName,
+                  customerPhone: phone,
+                  customerEmail: lead.email || '',
+                  workshopName: form.workshopName,
+                  reportedByUserId: 'system',
+                  saleAmount: form.price,
+                  paidAmount: form.price,
+                  dueAmount: 0,
+                  paymentType: 'full',
+                  paymentMode: 'cashfree',
+                  transactionId: cashfreeOrderId,
+                  currency,
+                  status: 'completed',
+                  saleDate: new Date(),
+                });
+              }
+            } catch (e) { console.error('[pay-return] sale record creation failed:', e); }
           }
         } catch (e) { console.error('[pay-return] lead update failed:', e); }
       }
