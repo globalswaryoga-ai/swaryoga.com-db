@@ -1,5 +1,5 @@
 import type { AspectBlock, BhavAnalysisRow, PredictionTemplate } from './BhavEditor';
-import { computeConjunctions, computeDrishtiOnHouses, computeDrishtiOnPlanets } from '@/lib/kpAstro/aspectAnalysis';
+import { computeConjunctions, computeDrishtiOnHouses, computeDrishtiOnPlanets, housesAspectedBy } from '@/lib/kpAstro/aspectAnalysis';
 import { computePlanetaryAspects, type PlanetAspectRow } from '@/lib/kpAstro/planetaryAspects';
 import {
   computeBhavAutoSignificators,
@@ -160,20 +160,68 @@ function computeAspectBlock(
   };
 }
 
-// Drafts a starting "Summary of the analysis" from the Primary House's
-// four-step significator planets (A: star lord of occupant, B: occupant,
-// C: owner, D: star lord of owner) — each planet name already carries its
-// own karyesh-bhav houses in brackets via planetKaryesLabel, so this is the
-// full "connected planet + karyesh bhav in A,B,C,D order" the astrologer
-// needs on hand while writing the Conclusion below.
+// Raw (unlabeled) significator planet names for a house's four steps — A:
+// star lord of occupant(s), B: occupant(s), C: owner, D: star lord of owner.
+function primaryHouseSignificatorPlanets(
+  houses: SignificatorHouse[],
+  planets: AutoFillPlanet[],
+  primaryHouse: number
+): { A: string[]; B: string[]; C: string[]; D: string[] } {
+  const house = houses.find((h) => h.house === primaryHouse);
+  const occupants = planets.filter((p) => p.house === primaryHouse).map((p) => p.planet);
+  const owner = house?.signLord;
+  const starLordsOf = (names: string[]): string[] => {
+    const result = new Set<string>();
+    for (const name of names) {
+      const planet = planets.find((p) => p.planet === name);
+      const sl = planet ? starLordOf(planet) : undefined;
+      if (sl) result.add(sl);
+    }
+    return Array.from(result);
+  };
+  return {
+    B: occupants,
+    C: owner ? [owner] : [],
+    A: starLordsOf(occupants),
+    D: owner ? starLordsOf([owner]) : [],
+  };
+}
+
+// A planet's own Karyesh Bhav — the houses it's connected to (occupied +
+// owned), with drishti/aspect houses added only when requested (D only, per
+// the astrologer's own instruction: drishti belongs in D, not A/B/C).
+function planetKaryeshHouses(
+  houses: SignificatorHouse[],
+  planets: AutoFillPlanet[],
+  planetName: string,
+  includeDrishti: boolean
+): number[] {
+  const planet = planets.find((p) => p.planet === planetName);
+  const occupied = housesOccupiedBy(planets, planetName);
+  const owned = housesOwnedBy(houses, planetName);
+  const drishti = includeDrishti && planet?.house ? housesAspectedBy(planetName, planet.house) : [];
+  return [...new Set([...occupied, ...owned, ...drishti])].sort((a, b) => a - b);
+}
+
+function formatPlanetKaryesh(houses: SignificatorHouse[], planets: AutoFillPlanet[], names: string[], includeDrishti: boolean): string {
+  if (!names.length) return '-';
+  return names
+    .map((name) => `${name} - Karyesh(${formatHouseNumbers(planetKaryeshHouses(houses, planets, name, includeDrishti))})`)
+    .join(', ');
+}
+
+// Drafts a starting "Summary of the analysis": for the Matter's Primary
+// House, every connected planet at each of the four significator steps
+// (A/B/C/D) plus that planet's own Karyesh Bhav houses — flat, just the
+// planet and its house numbers, no nested sub-breakdown. Drishti/aspect
+// houses fold into D only.
 function composeBaseSummary(houses: SignificatorHouse[], planets: AutoFillPlanet[], primaryHouse: number): string {
-  const sig = computeBhavAutoSignificators(houses, planets, primaryHouse);
-  const fmt = (label: string, values: string[]) => `${label}: ${values.length ? values.join(', ') : '-'}`;
+  const sig = primaryHouseSignificatorPlanets(houses, planets, primaryHouse);
   return [
-    fmt('A (star lord of occupant)', sig.significatorsA),
-    fmt('B (occupant)', sig.significatorsB),
-    fmt('C (owner)', sig.significatorsC),
-    fmt('D (star lord of owner)', sig.significatorsD),
+    `A: ${formatPlanetKaryesh(houses, planets, sig.A, false)}`,
+    `B: ${formatPlanetKaryesh(houses, planets, sig.B, false)}`,
+    `C: ${formatPlanetKaryesh(houses, planets, sig.C, false)}`,
+    `D: ${formatPlanetKaryesh(houses, planets, sig.D, true)}`,
   ].join(' | ');
 }
 
