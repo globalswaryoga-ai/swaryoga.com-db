@@ -54,13 +54,20 @@ export function isBotApiConfigured(): boolean {
   return !!(SDK_KEY && SDK_SECRET && BOT_API_URL && BOT_API_SECRET);
 }
 
+export interface ScheduledChatMessage {
+  message: string;
+  delayMinutes: number;
+}
+
 interface StartBotParams {
   meetingNumber: string;
   meetingPassword: string;
   botName?: string;
   videoUrl: string;
-  chatMessage?: string;
-  chatDelayMinutes?: number;
+  /** Up to 4 messages, each posted at its own delay after join. */
+  chatMessages?: ScheduledChatMessage[];
+  /** If true, the bot answers participant chat questions using AI. */
+  enableAiChatReplies?: boolean;
   durationMinutes: number;
 }
 
@@ -105,8 +112,8 @@ export async function startSadhanaBot(params: StartBotParams): Promise<BotApiRes
     password: params.meetingPassword,
     botName: params.botName || 'Swar Sadhana',
     videoUrl: params.videoUrl,
-    chatMessage: params.chatMessage || '',
-    chatDelayMinutes: params.chatDelayMinutes || 0,
+    chatMessages: (params.chatMessages || []).slice(0, 4).filter((m) => m.message?.trim()),
+    enableAiChatReplies: !!params.enableAiChatReplies,
     durationMinutes: params.durationMinutes,
   });
 }

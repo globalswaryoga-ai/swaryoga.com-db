@@ -23,8 +23,8 @@ interface SadhanaSchedule {
   _id: string;
   name: string;
   botName?: string;
-  chatMessage?: string;
-  chatDelayMinutes?: number;
+  chatMessages?: Array<{ message: string; delayMinutes: number }>;
+  enableAiChatReplies?: boolean;
   videoUrl: string;
   videoDuration?: number;
   botJoinMinutes?: number;
@@ -466,11 +466,17 @@ try {
                     <p className="text-white">{schedule.botJoinMinutes != null ? `${schedule.botJoinMinutes} min before` : '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500 text-xs uppercase mb-1">Chat Message</p>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Chat Messages</p>
                     <p className="text-white">
-                      {schedule.chatMessage
-                        ? `Sent ${schedule.chatDelayMinutes || 0} min after join`
+                      {schedule.chatMessages?.length
+                        ? `${schedule.chatMessages.length} scheduled (${schedule.chatMessages.map((m) => `${m.delayMinutes}m`).join(', ')})`
                         : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">AI Chat Replies</p>
+                    <p className={schedule.enableAiChatReplies ? 'text-green-400' : 'text-gray-400'}>
+                      {schedule.enableAiChatReplies ? 'Enabled' : 'Disabled'}
                     </p>
                   </div>
                   <div>
@@ -497,12 +503,12 @@ try {
 
                 {/* Links Preview */}
                 <div className="border-t border-gray-700 pt-4 space-y-2">
-                  {schedule.chatMessage && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-gray-500 text-sm min-w-fit">💬 Chat:</span>
-                      <span className="text-gray-300 text-sm whitespace-pre-wrap">{schedule.chatMessage}</span>
+                  {schedule.chatMessages?.filter((m) => m.message).map((m, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="text-gray-500 text-sm min-w-fit">💬 +{m.delayMinutes}m:</span>
+                      <span className="text-gray-300 text-sm whitespace-pre-wrap">{m.message}</span>
                     </div>
-                  )}
+                  ))}
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 text-sm min-w-fit">📹 Video:</span>
                     <a

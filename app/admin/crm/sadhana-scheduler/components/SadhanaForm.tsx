@@ -32,8 +32,12 @@ export default function SadhanaForm({
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     botName: initialData?.botName || 'Swar Sadhana',
-    chatMessage: initialData?.chatMessage || '',
-    chatDelayMinutes: initialData?.chatDelayMinutes || 0,
+    chatMessages: (() => {
+      const existing = Array.isArray(initialData?.chatMessages) ? initialData.chatMessages : [];
+      const slots = [0, 1, 2, 3].map((i) => existing[i] || { message: '', delayMinutes: 0 });
+      return slots;
+    })(),
+    enableAiChatReplies: initialData?.enableAiChatReplies || false,
     videoUrl: initialData?.videoUrl || '',
     videoDuration: initialData?.videoDuration || 40,
     botJoinMinutes: initialData?.botJoinMinutes || 5,
@@ -259,8 +263,8 @@ export default function SadhanaForm({
     const submitData = {
       name: formData.name,
       botName: formData.botName || 'Swar Sadhana',
-      chatMessage: formData.chatMessage || '',
-      chatDelayMinutes: formData.chatDelayMinutes || 0,
+      chatMessages: formData.chatMessages.filter((m) => m.message.trim()),
+      enableAiChatReplies: formData.enableAiChatReplies,
       videoUrl: formData.videoUrl,
       videoDuration: formData.videoDuration || 40,
       botJoinMinutes: formData.botJoinMinutes || 5,
@@ -363,32 +367,63 @@ export default function SadhanaForm({
             </p>
           </div>
 
-          {/* Chat Message */}
+          {/* Chat Messages (up to 4, each with its own delay) */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              💬 Chat Message <span className="text-gray-500 text-xs ml-1">(optional — posted in the meeting chat)</span>
+              💬 Chat Messages <span className="text-gray-500 text-xs ml-1">(optional — up to 4, each posted at its own time)</span>
             </label>
-            <textarea
-              value={formData.chatMessage}
-              onChange={(e) => setFormData({ ...formData, chatMessage: e.target.value })}
-              placeholder="e.g., Welcome all! Be connected — Mohan sir 🙏"
-              rows={2}
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
-            />
-            <div className="flex items-center gap-2 mt-2">
-              <label className="text-sm text-gray-300 whitespace-nowrap">Send after</label>
-              <input
-                type="number"
-                min="0"
-                value={formData.chatDelayMinutes}
-                onChange={(e) => setFormData({ ...formData, chatDelayMinutes: parseInt(e.target.value) || 0 })}
-                className="w-20 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
-              />
-              <span className="text-sm text-gray-300">minute(s) of joining</span>
+            <div className="space-y-3">
+              {formData.chatMessages.map((slot, idx) => (
+                <div key={idx} className="p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
+                  <textarea
+                    value={slot.message}
+                    onChange={(e) => {
+                      const next = [...formData.chatMessages];
+                      next[idx] = { ...next[idx], message: e.target.value };
+                      setFormData({ ...formData, chatMessages: next });
+                    }}
+                    placeholder={idx === 0 ? 'e.g., Welcome all! Be connected — Mohan sir 🙏' : 'e.g., Reminder text...'}
+                    rows={2}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none text-sm"
+                  />
+                  <div className="flex items-center gap-2 mt-2">
+                    <label className="text-xs text-gray-400 whitespace-nowrap">Send after</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={slot.delayMinutes}
+                      onChange={(e) => {
+                        const next = [...formData.chatMessages];
+                        next[idx] = { ...next[idx], delayMinutes: parseInt(e.target.value) || 0 };
+                        setFormData({ ...formData, chatMessages: next });
+                      }}
+                      className="w-20 px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                    />
+                    <span className="text-xs text-gray-400">minute(s) of joining</span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="text-gray-500 text-xs mt-1">
-              Leave the message blank to skip sending a chat message. 0 minutes sends it as soon as the bot joins.
+            <p className="text-gray-500 text-xs mt-2">
+              Leave a message blank to skip that slot. 0 minutes sends it as soon as the bot joins.
             </p>
+          </div>
+
+          {/* AI Chat Replies */}
+          <div className="flex items-start gap-3 p-3 bg-gray-900/50 border border-gray-700 rounded-lg">
+            <input
+              type="checkbox"
+              id="enableAiChatReplies"
+              checked={formData.enableAiChatReplies}
+              onChange={(e) => setFormData({ ...formData, enableAiChatReplies: e.target.checked })}
+              className="mt-1 h-4 w-4 accent-purple-500"
+            />
+            <label htmlFor="enableAiChatReplies" className="text-sm text-gray-300">
+              🤖 <span className="font-medium">AI answers participant questions</span>
+              <p className="text-gray-500 text-xs mt-0.5">
+                When someone asks a question in the meeting chat, the bot automatically posts a short AI-generated answer.
+              </p>
+            </label>
           </div>
 
         {/* Video URL or Upload */}
