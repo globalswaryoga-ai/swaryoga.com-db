@@ -270,6 +270,7 @@ export default function CourseVideosPage() {
             discount: course.discount,
           }}
           token={token}
+          enrollmentCount={course.enrolledCount}
         />
       )}
     </div>

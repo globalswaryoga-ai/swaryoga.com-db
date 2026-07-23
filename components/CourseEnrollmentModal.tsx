@@ -285,6 +285,10 @@ export default function CourseEnrollmentModal({
                   </div>
                 ))}
               </div>
+            ) : enrollmentCount > 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600 text-sm">Join {enrollmentCount} other students learning this course!</p>
+              </div>
             ) : (
               <div className="text-center py-8">
                 <p className="text-gray-600 text-sm">No students enrolled yet.</p>

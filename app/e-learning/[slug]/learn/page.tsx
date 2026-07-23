@@ -225,6 +225,10 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastVideoTimeRef = useRef<number | undefined>(undefined);
+  // Populated further down, once handleVideoEnded/updateProgress are declared
+  // (see the comment there for why the assignment can't happen here).
+  const handleVideoEndedRef = useRef<() => void>(() => {});
+  const updateProgressRef = useRef<(completed: boolean) => void>(() => {});
 
   const t = translations[language];
 
@@ -442,12 +446,6 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
     }
   };
 
-  // Keep stable refs to avoid re-attaching listeners on every render
-  const handleVideoEndedRef = useRef(handleVideoEnded);
-  const updateProgressRef = useRef(updateProgress);
-  handleVideoEndedRef.current = handleVideoEnded;
-  updateProgressRef.current = updateProgress;
-
   // Attach event listeners to video ref for progress tracking
   useEffect(() => {
     const video = videoRef.current;
@@ -537,6 +535,15 @@ export default function CourseLearnPage({ params }: { params: { slug: string } }
       }
     }
   };
+
+  // Keep stable refs to avoid re-attaching listeners on every render.
+  // Must come after handleVideoEnded/updateProgress are declared above —
+  // referencing them earlier (even just as useRef's initial value) throws
+  // "Cannot access before initialization" once the build minifies these
+  // const names, since both are declared further down in this same
+  // component body and the reference is evaluated eagerly, not lazily.
+  handleVideoEndedRef.current = handleVideoEnded;
+  updateProgressRef.current = updateProgress;
 
   const handleMarkComplete = async () => {
     await updateProgress(true);
