@@ -4582,6 +4582,49 @@ const KpCustomMatterSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// One "Is [sub/star lord] Conjunct/Opposed with any planet?" block from the
+// astrologer's prediction-template worksheet. Reused 4x on KpBhavAnalysisSchema
+// (subLordConjunct/starLordConjunct/subLordOpposed/starLordOpposed) — see
+// lib/kpAstro/planetaryAspects.ts for how conjunction/opposition are detected.
+const KpAspectBlockSchema = new mongoose.Schema(
+  {
+    present: { type: String, trim: true, default: '' }, // 'Yes' | 'No'
+    planet: { type: String, trim: true, default: '' },
+    planetRetrograde: { type: String, trim: true, default: '' }, // 'Direct' | 'Retrograde'
+    starLordRetrograde: { type: String, trim: true, default: '' }, // 'Direct' | 'Retrograde'
+    signification: { type: String, trim: true, default: '' },
+    favorable: { type: String, trim: true, default: '' }, // manual judgment — not auto-derivable
+  },
+  { _id: false }
+);
+
+// The astrologer's detailed per-house judgment worksheet: pick a Matter (see
+// toolkitMatter below) + its Primary House, the sub-lord chain auto-derives
+// (sub lord -> its star -> that star's lord), then four conjunction/opposition
+// blocks (sub lord's and star lord's, each for conjunction and opposition),
+// ending in a manual Summary/Conclusion/Rule. Mirrors the astrologer's own
+// reference spreadsheet exactly (matches the reference sheet's own field
+// order — see BhavEditor.tsx for where each field is rendered).
+const KpPredictionTemplateSchema = new mongoose.Schema(
+  {
+    primaryHouse: { type: Number, min: 1, max: 12 },
+    subLordRetrograde: { type: String, trim: true, default: '' },
+    subLordStar: { type: String, trim: true, default: '' },
+    starLord: { type: String, trim: true, default: '' },
+    starLordRetrograde: { type: String, trim: true, default: '' },
+    starLordHouses: { type: String, trim: true, default: '' },
+    starLordConnecting: { type: String, trim: true, default: '' },
+    subLordConjunct: { type: KpAspectBlockSchema, default: () => ({}) },
+    starLordConjunct: { type: KpAspectBlockSchema, default: () => ({}) },
+    subLordOpposed: { type: KpAspectBlockSchema, default: () => ({}) },
+    starLordOpposed: { type: KpAspectBlockSchema, default: () => ({}) },
+    summary: { type: String, trim: true, default: '' },
+    conclusion: { type: String, trim: true, default: '' },
+    rule: { type: String, trim: true, default: '' },
+  },
+  { _id: false }
+);
+
 // KP's traditional 4-level significator categorization for a house's matters:
 // A = occupant's star lord, B = occupant, C = owner (cuspal sub lord chain),
 // D = owner's star lord. Kept as free-edit string arrays (not auto-derived
@@ -4622,6 +4665,7 @@ const KpBhavAnalysisSchema = new mongoose.Schema(
     freeNotes: { type: String, trim: true, default: '' },
     predictionOrder: { type: Number, default: 0 }, // which point in the final reading (1st, 2nd...); 0 = unordered
     includeInPrediction: { type: Boolean, default: true },
+    predictionTemplate: { type: KpPredictionTemplateSchema, default: () => ({}) },
   },
   { _id: false }
 );

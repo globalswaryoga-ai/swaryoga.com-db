@@ -1,5 +1,6 @@
-import type { BhavAnalysisRow } from './BhavEditor';
+import type { AspectBlock, BhavAnalysisRow, PredictionTemplate } from './BhavEditor';
 import { computeConjunctions, computeDrishtiOnHouses, computeDrishtiOnPlanets } from '@/lib/kpAstro/aspectAnalysis';
+import { computePlanetaryAspects, type PlanetAspectRow } from '@/lib/kpAstro/planetaryAspects';
 import {
   computeBhavAutoSignificators,
   computeFourStepSignificators,
@@ -119,10 +120,90 @@ function formatSubLordConjunction(subLord: string, conjunctions: ReturnType<type
   return hits.join('; ') || 'No conjunction found';
 }
 
+function aspectBlockHasValue(block: AspectBlock): boolean {
+  return Boolean(block.present || block.planet || block.planetRetrograde || block.starLordRetrograde || block.signification || block.favorable);
+}
+
+// One "Is X Conjunct/Opposed with any planet?" block, auto-derived for
+// `forPlanet` (the sub lord or star lord) from the pre-computed planetary
+// aspects grid (see lib/kpAstro/planetaryAspects.ts — Conjunction = 0deg,
+// Opposition = 180deg, both +/-8deg orb, matching standard KP software).
+function computeAspectBlock(
+  forPlanet: string | undefined,
+  aspectType: 'Conjunction' | 'Opposition',
+  aspectRows: PlanetAspectRow[],
+  houses: SignificatorHouse[],
+  planets: AutoFillPlanet[]
+): AspectBlock {
+  const empty: AspectBlock = { present: '', planet: '', planetRetrograde: '', starLordRetrograde: '', signification: '', favorable: '' };
+  if (!forPlanet) return empty;
+  const row = aspectRows.find((r) => r.planet === forPlanet);
+  const hits = row?.aspects[aspectType] || [];
+  if (!hits.length) {
+    return { ...empty, present: 'No' };
+  }
+  const otherName = hits[0];
+  const otherPlanet = planets.find((p) => p.planet === otherName);
+  const otherStarLord = otherPlanet ? starLordOf(otherPlanet) : undefined;
+  const otherStarLordPlanet = planets.find((p) => p.planet === otherStarLord);
+  const signification = [
+    formatPlanetSignification(houses, planets, otherName),
+    otherStarLord ? `Star lord ${formatPlanetSignification(houses, planets, otherStarLord)}` : '',
+  ].filter(Boolean).join(' · ');
+  return {
+    present: 'Yes',
+    planet: otherName,
+    planetRetrograde: retrogradeStatus(otherPlanet),
+    starLordRetrograde: retrogradeStatus(otherStarLordPlanet),
+    signification,
+    favorable: '',
+  };
+}
+
+// Auto-fills the detailed prediction-template worksheet (see BhavEditor.tsx's
+// PredictionTemplate type): sub-lord chain (sub lord -> its star -> that
+// star's lord) plus the four conjunction/opposition blocks. Never overwrites
+// a field/block the astrologer has already touched.
+function autoFillPredictionTemplate(
+  row: BhavAnalysisRow,
+  houses: SignificatorHouse[],
+  planets: AutoFillPlanet[],
+  aspectRows: PlanetAspectRow[]
+): PredictionTemplate {
+  const pt = row.predictionTemplate;
+  const primaryHouse = pt.primaryHouse || row.house;
+  const primaryHouseData = houses.find((h) => h.house === primaryHouse);
+  const templateSubLord = row.subLord || primaryHouseData?.subLord || '';
+  const templateSubLordPlanet = planets.find((p) => p.planet === templateSubLord);
+  const templateStarLord = pt.starLord || (templateSubLordPlanet ? starLordOf(templateSubLordPlanet) : undefined) || '';
+  const templateStarLordPlanet = planets.find((p) => p.planet === templateStarLord);
+  const starLordOccupied = housesOccupiedBy(planets, templateStarLord);
+  const starLordOwned = housesOwnedBy(houses, templateStarLord);
+  const connecting = [...new Set([...starLordOccupied, ...starLordOwned])].filter((h) => [6, 8, 12].includes(h)).sort((a, b) => a - b);
+
+  return {
+    primaryHouse,
+    subLordRetrograde: pt.subLordRetrograde || retrogradeStatus(templateSubLordPlanet),
+    subLordStar: pt.subLordStar || templateSubLordPlanet?.star || '',
+    starLord: templateStarLord,
+    starLordRetrograde: pt.starLordRetrograde || retrogradeStatus(templateStarLordPlanet),
+    starLordHouses: pt.starLordHouses || `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`,
+    starLordConnecting: pt.starLordConnecting || (connecting.length ? `Yes (House ${connecting.join(', ')})` : 'No'),
+    subLordConjunct: aspectBlockHasValue(pt.subLordConjunct) ? pt.subLordConjunct : computeAspectBlock(templateSubLord, 'Conjunction', aspectRows, houses, planets),
+    starLordConjunct: aspectBlockHasValue(pt.starLordConjunct) ? pt.starLordConjunct : computeAspectBlock(templateStarLord, 'Conjunction', aspectRows, houses, planets),
+    subLordOpposed: aspectBlockHasValue(pt.subLordOpposed) ? pt.subLordOpposed : computeAspectBlock(templateSubLord, 'Opposition', aspectRows, houses, planets),
+    starLordOpposed: aspectBlockHasValue(pt.starLordOpposed) ? pt.starLordOpposed : computeAspectBlock(templateStarLord, 'Opposition', aspectRows, houses, planets),
+    summary: pt.summary,
+    conclusion: pt.conclusion,
+    rule: pt.rule,
+  };
+}
+
 export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: AutoFillPlanet[], dashaChain = ''): BhavAnalysisRow[] {
   const drishtiHits = computeDrishtiOnHouses(planets);
   const planetDrishti = computeDrishtiOnPlanets(planets);
   const conjunctions = computeConjunctions(planets);
+  const aspectRows = computePlanetaryAspects(planets);
 
   return rows.map((row) => {
     const auto = computeBhavAutoSignificators(houses, planets, row.house);
@@ -166,6 +247,7 @@ export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHo
       cslStarLordRetrogradeStatus: row.cslStarLordRetrogradeStatus || retrogradeStatus(cslStarOwnerPlanet),
       cslStarLordSignification: row.cslStarLordSignification || formatPlanetSignification(houses, planets, cslStarOwner),
       karyeshRuleResult: row.karyeshRuleResult || (cslStarOwner ? `${row.house} = ${formatPlanetSignification(houses, planets, cslStarOwner)}` : ''),
+      predictionTemplate: autoFillPredictionTemplate(enrichedRow, houses, planets, aspectRows),
     };
   });
 }

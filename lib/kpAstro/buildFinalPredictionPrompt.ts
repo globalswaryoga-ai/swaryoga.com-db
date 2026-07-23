@@ -66,6 +66,22 @@ export interface FinalPredictionBhavInput {
   cslStarLordSignification?: string;
   karyeshRuleResult?: string;
   karyeshRuleConclusion?: string;
+  predictionTemplate?: {
+    primaryHouse?: number;
+    subLordRetrograde?: string;
+    subLordStar?: string;
+    starLord?: string;
+    starLordRetrograde?: string;
+    starLordHouses?: string;
+    starLordConnecting?: string;
+    subLordConjunct?: { present?: string; planet?: string; planetRetrograde?: string; starLordRetrograde?: string; signification?: string; favorable?: string };
+    starLordConjunct?: { present?: string; planet?: string; planetRetrograde?: string; starLordRetrograde?: string; signification?: string; favorable?: string };
+    subLordOpposed?: { present?: string; planet?: string; planetRetrograde?: string; starLordRetrograde?: string; signification?: string; favorable?: string };
+    starLordOpposed?: { present?: string; planet?: string; planetRetrograde?: string; starLordRetrograde?: string; signification?: string; favorable?: string };
+    summary?: string;
+    conclusion?: string;
+    rule?: string;
+  };
   customMatters: Array<{ label: string; notes: string }>;
   positiveNotes: string;
   negativeNotes: string;
@@ -113,6 +129,31 @@ function formatBhav(b: FinalPredictionBhavInput): string {
     b.karyeshRuleConclusion ? `Rule conclusion: ${b.karyeshRuleConclusion}` : '',
   ].filter(Boolean);
   if (toolkitLines.length) parts.push(`  Toolkit Karyesh rule template:\n    ${toolkitLines.join('\n    ')}`);
+  const pt = b.predictionTemplate;
+  if (pt) {
+    const aspectLine = (label: string, block?: typeof pt.subLordConjunct) => {
+      if (!block?.present) return '';
+      if (block.present !== 'Yes') return `${label}: No`;
+      return `${label}: Yes — ${block.planet || '?'}${block.planetRetrograde ? ` (${block.planetRetrograde})` : ''}${block.starLordRetrograde ? `, its star lord ${block.starLordRetrograde}` : ''}${block.signification ? ` — ${block.signification}` : ''}${block.favorable ? ` — favorable: ${block.favorable}` : ''}`;
+    };
+    const templateLines = [
+      pt.primaryHouse ? `Primary house of matter: ${pt.primaryHouse}` : '',
+      pt.subLordRetrograde ? `Sub Lord retro/direct: ${pt.subLordRetrograde}` : '',
+      pt.subLordStar ? `Sub Lord deposited in star: ${pt.subLordStar}` : '',
+      pt.starLord ? `Star lord: ${pt.starLord}` : '',
+      pt.starLordRetrograde ? `Star lord retro/direct: ${pt.starLordRetrograde}` : '',
+      pt.starLordHouses ? `Star lord houses: ${pt.starLordHouses}` : '',
+      pt.starLordConnecting ? `Star lord connecting to 6/8/12: ${pt.starLordConnecting}` : '',
+      aspectLine('Sub Lord conjunction', pt.subLordConjunct),
+      aspectLine('Star Lord conjunction', pt.starLordConjunct),
+      aspectLine('Sub Lord opposition', pt.subLordOpposed),
+      aspectLine('Star Lord opposition', pt.starLordOpposed),
+      pt.summary ? `Summary: ${pt.summary}` : '',
+      pt.conclusion ? `Conclusion: ${pt.conclusion}` : '',
+      pt.rule ? `Rule: ${pt.rule}` : '',
+    ].filter(Boolean);
+    if (templateLines.length) parts.push(`  Prediction template:\n    ${templateLines.join('\n    ')}`);
+  }
   if (b.customMatters.length) parts.push(`  Matters: ${b.customMatters.map((m) => `${m.label}${m.notes ? ` (${m.notes})` : ''}`).join('; ')}`);
   if (b.positiveNotes) parts.push(`  Positive: ${b.positiveNotes}`);
   if (b.negativeNotes) parts.push(`  Negative: ${b.negativeNotes}`);
@@ -159,6 +200,8 @@ export function buildFinalPredictionPrompt(params: {
 CRITICAL RULE — do not skip this: the astrologer has already done the per-bhav analytical work below. Use ONLY this analysis (plus the curated rulebook content, if provided) as your factual basis; do not invent planetary facts beyond it.
 
 KARYESH TOOLKIT RULE — when a bhav includes the "Toolkit Karyesh rule template", treat it as the controlling rule logic for every life section that draws on that house. Use the Matter, Primary House, CSL, CSL R/D, Star of CSL, Owner of Star of CSL, star-owner signification, Result, and Conclusion exactly as the astrologer saved them. If CSL is marked Retrograde, describe delay/slow delivery. If the star-owner is marked Retrograde, treat the result as denial, weakness, or delayed fulfillment unless the astrologer's conclusion clearly says otherwise. Compare the star-owner significations with supporting houses and opposing/denial houses; do not override the astrologer's conclusion.
+
+PREDICTION TEMPLATE RULE — when a bhav includes a "Prediction template" block, this is the astrologer's detailed worksheet for that matter and takes precedence over any looser inference: the Sub Lord and Star Lord retrograde flags govern delay/denial exactly as in the Karyesh rule above; a "Yes" conjunction/opposition line names the other planet plus its own retrograde/star-lord/signification/favorability judgment — weigh favorable vs. unfavorable hits from these lines specifically; the Summary/Conclusion/Rule lines, when present, are the astrologer's own final word for that matter and must not be contradicted.
 
 NATIVE: ${personName}${gender ? `, ${gender}` : ''}${age !== null ? `, currently ${age} years old` : ''}.
 ${currentMahadasha ? `Current Mahadasha: ${currentMahadasha.planet} (${currentMahadasha.startDate} to ${currentMahadasha.endDate}).` : ''}
