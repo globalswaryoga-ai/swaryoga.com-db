@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
-import { computeFreshTemplate } from './bhavAutoFill';
+import { computeFreshTemplate, FORTUNA_HOUSE_MEANINGS, IMPROVING_BHAVAS } from './bhavAutoFill';
 
 // Per-bhav (per-house) astrologer working sheet — the "Prediction Template":
 // pick a Matter + its Primary House, the sub-lord chain auto-derives (sub
@@ -219,21 +219,6 @@ export function normalizeBhavAnalysis(rows: any[] | undefined): BhavAnalysisRow[
   });
 }
 
-const FORTUNA_HOUSE_MEANINGS = [
-  '1: fortunate in enterprise, industry, effort, confidence, career',
-  '2: property, business, bank balance, domestic happiness, status',
-  '3: brothers, short journeys, agency, publication, advisory work',
-  '4: patrimony, savings, landed property, mines, minerals, hidden treasure',
-  '5: sports, cinema, music, children, speculation, share market',
-  '6: cattle, pets, uncle/aunt support, small banking, overdraft facility',
-  '7: partner, spouse, contracts, litigation, public organizations',
-  '8: will, insurance, gratuity, bonus, partner lump sum money',
-  '9: long journeys, foreign contracts, publishing, education, legal/spiritual service',
-  '10: service gains, quick status rise, strong professional money',
-  '11: friends, brothers, profitable business, high society support, fulfilled desires',
-  '12: unknown sources, purchases/sales luck, investments, gains through hidden matters',
-];
-
 const TOOLKIT_REFERENCE_CARDS = [
   {
     title: 'Fortuna Method',
@@ -255,8 +240,8 @@ const TOOLKIT_REFERENCE_CARDS = [
     title: 'Malefic / Benefic',
     badge: 'Dasha filter',
     lines: [
-      'Improving bhavas: 1, 2, 3, 6, 10, 11.',
-      'Non-improving bhavas: 4, 5, 7, 8, 9, 12.',
+      `Improving bhavas: ${IMPROVING_BHAVAS.join(', ')}.`,
+      `Non-improving bhavas: ${HOUSE_NUMBERS.filter((h) => !IMPROVING_BHAVAS.includes(h)).join(', ')}.`,
       'Deposition is most important.',
       'A benefic Sun and Moon in a natal chart is an asset.',
       'Benefic planets can still do good in their periods even when linked to difficult houses.',

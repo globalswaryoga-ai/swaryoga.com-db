@@ -177,17 +177,56 @@ function composeBaseSummary(houses: SignificatorHouse[], planets: AutoFillPlanet
   ].join(' | ');
 }
 
-// Drafts a starting "Rule" sentence from the sub-lord/star-lord retrograde
-// findings, applying the exact interpretive rule already curated in this
-// file's own "Prediction Template" toolkit reference card (retrograde CSL =
-// delay, retrograde star owner = denial, use star-owner's houses for
-// Result/Conclusion) — a real KP rule-of-thumb, not fabricated text. Always
-// editable afterwards; the astrologer can refine or replace it.
-function composeBaseRule(subLordRetrograde: string, starLordRetrograde: string, starLordHouses: string): string {
+// Toolkit reference data (see the "Malefic/Benefic" and "Fortuna 12 Houses"
+// cards in BhavEditor.tsx, which import these same constants to render
+// themselves — single source of truth, no duplication).
+export const IMPROVING_BHAVAS = [1, 2, 3, 6, 10, 11];
+
+export const FORTUNA_HOUSE_MEANINGS = [
+  '1: fortunate in enterprise, industry, effort, confidence, career',
+  '2: property, business, bank balance, domestic happiness, status',
+  '3: brothers, short journeys, agency, publication, advisory work',
+  '4: patrimony, savings, landed property, mines, minerals, hidden treasure',
+  '5: sports, cinema, music, children, speculation, share market',
+  '6: cattle, pets, uncle/aunt support, small banking, overdraft facility',
+  '7: partner, spouse, contracts, litigation, public organizations',
+  '8: will, insurance, gratuity, bonus, partner lump sum money',
+  '9: long journeys, foreign contracts, publishing, education, legal/spiritual service',
+  '10: service gains, quick status rise, strong professional money',
+  '11: friends, brothers, profitable business, high society support, fulfilled desires',
+  '12: unknown sources, purchases/sales luck, investments, gains through hidden matters',
+];
+
+function houseMatterMeaning(house: number): string {
+  const line = FORTUNA_HOUSE_MEANINGS.find((l) => l.startsWith(`${house}:`));
+  return line ? line.slice(line.indexOf(':') + 1).trim() : '';
+}
+
+// Drafts a starting "Rule" from the toolkit itself, on the basis of the
+// Matter's Primary House — NOT just a retrograde-status sentence. Combines:
+// the Malefic/Benefic improving/non-improving bhava classification for that
+// house, the house's typical matter signification (Fortuna 12 Houses card),
+// and the sub-lord/star-lord retrograde findings (still relevant, but as
+// supporting detail, not the whole rule). Always editable afterwards.
+function composeBaseRule(
+  primaryHouse: number,
+  subLordRetrograde: string,
+  starLordRetrograde: string,
+  starLordHouses: string
+): string {
   const lines: string[] = [];
+  lines.push(
+    IMPROVING_BHAVAS.includes(primaryHouse)
+      ? `House ${primaryHouse} is an improving bhava (1,2,3,6,10,11) — favorable by default for this matter.`
+      : `House ${primaryHouse} is a non-improving bhava (4,5,7,8,9,12) — this matter faces more resistance by default; deposition of significators matters most.`
+  );
+  const meaning = houseMatterMeaning(primaryHouse);
+  if (meaning) lines.push(`Typical signification: ${meaning}.`);
   if (subLordRetrograde === 'Retrograde') lines.push('Sub Lord is retrograde — expect delay.');
   if (starLordRetrograde === 'Retrograde') lines.push('Star Lord is retrograde — treat as denial/weak delivery unless notes override.');
-  if (!lines.length) lines.push('Sub Lord and Star Lord are both direct — no delay/denial expected from retrogression.');
+  if (subLordRetrograde !== 'Retrograde' && starLordRetrograde !== 'Retrograde') {
+    lines.push('Sub Lord and Star Lord are both direct — no delay/denial expected from retrogression.');
+  }
   lines.push(`Use Star Lord's house signification for Result and Conclusion: ${starLordHouses}.`);
   return lines.join(' ');
 }
@@ -231,7 +270,7 @@ function autoFillPredictionTemplate(
     starLordOpposed: aspectBlockHasValue(pt.starLordOpposed) ? pt.starLordOpposed : computeAspectBlock(templateStarLord, 'Opposition', aspectRows, houses, planets),
     summary: pt.summary || composeBaseSummary(houses, planets, primaryHouse),
     conclusion: pt.conclusion,
-    rule: pt.rule || composeBaseRule(resolvedSubLordRetrograde, resolvedStarLordRetrograde, resolvedStarLordHouses),
+    rule: pt.rule || composeBaseRule(primaryHouse, resolvedSubLordRetrograde, resolvedStarLordRetrograde, resolvedStarLordHouses),
   };
 }
 
@@ -274,7 +313,7 @@ export function computeFreshTemplate(
       starLordOpposed: computeAspectBlock(starLord, 'Opposition', aspectRows, houses, planets),
       summary: composeBaseSummary(houses, planets, primaryHouse),
       conclusion: '',
-      rule: composeBaseRule(subLordRetrograde, starLordRetrograde, starLordHouses),
+      rule: composeBaseRule(primaryHouse, subLordRetrograde, starLordRetrograde, starLordHouses),
     },
   };
 }
