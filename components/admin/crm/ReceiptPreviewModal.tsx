@@ -103,8 +103,9 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     }
   }, [leadId, saleId, token]);
 
-  // Fetch receipts for this lead; if the latest one looks stale (no amount)
-  // and we know which sale this is, auto-heal it so the preview is correct
+  // Fetch receipts for this lead; if the latest one looks stale (no amount,
+  // or the customer's name has since been corrected on the lead) and we
+  // know which sale this is, auto-heal it so the preview is correct
   // immediately — no extra "Generate Receipt" click needed.
   const fetchReceipts = useCallback(async () => {
     setLoading(true);
@@ -117,7 +118,8 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       const json = await res.json();
       const data: ReceiptData[] = res.ok && Array.isArray(json.data) ? json.data : [];
       const top = data[0];
-      const looksStale = !top || !top.payment?.amount;
+      const nameStale = Boolean(top?.customerName && leadName && top.customerName !== formatPersonName(leadName));
+      const looksStale = !top || !top.payment?.amount || nameStale;
       if (looksStale && saleId) {
         setLoading(false);
         await generateReceipt();
@@ -130,7 +132,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     } finally {
       setLoading(false);
     }
-  }, [leadId, saleId, token, generateReceipt]);
+  }, [leadId, saleId, token, leadName, generateReceipt]);
 
   useEffect(() => { fetchReceipts(); }, [fetchReceipts]);
 
