@@ -160,33 +160,6 @@ function computeAspectBlock(
   };
 }
 
-// Raw (unlabeled) significator planet names for a house's four steps — A:
-// star lord of occupant(s), B: occupant(s), C: owner, D: star lord of owner.
-function primaryHouseSignificatorPlanets(
-  houses: SignificatorHouse[],
-  planets: AutoFillPlanet[],
-  primaryHouse: number
-): { A: string[]; B: string[]; C: string[]; D: string[] } {
-  const house = houses.find((h) => h.house === primaryHouse);
-  const occupants = planets.filter((p) => p.house === primaryHouse).map((p) => p.planet);
-  const owner = house?.signLord;
-  const starLordsOf = (names: string[]): string[] => {
-    const result = new Set<string>();
-    for (const name of names) {
-      const planet = planets.find((p) => p.planet === name);
-      const sl = planet ? starLordOf(planet) : undefined;
-      if (sl) result.add(sl);
-    }
-    return Array.from(result);
-  };
-  return {
-    B: occupants,
-    C: owner ? [owner] : [],
-    A: starLordsOf(occupants),
-    D: owner ? starLordsOf([owner]) : [],
-  };
-}
-
 // A planet's own Karyesh Bhav — the houses it's connected to (occupied +
 // owned), with drishti/aspect houses added only when requested (D only, per
 // the astrologer's own instruction: drishti belongs in D, not A/B/C).
@@ -222,19 +195,37 @@ function formatPlanetKaryesh(houses: SignificatorHouse[], planets: AutoFillPlane
     .join(', ');
 }
 
-// Drafts a starting "Summary of the analysis": for the Matter's Primary
-// House, every connected planet at each of the four significator steps
-// (A/B/C/D) plus that planet's own Karyesh Bhav houses — flat, just the
-// planet and its house numbers, no nested sub-breakdown. Drishti/aspect
-// houses fold into D only. Rahu/Ketu are expanded together per the nodal-
-// axis rule (see expandNodeAxis) on every line, not just D.
-function composeBaseSummary(houses: SignificatorHouse[], planets: AutoFillPlanet[], primaryHouse: number): string {
-  const sig = primaryHouseSignificatorPlanets(houses, planets, primaryHouse);
+// Planets sharing the exact same nakshatra (star) as targetPlanet — sharing
+// a star means sharing that star's lord, a real KP link independent of exact
+// degree closeness. Verified against a real chart: a tight degree-orb
+// conjunction check missed a planet the astrologer considered connected,
+// while "same star" caught it correctly (Mars and the house's Star Lord both
+// sat in Rohini, several degrees apart — too far for a Conjunction hit, but
+// still the same nakshatra).
+function planetsInSameStar(planets: AutoFillPlanet[], targetPlanet: string): string[] {
+  const target = planets.find((p) => p.planet === targetPlanet);
+  if (!target?.star) return [];
+  return planets.filter((p) => p.planet !== targetPlanet && p.star === target.star).map((p) => p.planet);
+}
+
+// Drafts a starting "Summary of the analysis" from the SAME Sub Lord -> Star
+// Lord chain already computed above Summary in the template (not the
+// classical occupant/owner method, which comes up empty whenever no planet
+// occupies the Primary House):
+//   A: Sub Lord.  B: planet(s) sharing the Sub Lord's star.
+//   C: Star Lord. D: planet(s) sharing the Star Lord's star (drishti houses included).
+// Rahu/Ketu are expanded together per the nodal-axis rule on every line.
+function composeBaseSummary(
+  houses: SignificatorHouse[],
+  planets: AutoFillPlanet[],
+  subLord: string,
+  starLord: string
+): string {
   return [
-    `A: ${formatPlanetKaryesh(houses, planets, sig.A, false)}`,
-    `B: ${formatPlanetKaryesh(houses, planets, sig.B, false)}`,
-    `C: ${formatPlanetKaryesh(houses, planets, sig.C, false)}`,
-    `D: ${formatPlanetKaryesh(houses, planets, sig.D, true)}`,
+    `A: ${formatPlanetKaryesh(houses, planets, subLord ? [subLord] : [], false)}`,
+    `B: ${formatPlanetKaryesh(houses, planets, planetsInSameStar(planets, subLord), false)}`,
+    `C: ${formatPlanetKaryesh(houses, planets, starLord ? [starLord] : [], false)}`,
+    `D: ${formatPlanetKaryesh(houses, planets, planetsInSameStar(planets, starLord), true)}`,
   ].join('\n');
 }
 
@@ -346,6 +337,8 @@ function autoFillPredictionTemplate(
   const resolvedSubLordRetrograde = pt.subLordRetrograde || retrogradeStatus(templateSubLordPlanet);
   const resolvedStarLordRetrograde = pt.starLordRetrograde || retrogradeStatus(templateStarLordPlanet);
   const resolvedStarLordHouses = pt.starLordHouses || `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`;
+  const resolvedSubLordConjunct = aspectBlockHasValue(pt.subLordConjunct) ? pt.subLordConjunct : computeAspectBlock(templateSubLord, 'Conjunction', aspectRows, houses, planets);
+  const resolvedStarLordConjunct = aspectBlockHasValue(pt.starLordConjunct) ? pt.starLordConjunct : computeAspectBlock(templateStarLord, 'Conjunction', aspectRows, houses, planets);
 
   return {
     primaryHouse,
@@ -355,11 +348,11 @@ function autoFillPredictionTemplate(
     starLordRetrograde: resolvedStarLordRetrograde,
     starLordHouses: resolvedStarLordHouses,
     starLordConnecting: pt.starLordConnecting || (connecting.length ? `Yes (House ${connecting.join(', ')})` : 'No'),
-    subLordConjunct: aspectBlockHasValue(pt.subLordConjunct) ? pt.subLordConjunct : computeAspectBlock(templateSubLord, 'Conjunction', aspectRows, houses, planets),
-    starLordConjunct: aspectBlockHasValue(pt.starLordConjunct) ? pt.starLordConjunct : computeAspectBlock(templateStarLord, 'Conjunction', aspectRows, houses, planets),
+    subLordConjunct: resolvedSubLordConjunct,
+    starLordConjunct: resolvedStarLordConjunct,
     subLordOpposed: aspectBlockHasValue(pt.subLordOpposed) ? pt.subLordOpposed : computeAspectBlock(templateSubLord, 'Opposition', aspectRows, houses, planets),
     starLordOpposed: aspectBlockHasValue(pt.starLordOpposed) ? pt.starLordOpposed : computeAspectBlock(templateStarLord, 'Opposition', aspectRows, houses, planets),
-    summary: pt.summary || composeBaseSummary(houses, planets, primaryHouse),
+    summary: pt.summary || composeBaseSummary(houses, planets, templateSubLord, templateStarLord),
     conclusion: pt.conclusion,
     rule: pt.rule || composeBaseRule(primaryHouse, row.toolkitMatter, matterRules, resolvedSubLordRetrograde, resolvedStarLordRetrograde, resolvedStarLordHouses),
   };
@@ -389,6 +382,8 @@ export function computeFreshTemplate(
   const subLordRetrograde = retrogradeStatus(subLordPlanet);
   const starLordRetrograde = retrogradeStatus(starLordPlanet);
   const starLordHouses = `Deposited: ${formatHouseNumbers(starLordOccupied)} · Owns: ${formatHouseNumbers(starLordOwned)}`;
+  const subLordConjunct = computeAspectBlock(subLord, 'Conjunction', aspectRows, houses, planets);
+  const starLordConjunct = computeAspectBlock(starLord, 'Conjunction', aspectRows, houses, planets);
 
   return {
     subLord,
@@ -400,11 +395,11 @@ export function computeFreshTemplate(
       starLordRetrograde,
       starLordHouses,
       starLordConnecting: connecting.length ? `Yes (House ${connecting.join(', ')})` : 'No',
-      subLordConjunct: computeAspectBlock(subLord, 'Conjunction', aspectRows, houses, planets),
-      starLordConjunct: computeAspectBlock(starLord, 'Conjunction', aspectRows, houses, planets),
+      subLordConjunct,
+      starLordConjunct,
       subLordOpposed: computeAspectBlock(subLord, 'Opposition', aspectRows, houses, planets),
       starLordOpposed: computeAspectBlock(starLord, 'Opposition', aspectRows, houses, planets),
-      summary: composeBaseSummary(houses, planets, primaryHouse),
+      summary: composeBaseSummary(houses, planets, subLord, starLord),
       conclusion: '',
       rule: composeBaseRule(primaryHouse, matter, matterRules, subLordRetrograde, starLordRetrograde, starLordHouses),
     },
