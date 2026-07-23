@@ -31,6 +31,7 @@ interface Course {
   discount?: number;
   giftHours?: { enabled: boolean; hours: number };
   enrolledCount?: number;
+  defaultStudents?: number;
   thumbnail?: string;
 }
 
@@ -270,7 +271,7 @@ export default function CourseVideosPage() {
             discount: course.discount,
           }}
           token={token}
-          enrollmentCount={course.enrolledCount}
+          enrollmentCount={(course.defaultStudents ?? 15) + (course.enrolledCount || 0)}
         />
       )}
     </div>
