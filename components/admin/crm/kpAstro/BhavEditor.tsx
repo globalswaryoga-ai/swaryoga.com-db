@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, EyeOff, BookMarked } from 'lucide-react';
 import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
-import { computeFreshTemplate, FORTUNA_HOUSE_MEANINGS, IMPROVING_BHAVAS } from './bhavAutoFill';
+import { computeFreshTemplate, FORTUNA_HOUSE_MEANINGS, IMPROVING_BHAVAS, type MatterRule } from './bhavAutoFill';
+import MatterRuleLibrary from './MatterRuleLibrary';
 
 // Per-bhav (per-house) astrologer working sheet — the "Prediction Template":
 // pick a Matter + its Primary House, the sub-lord chain auto-derives (sub
@@ -479,17 +480,22 @@ export default function BhavEditor({
   onChange,
   houses = [],
   planets = [],
+  matterRules = [],
+  onMatterRulesChanged,
 }: {
   rows: BhavAnalysisRow[];
   onChange: (rows: BhavAnalysisRow[]) => void;
   houses?: SignificatorHouse[];
   planets?: KaryeshPlanet[];
+  matterRules?: MatterRule[];
+  onMatterRulesChanged?: () => void;
 }) {
   const [openHouse, setOpenHouse] = useState(1);
   // Slots the astrologer explicitly added this session but hasn't typed into
   // yet — kept visible until they either fill it in (then hasRowContent takes
   // over) or reload without saving anything into it.
   const [manuallyAdded, setManuallyAdded] = useState<Set<number>>(new Set());
+  const [showRuleLibrary, setShowRuleLibrary] = useState(false);
 
   const contentHouses = rows.filter(hasRowContent).map((r) => r.house);
   const activeHouseSet = new Set<number>([...contentHouses, ...manuallyAdded]);
@@ -509,7 +515,8 @@ export default function BhavEditor({
   // all four aspect blocks now describe a DIFFERENT house — recompute every
   // dependent field fresh instead of leaving the old house's values behind.
   const applyFreshTemplate = (house: number, newPrimaryHouse: number) => {
-    const { subLord, predictionTemplate } = computeFreshTemplate(newPrimaryHouse, houses, planets);
+    const matter = rows.find((r) => r.house === house)?.toolkitMatter || '';
+    const { subLord, predictionTemplate } = computeFreshTemplate(newPrimaryHouse, houses, planets, matter, matterRules);
     onChange(rows.map((r) => (r.house === house ? { ...r, subLord, predictionTemplate } : r)));
   };
 
@@ -531,7 +538,16 @@ export default function BhavEditor({
           <h3 className="text-sm font-semibold text-gray-900">Bhav Prediction Template</h3>
           <p className="mt-0.5 text-xs text-gray-500">Add a matter, complete the template, save, then generate final prediction.</p>
         </div>
-        <div className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">{activeRows.length} {activeRows.length === 1 ? 'matter' : 'matters'}</div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowRuleLibrary(true)}
+            className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+          >
+            <BookMarked className="h-3.5 w-3.5" /> Matter Rules
+          </button>
+          <div className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">{activeRows.length} {activeRows.length === 1 ? 'matter' : 'matters'}</div>
+        </div>
       </div>
       <ToolkitReferenceCards />
       <div className="space-y-2 p-3">
@@ -726,6 +742,12 @@ export default function BhavEditor({
           </select>
         )}
       </div>
+      <MatterRuleLibrary
+        open={showRuleLibrary}
+        onClose={() => setShowRuleLibrary(false)}
+        rules={matterRules}
+        onChanged={() => onMatterRulesChanged?.()}
+      />
     </div>
   );
 }

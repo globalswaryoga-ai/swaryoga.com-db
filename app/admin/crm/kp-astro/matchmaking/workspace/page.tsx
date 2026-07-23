@@ -8,7 +8,8 @@ import { PageHeader } from '@/components/admin/crm';
 import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
-import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import { autoFillBhavRows, type MatterRule } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import { useMatterRules } from '@/components/admin/crm/kpAstro/useMatterRules';
 import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
 import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
@@ -49,6 +50,8 @@ function PartnerPanel({
   setWorkView,
   dashaPeriods,
   onLoadDeeperDasha,
+  matterRules,
+  onMatterRulesChanged,
 }: {
   label: string;
   person?: ChartRef;
@@ -60,6 +63,8 @@ function PartnerPanel({
   setWorkView: (v: WorkView) => void;
   dashaPeriods: DashaRow[];
   onLoadDeeperDasha: (newRows: DashaRow[]) => void;
+  matterRules: MatterRule[];
+  onMatterRulesChanged: () => void;
 }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
@@ -111,7 +116,7 @@ function PartnerPanel({
           </div>
         </div>
         {workView === 'analysis' ? (
-          <BhavEditor rows={rows} onChange={onRowsChange} houses={person?.houses || []} planets={person?.planets || []} />
+          <BhavEditor rows={rows} onChange={onRowsChange} houses={person?.houses || []} planets={person?.planets || []} matterRules={matterRules} onMatterRulesChanged={onMatterRulesChanged} />
         ) : workView === 'abcd' ? (
           <ABCDSignificatorsPanel houses={person?.houses || []} planets={person?.planets || []} bhavRows={rows} />
         ) : (
@@ -127,6 +132,7 @@ export default function KpMatchmakingWorkspacePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const matchId = searchParams.get('matchId') || '';
+  const { rules: matterRules, refresh: refreshMatterRules } = useMatterRules(token);
 
   const [matchList, setMatchList] = useState<MatchListItem[]>([]);
   const [match, setMatch] = useState<MatchDetail | null>(null);
@@ -163,8 +169,8 @@ export default function KpMatchmakingWorkspacePage() {
       setMatch(json.data);
       const groomRows = normalizeBhavAnalysis(json.data.groomBhavAnalysis);
       const brideRows = normalizeBhavAnalysis(json.data.brideBhavAnalysis);
-      setGroomRows(autoFillBhavRows(groomRows, json.data.groomChartId?.houses || [], json.data.groomChartId?.planets || []));
-      setBrideRows(autoFillBhavRows(brideRows, json.data.brideChartId?.houses || [], json.data.brideChartId?.planets || []));
+      setGroomRows(autoFillBhavRows(groomRows, json.data.groomChartId?.houses || [], json.data.groomChartId?.planets || [], '', matterRules));
+      setBrideRows(autoFillBhavRows(brideRows, json.data.brideChartId?.houses || [], json.data.brideChartId?.planets || [], '', matterRules));
       setCompatibilityNotes(json.data.compatibilityNotes || '');
       setGroomDashaPeriods(Array.isArray(json.data.groomChartId?.dashaPeriods) ? json.data.groomChartId.dashaPeriods : []);
       setBrideDashaPeriods(Array.isArray(json.data.brideChartId?.dashaPeriods) ? json.data.brideChartId.dashaPeriods : []);
@@ -283,6 +289,8 @@ export default function KpMatchmakingWorkspacePage() {
             setWorkView={setGroomWorkView}
             dashaPeriods={groomDashaPeriods}
             onLoadDeeperDasha={(newRows) => setGroomDashaPeriods((prev) => [...prev, ...newRows])}
+            matterRules={matterRules}
+            onMatterRulesChanged={refreshMatterRules}
           />
 
           <div className="border-t border-gray-200" />
@@ -298,6 +306,8 @@ export default function KpMatchmakingWorkspacePage() {
             setWorkView={setBrideWorkView}
             dashaPeriods={brideDashaPeriods}
             onLoadDeeperDasha={(newRows) => setBrideDashaPeriods((prev) => [...prev, ...newRows])}
+            matterRules={matterRules}
+            onMatterRulesChanged={refreshMatterRules}
           />
         </>
       )}

@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import { useMatterRules } from '@/components/admin/crm/kpAstro/useMatterRules';
 import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
 import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
 import { KpLanguageProvider, KpLanguageToggle } from '@/components/admin/crm/kpAstro/KpLanguageContext';
@@ -40,6 +41,7 @@ export default function KpHoraryWorkspacePage() {
   const token = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { rules: matterRules, refresh: refreshMatterRules } = useMatterRules(token);
   const chartId = searchParams.get('chartId') || '';
 
   const [chartList, setChartList] = useState<HoraryListItem[]>([]);
@@ -71,7 +73,7 @@ export default function KpHoraryWorkspacePage() {
       setChart(json.data);
       setChartStyle(json.data.chartStyle === 'south' ? 'south' : 'north');
       const normalized = normalizeBhavAnalysis(json.data.bhavAnalysis);
-      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || []));
+      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || [], '', matterRules));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart');
     } finally {
@@ -233,7 +235,7 @@ export default function KpHoraryWorkspacePage() {
               </div>
             </div>
             {workView === 'analysis' ? (
-              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} />
+              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} matterRules={matterRules} onMatterRulesChanged={refreshMatterRules} />
             ) : workView === 'abcd' ? (
               <ABCDSignificatorsPanel houses={chart.houses || []} planets={chart.planets || []} bhavRows={bhavRows} />
             ) : (

@@ -10,6 +10,7 @@ import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import { useMatterRules } from '@/components/admin/crm/kpAstro/useMatterRules';
 import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
 import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
 import EventTimingPanel from '@/components/admin/crm/kpAstro/EventTimingPanel';
@@ -65,6 +66,7 @@ export default function KpAstrologerWorkspacePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const chartId = searchParams.get('chartId') || '';
+  const { rules: matterRules, refresh: refreshMatterRules } = useMatterRules(token);
 
   const [chartList, setChartList] = useState<ChartListItem[]>([]);
   const [chart, setChart] = useState<ChartDetail | null>(null);
@@ -110,7 +112,7 @@ export default function KpAstrologerWorkspacePage() {
       setChartStyle(json.data.chartStyle === 'south' ? 'south' : 'north');
       const normalized = normalizeBhavAnalysis(json.data.bhavAnalysis);
       const loadedDashaPeriods = Array.isArray(json.data.dashaPeriods) ? json.data.dashaPeriods : [];
-      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || [], dashaChainText(loadedDashaPeriods)));
+      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || [], dashaChainText(loadedDashaPeriods), matterRules));
       setDashaPeriods(loadedDashaPeriods);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart');
@@ -143,7 +145,7 @@ export default function KpAstrologerWorkspacePage() {
 
   const handleAutoFillNeedful = () => {
     if (!chart) return;
-    setBhavRows((prev) => autoFillBhavRows(prev, chart.houses || [], chart.planets || [], dashaChainText(dashaPeriods)));
+    setBhavRows((prev) => autoFillBhavRows(prev, chart.houses || [], chart.planets || [], dashaChainText(dashaPeriods), matterRules));
   };
 
   return (
@@ -337,7 +339,7 @@ export default function KpAstrologerWorkspacePage() {
               </div>
             )}
             {workView === 'analysis' ? (
-              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} />
+              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} matterRules={matterRules} onMatterRulesChanged={refreshMatterRules} />
             ) : workView === 'abcd' ? (
               <ABCDSignificatorsPanel houses={chart.houses || []} planets={chart.planets || []} bhavRows={bhavRows} />
             ) : (

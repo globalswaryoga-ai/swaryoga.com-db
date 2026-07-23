@@ -250,26 +250,55 @@ function houseMatterMeaning(house: number): string {
   return line ? line.slice(line.indexOf(':') + 1).trim() : '';
 }
 
-// Drafts a starting "Rule" from the toolkit itself, on the basis of the
-// Matter's Primary House — NOT just a retrograde-status sentence. Combines:
-// the Malefic/Benefic improving/non-improving bhava classification for that
-// house, the house's typical matter signification (Fortuna 12 Houses card),
-// and the sub-lord/star-lord retrograde findings (still relevant, but as
-// supporting detail, not the whole rule). Always editable afterwards.
+// One astrologer-maintained Matter keyword -> Rule text entry (see the
+// KpMatterRule collection / matter-rules API) — the astrologer's own KP
+// toolkit rule, not anything generated here. Never fabricated: only what the
+// astrologer has typed in via the Matter Rule Library.
+export interface MatterRule {
+  _id?: string;
+  keyword: string;
+  ruleText: string;
+}
+
+// Finds the astrologer's own rule for the typed Matter (e.g. Matter =
+// "Higher Education" should match a "Higher Education" entry over a more
+// generic "Education" entry) — case-insensitive substring match, longest
+// (most specific) keyword wins.
+function matchMatterRule(matter: string, matterRules: MatterRule[]): MatterRule | undefined {
+  const m = matter.trim().toLowerCase();
+  if (!m || !matterRules.length) return undefined;
+  const hits = matterRules.filter((r) => r.keyword.trim() && m.includes(r.keyword.trim().toLowerCase()));
+  if (!hits.length) return undefined;
+  return hits.sort((a, b) => b.keyword.trim().length - a.keyword.trim().length)[0];
+}
+
+// Drafts a starting "Rule". Prefers the astrologer's own Matter Rule Library
+// entry (matched by Matter keyword, e.g. "Education" -> "seen by 4th Sub
+// Lord..."); only falls back to the generic Primary-House classification
+// (Malefic/Benefic improving bhava + Fortuna 12 Houses signification) when no
+// matter-specific rule has been entered yet. Sub-lord/star-lord retrograde
+// findings are always appended as supporting detail. Always editable.
 function composeBaseRule(
   primaryHouse: number,
+  matter: string,
+  matterRules: MatterRule[],
   subLordRetrograde: string,
   starLordRetrograde: string,
   starLordHouses: string
 ): string {
   const lines: string[] = [];
-  lines.push(
-    IMPROVING_BHAVAS.includes(primaryHouse)
-      ? `House ${primaryHouse} is an improving bhava (1,2,3,6,10,11) — favorable by default for this matter.`
-      : `House ${primaryHouse} is a non-improving bhava (4,5,7,8,9,12) — this matter faces more resistance by default; deposition of significators matters most.`
-  );
-  const meaning = houseMatterMeaning(primaryHouse);
-  if (meaning) lines.push(`Typical signification: ${meaning}.`);
+  const matched = matchMatterRule(matter, matterRules);
+  if (matched) {
+    lines.push(matched.ruleText.trim());
+  } else {
+    lines.push(
+      IMPROVING_BHAVAS.includes(primaryHouse)
+        ? `House ${primaryHouse} is an improving bhava (1,2,3,6,10,11) — favorable by default for this matter.`
+        : `House ${primaryHouse} is a non-improving bhava (4,5,7,8,9,12) — this matter faces more resistance by default; deposition of significators matters most.`
+    );
+    const meaning = houseMatterMeaning(primaryHouse);
+    if (meaning) lines.push(`Typical signification: ${meaning}.`);
+  }
   if (subLordRetrograde === 'Retrograde') lines.push('Sub Lord is retrograde — expect delay.');
   if (starLordRetrograde === 'Retrograde') lines.push('Star Lord is retrograde — treat as denial/weak delivery unless notes override.');
   if (subLordRetrograde !== 'Retrograde' && starLordRetrograde !== 'Retrograde') {
@@ -287,7 +316,8 @@ function autoFillPredictionTemplate(
   row: BhavAnalysisRow,
   houses: SignificatorHouse[],
   planets: AutoFillPlanet[],
-  aspectRows: PlanetAspectRow[]
+  aspectRows: PlanetAspectRow[],
+  matterRules: MatterRule[]
 ): PredictionTemplate {
   const pt = row.predictionTemplate;
   const primaryHouse = pt.primaryHouse || row.house;
@@ -318,7 +348,7 @@ function autoFillPredictionTemplate(
     starLordOpposed: aspectBlockHasValue(pt.starLordOpposed) ? pt.starLordOpposed : computeAspectBlock(templateStarLord, 'Opposition', aspectRows, houses, planets),
     summary: pt.summary || composeBaseSummary(houses, planets, primaryHouse),
     conclusion: pt.conclusion,
-    rule: pt.rule || composeBaseRule(primaryHouse, resolvedSubLordRetrograde, resolvedStarLordRetrograde, resolvedStarLordHouses),
+    rule: pt.rule || composeBaseRule(primaryHouse, row.toolkitMatter, matterRules, resolvedSubLordRetrograde, resolvedStarLordRetrograde, resolvedStarLordHouses),
   };
 }
 
@@ -330,7 +360,9 @@ function autoFillPredictionTemplate(
 export function computeFreshTemplate(
   primaryHouse: number,
   houses: SignificatorHouse[],
-  planets: AutoFillPlanet[]
+  planets: AutoFillPlanet[],
+  matter: string,
+  matterRules: MatterRule[]
 ): { subLord: string; predictionTemplate: PredictionTemplate } {
   const aspectRows = computePlanetaryAspects(planets);
   const primaryHouseData = houses.find((h) => h.house === primaryHouse);
@@ -361,12 +393,12 @@ export function computeFreshTemplate(
       starLordOpposed: computeAspectBlock(starLord, 'Opposition', aspectRows, houses, planets),
       summary: composeBaseSummary(houses, planets, primaryHouse),
       conclusion: '',
-      rule: composeBaseRule(primaryHouse, subLordRetrograde, starLordRetrograde, starLordHouses),
+      rule: composeBaseRule(primaryHouse, matter, matterRules, subLordRetrograde, starLordRetrograde, starLordHouses),
     },
   };
 }
 
-export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: AutoFillPlanet[], dashaChain = ''): BhavAnalysisRow[] {
+export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHouse[], planets: AutoFillPlanet[], dashaChain = '', matterRules: MatterRule[] = []): BhavAnalysisRow[] {
   const drishtiHits = computeDrishtiOnHouses(planets);
   const planetDrishti = computeDrishtiOnPlanets(planets);
   const conjunctions = computeConjunctions(planets);
@@ -414,7 +446,7 @@ export function autoFillBhavRows(rows: BhavAnalysisRow[], houses: SignificatorHo
       cslStarLordRetrogradeStatus: row.cslStarLordRetrogradeStatus || retrogradeStatus(cslStarOwnerPlanet),
       cslStarLordSignification: row.cslStarLordSignification || formatPlanetSignification(houses, planets, cslStarOwner),
       karyeshRuleResult: row.karyeshRuleResult || (cslStarOwner ? `${row.house} = ${formatPlanetSignification(houses, planets, cslStarOwner)}` : ''),
-      predictionTemplate: autoFillPredictionTemplate(enrichedRow, houses, planets, aspectRows),
+      predictionTemplate: autoFillPredictionTemplate(enrichedRow, houses, planets, aspectRows, matterRules),
     };
   });
 }

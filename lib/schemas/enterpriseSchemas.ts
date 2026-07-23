@@ -4783,6 +4783,25 @@ KpMatchMakingSchema.index({ createdByUserId: 1, createdAt: -1 });
 export function getKpMatchMaking() { return getModel('KpMatchMaking', KpMatchMakingSchema); }
 export const KpMatchMaking = createModelProxy('KpMatchMaking', KpMatchMakingSchema);
 
+// Astrologer-maintained library: Matter keyword -> Rule text (e.g. keyword
+// "Higher Education", ruleText "Higher education is seen by the 9th Sub
+// Lord..."). Global, not per-chart -- the astrologer builds this up once from
+// their own KP toolkit and it auto-fills the Prediction Template's Rule field
+// for any bhav whose Matter text matches a keyword. Never seeded with
+// invented rule text; only what the astrologer enters themselves.
+const KpMatterRuleSchema = new mongoose.Schema(
+  {
+    keyword: { type: String, trim: true, required: true },
+    ruleText: { type: String, trim: true, required: true },
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'kp_matter_rules' }
+);
+KpMatterRuleSchema.index({ keyword: 1 });
+
+export function getKpMatterRule() { return getModel('KpMatterRule', KpMatterRuleSchema); }
+export const KpMatterRule = createModelProxy('KpMatterRule', KpMatterRuleSchema);
+
 // ============================================================================
 // AI VIDEO JOB (YouTube -> condensed script -> HeyGen clone render -> Bunny -> E-Learning)
 // ============================================================================
