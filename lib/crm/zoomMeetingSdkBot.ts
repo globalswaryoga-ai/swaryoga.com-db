@@ -69,6 +69,11 @@ interface StartBotParams {
   /** If true, the bot answers participant chat questions using AI. */
   enableAiChatReplies?: boolean;
   durationMinutes: number;
+  /** Minutes the bot sits in the meeting (posting its early chat messages)
+   * before it actually starts sending video/audio. Lets the bot join ahead
+   * of the scheduled start for a countdown/welcome message while the video
+   * itself still begins at the real scheduled time. */
+  videoStartDelayMinutes?: number;
 }
 
 interface BotApiResponse {
@@ -115,6 +120,7 @@ export async function startSadhanaBot(params: StartBotParams): Promise<BotApiRes
     chatMessages: (params.chatMessages || []).slice(0, 4).filter((m) => m.message?.trim()),
     enableAiChatReplies: !!params.enableAiChatReplies,
     durationMinutes: params.durationMinutes,
+    videoStartDelayMinutes: params.videoStartDelayMinutes || 0,
   });
 }
 
