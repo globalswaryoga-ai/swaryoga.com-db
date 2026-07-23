@@ -23,6 +23,61 @@ function escapeRegexLiteral(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Strips +, spaces, -, (, ) from a phone number field/expression. */
+function stripPhoneSymbolsExpr(fieldExpr: unknown) {
+  return {
+    $replaceAll: {
+      input: {
+        $replaceAll: {
+          input: {
+            $replaceAll: {
+              input: {
+                $replaceAll: {
+                  input: { $replaceAll: { input: fieldExpr, find: '+', replacement: '' } },
+                  find: ' ',
+                  replacement: '',
+                },
+              },
+              find: '-',
+              replacement: '',
+            },
+          },
+          find: '(',
+          replacement: '',
+        },
+      },
+      find: ')',
+      replacement: '',
+    },
+  };
+}
+
+/**
+ * Canonicalizes a phone number for GROUPING/matching purposes: strips
+ * formatting symbols, then prepends '91' if what's left is exactly 10 digits
+ * (a bare Indian number with no country code) so it lines up with the same
+ * number stored elsewhere WITH the country code. Two message documents for
+ * the same real contact can end up with differently-formatted phoneNumber
+ * strings over time (with/without '+', with/without '91') — grouping on the
+ * raw field (as this pipeline used to) produces two separate conversation
+ * rows for what is really one contact.
+ */
+function canonicalPhoneExpr(fieldExpr: unknown) {
+  const stripped = stripPhoneSymbolsExpr(fieldExpr);
+  return {
+    $let: {
+      vars: { s: stripped },
+      in: {
+        $cond: [
+          { $eq: [{ $strLenCP: '$$s' }, 10] },
+          { $concat: ['91', '$$s'] },
+          '$$s',
+        ],
+      },
+    },
+  };
+}
+
 /**
  * Conversations API
  * Returns one row per leadId with last message + unread count.
@@ -101,16 +156,23 @@ export async function GET(request: NextRequest) {
             },
           ],
         },
+        // Computed BEFORE grouping (not after) — grouping on the raw
+        // phoneNumber field let differently-formatted strings for the same
+        // real number (with/without '+', with/without country code) produce
+        // two separate conversation rows for one contact.
+        _canonicalPhone: canonicalPhoneExpr('$phoneNumber'),
       },
     });
 
     // Sort by most recent activity first
     pipeline.push({ $sort: { _messageTime: -1 } });
 
-    // Group by phoneNumber first to avoid duplicate conversations when leadId is missing on older data.
+    // Group by the CANONICAL phone number so formatting drift in how
+    // phoneNumber was stored over time can't split one real conversation
+    // into multiple rows.
     pipeline.push({
       $group: {
-        _id: '$phoneNumber',
+        _id: '$_canonicalPhone',
         leadId: { $first: '$leadId' },
         lastMessageAt: { $first: '$_messageTime' },
         lastMessageContent: { $first: '$messageContent' },
@@ -147,108 +209,24 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Normalize message phone number for matching (remove + and non-digits)
-    pipeline.push({
-      $addFields: {
-        _normalizedPhone: {
-          $replaceAll: {
-            input: {
-              $replaceAll: {
-                input: {
-                  $replaceAll: {
-                    input: {
-                      $replaceAll: {
-                        input: {
-                          $replaceAll: {
-                            input: '$phoneNumber',
-                            find: '+',
-                            replacement: '',
-                          },
-                        },
-                        find: ' ',
-                        replacement: '',
-                      },
-                    },
-                    find: '-',
-                    replacement: '',
-                  },
-                },
-                find: '(',
-                replacement: '',
-              },
-            },
-            find: ')',
-            replacement: '',
-          },
-        },
-      },
-    });
-
-    // Join lead for name/labels/status using normalized phone number comparison
+    // Join lead for name/labels/status using canonical phone number comparison.
+    // `_id` from the $group above is already the canonical phone (see
+    // canonicalPhoneExpr) — canonicalize the lead's phone the same way and
+    // compare directly instead of the old asymmetric 10-digit/91-prefix
+    // special-casing (equivalent, but simpler and consistent with grouping).
     pipeline.push({
       $lookup: {
         from: 'leads',
-        let: { msgPhone: '$_normalizedPhone' },
+        let: { msgPhone: '$_id' },
         pipeline: [
           {
             $addFields: {
-              _leadNormalizedPhone: {
-                $replaceAll: {
-                  input: {
-                    $replaceAll: {
-                      input: {
-                        $replaceAll: {
-                          input: {
-                            $replaceAll: {
-                              input: {
-                                $replaceAll: {
-                                  input: { $ifNull: ['$phoneNumber', ''] },
-                                  find: '+',
-                                  replacement: '',
-                                },
-                              },
-                              find: ' ',
-                              replacement: '',
-                            },
-                          },
-                          find: '-',
-                          replacement: '',
-                        },
-                      },
-                      find: '(',
-                      replacement: '',
-                    },
-                  },
-                  find: ')',
-                  replacement: '',
-                },
-              },
+              _leadCanonicalPhone: canonicalPhoneExpr({ $ifNull: ['$phoneNumber', ''] }),
             },
           },
           {
             $match: {
-              $expr: {
-                $or: [
-                  // Exact match after normalization
-                  { $eq: ['$_leadNormalizedPhone', '$$msgPhone'] },
-                  // Match if lead phone is 10 digits (no country code) and message has 91 prefix
-                  {
-                    $and: [
-                      { $eq: [{ $strLenCP: '$_leadNormalizedPhone' }, 10] },
-                      { $eq: [{ $substrCP: ['$$msgPhone', 0, 2] }, '91'] },
-                      { $eq: [{ $substrCP: ['$$msgPhone', 2, 10] }, '$_leadNormalizedPhone'] },
-                    ],
-                  },
-                  // Match if message phone is 10 digits and lead has 91 prefix
-                  {
-                    $and: [
-                      { $eq: [{ $strLenCP: '$$msgPhone' }, 10] },
-                      { $eq: [{ $substrCP: ['$_leadNormalizedPhone', 0, 2] }, '91'] },
-                      { $eq: [{ $substrCP: ['$_leadNormalizedPhone', 2, 10] }, '$$msgPhone'] },
-                    ],
-                  },
-                ],
-              },
+              $expr: { $eq: ['$_leadCanonicalPhone', '$$msgPhone'] },
             },
           },
           // If multiple lead records share this phone number (duplicate

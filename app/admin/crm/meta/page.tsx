@@ -147,7 +147,6 @@ export default function MetaInboxPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messageLimit, setMessageLimit] = useState(5);
-  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [loadingFullHistory, setLoadingFullHistory] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -660,8 +659,7 @@ export default function MetaInboxPage() {
           // The 10s poll only ever asks for the server's most-recent window.
           // Overwriting state with just that would silently discard any
           // older history the user had already paged back through via
-          // "View Earlier Conversations" / "Show Old Chat" — so merge
-          // instead: keep everything we'd loaded that's older than this
+          // "Show Old Chat" — so merge instead: keep everything we'd loaded that's older than this
           // fresh window, and refresh the recent window itself (picks up
           // new messages + status ticks on recent ones).
           setMessages((prev) => {
@@ -724,26 +722,18 @@ export default function MetaInboxPage() {
     return more;
   };
 
-  const loadOlderMessages = async () => {
-    if (!selected || loadingOlderMessages || !hasMoreHistory) return;
-    setLoadingOlderMessages(true);
-    try {
-      await fetchOlderPage();
-    } catch (err) {
-      console.error('Failed to load older messages:', err);
-    } finally {
-      setLoadingOlderMessages(false);
-    }
-  };
-
-  // "Show Old Chat" — loads the ENTIRE available history for the selected
-  // conversation (up to the ~1 year retention boundary — see RETENTION_DAYS
-  // in lib/metaWhatsappArchive.ts) in one action, instead of repeatedly
-  // clicking "View Earlier Conversations" one 20-message page at a time.
+  // "Show Old Chat" — the single history control. First reveals any messages
+  // already fetched but hidden behind messageLimit, then keeps fetching
+  // further back (up to the ~1 year retention boundary — see RETENTION_DAYS
+  // in lib/metaWhatsappArchive.ts) until nothing older is left.
   const loadAllOldMessages = async () => {
-    if (!selected || loadingFullHistory || loadingOlderMessages) return;
+    if (!selected || loadingFullHistory) return;
     setLoadingFullHistory(true);
     try {
+      // Reveal what's already loaded but collapsed behind the reveal window.
+      if (messagesRef.current.length > messageLimit) {
+        setMessageLimit(messagesRef.current.length);
+      }
       let more = hasMoreHistory;
       let guard = 0;
       const MAX_PAGES = 100; // 100 * 20 = up to 2000 messages — generous safety cap
@@ -2828,34 +2818,16 @@ export default function MetaInboxPage() {
                 ) : (
                   <>
                     {(messages.length > messageLimit || hasMoreHistory) && (
-                      <div className="flex justify-center gap-2 pb-4">
+                      <div className="flex justify-center pb-4">
                         <button
-                           disabled={loadingOlderMessages || loadingFullHistory}
-                           onClick={() => {
-                             if (messages.length > messageLimit) {
-                               setMessageLimit(prev => prev + 20);
-                             } else {
-                               loadOlderMessages();
-                             }
-                           }}
-                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-[#1E7F43] hover:text-white transition-all duration-300 hover:scale-105 disabled:opacity-60"
-                           style={{ background: 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))', border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.08)' }}
-                           onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, #1E7F43, #28964F)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(30,127,67,0.3)'; }}
-                           onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(30,127,67,0.08)'; }}
+                           disabled={loadingFullHistory}
+                           onClick={loadAllOldMessages}
+                           title="Load the full available chat history (up to 1 year) for this conversation"
+                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white transition-all duration-300 hover:scale-105 disabled:opacity-60"
+                           style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)', boxShadow: '0 2px 8px rgba(30,127,67,0.25)' }}
                         >
-                           {loadingOlderMessages ? 'Loading…' : 'View Earlier Conversations'}
+                           {loadingFullHistory ? 'Loading full history…' : 'Show Old Chat'}
                         </button>
-                        {hasMoreHistory && (
-                          <button
-                             disabled={loadingOlderMessages || loadingFullHistory}
-                             onClick={loadAllOldMessages}
-                             title="Load the full available chat history (up to 1 year) for this conversation"
-                             className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white transition-all duration-300 hover:scale-105 disabled:opacity-60"
-                             style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)', boxShadow: '0 2px 8px rgba(30,127,67,0.25)' }}
-                          >
-                             {loadingFullHistory ? 'Loading full history…' : 'Show Old Chat'}
-                          </button>
-                        )}
                       </div>
                     )}
                     {messages.slice(-messageLimit).map((msg) => (

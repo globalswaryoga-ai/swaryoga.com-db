@@ -154,6 +154,46 @@ export async function getArchivedMessages(
 }
 
 /**
+ * Same as getArchivedMessages but ignores tenantUserId — matches by
+ * phoneNumber + date range across EVERY tenant bucket.
+ *
+ * Why this exists: archiveChatDay buckets each message under whatever
+ * tenantUserId the owning Lead's assignedToUserId/createdByUserId resolves
+ * to AT ARCHIVE TIME (the daily cron). If that lead is later reassigned to
+ * a different admin (a normal CRM action), a read at VIEW TIME resolves a
+ * different tenantUserId than what the file was actually saved under —
+ * getArchivedMessages then looks in the wrong bucket and silently returns
+ * nothing, even though the archive exists. Only safe to use for the Meta
+ * WABA owner (super admin already sees every Meta conversation regardless
+ * of which tenant's lead it's attached to — see conversations/route.ts) —
+ * never for a regular tenant admin, since that WOULD leak another tenant's
+ * archived chat for a colliding phone number.
+ */
+export async function getArchivedMessagesAnyTenant(
+  phoneNumber: string,
+  sinceDateKey: string,
+  untilDateKey: string
+): Promise<ArchivedMetaMessage[]> {
+  await connectDB();
+  const Manifest = getMetaWhatsappArchiveManifest();
+  const entries = await Manifest.find({
+    phoneNumber,
+    dateKey: { $gte: sinceDateKey, $lte: untilDateKey },
+  }).sort({ dateKey: 1 }).lean();
+
+  const results: ArchivedMetaMessage[] = [];
+  for (const entry of entries) {
+    try {
+      const { buffer } = await fetchFromStorage((entry as any).bunnyPath);
+      results.push(...JSON.parse(buffer.toString('utf-8')));
+    } catch (e) {
+      console.warn(`[metaWhatsappArchive] Failed to fetch archive ${(entry as any).bunnyPath}:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return results;
+}
+
+/**
  * Delete all archives older than RETENTION_DAYS for a specific tenant
  * (final purge — this data is gone from both Mongo and Bunny after this).
  */

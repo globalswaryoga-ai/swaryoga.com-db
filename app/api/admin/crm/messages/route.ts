@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
         const phoneNumber = (leadDoc as any)?.phoneNumber || filter.phoneNumber;
         const resolvedLeadId = filter.leadId || (leadDoc as any)?._id;
 
-        const { getArchivedMessages, dateKeyForTimestamp, RETENTION_DAYS } = await import('@/lib/metaWhatsappArchive');
+        const { getArchivedMessages, getArchivedMessagesAnyTenant, dateKeyForTimestamp, RETENTION_DAYS } = await import('@/lib/metaWhatsappArchive');
         const untilTs = beforeDate ? Math.floor(beforeDate.getTime() / 1000) : Math.floor(Date.now() / 1000);
         const untilDateKey = dateKeyForTimestamp(untilTs);
         const sinceDateKey = dateKeyForTimestamp(Math.max(
@@ -184,7 +184,20 @@ export async function GET(request: NextRequest) {
           Math.floor(Date.now() / 1000) - RETENTION_DAYS * 24 * 60 * 60
         ));
 
-        const archived = phoneNumber ? await getArchivedMessages(tenantUserId, phoneNumber, sinceDateKey, untilDateKey) : [];
+        // Archives are bucketed by the Lead's assignedToUserId/createdByUserId
+        // AT ARCHIVE TIME (see meta-chat-archive cron). If that lead was
+        // reassigned since, `tenantUserId` resolved above (from its CURRENT
+        // state) won't match the bucket the file actually lives in, and this
+        // lookup silently returns nothing even though the archive exists.
+        // Super admin already sees every Meta conversation regardless of
+        // which tenant's lead it's attached to, so for them it's safe to
+        // search every tenant bucket for this phone number instead of just
+        // the one currently-resolved tenantUserId.
+        const archived = !phoneNumber
+          ? []
+          : superAdmin
+            ? await getArchivedMessagesAnyTenant(phoneNumber, sinceDateKey, untilDateKey)
+            : await getArchivedMessages(tenantUserId, phoneNumber, sinceDateKey, untilDateKey);
         if (archived.length) {
           fromArchive = true;
           const archivedAsMessages = archived
