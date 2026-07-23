@@ -222,7 +222,7 @@ function composeBaseSummary(houses: SignificatorHouse[], planets: AutoFillPlanet
     `B: ${formatPlanetKaryesh(houses, planets, sig.B, false)}`,
     `C: ${formatPlanetKaryesh(houses, planets, sig.C, false)}`,
     `D: ${formatPlanetKaryesh(houses, planets, sig.D, true)}`,
-  ].join(' | ');
+  ].join('\n');
 }
 
 // Toolkit reference data (see the "Malefic/Benefic" and "Fortuna 12 Houses"

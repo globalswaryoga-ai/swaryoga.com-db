@@ -700,7 +700,7 @@ export default function BhavEditor({
                       <textarea
                         value={pt.summary}
                         onChange={(e) => updateTemplate(row.house, 'summary', e.target.value)}
-                        rows={2}
+                        rows={4}
                         className="w-full resize-y rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       />
                     </SheetRow>
