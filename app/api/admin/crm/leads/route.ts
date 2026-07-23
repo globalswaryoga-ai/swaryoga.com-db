@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();
         if (uid === '__unassigned__') {
-          accessControlConditions = [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }];
+          accessControlConditions = [{ assignedToUserId: { $in: [null, '', 'system'] } }, { assignedToUserId: { $exists: false } }];
         } else {
           accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
         }
@@ -118,13 +118,17 @@ export async function GET(request: NextRequest) {
         // unowned/global leads (public website signups). Other tenants' leads
         // (CSV imports, QR, manual) never mix in — use the userId filter to
         // inspect a specific tenant.
+        // NOTE: website-originated leads (enquiry form, /forms/[formType],
+        // workshop-join, signup) are created with the literal string 'system'
+        // for both owner fields, not null — so 'system' must count as unowned
+        // here too, or those leads never appear in the default Leads list.
         accessControlConditions = [
           { assignedToUserId: viewerUserId },
           { createdByUserId: viewerUserId },
           {
             $and: [
-              { $or: [{ assignedToUserId: { $in: [null, ''] } }, { assignedToUserId: { $exists: false } }] },
-              { $or: [{ createdByUserId: { $in: [null, ''] } }, { createdByUserId: { $exists: false } }] },
+              { $or: [{ assignedToUserId: { $in: [null, '', 'system'] } }, { assignedToUserId: { $exists: false } }] },
+              { $or: [{ createdByUserId: { $in: [null, '', 'system'] } }, { createdByUserId: { $exists: false } }] },
             ],
           },
         ];
