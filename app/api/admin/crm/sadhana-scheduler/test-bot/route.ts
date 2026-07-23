@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { botJoinMeeting } from '@/lib/zoomBotService';
+import { startSadhanaBot } from '@/lib/crm/zoomMeetingSdkBot';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -194,14 +194,31 @@ export async function POST(request: NextRequest) {
       logs.push(`   - Extracted Meeting ID: ${meetingId}`);
       logs.push(`   - Password: ${password ? '✅ Yes' : '❌ No'}`);
 
-      // Call bot join function with correct parameters
-      const botResult = await botJoinMeeting({
-        meetingId,
-        meetingPassword: password || schedule.zoomPassword,
-        videoDurationMinutes: schedule.videoDuration || 40,
+      if (!schedule.videoUrl) {
+        logs.push('❌ Schedule has no video URL configured');
+        return NextResponse.json({ success: false, message: 'No video URL configured', logs }, { status: 400 });
+      }
+
+      // Real Zoom Meeting SDK bot (runs on a dedicated VPS) — joins the
+      // meeting, posts a chat message, and plays the video with audio via
+      // the SDK's raw-data APIs. See lib/crm/zoomMeetingSdkBot.ts for why
+      // this replaced the old REST-based botJoinMeeting (which called Zoom
+      // endpoints that don't actually exist for injecting a participant).
+      const botResult = await startSadhanaBot({
+        meetingNumber: meetingId,
+        meetingPassword: password || schedule.zoomPassword || '',
+        botName: schedule.botName || 'Swar Sadhana',
+        videoUrl: schedule.videoUrl,
+        chatMessage: `🧘 Test trigger for "${schedule.name}" — Namaste 🙏`,
+        durationMinutes: schedule.videoDuration || 40,
       });
 
-      logs.push('✅ Bot join triggered successfully');
+      if (!botResult.success) {
+        logs.push(`❌ Bot join failed: ${botResult.error}`);
+        return NextResponse.json({ success: false, message: botResult.error || 'Bot join failed', logs }, { status: 400 });
+      }
+
+      logs.push(`✅ Bot join triggered successfully (pid ${botResult.pid})`);
     } catch (botError: any) {
       const errorMsg = botError?.message || String(botError);
       logs.push(`❌ Bot join failed: ${errorMsg}`);

@@ -7,14 +7,9 @@
 import mongoose from 'mongoose';
 import {
   sendMessageToMeeting,
-  getMeetingInfo,
-  sendSessionStartNotification,
-  sendCountdownToMeeting,
   autoCloseMeeting,
 } from '@/lib/zoomBotServiceSimple';
 import {
-  startSadhanaVideo,
-  stopSadhanaVideo,
   validateVideoSource,
   getPlaybackStatus,
 } from '@/lib/obsControlServiceV2';
@@ -22,14 +17,9 @@ import {
   sendBatchReminders,
 } from '@/lib/sadhanaReminderService';
 import {
-  startHLSStream,
-  stopHLSStream,
-} from '@/lib/zoomHLSStreamService';
-import {
-  startHetznerStream,
-  stopHetznerStream,
-  checkHetznerHealth,
-} from '@/lib/hetznerStreamingIntegration';
+  startSadhanaBot,
+  isBotApiConfigured,
+} from '@/lib/crm/zoomMeetingSdkBot';
 
 let schedulerRunning = false;
 let schedulerInterval: any = null;
@@ -38,6 +28,7 @@ const SCHEDULER_INTERVAL = 60 * 1000; // Check every 60 seconds
 interface SadhanaSchedule {
   _id: string;
   name: string;
+  botName?: string;
   videoUrl: string;
   videoDuration?: number;
   botJoinMinutes?: number;
@@ -157,202 +148,61 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
   try {
     const meetingId = extractZoomMeetingId(schedule);
     const password = extractZoomPassword(schedule);
-    const botJoinMinutes = schedule.botJoinMinutes || 5;
     const videoDuration = schedule.videoDuration || 40;
     const videoUrl = schedule.videoUrl;
 
     if (!meetingId) {
-      console.error(
-        `[SadhanaScheduler] ❌ No Zoom meeting ID found for "${schedule.name}"`
-      );
+      console.error(`[SadhanaScheduler] ❌ No Zoom meeting ID found for "${schedule.name}"`);
       return;
     }
 
-    // Validate video file exists
     const validation = validateVideoSource(videoUrl);
     if (!validation.valid) {
-      console.error(
-        `[SadhanaScheduler] ❌ Video source invalid: ${videoUrl}`,
-        validation
-      );
+      console.error(`[SadhanaScheduler] ❌ Video source invalid: ${videoUrl}`, validation);
       return;
     }
 
-    console.log(
-      `[SadhanaScheduler] 🚀 Starting Sadhana with OBS VIDEO: "${schedule.name}" (Meeting: ${meetingId})`
-    );
-
-    // ============================================
-    // STEP 1: Verify meeting exists & send ready
-    // ============================================
-    console.log(
-      `[SadhanaScheduler] ⏱️ Step 1: Verifying meeting and sending notification...`
-    );
-
-    try {
-      const meetingCheck = await getMeetingInfo(meetingId);
-      if (!meetingCheck.success) {
-        console.error(
-          `[SadhanaScheduler] ❌ Meeting ${meetingId} not found!`,
-          meetingCheck.error
-        );
-        return;
-      }
-
-      const readyMsg = await sendMessageToMeeting(
-        meetingId,
-        `🧘 **SADHANA SESSION STARTING NOW** 🧘\n⏱️ Duration: ${videoDuration} minutes\n📹 Recording: Active\nPlease be ready! Namaste 🙏`
-      );
-
-      if (readyMsg.success) {
-        console.log(`[SadhanaScheduler] ✅ Meeting found and notified`);
-      } else {
-        console.warn(`[SadhanaScheduler] ⚠️ Could not send notification:`, readyMsg.message);
-      }
-    } catch (err) {
-      console.error('[SadhanaScheduler] ⚠️ Meeting verification failed:', err);
+    if (!isBotApiConfigured()) {
+      console.error('[SadhanaScheduler] ❌ Sadhana bot API not configured (missing ZOOM_SDK_KEY/SECRET or SADHANA_BOT_API_URL/SECRET)');
+      return;
     }
 
-    // ============================================
-    // STEP 2: Send countdown message (3 minutes)
-    // ============================================
-    console.log(`[SadhanaScheduler] ⏰ Step 2: Sending 3-minute countdown...`);
+    console.log(`[SadhanaScheduler] 🚀 Starting Sadhana Zoom bot: "${schedule.name}" (Meeting: ${meetingId})`);
 
-    try {
-      const countdownMsg = await sendCountdownToMeeting(
-        meetingId,
-        3 // 3 minutes
-      );
-      if (countdownMsg.success) {
-        console.log(`[SadhanaScheduler] ✅ Countdown sent`);
-      }
-    } catch (err) {
-      console.warn('[SadhanaScheduler] ⚠️ Countdown failed:', err);
-    }
-
-    // ============================================
-    // STEP 3: START HETZNER STREAMING TO ZOOM
-    // ============================================
-    console.log(`[SadhanaScheduler] ⏳ Step 3: Starting Hetzner stream from Bunny to Zoom...`);
-
-    // Check if videoUrl is HLS or MP4
-    let hlsUrl = videoUrl;
-    if (videoUrl.endsWith('.mp4')) {
-      // Convert MP4 to HLS format (Bunny supports this)
-      // Format: https://swaryoga.b-cdn.net/video.mp4 → https://swaryoga.b-cdn.net/video-hls.m3u8
-      hlsUrl = videoUrl.replace('.mp4', '-hls.m3u8');
-      console.log(`[SadhanaScheduler] 🔄 Converted MP4 to HLS: ${hlsUrl}`);
-    }
-
-    // Check Hetzner health first
-    const hetznerHealthy = await checkHetznerHealth();
-    if (!hetznerHealthy) {
-      console.warn(`[SadhanaScheduler] ⚠️ Hetzner streaming service not available, attempting fallback to HLS...`);
-    }
-
-    // Try Hetzner streaming first (Docker container on Hetzner server)
-    const streamResult = await startHetznerStream({
-      meetingId,
-      hlsUrl,
-      duration: videoDuration,
-      rtmpUrl: `rtmp://stream.zoom.us/apple/${meetingId}`,
-      programName: schedule.name,
-      scheduleId: schedule._id?.toString(),
+    // The bot (a real Zoom Meeting SDK client running on a dedicated VPS)
+    // joins the meeting itself, posts the chat message once in, plays the
+    // video with audio via the SDK's raw-data APIs, and leaves on its own
+    // after videoDuration minutes — see lib/crm/zoomMeetingSdkBot.ts.
+    const result = await startSadhanaBot({
+      meetingNumber: meetingId,
+      meetingPassword: password || '',
+      botName: schedule.botName || 'Swar Sadhana',
+      videoUrl,
+      chatMessage: `🧘 **SADHANA SESSION STARTING NOW** 🧘\n⏱️ Duration: ${videoDuration} minutes\nPlease be ready! Namaste 🙏`,
+      durationMinutes: videoDuration,
     });
 
-    if (!streamResult.success) {
-      console.error(
-        `[SadhanaScheduler] ❌ Hetzner stream failed: ${streamResult.error}`
-      );
-      // Fallback to local HLS streaming if Hetzner fails
-      console.log(`[SadhanaScheduler] 🔄 Falling back to local HLS streaming...`);
-      try {
-        const fallbackResult = await startHLSStream({
-          meetingId,
-          meetingPassword: password,
-          hlsUrl,
-          duration: videoDuration,
-        });
-
-        if (fallbackResult.status !== 'streaming') {
-          console.error(
-            `[SadhanaScheduler] ❌ Fallback stream also failed: ${fallbackResult.error}`
-          );
-          try {
-            await sendMessageToMeeting(
-              meetingId,
-              `⚠️ Video stream failed to start. Error: ${fallbackResult.error}`
-            );
-          } catch (e) {
-            console.warn('[SadhanaScheduler] Could not send error notification');
-          }
-          return;
-        }
-      } catch (fallbackErr) {
-        console.error(`[SadhanaScheduler] ❌ Fallback streaming error:`, fallbackErr);
-        return;
-      }
+    if (!result.success) {
+      console.error(`[SadhanaScheduler] ❌ Bot failed to start: ${result.error}`);
+      return;
     }
 
-    console.log(
-      `[SadhanaScheduler] ✅✅✅ STREAM ACTIVE - ALL PARTICIPANTS NOW SEE: [BUNNY VIDEO PLAYING IN ZOOM]`
-    );
-    console.log(`[SadhanaScheduler] 📡 Streaming via: ${streamResult.success ? 'Hetzner Docker' : 'Local HLS'}`);
-    console.log(`[SadhanaScheduler] 📝 Session ID: ${streamResult.sessionId}`);
+    console.log(`[SadhanaScheduler] ✅✅✅ Bot joined and is playing the Sadhana video (pid ${result.pid})`);
 
-    // ============================================
-    // STEP 4: Auto-stop stream after video duration
-    // ============================================
-    const closeDelayMs = (videoDuration + 2) * 60 * 1000; // 2 min buffer
-    console.log(
-      `[SadhanaScheduler] ⏳ Step 4: Stream will run for ${videoDuration} minutes...`
-    );
-
-    // Setup auto-stop timeout (will be handled by Hetzner, but add backup)
+    // Bot leaves on its own after videoDuration minutes; end the meeting
+    // for everyone shortly after, with a buffer so it isn't cut off early.
+    const closeDelayMs = (videoDuration + 2) * 60 * 1000;
     const closeTimeout = setTimeout(async () => {
       try {
-        console.log(
-          `[SadhanaScheduler] 🛑 Step 4: Video duration complete, stopping stream...`
-        );
-
-        // Stop Hetzner stream first
-        if (streamResult.success) {
-          const stopResult = await stopHetznerStream(meetingId);
-          console.log(`[SadhanaScheduler] ${stopResult.success ? '✅' : '❌'} Hetzner stream stopped`);
-        }
-
-        // Also stop local HLS stream as backup
-        const stopHLSResult = await stopHLSStream(meetingId);
-        console.log(`[SadhanaScheduler] ${stopHLSResult.success ? '✅' : '❌'} Local HLS stopped`);
-
-        // Send completion message
-        try {
-          await sendCountdownToMeeting(meetingId, 0);
-        } catch (e) {
-          console.warn('[SadhanaScheduler] Could not send completion message');
-        }
-
-        // Wait 30 seconds then close meeting
-        await new Promise(r => setTimeout(r, 30000));
-
-        console.log(
-          `[SadhanaScheduler] 🛑 Step 4: Auto-closing meeting after video...`
-        );
-        await autoCloseMeeting({
-          meetingId,
-          meetingPassword: password,
-          videoDurationMinutes: videoDuration,
-        });
-
+        console.log(`[SadhanaScheduler] 🛑 Auto-closing meeting after video...`);
+        await autoCloseMeeting({ meetingId, meetingPassword: password || undefined, videoDurationMinutes: videoDuration });
         console.log(`[SadhanaScheduler] ✅ Meeting closed - Sadhana session complete!`);
       } catch (err) {
         console.error(`[SadhanaScheduler] ❌ Error during auto-close:`, err);
       }
     }, closeDelayMs);
 
-    // Store timeout for cleanup
     (global as any).sadhanaCloseTimeout = closeTimeout;
-
   } catch (err) {
     console.error(`[SadhanaScheduler] ❌ Error executing bot actions:`, err);
   }
@@ -398,6 +248,7 @@ async function runSchedulerLoop(): Promise<void> {
           new mongoose.Schema(
             {
               name: String,
+              botName: String,
               videoUrl: String,
               videoDuration: Number,
               botJoinMinutes: Number,
