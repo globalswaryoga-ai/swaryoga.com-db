@@ -11,6 +11,8 @@ const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     botName: { type: String, default: 'Swar Sadhana' },
+    chatMessage: { type: String, default: '' },
+    chatDelayMinutes: { type: Number, default: 0 },
     videoUrl: { type: String, required: true },
     videoDuration: { type: Number, default: 40 },
     botJoinMinutes: { type: Number, default: 5 },
@@ -133,6 +135,8 @@ export async function PUT(
     // Update fields
     if (body.name) schedule.name = body.name;
     if (body.botName !== undefined) schedule.botName = body.botName || 'Swar Sadhana';
+    if (body.chatMessage !== undefined) schedule.chatMessage = body.chatMessage || '';
+    if (body.chatDelayMinutes !== undefined) schedule.chatDelayMinutes = body.chatDelayMinutes || 0;
     if (body.videoUrl) schedule.videoUrl = body.videoUrl;
     if (body.videoDuration !== undefined) schedule.videoDuration = body.videoDuration || 40;
     if (body.botJoinMinutes !== undefined) schedule.botJoinMinutes = body.botJoinMinutes || 5;

@@ -209,7 +209,8 @@ export async function POST(request: NextRequest) {
         meetingPassword: password || schedule.zoomPassword || '',
         botName: schedule.botName || 'Swar Sadhana',
         videoUrl: schedule.videoUrl,
-        chatMessage: `🧘 Test trigger for "${schedule.name}" — Namaste 🙏`,
+        chatMessage: schedule.chatMessage || `🧘 Test trigger for "${schedule.name}" — Namaste 🙏`,
+        chatDelayMinutes: schedule.chatDelayMinutes || 0,
         durationMinutes: schedule.videoDuration || 40,
       });
 

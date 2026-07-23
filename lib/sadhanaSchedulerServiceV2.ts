@@ -29,6 +29,8 @@ interface SadhanaSchedule {
   _id: string;
   name: string;
   botName?: string;
+  chatMessage?: string;
+  chatDelayMinutes?: number;
   videoUrl: string;
   videoDuration?: number;
   botJoinMinutes?: number;
@@ -178,7 +180,8 @@ async function executeBotActions(schedule: SadhanaSchedule): Promise<void> {
       meetingPassword: password || '',
       botName: schedule.botName || 'Swar Sadhana',
       videoUrl,
-      chatMessage: `🧘 **SADHANA SESSION STARTING NOW** 🧘\n⏱️ Duration: ${videoDuration} minutes\nPlease be ready! Namaste 🙏`,
+      chatMessage: schedule.chatMessage || `🧘 **SADHANA SESSION STARTING NOW** 🧘\n⏱️ Duration: ${videoDuration} minutes\nPlease be ready! Namaste 🙏`,
+      chatDelayMinutes: schedule.chatDelayMinutes || 0,
       durationMinutes: videoDuration,
     });
 
@@ -249,6 +252,8 @@ async function runSchedulerLoop(): Promise<void> {
             {
               name: String,
               botName: String,
+              chatMessage: String,
+              chatDelayMinutes: Number,
               videoUrl: String,
               videoDuration: Number,
               botJoinMinutes: Number,

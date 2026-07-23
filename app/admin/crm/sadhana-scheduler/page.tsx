@@ -23,6 +23,8 @@ interface SadhanaSchedule {
   _id: string;
   name: string;
   botName?: string;
+  chatMessage?: string;
+  chatDelayMinutes?: number;
   videoUrl: string;
   videoDuration?: number;
   botJoinMinutes?: number;
@@ -464,6 +466,14 @@ try {
                     <p className="text-white">{schedule.botJoinMinutes != null ? `${schedule.botJoinMinutes} min before` : '—'}</p>
                   </div>
                   <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Chat Message</p>
+                    <p className="text-white">
+                      {schedule.chatMessage
+                        ? `Sent ${schedule.chatDelayMinutes || 0} min after join`
+                        : '—'}
+                    </p>
+                  </div>
+                  <div>
                     <p className="text-gray-500 text-xs uppercase mb-1">Auto Close</p>
                     <p className="text-white">{schedule.autoCloseMinutes != null ? `${schedule.autoCloseMinutes} min after` : '—'}</p>
                   </div>
@@ -487,6 +497,12 @@ try {
 
                 {/* Links Preview */}
                 <div className="border-t border-gray-700 pt-4 space-y-2">
+                  {schedule.chatMessage && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-gray-500 text-sm min-w-fit">💬 Chat:</span>
+                      <span className="text-gray-300 text-sm whitespace-pre-wrap">{schedule.chatMessage}</span>
+                    </div>
+                  )}
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 text-sm min-w-fit">📹 Video:</span>
                     <a

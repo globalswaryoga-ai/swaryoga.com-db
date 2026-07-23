@@ -32,6 +32,8 @@ export default function SadhanaForm({
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     botName: initialData?.botName || 'Swar Sadhana',
+    chatMessage: initialData?.chatMessage || '',
+    chatDelayMinutes: initialData?.chatDelayMinutes || 0,
     videoUrl: initialData?.videoUrl || '',
     videoDuration: initialData?.videoDuration || 40,
     botJoinMinutes: initialData?.botJoinMinutes || 5,
@@ -257,6 +259,8 @@ export default function SadhanaForm({
     const submitData = {
       name: formData.name,
       botName: formData.botName || 'Swar Sadhana',
+      chatMessage: formData.chatMessage || '',
+      chatDelayMinutes: formData.chatDelayMinutes || 0,
       videoUrl: formData.videoUrl,
       videoDuration: formData.videoDuration || 40,
       botJoinMinutes: formData.botJoinMinutes || 5,
@@ -356,6 +360,34 @@ export default function SadhanaForm({
             />
             <p className="text-gray-500 text-xs mt-1">
               This is the name the bot will display as in your Zoom meeting.
+            </p>
+          </div>
+
+          {/* Chat Message */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              💬 Chat Message <span className="text-gray-500 text-xs ml-1">(optional — posted in the meeting chat)</span>
+            </label>
+            <textarea
+              value={formData.chatMessage}
+              onChange={(e) => setFormData({ ...formData, chatMessage: e.target.value })}
+              placeholder="e.g., Welcome all! Be connected — Mohan sir 🙏"
+              rows={2}
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+            />
+            <div className="flex items-center gap-2 mt-2">
+              <label className="text-sm text-gray-300 whitespace-nowrap">Send after</label>
+              <input
+                type="number"
+                min="0"
+                value={formData.chatDelayMinutes}
+                onChange={(e) => setFormData({ ...formData, chatDelayMinutes: parseInt(e.target.value) || 0 })}
+                className="w-20 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+              />
+              <span className="text-sm text-gray-300">minute(s) of joining</span>
+            </div>
+            <p className="text-gray-500 text-xs mt-1">
+              Leave the message blank to skip sending a chat message. 0 minutes sends it as soon as the bot joins.
             </p>
           </div>
 

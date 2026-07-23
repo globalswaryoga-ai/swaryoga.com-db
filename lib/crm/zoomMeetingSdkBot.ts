@@ -60,6 +60,7 @@ interface StartBotParams {
   botName?: string;
   videoUrl: string;
   chatMessage?: string;
+  chatDelayMinutes?: number;
   durationMinutes: number;
 }
 
@@ -105,6 +106,7 @@ export async function startSadhanaBot(params: StartBotParams): Promise<BotApiRes
     botName: params.botName || 'Swar Sadhana',
     videoUrl: params.videoUrl,
     chatMessage: params.chatMessage || '',
+    chatDelayMinutes: params.chatDelayMinutes || 0,
     durationMinutes: params.durationMinutes,
   });
 }
