@@ -43,6 +43,11 @@ export async function POST(
     if (!name || !phone) {
       return NextResponse.json({ error: 'Name and mobile are required' }, { status: 400 });
     }
+    // The dial code the registrant actually chose (see JoinFormClient.tsx's
+    // country-code selector) — needed below to correctly recover the bare
+    // national number for the pay-later deep link. Defaults to '91' only for
+    // requests from a not-yet-updated client (backward compatible).
+    const countryCode = String(body?.countryCode || '91').replace(/\D/g, '') || '91';
 
     const currency = (form.currency || 'INR').toUpperCase();
     const symbol = CURRENCY_SYMBOL[currency] || '';
@@ -51,10 +56,15 @@ export async function POST(
     // Pay link → the join page in pay mode, pre-filled so they can pay in 1 tap.
     // Carries the already-resolved fee index so they land back on the SAME
     // tier they were quoted, instead of defaulting to the first option.
+    // Strip exactly the chosen dial code's digit count from the front (NOT a
+    // hardcoded "91" — this used to assume every registrant was Indian and
+    // would mis-recover the number for any other country) and carry the dial
+    // code itself via &cc= so the client can restore the right country too.
+    const nationalNumber = phone.length > countryCode.length ? phone.slice(countryCode.length) : phone;
     const origin = getRequestBaseUrl(req);
     const feeParam = feeOptionIndex >= 0 ? `&fee=${feeOptionIndex}` : '';
     const slotParam = timeSlotIndex >= 0 ? `&slot=${timeSlotIndex}` : '';
-    const payLink = `${origin}/workshop-join/${params.formId}?pay=1&n=${encodeURIComponent(firstName)}&m=${phone.replace(/^91/, '')}${feeParam}${slotParam}`;
+    const payLink = `${origin}/workshop-join/${params.formId}?pay=1&n=${encodeURIComponent(firstName)}&m=${nationalNumber}&cc=${countryCode}${feeParam}${slotParam}`;
 
     // Mark the lead payment-pending (lead was created on Join submit).
     try {

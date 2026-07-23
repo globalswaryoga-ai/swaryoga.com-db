@@ -23,6 +23,50 @@ const MODE_ICONS: Record<string, string> = { online: '💻', offline: '📍', re
 const MODE_LABELS: Record<string, string> = { online: 'Online', offline: 'Offline', residential: 'Residential', recorded: 'Recorded' };
 const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', NPR: 'रू' };
 
+// Dial code + country name for the WhatsApp number's country-code selector.
+// India/Nepal/USA first (this app's known audiences — see CURRENCY_SYMBOL
+// above), then the rest alphabetically by country name.
+const COUNTRY_CODES: { code: string; name: string }[] = [
+  { code: '91', name: 'India' },
+  { code: '977', name: 'Nepal' },
+  { code: '1', name: 'United States' },
+  { code: '61', name: 'Australia' },
+  { code: '973', name: 'Bahrain' },
+  { code: '1', name: 'Canada' },
+  { code: '86', name: 'China' },
+  { code: '45', name: 'Denmark' },
+  { code: '20', name: 'Egypt' },
+  { code: '33', name: 'France' },
+  { code: '49', name: 'Germany' },
+  { code: '852', name: 'Hong Kong' },
+  { code: '62', name: 'Indonesia' },
+  { code: '353', name: 'Ireland' },
+  { code: '972', name: 'Israel' },
+  { code: '39', name: 'Italy' },
+  { code: '81', name: 'Japan' },
+  { code: '254', name: 'Kenya' },
+  { code: '965', name: 'Kuwait' },
+  { code: '60', name: 'Malaysia' },
+  { code: '230', name: 'Mauritius' },
+  { code: '31', name: 'Netherlands' },
+  { code: '64', name: 'New Zealand' },
+  { code: '968', name: 'Oman' },
+  { code: '92', name: 'Pakistan' },
+  { code: '63', name: 'Philippines' },
+  { code: '974', name: 'Qatar' },
+  { code: '7', name: 'Russia' },
+  { code: '966', name: 'Saudi Arabia' },
+  { code: '65', name: 'Singapore' },
+  { code: '27', name: 'South Africa' },
+  { code: '82', name: 'South Korea' },
+  { code: '94', name: 'Sri Lanka' },
+  { code: '46', name: 'Sweden' },
+  { code: '41', name: 'Switzerland' },
+  { code: '66', name: 'Thailand' },
+  { code: '971', name: 'United Arab Emirates' },
+  { code: '44', name: 'United Kingdom' },
+];
+
 export default function JoinFormClient({ formData, paid = false, payFailed = false }: { formData: FormData; paid?: boolean; payFailed?: boolean }) {
   const feeOptions = formData.feeOptions || [];
   const hasFeeOptions = feeOptions.length > 0;
@@ -36,6 +80,19 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
   const [email, setEmail] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('India');
+  const [countryCode, setCountryCode] = useState('91');
+  // A few dial codes are shared by more than one country (e.g. +1 for both
+  // the US and Canada) — the <select> needs a unique value per option, so it
+  // tracks "code|name" and this splits it back out.
+  const countrySelectValue = `${countryCode}|${country}`;
+
+  // Picking a country auto-fills both the dial code AND the Country name
+  // field — Country stays a normal editable input, correctable afterward.
+  const chooseCountry = (composite: string) => {
+    const [code, name] = composite.split('|');
+    if (code) setCountryCode(code);
+    if (name) setCountry(name);
+  };
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
@@ -66,7 +123,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
     fetch(`/api/workshop-join/${formData.formId}/time-slot`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobile: '+91' + mobile, timeSlotIndex: idx }),
+      body: JSON.stringify({ mobile: '+' + countryCode + mobile, timeSlotIndex: idx }),
     }).catch(() => { /* best-effort — admin can still see it was submitted without a slot */ });
   };
   const chooseTimeSlot = (idx: number) => {
@@ -93,12 +150,23 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
     return min === max ? `${symbol}${min}` : `From ${symbol}${min}`;
   })();
 
-  // Pre-fill from a pay link (?pay=1&n=&m=&fee=) sent on WhatsApp for "Pay Later".
+  // Pre-fill from a pay link (?pay=1&n=&m=&cc=&fee=) sent on WhatsApp for "Pay Later".
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search);
     if (q.get('n')) setName(q.get('n') || '');
-    if (q.get('m')) setMobile((q.get('m') || '').replace(/\D/g, '').slice(0, 10));
+    // &cc= carries the dial code the registrant originally chose (see
+    // pay-later/route.ts) — restore it BEFORE the mobile digits so the
+    // country selector and number line up (m= is already the bare national
+    // number with the dial code stripped server-side, not a fixed-length
+    // Indian-only slice).
+    const ccParam = q.get('cc');
+    if (ccParam) {
+      const match = COUNTRY_CODES.find((c) => c.code === ccParam);
+      setCountryCode(ccParam);
+      if (match) setCountry(match.name);
+    }
+    if (q.get('m')) setMobile((q.get('m') || '').replace(/\D/g, '').slice(0, 15));
     const feeParam = q.get('fee');
     if (feeParam !== null) {
       const idx = Number(feeParam);
@@ -122,7 +190,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
       const res = await fetch(`/api/workshop-join/${formData.formId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country }),
+        body: JSON.stringify({ name, mobile: '+' + countryCode + mobile, email, city, country }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Submission failed');
@@ -143,7 +211,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
       const res = await fetch(`/api/workshop-join/${formData.formId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex, timeSlotIndex }),
+        body: JSON.stringify({ name, mobile: '+' + countryCode + mobile, email, city, country, feeOptionIndex, timeSlotIndex }),
       });
       const data = await res.json();
       if (!res.ok || !data.success || !data.paymentSessionId) {
@@ -174,7 +242,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
       const res = await fetch(`/api/workshop-join/${formData.formId}/pay-later`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, email, city, country, feeOptionIndex, timeSlotIndex }),
+        body: JSON.stringify({ name, mobile: '+' + countryCode + mobile, email, city, country, feeOptionIndex, timeSlotIndex, countryCode }),
       });
       const data = await res.json().catch(() => ({}));
       setPayLaterSentWhatsApp(!!data.whatsappSent);
@@ -429,9 +497,17 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
             <div className="flex gap-2">
-              <div className="flex items-center justify-center w-16 h-11 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 bg-gray-50 shrink-0">+91</div>
-              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="9876543210" required pattern="\d{10}" title="Enter 10-digit mobile number"
+              <select value={countrySelectValue} onChange={e => chooseCountry(e.target.value)}
+                className="w-32 h-11 px-2 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 bg-gray-50 shrink-0 truncate outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]">
+                {COUNTRY_CODES.map(c => (
+                  <option key={`${c.code}-${c.name}`} value={`${c.code}|${c.name}`}>+{c.code} {c.name}</option>
+                ))}
+                {!COUNTRY_CODES.some(c => c.code === countryCode && c.name === country) && (
+                  <option value={countrySelectValue}>+{countryCode}</option>
+                )}
+              </select>
+              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                placeholder="9876543210" required pattern="\d{6,15}" title="Enter your mobile number, digits only"
                 className="flex-1 h-11 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
             </div>
           </div>
