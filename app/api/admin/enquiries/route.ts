@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
       const leads = await Lead.find(query).sort({ createdAt: -1 }).limit(2000).lean();
       mongoEnquiries = (leads as any[]).map((l: any) => {
         const meta = l.metadata?.lastEnquiry || l.metadata || {};
+        const payment = l.metadata?.payment;
         return {
           id: l.leadNumber || String(l._id),
           leadId: String(l._id),
@@ -100,8 +101,13 @@ export async function GET(request: NextRequest) {
           workshopName: meta.workshopName || l.workshopName || 'Enquiry',
           name: l.name || 'Unknown',
           mobile: l.phoneNumber || '',
+          email: l.email || meta.email || '',
           gender: meta.gender || '',
           city: meta.city || '',
+          country: meta.country || '',
+          mode: meta.mode || '',
+          language: meta.language || '',
+          month: meta.month || '',
           submittedAt: (meta.submittedAt || l.createdAt || new Date()).toString(),
           status: ['registered', 'enrolled', 'completed', 'customer'].includes(l.status) ? 'registered'
             : l.status === 'contacted' ? 'contacted'
@@ -109,6 +115,14 @@ export async function GET(request: NextRequest) {
           notes: l.notes || '',
           labels: l.labels || [],
           timeSlot: meta.timeSlot || null,
+          payment: (payment?.status === 'paid' || (l.labels || []).includes('paid'))
+            ? {
+                status: payment?.status || 'paid',
+                amount: payment?.amount,
+                currency: payment?.currency || 'INR',
+                paidAt: payment?.paidAt || null,
+              }
+            : null,
         };
       });
       if (workshopId) {

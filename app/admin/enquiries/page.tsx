@@ -14,13 +14,19 @@ interface Enquiry {
   workshopName: string;
   name: string;
   mobile: string;
+  email?: string;
   gender: string;
   city: string;
+  country?: string;
+  mode?: string;
+  language?: string;
+  month?: string;
   submittedAt: string;
   status: 'new' | 'contacted' | 'registered';
   notes?: string;
   labels?: string[];
   timeSlot?: { label: string; groupLink: string } | null;
+  payment?: { status: string; amount?: number; currency?: string; paidAt?: string | null } | null;
 }
 
 interface EnquiryForm {
@@ -767,9 +773,16 @@ export default function EnquiriesPage() {
                                       <h3 className="font-semibold text-swar-text text-sm">{enquiry.name}</h3>
                                       <p className="text-xs text-swar-text-secondary">{enquiry.city} · {enquiry.gender}</p>
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
-                                      {enquiry.status}
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
+                                        {enquiry.status}
+                                      </span>
+                                      {enquiry.payment?.status === 'paid' && (
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                          💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-swar-text-secondary mb-2">
                                     <Phone className="w-3 h-3" />{enquiry.mobile}
@@ -845,6 +858,13 @@ export default function EnquiriesPage() {
                                             <option value="contacted">Contacted</option>
                                             <option value="registered">Registered</option>
                                           </select>
+                                          {enquiry.payment?.status === 'paid' && (
+                                            <div className="mt-1">
+                                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800" title={enquiry.payment.paidAt ? `Paid on ${formatDate(enquiry.payment.paidAt)}` : 'Paid'}>
+                                                💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
+                                              </span>
+                                            </div>
+                                          )}
                                         </td>
                                         <td className="px-5 py-3">
                                           <div className="flex items-center gap-2">
@@ -894,6 +914,10 @@ export default function EnquiriesPage() {
                                           <td colSpan={6} className="px-5 py-3">
                                             <div className="text-xs text-swar-text-secondary space-y-1">
                                               <p><strong>ID:</strong> {enquiry.id}</p>
+                                              {enquiry.email && <p><strong>Email:</strong> {enquiry.email}</p>}
+                                              {(enquiry.mode || enquiry.language || enquiry.month || enquiry.country) && (
+                                                <p><strong>Details:</strong> {[enquiry.mode, enquiry.language, enquiry.month, enquiry.country].filter(Boolean).join(' · ')}</p>
+                                              )}
                                               <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
                                               <p>
                                                 <strong>Time Slot:</strong> {enquiry.timeSlot?.label || '—'}
@@ -903,6 +927,12 @@ export default function EnquiriesPage() {
                                                   </a>
                                                 )}
                                               </p>
+                                              {enquiry.payment?.status === 'paid' && (
+                                                <p className="text-green-700 font-semibold">
+                                                  💰 Payment: {enquiry.payment.amount ? `${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : 'Paid'}
+                                                  {enquiry.payment.paidAt && ` on ${formatDate(enquiry.payment.paidAt)}`}
+                                                </p>
+                                              )}
                                             </div>
                                           </td>
                                         </tr>
@@ -1052,6 +1082,13 @@ export default function EnquiriesPage() {
                                               <option value="contacted">Contacted</option>
                                               <option value="registered">Registered</option>
                                             </select>
+                                            {enquiry.payment?.status === 'paid' && (
+                                              <div className="mt-1">
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800" title={enquiry.payment.paidAt ? `Paid on ${formatDate(enquiry.payment.paidAt)}` : 'Paid'}>
+                                                  💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
+                                                </span>
+                                              </div>
+                                            )}
                                           </td>
                                           <td className="px-5 py-3">
                                             <div className="flex items-center gap-2">
@@ -1076,6 +1113,10 @@ export default function EnquiriesPage() {
                                           <tr className="bg-white border-b border-gray-100">
                                             <td colSpan={6} className="px-5 py-3 text-xs text-swar-text-secondary space-y-1">
                                               <p><strong>ID:</strong> {enquiry.id}</p>
+                                              {enquiry.email && <p><strong>Email:</strong> {enquiry.email}</p>}
+                                              {(enquiry.mode || enquiry.language || enquiry.month || enquiry.country) && (
+                                                <p><strong>Details:</strong> {[enquiry.mode, enquiry.language, enquiry.month, enquiry.country].filter(Boolean).join(' · ')}</p>
+                                              )}
                                               <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
                                               <p>
                                                 <strong>Time Slot:</strong> {enquiry.timeSlot?.label || '—'}
@@ -1085,6 +1126,12 @@ export default function EnquiriesPage() {
                                                   </a>
                                                 )}
                                               </p>
+                                              {enquiry.payment?.status === 'paid' && (
+                                                <p className="text-green-700 font-semibold">
+                                                  💰 Payment: {enquiry.payment.amount ? `${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : 'Paid'}
+                                                  {enquiry.payment.paidAt && ` on ${formatDate(enquiry.payment.paidAt)}`}
+                                                </p>
+                                              )}
                                             </td>
                                           </tr>
                                         )}
@@ -1103,7 +1150,14 @@ export default function EnquiriesPage() {
                                         <h3 className="font-semibold text-swar-text text-sm">{enquiry.name}</h3>
                                         <p className="text-xs text-swar-text-secondary">{enquiry.city} · {enquiry.gender}</p>
                                       </div>
-                                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>{enquiry.status}</span>
+                                      <div className="flex flex-col items-end gap-1">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>{enquiry.status}</span>
+                                        {enquiry.payment?.status === 'paid' && (
+                                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                            💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
                                     <div className="text-xs text-swar-text-secondary mb-2 flex items-center gap-1.5"><Phone className="w-3 h-3" />{enquiry.mobile}</div>
                                     <div className="text-[11px] text-swar-text-secondary mb-3">{formatDate(enquiry.submittedAt)}</div>
