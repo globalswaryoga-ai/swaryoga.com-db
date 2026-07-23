@@ -1,10 +1,14 @@
 // Western-style degree-based planetary aspects (distinct from the Parashari
 // house-counting drishti in aspectAnalysis.ts) — conjunction through
 // opposition, each with its own orb, matching the standard KP software
-// "Planetary Aspects" grid.
+// "Planetary Aspects" grid. Conjunction and Opposition use the toolkit's own
+// per-planet orb table (aspect.json: Sun 6.4 deg, all other planets 3.2 deg —
+// same rule computeConjunctions() already applies elsewhere in this app) so
+// both parts of the app agree; the remaining aspect types keep a flat orb
+// since nothing else in this app makes a per-planet distinction for them.
 
 import type { SignificatorPlanet } from './significators';
-import { longitudeOf } from './aspectAnalysis';
+import { longitudeOf, ORB_BY_PLANET } from './aspectAnalysis';
 
 export type AspectType =
   | 'Conjunction' | 'Semi-sextile' | 'Semi-square' | 'Sextile'
@@ -65,8 +69,11 @@ export function computePlanetaryAspects(planets: SignificatorPlanet[]): PlanetAs
         const separation = angularSeparation(p.longitude, other.longitude);
         let best: { name: AspectType; diff: number } | null = null;
         for (const def of ASPECT_DEFS) {
+          const orb = def.name === 'Conjunction' || def.name === 'Opposition'
+            ? Math.max(ORB_BY_PLANET[p.planet] ?? def.orb, ORB_BY_PLANET[other.planet] ?? def.orb)
+            : def.orb;
           const diff = Math.abs(separation - def.angle);
-          if (diff <= def.orb && (!best || diff < best.diff)) best = { name: def.name, diff };
+          if (diff <= orb && (!best || diff < best.diff)) best = { name: def.name, diff };
         }
         if (best) aspects[best.name].push(other.planet);
       }
