@@ -77,6 +77,7 @@ import {
   Bell,
   Moon,
   Sparkles,
+  BookMarked,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -689,6 +690,7 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Matchmaking Workspace',  href: '/admin/crm/kp-astro/matchmaking/workspace',        icon: Heart },
       { label: 'Matchmaking Prediction', href: '/admin/crm/kp-astro/matchmaking/final-prediction', icon: Heart },
       { label: 'Export (A4 PDF)',    href: '/admin/crm/kp-astro/export',                  icon: FileText },
+      { label: 'Rule Book',          href: '/admin/crm/kp-astro/rule-book',               icon: BookMarked },
       { label: 'Toolkit',            href: '/admin/crm/kp-astro',                          icon: Sparkles },
       { label: 'All Birth Charts',   href: '/admin/crm/kp-astro/charts',                   icon: Users },
     ],

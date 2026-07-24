@@ -4802,6 +4802,55 @@ KpMatterRuleSchema.index({ keyword: 1 });
 export function getKpMatterRule() { return getModel('KpMatterRule', KpMatterRuleSchema); }
 export const KpMatterRule = createModelProxy('KpMatterRule', KpMatterRuleSchema);
 
+// Astrologer's structured Rule Book: promise/denial house combinations by
+// life-matter (Marriage, Health, Wealth, Job, Business, Education, ...),
+// browsable on its own page and copy-pasted into the Prediction Template's
+// Rule field. Distinct from KpMatterRule above (which is a flat free-text
+// keyword matcher used for Bhav Editor auto-fill) -- this is the richer,
+// structured reference "textbook" the astrologer curates. Entries can be
+// seeded with a standard-KP starting draft (isDraft: true) which the
+// astrologer is expected to review/correct against their own toolkit;
+// editing an entry clears isDraft.
+const KpRuleBookEntrySchema = new mongoose.Schema(
+  {
+    category: { type: String, trim: true, required: true }, // e.g. 'Marriage'
+    subMatter: { type: String, trim: true, required: true }, // e.g. 'Arranged Marriage'
+    promiseHouses: { type: String, trim: true, default: '' }, // e.g. '2, 7, 11'
+    denialHouses: { type: String, trim: true, default: '' }, // e.g. '1, 6, 8, 10, 12'
+    dashaBhuktiAntara: { type: String, trim: true, default: '' },
+    gocharNote: { type: String, trim: true, default: '' },
+    notes: { type: String, trim: true, default: '' },
+    isDraft: { type: Boolean, default: false },
+    order: { type: Number, default: 0 },
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'kp_rule_book_entries' }
+);
+KpRuleBookEntrySchema.index({ category: 1, order: 1 });
+
+export function getKpRuleBookEntry() { return getModel('KpRuleBookEntry', KpRuleBookEntrySchema); }
+export const KpRuleBookEntry = createModelProxy('KpRuleBookEntry', KpRuleBookEntrySchema);
+
+// Read-only reference material imported verbatim from the astrologer's own KP
+// toolkit spreadsheet (sheets other than BasicRules, which feeds KpRuleBookEntry
+// above): the 249 Sign/Star/Sub master table (with Diseases/Mindset/Profession
+// per sub), House significations, Aspect rules, recommended KP software links.
+// Generic {sheetKey, data} shape because each sheet's columns differ; the
+// frontend renders a fixed column layout per sheetKey. Not astrologer-editable
+// via this app -- re-run the import script to refresh from a newer toolkit file.
+const KpToolkitReferenceSchema = new mongoose.Schema(
+  {
+    sheetKey: { type: String, trim: true, required: true, index: true }, // 'subLordMaster' | 'housesMeaning' | 'aspect' | 'softwareList'
+    rowIndex: { type: Number, required: true },
+    data: { type: mongoose.Schema.Types.Mixed, required: true },
+  },
+  { timestamps: true, collection: 'kp_toolkit_reference' }
+);
+KpToolkitReferenceSchema.index({ sheetKey: 1, rowIndex: 1 });
+
+export function getKpToolkitReference() { return getModel('KpToolkitReference', KpToolkitReferenceSchema); }
+export const KpToolkitReference = createModelProxy('KpToolkitReference', KpToolkitReferenceSchema);
+
 // ============================================================================
 // AI VIDEO JOB (YouTube -> condensed script -> HeyGen clone render -> Bunny -> E-Learning)
 // ============================================================================
