@@ -170,7 +170,7 @@ export function middleware(request: NextRequest) {
   const lowerHost = hostname.toLowerCase().split(':')[0];
   if (lowerHost === CRM_SITE_DOMAIN || lowerHost === 'crm.localhost') {
     const p = request.nextUrl.pathname;
-    if (!p.startsWith('/crm-site') && !p.startsWith('/api') && !p.startsWith('/admin') && !p.startsWith('/life-planner') && !p.startsWith('/lp') && !p.startsWith('/_next') && !p.startsWith('/favicon') && !p.startsWith('/logo')) {
+    if (!p.startsWith('/crm-site') && !p.startsWith('/api') && !p.startsWith('/admin') && !p.startsWith('/life-planner') && !p.startsWith('/lp') && !p.startsWith('/_next') && !p.startsWith('/favicon') && !p.startsWith('/logo') && !p.startsWith('/privacy') && !p.startsWith('/terms') && !p.startsWith('/data-deletion')) {
       const rewriteUrl = request.nextUrl.clone();
       rewriteUrl.pathname = `/crm-site${p === '/' ? '' : p}`;
       return NextResponse.rewrite(rewriteUrl);
