@@ -78,6 +78,7 @@ import {
   Moon,
   Sparkles,
   BookMarked,
+  CalendarClock,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -241,12 +242,13 @@ export const sectionConfigs: SectionConfig[] = [
     moreItems: [
       { label: 'Broadcast Dashboard', href: '/admin/crm/broadcast-dashboard', icon: BarChart3 },
       { label: 'Send Template',  href: '/admin/crm/send-template',          icon: Send },
+      { label: 'Connect Teachers', href: '/admin/crm/whatsapp/teachers',    icon: GraduationCap },
       { label: 'WA Settings',    href: '/admin/crm/whatsapp/settings',      icon: Settings },
       { label: 'Webhook Events', href: '/admin/crm/whatsapp/webhook-events', icon: Zap },
     ],
     prefixes: [
       '/admin/crm/meta', '/admin/crm/meta-dashboard', '/admin/crm/whatsapp/meta',
-      '/admin/crm/whatsapp-meta', '/admin/crm/reports/meta',
+      '/admin/crm/whatsapp-meta', '/admin/crm/reports/meta', '/admin/crm/whatsapp/teachers',
     ],
   },
 
@@ -691,6 +693,7 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Matchmaking Prediction', href: '/admin/crm/kp-astro/matchmaking/final-prediction', icon: Heart },
       { label: 'Export (A4 PDF)',    href: '/admin/crm/kp-astro/export',                  icon: FileText },
       { label: 'Rule Book',          href: '/admin/crm/kp-astro/rule-book',               icon: BookMarked },
+      { label: 'Dasha Prediction',   href: '/admin/crm/kp-astro/dasha-prediction',        icon: CalendarClock },
       { label: 'Toolkit',            href: '/admin/crm/kp-astro',                          icon: Sparkles },
       { label: 'All Birth Charts',   href: '/admin/crm/kp-astro/charts',                   icon: Users },
     ],

@@ -4532,6 +4532,20 @@ const KpHoroscopeChartSchema = new mongoose.Schema(
       degree: { type: String, trim: true },
     },
 
+    // Arabic Part of Fortune -- a computed chart point (not a real graha), so
+    // it's kept separate from `planets` rather than appended into that array,
+    // which Vimshottari dasha / four-step significator logic elsewhere
+    // iterates assuming exactly the 9 classical grahas.
+    fortuna: {
+      sign: { type: String, trim: true },
+      signLord: { type: String, trim: true },
+      star: { type: String, trim: true },
+      starLord: { type: String, trim: true },
+      subLord: { type: String, trim: true },
+      house: { type: Number, min: 1, max: 12 },
+      degree: { type: String, trim: true },
+    },
+
     houses: [KpHoroscopeHouseSchema],
     planets: [KpHoroscopePlanetSchema],
     mahadashas: [KpHoroscopeMahadashaSchema],
@@ -4815,6 +4829,11 @@ const KpRuleBookEntrySchema = new mongoose.Schema(
   {
     category: { type: String, trim: true, required: true }, // e.g. 'Marriage'
     subMatter: { type: String, trim: true, required: true }, // e.g. 'Arranged Marriage'
+    // Which house's Cuspal Sub Lord gates the natal "is this even promised"
+    // check in the Dasha Prediction tool (e.g. 7 for marriage) -- distinct
+    // from promiseHouses below (the full combination), since KP judges natal
+    // promise via ONE house's CSL first before searching Dasha windows.
+    primaryHouse: { type: Number, min: 1, max: 12 },
     promiseHouses: { type: String, trim: true, default: '' }, // e.g. '2, 7, 11'
     denialHouses: { type: String, trim: true, default: '' }, // e.g. '1, 6, 8, 10, 12'
     dashaBhuktiAntara: { type: String, trim: true, default: '' },
@@ -4943,4 +4962,28 @@ const AiVideoJobSchema = new mongoose.Schema(
 AiVideoJobSchema.index({ createdByUserId: 1, createdAt: -1 });
 
 export function getAiVideoJob() { return getModel('AiVideoJob', AiVideoJobSchema); }
+
+// ── WhatsApp Teacher Accounts (Embedded Signup) ──
+// A teacher/client connects their own WhatsApp Business number via Meta's
+// Embedded Signup flow (Tech Provider model). Once connected, our system
+// user token can send/manage messages for their phone_number_id without
+// storing a separate per-teacher access token.
+const WhatsAppTeacherAccountSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },       // our CRM user who owns this connection
+    wabaId: { type: String, required: true, index: true },       // WhatsApp Business Account ID
+    phoneNumberId: { type: String, required: true, unique: true, index: true },
+    displayPhoneNumber: { type: String, default: '' },
+    businessName: { type: String, default: '' },
+    coexistenceEnabled: { type: Boolean, default: false },
+    status: { type: String, enum: ['pending', 'connected', 'disconnected', 'error'], default: 'pending' },
+    errorMessage: { type: String, default: '' },
+    webhookSubscribed: { type: Boolean, default: false },
+    connectedAt: { type: Date },
+  },
+  { timestamps: true, collection: 'whatsapp_teacher_accounts' }
+);
+WhatsAppTeacherAccountSchema.index({ userId: 1, status: 1 });
+
+export function getWhatsAppTeacherAccount() { return getModel('WhatsAppTeacherAccount', WhatsAppTeacherAccountSchema); }
 export const AiVideoJob = createModelProxy('AiVideoJob', AiVideoJobSchema);
