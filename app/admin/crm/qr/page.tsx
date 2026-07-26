@@ -1793,6 +1793,30 @@ export default function QRWhatsAppPage() {
     }
   }, [selectedChat, bridgeCall, fetchGroupInfo]);
 
+  // ── Add participants to group ──
+  const addGroupParticipants = useCallback(async (phones: string[]) => {
+    if (!selectedChat || phones.length === 0) return;
+    const jids = phones.map(p => `${p.replace(/[^0-9]/g, '')}@s.whatsapp.net`).filter(j => j !== '@s.whatsapp.net');
+    if (jids.length === 0) return;
+    // Same conservative pacing as bulk-remove — the real cap (15/hour, 150/day)
+    // is enforced server-side at the qr-bridge proxy; this just looks human.
+    const batchSize = 3;
+    for (let i = 0; i < jids.length; i += batchSize) {
+      const batch = jids.slice(i, i + batchSize);
+      if (i > 0) await new Promise(r => setTimeout(r, 4000 + Math.random() * 5000));
+      try {
+        await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'add', participants: batch });
+      } catch (e: any) {
+        if (String(e?.message || '').includes('rate limit reached')) {
+          setError('Reached the hourly/daily group-operation limit — remaining members were not added. Please try again later.');
+          break;
+        }
+        setError(e.message || `Failed to add ${batch.join(', ')}`);
+      }
+    }
+    await fetchGroupInfo(selectedChat);
+  }, [selectedChat, bridgeCall, fetchGroupInfo]);
+
   // ── Bulk remove participants from group ──
   const bulkRemoveParticipants = useCallback(async (jids: string[]) => {
     if (!selectedChat || jids.length === 0) return;
@@ -3897,6 +3921,7 @@ export default function QRWhatsAppPage() {
               groupSettingsLoading={groupSettingsLoading}
               updateGroupSetting={updateGroupSetting}
               updateGroupParticipant={updateGroupParticipant}
+              addGroupParticipants={addGroupParticipants}
               bulkRemoveParticipants={bulkRemoveParticipants}
               handleRenameGroup={handleRenameGroup}
               handleLeaveGroup={handleLeaveGroup}

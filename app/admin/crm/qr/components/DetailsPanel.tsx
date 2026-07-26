@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, Shield, Crown, Tag, Funnel, Download, CheckSquare, Square, Trash2 } from 'lucide-react';
+import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, UserPlus, Shield, Crown, Tag, Funnel, Download, CheckSquare, Square, Trash2 } from 'lucide-react';
 import type { ChatItem, MessageItem, FunnelStage, LabelPreset, GroupInfo } from '../types';
 import { formatPhoneNumber, getAvatarColor, getInitials } from '../utils';
 import { TeamInboxSection } from './TeamInboxSection';
@@ -32,6 +32,7 @@ export interface DetailsPanelProps {
   groupSettingsLoading: string | null;
   updateGroupSetting: (setting: string) => void;
   updateGroupParticipant: (participantJid: string, action: 'promote' | 'demote' | 'remove') => void;
+  addGroupParticipants?: (phones: string[]) => Promise<void>;
   bulkRemoveParticipants?: (participantJids: string[]) => Promise<void>;
   handleRenameGroup: (newName: string) => void;
   handleLeaveGroup: () => void;
@@ -48,6 +49,7 @@ export function DetailsPanel({
   savingDesc, updateGroupDesc,
   groupInviteLink, loadingInvite, fetchGroupInvite, revokeGroupInvite,
   groupSettingsLoading, updateGroupSetting, updateGroupParticipant,
+  addGroupParticipants,
   bulkRemoveParticipants,
   handleRenameGroup, handleLeaveGroup,
   setDetailsPanel, setLightboxImage,
@@ -393,6 +395,7 @@ export function DetailsPanel({
             chats={chats}
             selectedChat={selectedChat}
             updateGroupParticipant={updateGroupParticipant}
+            addGroupParticipants={addGroupParticipants}
             bulkRemoveParticipants={bulkRemoveParticipants}
           />
         </div>
@@ -402,17 +405,21 @@ export function DetailsPanel({
 }
 
 /* ── Bulk Member Manager (internal sub-component) ── */
-function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, updateGroupParticipant, bulkRemoveParticipants }: {
+function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, updateGroupParticipant, addGroupParticipants, bulkRemoveParticipants }: {
   groupInfo: GroupInfo | null;
   loadingGroupInfo: boolean;
   chats: ChatItem[];
   selectedChat: string;
   updateGroupParticipant: (jid: string, action: 'promote' | 'demote' | 'remove') => void;
+  addGroupParticipants?: (phones: string[]) => Promise<void>;
   bulkRemoveParticipants?: (jids: string[]) => Promise<void>;
 }) {
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkRemoving, setBulkRemoving] = useState(false);
+  const [showAddInput, setShowAddInput] = useState(false);
+  const [addInput, setAddInput] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const removableParticipants = (groupInfo?.participants || []).filter(p => p.admin !== 'superadmin');
   const allSelected = removableParticipants.length > 0 && removableParticipants.every(p => selectedJids.has(p.id));
@@ -431,6 +438,19 @@ function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, u
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const handleAddMembers = async () => {
+    const phones = addInput.split(/[,;\n]+/).map(p => p.trim()).filter(Boolean);
+    if (phones.length === 0 || !addGroupParticipants) return;
+    setAdding(true);
+    try {
+      await addGroupParticipants(phones);
+      setAddInput('');
+      setShowAddInput(false);
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleBulkRemove = async () => {
@@ -455,6 +475,15 @@ function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, u
           Members ({groupInfo?.size || groupInfo?.participants?.length || 0} visible)
         </h5>
         <div className="flex items-center gap-1">
+          {addGroupParticipants && (
+            <button
+              onClick={() => { setShowAddInput(!showAddInput); setAddInput(''); }}
+              className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md font-medium transition border ${showAddInput ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'}`}
+              title={showAddInput ? 'Cancel' : 'Add members to this group'}
+            >
+              {showAddInput ? <><X className="w-3 h-3" /> Cancel</> : <><UserPlus className="w-3 h-3" /> Add</>}
+            </button>
+          )}
           {groupInfo && groupInfo.participants.length > 0 && (
             <>
               <button
@@ -497,6 +526,31 @@ function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, u
           )}
         </div>
       </div>
+      {/* Add members input */}
+      {showAddInput && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 space-y-2">
+          <textarea
+            value={addInput}
+            onChange={e => setAddInput(e.target.value)}
+            placeholder="Phone numbers with country code, e.g. +91 98765 43210, +61 431 290 148 (comma, semicolon or new line separated)"
+            className="w-full text-xs px-2 py-1.5 rounded border border-indigo-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
+            rows={2}
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-indigo-600">
+              {addInput.split(/[,;\n]+/).map(p => p.trim()).filter(Boolean).length} number(s) — added slowly to avoid WhatsApp bans
+            </span>
+            <button
+              onClick={handleAddMembers}
+              disabled={adding || addInput.trim().length === 0}
+              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 font-medium transition"
+            >
+              {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+              {adding ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+        </div>
+      )}
       {/* Bulk action bar */}
       {bulkMode && selectedJids.size > 0 && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-3 py-2">
