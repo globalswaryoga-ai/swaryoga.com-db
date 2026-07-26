@@ -80,6 +80,25 @@ export async function POST(request: NextRequest) {
 
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
     const adminPassword = process.env.ADMIN_PASSWORD;
+    // Separate credential for external reviewers (e.g. Meta App Review) — kept
+    // distinct from the real admin password so it can be revoked independently
+    // without rotating the team's actual login.
+    const reviewerUsername = process.env.REVIEWER_USERNAME;
+    const reviewerPasswordHash = process.env.REVIEWER_PASSWORD_HASH;
+    if (reviewerUsername && reviewerPasswordHash && username === reviewerUsername) {
+      const isReviewerPasswordValid = await bcrypt.compare(password, reviewerPasswordHash);
+      if (isReviewerPasswordValid) {
+        clearFailures();
+        const token = jwt.sign(
+          { username, isAdmin: true },
+          process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+          { expiresIn: '365d' }
+        );
+        return NextResponse.json({ success: true, token, username, message: 'Admin login successful' });
+      }
+      recordFailure();
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
 
     // Dev mode: allow login without password env var
     if (!adminPassword && process.env.NODE_ENV !== 'production') {
