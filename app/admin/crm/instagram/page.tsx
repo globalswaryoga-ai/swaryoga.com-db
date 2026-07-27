@@ -51,6 +51,9 @@ interface ConnectedSocialAccount {
   metadata?: {
     autoConnectedVia?: string;
     linkedPageName?: string;
+    followers?: number;
+    postsCount?: number;
+    lastSyncedAt?: string;
   };
 }
 
@@ -629,6 +632,18 @@ export default function InstagramInboxPage() {
             <div className="hidden 2xl:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 text-[10px] font-bold uppercase tracking-wider">
               <i className="ph-bold ph-buildings text-xs"></i>
               <span>{settingsScope.label}</span>
+            </div>
+          )}
+          {instagramAccount && typeof instagramAccount.metadata?.followers === 'number' && (
+            <div
+              className="hidden xl:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/15 text-white border-white/25 text-[10px] font-bold uppercase tracking-wider"
+              title={instagramAccount.metadata?.lastSyncedAt ? `Last synced ${new Date(instagramAccount.metadata.lastSyncedAt).toLocaleString()}` : undefined}
+            >
+              <i className="ph-bold ph-users text-xs"></i>
+              <span>{instagramAccount.metadata.followers.toLocaleString()} Followers</span>
+              {typeof instagramAccount.metadata?.postsCount === 'number' && (
+                <span className="opacity-70">· {instagramAccount.metadata.postsCount.toLocaleString()} Posts</span>
+              )}
             </div>
           )}
           {!connectionRestricted && (
