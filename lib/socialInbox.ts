@@ -483,8 +483,20 @@ export async function sendMetaSocialMessage(args: {
   graphNodeId?: string;
   accessToken: string;
   recipientId: string;
-  message: string;
+  /** Text body. Omit when sending an attachment-only message. */
+  message?: string;
+  /**
+   * Optional media to send instead of text. Messenger/Instagram cannot combine
+   * text and an attachment in a single message, so callers that need both must
+   * call this twice (attachment first, then text).
+   */
+  attachment?: { type: 'image' | 'video' | 'audio' | 'file'; url: string };
 }) {
+  const text = cleanString(args.message);
+  if (!text && !args.attachment?.url) {
+    throw new Error('sendMetaSocialMessage requires either message text or an attachment');
+  }
+
   // Calculate appsecret_proof for security
   const appSecret = META_INBOX_APP_SECRET;
   const appsecretProof = appSecret
@@ -496,7 +508,9 @@ export async function sendMetaSocialMessage(args: {
 
   const payload: Record<string, any> = {
     recipient: { id: args.recipientId },
-    message: { text: args.message },
+    message: args.attachment?.url
+      ? { attachment: { type: args.attachment.type, payload: { url: args.attachment.url, is_reusable: true } } }
+      : { text },
     access_token: args.accessToken,
   };
 
@@ -532,6 +546,14 @@ export async function createOutboundSocialMessage(args: {
   account: ResolvedSocialInboxAccount;
   conversationId: string;
   message: string;
+  /**
+   * Optional image/media sent alongside the text. Messenger and Instagram do
+   * not allow text + attachment in one message, so the attachment goes first
+   * as its own message and the text follows — mirroring how the native apps
+   * render a template's header image above its body.
+   */
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'file';
 }) {
   const Conversation = getSocialInboxConversation();
   const Message = getSocialInboxMessage();
@@ -546,41 +568,68 @@ export async function createOutboundSocialMessage(args: {
     throw new Error('Conversation not found');
   }
 
-  const sendResult = await sendMetaSocialMessage({
+  const recipientId = String(conversation.participantId);
+  const sendBase = {
     platform: args.platform,
     accountId: args.account.accountId,
     graphNodeId: args.account.graphNodeId,
     accessToken: args.account.accessToken,
-    recipientId: String(conversation.participantId),
-    message: args.message,
-  });
-
-  const createdMessage = await Message.create({
+    recipientId,
+  };
+  const messageBase = {
     conversationId: conversation._id,
     conversationKey: conversation.conversationKey,
     platform: args.platform,
     accountScopeType: args.scope.scopeType,
     accountScopeKey: args.scope.scopeKey,
     accountId: args.account.accountId,
-    externalMessageId: sendResult.messageId || undefined,
     senderId: args.account.accountId,
-    recipientId: String(conversation.participantId),
-    direction: 'outbound',
-    messageContent: args.message,
-    messageType: 'text',
+    recipientId,
+    direction: 'outbound' as const,
     sentAt: now,
     isRead: true,
-    metadata: sendResult.raw || {},
-  });
+  };
 
+  const mediaUrl = cleanString(args.mediaUrl);
+  if (mediaUrl) {
+    const mediaResult = await sendMetaSocialMessage({
+      ...sendBase,
+      attachment: { type: args.mediaType || 'image', url: mediaUrl },
+    });
+    await Message.create({
+      ...messageBase,
+      externalMessageId: mediaResult.messageId || undefined,
+      messageContent: '',
+      messageType: args.mediaType || 'image',
+      mediaUrl,
+      mediaType: args.mediaType || 'image',
+      metadata: mediaResult.raw || {},
+    });
+  }
+
+  const text = cleanString(args.message);
+  let textResult: { messageId: string; raw: any } | null = null;
+  let createdMessage: any = null;
+  if (text) {
+    textResult = await sendMetaSocialMessage({ ...sendBase, message: text });
+    createdMessage = await Message.create({
+      ...messageBase,
+      externalMessageId: textResult.messageId || undefined,
+      messageContent: text,
+      messageType: 'text',
+      metadata: textResult.raw || {},
+    });
+  }
+
+  const lastMessage = text || (mediaUrl ? `[${args.mediaType || 'image'}]` : '');
   await Conversation.updateOne(
     { _id: conversation._id },
     {
       $set: {
-        lastMessage: args.message,
+        lastMessage,
         lastMessageAt: now,
         lastMessageDirection: 'outbound',
-        lastExternalMessageId: sendResult.messageId || '',
+        lastExternalMessageId: textResult?.messageId || '',
         updatedAt: now,
       },
     }

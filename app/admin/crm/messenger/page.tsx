@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner } from '@/components/admin/crm';
 import SocialComposer from '@/components/admin/crm/SocialComposer';
+import SocialBulkSendModal from '@/components/admin/crm/SocialBulkSendModal';
 
 /* ─── Types ─── */
 interface Conversation {
@@ -96,6 +97,19 @@ export default function MessengerInboxPage() {
   const [connecting, setConnecting] = useState(false);
   const [pageOptions, setPageOptions] = useState<{ pageId: string; name: string; picture?: string | null; hasInstagram?: boolean }[] | null>(null);
   const [pendingUserToken, setPendingUserToken] = useState('');
+
+  // Bulk selection for sending one template/message to many conversations.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const quickReplies = [
     { label: 'Thank you! 🙏', text: 'Thank you for your interest! We\'ll get back to you soon.' },
@@ -600,6 +614,43 @@ export default function MessengerInboxPage() {
             </div>
           </div>
 
+          {/* Bulk selection bar */}
+          {filteredConversations.length > 0 && (
+            <div className="px-3 pb-2 flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 cursor-pointer accent-[#0078FF]"
+                  checked={filteredConversations.length > 0 && filteredConversations.every((c) => selectedIds.has(c._id))}
+                  onChange={(e) =>
+                    setSelectedIds(e.target.checked ? new Set(filteredConversations.map((c) => c._id)) : new Set())
+                  }
+                />
+                Select all
+              </label>
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-[11px] text-slate-400">{selectedIds.size} selected</span>
+                  <button
+                    onClick={() => setBulkOpen(true)}
+                    className="ml-auto px-2.5 py-1 rounded-lg text-[11px] font-bold text-white transition-all active:scale-95 flex items-center gap-1"
+                    style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)' }}
+                  >
+                    <i className="ph-bold ph-paper-plane-right text-xs"></i>
+                    Send template
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 hover:bg-slate-100"
+                    title="Clear selection"
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Conversation List */}
           <div className="flex-1 overflow-y-auto">
             {connectionError ? (
@@ -659,6 +710,14 @@ export default function MessengerInboxPage() {
                       : 'bg-white border border-indigo-100/50 rounded-lg mx-1 my-0.5 hover:border-indigo-300/30 hover:shadow-sm hover:translate-x-[2px]'
                   }`}
                 >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(conv._id)}
+                    onChange={(e) => { e.stopPropagation(); toggleSelected(conv._id); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-2.5 h-4 w-4 shrink-0 cursor-pointer accent-[#0078FF]"
+                    title="Select for bulk send"
+                  />
                   <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: 'linear-gradient(135deg, #0078FF, #00A3FF)' }}>
                     {conv.participantName?.[0]?.toUpperCase() || 'U'}
                   </div>
@@ -926,6 +985,17 @@ export default function MessengerInboxPage() {
           </div>
         </div>
       )}
+
+      <SocialBulkSendModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        platform="messenger"
+        conversationIds={Array.from(selectedIds)}
+        token={token}
+        accentColor="#0078FF"
+        accentGradient="linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)"
+        onSent={() => { setSelectedIds(new Set()); loadMessengerConversations(); }}
+      />
 
       {/* Phosphor Icons CDN + Font */}
       <style jsx global>{`
