@@ -56,12 +56,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
-    const { content, platforms, status, scheduledFor, accountIds } = await request.json();
+    const { content, platforms, status, scheduledFor, accountIds, postType } = await request.json();
 
-    // Validate required fields
-    if (!content?.text || !platforms || platforms.length === 0) {
+    // Validate required fields. Stories/Reels don't need caption text — an
+    // image or video is enough — so require either text or media, not text alone.
+    const hasMedia = Boolean(content?.images?.length) || Boolean(content?.videos?.length);
+    if ((!content?.text?.trim() && !hasMedia) || !platforms || platforms.length === 0) {
       return NextResponse.json(
-        { error: 'Missing required fields: content.text and platforms' },
+        { error: 'Missing required fields: content.text or media, and platforms' },
         { status: 400 }
       );
     }
@@ -85,6 +87,7 @@ export async function POST(request: NextRequest) {
     const newPost = new SocialMediaPost({
       content,
       platforms,
+      postType: ['feed', 'story', 'reel'].includes(postType) ? postType : 'feed',
       accountIds: accountIds || accounts.map(a => a._id),
       status: status || (scheduledFor ? 'scheduled' : 'draft'),
       scheduledFor: scheduledFor ? new Date(scheduledFor) : null,

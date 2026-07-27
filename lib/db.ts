@@ -1102,10 +1102,19 @@ const socialMediaPostSchema = new mongoose.Schema({
       enum: ['facebook', 'youtube', 'x', 'linkedin', 'instagram', 'tiktok'],
     },
   ],
-  
+
+  // What kind of post this is on Facebook/Instagram. 'feed' = normal timeline
+  // post, 'story' = 24-hour Story, 'reel' = Instagram Reel (video only).
+  postType: {
+    type: String,
+    enum: ['feed', 'story', 'reel'],
+    default: 'feed',
+  },
+
   // Post content
   content: {
-    text: { type: String, required: true },
+    // Not required: Stories/Reels are commonly posted with no caption.
+    text: { type: String, default: '' },
     images: [
       {
         url: { type: String },

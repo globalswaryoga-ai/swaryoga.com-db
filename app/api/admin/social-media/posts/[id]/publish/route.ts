@@ -260,6 +260,97 @@ async function publishInstagramPost(args: {
   return igPostId;
 }
 
+/**
+ * Instagram Story — same container-create → poll → publish pattern as Reels,
+ * but with media_type STORIES. Supports a single image or a single video.
+ * Stories disappear after 24 hours; Meta gives no separate "story post id"
+ * beyond the media id returned here.
+ */
+async function publishInstagramStory(args: {
+  igUserId: string;
+  accessToken: string;
+  imageUrls: string[];
+  videoUrls: string[];
+}): Promise<string> {
+  const { igUserId, accessToken, imageUrls, videoUrls } = args;
+
+  if (imageUrls.length === 0 && videoUrls.length === 0) {
+    throw new Error('Instagram Story requires 1 image or 1 video URL.');
+  }
+  if (imageUrls.length > 0 && videoUrls.length > 0) {
+    throw new Error('Instagram Story does not support mixing an image and a video — use one or the other.');
+  }
+  if (imageUrls.length > 1 || videoUrls.length > 1) {
+    throw new Error('Instagram Story supports only 1 image or 1 video per story.');
+  }
+
+  const createContainer = await graphPost(`${encodeURIComponent(igUserId)}/media`, {
+    access_token: accessToken,
+    media_type: 'STORIES',
+    ...(videoUrls.length > 0 ? { video_url: videoUrls[0] } : { image_url: imageUrls[0] }),
+  });
+
+  const containerId = String(createContainer?.id || '').trim();
+  if (!containerId) throw new Error('Instagram Story container creation returned no id');
+
+  // Video stories process asynchronously like Reels; images publish immediately
+  // but polling once is harmless (status_code is only meaningful for video).
+  if (videoUrls.length > 0) {
+    await waitForInstagramContainerReady(containerId, accessToken);
+  }
+
+  const publish = await graphPost(`${encodeURIComponent(igUserId)}/media_publish`, {
+    access_token: accessToken,
+    creation_id: containerId,
+  });
+
+  const igStoryId = String(publish?.id || '').trim();
+  if (!igStoryId) throw new Error('Instagram Story publish returned no id');
+  return igStoryId;
+}
+
+/**
+ * Facebook Photo Story. Video Stories need Meta's resumable upload protocol
+ * (start/transfer/finish over /video_stories), which is a materially bigger
+ * change — not implemented yet. Photo Stories are a single, well-documented
+ * two-step call: upload the photo unpublished, then attach it to a story.
+ */
+async function publishFacebookStory(args: {
+  pageId: string;
+  accessToken: string;
+  imageUrls: string[];
+  videoUrls: string[];
+}): Promise<string> {
+  const { pageId, accessToken, imageUrls, videoUrls } = args;
+
+  if (videoUrls.length > 0) {
+    throw new Error('Facebook video Stories are not supported yet — use an image, or post a Reel/video to the feed instead.');
+  }
+  if (imageUrls.length === 0) {
+    throw new Error('Facebook Story requires 1 image.');
+  }
+  if (imageUrls.length > 1) {
+    throw new Error('Facebook Story supports only 1 image per story.');
+  }
+
+  const photo = await graphPost(`${encodeURIComponent(pageId)}/photos`, {
+    access_token: accessToken,
+    url: imageUrls[0],
+    published: 'false',
+  });
+  const photoId = String(photo?.id || '').trim();
+  if (!photoId) throw new Error('Facebook Story photo upload returned no id');
+
+  const story = await graphPost(`${encodeURIComponent(pageId)}/photo_stories`, {
+    access_token: accessToken,
+    photo_id: photoId,
+  });
+
+  const storyId = String(story?.id || story?.post_id || '').trim();
+  if (!storyId) throw new Error('Facebook Story publish returned no id');
+  return storyId;
+}
+
 async function publishXPost(args: {
   bearerToken: string;
   text: string;
@@ -696,29 +787,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         const videoUrls = Array.isArray(postDoc?.content?.videos)
           ? postDoc.content.videos.map((v: any) => String(v?.url || '').trim()).filter(Boolean)
           : [];
+        const postType = String(postDoc?.postType || 'feed').trim();
 
         if (platform === 'facebook') {
-          const fbId = await publishFacebookPagePost({
-            pageId: accountId,
-            accessToken,
-            message: text,
-            imageUrls,
-            videoUrls,
-          });
+          const fbId = postType === 'story'
+            ? await publishFacebookStory({ pageId: accountId, accessToken, imageUrls, videoUrls })
+            : await publishFacebookPagePost({ pageId: accountId, accessToken, message: text, imageUrls, videoUrls });
           platformPostIds.facebook = fbId;
           results.push({ platform, ok: true, platformPostId: fbId });
           continue;
         }
 
         if (platform === 'instagram') {
-          // Instagram supports images or Reels (videos)
-          const igId = await publishInstagramPost({
-            igUserId: accountId,
-            accessToken,
-            caption: text,
-            imageUrls,
-            videoUrls,
-          });
+          // Instagram supports feed posts (image/Reel-video) and Stories.
+          const igId = postType === 'story'
+            ? await publishInstagramStory({ igUserId: accountId, accessToken, imageUrls, videoUrls })
+            : await publishInstagramPost({ igUserId: accountId, accessToken, caption: text, imageUrls, videoUrls });
           platformPostIds.instagram = igId;
           results.push({ platform, ok: true, platformPostId: igId });
           continue;

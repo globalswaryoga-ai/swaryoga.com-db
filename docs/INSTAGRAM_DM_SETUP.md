@@ -169,6 +169,7 @@ banner in the inbox explaining why the reply was blocked.
 | `Error validating access token … session invalidated` | Token expired (short-lived) | Set `INSTAGRAM_APP_SECRET` and store a 60-day token (§4) |
 | `(#10) outside of allowed window` | Meta's 24-hour rule | Wait for their reply, or get Human Agent approved (§8) |
 | Messenger works but Instagram doesn't | They use different paths — this is expected | Messenger = Facebook Login; Instagram = Instagram Login |
+| `The action is invalid since it's not the thread owner` (subcode 2534037) | Sending on a thread the Instagram Login app hasn't received a **live webhook event** for yet. Reading history via `/me/conversations` does not establish send rights — confirmed by testing: 0 messages have ever arrived via this app's webhook, all 108 imported messages came from the one-time history pull. | **Not fixable in code.** Have the contact send a fresh message now that the webhook is active — replying to that new inbound message should work once Meta registers this app as the thread's owner. Re-test sending after that. |
 
 ---
 

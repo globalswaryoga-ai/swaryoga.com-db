@@ -65,6 +65,7 @@ export default function SocialMediaAdmin() {
   const [uploadingCount, setUploadingCount] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [postType, setPostType] = useState<'feed' | 'story' | 'reel'>('feed');
   const [scheduledDate, setScheduledDate] = useState('');
   const [postLoading, setPostLoading] = useState(false);
 
@@ -262,8 +263,19 @@ export default function SocialMediaAdmin() {
   };
 
   const handleCreatePost = async () => {
-    if (!newPostText.trim() || selectedPlatforms.length === 0) {
-      alert('Please add text and select at least one platform');
+    const hasMedia = newPostImages.length > 0 || newPostVideos.length > 0;
+    // Stories/Reels are commonly posted with no caption — only require text
+    // when there's no image/video to carry the post instead.
+    if ((!newPostText.trim() && !hasMedia) || selectedPlatforms.length === 0) {
+      alert('Add a caption or an image/video, and select at least one platform');
+      return;
+    }
+    if (postType === 'reel' && newPostVideos.length === 0) {
+      alert('A Reel needs a video.');
+      return;
+    }
+    if (postType === 'story' && !hasMedia) {
+      alert('A Story needs an image or video.');
       return;
     }
 
@@ -282,6 +294,7 @@ export default function SocialMediaAdmin() {
             videos: newPostVideos.map((vid) => ({ url: vid.url })),
           },
           platforms: selectedPlatforms,
+          postType,
           status: scheduledDate ? 'scheduled' : 'draft',
           scheduledFor: scheduledDate || null,
         }),
@@ -290,6 +303,7 @@ export default function SocialMediaAdmin() {
       if (response.ok) {
         setNewPostText('');
         setSelectedPlatforms([]);
+        setPostType('feed');
         setScheduledDate('');
         setNewPostImages([]);
         setNewPostVideos([]);
@@ -746,6 +760,37 @@ export default function SocialMediaAdmin() {
                       {uploadingCount > 0 ? `Uploading… (${uploadingCount})` : ''}
                     </p>
                   )}
+                </div>
+
+                {/* Post Type: Post / Story / Reel */}
+                <div className="mb-6">
+                  <label className="block text-slate-300 font-semibold mb-3">Post as</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { key: 'feed', label: 'Post', icon: '🖼️', hint: 'Feed post — text, image or video' },
+                      { key: 'story', label: 'Story', icon: '⭐', hint: 'Disappears in 24h — image (FB/IG) or video (IG)' },
+                      { key: 'reel', label: 'Reel', icon: '🎬', hint: 'Instagram only — video required' },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setPostType(opt.key)}
+                        className={`p-3 rounded-lg border-2 transition text-center ${
+                          postType === opt.key
+                            ? 'border-emerald-500 bg-emerald-500 bg-opacity-20'
+                            : 'border-slate-600 bg-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        <span className="text-2xl">{opt.icon}</span>
+                        <p className="text-white text-sm font-semibold mt-1">{opt.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-slate-400 text-xs mt-2">
+                    {postType === 'feed' && 'Facebook: text, image or video. Instagram: image or video (video posts as a Reel).'}
+                    {postType === 'story' && 'Facebook: image only for now. Instagram: image or video. No caption shown on the story itself.'}
+                    {postType === 'reel' && 'Instagram Reel — attach one video below. Facebook Reels aren’t supported yet; use a feed video post instead.'}
+                  </p>
                 </div>
 
                 {/* Platform Selection */}
