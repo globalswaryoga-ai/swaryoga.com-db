@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ConsentManager } from '@/lib/consentManager';
+import { ingestMetaSocialEvent, parseMetaSocialWebhookPayload } from '@/lib/socialInbox';
 
 export const dynamic = 'force-dynamic';
 
@@ -216,6 +217,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
       logger.debug('meta-webhook', 'Signature verified');
+    }
+
+    // This Meta App has a single webhook callback URL shared by WhatsApp,
+    // Messenger, and Instagram — Meta only allows one per app. Messenger/IG
+    // events arrive as `object: "page"` / `"instagram"` with an `entry[].messaging`
+    // shape (not WhatsApp's `entry[].changes[].value`), so route them to the
+    // social inbox ingester instead of the WhatsApp-only handler below, which
+    // would otherwise silently drop them.
+    if (payload?.object === 'page' || payload?.object === 'instagram') {
+      const events = parseMetaSocialWebhookPayload(payload);
+      for (const event of events) {
+        await ingestMetaSocialEvent(event);
+      }
+      return NextResponse.json({ success: true, processed: events.length }, { status: 200 });
     }
 
     // Process the payload
