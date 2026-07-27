@@ -172,7 +172,7 @@ export default function MessengerInboxPage() {
         FB.login(
           (response: any) => resolve(response),
           {
-            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management',
+            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_manage_messages,instagram_content_publish,business_management',
             ...(process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID
               ? { config_id: process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID }
               : {}),
@@ -607,7 +607,7 @@ export default function MessengerInboxPage() {
                     ? `Connected to ${facebookAccount.accountName}. Messenger chats will appear here as soon as people message the connected Page and the Meta inbox webhook is subscribed.`
                     : connectionRestricted
                       ? 'Only the Super Admin can connect the shared Facebook Page from Social Media Setup.'
-                      : 'Connect your Facebook Page first, then Messenger conversations can start landing here.'}
+                      : 'Connect your Facebook Page to receive Messenger chats here and to publish videos/posts to Facebook and Instagram from Social Media.'}
                 </p>
                 {!connectionRestricted && (
                   <div className="mt-2 flex flex-wrap items-center justify-center gap-2">

@@ -649,6 +649,19 @@ function SocialMediaSetupContent() {
                   </a>
                 </div>
 
+                {(selectedPlatform === 'facebook' || selectedPlatform === 'instagram') && (
+                  <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/40 rounded-lg text-blue-200 text-sm flex items-start gap-2">
+                    <CheckCircle size={18} className="mt-0.5 flex-shrink-0" />
+                    <span>
+                      Easier option: use the <strong>Connect Facebook Page</strong> button on the{' '}
+                      <a href="/admin/crm/messenger" className="underline hover:text-white">Messenger</a> or{' '}
+                      <a href="/admin/crm/instagram" className="underline hover:text-white">Instagram</a> inbox page instead.
+                      That one-click login now requests messaging AND posting permissions together, so you don&apos;t need to manually
+                      generate a token here. Use the manual form below only if you need a different/shared token.
+                    </span>
+                  </div>
+                )}
+
                 {/* Instructions - Collapsible */}
                 <details className="bg-slate-700 rounded-lg mb-8 border border-slate-600">
                   <summary className="p-4 cursor-pointer text-white font-bold hover:bg-slate-600 rounded-lg">
