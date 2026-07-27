@@ -193,7 +193,7 @@ export default function InstagramInboxPage() {
         FB.login(
           (response: any) => resolve(response),
           {
-            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,pages_manage_posts,instagram_business_basic,instagram_business_manage_messages,instagram_business_content_publish,business_management',
+            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_business_basic,instagram_manage_messages,instagram_business_manage_messages,instagram_content_publish,instagram_business_content_publish,business_management',
             ...(process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID
               ? { config_id: process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID }
               : {}),
