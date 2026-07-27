@@ -158,6 +158,58 @@ export async function resolveSocialInboxAccountByAccountId(platform: SocialInbox
   };
 }
 
+/**
+ * List every connected Messenger/Instagram account across all tenants, resolved
+ * to the same shape ingestMetaSocialEvent/importFacebookConversationHistory use.
+ * Backs a polling-based sync (see /api/cron/social-inbox-sync) that pulls
+ * conversations directly via the Graph API — a reliable fallback independent
+ * of whether Meta's webhook push actually fires, since webhook delivery has
+ * proven unreliable for real (non-tester) accounts even with a fully correct
+ * subscription + Live mode + permissions setup.
+ */
+export async function getAllConnectedSocialInboxAccounts(): Promise<(ResolvedSocialInboxAccount & { ownerUserId?: string })[]> {
+  await connectDB();
+  const accounts = await SocialMediaAccount.find({
+    isConnected: true,
+    platform: { $in: ['facebook', 'instagram'] },
+  }).lean<any[]>();
+
+  const resolved: (ResolvedSocialInboxAccount & { ownerUserId?: string })[] = [];
+  for (const account of accounts) {
+    if (!account?.accountId || !account?.accessToken) continue;
+    const platform: SocialInboxPlatform = account.platform === 'instagram' ? 'instagram' : 'messenger';
+    const scopeType = account.scopeType === 'tenant' ? 'tenant' : 'super_admin';
+    const scopeKey = cleanString(account.scopeKey) || 'super_admin';
+    let accessToken: string;
+    try {
+      accessToken = decryptCredential(String(account.accessToken));
+    } catch {
+      continue;
+    }
+
+    resolved.push({
+      platform,
+      scope: {
+        scopeType,
+        scopeKey,
+        scopeLabel: scopeType === 'tenant' ? `Tenant settings (${cleanString(account.tenantSlug || scopeKey)})` : 'Super Admin shared settings',
+        ownerUserId: cleanString(account.ownerUserId || 'admincrm'),
+        tenantSlug: cleanString(account.tenantSlug || '') || undefined,
+      },
+      accountId: String(account.accountId),
+      accountName: String(account.accountName || account.accountHandle || account.accountId),
+      accountHandle: String(account.accountHandle || ''),
+      accessToken,
+      accountDocId: String(account._id),
+      graphNodeId: platform === 'instagram'
+        ? cleanString(account.metadata?.linkedPageId) || String(account.accountId)
+        : String(account.accountId),
+      ownerUserId: cleanString(account.ownerUserId || ''),
+    });
+  }
+  return resolved;
+}
+
 export function verifyMetaInboxSignature(rawBody: string, signatureHeader: string | null): boolean {
   // Allow through if no secret configured (will verify when secret is added)
   if (!META_INBOX_APP_SECRET) return true;
