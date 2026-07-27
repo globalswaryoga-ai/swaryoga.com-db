@@ -8,8 +8,9 @@ import { LoadingSpinner } from '@/components/admin/crm';
 /* ─── Types ─── */
 interface Conversation {
   _id: string;
-  name: string;
+  participantName?: string;
   participantId?: string;
+  participantUsername?: string;
   pageId?: string;
   pageScopedId?: string;
   phoneNumber?: string;
@@ -474,9 +475,15 @@ export default function MessengerInboxPage() {
     }
   };
 
-  const filteredConversations = conversations.filter(c =>
-    !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.phoneNumber || '').includes(searchQuery)
-  );
+  const filteredConversations = conversations.filter(c => {
+    const query = searchQuery.trim().toLowerCase();
+    return !query
+      || (c.participantName || '').toLowerCase().includes(query)
+      || (c.participantUsername || '').toLowerCase().includes(query)
+      || (c.participantId || '').toLowerCase().includes(query)
+      || (c.phoneNumber || '').toLowerCase().includes(query)
+      || (c.notes || '').toLowerCase().includes(query);
+  });
 
   const connectionBadgeLabel = facebookAccount
     ? `Connected · ${facebookAccount.accountName}`
@@ -577,7 +584,7 @@ export default function MessengerInboxPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search conversations..."
+                placeholder="Search by name or user ID..."
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/80 backdrop-blur-sm shadow-sm border border-indigo-100 text-xs font-medium focus:ring-2 focus:ring-indigo-300/30 focus:border-indigo-400 outline-none transition-all"
               />
             </div>
@@ -643,11 +650,11 @@ export default function MessengerInboxPage() {
                   }`}
                 >
                   <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: 'linear-gradient(135deg, #0078FF, #00A3FF)' }}>
-                    {conv.name?.[0]?.toUpperCase() || 'U'}
+                    {conv.participantName?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.name || 'Unknown'}</span>
+                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.participantName || 'Unknown'}</span>
                       <span className="text-[10px] text-slate-400 shrink-0">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : ''}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 truncate mt-0.5">{conv.lastMessage || 'No messages'}</p>
@@ -668,7 +675,7 @@ export default function MessengerInboxPage() {
                   <i className="ph ph-user text-sm"></i>
                 </div>
                 <div>
-                  <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
+                  <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.participantName || 'Unknown'}</div>
                   <div className="text-[10px] font-semibold text-slate-400 mt-0.5">{selected.participantId || selected.pageId || 'Messenger'}</div>
                 </div>
                 <div className="ml-auto">
@@ -817,10 +824,10 @@ export default function MessengerInboxPage() {
             <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(0,120,255,0.1)' }}>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0" style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 50%, #0078FF 100%)', boxShadow: '0 4px 12px rgba(0,120,255,0.3)' }}>
-                  {selected.name?.[0]?.toUpperCase() || 'U'}
+                  {selected.participantName?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.name || 'Unknown'}</h3>
+                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.participantName || 'Unknown'}</h3>
                   <p className="text-xs text-slate-500">Messenger</p>
                 </div>
               </div>
