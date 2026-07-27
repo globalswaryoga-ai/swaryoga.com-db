@@ -506,33 +506,61 @@ export async function sendMetaSocialMessage(args: {
   const baseUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(args.graphNodeId || args.accountId)}/messages`;
   const url = appsecretProof ? `${baseUrl}?appsecret_proof=${appsecretProof}` : baseUrl;
 
-  const payload: Record<string, any> = {
-    recipient: { id: args.recipientId },
-    message: args.attachment?.url
-      ? { attachment: { type: args.attachment.type, payload: { url: args.attachment.url, is_reusable: true } } }
-      : { text },
-    access_token: args.accessToken,
+  const messageBody = args.attachment?.url
+    ? { attachment: { type: args.attachment.type, payload: { url: args.attachment.url, is_reusable: true } } }
+    : { text };
+
+  const post = async (extra: Record<string, any>) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: args.recipientId },
+        message: messageBody,
+        access_token: args.accessToken,
+        ...extra,
+      }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    return { ok: response.ok, status: response.status, data };
   };
 
-  if (args.platform === 'messenger') {
-    payload.messaging_type = 'RESPONSE';
+  // Standard reply — valid inside Meta's 24-hour customer-service window.
+  let result = await post(args.platform === 'messenger' ? { messaging_type: 'RESPONSE' } : {});
+
+  // Outside that window Meta returns error code 10. A human agent answering a
+  // customer enquiry may still reply for up to 7 days using the HUMAN_AGENT
+  // tag, so retry once with it. This needs the "Human Agent" permission — if
+  // it isn't granted the retry fails too and we surface the original error.
+  const isOutsideWindow =
+    !result.ok &&
+    (result.data?.error?.code === 10 ||
+      /outside of allowed window/i.test(String(result.data?.error?.message || '')));
+
+  if (isOutsideWindow) {
+    const retry = await post({ messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' });
+    if (retry.ok) {
+      result = retry;
+    } else {
+      const retryMsg = String(retry.data?.error?.message || '');
+      // Permission missing → explain the real fix rather than repeating Meta's
+      // generic policy text.
+      if (/tag|permission|capabilit/i.test(retryMsg)) {
+        throw new Error(
+          "This chat is outside Meta's 24-hour reply window. Replying up to 7 days needs the "
+            + '"Human Agent" permission, which must be approved in Meta App Review.',
+        );
+      }
+      throw new Error(result.data?.error?.message || `Meta social inbox send failed (${result.status})`);
+    }
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Meta social inbox send failed (${response.status})`);
+  if (!result.ok) {
+    throw new Error(result.data?.error?.message || `Meta social inbox send failed (${result.status})`);
   }
 
+  const data = result.data;
   const messageId = cleanString(data?.message_id || data?.recipient_id || data?.messages?.[0]?.id);
   return {
     messageId,
