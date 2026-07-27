@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner } from '@/components/admin/crm';
+import SocialComposer from '@/components/admin/crm/SocialComposer';
 
 /* ─── Types ─── */
 interface Conversation {
@@ -95,6 +96,15 @@ export default function MessengerInboxPage() {
   const [connecting, setConnecting] = useState(false);
   const [pageOptions, setPageOptions] = useState<{ pageId: string; name: string; picture?: string | null; hasInstagram?: boolean }[] | null>(null);
   const [pendingUserToken, setPendingUserToken] = useState('');
+
+  const quickReplies = [
+    { label: 'Thank you! 🙏', text: 'Thank you for your interest! We\'ll get back to you soon.' },
+    { label: 'Enrolled ✅', text: 'Great! You\'re successfully enrolled. Check your email for course details.' },
+    { label: 'Thanks for feedback', text: 'Thank you for the feedback! We appreciate your input.' },
+    { label: 'Welcome 👋', text: 'Welcome to Swar Yoga! We\'re excited to have you here.' },
+    { label: 'Need info? 📚', text: 'Sure! What information would you like to know about our programs?' },
+    { label: 'Bye! 👋', text: 'Thank you! See you soon. Namaste 🙏' },
+  ];
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const tabRoutes: Record<string, string> = {
@@ -735,27 +745,21 @@ export default function MessengerInboxPage() {
 
               {/* Composer */}
               <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,244,255,0.9) 100%)', borderTop: '1px solid rgba(0,120,255,0.1)' }}>
-                <div className="flex items-end gap-2 max-w-6xl mx-auto">
-                  <div className="flex-1 rounded-lg bg-white/80 backdrop-blur-sm transition-all relative" style={{ border: '1px solid rgba(0,120,255,0.15)', boxShadow: '0 2px 8px rgba(0,120,255,0.06)' }}>
-                    <textarea
-                      value={composerText}
-                      onChange={(e) => setComposerText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                      placeholder="Type a message..."
-                      rows={1}
-                      className="w-full px-3 py-2 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] resize-none bg-transparent outline-none"
-                    />
-                  </div>
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!composerText.trim()}
-                    className="text-white h-8 px-4 rounded-lg font-bold text-xs transition-all active:scale-95 disabled:opacity-40 flex items-center gap-1.5 self-end hover:shadow-lg hover:scale-105"
-                    style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)', boxShadow: '0 2px 8px rgba(0,120,255,0.3)' }}
-                  >
-                    <i className="ph-bold ph-paper-plane-right text-sm"></i>
-                    <span className="hidden xl:inline">Send</span>
-                  </button>
-                </div>
+                <SocialComposer
+                  value={composerText}
+                  onChange={setComposerText}
+                  onSend={handleSendMessage}
+                  token={token}
+                  replyContext={[...messages].reverse().find((m) => m.direction === 'inbound')?.messageContent || ''}
+                  quickReplies={quickReplies}
+                  accent={{
+                    color: '#0078FF',
+                    soft: 'rgba(0,120,255,0.08)',
+                    border: 'rgba(0,120,255,0.15)',
+                    sendBg: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)',
+                    sendShadow: '0 2px 8px rgba(0,120,255,0.3)',
+                  }}
+                />
               </div>
             </>
           ) : (

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner } from '@/components/admin/crm';
+import SocialComposer from '@/components/admin/crm/SocialComposer';
 
 /* ─── Types ─── */
 interface Conversation {
@@ -90,7 +91,6 @@ export default function InstagramInboxPage() {
   const [composerText, setComposerText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
-  const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   const quickReplies = [
@@ -885,54 +885,22 @@ export default function InstagramInboxPage() {
 
               {/* Composer */}
               <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md relative" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(255,240,245,0.9) 100%)', borderTop: '1px solid rgba(193,53,132,0.1)' }}>
-                {/* Quick Replies Dropdown */}
-                {showQuickReplies && (
-                  <div className="absolute bottom-20 left-3 bg-white rounded-xl border shadow-lg p-2 w-80 max-h-48 overflow-y-auto z-50" style={{ borderColor: 'rgba(193,53,132,0.2)' }}>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase px-2 mb-1">Quick Replies</p>
-                    {quickReplies.map((reply, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          setComposerText(reply.text);
-                          setShowQuickReplies(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-pink-50 text-[12px] font-medium text-slate-700 transition-colors"
-                      >
-                        {reply.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-end gap-2 max-w-6xl mx-auto">
-                  <button
-                    onClick={() => setShowQuickReplies(!showQuickReplies)}
-                    title="Quick replies"
-                    className="text-slate-500 h-9 px-3 rounded-2xl font-bold text-sm transition-all hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    <i className="ph-bold ph-lightning text-lg"></i>
-                  </button>
-
-                  <div className="flex-1 rounded-2xl bg-white/80 backdrop-blur-sm transition-all relative" style={{ border: '1px solid rgba(193,53,132,0.15)', boxShadow: '0 2px 8px rgba(193,53,132,0.06)' }}>
-                    <textarea
-                      value={composerText}
-                      onChange={(e) => setComposerText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                      placeholder="Send a message..."
-                      rows={1}
-                      className="w-full px-4 py-2.5 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] resize-none bg-transparent outline-none rounded-2xl"
-                    />
-                  </div>
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!composerText.trim()}
-                    className="text-white h-9 px-4 rounded-2xl font-bold text-xs transition-all active:scale-95 disabled:opacity-40 flex items-center gap-1.5 self-end hover:shadow-lg hover:scale-105"
-                    style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)', boxShadow: '0 2px 12px rgba(193,53,132,0.35)' }}
-                  >
-                    <i className="ph-bold ph-paper-plane-right text-sm"></i>
-                    <span className="hidden xl:inline">Send</span>
-                  </button>
-                </div>
+                <SocialComposer
+                  value={composerText}
+                  onChange={setComposerText}
+                  onSend={handleSendMessage}
+                  token={token}
+                  replyContext={[...messages].reverse().find((m) => m.direction === 'inbound')?.messageContent || ''}
+                  quickReplies={quickReplies}
+                  placeholder="Send a message..."
+                  accent={{
+                    color: '#C13584',
+                    soft: 'rgba(193,53,132,0.08)',
+                    border: 'rgba(193,53,132,0.15)',
+                    sendBg: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)',
+                    sendShadow: '0 2px 12px rgba(193,53,132,0.35)',
+                  }}
+                />
               </div>
             </>
           ) : (
