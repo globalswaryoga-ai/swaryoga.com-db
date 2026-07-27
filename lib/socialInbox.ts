@@ -30,6 +30,12 @@ export type ResolvedSocialInboxAccount = {
   accountHandle: string;
   accessToken: string;
   accountDocId: string;
+  // The node id to use for outbound Graph API calls (conversations/messages).
+  // For Messenger this is the same as accountId (the Page id). For Instagram,
+  // Meta requires these classic Page-linked calls to target the linked Page id,
+  // not the Instagram Business Account id itself — calling with the IG id
+  // fails with "(#3) Application does not have the capability to make this API call."
+  graphNodeId: string;
 };
 
 export type SocialInboxParsedEvent = {
@@ -103,6 +109,9 @@ export async function resolveSocialInboxAccount(decoded: TokenPayload | null | u
     accountHandle: String(account.accountHandle || ''),
     accessToken,
     accountDocId: String(account._id),
+    graphNodeId: platform === 'instagram'
+      ? cleanString(account.metadata?.linkedPageId) || String(account.accountId)
+      : String(account.accountId),
   };
 }
 
@@ -142,6 +151,9 @@ export async function resolveSocialInboxAccountByAccountId(platform: SocialInbox
     accountHandle: String(account.accountHandle || ''),
     accessToken: decryptCredential(String(account.accessToken)),
     accountDocId: String(account._id),
+    graphNodeId: platform === 'instagram'
+      ? cleanString(account.metadata?.linkedPageId) || String(account.accountId)
+      : String(account.accountId),
     ownerUserId: cleanString(account.ownerUserId || ''),
   };
 }
@@ -386,6 +398,11 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
 export async function sendMetaSocialMessage(args: {
   platform: SocialInboxPlatform;
   accountId: string;
+  // The node id to POST to — the linked Page id for Instagram (classic
+  // Page-linked integration rejects the IG Business Account id here with
+  // "Application does not have the capability to make this API call").
+  // Falls back to accountId for callers that haven't been updated.
+  graphNodeId?: string;
   accessToken: string;
   recipientId: string;
   message: string;
@@ -396,7 +413,7 @@ export async function sendMetaSocialMessage(args: {
     ? crypto.createHmac('sha256', appSecret).update(args.accessToken).digest('hex')
     : '';
 
-  const baseUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(args.accountId)}/messages`;
+  const baseUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(args.graphNodeId || args.accountId)}/messages`;
   const url = appsecretProof ? `${baseUrl}?appsecret_proof=${appsecretProof}` : baseUrl;
 
   const payload: Record<string, any> = {
@@ -454,6 +471,7 @@ export async function createOutboundSocialMessage(args: {
   const sendResult = await sendMetaSocialMessage({
     platform: args.platform,
     accountId: args.account.accountId,
+    graphNodeId: args.account.graphNodeId,
     accessToken: args.account.accessToken,
     recipientId: String(conversation.participantId),
     message: args.message,
@@ -680,7 +698,7 @@ export async function importFacebookConversationHistory(
   const platformParam = resolvedAccount.platform === 'instagram' ? '&platform=instagram' : '';
   const fields = `participants,updated_time,messages.limit(${messagesPerConv}){id,message,from,to,created_time,attachments}`;
   const proof = appsecretProof(resolvedAccount.accessToken);
-  let next: string | null = `${GRAPH_BASE}/${encodeURIComponent(resolvedAccount.accountId)}/conversations`
+  let next: string | null = `${GRAPH_BASE}/${encodeURIComponent(resolvedAccount.graphNodeId)}/conversations`
     + `?fields=${encodeURIComponent(fields)}&limit=50${platformParam}`
     + `&access_token=${encodeURIComponent(resolvedAccount.accessToken)}`
     + (proof ? `&appsecret_proof=${proof}` : '');
