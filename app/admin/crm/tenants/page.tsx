@@ -520,7 +520,7 @@ export default function TenantsPage() {
         return;
       }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to load tenants');
+      if (!res.ok) throw new Error(data.error || 'Failed to load tenants');
       setTenants(data.data?.tenants || []);
       setPagination(data.data?.pagination || null);
     } catch (err: any) {
@@ -574,7 +574,7 @@ export default function TenantsPage() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to save plan');
+      if (!res.ok) throw new Error(data.error || 'Failed to save plan');
       setPlanModalOpen(false);
       fetchPlans();
     } catch (err: any) {
@@ -590,7 +590,7 @@ export default function TenantsPage() {
     try {
       const res = await fetch(`/api/admin/tenants/plans?tier=${encodeURIComponent(tier)}`, { method: 'DELETE', headers: headers() });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to delete plan');
+      if (!res.ok) throw new Error(data.error || 'Failed to delete plan');
       fetchPlans();
     } catch (err: any) {
       setError(err.message);
@@ -636,7 +636,7 @@ export default function TenantsPage() {
         body: JSON.stringify({ ...form, moduleKeys: Array.from(createModules), customLimits: createLimits, pricing: createPricing }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create tenant');
+      if (!res.ok) throw new Error(data.error || 'Failed to create tenant');
       setShowCreate(false); fetchTenants();
     } catch (err: any) {
       setError(err.message);
@@ -662,7 +662,7 @@ export default function TenantsPage() {
         body: JSON.stringify({ slug: editTenant.slug, ...editForm, moduleKeys: Array.from(editModules), customLimits: editLimits, pricing: editPricing }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to update tenant');
+      if (!res.ok) throw new Error(data.error || 'Failed to update tenant');
       setEditTenant(null); fetchTenants();
     } catch (err: any) {
       setError(err.message);
@@ -914,6 +914,9 @@ export default function TenantsPage() {
               <h2 className="text-lg font-bold">Onboard New Tenant</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
+            {error && (
+              <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
+            )}
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -986,6 +989,9 @@ export default function TenantsPage() {
               </div>
               <button onClick={() => setEditTenant(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
+            {error && (
+              <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
+            )}
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
@@ -1059,6 +1065,9 @@ export default function TenantsPage() {
               <h2 className="text-lg font-bold">{planIsNew ? 'New Plan Tier' : `Edit Plan — ${planForm.name}`}</h2>
               <button onClick={() => setPlanModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
+            {error && (
+              <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
+            )}
 
             <div className="p-6 space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

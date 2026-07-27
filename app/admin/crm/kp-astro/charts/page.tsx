@@ -37,6 +37,16 @@ interface MahadashaRow {
   endDate: string;
 }
 
+interface FortunaRow {
+  sign: string;
+  signLord: string;
+  star: string;
+  starLord: string;
+  subLord: string;
+  house: number | null;
+  degree: string;
+}
+
 interface ChartListItem {
   _id: string;
   personName: string;
@@ -68,6 +78,7 @@ export default function KpHoroscopeChartsPage() {
   const [birthPlace, setBirthPlace] = useState('');
   const [ascendantSign, setAscendantSign] = useState('');
   const [ascendantDegree, setAscendantDegree] = useState('');
+  const [fortuna, setFortuna] = useState<FortunaRow | null>(null);
   const [houses, setHouses] = useState<HouseRow[]>(emptyHouses());
   const [planets, setPlanets] = useState<PlanetRow[]>(emptyPlanets());
   const [mahadashas, setMahadashas] = useState<MahadashaRow[]>([{ planet: '', startDate: '', endDate: '' }]);
@@ -119,7 +130,7 @@ export default function KpHoroscopeChartsPage() {
 
   const resetForm = () => {
     setPersonName(''); setGender(''); setDob(''); setBirthTime(''); setBirthPlace('');
-    setAscendantSign(''); setAscendantDegree('');
+    setAscendantSign(''); setAscendantDegree(''); setFortuna(null);
     setHouses(emptyHouses()); setPlanets(emptyPlanets());
     setMahadashas([{ planet: '', startDate: '', endDate: '' }]);
     setDashaPeriods([]);
@@ -182,6 +193,10 @@ export default function KpHoroscopeChartsPage() {
       })));
       setMahadashas(data.mahadashas.map((m: any) => ({ planet: m.planet, startDate: m.startDate, endDate: m.endDate })));
       setDashaPeriods(Array.isArray(data.dashaPeriods) ? data.dashaPeriods : []);
+      setFortuna(data.fortuna ? {
+        sign: data.fortuna.sign, signLord: data.fortuna.signLord, star: data.fortuna.star,
+        starLord: data.fortuna.starLord, subLord: data.fortuna.subLord, house: data.fortuna.house, degree: data.fortuna.degree,
+      } : null);
     } catch (e) {
       setCalcError(e instanceof Error ? e.message : 'Calculation failed');
     } finally {
@@ -205,6 +220,7 @@ export default function KpHoroscopeChartsPage() {
           birthTime: birthTime || undefined,
           birthPlace: birthPlace || undefined,
           ascendant: (ascendantSign || ascendantDegree) ? { sign: ascendantSign, degree: ascendantDegree } : undefined,
+          fortuna: fortuna || undefined,
           houses: houses.filter((h) => h.sign || h.subLord),
           planets: planets
             .filter((p) => p.sign || p.subLord)

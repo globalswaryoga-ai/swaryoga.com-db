@@ -5,7 +5,7 @@
 // highlighted, modeled on the standard professional KP software pattern
 // (a flat clickable list per level, not one giant table).
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Home, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -36,10 +36,39 @@ function isActive(startDate: string, endDate: string): boolean {
   return now >= new Date(startDate).getTime() && now < new Date(endDate).getTime();
 }
 
-export default function DashaDrillDown({ rows, onLoadDeeper }: { rows: DashaRow[]; onLoadDeeper?: (rows: DashaRow[]) => void }) {
+export default function DashaDrillDown({
+  rows,
+  onLoadDeeper,
+  onBreadcrumbChange,
+  jumpTo,
+}: {
+  rows: DashaRow[];
+  onLoadDeeper?: (rows: DashaRow[]) => void;
+  // Fires with the current running chain (e.g. [mahaLord] or [mahaLord,
+  // antarLord, pratyantarLord]) every time the selection changes -- lets a
+  // parent page react to "what period is currently selected" without this
+  // component needing to know anything about what that parent does with it.
+  onBreadcrumbChange?: (breadcrumb: DashaRow[]) => void;
+  // Set this (a new array reference each time) to programmatically navigate
+  // the drill-down to a specific chain from OUTSIDE -- e.g. clicking a
+  // "Confirmed in Bhukti: Venus" link elsewhere on the page jumps straight
+  // here instead of making the astrologer re-click through the levels.
+  jumpTo?: DashaRow[];
+}) {
   const token = useAuth();
-  const [breadcrumb, setBreadcrumb] = useState<DashaRow[]>([]);
+  const [breadcrumb, setBreadcrumbState] = useState<DashaRow[]>([]);
   const [loadingDeeper, setLoadingDeeper] = useState(false);
+
+  const setBreadcrumb = (next: DashaRow[]) => {
+    setBreadcrumbState(next);
+    onBreadcrumbChange?.(next);
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (jumpTo) setBreadcrumb(jumpTo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTo]);
 
   const currentLevel = breadcrumb.length === 0 ? 'maha' : LEVEL_ORDER[LEVEL_ORDER.indexOf(breadcrumb[breadcrumb.length - 1].level) + 1];
   const currentParentPath = breadcrumb.length === 0 ? '' : fullPathOf(breadcrumb[breadcrumb.length - 1]);

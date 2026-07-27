@@ -8,6 +8,7 @@ import { CATEGORY_ORDER, type RuleBookEntry } from './ruleBookMeta';
 const emptyForm = {
   category: '',
   subMatter: '',
+  primaryHouse: '',
   promiseHouses: '',
   denialHouses: '',
   dashaBhuktiAntara: '',
@@ -34,6 +35,7 @@ export default function RuleBookEntryModal({
       ? {
           category: editing.category,
           subMatter: editing.subMatter,
+          primaryHouse: editing.primaryHouse ? String(editing.primaryHouse) : '',
           promiseHouses: editing.promiseHouses,
           denialHouses: editing.denialHouses,
           dashaBhuktiAntara: editing.dashaBhuktiAntara,
@@ -58,10 +60,14 @@ export default function RuleBookEntryModal({
       const url = editing
         ? `/api/admin/crm/kp-astro/rule-book/${editing._id}`
         : '/api/admin/crm/kp-astro/rule-book';
+      const payload = {
+        ...form,
+        primaryHouse: form.primaryHouse.trim() ? Number(form.primaryHouse) : null,
+      };
       const res = await fetch(url, {
         method: editing ? 'PATCH' : 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to save rule');
@@ -121,6 +127,19 @@ export default function RuleBookEntryModal({
                 className={inputCls}
               />
             </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Primary House (whose CSL gates the Dasha Prediction tool&apos;s natal check)</label>
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={form.primaryHouse}
+              onChange={set('primaryHouse')}
+              placeholder="e.g. 7 (for Marriage)"
+              className={`${inputCls} max-w-[10rem]`}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

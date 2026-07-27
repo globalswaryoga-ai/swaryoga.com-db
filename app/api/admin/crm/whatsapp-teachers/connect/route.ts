@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       const proof = appSecret
         ? crypto.createHmac('sha256', appSecret).update(systemUserToken).digest('hex')
         : undefined;
-      const subUrl = new URL(`https://graph.facebook.com/v24.0/${wabaId}/subscribed_apps`);
+      const subUrl = new URL(`https://graph.facebook.com/v25.0/${wabaId}/subscribed_apps`);
       if (proof) subUrl.searchParams.set('appsecret_proof', proof);
       const subRes = await fetch(subUrl.toString(), {
         method: 'POST',

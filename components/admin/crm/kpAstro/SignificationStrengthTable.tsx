@@ -12,15 +12,7 @@ import { computeSignificationStrength, rowSignifiesHouse, type DepOwn } from '@/
 import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
 import { t } from '@/lib/kpAstro/uiLabels';
 import { useKpLanguage } from './KpLanguageContext';
-import { planetColorOf } from '@/lib/kpAstro/planetColors';
-
-function planetShortName(name: string): string {
-  const map: Record<string, string> = {
-    Sun: 'Su', Moon: 'Mo', Mars: 'Ma', Mercury: 'Me', Jupiter: 'Ju',
-    Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
-  };
-  return map[name] || name;
-}
+import { planetColorOf, planetShortNameOf, sortByPlanetOrder } from '@/lib/kpAstro/planetColors';
 
 function houseList(values: number[]): string {
   return values.length ? values.join(', ') : '-';
@@ -43,7 +35,7 @@ export default function SignificationStrengthTable({ houses, planets }: { houses
     return <p className="text-sm text-gray-400">{t('noPlanetData', lang)}</p>;
   }
 
-  const rows = computeSignificationStrength(houses, planets);
+  const rows = sortByPlanetOrder(computeSignificationStrength(houses, planets));
   const visibleRows = selectedHouse ? rows.filter((r) => rowSignifiesHouse(r, selectedHouse)) : rows;
 
   return (
@@ -88,7 +80,7 @@ export default function SignificationStrengthTable({ houses, planets }: { houses
                 <tr key={row.planet} className="group align-top hover:bg-gray-50">
                   <td className="sticky left-0 z-10 border-b border-gray-100 bg-white p-3 group-hover:bg-gray-50">
                     <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${color.bg} ${color.text}`}>
-                      {planetShortName(row.planet)}
+                      {planetShortNameOf(row.planet)}
                     </span>
                   </td>
                   <DepOwnCell value={row.starLordDepOwn} />

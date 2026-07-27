@@ -8,6 +8,7 @@ export interface RuleBookEntry {
   _id: string;
   category: string;
   subMatter: string;
+  primaryHouse?: number;
   promiseHouses: string;
   denialHouses: string;
   dashaBhuktiAntara: string;

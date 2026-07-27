@@ -5,7 +5,7 @@ import type { BhavAnalysisRow } from './BhavEditor';
 import { computeFourStepSignificators, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
 import { t } from '@/lib/kpAstro/uiLabels';
 import { useKpLanguage } from './KpLanguageContext';
-import { planetColorOf, HOUSE_BADGE } from '@/lib/kpAstro/planetColors';
+import { planetColorOf, planetShortNameOf, sortByPlanetOrder, HOUSE_BADGE } from '@/lib/kpAstro/planetColors';
 
 type PlanetRow = SignificatorPlanet & { retrograde?: boolean; combust?: boolean };
 
@@ -15,21 +15,6 @@ function houseList(values: number[]): string {
 
 function textList(values: string[]): string {
   return values.length ? values.join(', ') : '-';
-}
-
-function planetShortName(name: string): string {
-  const map: Record<string, string> = {
-    Sun: 'Su',
-    Moon: 'Mo',
-    Mars: 'Ma',
-    Mercury: 'Me',
-    Jupiter: 'Ju',
-    Venus: 'Ve',
-    Saturn: 'Sa',
-    Rahu: 'Ra',
-    Ketu: 'Ke',
-  };
-  return map[name] || name;
 }
 
 export default function ABCDSignificatorsPanel({
@@ -88,13 +73,13 @@ export default function ABCDSignificatorsPanel({
                       <td className="border-b border-gray-100 p-3 text-gray-700">{textList(row.significatorsD)}</td>
                     </tr>
                   ))
-                : planets.map((planet) => {
+                : sortByPlanetOrder(planets).map((planet) => {
                     const sig = fourStep.find((item) => item.planet === planet.planet);
                     const color = planetColorOf(planet.planet);
                     return (
                       <tr key={planet.planet} className="group align-top hover:bg-gray-50">
                         <td className="sticky left-0 z-10 border-b border-gray-100 bg-white p-3 group-hover:bg-gray-50">
-                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${color.bg} ${color.text}`}>{planetShortName(planet.planet)}</span>
+                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${color.bg} ${color.text}`}>{planetShortNameOf(planet.planet)}</span>
                         </td>
                         <td className="border-b border-gray-100 p-3 text-gray-700">{sig ? houseList(sig.A) : '-'}</td>
                         <td className="border-b border-gray-100 p-3 text-gray-700">{sig ? houseList(sig.B) : '-'}</td>

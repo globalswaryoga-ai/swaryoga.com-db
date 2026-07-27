@@ -6,11 +6,11 @@ import PlanetaryAspectsTable from './PlanetaryAspectsTable';
 import SignificationStrengthTable from './SignificationStrengthTable';
 import { useKpLanguage } from './KpLanguageContext';
 import { t } from '@/lib/kpAstro/uiLabels';
-import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
+import type { SignificatorHouse, SignificatorPlanet, FortunaPoint } from '@/lib/kpAstro/significators';
 
 type PlanetRow = SignificatorPlanet & { retrograde?: boolean; combust?: boolean };
 
-export default function ChartDetailsPanel({ houses, planets }: { houses: SignificatorHouse[]; planets: PlanetRow[] }) {
+export default function ChartDetailsPanel({ houses, planets, fortuna }: { houses: SignificatorHouse[]; planets: PlanetRow[]; fortuna?: FortunaPoint }) {
   const { lang } = useKpLanguage();
   const [view, setView] = useState<'houses' | 'planets'>('houses');
 
@@ -32,7 +32,7 @@ export default function ChartDetailsPanel({ houses, planets }: { houses: Signifi
             ))}
           </div>
         </div>
-        <HousesPlanetsTable houses={houses} planets={planets} view={view} />
+        <HousesPlanetsTable houses={houses} planets={planets} view={view} fortuna={fortuna} />
       </div>
       <PlanetaryAspectsTable planets={planets} />
       <SignificationStrengthTable houses={houses} planets={planets} />

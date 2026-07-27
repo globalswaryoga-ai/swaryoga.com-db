@@ -12,18 +12,11 @@ import { naturalNature, type PlanetNature } from '@/lib/kpAstro/planetNature';
 import { SIGN_LORDS } from '@/lib/kpAstro';
 import { t } from '@/lib/kpAstro/uiLabels';
 import { useKpLanguage } from './KpLanguageContext';
-import { planetColorOf, HOUSE_BADGE } from '@/lib/kpAstro/planetColors';
+import { planetColorOf, planetShortNameOf, sortByPlanetOrder, HOUSE_BADGE } from '@/lib/kpAstro/planetColors';
+import type { FortunaPoint } from '@/lib/kpAstro/significators';
 
 function natureLabel(nature: PlanetNature, lang: 'en' | 'hi'): string {
   return nature === 'Benefic' ? t('benefic', lang) : nature === 'Malefic' ? t('malefic', lang) : t('neutral', lang);
-}
-
-function planetShortName(name: string): string {
-  const map: Record<string, string> = {
-    Sun: 'Su', Moon: 'Mo', Mars: 'Ma', Mercury: 'Me', Jupiter: 'Ju',
-    Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
-  };
-  return map[name] || name;
 }
 
 function HouseBadge({ houseNum }: { houseNum: number }) {
@@ -32,7 +25,7 @@ function HouseBadge({ houseNum }: { houseNum: number }) {
 
 function PlanetBadge({ name }: { name: string }) {
   const color = planetColorOf(name);
-  return <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${color.bg} ${color.text}`}>{planetShortName(name)}</span>;
+  return <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${color.bg} ${color.text}`}>{planetShortNameOf(name)}</span>;
 }
 
 function planetChips(names: string[]) {
@@ -43,7 +36,7 @@ function planetChips(names: string[]) {
         const color = planetColorOf(name);
         return (
           <span key={name} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${color.chip}`}>
-            {planetShortName(name)}
+            {planetShortNameOf(name)}
           </span>
         );
       })}
@@ -55,7 +48,7 @@ function houseList(values: number[]): string {
   return values.length ? values.join(', ') : '-';
 }
 
-function HousesView({ houses, planets }: { houses: SignificatorHouse[]; planets: SignificatorPlanet[] }) {
+function HousesView({ houses, planets, fortuna }: { houses: SignificatorHouse[]; planets: SignificatorPlanet[]; fortuna?: FortunaPoint }) {
   const { lang } = useKpLanguage();
   const drishtiHits = computeDrishtiOnHouses(planets);
 
@@ -79,6 +72,7 @@ function HousesView({ houses, planets }: { houses: SignificatorHouse[]; planets:
         {Array.from({ length: 12 }, (_, i) => i + 1).map((houseNum) => {
           const h = houses.find((x) => x.house === houseNum);
           const occupants = planets.filter((p) => p.house === houseNum).map((p) => p.planet);
+          if (fortuna?.house === houseNum) occupants.push('Fortuna');
           const aspectedBy = drishtiHits.filter((d) => d.toHouse === houseNum).map((d) => d.planet);
           const cusp = cuspSubLordSignification(houses, planets, houseNum);
           return (
@@ -105,8 +99,9 @@ function HousesView({ houses, planets }: { houses: SignificatorHouse[]; planets:
   );
 }
 
-function PlanetsView({ houses, planets }: { houses: SignificatorHouse[]; planets: SignificatorPlanet[] }) {
+function PlanetsView({ houses, planets, fortuna }: { houses: SignificatorHouse[]; planets: SignificatorPlanet[]; fortuna?: FortunaPoint }) {
   const { lang } = useKpLanguage();
+  const orderedPlanets = sortByPlanetOrder(planets);
   return (
     <table className="w-full border-separate border-spacing-0 text-xs">
       <thead className="text-left text-[11px] uppercase tracking-wide text-gray-500">
@@ -124,7 +119,7 @@ function PlanetsView({ houses, planets }: { houses: SignificatorHouse[]; planets
         </tr>
       </thead>
       <tbody>
-        {planets.map((p) => {
+        {orderedPlanets.map((p) => {
           const signLord = p.sign ? SIGN_LORDS[p.sign] : undefined;
           const starLord = starLordOf(p);
           const owns = housesOwnedBy(houses, p.planet);
@@ -148,6 +143,22 @@ function PlanetsView({ houses, planets }: { houses: SignificatorHouse[]; planets
             </tr>
           );
         })}
+        {fortuna && (
+          <tr key="Fortuna" className="group align-top bg-teal-50/40 hover:bg-teal-50">
+            <td className="sticky left-0 z-10 border-b border-gray-100 bg-teal-50/40 p-3 group-hover:bg-teal-50">
+              <PlanetBadge name="Fortuna" />
+            </td>
+            <td className="border-b border-gray-100 p-3 text-gray-700">{fortuna.sign || '-'}</td>
+            <td className="border-b border-gray-100 p-3 text-gray-700">{fortuna.degree || '-'}</td>
+            <td className="border-b border-gray-100 p-3 text-gray-700">{fortuna.star || '-'}</td>
+            <td className="border-b border-gray-100 p-3 text-gray-700">{fortuna.signLord || '-'}</td>
+            <td className="border-b border-gray-100 p-3 text-gray-700">{fortuna.starLord || '-'}</td>
+            <td className="border-b border-gray-100 p-3 font-semibold text-indigo-700">{fortuna.subLord || '-'}</td>
+            <td className="border-b border-gray-100 p-3 text-gray-400">-</td>
+            <td className="border-b border-gray-100 p-3 text-gray-700">{fortuna.house ?? '-'}</td>
+            <td className="border-b border-gray-100 p-3 text-gray-400">-</td>
+          </tr>
+        )}
       </tbody>
     </table>
   );
@@ -157,10 +168,12 @@ export default function HousesPlanetsTable({
   houses,
   planets,
   view = 'houses',
+  fortuna,
 }: {
   houses: SignificatorHouse[];
   planets: SignificatorPlanet[];
   view?: 'houses' | 'planets';
+  fortuna?: FortunaPoint;
 }) {
   const { lang } = useKpLanguage();
   if (!houses.length && !planets.length) {
@@ -169,7 +182,7 @@ export default function HousesPlanetsTable({
 
   return (
     <div className="overflow-x-auto">
-      {view === 'houses' ? <HousesView houses={houses} planets={planets} /> : <PlanetsView houses={houses} planets={planets} />}
+      {view === 'houses' ? <HousesView houses={houses} planets={planets} fortuna={fortuna} /> : <PlanetsView houses={houses} planets={planets} fortuna={fortuna} />}
     </div>
   );
 }

@@ -35,11 +35,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const body = await request.json().catch(() => ({} as any));
-    const update: Record<string, string | number | boolean> = { isDraft: false };
+    const update: Record<string, string | number | boolean | null> = { isDraft: false };
     for (const field of EDITABLE_FIELDS) {
       if (typeof body?.[field] === 'string') update[field] = body[field].trim();
     }
     if (Number.isFinite(body?.order)) update.order = body.order;
+    if (body?.primaryHouse === null) update.primaryHouse = null;
+    else if (Number.isInteger(body?.primaryHouse) && body.primaryHouse >= 1 && body.primaryHouse <= 12) update.primaryHouse = body.primaryHouse;
     if (!update.category && !update.subMatter && Object.keys(update).length <= 1) {
       // Nothing but isDraft would change -- still allow it (e.g. explicit
       // "mark as verified" action with no other field edits).

@@ -54,9 +54,11 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const KpRuleBookEntry = getKpRuleBookEntry();
+    const primaryHouse = Number(body?.primaryHouse);
     const created = await (KpRuleBookEntry as any).create({
       category,
       subMatter,
+      primaryHouse: Number.isInteger(primaryHouse) && primaryHouse >= 1 && primaryHouse <= 12 ? primaryHouse : undefined,
       promiseHouses: String(body?.promiseHouses || '').trim(),
       denialHouses: String(body?.denialHouses || '').trim(),
       dashaBhuktiAntara: String(body?.dashaBhuktiAntara || '').trim(),

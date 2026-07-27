@@ -15,7 +15,7 @@ import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignifica
 import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
 import EventTimingPanel from '@/components/admin/crm/kpAstro/EventTimingPanel';
 import { KpLanguageProvider, KpLanguageToggle } from '@/components/admin/crm/kpAstro/KpLanguageContext';
-import { housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet, type FortunaPoint } from '@/lib/kpAstro/significators';
 
 interface ChartListItem { _id: string; personName: string; gender?: string; updatedAt: string; }
 
@@ -23,6 +23,7 @@ interface ChartDetail {
   _id: string;
   personName: string;
   ascendant?: { sign?: string; degree?: string };
+  fortuna?: FortunaPoint;
   houses?: SignificatorHouse[];
   planets?: Array<SignificatorPlanet & { retrograde?: boolean; combust?: boolean }>;
   chartStyle?: 'north' | 'south';
@@ -343,7 +344,7 @@ export default function KpAstrologerWorkspacePage() {
             ) : workView === 'abcd' ? (
               <ABCDSignificatorsPanel houses={chart.houses || []} planets={chart.planets || []} bhavRows={bhavRows} />
             ) : (
-              <ChartDetailsPanel houses={chart.houses || []} planets={chart.planets || []} />
+              <ChartDetailsPanel houses={chart.houses || []} planets={chart.planets || []} fortuna={chart.fortuna} />
             )}
             {token && <EventTimingPanel chartId={chartId} token={token} />}
           </div>
