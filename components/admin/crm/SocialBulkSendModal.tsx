@@ -8,9 +8,12 @@
  * sent as an attachment first and the body text follows — Messenger and
  * Instagram cannot carry both in a single message.
  *
- * Meta only allows replying inside the 24-hour window since the contact last
- * messaged, so some recipients can fail while others succeed; the result panel
- * reports each one.
+ * Meta's standard reply window is 24 hours since the contact last messaged;
+ * sendMetaSocialMessage automatically retries a blocked send with the
+ * HUMAN_AGENT tag (7-day window) before giving up, so most sends succeed
+ * without the sender needing to think about the window at all. Some
+ * recipients can still fail while others succeed — the result panel reports
+ * each one individually.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -170,8 +173,9 @@ export default function SocialBulkSendModal({
                 </ul>
               )}
               <p className="mt-2 text-[10px] text-slate-500 leading-snug">
-                Meta only allows replies within 24 hours of the contact&apos;s last message — failures are usually
-                contacts outside that window.
+                Each send automatically retries with an extended reply window if the standard one has passed.
+                Remaining failures are usually chats old enough to need Meta&apos;s "Human Agent" approval (pending
+                App Review) or contacts who never messaged first.
               </p>
             </div>
           )}

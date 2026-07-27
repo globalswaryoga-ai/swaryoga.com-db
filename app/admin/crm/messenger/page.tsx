@@ -597,6 +597,15 @@ export default function MessengerInboxPage() {
             <i className="ph-bold ph-funnel text-xs"></i>
             <span className="hidden lg:inline uppercase tracking-wider">Funnel</span>
           </button>
+          <button
+            onClick={() => router.push('/admin/social-media')}
+            title="Post a new photo, video or reel to Facebook/Instagram"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-bold text-[10px] text-white transition-all duration-200 hover:shadow-lg hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)' }}
+          >
+            <i className="ph-bold ph-plus-circle text-xs"></i>
+            <span className="hidden lg:inline uppercase tracking-wider">New Post</span>
+          </button>
         </div>
       </header>
 
@@ -669,14 +678,18 @@ export default function MessengerInboxPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-bold">
-                      {/(#10)|outside of allowed window/i.test(sendError)
-                        ? "Outside Meta's 24-hour reply window"
-                        : 'Message not sent'}
+                      {/human agent/i.test(sendError)
+                        ? 'Reply window expired (auto-extend needs approval)'
+                        : /(#10)|outside of allowed window/i.test(sendError)
+                          ? "Outside Meta's reply window"
+                          : 'Message not sent'}
                     </div>
                     <div className="mt-0.5 leading-snug">
-                      {/(#10)|outside of allowed window/i.test(sendError)
-                        ? 'Meta only lets a Page reply within 24 hours of the person\'s last message. This chat is older than that, so replies are blocked until they message you again.'
-                        : sendError}
+                      {/human agent/i.test(sendError)
+                        ? 'We automatically tried extending the reply window to 7 days, but that needs Meta to approve our "Human Agent" access first (pending App Review). Once approved this will work automatically — no action needed here.'
+                        : /(#10)|outside of allowed window/i.test(sendError)
+                          ? 'We tried sending — Meta blocked it because this chat is too old. It will unblock the moment they message you again.'
+                          : sendError}
                     </div>
                   </div>
                   <button onClick={() => setSendError(null)} className="p-1 rounded hover:bg-amber-100 shrink-0" title="Dismiss">
