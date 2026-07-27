@@ -39,8 +39,8 @@ export default function Footer() {
     { name: 'Meditation Retreats', href: '/resort' },
     { name: 'Personal Coaching', href: '/contact' },
     { name: 'Corporate Wellness', href: '/contact' },
-    { name: 'Teacher Training', href: '/workshop' },
-    { name: 'Online Programs', href: '/workshop' },
+    { name: 'Teacher Training', href: '/teacher-training' },
+    { name: 'Online Programs', href: '/online-programs' },
     { name: 'Investment Opportunities', href: '/invest' }
   ];
 
