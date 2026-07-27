@@ -354,8 +354,6 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
           sentAt: event.sentAt || now,
           isRead: event.direction === 'outbound',
           metadata: event.rawEvent || {},
-          createdAt: now,
-          updatedAt: now,
         },
       },
       { upsert: true }
@@ -787,7 +785,7 @@ export async function importFacebookConversationHistory(
         if (externalMessageId) {
           const result = await Message.updateOne(
             { platform: resolvedAccount.platform, ...scopeFilter, externalMessageId },
-            { $setOnInsert: { ...messageDoc, createdAt: now, updatedAt: now } },
+            { $setOnInsert: messageDoc },
             { upsert: true },
           );
           if ((result as any).upsertedCount > 0) msgCount += 1;
