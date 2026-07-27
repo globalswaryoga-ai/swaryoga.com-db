@@ -77,6 +77,38 @@ export function buildSocialInboxScopeFilter(scope: Pick<SocialMediaScope, 'scope
   };
 }
 
+/**
+ * Resolve which Graph node id outbound calls must target.
+ *
+ * Messenger uses the Page id directly. Instagram (classic Page-linked
+ * integration) must ALSO target the linked Page id — calling with the
+ * Instagram Business Account id fails with "(#3) Application does not have
+ * the capability to make this API call".
+ *
+ * metadata.linkedPageId is the fast path, but it is not reliable: the
+ * analytics sync overwrites the metadata object and silently drops it, which
+ * would otherwise break Instagram sending/import until the next reconnect.
+ * So fall back to looking up the Facebook Page connected under the same scope.
+ */
+async function resolveGraphNodeId(account: any, platform: SocialInboxPlatform): Promise<string> {
+  const ownId = String(account.accountId);
+  if (platform !== 'instagram') return ownId;
+
+  const fromMetadata = cleanString(account.metadata?.linkedPageId);
+  if (fromMetadata) return fromMetadata;
+
+  const page = await SocialMediaAccount.findOne({
+    isConnected: true,
+    platform: 'facebook',
+    scopeType: account.scopeType,
+    scopeKey: account.scopeKey,
+  })
+    .sort({ connectedAt: -1, updatedAt: -1 })
+    .lean<any>();
+
+  return cleanString(page?.accountId) || ownId;
+}
+
 export async function resolveSocialInboxAccount(decoded: TokenPayload | null | undefined, platform: SocialInboxPlatform): Promise<ResolvedSocialInboxAccount | null> {
   await connectDB();
   const scope = await resolveSocialMediaScope(decoded);
@@ -109,9 +141,7 @@ export async function resolveSocialInboxAccount(decoded: TokenPayload | null | u
     accountHandle: String(account.accountHandle || ''),
     accessToken,
     accountDocId: String(account._id),
-    graphNodeId: platform === 'instagram'
-      ? cleanString(account.metadata?.linkedPageId) || String(account.accountId)
-      : String(account.accountId),
+    graphNodeId: await resolveGraphNodeId(account, platform),
   };
 }
 
@@ -151,9 +181,7 @@ export async function resolveSocialInboxAccountByAccountId(platform: SocialInbox
     accountHandle: String(account.accountHandle || ''),
     accessToken: decryptCredential(String(account.accessToken)),
     accountDocId: String(account._id),
-    graphNodeId: platform === 'instagram'
-      ? cleanString(account.metadata?.linkedPageId) || String(account.accountId)
-      : String(account.accountId),
+    graphNodeId: await resolveGraphNodeId(account, platform),
     ownerUserId: cleanString(account.ownerUserId || ''),
   };
 }
@@ -201,9 +229,7 @@ export async function getAllConnectedSocialInboxAccounts(): Promise<(ResolvedSoc
       accountHandle: String(account.accountHandle || ''),
       accessToken,
       accountDocId: String(account._id),
-      graphNodeId: platform === 'instagram'
-        ? cleanString(account.metadata?.linkedPageId) || String(account.accountId)
-        : String(account.accountId),
+      graphNodeId: await resolveGraphNodeId(account, platform),
       ownerUserId: cleanString(account.ownerUserId || ''),
     });
   }
