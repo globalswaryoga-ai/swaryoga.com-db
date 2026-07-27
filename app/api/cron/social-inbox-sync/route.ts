@@ -17,9 +17,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getAllConnectedSocialInboxAccounts, importFacebookConversationHistory } from '@/lib/socialInbox';
 
-export async function GET(req: NextRequest) {
+function isAuthorizedCronRequest(req: NextRequest): boolean {
+  const expected = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // If a secret is configured, require an exact match.
+  if (expected) return authHeader === `Bearer ${expected}`;
+  // No secret configured — fall back to Vercel's own cron user-agent (same
+  // pattern already used by other cron routes in this codebase, since
+  // CRON_SECRET is unset in this project's production environment).
+  const userAgent = req.headers.get('user-agent') || '';
+  return userAgent.includes('vercel-cron');
+}
+
+export async function GET(req: NextRequest) {
+  if (!isAuthorizedCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
