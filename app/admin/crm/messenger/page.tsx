@@ -98,6 +98,10 @@ export default function MessengerInboxPage() {
   const [pageOptions, setPageOptions] = useState<{ pageId: string; name: string; picture?: string | null; hasInstagram?: boolean }[] | null>(null);
   const [pendingUserToken, setPendingUserToken] = useState('');
 
+  // Send failures are shown separately from connection failures — a rejected
+  // send does not mean the Page connection is broken.
+  const [sendError, setSendError] = useState<string | null>(null);
+
   // Bulk selection for sending one template/message to many conversations.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -495,7 +499,7 @@ export default function MessengerInboxPage() {
       await loadMessengerConversations();
     } catch (error) {
       setComposerText(messageText);
-      setConnectionError(error instanceof Error ? error.message : 'Failed to send Messenger message');
+      setSendError(error instanceof Error ? error.message : 'Failed to send Messenger message');
     }
   };
 
@@ -657,6 +661,28 @@ export default function MessengerInboxPage() {
               <div className="mx-3 mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
                 <div className="font-bold">Facebook connection check failed</div>
                 <div className="mt-0.5">{connectionError}</div>
+              </div>
+            ) : null}
+
+            {sendError ? (
+              <div className="mx-3 mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-bold">
+                      {/(#10)|outside of allowed window/i.test(sendError)
+                        ? "Outside Meta's 24-hour reply window"
+                        : 'Message not sent'}
+                    </div>
+                    <div className="mt-0.5 leading-snug">
+                      {/(#10)|outside of allowed window/i.test(sendError)
+                        ? 'Meta only lets a Page reply within 24 hours of the person\'s last message. This chat is older than that, so replies are blocked until they message you again.'
+                        : sendError}
+                    </div>
+                  </div>
+                  <button onClick={() => setSendError(null)} className="p-1 rounded hover:bg-amber-100 shrink-0" title="Dismiss">
+                    <i className="ph ph-x"></i>
+                  </button>
+                </div>
               </div>
             ) : null}
 
