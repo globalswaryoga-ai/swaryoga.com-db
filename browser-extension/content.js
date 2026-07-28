@@ -248,6 +248,19 @@
     return Math.floor(Math.random() * (420000 - 180000) + 180000);
   }
 
+  /**
+   * Server-enforced cap for GROUP operations only (member add/remove, group
+   * creation, group-targeted scheduled sends): 150/day, 15/hour, 5:00 AM -
+   * 10:30 PM IST. Call once immediately before each individual group action
+   * — never batch-reserve ahead of time. Returns {allowed, error}. 1:1
+   * messages never call this — they're intentionally unrestricted.
+   */
+  async function reserveGroupOp() {
+    const res = await sendMessage({ type: 'RESERVE_GROUP_OP' });
+    if (!res.ok) return { allowed: false, error: res.data?.error || res.error || 'Rate-limit check failed' };
+    return { allowed: !!res.data?.allowed, error: res.data?.error };
+  }
+
   function startNewChat(phone) {
     const digits = phone.replace(/\D/g, '');
     if (!digits) return false;
@@ -287,9 +300,14 @@
     const failed = [];
     for (let i = 0; i < phones.length; i++) {
       if (i > 0) { onProgress?.(`Waiting before adding ${phones[i]}…`); await sleep(humanGapMs()); }
+      const gate = await reserveGroupOp();
+      if (!gate.allowed) { onProgress?.(`Stopped: ${gate.error}`); break; }
       onProgress?.(`Adding ${phones[i]} (${i + 1}/${phones.length})…`);
       const found = await searchAndSelectContact(phones[i]);
       if (found) added.push(phones[i]); else failed.push(phones[i]);
+    }
+    if (added.length === 0 && failed.length === 0) {
+      return { ok: false, error: "Group-op limit reached before any participants could be added — see status above." };
     }
 
     onProgress?.('Confirming participant selection…');
@@ -334,9 +352,14 @@
     const failed = [];
     for (let i = 0; i < phones.length; i++) {
       if (i > 0) { onProgress?.(`Waiting before adding ${phones[i]}…`); await sleep(humanGapMs()); }
+      const gate = await reserveGroupOp();
+      if (!gate.allowed) { onProgress?.(`Stopped: ${gate.error}`); break; }
       onProgress?.(`Adding ${phones[i]} (${i + 1}/${phones.length})…`);
       const found = await searchAndSelectContact(phones[i]);
       if (found) added.push(phones[i]); else failed.push(phones[i]);
+    }
+    if (added.length === 0 && failed.length === 0) {
+      return { ok: false, error: "Group-op limit reached before any participants could be added — see status above." };
     }
 
     onProgress?.('Confirming…');
@@ -351,6 +374,9 @@
 
   /** Leaves (and, if you're the only member left, effectively deletes) the currently open group. */
   async function leaveAndDeleteOpenGroup(onProgress) {
+    const gate = await reserveGroupOp();
+    if (!gate.allowed) return { ok: false, error: gate.error };
+
     onProgress?.('Opening group info…');
     if (!(await openGroupInfoPanel())) return { ok: false, error: "Couldn't open group info — make sure a group chat is open." };
 
@@ -364,6 +390,47 @@
     if (confirmBtn) confirmBtn.click();
 
     return { ok: true };
+  }
+
+  /**
+   * Removes specific members (by phone/name) from the currently open group,
+   * one at a time via the group info participant list's own row menu.
+   * Paced + rate-limited same as adding members.
+   */
+  async function removeParticipantsFromOpenGroup(queries, onProgress) {
+    onProgress?.('Opening group info…');
+    if (!(await openGroupInfoPanel())) return { ok: false, error: "Couldn't open group info — make sure a group chat is open." };
+    await sleep(400);
+
+    const removed = [];
+    const failed = [];
+    for (let i = 0; i < queries.length; i++) {
+      if (i > 0) { onProgress?.(`Waiting before removing ${queries[i]}…`); await sleep(humanGapMs()); }
+      const gate = await reserveGroupOp();
+      if (!gate.allowed) { onProgress?.(`Stopped: ${gate.error}`); break; }
+
+      onProgress?.(`Removing ${queries[i]} (${i + 1}/${queries.length})…`);
+      const query = queries[i].toLowerCase();
+      const rows = Array.from(document.querySelectorAll('div[role="listitem"]'));
+      const row = rows.find((r) => (r.textContent || '').toLowerCase().includes(query));
+      if (!row) { failed.push(queries[i]); continue; }
+
+      row.click(); // most WA versions open a per-participant action sheet on click
+      await sleep(400);
+      const removeOption = await waitForClickableText('Remove', { timeoutMs: 2500 });
+      if (!removeOption) { failed.push(queries[i]); continue; }
+      removeOption.click();
+      await sleep(300);
+      const confirmOption = await waitForClickableText('Remove', { timeoutMs: 2500 });
+      if (confirmOption) confirmOption.click();
+      removed.push(queries[i]);
+      await sleep(400);
+    }
+
+    if (removed.length === 0 && failed.length === 0) {
+      return { ok: false, error: "Group-op limit reached before any members could be removed — see status above." };
+    }
+    return { ok: true, removed, failed };
   }
 
   /** Posts a plain text WhatsApp Status update. */
@@ -554,6 +621,9 @@
     // ── Tools ──
     const toolsSection = el('div', 'sy-section');
     toolsSection.appendChild(el('div', 'sy-section-title', 'Tools'));
+    const limitsNote = el('div', 'sy-empty', 'Group actions (Add/Remove Member, New Group, Group Schedule): max 150/day, 15/hour, 5:00 AM-10:30 PM IST only. 1:1 messages are unlimited, any time. Need more group volume? Use Meta WhatsApp Business API.');
+    limitsNote.style.marginBottom = '6px';
+    toolsSection.appendChild(limitsNote);
 
     const statusBox = el('div', 'sy-empty');
     statusBox.style.display = 'none';
@@ -641,6 +711,28 @@
     });
     toolsRow.appendChild(deleteGroupBtn);
 
+    const removeMemberBtn = el('button', 'sy-btn', '➖ Remove Member');
+    removeMemberBtn.title = 'Removes specific people from the currently open group (paced, rate-limited) — for a regular Group, not a Community';
+    removeMemberBtn.addEventListener('click', async () => {
+      const raw = prompt(`Remove from the CURRENTLY OPEN group — phone numbers or names, comma separated (max ${MAX_ADD_MEMBERS}):`);
+      if (!raw || !raw.trim()) return;
+      const queries = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      if (queries.length > MAX_ADD_MEMBERS) {
+        setToolStatus(`❌ ${queries.length} is too many for this tool (max ${MAX_ADD_MEMBERS}).`, true);
+        return;
+      }
+      removeMemberBtn.disabled = true;
+      const result = await removeParticipantsFromOpenGroup(queries, (msg) => setToolStatus(msg));
+      removeMemberBtn.disabled = false;
+      setToolStatus(
+        result.ok
+          ? `✅ Removed ${result.removed?.length || 0}/${queries.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
+          : `❌ ${result.error}`,
+        !result.ok
+      );
+    });
+    toolsRow.appendChild(removeMemberBtn);
+
     const statusBtn = el('button', 'sy-btn', '📸 Post Status');
     statusBtn.addEventListener('click', async () => {
       const text = prompt('Status text:');
@@ -687,12 +779,20 @@
       const targets = [primaryTarget, ...listTargets].filter(Boolean);
       if (targets.length === 0) { setToolStatus('❌ Open a chat/group, or enter at least one recipient, first.', true); return; }
 
+      // Group-targeted scheduled sends count against the same group-op cap
+      // as Add Members/New Group/Remove Member — reserved at schedule time,
+      // not send time, so nobody can schedule past the daily/hourly budget.
+      // 1:1 (phone) targets are exempt — no gate call for those at all.
       let cumulativeMs = 0;
       let scheduled = 0;
       let failed = [];
       for (let i = 0; i < targets.length; i++) {
         if (i > 0) cumulativeMs += humanGapMs();
         const t = targets[i];
+        if (t.type === 'group') {
+          const gate = await reserveGroupOp();
+          if (!gate.allowed) { failed.push(`${t.value} (${gate.error})`); continue; }
+        }
         const res = await sendMessage({
           type: 'SCHEDULE_MESSAGE',
           targetType: t.type,

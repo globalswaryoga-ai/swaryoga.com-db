@@ -76,6 +76,16 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    // Call once immediately BEFORE each group mutation (one member
+    // add/remove, one group creation, one group-targeted scheduled send).
+    // 150/day, 15/hour, 5:00 AM-10:30 PM IST — server-enforced (not just in
+    // the page) so it can't be bypassed by reloading or clearing storage.
+    // Does NOT apply to 1:1 messages, which stay unrestricted.
+    case 'RESERVE_GROUP_OP': {
+      const res = await apiFetch('/api/extension/group-op-guard', { method: 'POST' });
+      return { ok: res.ok, data: res.data };
+    }
+
     case 'UPDATE_LEAD_STATUS': {
       const res = await apiFetch('/api/extension/lead', {
         method: 'PATCH',
