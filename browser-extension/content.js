@@ -12,7 +12,7 @@
 (function () {
   const sendMessage = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
 
-  let state = { loggedIn: false, allowed: false, currentPhone: '', quickReplies: [], lead: null };
+  let state = { loggedIn: false, allowed: false, currentPhone: '', quickReplies: [], templates: [], lead: null };
 
   function el(tag, cls, html) {
     const e = document.createElement(tag);
@@ -183,6 +183,32 @@
       }
     }
     body.appendChild(qrSection);
+
+    // ── Templates ── (fuller library: headers/images/buttons, from QR + Meta templates)
+    const tplSection = el('div', 'sy-section');
+    tplSection.appendChild(el('div', 'sy-section-title', 'Templates'));
+    if (!state.templates.length) {
+      tplSection.appendChild(el('div', 'sy-empty', 'No templates saved yet — create some in the CRM.'));
+    } else {
+      for (const tpl of state.templates) {
+        const item = el('div', 'sy-quick-reply');
+        const titleRow = el('div', 'sy-quick-reply-title', `${tpl.name} `);
+        const badge = el('span', 'sy-badge', tpl.provider === 'qr' ? 'QR' : 'Meta');
+        badge.style.marginLeft = '4px';
+        badge.style.fontSize = '9px';
+        titleRow.appendChild(badge);
+        item.appendChild(titleRow);
+        item.appendChild(el('div', 'sy-quick-reply-text', tpl.text));
+        if (tpl.imageUrl) {
+          const imgNote = el('div', 'sy-empty', '🖼️ Has an image header — inserts text only; attach the image manually in WhatsApp.');
+          imgNote.style.marginTop = '3px';
+          item.appendChild(imgNote);
+        }
+        item.addEventListener('click', () => setComposeText(tpl.text));
+        tplSection.appendChild(item);
+      }
+    }
+    body.appendChild(tplSection);
   }
 
   function buildSidebar() {
@@ -228,6 +254,14 @@
     }
   }
 
+  async function loadTemplates() {
+    const res = await sendMessage({ type: 'GET_TEMPLATES' });
+    if (res.ok && res.data?.success) {
+      state.templates = res.data.templates || [];
+      render();
+    }
+  }
+
   async function refreshAuthState() {
     const s = await sendMessage({ type: 'GET_STATE' });
     state.loggedIn = !!s.loggedIn;
@@ -235,6 +269,7 @@
     render();
     if (state.loggedIn && state.allowed) {
       loadQuickReplies();
+      loadTemplates();
     }
   }
 

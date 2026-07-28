@@ -76,6 +76,11 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    case 'GET_TEMPLATES': {
+      const res = await apiFetch('/api/extension/templates');
+      return { ok: res.ok, data: res.data };
+    }
+
     case 'AI_FIX': {
       const res = await apiFetch('/api/extension/ai', {
         method: 'POST',
