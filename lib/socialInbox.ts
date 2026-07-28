@@ -285,13 +285,20 @@ export async function getAllConnectedSocialInboxAccounts(): Promise<(ResolvedSoc
 }
 
 export function verifyMetaInboxSignature(rawBody: string, signatureHeader: string | null): boolean {
-  // Allow through if no secret configured (will verify when secret is added)
-  if (!META_INBOX_APP_SECRET) return true;
+  // Messenger and Instagram webhooks come from two entirely separate Meta apps
+  // (see docs/INSTAGRAM_DM_SETUP.md §1) and Meta signs each payload with that
+  // app's own secret. Accept the request if it matches either one — checking
+  // only META_APP_SECRET rejected every genuine Instagram delivery with a 401,
+  // which Meta gives up retrying, silently killing live Instagram webhook events.
+  const secrets = [META_INBOX_APP_SECRET, INSTAGRAM_APP_SECRET].filter(Boolean);
+  if (secrets.length === 0) return true; // Allow through if no secret configured yet
   const header = cleanString(signatureHeader);
   if (!header) return true; // Allow if no signature header (temporary for setup)
   const provided = header.includes('=') ? header.split('=').slice(1).join('=') : header;
-  const expected = crypto.createHmac('sha256', META_INBOX_APP_SECRET).update(rawBody, 'utf8').digest('hex');
-  return provided === expected;
+  return secrets.some((secret) => {
+    const expected = crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+    return provided === expected;
+  });
 }
 
 export function getMetaInboxVerifyToken(): string {

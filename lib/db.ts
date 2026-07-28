@@ -1062,16 +1062,12 @@ const socialMediaAccountSchema = new mongoose.Schema({
   disconnectedAt: { type: Date },
   lastTokenRefresh: { type: Date },
   
-  // Platform-specific metadata
-  metadata: {
-    followers: { type: Number, default: 0 },
-    following: { type: Number, default: 0 },
-    postsCount: { type: Number, default: 0 },
-    engagementRate: { type: Number, default: 0 },
-    lastSyncedAt: { type: Date },
-    businessCategory: { type: String },
-    website: { type: String },
-  },
+  // Platform-specific metadata. Mixed (not a fixed sub-schema) because fields
+  // like apiType/linkedPageId/igBusinessId are written by the Instagram/Messenger
+  // connect flow but weren't declared here — under Mongoose's default strict
+  // mode, any undeclared nested key gets silently dropped on the next full
+  // .save() of this document, which would quietly break Instagram send/import.
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   
   // Permissions
   grantedScopes: [String], // OAuth scopes granted
