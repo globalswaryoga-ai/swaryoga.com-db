@@ -598,6 +598,67 @@
     return box ? box.innerText || '' : '';
   }
 
+  /** WhatsApp mounts a hidden <input type="file"> for image/video attach
+   *  whether or not the attach menu is open — no need to click through
+   *  the paperclip → "Photos & videos" UI, which would also pop the native
+   *  OS file picker if driven by a real click. Setting .files directly and
+   *  firing 'change' drives the same flow without that dialog appearing. */
+  function findAttachFileInput() {
+    const candidates = [
+      'input[type="file"][accept*="image"]',
+      'input[type="file"][multiple]',
+      'input[type="file"]',
+    ];
+    for (const sel of candidates) {
+      const found = document.querySelector(sel);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /**
+   * Attaches a template's image as a real WhatsApp image message (with
+   * `caption` in WA's own caption box), instead of the old behavior of
+   * only inserting the caption text and leaving the image for manual
+   * attach. Best-effort: WhatsApp's attach/caption DOM isn't a documented
+   * API, so this can fail on a WhatsApp Web layout change — always returns
+   * a clear ok/error result so the caller can tell the user exactly what
+   * happened rather than failing silently.
+   */
+  async function attachImageToCompose(imageUrl, caption) {
+    const fetchRes = await sendMessage({ type: 'FETCH_IMAGE_DATA_URL', url: imageUrl });
+    if (!fetchRes.ok) return { ok: false, error: fetchRes.error || 'Failed to download the image.' };
+
+    const input = findAttachFileInput();
+    if (!input) return { ok: false, error: "Couldn't find WhatsApp's attach input on this page." };
+
+    try {
+      const blob = await (await fetch(fetchRes.dataUrl)).blob();
+      const filename = (imageUrl.split('/').pop() || 'image.jpg').split('?')[0];
+      const file = new File([blob], filename, { type: fetchRes.mimeType || 'image/jpeg' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      // WhatsApp opens an image-preview panel with its OWN caption box
+      // (a different contenteditable than the normal compose box) —
+      // wait for it, then paste the caption text in the same way
+      // setComposeText does for the regular compose box.
+      const captionBox = await waitFor('div[contenteditable="true"][data-tab]', { timeoutMs: 6000 });
+      if (!captionBox) return { ok: false, error: 'Image attached, but the caption box never appeared — add the caption manually.' };
+      if (caption) {
+        captionBox.focus();
+        const cdt = new DataTransfer();
+        cdt.setData('text/plain', caption);
+        captionBox.dispatchEvent(new ClipboardEvent('paste', { clipboardData: cdt, bubbles: true, cancelable: true }));
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  }
+
   function findSendButton() {
     const candidates = [
       'button[aria-label="Send"]',
@@ -2667,8 +2728,10 @@
           block.appendChild(el('div', 'sy-tpl-block-text', formatWA(text)));
           item.appendChild(block);
         }
+        let imageStatusEl = null;
         if (tpl.imageUrl) {
-          addBlock('Header', '🖼️ Image — inserts text only; attach the image manually in WhatsApp.');
+          addBlock('Header', '🖼️ Image — attaches as a real image with this text as the caption.');
+          imageStatusEl = item.lastChild.querySelector('.sy-tpl-block-text');
         } else if (tpl.headerText) {
           addBlock('Header', tpl.headerText);
         }
@@ -2683,7 +2746,15 @@
           item.appendChild(btnBlock);
         }
 
-        item.addEventListener('click', () => setComposeText(tpl.text));
+        item.addEventListener('click', async () => {
+          if (!tpl.imageUrl) { setComposeText(tpl.text); return; }
+          const original = imageStatusEl?.textContent;
+          if (imageStatusEl) imageStatusEl.textContent = '⏳ Attaching image…';
+          const res = await attachImageToCompose(tpl.imageUrl, tpl.text);
+          if (imageStatusEl) imageStatusEl.textContent = original;
+          if (!res.ok) alert(`Couldn't attach the image: ${res.error}\n\nInserting the text only — attach the image manually.`);
+          if (!res.ok) setComposeText(tpl.text);
+        });
         tplBody.appendChild(item);
       }
     }

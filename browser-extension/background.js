@@ -107,6 +107,30 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    // Downloads a template's image (hosted on Bunny CDN, a different origin
+    // than swaryoga.com) so content.js can attach it as a real WhatsApp
+    // image message instead of just inserting the caption text. Content
+    // scripts run in web.whatsapp.com's page context and are subject to
+    // ITS CORS policy for cross-origin fetches; the background worker
+    // fetches under its own host_permissions instead, same reasoning as
+    // every other network call in this file. Returned as a base64 data URL
+    // since that's what safely survives chrome.runtime.sendMessage.
+    case 'FETCH_IMAGE_DATA_URL': {
+      try {
+        const res = await fetch(msg.url);
+        if (!res.ok) return { ok: false, error: `Failed to download image (${res.status})` };
+        const blob = await res.blob();
+        const buf = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const mimeType = blob.type || 'image/jpeg';
+        return { ok: true, dataUrl: `data:${mimeType};base64,${btoa(binary)}`, mimeType };
+      } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+      }
+    }
+
     case 'CREATE_TEMPLATE': {
       const res = await apiFetch('/api/extension/templates', {
         method: 'POST',
