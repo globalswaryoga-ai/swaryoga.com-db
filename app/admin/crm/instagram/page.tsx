@@ -450,7 +450,7 @@ export default function InstagramInboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-refresh conversations every 5 seconds
+  // Auto-refresh conversations every 1 minute
   useEffect(() => {
     if (!token || !instagramAccount) return;
 
@@ -459,7 +459,7 @@ export default function InstagramInboxPage() {
       if (selected?._id) {
         loadInstagramMessages(selected._id, true);
       }
-    }, 5000);
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [token, instagramAccount, selected?._id, loadInstagramConversations, loadInstagramMessages]);
