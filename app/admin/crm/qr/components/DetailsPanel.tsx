@@ -110,14 +110,44 @@ export function DetailsPanel({
             </div>
           </>
         )}
-        <h4 className="mt-3 text-base font-semibold text-gray-900 text-center">
-          {isGroupChat ? chatName : formatPhoneNumber(chatName)}
-        </h4>
+        <div className="mt-3 flex items-center gap-1.5">
+          <h4 className="text-base font-semibold text-gray-900 text-center">
+            {isGroupChat ? chatName : formatPhoneNumber(chatName)}
+          </h4>
+          {isGroupChat && (
+            <button
+              onClick={() => {
+                const newName = prompt('New group name:', groupInfo?.subject || chatName || '');
+                if (newName && newName.trim()) handleRenameGroup(newName);
+              }}
+              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-indigo-600 flex-shrink-0"
+              title="Rename group"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
         {!isGroupChat && (
           <p className="text-xs text-gray-500 mt-0.5">+{phone}</p>
         )}
         {isGroupChat && groupInfo && (
-          <p className="text-xs text-gray-500 mt-0.5">{groupInfo.size || groupInfo.participants?.length || 0} members visible</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-xs text-gray-500">{groupInfo.size || groupInfo.participants?.length || 0} members visible</p>
+            {addGroupParticipants && (
+              <button
+                onClick={async () => {
+                  const raw = prompt('Add members — phone number(s), comma or newline separated:');
+                  if (!raw || !raw.trim()) return;
+                  const phones = raw.split(/[,;\n]+/).map(p => p.trim()).filter(Boolean);
+                  if (phones.length > 0) await addGroupParticipants(phones);
+                }}
+                className="text-[11px] text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-0.5"
+                title="Add members to this group"
+              >
+                <UserPlus className="w-3 h-3" /> Add
+              </button>
+            )}
+          </div>
         )}
         <span className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium ${isConnected ? 'text-green-600' : 'text-gray-400'}`}>
           <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
