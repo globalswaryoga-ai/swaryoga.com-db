@@ -362,10 +362,12 @@ export default function QRWhatsAppPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as any) || 'connection';
   const [tab, setTab] = useState<'connection' | 'inbox' | 'templates' | 'broadcast' | 'history' | 'settings'>(initialTab);
-  // Reclaim full width for the conversation by hiding the CRM sidebar while a
-  // chat is open in the inbox — a menu button appears in the header to bring
-  // it back as an overlay.
-  useCrmSidebarAutoHide(tab === 'inbox' && !!selectedChat);
+  // This page now has its own left icon rail (matching web.whatsapp.com's
+  // own vertical strip) that replaces CrmShell's persistent sidebar rather
+  // than sitting alongside it — hide it unconditionally for the whole page,
+  // not just while a chat is open. A menu button appears in the header to
+  // bring the CRM sidebar back as an overlay when needed.
+  useCrmSidebarAutoHide(true);
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [downloadingExtension, setDownloadingExtension] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
