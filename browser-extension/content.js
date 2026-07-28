@@ -1089,16 +1089,18 @@
       titleEl = document.querySelector(sel);
       if (titleEl) break;
     }
-    const header = titleEl?.closest('header');
-    if (!header) return null;
-    const divs = Array.from(header.children).filter((c) => c.tagName === 'DIV');
-    if (!divs.length) return null;
-    // The first <div> holds the avatar+name+status (it contains the title
-    // element) — insert right after it, ahead of WhatsApp's own icon row
-    // AND any third-party buttons (e.g. "Add to list") that come after it,
-    // regardless of whether those live in one shared div or several.
-    const nameSection = divs.find((d) => d.contains(titleEl)) || divs[0];
-    return { header, after: nameSection };
+    if (!titleEl) { console.warn('[SwarYogaCRM] header actions: no title element matched HEADER_TITLE_SELECTORS'); return null; }
+    const header = titleEl.closest('header');
+    if (!header) { console.warn('[SwarYogaCRM] header actions: title element has no <header> ancestor'); return null; }
+    const lastChild = header.lastElementChild;
+    if (!lastChild) { console.warn('[SwarYogaCRM] header actions: header has no children to insert before'); return null; }
+    // Insert right before the header's LAST child — third-party buttons
+    // (e.g. "Add to list") and WhatsApp's own icon row are both appended
+    // near the end of the header, so "before the last child" reliably
+    // lands ahead of them without needing to guess the header's internal
+    // div structure, which shifts between WhatsApp Web versions and was
+    // the reason the previous "insert after the name section" guess failed.
+    return { header, before: lastChild };
   }
 
   function renderConversationHeaderActions() {
@@ -1119,7 +1121,7 @@
       btn.addEventListener('click', handler);
       conversationHeaderActionsEl.appendChild(btn);
     }
-    anchor.after.insertAdjacentElement('afterend', conversationHeaderActionsEl);
+    anchor.header.insertBefore(conversationHeaderActionsEl, anchor.before);
   }
 
   /**
