@@ -683,6 +683,20 @@
   filter: brightness(0.95);
 }
 
+.sy-status-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.sy-status-file-row .sy-fmt-hint {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Merge Groups popup ── */
 .sy-modal-header.sy-modal-header-merge {
   background: linear-gradient(135deg, #f59e0b, #ea580c);

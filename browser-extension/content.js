@@ -1098,7 +1098,9 @@
    *  WhatsApp's file input (same technique as attachImageToCompose) instead
    *  of typing into the text composer, then adds `caption` in the resulting
    *  preview's caption box before sending. */
-  async function postMediaStatus(imageUrl, caption) {
+  /** Opens WhatsApp's Status composer (shared by URL- and local-file-based
+   *  status posting), leaving it ready for a file to be attached. */
+  async function openStatusComposer() {
     const statusNav =
       document.querySelector('[aria-label="Status"]') ||
       document.querySelector('span[data-icon="status-refreshed"]')?.closest('button');
@@ -1110,17 +1112,14 @@
     if (!addBtn) return { ok: false, error: "Couldn't find \"Add status\"." };
     addBtn.click();
     await sleep(500);
+    return { ok: true };
+  }
 
-    const fetchRes = await sendMessage({ type: 'FETCH_IMAGE_DATA_URL', url: imageUrl });
-    if (!fetchRes.ok) return { ok: false, error: fetchRes.error || 'Failed to download the media.' };
-
+  /** Sets `file` as the Status attachment, adds `caption`, and sends. */
+  async function attachFileToStatusAndSend(file, caption) {
     const input = findAttachFileInput();
     if (!input) return { ok: false, error: "Couldn't find WhatsApp's attach input for status." };
-
     try {
-      const blob = await (await fetch(fetchRes.dataUrl)).blob();
-      const filename = (imageUrl.split('/').pop() || 'status.jpg').split('?')[0];
-      const file = new File([blob], filename, { type: fetchRes.mimeType || 'image/jpeg' });
       const dt = new DataTransfer();
       dt.items.add(file);
       input.files = dt.files;
@@ -1142,6 +1141,33 @@
     } catch (e) {
       return { ok: false, error: e?.message || String(e) };
     }
+  }
+
+  async function postMediaStatus(imageUrl, caption) {
+    const opened = await openStatusComposer();
+    if (!opened.ok) return opened;
+
+    const fetchRes = await sendMessage({ type: 'FETCH_IMAGE_DATA_URL', url: imageUrl });
+    if (!fetchRes.ok) return { ok: false, error: fetchRes.error || 'Failed to download the media.' };
+
+    try {
+      const blob = await (await fetch(fetchRes.dataUrl)).blob();
+      const filename = (imageUrl.split('/').pop() || 'status.jpg').split('?')[0];
+      const file = new File([blob], filename, { type: fetchRes.mimeType || 'image/jpeg' });
+      return await attachFileToStatusAndSend(file, caption);
+    } catch (e) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  }
+
+  /** Same as postMediaStatus, but for a file picked from the user's own
+   *  device (input type=file) — no download step needed, the File object
+   *  is already local. Only usable for Post Now: a raw File can't survive
+   *  being persisted for a later chrome.alarms firing the way a URL can. */
+  async function postMediaStatusFromFile(file, caption) {
+    const opened = await openStatusComposer();
+    if (!opened.ok) return opened;
+    return attachFileToStatusAndSend(file, caption);
   }
 
   // ── Header tabs (injected into WhatsApp's own chat-list header) + row
@@ -1270,22 +1296,18 @@
   // already relies on (HEADER_TITLE_SELECTORS, proven reliable) and walking
   // up to ITS closest <header> guarantees we're in the open chat's header.
   function findConversationHeaderInsertionAnchor() {
-    let titleEl = null;
-    for (const sel of HEADER_TITLE_SELECTORS) {
-      titleEl = document.querySelector(sel);
-      if (titleEl) break;
-    }
-    if (!titleEl) { console.warn('[SwarYogaCRM] header actions: no title element matched HEADER_TITLE_SELECTORS'); return null; }
-    const header = titleEl.closest('header');
-    if (!header) { console.warn('[SwarYogaCRM] header actions: title element has no <header> ancestor'); return null; }
+    // #main is WhatsApp Web's own stable container ID for the OPEN
+    // CONVERSATION panel, distinct from the left chat-list panel — a bare
+    // `header` or a title-selector query (both tried before) can match
+    // elements in EITHER panel depending on DOM order, and had twice landed
+    // this row in the chat-list panel instead, squeezing/hiding its native
+    // search, filter, and menu icons there instead of sitting in the
+    // conversation header where it belongs. Scoping to `#main header`
+    // makes that ambiguity structurally impossible.
+    const header = document.querySelector('#main header');
+    if (!header) { console.warn('[SwarYogaCRM] header actions: no #main header found — no chat open, or WhatsApp changed its container id'); return null; }
     const lastChild = header.lastElementChild;
-    if (!lastChild) { console.warn('[SwarYogaCRM] header actions: header has no children to insert before'); return null; }
-    // Insert right before the header's LAST child — third-party buttons
-    // (e.g. "Add to list") and WhatsApp's own icon row are both appended
-    // near the end of the header, so "before the last child" reliably
-    // lands ahead of them without needing to guess the header's internal
-    // div structure, which shifts between WhatsApp Web versions and was
-    // the reason the previous "insert after the name section" guess failed.
+    if (!lastChild) { console.warn('[SwarYogaCRM] header actions: #main header has no children to insert before'); return null; }
     return { header, before: lastChild };
   }
 
@@ -1395,7 +1417,13 @@
 
     row.appendChild(fixBtn);
     row.appendChild(replyBtn);
-    footer.appendChild(row);
+    // The mic/send button sits as the footer's LAST element — insert right
+    // before it (not after everything) so this row lands immediately to
+    // its left, adjacent on the right side, instead of trailing off after
+    // the whole compose row.
+    const lastChild = footer.lastElementChild;
+    if (lastChild && lastChild !== row) footer.insertBefore(row, lastChild);
+    else footer.appendChild(row);
   }
 
   function injectComposeActionButton() {
@@ -2295,6 +2323,46 @@
     mediaInput.placeholder = 'https://…';
     mbody.appendChild(mediaInput);
 
+    mbody.appendChild(el('div', 'sy-fmt-hint', '— or —'));
+    const fileRow = el('div', 'sy-status-file-row');
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*,video/*';
+    fileInput.id = 'sy-status-file-input';
+    fileInput.style.display = 'none';
+    const filePickBtn = el('button', 'sy-modal-btn', '📁 Upload from your computer');
+    filePickBtn.type = 'button';
+    filePickBtn.addEventListener('click', () => fileInput.click());
+    const fileNameLabel = el('span', 'sy-fmt-hint', '');
+    let selectedFile = null;
+    fileInput.addEventListener('change', () => {
+      selectedFile = fileInput.files?.[0] || null;
+      fileNameLabel.textContent = selectedFile ? selectedFile.name : '';
+      if (selectedFile) {
+        mediaInput.value = '';
+        mediaInput.disabled = true;
+        nowRadio.checked = true;
+        laterRadio.disabled = true;
+        whenInput.style.display = 'none';
+      }
+    });
+    const clearFileBtn = el('button', 'sy-modal-btn', '×');
+    clearFileBtn.type = 'button';
+    clearFileBtn.title = 'Remove uploaded file';
+    clearFileBtn.addEventListener('click', () => {
+      selectedFile = null;
+      fileInput.value = '';
+      fileNameLabel.textContent = '';
+      mediaInput.disabled = false;
+      laterRadio.disabled = false;
+    });
+    fileRow.appendChild(filePickBtn);
+    fileRow.appendChild(fileNameLabel);
+    fileRow.appendChild(clearFileBtn);
+    fileRow.appendChild(fileInput);
+    mbody.appendChild(fileRow);
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'An uploaded file can only Post now — Schedule/Repeat needs a URL instead, since a local file can\'t be saved for later.'));
+
     mbody.appendChild(el('div', 'sy-modal-label', 'When'));
     const modeWrap = el('div', 'sy-repeat-row');
     const nowLabel = el('label', 'sy-radio-label');
@@ -2330,12 +2398,19 @@
       const text = textarea.value.trim();
       const mediaUrl = mediaInput.value.trim();
       const mode = laterRadio.checked ? 'schedule' : 'now';
-      if (!text && !mediaUrl) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Add status text or a media URL.'; return; }
+      if (!text && !mediaUrl && !selectedFile) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Add status text, a media URL, or upload a file.'; return; }
+      if (selectedFile && (mode !== 'now' || repeat.isEnabled())) {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = 'An uploaded file can only Post now — remove it, or switch to Post now with Repeat off.';
+        return;
+      }
 
       if (mode === 'now' && !repeat.isEnabled()) {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Posting…';
-        const result = mediaUrl ? await postMediaStatus(mediaUrl, text) : await postTextStatus(text);
+        const result = selectedFile
+          ? await postMediaStatusFromFile(selectedFile, text)
+          : mediaUrl ? await postMediaStatus(mediaUrl, text) : await postTextStatus(text);
         submitBtn.disabled = false;
         submitBtn.textContent = '📸 Post Status';
         if (result.ok) {
