@@ -3736,6 +3736,10 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // have one, both, or neither, since the extension runs on their own personal
     // WhatsApp Web login rather than the shared QR bridge session.
     extensionEnabled: { type: Boolean, default: false },
+    // Custom funnel/status stages this user has created from the browser
+    // extension sidebar, in addition to the fixed Lead.status list —
+    // per-user since each person's pipeline vocabulary can differ.
+    extensionFunnelStages: { type: [String], default: [] },
     // Currently connected WhatsApp phone number (e.g. '919876543210')
     // Saved automatically when QR scan connects. Used for session isolation:
     // if bridge returns chats from a different phone, old chats are NOT shown.

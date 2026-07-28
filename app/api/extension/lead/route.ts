@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { tenantOrFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { extensionJson, extensionOptions, requireExtensionAccess } from '@/lib/extensionAccess';
+import { isValidFunnelStatus } from '@/lib/extensionFunnelStages';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,16 +85,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const FUNNEL_STATUSES = [
-  'new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation',
-  'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak',
-  'only_for_post', 'lead', 'hot', 'prospect', 'customer',
-];
-
 /**
  * PATCH /api/extension/lead
  * Body: { leadId: string, status: string }
- * Updates a lead's funnel stage from the sidebar's Contact card.
+ * Updates a lead's funnel stage from the sidebar's Contact card. Accepts
+ * either a built-in status or one of this user's own custom stages
+ * (see /api/extension/funnel-stages).
  */
 export async function PATCH(req: NextRequest) {
   try {
@@ -106,8 +103,8 @@ export async function PATCH(req: NextRequest) {
     if (!leadId || !status) {
       return extensionJson({ success: false, error: 'leadId and status are required' }, 400);
     }
-    if (!FUNNEL_STATUSES.includes(status)) {
-      return extensionJson({ success: false, error: `Invalid status. Must be one of: ${FUNNEL_STATUSES.join(', ')}` }, 400);
+    if (!(await isValidFunnelStatus(String(decoded.userId), status))) {
+      return extensionJson({ success: false, error: 'Unknown funnel stage — add it first via the + button' }, 400);
     }
 
     await connectDB();

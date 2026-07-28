@@ -12,12 +12,9 @@
 (function () {
   const sendMessage = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
 
-  // Must match FUNNEL_STATUSES in app/api/extension/lead/route.ts.
-  const FUNNEL_STATUSES = [
-    'new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation',
-    'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak',
-    'only_for_post', 'lead', 'hot', 'prospect', 'customer',
-  ];
+  // Loaded from /api/extension/funnel-stages (built-in list + this user's
+  // own custom stages) — see loadFunnelStages().
+  let funnelStages = [];
 
   let state = { loggedIn: false, allowed: false, currentPhone: '', currentGroupName: '', quickReplies: [], templates: [], lead: null };
 
@@ -70,6 +67,68 @@
     section.appendChild(header);
     section.appendChild(body);
     return { section, body };
+  }
+
+  /** Centered popup modal (Schedule Message / Schedule Groups). Click outside or × to close. */
+  function openModal(title) {
+    const overlay = el('div', 'sy-modal-overlay');
+    const modal = el('div', 'sy-modal');
+    const header = el('div', 'sy-modal-header');
+    header.appendChild(el('span', '', title));
+    const closeBtn = el('button', 'sy-modal-close', '×');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+    const body = el('div', 'sy-modal-body');
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    return { overlay, body };
+  }
+
+  /** A <select> of saved templates ("Custom message" first) that fills `textarea` on change. */
+  function addTemplatePicker(container, textarea) {
+    container.appendChild(el('div', 'sy-modal-label', 'Template (optional)'));
+    const select = document.createElement('select');
+    const customOpt = document.createElement('option');
+    customOpt.value = '';
+    customOpt.textContent = '— Custom message —';
+    select.appendChild(customOpt);
+    for (const tpl of state.templates) {
+      const opt = document.createElement('option');
+      opt.value = tpl._id;
+      opt.textContent = `${tpl.name} (${tpl.provider === 'qr' ? 'QR' : 'Meta'})`;
+      select.appendChild(opt);
+    }
+    select.addEventListener('change', () => {
+      const tpl = state.templates.find((t) => t._id === select.value);
+      if (tpl) textarea.value = tpl.text;
+    });
+    container.appendChild(select);
+    return select;
+  }
+
+  /**
+   * Best-effort scrape of GROUP chats currently rendered in the left chat
+   * list (WhatsApp Web virtualizes long lists, so this only sees what's
+   * scrolled into view — scroll the chat list first to load more before
+   * opening this if a group you need isn't showing up).
+   */
+  function scanVisibleGroupChats() {
+    const rows = Array.from(document.querySelectorAll('div[role="listitem"], div[data-testid="cell-frame-container"]'));
+    const names = new Set();
+    for (const row of rows) {
+      const titleEl = row.querySelector('span[dir="auto"][title]');
+      if (!titleEl) continue;
+      const name = (titleEl.getAttribute('title') || titleEl.textContent || '').trim();
+      if (!name || looksLikePhone(name)) continue;
+      const hasGroupIcon = !!row.querySelector('span[data-icon="default-group"], span[data-icon="community-default"], span[data-icon="group"]');
+      const subtitle = row.querySelector('span.copyable-text, div._21S-L span, span[dir="ltr"]')?.textContent || '';
+      const looksGroupish = hasGroupIcon || /:\s/.test(subtitle); // "SenderName: last message" pattern only shows for groups
+      if (looksGroupish) names.add(name);
+    }
+    return Array.from(names);
   }
 
   // ── Find WhatsApp's own message compose box ──────────────────────────────
@@ -637,46 +696,16 @@
       setToolStatus(result.ok ? '✅ Status posted.' : `❌ ${result.error}`, !result.ok);
     });
 
-    const scheduleBtn = el('button', 'sy-icon-btn sy-primary', '📅');
-    scheduleBtn.title = 'Schedule Message — sends the current compose box text later, to the open chat/group or a list of recipients; only fires if this Chrome window is still open at that time';
-    scheduleBtn.addEventListener('click', async () => {
-      const text = getComposeText();
-      if (!text.trim()) { setToolStatus('❌ Type the message in WhatsApp\'s compose box first, then click Schedule.', true); return; }
-
-      const primaryTarget = state.currentPhone
-        ? { type: 'phone', value: state.currentPhone }
-        : state.currentGroupName
-          ? { type: 'group', value: state.currentGroupName }
-          : null;
-
-      const when = prompt('Send at? (e.g. "2026-08-04 09:00", 24h local time)');
-      if (!when) return;
-      const baseSendAt = new Date(when.replace(' ', 'T'));
-      if (isNaN(baseSendAt.getTime()) || baseSendAt.getTime() <= Date.now()) {
-        setToolStatus('❌ Couldn\'t understand that date/time, or it\'s in the past.', true);
-        return;
-      }
-
-      const rawList = prompt(
-        'Also send to (optional) — phone numbers and/or group names, comma separated.\n\n' +
-        'Each one is paced 3-7 min apart starting at the time above — this is real bulk sending on your personal WhatsApp, so a long list means real time and real risk.'
-      );
-      const listTargets = (rawList || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((s) => ({ type: looksLikePhone(s) ? 'phone' : 'group', value: s }));
-
-      const targets = [primaryTarget, ...listTargets].filter(Boolean);
-      if (targets.length === 0) { setToolStatus('❌ Open a chat/group, or enter at least one recipient, first.', true); return; }
-
-      // Group-targeted scheduled sends count against the same group-op cap
-      // as Add Members/New Group/Remove Member — reserved at schedule time,
-      // not send time, so nobody can schedule past the daily/hourly budget.
-      // 1:1 (phone) targets are exempt — no gate call for those at all.
+    /**
+     * Runs a list of {type, value} targets through SCHEDULE_MESSAGE, each
+     * staggered 3-7 min apart starting at sendAt. Group targets are gated by
+     * the same server-enforced group-op limit as Add/Remove Member; phone
+     * targets are exempt. Returns a summary object for the popup to show.
+     */
+    async function scheduleTargets(targets, text, sendAt) {
       let cumulativeMs = 0;
       let scheduled = 0;
-      let failed = [];
+      const failed = [];
       for (let i = 0; i < targets.length; i++) {
         if (i > 0) cumulativeMs += humanGapMs();
         const t = targets[i];
@@ -690,18 +719,139 @@
           phone: t.type === 'phone' ? t.value : undefined,
           groupName: t.type === 'group' ? t.value : undefined,
           text,
-          sendAt: baseSendAt.getTime() + cumulativeMs,
+          sendAt: sendAt + cumulativeMs,
         });
         if (res.ok) scheduled++; else failed.push(t.value);
       }
+      return { scheduled, failed, lastAt: new Date(sendAt + cumulativeMs) };
+    }
 
-      const lastAt = new Date(baseSendAt.getTime() + cumulativeMs);
-      setToolStatus(
-        `✅ Scheduled ${scheduled}/${targets.length} (spread from ${baseSendAt.toLocaleString()} to ${lastAt.toLocaleString()})${failed.length ? `, failed to schedule: ${failed.join(', ')}` : ''}. Keep this Chrome window open the whole time so they actually fire.`,
-        failed.length > 0
-      );
+    const scheduleBtn = el('button', 'sy-icon-btn sy-primary', '📅');
+    scheduleBtn.title = 'Schedule Message — pick a contact, a template (optional), and a time';
+    scheduleBtn.addEventListener('click', () => {
+      const { overlay, body: mbody } = openModal('📅 Schedule Message');
+
+      mbody.appendChild(el('div', 'sy-modal-label', 'Contact phone number'));
+      const phoneInput = document.createElement('input');
+      phoneInput.type = 'text';
+      phoneInput.placeholder = '91XXXXXXXXXX';
+      phoneInput.value = state.currentPhone || '';
+      mbody.appendChild(phoneInput);
+
+      const textarea = document.createElement('textarea');
+      textarea.placeholder = 'Message text';
+      addTemplatePicker(mbody, textarea);
+      mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+      mbody.appendChild(textarea);
+
+      mbody.appendChild(el('div', 'sy-modal-label', 'Send at'));
+      const whenInput = document.createElement('input');
+      whenInput.type = 'datetime-local';
+      mbody.appendChild(whenInput);
+
+      const msg = el('div', 'sy-modal-msg');
+      const footer = el('div', 'sy-modal-footer');
+      const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+      cancelBtn.addEventListener('click', () => overlay.remove());
+      const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Schedule');
+      submitBtn.addEventListener('click', async () => {
+        const phone = phoneInput.value.replace(/\D/g, '');
+        const text = textarea.value.trim();
+        const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
+        if (!phone) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a phone number.'; return; }
+        if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
+        if (isNaN(sendAt) || sendAt <= Date.now()) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time.'; return; }
+
+        submitBtn.disabled = true;
+        const { scheduled, failed } = await scheduleTargets([{ type: 'phone', value: phone }], text, sendAt);
+        submitBtn.disabled = false;
+        if (scheduled) {
+          setToolStatus(`✅ Scheduled for ${new Date(sendAt).toLocaleString()}. Keep this Chrome window open so it can fire.`);
+          overlay.remove();
+        } else {
+          msg.className = 'sy-modal-msg sy-error';
+          msg.textContent = `Failed: ${failed.join(', ') || 'unknown error'}`;
+        }
+      });
+      footer.appendChild(cancelBtn);
+      footer.appendChild(submitBtn);
+      mbody.appendChild(msg);
+      mbody.appendChild(footer);
     });
     iconRow.appendChild(scheduleBtn);
+
+    const scheduleGroupsBtn = el('button', 'sy-icon-btn sy-primary', '📅👥');
+    scheduleGroupsBtn.title = 'Schedule Groups — select multiple groups, a template (optional), and a time; paced 3-7 min apart, same limits as Add Members';
+    scheduleGroupsBtn.addEventListener('click', () => {
+      const { overlay, body: mbody } = openModal('📅 Schedule to Groups');
+
+      mbody.appendChild(el('div', 'sy-modal-label', 'Groups (scanned from your currently visible chat list — scroll the chat list first if a group you need isn\'t showing)'));
+      const checklist = el('div', 'sy-modal-checklist');
+      const detected = scanVisibleGroupChats();
+      if (!detected.length) {
+        checklist.appendChild(el('div', 'sy-empty', 'No groups detected in the visible chat list — scroll it, then reopen this, or add names manually below.'));
+      } else {
+        for (const name of detected) {
+          const label = document.createElement('label');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = name;
+          label.appendChild(cb);
+          label.appendChild(document.createTextNode(name));
+          checklist.appendChild(label);
+        }
+      }
+      mbody.appendChild(checklist);
+
+      mbody.appendChild(el('div', 'sy-modal-label', 'Also add manually (optional) — group names, comma separated'));
+      const manualInput = document.createElement('input');
+      manualInput.type = 'text';
+      mbody.appendChild(manualInput);
+
+      const textarea = document.createElement('textarea');
+      textarea.placeholder = 'Message text';
+      addTemplatePicker(mbody, textarea);
+      mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+      mbody.appendChild(textarea);
+
+      mbody.appendChild(el('div', 'sy-modal-label', 'Send at (first group — rest follow 3-7 min apart)'));
+      const whenInput = document.createElement('input');
+      whenInput.type = 'datetime-local';
+      mbody.appendChild(whenInput);
+
+      const msg = el('div', 'sy-modal-msg');
+      const footer = el('div', 'sy-modal-footer');
+      const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+      cancelBtn.addEventListener('click', () => overlay.remove());
+      const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Schedule All');
+      submitBtn.addEventListener('click', async () => {
+        const checked = Array.from(checklist.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
+        const manual = manualInput.value.split(',').map((s) => s.trim()).filter(Boolean);
+        const groupNames = Array.from(new Set([...checked, ...manual]));
+        const text = textarea.value.trim();
+        const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
+        if (!groupNames.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Select or type at least one group.'; return; }
+        if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
+        if (isNaN(sendAt) || sendAt <= Date.now()) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time.'; return; }
+
+        submitBtn.disabled = true;
+        const targets = groupNames.map((value) => ({ type: 'group', value }));
+        const { scheduled, failed, lastAt } = await scheduleTargets(targets, text, sendAt);
+        submitBtn.disabled = false;
+        if (scheduled) {
+          setToolStatus(`✅ Scheduled ${scheduled}/${groupNames.length} groups (spread to ${lastAt.toLocaleString()})${failed.length ? `, failed: ${failed.join(', ')}` : ''}. Keep this Chrome window open.`, failed.length > 0);
+          overlay.remove();
+        } else {
+          msg.className = 'sy-modal-msg sy-error';
+          msg.textContent = `Failed: ${failed.join(', ') || 'unknown error'}`;
+        }
+      });
+      footer.appendChild(cancelBtn);
+      footer.appendChild(submitBtn);
+      mbody.appendChild(msg);
+      mbody.appendChild(footer);
+    });
+    iconRow.appendChild(scheduleGroupsBtn);
 
     // Dashboards — one icon, dropdown menu (full table/kanban/chart pages don't fit a 300px sidebar).
     const dashWrap = el('div', 'sy-dropdown-wrap');
@@ -767,24 +917,45 @@
 
       const funnelSelect = document.createElement('select');
       funnelSelect.style.cssText = 'margin-top:4px;width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:11px;';
-      for (const s of FUNNEL_STATUSES) {
+      const stageList = funnelStages.length ? funnelStages : (state.lead.status ? [state.lead.status] : []);
+      for (const s of stageList) {
         const opt = document.createElement('option');
         opt.value = s;
         opt.textContent = s.replace(/_/g, ' ');
         if (s === state.lead.status) opt.selected = true;
         funnelSelect.appendChild(opt);
       }
+      const addStageOpt = document.createElement('option');
+      addStageOpt.value = '__add_new__';
+      addStageOpt.textContent = '+ Add new stage…';
+      funnelSelect.appendChild(addStageOpt);
+
       const funnelError = el('div', 'sy-empty');
       funnelError.style.cssText = 'display:none;color:#b91c1c;margin-top:3px;';
       funnelSelect.addEventListener('change', async () => {
-        const newStatus = funnelSelect.value;
         const prevStatus = state.lead.status;
+        let newStatus = funnelSelect.value;
+
+        if (newStatus === '__add_new__') {
+          funnelSelect.value = prevStatus || '';
+          const newStage = prompt('New funnel stage name:');
+          if (!newStage || !newStage.trim()) return;
+          const createRes = await sendMessage({ type: 'CREATE_FUNNEL_STAGE', stage: newStage.trim() });
+          if (!createRes.ok || !createRes.data?.success) {
+            alert(`Couldn't create stage: ${createRes.data?.error || 'unknown error'}`);
+            return;
+          }
+          await loadFunnelStages();
+          newStatus = newStage.trim();
+        }
+
         funnelSelect.disabled = true;
         funnelError.style.display = 'none';
         const res = await sendMessage({ type: 'UPDATE_LEAD_STATUS', leadId: state.lead._id, status: newStatus });
         funnelSelect.disabled = false;
         if (res.ok && res.data?.success) {
           state.lead.status = newStatus;
+          render();
         } else {
           funnelSelect.value = prevStatus;
           funnelError.textContent = `❌ Couldn't update: ${res.data?.error || 'unknown error'}`;
@@ -880,12 +1051,32 @@
         badge.style.fontSize = '9px';
         titleRow.appendChild(badge);
         item.appendChild(titleRow);
-        item.appendChild(el('div', 'sy-quick-reply-text', formatWA(tpl.text)));
-        if (tpl.imageUrl) {
-          const imgNote = el('div', 'sy-empty', '🖼️ Has an image header — inserts text only; attach the image manually in WhatsApp.');
-          imgNote.style.marginTop = '3px';
-          item.appendChild(imgNote);
+
+        // Structured blocks (header/body/footer/buttons) instead of one
+        // flowing paragraph — matches the template's actual message shape.
+        function addBlock(label, text) {
+          if (!text) return;
+          const block = el('div', 'sy-tpl-block');
+          block.appendChild(el('div', 'sy-tpl-block-label', label));
+          block.appendChild(el('div', 'sy-tpl-block-text', formatWA(text)));
+          item.appendChild(block);
         }
+        if (tpl.imageUrl) {
+          addBlock('Header', '🖼️ Image — inserts text only; attach the image manually in WhatsApp.');
+        } else if (tpl.headerText) {
+          addBlock('Header', tpl.headerText);
+        }
+        addBlock('Body', tpl.body);
+        addBlock('Footer', tpl.footer);
+        if (tpl.buttons && tpl.buttons.length) {
+          const btnBlock = el('div', 'sy-tpl-block');
+          btnBlock.appendChild(el('div', 'sy-tpl-block-label', 'Buttons'));
+          const chipRow = el('div', 'sy-tpl-buttons');
+          for (const b of tpl.buttons) chipRow.appendChild(el('span', 'sy-tpl-button-chip', b));
+          btnBlock.appendChild(chipRow);
+          item.appendChild(btnBlock);
+        }
+
         item.addEventListener('click', () => setComposeText(tpl.text));
         tplBody.appendChild(item);
       }
@@ -944,6 +1135,14 @@
     }
   }
 
+  async function loadFunnelStages() {
+    const res = await sendMessage({ type: 'GET_FUNNEL_STAGES' });
+    if (res.ok && res.data?.success) {
+      funnelStages = [...(res.data.builtIn || []), ...(res.data.custom || [])];
+      render();
+    }
+  }
+
   async function refreshAuthState() {
     const s = await sendMessage({ type: 'GET_STATE' });
     state.loggedIn = !!s.loggedIn;
@@ -952,6 +1151,7 @@
     if (state.loggedIn && state.allowed) {
       loadQuickReplies();
       loadTemplates();
+      loadFunnelStages();
     }
   }
 

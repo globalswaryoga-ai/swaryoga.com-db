@@ -175,6 +175,183 @@
 #swaryoga-crm-sidebar .sy-quick-reply-text em { font-style: italic; }
 #swaryoga-crm-sidebar .sy-quick-reply-text del { text-decoration: line-through; }
 
+/* ── Structured template preview blocks ── */
+#swaryoga-crm-sidebar .sy-tpl-block {
+  margin-top: 5px;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-block-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #9ca3af;
+  margin-bottom: 1px;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-block-text {
+  font-size: 11px;
+  color: #374151;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-block-text strong { color: #111827; }
+#swaryoga-crm-sidebar .sy-tpl-block-text em { font-style: italic; }
+#swaryoga-crm-sidebar .sy-tpl-block-text del { text-decoration: line-through; }
+
+#swaryoga-crm-sidebar .sy-tpl-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-button-chip {
+  font-size: 10px;
+  font-weight: 600;
+  color: #2d6a4f;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ── Modal (Schedule Message / Schedule Groups popups) ── */
+.sy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.sy-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 380px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.sy-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #2d6a4f;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 12px 12px 0 0;
+  position: sticky;
+  top: 0;
+}
+
+.sy-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sy-modal-body {
+  padding: 16px;
+}
+
+.sy-modal-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 12px 0 4px;
+}
+
+.sy-modal-label:first-child {
+  margin-top: 0;
+}
+
+.sy-modal-body input[type="text"],
+.sy-modal-body input[type="datetime-local"],
+.sy-modal-body select,
+.sy-modal-body textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.sy-modal-body textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.sy-modal-checklist {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 6px 8px;
+}
+
+.sy-modal-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.sy-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.sy-modal-btn {
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.sy-modal-btn.sy-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+.sy-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sy-modal-msg {
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.sy-modal-msg.sy-error { color: #b91c1c; }
+.sy-modal-msg.sy-ok { color: #166534; }
+
 #swaryoga-crm-sidebar .sy-empty {
   color: #9ca3af;
   font-size: 11px;

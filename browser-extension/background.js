@@ -107,6 +107,19 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    case 'GET_FUNNEL_STAGES': {
+      const res = await apiFetch('/api/extension/funnel-stages');
+      return { ok: res.ok, data: res.data };
+    }
+
+    case 'CREATE_FUNNEL_STAGE': {
+      const res = await apiFetch('/api/extension/funnel-stages', {
+        method: 'POST',
+        body: JSON.stringify({ stage: msg.stage }),
+      });
+      return { ok: res.ok, data: res.data };
+    }
+
     case 'AI_FIX': {
       const res = await apiFetch('/api/extension/ai', {
         method: 'POST',

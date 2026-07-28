@@ -51,14 +51,26 @@ export async function GET(req: NextRequest) {
     return extensionJson({
       success: true,
       templates: templates
-        .map((t: any) => ({
-          _id: t._id,
-          name: t.templateName,
-          text: renderTemplateText(t),
-          provider: t.provider || 'meta',
-          headerFormat: t.headerFormat || 'NONE',
-          imageUrl: t.imageFile?.url || (t.headerFormat === 'IMAGE' ? t.headerContent : '') || '',
-        }))
+        .map((t: any) => {
+          const headerFormat = String(t.headerFormat || '').toUpperCase();
+          const headerText = headerFormat === 'TEXT' && t.headerContent && !String(t.headerContent).startsWith('http')
+            ? t.headerContent
+            : '';
+          return {
+            _id: t._id,
+            name: t.templateName,
+            // Flattened string, still used for the actual click-to-insert.
+            text: renderTemplateText(t),
+            // Structured pieces, used for the sidebar's block-by-block preview.
+            headerText,
+            body: String(t.templateContent || '').trim(),
+            footer: String(t.footerText || '').trim(),
+            buttons: Array.isArray(t.buttons) ? t.buttons.map((b: any) => b.title).filter(Boolean) : [],
+            provider: t.provider || 'meta',
+            headerFormat: headerFormat || 'NONE',
+            imageUrl: t.imageFile?.url || (headerFormat === 'IMAGE' ? t.headerContent : '') || '',
+          };
+        })
         .filter((t: any) => t.text),
     });
   } catch (err) {
