@@ -1319,6 +1319,8 @@
     report: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
     broadcast: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h1l5 4V6l-5 4H4a1 1 0 0 0-1 1z"></path><path d="M15 8a3 3 0 0 1 0 8"></path><path d="M17.5 5.5a7 7 0 0 1 0 13"></path></svg>',
     settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+    leads: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+    sales: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>',
   };
 
   function renderConversationHeaderActions() {
@@ -1326,28 +1328,22 @@
     if (!anchor) return;
     if (conversationHeaderActionsEl && document.body.contains(conversationHeaderActionsEl) && anchor.header.contains(conversationHeaderActionsEl)) return;
     conversationHeaderActionsEl = el('div', 'sy-conv-header-actions');
+    // Every tool in this row is a monochrome black/white icon with a
+    // native hover tooltip (title attribute) — matching WhatsApp's own
+    // icon buttons (video call, phone, search, menu) instead of standing
+    // out as colorful emoji or plain text links.
     const items = [
       [SVG_ICON.funnel, 'Funnel', () => openFunnelModal()],
       [SVG_ICON.report, 'Report', () => openReportModal()],
       [SVG_ICON.broadcast, 'Broadcast', () => openBroadcastModal()],
+      [SVG_ICON.leads, 'Leads', () => openLeadsModal()],
+      [SVG_ICON.sales, 'Sales', () => openSalesModal()],
       [SVG_ICON.settings, 'Settings', () => openSettingsModal()],
     ];
     for (const [svg, title, handler] of items) {
       const btn = el('button', 'sy-conv-header-btn', svg);
       btn.type = 'button';
       btn.title = title;
-      btn.addEventListener('click', handler);
-      conversationHeaderActionsEl.appendChild(btn);
-    }
-    const textButtons = [
-      ['Leads', () => openLeadsModal()],
-      ['Sales', () => openSalesModal()],
-    ];
-    for (const [label, handler] of textButtons) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'sy-conv-header-textlink';
-      btn.textContent = label;
       btn.addEventListener('click', handler);
       conversationHeaderActionsEl.appendChild(btn);
     }
