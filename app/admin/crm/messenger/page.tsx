@@ -700,14 +700,18 @@ export default function MessengerInboxPage() {
                         ? 'Reply window expired (auto-extend needs approval)'
                         : /(#10)|outside of allowed window/i.test(sendError)
                           ? "Outside Meta's reply window"
-                          : 'Message not sent'}
+                          : /not the thread owner/i.test(sendError)
+                            ? 'Waiting for their first message'
+                            : 'Message not sent'}
                     </div>
                     <div className="mt-0.5 leading-snug">
                       {/human agent/i.test(sendError)
                         ? 'We automatically tried extending the reply window to 7 days, but that needs Meta to approve our "Human Agent" access first (pending App Review). Once approved this will work automatically — no action needed here.'
                         : /(#10)|outside of allowed window/i.test(sendError)
                           ? 'We tried sending — Meta blocked it because this chat is too old. It will unblock the moment they message you again.'
-                          : sendError}
+                          : /not the thread owner/i.test(sendError)
+                            ? "Meta hasn't linked this chat to our app yet — this happens on conversations imported from history that this contact hasn't messaged since we connected. Ask them to send any new message here; once it arrives, replying will work immediately."
+                            : sendError}
                     </div>
                   </div>
                   <button onClick={() => setSendError(null)} className="p-1 rounded hover:bg-amber-100 shrink-0" title="Dismiss">
@@ -868,22 +872,33 @@ export default function MessengerInboxPage() {
               </div>
 
               {/* Composer */}
-              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,244,255,0.9) 100%)', borderTop: '1px solid rgba(0,120,255,0.1)' }}>
-                <SocialComposer
-                  value={composerText}
-                  onChange={setComposerText}
-                  onSend={handleSendMessage}
-                  token={token}
-                  replyContext={[...messages].reverse().find((m) => m.direction === 'inbound')?.messageContent || ''}
-                  quickReplies={quickReplies}
-                  accent={{
-                    color: '#0078FF',
-                    soft: 'rgba(0,120,255,0.08)',
-                    border: 'rgba(0,120,255,0.15)',
-                    sendBg: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)',
-                    sendShadow: '0 2px 8px rgba(0,120,255,0.3)',
-                  }}
-                />
+              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md flex items-end gap-2" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,244,255,0.9) 100%)', borderTop: '1px solid rgba(0,120,255,0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => router.push('/admin/social-media')}
+                  title="Post a new photo, video or reel"
+                  className="shrink-0 h-11 w-11 rounded-xl flex items-center justify-center text-white shadow-md hover:scale-105 transition-transform"
+                  style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)' }}
+                >
+                  <i className="ph-fill ph-image-square text-lg"></i>
+                </button>
+                <div className="flex-1">
+                  <SocialComposer
+                    value={composerText}
+                    onChange={setComposerText}
+                    onSend={handleSendMessage}
+                    token={token}
+                    replyContext={[...messages].reverse().find((m) => m.direction === 'inbound')?.messageContent || ''}
+                    quickReplies={quickReplies}
+                    accent={{
+                      color: '#0078FF',
+                      soft: 'rgba(0,120,255,0.08)',
+                      border: 'rgba(0,120,255,0.15)',
+                      sendBg: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)',
+                      sendShadow: '0 2px 8px rgba(0,120,255,0.3)',
+                    }}
+                  />
+                </div>
               </div>
             </>
           ) : (
