@@ -289,11 +289,11 @@ export default function InstagramInboxPage() {
     });
   }, [sidebarData.followUpDate]);
 
-  const loadInstagramMessages = useCallback(async (conversationId: string) => {
+  const loadInstagramMessages = useCallback(async (conversationId: string, silent = false) => {
     const adminToken = getStoredAdminToken();
     if (!adminToken || !conversationId) return;
 
-    setLoadingMessages(true);
+    if (!silent) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/admin/crm/social-inbox/messages?platform=instagram&conversationId=${encodeURIComponent(conversationId)}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
@@ -312,10 +312,12 @@ export default function InstagramInboxPage() {
         setConversations((prev) => prev.map((item) => (item._id === conversation._id ? { ...item, ...conversation, unreadCount: 0 } : item)));
       }
     } catch (error) {
-      setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram messages');
-      setMessages([]);
+      if (!silent) {
+        setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram messages');
+        setMessages([]);
+      }
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   }, [getStoredAdminToken, syncSidebarFromConversation]);
 
@@ -455,7 +457,7 @@ export default function InstagramInboxPage() {
     const interval = setInterval(() => {
       loadInstagramConversations();
       if (selected?._id) {
-        loadInstagramMessages(selected._id);
+        loadInstagramMessages(selected._id, true);
       }
     }, 5000);
 
@@ -565,8 +567,9 @@ export default function InstagramInboxPage() {
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to send Instagram message');
       }
-      // Refresh to get actual message ID and confirmation
-      await loadInstagramMessages(selected._id);
+      // Refresh to get actual message ID and confirmation — silent so the
+      // panel doesn't blank out while it re-fetches.
+      await loadInstagramMessages(selected._id, true);
       await loadInstagramConversations();
     } catch (error) {
       setComposerText(messageText);

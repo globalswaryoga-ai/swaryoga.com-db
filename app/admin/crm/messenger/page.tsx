@@ -276,11 +276,11 @@ export default function MessengerInboxPage() {
     });
   }, []);
 
-  const loadMessengerMessages = useCallback(async (conversationId: string) => {
+  const loadMessengerMessages = useCallback(async (conversationId: string, silent = false) => {
     const adminToken = getStoredAdminToken();
     if (!adminToken || !conversationId) return;
 
-    setLoadingMessages(true);
+    if (!silent) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/admin/crm/social-inbox/messages?platform=messenger&conversationId=${encodeURIComponent(conversationId)}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
@@ -299,10 +299,12 @@ export default function MessengerInboxPage() {
         setConversations((prev) => prev.map((item) => (item._id === conversation._id ? { ...item, ...conversation, unreadCount: 0 } : item)));
       }
     } catch (error) {
-      setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger messages');
-      setMessages([]);
+      if (!silent) {
+        setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger messages');
+        setMessages([]);
+      }
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   }, [getStoredAdminToken, syncSidebarFromConversation]);
 
@@ -478,6 +480,18 @@ export default function MessengerInboxPage() {
     if (!composerText.trim() || !selected) return;
     const messageText = composerText.trim();
     setComposerText('');
+
+    // Show the message immediately instead of waiting on the round trip —
+    // otherwise a slow send looks like nothing happened.
+    const optimisticMessage: Message = {
+      _id: `temp-${Date.now()}`,
+      direction: 'outbound',
+      messageContent: messageText,
+      sentAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+
     try {
       const adminToken = getStoredAdminToken();
       const res = await fetch('/api/admin/crm/social-inbox/messages', {
@@ -496,10 +510,13 @@ export default function MessengerInboxPage() {
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to send Messenger message');
       }
-      await loadMessengerMessages(selected._id);
+      // Refresh to get the real message — silent so the panel doesn't blank
+      // out while it re-fetches.
+      await loadMessengerMessages(selected._id, true);
       await loadMessengerConversations();
     } catch (error) {
       setComposerText(messageText);
+      setMessages((prev) => prev.filter((m) => m._id !== optimisticMessage._id));
       setSendError(error instanceof Error ? error.message : 'Failed to send Messenger message');
     }
   };
