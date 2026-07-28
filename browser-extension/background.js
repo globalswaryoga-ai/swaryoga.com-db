@@ -115,6 +115,20 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    // Generic passthrough to the existing admin CRM API (leads, broadcast-runs,
+    // qr-broadcast-schedule, broadcast reports, the QR bridge's chat list, …).
+    // The extension login already goes through /api/admin/auth/login, which
+    // rejects non-admins outright — every extension user's token already
+    // carries isAdmin:true — so these routes work with the same stored token
+    // without needing a parallel set of /api/extension/* re-implementations.
+    case 'ADMIN_API': {
+      const res = await apiFetch(msg.path, {
+        method: msg.method || 'GET',
+        body: msg.body !== undefined ? JSON.stringify(msg.body) : undefined,
+      });
+      return { ok: res.ok, status: res.status, data: res.data };
+    }
+
     case 'GET_FUNNEL_STAGES': {
       const res = await apiFetch('/api/extension/funnel-stages');
       return { ok: res.ok, data: res.data };

@@ -3,11 +3,42 @@
 Adds a CRM sidebar to your own WhatsApp Web (web.whatsapp.com): lead lookup by
 phone number (with editable funnel/status), AI Fix/Reply (same AI used in the
 admin panel), click-to-insert quick replies and templates, and a Tools panel
-(New Chat, New Group, Add/Remove Member, Leave/Delete group, Post Status,
-Schedule Message — including group scheduling and paced multi-recipient
-scheduling). Runs on your own WhatsApp Web login — no separate bridge, no
-QR-ban risk, since it's just the real, official web.whatsapp.com page with UI
-added on top.
+(New Chat, New Group, Add/Remove Member, Leave/Delete group, Post Status).
+
+Two kinds of tools live side by side, and it matters which is which:
+
+- **Personal WhatsApp Web tools** (New Chat, New Group, Add/Remove Member,
+  Leave/Delete Group, Post Status) drive the real web.whatsapp.com UI on
+  *your own* logged-in session — no separate bridge, no ban risk beyond what
+  a real person clicking around would carry.
+- **Broadcast, Funnel send, Schedule Message, and Schedule Groups** run
+  through the same server-side QR bridge engine the admin CRM's Broadcast /
+  Group Scheduler pages use (`/api/admin/crm/broadcast-runs` and
+  `/api/admin/crm/qr-broadcast-schedule`) — not this Chrome tab. That means
+  Send Now, real repeat-on-days, and delivery tracking all work exactly like
+  the CRM, and none of it depends on this browser window staying open.
+
+## Broadcast / Funnel / Schedule tools
+
+- **📣 Broadcast** — pick a saved template, search-and-select recipients from
+  your leads, then **Send Now** or **Schedule**. Same engine as CRM → QR
+  Broadcast, so pacing and dedup are handled server-side automatically.
+- **🔻 Funnel** — view who's in a funnel stage (live from the CRM, not just
+  chats you've happened to open), add a phone number to a stage, or send a
+  template to everyone in a stage in one click.
+- **📅 Schedule Message** (1:1) — pick a saved template (keeps its real
+  header image/video/document + buttons) or type a one-off message (saved as
+  a template behind the scenes). **Send Now**, **Schedule** for one time, or
+  **Repeat** across a range of days.
+- **📅👥 Schedule Groups** — pulls your *real* WhatsApp groups from the QR
+  bridge (not scraped from the visible chat list), lets you attach an
+  optional media URL, and schedules across a start date + day checklist —
+  the same shape as CRM → QR Group Scheduler.
+- **📈 Report** — sent / delivered / read / pending / failed / skipped
+  totals plus blocked-number count, and your most recent broadcasts, pulled
+  from the same aggregation the CRM's broadcast history uses.
+- **⚙️ Settings** — who you're signed in as, extension version, quick links
+  to the CRM pages that govern access/QR account/chatbot flows, and log out.
 
 ## Group operation limits (server-enforced, not just client-side)
 
@@ -51,15 +82,15 @@ all.
   same safety window used server-side for the QR bridge's Merge Group tool —
   this runs on your *personal* WhatsApp account, so the same anti-spam risk
   that's caused QR bridge restrictions before applies here too.
-- **Repeat on these days** (Schedule Message / Schedule Groups / Schedule
-  Selected) — pick a start date and a block size, uncheck any days you don't
-  want, and one schedule gets queued per checked day at the time you set.
-  Same "this Chrome window needs to stay open" caveat as a single schedule,
-  just repeated per day.
+- **Schedule Selected** (checkbox bulk-select on chat rows) is the one
+  remaining chrome.alarms-based scheduler — best-effort, only fires if this
+  Chrome window is open at the scheduled time. Everything else above
+  (Broadcast, Funnel send, Schedule Message, Schedule Groups) is server-side.
 - **Create Template** (Templates section, **+**) — same fields as the admin
   Create Template page (name, language, category, header type, body with the
   Bold/Italic/Strike + emoji toolbar, footer, up to 3 buttons). Always saved
-  as a QR template — auto-approved, no Meta review.
+  as a QR template — auto-approved, no Meta review. Used directly by
+  Broadcast/Funnel/Schedule Message's template picker.
 
 ## Install (not on the Chrome Web Store — sideloaded / "developer mode")
 

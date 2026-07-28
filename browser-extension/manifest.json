@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Swar Yoga WhatsApp CRM",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "CRM sidebar, AI Fix/Reply, templates, scheduling, and group tools directly on your own WhatsApp Web — no separate bridge, uses your real WhatsApp Web login.",
   "icons": {
     "16": "icons/icon16.png",

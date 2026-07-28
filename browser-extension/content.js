@@ -62,6 +62,15 @@
     }
   };
 
+  /** Calls any existing admin CRM API route (leads, broadcast-runs,
+   *  qr-broadcast-schedule, broadcast reports, the QR bridge's chat list…)
+   *  through the background worker with the same login token — see the
+   *  ADMIN_API case in background.js for why this is safe. */
+  async function adminApi(path, method = 'GET', body) {
+    const res = await sendMessage({ type: 'ADMIN_API', path, method, body });
+    return res;
+  }
+
   // Loaded from /api/extension/funnel-stages (built-in list + this user's
   // own custom stages) — see loadFunnelStages().
   let funnelStages = [];
@@ -70,6 +79,7 @@
     loggedIn: false, allowed: false, currentPhone: '', currentGroupName: '', currentChatKey: '',
     quickReplies: [], templates: [], lead: null,
     labelPresets: [], chatLabels: {}, // { chatKey: [labelKey, ...] }
+    name: '', userId: '', isSuperAdmin: false,
   };
 
   // Collapsed by default — keeps the sidebar short until the user wants to browse.
@@ -368,6 +378,94 @@
     }
     const r = await scheduleTargets(targets, text, singleSendAt);
     return { ...r, days: 1 };
+  }
+
+  /** A <select> of saved templates that returns the chosen template OBJECT
+   *  (with its real _id) rather than filling a textarea — used by Broadcast,
+   *  where the backend needs templateId, not raw text. */
+  function addTemplateIdPicker(container) {
+    container.appendChild(el('div', 'sy-modal-label', 'Template'));
+    const select = document.createElement('select');
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = state.templates.length ? '— Select a template —' : 'No templates yet — create one first (Templates section, +)';
+    select.appendChild(placeholder);
+    for (const tpl of state.templates) {
+      const opt = document.createElement('option');
+      opt.value = tpl._id;
+      opt.textContent = `${tpl.name} (${tpl.provider === 'qr' ? 'QR' : 'Meta'})`;
+      select.appendChild(opt);
+    }
+    container.appendChild(select);
+    const preview = el('div', 'sy-tpl-block-text');
+    preview.style.cssText = 'margin-top:6px;max-height:80px;overflow-y:auto;';
+    container.appendChild(preview);
+    select.addEventListener('change', () => {
+      const tpl = state.templates.find((t) => t._id === select.value);
+      preview.innerHTML = tpl ? formatWA(tpl.text) : '';
+    });
+    return { getSelected: () => state.templates.find((t) => t._id === select.value) || null };
+  }
+
+  /** Search-and-checklist recipient picker (leads), backed by
+   *  /api/admin/crm/leads — shared by Broadcast and Funnel "add people".
+   *  Selections persist across searches (Map keyed by leadId). */
+  function addLeadPicker(container, opts = {}) {
+    const selected = new Map(); // leadId -> lead
+    container.appendChild(el('div', 'sy-modal-label', opts.label || 'Search & select recipients'));
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search by name or phone…';
+    container.appendChild(searchInput);
+
+    const resultsBox = el('div', 'sy-modal-checklist');
+    container.appendChild(resultsBox);
+    const countLine = el('div', 'sy-fmt-hint', '0 selected');
+    container.appendChild(countLine);
+
+    function updateCount() { countLine.textContent = `${selected.size} selected`; }
+
+    function renderResults(leads) {
+      resultsBox.innerHTML = '';
+      if (!leads.length) { resultsBox.appendChild(el('div', 'sy-empty', 'No matches.')); return; }
+      for (const lead of leads) {
+        const label = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = selected.has(lead._id);
+        cb.addEventListener('change', () => {
+          if (cb.checked) selected.set(lead._id, lead); else selected.delete(lead._id);
+          updateCount();
+        });
+        label.appendChild(cb);
+        const statusTxt = lead.status ? ` (${String(lead.status).replace(/_/g, ' ')})` : '';
+        label.appendChild(document.createTextNode(`${lead.name || 'Unnamed'} — ${lead.phoneNumber || ''}${statusTxt}`));
+        resultsBox.appendChild(label);
+      }
+    }
+
+    let searchTimer = null;
+    async function runSearch() {
+      resultsBox.innerHTML = '';
+      resultsBox.appendChild(el('div', 'sy-empty', 'Searching…'));
+      const params = new URLSearchParams({ qrOnly: '1', limit: '50', selectAll: 'true', fields: 'name,phoneNumber,status' });
+      const q = searchInput.value.trim();
+      if (q) params.set('q', q);
+      if (opts.status) params.set('status', opts.status);
+      const res = await adminApi(`/api/admin/crm/leads?${params.toString()}`);
+      const leads = res.ok ? (res.data?.data?.leads || []) : [];
+      renderResults(leads);
+    }
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(runSearch, 350);
+    });
+    runSearch();
+
+    return {
+      getSelectedIds: () => Array.from(selected.keys()),
+      getSelectedCount: () => selected.size,
+    };
   }
 
   /** A <select> of saved templates ("Custom message" first) that fills `textarea` on change. */
@@ -1252,6 +1350,659 @@
     mbody.appendChild(footer);
   }
 
+  /**
+   * "Schedule Groups" popup — rebuilt on top of /api/admin/crm/qr-broadcast-schedule,
+   * the SAME server-side engine (real WhatsApp group IDs from the QR bridge,
+   * a cron-driven processor, native day-by-day repeat) the admin CRM's Group
+   * Scheduler page uses — not DOM automation scraping visible chat names, so
+   * it survives this Chrome tab closing and matches "same as QR WhatsApp".
+   */
+  function openScheduleGroupsModal() {
+    const { overlay, body: mbody } = openModal('📅👥 Schedule Groups');
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'Runs via the QR bridge (server-side) — same engine as CRM → QR Group Scheduler. This Chrome tab does not need to stay open.'));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Groups'));
+    const checklist = el('div', 'sy-modal-checklist');
+    checklist.appendChild(el('div', 'sy-empty', 'Loading your groups…'));
+    mbody.appendChild(checklist);
+
+    (async () => {
+      const res = await adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: '/chats' }).toString()}`);
+      const raw = res.ok ? (res.data?.data ?? res.data) : null;
+      const arr = Array.isArray(raw) ? raw : (Array.isArray(raw?.chats) ? raw.chats : []);
+      const groups = arr.filter((c) => c.id?.endsWith?.('@g.us') || c.isGroup === true || c.isGroupChat === true || c.groupMetadata !== undefined);
+      checklist.innerHTML = '';
+      if (!groups.length) {
+        checklist.appendChild(el('div', 'sy-empty', res.ok ? 'No groups found on your connected QR WhatsApp account.' : (res.data?.error || 'Failed to load groups.')));
+        return;
+      }
+      for (const g of groups) {
+        const label = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = g.id;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(g.name || g.id));
+        checklist.appendChild(label);
+      }
+    })();
+
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = 'Message text';
+    mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+    addFormatToolbar(mbody, textarea);
+    mbody.appendChild(textarea);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Media URL (optional — image/video/document)'));
+    const mediaInput = document.createElement('input');
+    mediaInput.type = 'text';
+    mediaInput.placeholder = 'https://…';
+    mbody.appendChild(mediaInput);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Time (IST)'));
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.value = '18:00';
+    mbody.appendChild(timeInput);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Schedule name'));
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = `Extension Group Schedule — ${new Date().toLocaleDateString()}`;
+    mbody.appendChild(nameInput);
+
+    const row = el('div', 'sy-repeat-row');
+    const startWrap = el('div', 'sy-repeat-col');
+    startWrap.appendChild(el('div', 'sy-modal-label', 'Start date'));
+    const startInput = document.createElement('input');
+    startInput.type = 'date';
+    startInput.value = todayPlusDateStr(1);
+    startWrap.appendChild(startInput);
+    row.appendChild(startWrap);
+    const blockWrap = el('div', 'sy-repeat-col-narrow');
+    blockWrap.appendChild(el('div', 'sy-modal-label', 'Days'));
+    const blockInput = document.createElement('input');
+    blockInput.type = 'text';
+    blockInput.value = '1';
+    blockWrap.appendChild(blockInput);
+    row.appendChild(blockWrap);
+    mbody.appendChild(row);
+
+    const actionsRow = el('div', 'sy-repeat-actions');
+    const selectAllBtn = el('button', 'sy-modal-btn', 'Select all days');
+    selectAllBtn.type = 'button';
+    const clearAllBtn = el('button', 'sy-modal-btn', 'Clear all days');
+    clearAllBtn.type = 'button';
+    actionsRow.appendChild(selectAllBtn);
+    actionsRow.appendChild(clearAllBtn);
+    mbody.appendChild(actionsRow);
+
+    const daysGrid = el('div', 'sy-repeat-days');
+    mbody.appendChild(daysGrid);
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'One send per checked day, in a ~30 min window starting at the time above.'));
+
+    function renderDays() {
+      daysGrid.innerHTML = '';
+      const count = Math.max(1, Math.min(60, parseInt(blockInput.value, 10) || 1));
+      const dates = genDateList(startInput.value, count);
+      for (const d of dates) {
+        const chip = document.createElement('label');
+        chip.className = 'sy-day-chip';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.dataset.date = d;
+        chip.appendChild(cb);
+        chip.appendChild(document.createTextNode(fmtDayLabel(d)));
+        daysGrid.appendChild(chip);
+      }
+    }
+    renderDays();
+    startInput.addEventListener('change', renderDays);
+    blockInput.addEventListener('change', renderDays);
+    selectAllBtn.addEventListener('click', () => daysGrid.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = true; }));
+    clearAllBtn.addEventListener('click', () => daysGrid.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = false; }));
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Schedule');
+    submitBtn.addEventListener('click', async () => {
+      const groupIds = Array.from(checklist.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
+      const text = textarea.value.trim();
+      const dates = Array.from(daysGrid.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.dataset.date);
+      const [hh, mm] = (timeInput.value || '18:00').split(':').map(Number);
+      const endTime = `${String(hh).padStart(2, '0')}:${String((mm + 30) % 60).padStart(2, '0')}`;
+      if (!groupIds.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Select at least one group.'; return; }
+      if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message.'; return; }
+      if (!dates.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Select at least one day.'; return; }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Scheduling…';
+      const res = await adminApi('/api/admin/crm/qr-broadcast-schedule', 'POST', {
+        name: nameInput.value.trim() || `Extension Group Schedule — ${new Date().toLocaleString()}`,
+        messageText: text,
+        mediaUrls: mediaInput.value.trim() ? [mediaInput.value.trim()] : [],
+        groupIds,
+        frequency: 'custom',
+        customScheduleDates: dates,
+        startTime: timeInput.value || '18:00',
+        endTime,
+      });
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Schedule';
+      if (res.ok && res.data?.success) {
+        msg.className = 'sy-modal-msg sy-ok';
+        msg.textContent = `✅ Scheduled ${groupIds.length} group(s) × ${dates.length} day(s).`;
+        setTimeout(() => overlay.remove(), 1600);
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = res.data?.error || 'Failed to schedule.';
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
+  /** Finds this phone's existing CRM lead, or creates a bare one — needed
+   *  because /api/admin/crm/broadcast-runs always targets lead IDs, never a
+   *  raw phone number. */
+  async function resolveOrCreateLeadId(phone, name) {
+    const lookup = await sendMessage({ type: 'GET_LEAD', phone });
+    if (lookup.ok && lookup.data?.found && lookup.data?._id) return { leadId: lookup.data._id, error: null };
+    const created = await adminApi('/api/admin/crm/leads', 'POST', {
+      name: name || 'WhatsApp Contact', phoneNumber: phone, status: 'new', source: 'extension',
+    });
+    if (created.ok && created.data?.success && created.data?.data?._id) {
+      return { leadId: created.data.data._id, error: null };
+    }
+    if (created.data?.duplicate && created.data?.existingLead?._id) {
+      return { leadId: created.data.existingLead._id, error: null };
+    }
+    return { leadId: null, error: created.data?.error || 'Could not resolve a CRM lead for this number.' };
+  }
+
+  /**
+   * "Schedule Message" popup — 1:1 messaging, rebuilt on top of
+   * /api/admin/crm/broadcast-runs (Send Now / Schedule / Repeat all
+   * server-side via the QR bridge) instead of chrome.alarms + DOM
+   * automation. Either pick a saved template (keeps its real header
+   * image/video/document + buttons) or type custom text, which gets saved
+   * as a one-off template behind the scenes so it can go through the same
+   * reliable pipeline.
+   */
+  function openScheduleMessageModal(setToolStatus) {
+    const { overlay, body: mbody } = openModal('📅 Schedule Message');
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'Runs via the QR bridge (server-side) — same engine as CRM → QR Broadcast. This Chrome tab does not need to stay open.'));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Contact phone number'));
+    const phoneInput = document.createElement('input');
+    phoneInput.type = 'text';
+    phoneInput.placeholder = '91XXXXXXXXXX';
+    phoneInput.value = state.currentPhone || '';
+    mbody.appendChild(phoneInput);
+
+    const tplPicker = addTemplateIdPicker(mbody);
+    mbody.appendChild(el('div', 'sy-fmt-hint', '— or type a one-off message below (used instead of the template above) —'));
+
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = 'Custom message text (optional if a template is picked above)';
+    mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+    addFormatToolbar(mbody, textarea);
+    mbody.appendChild(textarea);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'When'));
+    const modeWrap = el('div', 'sy-repeat-row');
+    const nowLabel = el('label', 'sy-radio-label');
+    const nowRadio = document.createElement('input');
+    nowRadio.type = 'radio'; nowRadio.name = 'sy-sm-mode'; nowRadio.value = 'now'; nowRadio.checked = true;
+    nowLabel.appendChild(nowRadio);
+    nowLabel.appendChild(document.createTextNode('Send now'));
+    const laterLabel = el('label', 'sy-radio-label');
+    const laterRadio = document.createElement('input');
+    laterRadio.type = 'radio'; laterRadio.name = 'sy-sm-mode'; laterRadio.value = 'schedule';
+    laterLabel.appendChild(laterRadio);
+    laterLabel.appendChild(document.createTextNode('Schedule'));
+    modeWrap.appendChild(nowLabel);
+    modeWrap.appendChild(laterLabel);
+    mbody.appendChild(modeWrap);
+
+    const whenInput = document.createElement('input');
+    whenInput.type = 'datetime-local';
+    whenInput.style.display = 'none';
+    mbody.appendChild(whenInput);
+    laterRadio.addEventListener('change', () => { whenInput.style.display = 'block'; });
+    nowRadio.addEventListener('change', () => { whenInput.style.display = 'none'; });
+
+    const repeat = addRepeatBlock(mbody);
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Schedule');
+    submitBtn.addEventListener('click', async () => {
+      const phone = phoneInput.value.replace(/\D/g, '');
+      const text = textarea.value.trim();
+      const pickedTpl = tplPicker.getSelected();
+      const mode = laterRadio.checked ? 'schedule' : 'now';
+      if (!phone) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a phone number.'; return; }
+      if (!pickedTpl && !text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a template or type a message.'; return; }
+      if (!repeat.isEnabled() && mode === 'schedule' && !whenInput.value) {
+        msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a date/time, choose Send now, or turn on Repeat.'; return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Working…';
+
+      const { leadId, error: leadErr } = await resolveOrCreateLeadId(phone);
+      if (!leadId) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Schedule';
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = leadErr;
+        return;
+      }
+
+      let templateId = pickedTpl?._id;
+      if (!templateId) {
+        const created = await sendMessage({
+          type: 'CREATE_TEMPLATE',
+          template: { templateName: `adhoc_${Date.now()}`, category: 'MARKETING', language: 'en', templateContent: text },
+        });
+        if (!created.ok || !created.data?.success) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Schedule';
+          msg.className = 'sy-modal-msg sy-error';
+          msg.textContent = created.data?.error || 'Failed to save message.';
+          return;
+        }
+        templateId = created.data.template._id;
+      }
+
+      const sendOne = async (scheduleAt) => adminApi('/api/admin/crm/broadcast-runs', 'POST', {
+        name: `Extension Schedule Message — ${new Date().toLocaleString()}`,
+        templateId,
+        mode: scheduleAt ? 'schedule' : 'now',
+        provider: 'qr',
+        scheduleAt,
+        target: { leadIds: [leadId] },
+      });
+
+      let okCount = 0;
+      const errors = [];
+      if (repeat.isEnabled()) {
+        const timestamps = repeat.getTimestamps();
+        if (!timestamps.length) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Schedule';
+          msg.className = 'sy-modal-msg sy-error';
+          msg.textContent = 'No days selected for Repeat.';
+          return;
+        }
+        for (const ts of timestamps) {
+          const res = await sendOne(new Date(ts).toISOString());
+          if (res.ok && res.data?.success) okCount++; else errors.push(res.data?.error || 'failed');
+        }
+      } else {
+        const scheduleAt = mode === 'schedule' ? new Date(whenInput.value).toISOString() : undefined;
+        const createRes = await sendOne(scheduleAt);
+        if (createRes.ok && createRes.data?.success) {
+          okCount = 1;
+          if (mode === 'now') {
+            const runId = createRes.data.data?._id;
+            if (runId) await adminApi('/api/admin/crm/broadcast-runs/run', 'POST', { runId });
+          }
+        } else {
+          errors.push(createRes.data?.error || 'failed');
+        }
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Schedule';
+      if (okCount) {
+        setToolStatus?.(`✅ ${mode === 'now' && !repeat.isEnabled() ? 'Sent' : 'Scheduled'} ${okCount} message(s) to ${phone}${errors.length ? `, ${errors.length} failed` : ''}.`, errors.length > 0);
+        overlay.remove();
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = errors[0] || 'Failed.';
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Broadcast" popup — template + recipient picker + Send Now/Schedule,
+   * same shape as the admin's New QR Broadcast wizard. Runs entirely through
+   * /api/admin/crm/broadcast-runs (the QR bridge, server-side) — not DOM
+   * automation — so pacing/anti-ban and delivery tracking are the same code
+   * the CRM's own Broadcast page uses, and it doesn't need this Chrome tab
+   * to stay open.
+   */
+  function openBroadcastModal() {
+    const { overlay, body: mbody } = openModal('📣 Broadcast');
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'Runs via the QR bridge (server-side, auto-paced) — same engine as CRM → QR Broadcast.'));
+
+    const tplPicker = addTemplateIdPicker(mbody);
+    const leadPicker = addLeadPicker(mbody, { label: 'Recipients' });
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'When'));
+    const modeWrap = el('div', 'sy-repeat-row');
+    const nowLabel = el('label', 'sy-radio-label');
+    const nowRadio = document.createElement('input');
+    nowRadio.type = 'radio'; nowRadio.name = 'sy-bc-mode'; nowRadio.value = 'now'; nowRadio.checked = true;
+    nowLabel.appendChild(nowRadio);
+    nowLabel.appendChild(document.createTextNode('Send now'));
+    const laterLabel = el('label', 'sy-radio-label');
+    const laterRadio = document.createElement('input');
+    laterRadio.type = 'radio'; laterRadio.name = 'sy-bc-mode'; laterRadio.value = 'schedule';
+    laterLabel.appendChild(laterRadio);
+    laterLabel.appendChild(document.createTextNode('Schedule'));
+    modeWrap.appendChild(nowLabel);
+    modeWrap.appendChild(laterLabel);
+    mbody.appendChild(modeWrap);
+
+    const whenInput = document.createElement('input');
+    whenInput.type = 'datetime-local';
+    whenInput.style.display = 'none';
+    mbody.appendChild(whenInput);
+    laterRadio.addEventListener('change', () => { whenInput.style.display = laterRadio.checked ? 'block' : 'none'; });
+    nowRadio.addEventListener('change', () => { whenInput.style.display = laterRadio.checked ? 'block' : 'none'; });
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Send Broadcast');
+    submitBtn.addEventListener('click', async () => {
+      const tpl = tplPicker.getSelected();
+      const leadIds = leadPicker.getSelectedIds();
+      const mode = laterRadio.checked ? 'schedule' : 'now';
+      if (!tpl) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a template.'; return; }
+      if (!leadIds.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Select at least one recipient.'; return; }
+      let scheduleAt;
+      if (mode === 'schedule') {
+        if (!whenInput.value) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a date/time, or choose Send now.'; return; }
+        scheduleAt = new Date(whenInput.value).toISOString();
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending…';
+      const createRes = await adminApi('/api/admin/crm/broadcast-runs', 'POST', {
+        name: `Extension Broadcast — ${new Date().toLocaleString()}`,
+        templateId: tpl._id,
+        mode,
+        provider: 'qr',
+        scheduleAt,
+        target: { leadIds },
+      });
+      if (!createRes.ok || !createRes.data?.success) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send Broadcast';
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = createRes.data?.error || 'Failed to create broadcast.';
+        return;
+      }
+      const runId = createRes.data?.data?._id;
+      if (mode === 'now' && runId) {
+        await adminApi('/api/admin/crm/broadcast-runs/run', 'POST', { runId });
+      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Broadcast';
+      msg.className = 'sy-modal-msg sy-ok';
+      msg.textContent = `✅ Broadcast ${mode === 'now' ? 'started' : 'scheduled'} for ${leadIds.length} recipient(s). Check Report for progress.`;
+      setTimeout(() => overlay.remove(), 1800);
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Funnel" popup — list people currently in each funnel stage (real data
+   * from the leads API, not just chats you happen to have opened), move
+   * people into a stage, and send a message to everyone in a stage. The
+   * "send to stage" path reuses Broadcast's engine with a status filter
+   * instead of explicit lead IDs, so it doesn't need to fetch/select
+   * thousands of leads client-side.
+   */
+  function openFunnelModal() {
+    const { overlay, body: mbody } = openModal('🔻 Funnel');
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Stage'));
+    const stageSelect = document.createElement('select');
+    const stageList = funnelStages.length ? funnelStages : ['new'];
+    for (const s of stageList) {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s.replace(/_/g, ' ');
+      stageSelect.appendChild(opt);
+    }
+    mbody.appendChild(stageSelect);
+
+    const countLine = el('div', 'sy-fmt-hint', 'Loading…');
+    mbody.appendChild(countLine);
+    const listBox = el('div', 'sy-modal-checklist');
+    mbody.appendChild(listBox);
+
+    async function loadStage() {
+      countLine.textContent = 'Loading…';
+      listBox.innerHTML = '';
+      const params = new URLSearchParams({ qrOnly: '1', limit: '30', selectAll: 'true', fields: 'name,phoneNumber', status: stageSelect.value });
+      const res = await adminApi(`/api/admin/crm/leads?${params.toString()}`);
+      const leads = res.ok ? (res.data?.data?.leads || []) : [];
+      const total = res.ok ? (res.data?.data?.total ?? leads.length) : 0;
+      countLine.textContent = `${total} in this stage${total > leads.length ? ` (showing first ${leads.length})` : ''}`;
+      if (!leads.length) {
+        listBox.appendChild(el('div', 'sy-empty', 'No one in this stage yet.'));
+      } else {
+        for (const lead of leads) {
+          listBox.appendChild(el('div', 'sy-quick-reply', `${lead.name || 'Unnamed'} — ${lead.phoneNumber || ''}`));
+        }
+      }
+    }
+    stageSelect.addEventListener('change', loadStage);
+    loadStage();
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Add a person to this stage'));
+    const addRow = el('div', 'sy-button-row');
+    const addPhoneInput = document.createElement('input');
+    addPhoneInput.type = 'text';
+    addPhoneInput.placeholder = 'Phone number';
+    addPhoneInput.style.cssText = 'width:auto;flex:1;min-width:0;margin-bottom:0;';
+    const addNameInput = document.createElement('input');
+    addNameInput.type = 'text';
+    addNameInput.placeholder = 'Name (optional)';
+    addNameInput.style.cssText = 'width:auto;flex:1;min-width:0;margin-bottom:0;';
+    const addBtn = el('button', 'sy-modal-btn', 'Add');
+    addBtn.type = 'button';
+    addRow.appendChild(addPhoneInput);
+    addRow.appendChild(addNameInput);
+    addRow.appendChild(addBtn);
+    mbody.appendChild(addRow);
+
+    const addMsg = el('div', 'sy-modal-msg');
+    mbody.appendChild(addMsg);
+    addBtn.addEventListener('click', async () => {
+      const phone = addPhoneInput.value.replace(/\D/g, '');
+      if (!phone) { addMsg.className = 'sy-modal-msg sy-error'; addMsg.textContent = 'Enter a phone number.'; return; }
+      addBtn.disabled = true;
+      const res = await adminApi('/api/admin/crm/leads', 'POST', {
+        name: addNameInput.value.trim() || 'Unnamed',
+        phoneNumber: phone,
+        status: stageSelect.value,
+        source: 'extension',
+      });
+      addBtn.disabled = false;
+      if (res.ok && (res.data?.success !== false)) {
+        addMsg.className = 'sy-modal-msg sy-ok';
+        addMsg.textContent = '✅ Added.';
+        addPhoneInput.value = '';
+        addNameInput.value = '';
+        loadStage();
+      } else {
+        addMsg.className = 'sy-modal-msg sy-error';
+        addMsg.textContent = res.data?.error || 'Failed to add — they may already be in the CRM; edit their stage from the Contact card instead.';
+      }
+    });
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Send a message to everyone in this stage'));
+    const tplPicker = addTemplateIdPicker(mbody);
+    const sendMsg = el('div', 'sy-modal-msg');
+    const sendBtn = el('button', 'sy-modal-btn sy-primary', 'Send to Stage');
+    sendBtn.addEventListener('click', async () => {
+      const tpl = tplPicker.getSelected();
+      if (!tpl) { sendMsg.className = 'sy-modal-msg sy-error'; sendMsg.textContent = 'Pick a template.'; return; }
+      if (!confirm(`Send "${tpl.name}" to everyone in "${stageSelect.value.replace(/_/g, ' ')}" now?`)) return;
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending…';
+      const createRes = await adminApi('/api/admin/crm/broadcast-runs', 'POST', {
+        name: `Extension Funnel Send — ${stageSelect.value} — ${new Date().toLocaleString()}`,
+        templateId: tpl._id,
+        mode: 'now',
+        provider: 'qr',
+        target: { type: 'filters', filters: { status: stageSelect.value } },
+      });
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send to Stage';
+      if (!createRes.ok || !createRes.data?.success) {
+        sendMsg.className = 'sy-modal-msg sy-error';
+        sendMsg.textContent = createRes.data?.error || 'Failed to start.';
+        return;
+      }
+      const runId = createRes.data?.data?._id;
+      if (runId) await adminApi('/api/admin/crm/broadcast-runs/run', 'POST', { runId });
+      sendMsg.className = 'sy-modal-msg sy-ok';
+      sendMsg.textContent = '✅ Started — check Report for progress.';
+    });
+    mbody.appendChild(sendMsg);
+    const footer = el('div', 'sy-modal-footer');
+    const closeBtn = el('button', 'sy-modal-btn', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(closeBtn);
+    footer.appendChild(sendBtn);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Report" popup — read-only view of QR broadcast delivery status
+   * (sent/pending/read/delivered/failed + blocked numbers), pulled straight
+   * from the same aggregation the admin CRM's broadcast history uses.
+   */
+  function openReportModal() {
+    const { overlay, body: mbody } = openModal('📈 QR Broadcast Report');
+    const summaryBox = el('div', 'sy-empty', 'Loading…');
+    mbody.appendChild(summaryBox);
+    const runsBox = el('div');
+    mbody.appendChild(runsBox);
+
+    (async () => {
+      const [runsRes, blockedRes] = await Promise.all([
+        adminApi('/api/admin/crm/broadcast-runs?provider=qr&limit=10'),
+        adminApi('/api/admin/crm/whatsapp/qr/broadcast-blocked'),
+      ]);
+
+      if (!runsRes.ok || !runsRes.data?.success) {
+        summaryBox.textContent = runsRes.data?.error || 'Failed to load report.';
+        return;
+      }
+      const summary = runsRes.data.data?.summary || {};
+      const runs = runsRes.data.data?.runs || [];
+      const blockedCount = Array.isArray(blockedRes.data?.data) ? blockedRes.data.data.length
+        : Array.isArray(blockedRes.data?.blocked) ? blockedRes.data.blocked.length : 0;
+
+      summaryBox.className = '';
+      summaryBox.innerHTML = '';
+      const statLabels = [
+        ['sent', 'Sent'], ['delivered', 'Delivered'], ['read', 'Read'],
+        ['pending', 'Pending'], ['failed', 'Failed'], ['skipped', 'Skipped'],
+      ];
+      const grid = el('div', 'sy-report-grid');
+      for (const [key, label] of statLabels) {
+        const card = el('div', 'sy-report-card');
+        card.appendChild(el('div', 'sy-report-num', String(summary[key] || 0)));
+        card.appendChild(el('div', 'sy-report-label', label));
+        grid.appendChild(card);
+      }
+      const blockedCard = el('div', 'sy-report-card sy-report-card-warn');
+      blockedCard.appendChild(el('div', 'sy-report-num', String(blockedCount)));
+      blockedCard.appendChild(el('div', 'sy-report-label', 'Blocked'));
+      grid.appendChild(blockedCard);
+      summaryBox.appendChild(grid);
+
+      runsBox.appendChild(el('div', 'sy-modal-label', 'Recent broadcasts'));
+      if (!runs.length) {
+        runsBox.appendChild(el('div', 'sy-empty', 'No broadcasts yet.'));
+      } else {
+        for (const run of runs) {
+          const row = el('div', 'sy-quick-reply');
+          row.appendChild(el('div', 'sy-quick-reply-title', run.name || '(unnamed)'));
+          const stats = run.stats || {};
+          row.appendChild(el('div', 'sy-quick-reply-text',
+            `${run.status || 'unknown'} · sent ${stats.sent || 0}/${stats.total || 0}${stats.failed ? `, failed ${stats.failed}` : ''} · ${new Date(run.createdAt).toLocaleString()}`));
+          runsBox.appendChild(row);
+        }
+      }
+    })();
+
+    const footer = el('div', 'sy-modal-footer');
+    const closeBtn = el('button', 'sy-modal-btn sy-primary', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(closeBtn);
+    mbody.appendChild(footer);
+  }
+
+  /** "Settings" popup — extension-level info + quick links to the admin
+   *  settings that govern it (access approval, QR account). Actual toggles
+   *  (who has extension access) stay admin-only in the CRM, on purpose. */
+  function openSettingsModal() {
+    const { overlay, body: mbody } = openModal('⚙️ Settings');
+    mbody.appendChild(el('div', 'sy-modal-label', 'Signed in as'));
+    mbody.appendChild(el('div', 'sy-empty', `${state.name || state.userId || 'Unknown'}${state.isSuperAdmin ? ' (super admin)' : ''}`));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Version'));
+    mbody.appendChild(el('div', 'sy-empty', chrome.runtime.getManifest?.().version || ''));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Manage in CRM'));
+    const links = [
+      ['🧩 Extension access (who can use this)', '/admin/crm/qr?tab=settings'],
+      ['📇 QR WhatsApp account', '/admin/crm/qr'],
+      ['🤖 Chatbot flows', '/admin/crm/qr/chatbot'],
+    ];
+    for (const [label, path] of links) {
+      const a = document.createElement('a');
+      a.href = `https://swaryoga.com${path}`;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'sy-settings-link';
+      a.textContent = label;
+      mbody.appendChild(a);
+    }
+
+    const logoutBtn = el('button', 'sy-modal-btn', 'Log out of extension');
+    logoutBtn.style.marginTop = '14px';
+    logoutBtn.addEventListener('click', async () => {
+      if (!confirm('Log out of the Swar Yoga CRM extension?')) return;
+      await sendMessage({ type: 'LOGOUT' });
+      overlay.remove();
+      refreshAuthState();
+    });
+    mbody.appendChild(logoutBtn);
+
+    const footer = el('div', 'sy-modal-footer');
+    const closeBtn = el('button', 'sy-modal-btn sy-primary', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(closeBtn);
+    mbody.appendChild(footer);
+  }
+
   // ── Sidebar rendering ──────────────────────────────────────────────────
   let sidebarEl = null;
   let collapsed = false;
@@ -1385,141 +2136,34 @@
     });
 
     const scheduleBtn = el('button', 'sy-icon-btn sy-primary', '📅');
-    scheduleBtn.title = 'Schedule Message — pick a contact, a template (optional), and a time';
-    scheduleBtn.addEventListener('click', () => {
-      const { overlay, body: mbody } = openModal('📅 Schedule Message');
-
-      mbody.appendChild(el('div', 'sy-modal-label', 'Contact phone number'));
-      const phoneInput = document.createElement('input');
-      phoneInput.type = 'text';
-      phoneInput.placeholder = '91XXXXXXXXXX';
-      phoneInput.value = state.currentPhone || '';
-      mbody.appendChild(phoneInput);
-
-      const textarea = document.createElement('textarea');
-      textarea.placeholder = 'Message text';
-      addTemplatePicker(mbody, textarea);
-      mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
-      addFormatToolbar(mbody, textarea);
-      mbody.appendChild(textarea);
-
-      mbody.appendChild(el('div', 'sy-modal-label', 'Send at'));
-      const whenInput = document.createElement('input');
-      whenInput.type = 'datetime-local';
-      mbody.appendChild(whenInput);
-
-      const repeat = addRepeatBlock(mbody);
-
-      const msg = el('div', 'sy-modal-msg');
-      const footer = el('div', 'sy-modal-footer');
-      const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
-      cancelBtn.addEventListener('click', () => overlay.remove());
-      const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Schedule');
-      submitBtn.addEventListener('click', async () => {
-        const phone = phoneInput.value.replace(/\D/g, '');
-        const text = textarea.value.trim();
-        const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
-        if (!phone) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a phone number.'; return; }
-        if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
-        if (!repeat.isEnabled() && (isNaN(sendAt) || sendAt <= Date.now())) {
-          msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time, or turn on Repeat.'; return;
-        }
-
-        submitBtn.disabled = true;
-        const { scheduled, failed, days } = await runScheduleWithRepeat([{ type: 'phone', value: phone }], text, repeat, sendAt);
-        submitBtn.disabled = false;
-        if (scheduled) {
-          setToolStatus(`✅ Scheduled ${scheduled} send${scheduled > 1 ? 's' : ''}${days > 1 ? ` across ${days} days` : ` for ${new Date(sendAt).toLocaleString()}`}. Keep this Chrome window open so it can fire.`);
-          overlay.remove();
-        } else {
-          msg.className = 'sy-modal-msg sy-error';
-          msg.textContent = `Failed: ${failed.join(', ') || 'unknown error'}`;
-        }
-      });
-      footer.appendChild(cancelBtn);
-      footer.appendChild(submitBtn);
-      mbody.appendChild(msg);
-      mbody.appendChild(footer);
-    });
+    scheduleBtn.title = 'Schedule Message — pick a contact, Send Now or Schedule/Repeat, via the QR bridge';
+    scheduleBtn.addEventListener('click', () => openScheduleMessageModal(setToolStatus));
     iconRow.appendChild(scheduleBtn);
 
     const scheduleGroupsBtn = el('button', 'sy-icon-btn sy-primary', '📅👥');
-    scheduleGroupsBtn.title = 'Schedule Groups — select multiple groups, a template (optional), and a time; paced 3-7 min apart, same limits as Add Members';
-    scheduleGroupsBtn.addEventListener('click', () => {
-      const { overlay, body: mbody } = openModal('📅 Schedule to Groups');
-
-      mbody.appendChild(el('div', 'sy-modal-label', 'Groups (scanned from your currently visible chat list — scroll the chat list first if a group you need isn\'t showing)'));
-      const checklist = el('div', 'sy-modal-checklist');
-      const detected = scanVisibleGroupChats();
-      if (!detected.length) {
-        checklist.appendChild(el('div', 'sy-empty', 'No groups detected in the visible chat list — scroll it, then reopen this, or add names manually below.'));
-      } else {
-        for (const name of detected) {
-          const label = document.createElement('label');
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = name;
-          label.appendChild(cb);
-          label.appendChild(document.createTextNode(name));
-          checklist.appendChild(label);
-        }
-      }
-      mbody.appendChild(checklist);
-
-      mbody.appendChild(el('div', 'sy-modal-label', 'Also add manually (optional) — group names, comma separated'));
-      const manualInput = document.createElement('input');
-      manualInput.type = 'text';
-      mbody.appendChild(manualInput);
-
-      const textarea = document.createElement('textarea');
-      textarea.placeholder = 'Message text';
-      addTemplatePicker(mbody, textarea);
-      mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
-      addFormatToolbar(mbody, textarea);
-      mbody.appendChild(textarea);
-
-      mbody.appendChild(el('div', 'sy-modal-label', 'Send at (first group — rest follow 3-7 min apart)'));
-      const whenInput = document.createElement('input');
-      whenInput.type = 'datetime-local';
-      mbody.appendChild(whenInput);
-
-      const repeat = addRepeatBlock(mbody);
-
-      const msg = el('div', 'sy-modal-msg');
-      const footer = el('div', 'sy-modal-footer');
-      const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
-      cancelBtn.addEventListener('click', () => overlay.remove());
-      const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Schedule All');
-      submitBtn.addEventListener('click', async () => {
-        const checked = Array.from(checklist.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
-        const manual = manualInput.value.split(',').map((s) => s.trim()).filter(Boolean);
-        const groupNames = Array.from(new Set([...checked, ...manual]));
-        const text = textarea.value.trim();
-        const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
-        if (!groupNames.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Select or type at least one group.'; return; }
-        if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
-        if (!repeat.isEnabled() && (isNaN(sendAt) || sendAt <= Date.now())) {
-          msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time, or turn on Repeat.'; return;
-        }
-
-        submitBtn.disabled = true;
-        const targets = groupNames.map((value) => ({ type: 'group', value }));
-        const { scheduled, failed, days } = await runScheduleWithRepeat(targets, text, repeat, sendAt);
-        submitBtn.disabled = false;
-        if (scheduled) {
-          setToolStatus(`✅ Scheduled ${scheduled} send${scheduled > 1 ? 's' : ''} across ${groupNames.length} group(s)${days > 1 ? ` × ${days} days` : ''}${failed.length ? `, failed: ${failed.join(', ')}` : ''}. Keep this Chrome window open.`, failed.length > 0);
-          overlay.remove();
-        } else {
-          msg.className = 'sy-modal-msg sy-error';
-          msg.textContent = `Failed: ${failed.join(', ') || 'unknown error'}`;
-        }
-      });
-      footer.appendChild(cancelBtn);
-      footer.appendChild(submitBtn);
-      mbody.appendChild(msg);
-      mbody.appendChild(footer);
-    });
+    scheduleGroupsBtn.title = 'Schedule Groups — same engine as CRM → QR Group Scheduler (server-side, real repeat)';
+    scheduleGroupsBtn.addEventListener('click', () => openScheduleGroupsModal());
     iconRow.appendChild(scheduleGroupsBtn);
+
+    const broadcastBtn = el('button', 'sy-icon-btn sy-primary', '📣');
+    broadcastBtn.title = 'Broadcast — template + recipient list, Send Now or Schedule, via the QR bridge';
+    broadcastBtn.addEventListener('click', () => openBroadcastModal());
+    iconRow.appendChild(broadcastBtn);
+
+    const funnelBtn = el('button', 'sy-icon-btn', '🔻');
+    funnelBtn.title = 'Funnel — view/add people per stage, send to a whole stage';
+    funnelBtn.addEventListener('click', () => openFunnelModal());
+    iconRow.appendChild(funnelBtn);
+
+    const reportBtn = el('button', 'sy-icon-btn', '📈');
+    reportBtn.title = 'QR Broadcast Report — sent/delivered/read/failed/blocked';
+    reportBtn.addEventListener('click', () => openReportModal());
+    iconRow.appendChild(reportBtn);
+
+    const settingsBtn = el('button', 'sy-icon-btn', '⚙️');
+    settingsBtn.title = 'Settings';
+    settingsBtn.addEventListener('click', () => openSettingsModal());
+    iconRow.appendChild(settingsBtn);
 
     // Dashboards — one icon, dropdown menu (full table/kanban/chart pages don't fit a 300px sidebar).
     const dashWrap = el('div', 'sy-dropdown-wrap');
@@ -1876,6 +2520,9 @@
     const s = await sendMessage({ type: 'GET_STATE' });
     state.loggedIn = !!s.loggedIn;
     state.allowed = !!s.allowed;
+    state.name = s.name || '';
+    state.userId = s.userId || '';
+    state.isSuperAdmin = !!s.isSuperAdmin;
     render();
     if (state.loggedIn && state.allowed) {
       loadQuickReplies();
