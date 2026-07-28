@@ -1520,10 +1520,124 @@
     selectedBarEl.innerHTML = '';
     const btn = el('button', 'sy-btn sy-primary', `📅 Schedule Selected (${selectedChats.size})`);
     btn.addEventListener('click', () => openScheduleSelectedModal());
+    const funnelBtn = el('button', 'sy-btn', `🔻 Add to Funnel (${selectedChats.size})`);
+    funnelBtn.addEventListener('click', () => openBulkFunnelModal());
+    const labelBtn = el('button', 'sy-btn', `🏷️ Add to Label (${selectedChats.size})`);
+    labelBtn.addEventListener('click', () => openBulkLabelModal());
     const clearBtn = el('button', 'sy-btn', 'Clear');
     clearBtn.addEventListener('click', () => { selectedChats.clear(); renderSelectedBar(); injectRowCheckboxes(); });
     selectedBarEl.appendChild(btn);
+    selectedBarEl.appendChild(funnelBtn);
+    selectedBarEl.appendChild(labelBtn);
     selectedBarEl.appendChild(clearBtn);
+  }
+
+  /** Bulk-assigns a funnel stage to every selected chat — resolves/creates
+   *  a CRM lead per phone-type selection (groups are skipped, funnel
+   *  stages apply to individual leads, not groups). */
+  function openBulkFunnelModal() {
+    const targets = Array.from(selectedChats.entries()).filter(([, type]) => type === 'phone').map(([key]) => key);
+    const skippedGroups = selectedChats.size - targets.length;
+    const { overlay, body: mbody } = openModal(`🔻 Add ${targets.length} to Funnel`);
+    if (skippedGroups) mbody.appendChild(el('div', 'sy-fmt-hint', `${skippedGroups} group chat(s) in the selection skipped — funnel stages apply to individual contacts.`));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Stage'));
+    const stageSelect = document.createElement('select');
+    const stageList = funnelStages.length ? funnelStages : ['new'];
+    for (const s of stageList) {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s.replace(/_/g, ' ');
+      stageSelect.appendChild(opt);
+    }
+    mbody.appendChild(stageSelect);
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Apply');
+    submitBtn.addEventListener('click', async () => {
+      if (!targets.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'No individual contacts in the selection.'; return; }
+      submitBtn.disabled = true;
+      let ok = 0;
+      const failed = [];
+      for (const phone of targets) {
+        const { leadId, error } = await resolveOrCreateLeadId(phone);
+        if (!leadId) { failed.push(`${phone} (${error})`); continue; }
+        const res = await sendMessage({ type: 'UPDATE_LEAD_STATUS', leadId, status: stageSelect.value });
+        if (res.ok && res.data?.success) ok++; else failed.push(phone);
+      }
+      submitBtn.disabled = false;
+      if (ok) {
+        msg.className = 'sy-modal-msg sy-ok';
+        msg.textContent = `✅ Added ${ok}/${targets.length} to "${stageSelect.value.replace(/_/g, ' ')}"${failed.length ? `, failed: ${failed.join(', ')}` : ''}.`;
+        setTimeout(() => overlay.remove(), 1800);
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = `Failed: ${failed.join(', ') || 'unknown error'}`;
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
+  /** Bulk-assigns a label to every selected chat (phone or group — labels
+   *  are chat-scoped, unlike funnel stages). */
+  function openBulkLabelModal() {
+    const { overlay, body: mbody } = openModal(`🏷️ Add ${selectedChats.size} to Label`);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Label'));
+    const labelSelect = document.createElement('select');
+    if (!state.labelPresets.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No labels yet — create one in the sidebar Labels section first';
+      labelSelect.appendChild(opt);
+    } else {
+      for (const preset of state.labelPresets) {
+        const opt = document.createElement('option');
+        opt.value = preset.key;
+        opt.textContent = preset.label;
+        labelSelect.appendChild(opt);
+      }
+    }
+    mbody.appendChild(labelSelect);
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Apply');
+    submitBtn.addEventListener('click', async () => {
+      const labelKey = labelSelect.value;
+      if (!labelKey) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a label.'; return; }
+      submitBtn.disabled = true;
+      let ok = 0;
+      for (const chatKey of selectedChats.keys()) {
+        const res = await sendMessage({ type: 'ASSIGN_LABEL', chatKey, labelKey, on: true });
+        if (res.ok && res.data?.success) {
+          ok++;
+          state.chatLabels[chatKey] = res.data.labels;
+        }
+      }
+      submitBtn.disabled = false;
+      if (ok) {
+        msg.className = 'sy-modal-msg sy-ok';
+        msg.textContent = `✅ Labeled ${ok}/${selectedChats.size}.`;
+        renderHeaderTabs();
+        setTimeout(() => overlay.remove(), 1500);
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = 'Failed to apply the label.';
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
   }
 
   function openScheduleSelectedModal() {
