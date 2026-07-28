@@ -1845,11 +1845,15 @@ export default function MetaInboxPage() {
         })
       });
       const data = await res.json();
-      if (data.success && data.result) {
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error || `Fix failed (${res.status})`);
+      }
+      if (data.result) {
         setComposerText(data.result);
       }
     } catch (err) {
       console.error('AI Fix failed:', err);
+      alert(err instanceof Error ? err.message : 'AI Fix failed — please try again.');
     } finally {
       setIsFixing(false);
     }
@@ -1874,11 +1878,15 @@ export default function MetaInboxPage() {
         })
       });
       const data = await res.json();
-      if (data.success && data.result) {
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error || `AI reply failed (${res.status})`);
+      }
+      if (data.result) {
         setComposerText(data.result);
       }
     } catch (err) {
       console.error('AI Reply failed:', err);
+      alert(err instanceof Error ? err.message : 'AI reply failed — please try again.');
     } finally {
       setIsReplying(false);
     }

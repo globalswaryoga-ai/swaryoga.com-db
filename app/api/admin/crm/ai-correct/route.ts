@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { generateAIText } from '@/lib/ai/generateWithFallback';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,53 +58,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, correctedText: '' }, { status: 200 });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ success: true, correctedText: basicAutocorrect(text) }, { status: 200 });
-    }
-
-    // Claude pass
+    // AI pass — same Gemini→Anthropic→OpenAI fallback chain used everywhere
+    // else in this codebase, instead of a single pinned-model Anthropic call
+    // that hard-failed to the tiny 11-entry regex fallback on any Claude hiccup.
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 1200,
-          messages: [
-            {
-              role: 'user',
-              content: `You are a spelling and grammar correction assistant for WhatsApp/CRM text.\n\nCorrect the following text for English spelling and grammar while keeping the meaning, tone, emojis, line breaks, and WhatsApp formatting markers (*bold*, _italic_, ~strike~, \\\`\\\`\\\`code\\\`\\\`\\\`).\n\nImportant:\n- Do NOT add extra explanation.\n- Return ONLY valid JSON in this shape: {"correctedText": "..."}\n- Preserve placeholders like {{name}} and {{date}} exactly.\n\nText:\n---\n${trimmed}\n---`,
-            },
-          ],
-        }),
+      const raw = await generateAIText({
+        systemPrompt:
+          'You are a spelling and grammar correction assistant for WhatsApp/CRM template text used by a yoga & wellness studio. ' +
+          'Messages may mix English with Hindi/Hinglish written in Latin script — do not "correct" intentional Hindi/Hinglish words into unrelated English ones, and do not translate anything. ' +
+          'Correct the text for spelling and grammar while keeping the meaning, tone, emojis, line breaks, and WhatsApp formatting markers (*bold*, _italic_, ~strike~, ```code```) intact. ' +
+          'Preserve placeholders like {{name}} and {{date}} exactly. ' +
+          'Return ONLY valid JSON in this exact shape, no other text: {"correctedText": "..."}',
+        message: trimmed,
+        maxOutputTokens: 1200,
+        temperature: 0.1,
       });
 
-      if (!response.ok) {
-        console.error('Claude API error (ai-correct):', response.status, response.statusText);
-        return NextResponse.json({ success: true, correctedText: basicAutocorrect(text) }, { status: 200 });
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      const correctedText = parsed?.correctedText;
+      if (typeof correctedText === 'string') {
+        return NextResponse.json({ success: true, correctedText }, { status: 200 });
       }
-
-      const data = await response.json().catch(() => null);
-      const content = data?.content?.[0]?.text || '';
-
-      try {
-        const parsed = JSON.parse(content);
-        const correctedText = parsed?.correctedText;
-        if (typeof correctedText === 'string') {
-          return NextResponse.json({ success: true, correctedText }, { status: 200 });
-        }
-      } catch {
-        console.error('Failed to parse Claude response (ai-correct):', content);
-      }
-
+      console.error('AI response missing correctedText (ai-correct):', raw);
       return NextResponse.json({ success: true, correctedText: basicAutocorrect(text) }, { status: 200 });
     } catch (error) {
-      console.error('Claude API call error (ai-correct):', error);
+      console.error('AI call error (ai-correct):', error instanceof Error ? error.message : error);
       return NextResponse.json({ success: true, correctedText: basicAutocorrect(text) }, { status: 200 });
     }
   } catch (error) {

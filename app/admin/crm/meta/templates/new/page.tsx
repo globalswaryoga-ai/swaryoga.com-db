@@ -218,7 +218,7 @@ export default function CreateTemplatePage() {
       setAiCorrecting(true);
       const res = await fetch('/api/admin/crm/ai-correct', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ text: bodyText }),
       });
       const json = await res.json().catch(() => null);
@@ -234,7 +234,7 @@ export default function CreateTemplatePage() {
       setAiCorrecting(false);
       requestAnimationFrame(() => bodyRef.current?.focus());
     }
-  }, [bodyText]);
+  }, [bodyText, token]);
 
   const emojiRow = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍'];
 

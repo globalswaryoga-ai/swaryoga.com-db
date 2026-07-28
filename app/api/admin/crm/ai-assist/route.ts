@@ -4,6 +4,62 @@ import { verifyToken } from '@/lib/auth';
 import nspell from 'nspell';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
+import { generateAIText } from '@/lib/ai/generateWithFallback';
+
+/**
+ * "Fix"/"Auto" used to run text through an English-only Hunspell dictionary
+ * (nspell + dictionary-en below) that silently mangled Hindi/Hinglish words
+ * not on a small ~14-word allow-list — a real problem given how much of this
+ * business's WhatsApp/Instagram/Messenger traffic is Hindi/Hinglish. "AI
+ * reply" wasn't AI at all — it was a fixed English keyword→canned-sentence
+ * table. Both now call a real model first (same Gemini→Anthropic→OpenAI
+ * fallback chain the translate feature already uses) and only fall back to
+ * the old dictionary/canned-reply logic if every configured AI provider
+ * fails or none are configured — so the feature degrades gracefully instead
+ * of hard-failing when a provider has a quota blip.
+ */
+async function aiFixText(text: string): Promise<string | null> {
+  try {
+    const raw = await generateAIText({
+      systemPrompt:
+        'You correct spelling and grammar in WhatsApp/Instagram/Messenger business messages for a yoga & wellness studio (Swar Yoga). ' +
+        'Messages are frequently a mix of English and Hindi/Hinglish written in Latin script (e.g. "kya", "hai", "nahi", "theek", "achha", "aap", "kaise", "namaste", "abhi", "matlab", "bahut", "thoda"). ' +
+        'Only fix genuine spelling/typing errors and grammar. Do NOT "correct" Hindi/Hinglish words into unrelated English words, and do NOT translate anything. ' +
+        'Preserve emojis, line breaks, WhatsApp formatting markers (*bold*, _italic_, ~strike~, ```code```), and placeholders like {{name}} or {{date}} exactly as-is. ' +
+        'Return ONLY valid JSON in this exact shape, no other text: {"correctedText": "..."}',
+      message: text,
+      maxOutputTokens: 800,
+      temperature: 0.1,
+    });
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+    return typeof parsed?.correctedText === 'string' ? parsed.correctedText : null;
+  } catch (err) {
+    console.warn('[ai-assist] AI fix failed, falling back to dictionary:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+async function aiSmartReply(context: string): Promise<string | null> {
+  try {
+    return (
+      await generateAIText({
+        systemPrompt:
+          'You draft a single short WhatsApp/Instagram/Messenger reply on behalf of Swar Yoga, a yoga & wellness studio. ' +
+          'Reply in the SAME language/mix the customer used (English, Hindi, or Hinglish in Latin script) — do not switch languages on them. ' +
+          'Be warm, concise (1-3 sentences), and directly address what they asked or said. If you do not have enough information to answer specifically ' +
+          '(e.g. exact prices, batch timings, or policies you were not given), ask a brief clarifying question instead of inventing details. ' +
+          'Return ONLY the reply text itself — no quotes, no explanation, no JSON.',
+        message: context?.trim() ? `Customer's last message: "${context.trim()}"` : 'The customer has not sent a message yet — write a brief, friendly opening greeting.',
+        maxOutputTokens: 300,
+        temperature: 0.5,
+      })
+    ).trim();
+  } catch (err) {
+    console.warn('[ai-assist] AI reply failed, falling back to canned reply:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
 
 // Load English dictionary (50,000+ base words, expands to 150k+ with affixes)
 let spellChecker: ReturnType<typeof nspell> | null = null;
@@ -444,50 +500,63 @@ export async function POST(req: NextRequest) {
 
     const { text, mode, context } = await req.json();
 
-    // Mode: 'autocorrect' (Real-time while typing - uses sync for speed + async for thoroughness)
+    // Mode: 'autocorrect' (Real-time while typing)
     if (mode === 'autocorrect') {
       if (!text) {
         return NextResponse.json({ success: true, result: '', corrections: [] });
       }
-      
-      // Use full dictionary-based correction
+
+      const aiFixed = await aiFixText(text);
+      if (aiFixed !== null) {
+        return NextResponse.json({ success: true, result: aiFixed, original: text, changed: aiFixed !== text, provider: 'ai' });
+      }
+
+      // AI unavailable/failed — fall back to the offline dictionary pass.
       const { corrected, corrections } = await autoCorrectTextFull(text);
-      
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         result: corrected,
         original: text,
         corrections,
-        changed: corrected !== text
+        changed: corrected !== text,
+        provider: 'dictionary-fallback',
       });
     }
 
-    // Mode: 'fix' (Full grammar/spelling fix with dictionary)
+    // Mode: 'fix' (Full grammar/spelling fix)
     if (mode === 'fix') {
       if (!text) {
          return NextResponse.json({ error: 'Text required' }, { status: 400 });
       }
 
-      // Use full dictionary-based correction
+      const aiFixed = await aiFixText(text);
+      if (aiFixed !== null) {
+        return NextResponse.json({ success: true, result: aiFixed, original: text, provider: 'ai' });
+      }
+
+      // AI unavailable/failed — fall back to the offline dictionary pass.
       const { corrected } = await autoCorrectTextFull(text);
-      
-      // Then fix sentences
       let fixed = fixSentences(corrected);
-      
-      // Add period if missing
       if (fixed.length > 0 && !/[.!?]$/.test(fixed.trim())) {
         fixed = fixed.trim() + '.';
       }
-
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         result: fixed,
-        original: text
+        original: text,
+        provider: 'dictionary-fallback',
       });
     }
 
     // Mode: 'reply' (Generate Response)
     if (mode === 'reply') {
+      const aiReply = await aiSmartReply(String(context || ''));
+      if (aiReply) {
+        return NextResponse.json({ success: true, result: aiReply, provider: 'ai' });
+      }
+
+      // AI unavailable/failed — fall back to a small canned-keyword table
+      // rather than erroring out entirely.
       const lastMsg = (context || '').toLowerCase();
       let reply = "Hello! How can I assist you with Yoga today?";
 
@@ -504,10 +573,11 @@ export async function POST(req: NextRequest) {
       } else if (lastMsg.includes('address') || lastMsg.includes('location') || lastMsg.includes('where')) {
         reply = "You can find our center details on our website. Would you like me to share the link?";
       }
-         
+
       return NextResponse.json({
         success: true,
-        result: reply 
+        result: reply,
+        provider: 'canned-fallback',
       });
     }
 

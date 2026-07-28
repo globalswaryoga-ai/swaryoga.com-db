@@ -90,7 +90,10 @@ export default function SocialComposer({
   const [autoCorrectEnabled, setAutoCorrectEnabled] = useState(true);
   const [isFixing, setIsFixing] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const autoCorrectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCorrectionTimeRef = useRef(0);
 
   // Close the popovers when clicking outside the composer.
   useEffect(() => {
@@ -143,17 +146,22 @@ export default function SocialComposer({
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    return data?.success && data?.result ? String(data.result) : null;
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `Request failed (${res.status})`);
+    }
+    return data?.result ? String(data.result) : null;
   };
 
   const handleFix = async () => {
     if (!value.trim() || isFixing) return;
     setIsFixing(true);
+    setAiError(null);
     try {
       const fixed = await callAiAssist({ text: value, mode: 'fix' });
       if (fixed) onChange(fixed);
     } catch (err) {
       console.error('AI Fix failed:', err);
+      setAiError(err instanceof Error ? err.message : 'Fix failed — please try again.');
     } finally {
       setIsFixing(false);
     }
@@ -162,15 +170,54 @@ export default function SocialComposer({
   const handleAiReply = async () => {
     if (isReplying) return;
     setIsReplying(true);
+    setAiError(null);
     try {
       const reply = await callAiAssist({ mode: 'reply', context: replyContext });
       if (reply) onChange(reply);
     } catch (err) {
       console.error('AI Reply failed:', err);
+      setAiError(err instanceof Error ? err.message : 'AI reply failed — please try again.');
     } finally {
       setIsReplying(false);
     }
   };
+
+  // Debounced auto-correct while typing — only fires at a word boundary
+  // (space/punctuation), mirroring the Meta WhatsApp inbox composer's own
+  // auto-correct behavior so all three inboxes act the same way. Previously
+  // this toggle did nothing at all here.
+  const handleAutoCorrect = async (text: string) => {
+    if (!autoCorrectEnabled || !text.trim()) return;
+    const lastChar = text.slice(-1);
+    if (!/[\s.,!?;:]/.test(lastChar)) return;
+    const now = Date.now();
+    if (now - lastCorrectionTimeRef.current < 500) return;
+    try {
+      const corrected = await callAiAssist({ text, mode: 'autocorrect' });
+      if (corrected && corrected !== text) {
+        onChange(corrected);
+        lastCorrectionTimeRef.current = now;
+      }
+    } catch (err) {
+      // Silent fail for auto-correct-while-typing — don't interrupt typing
+      // with an error banner for a background convenience feature.
+      console.debug('Auto-correct failed:', err);
+    }
+  };
+
+  const handleComposerChange = (newText: string) => {
+    onChange(newText);
+    if (autoCorrectTimeoutRef.current) clearTimeout(autoCorrectTimeoutRef.current);
+    if (autoCorrectEnabled && newText.trim()) {
+      autoCorrectTimeoutRef.current = setTimeout(() => handleAutoCorrect(newText), 300);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (autoCorrectTimeoutRef.current) clearTimeout(autoCorrectTimeoutRef.current);
+    };
+  }, []);
 
   const handleTranslate = async (text: string, targetLang: string) => {
     const res = await fetch('/api/cloud-translate', {
@@ -466,9 +513,15 @@ export default function SocialComposer({
           />
         </div>
 
+        {aiError && (
+          <div className="flex items-center justify-between gap-2 px-2.5 py-1 text-[11px] text-red-700 bg-red-50 border-b border-red-100">
+            <span>{aiError}</span>
+            <button type="button" onClick={() => setAiError(null)} className="text-red-400 hover:text-red-600">✕</button>
+          </div>
+        )}
         <textarea
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => handleComposerChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
