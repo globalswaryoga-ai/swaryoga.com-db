@@ -1339,18 +1339,17 @@
       btn.addEventListener('click', handler);
       conversationHeaderActionsEl.appendChild(btn);
     }
-    const textLinks = [
-      ['Leads', '/admin/crm/qr/leads'],
-      ['Sales', '/admin/crm/sales'],
+    const textButtons = [
+      ['Leads', () => openLeadsModal()],
+      ['Sales', () => openSalesModal()],
     ];
-    for (const [label, path] of textLinks) {
-      const a = document.createElement('a');
-      a.href = `https://swaryoga.com${path}`;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.className = 'sy-conv-header-textlink';
-      a.textContent = label;
-      conversationHeaderActionsEl.appendChild(a);
+    for (const [label, handler] of textButtons) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sy-conv-header-textlink';
+      btn.textContent = label;
+      btn.addEventListener('click', handler);
+      conversationHeaderActionsEl.appendChild(btn);
     }
     anchor.header.insertBefore(conversationHeaderActionsEl, anchor.before);
   }
@@ -1843,6 +1842,7 @@
           headerFileInput.accept = t === 'IMAGE' ? 'image/*' : t === 'VIDEO' ? 'video/*' : '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
           headerFileInput.click();
         }
+        updatePreview?.();
       });
       headerBtns[t] = btn;
       headerTypeRow.appendChild(btn);
@@ -1882,6 +1882,7 @@
       } else {
         headerUploadStatus.textContent = `❌ ${res.data?.error || 'Upload failed'} — paste a URL instead.`;
       }
+      updatePreview?.();
     });
     headerMediaWrap.appendChild(headerFileInput);
     headerMediaWrap.appendChild(headerUploadStatus);
@@ -1934,8 +1935,72 @@
       row.appendChild(removeBtn);
       buttonsWrap.appendChild(row);
       addButtonBtn.style.display = buttonsWrap.children.length >= 3 ? 'none' : 'inline-flex';
+      updatePreview?.();
     });
     mbody.appendChild(addButtonBtn);
+
+    // ── Live WhatsApp-style preview ──
+    mbody.appendChild(el('div', 'sy-modal-label', 'Preview'));
+    const previewWrap = el('div', 'sy-wa-preview-wrap');
+    const previewBubble = el('div', 'sy-wa-preview-bubble');
+    const previewImage = document.createElement('img');
+    previewImage.className = 'sy-wa-preview-image';
+    previewImage.style.display = 'none';
+    const previewHeaderText = el('div', 'sy-wa-preview-headertext');
+    previewHeaderText.style.display = 'none';
+    const previewBody = el('div', 'sy-wa-preview-body');
+    const previewFooter = el('div', 'sy-wa-preview-footer');
+    previewFooter.style.display = 'none';
+    const previewButtons = el('div', 'sy-wa-preview-buttons');
+    const previewTime = el('div', 'sy-wa-preview-time', `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ✓✓`);
+    previewBubble.appendChild(previewImage);
+    previewBubble.appendChild(previewHeaderText);
+    previewBubble.appendChild(previewBody);
+    previewBubble.appendChild(previewFooter);
+    previewBubble.appendChild(previewButtons);
+    previewBubble.appendChild(previewTime);
+    previewWrap.appendChild(previewBubble);
+    mbody.appendChild(previewWrap);
+
+    function updatePreview() {
+      if (headerType === 'IMAGE' && headerMediaInput.value.trim()) {
+        previewImage.src = headerMediaInput.value.trim();
+        previewImage.style.display = 'block';
+      } else {
+        previewImage.style.display = 'none';
+      }
+      if (headerType === 'VIDEO' && headerMediaInput.value.trim()) {
+        previewHeaderText.style.display = 'block';
+        previewHeaderText.textContent = '🎥 Video attachment';
+      } else if (headerType === 'DOCUMENT' && headerMediaInput.value.trim()) {
+        previewHeaderText.style.display = 'block';
+        previewHeaderText.textContent = '📄 Document attachment';
+      } else if (headerType === 'TEXT' && headerTextInput.value.trim()) {
+        previewHeaderText.style.display = 'block';
+        previewHeaderText.innerHTML = formatWA(headerTextInput.value.trim());
+      } else {
+        previewHeaderText.style.display = 'none';
+      }
+      previewBody.innerHTML = formatWA(bodyTextarea.value.trim()) || '<span class="sy-empty">Your message…</span>';
+      if (footerInput.value.trim()) {
+        previewFooter.style.display = 'block';
+        previewFooter.textContent = footerInput.value.trim();
+      } else {
+        previewFooter.style.display = 'none';
+      }
+      previewButtons.innerHTML = '';
+      Array.from(buttonsWrap.querySelectorAll('.sy-button-row')).forEach((row) => {
+        const title = row.querySelector('.sy-button-title').value.trim();
+        if (title) previewButtons.appendChild(el('div', 'sy-wa-preview-btn', title));
+      });
+    }
+    headerTextInput.addEventListener('input', updatePreview);
+    headerMediaInput.addEventListener('input', updatePreview);
+    bodyTextarea.addEventListener('input', updatePreview);
+    footerInput.addEventListener('input', updatePreview);
+    buttonsWrap.addEventListener('input', updatePreview);
+    buttonsWrap.addEventListener('click', () => setTimeout(updatePreview, 0));
+    updatePreview();
 
     const msg = el('div', 'sy-modal-msg');
     const footer = el('div', 'sy-modal-footer');
@@ -2573,7 +2638,7 @@
    * thousands of leads client-side.
    */
   function openFunnelModal() {
-    const { overlay, body: mbody } = openModal('🔻 Funnel');
+    const { overlay, body: mbody } = openModal('🔻 Funnel', { large: true });
 
     mbody.appendChild(el('div', 'sy-modal-label', 'Stage'));
     const stageSelect = document.createElement('select');
@@ -2654,32 +2719,145 @@
 
     mbody.appendChild(el('div', 'sy-modal-label', 'Send a message to everyone in this stage'));
     const tplPicker = addTemplateIdPicker(mbody);
+    mbody.appendChild(el('div', 'sy-fmt-hint', '— or create a one-off message below (used instead of the template above) —'));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+    const sendTextarea = document.createElement('textarea');
+    sendTextarea.placeholder = 'Custom message text (optional if a template is picked above)';
+    addFormatToolbar(mbody, sendTextarea);
+    mbody.appendChild(sendTextarea);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Image / Video / Document (optional)'));
+    const sendMediaInput = document.createElement('input');
+    sendMediaInput.type = 'text';
+    sendMediaInput.placeholder = 'Paste a hosted URL, or upload below';
+    mbody.appendChild(sendMediaInput);
+    const sendUploadBtn = el('button', 'sy-modal-btn', '📁 Upload a file instead');
+    sendUploadBtn.type = 'button';
+    sendUploadBtn.addEventListener('click', () => sendFileInput.click());
+    mbody.appendChild(sendUploadBtn);
+    const sendFileInput = document.createElement('input');
+    sendFileInput.type = 'file';
+    sendFileInput.style.display = 'none';
+    const sendUploadStatus = el('div', 'sy-fmt-hint', '');
+    sendFileInput.addEventListener('change', async () => {
+      const file = sendFileInput.files?.[0];
+      if (!file) return;
+      sendUploadStatus.textContent = `⏳ Uploading ${file.name}…`;
+      const res = await sendMessage({ type: 'UPLOAD_MEDIA', file });
+      if (res.ok && res.data?.success !== false && res.data?.url) {
+        sendMediaInput.value = res.data.url;
+        sendUploadStatus.textContent = `✅ Uploaded: ${file.name}`;
+      } else {
+        sendUploadStatus.textContent = `❌ ${res.data?.error || 'Upload failed'} — paste a URL instead.`;
+      }
+    });
+    mbody.appendChild(sendFileInput);
+    mbody.appendChild(sendUploadStatus);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'When'));
+    const sendModeWrap = el('div', 'sy-repeat-row');
+    const sendNowLabel = el('label', 'sy-radio-label');
+    const sendNowRadio = document.createElement('input');
+    sendNowRadio.type = 'radio'; sendNowRadio.name = 'sy-funnel-mode'; sendNowRadio.value = 'now'; sendNowRadio.checked = true;
+    sendNowLabel.appendChild(sendNowRadio);
+    sendNowLabel.appendChild(document.createTextNode('Send now'));
+    const sendLaterLabel = el('label', 'sy-radio-label');
+    const sendLaterRadio = document.createElement('input');
+    sendLaterRadio.type = 'radio'; sendLaterRadio.name = 'sy-funnel-mode'; sendLaterRadio.value = 'schedule';
+    sendLaterLabel.appendChild(sendLaterRadio);
+    sendLaterLabel.appendChild(document.createTextNode('Schedule'));
+    sendModeWrap.appendChild(sendNowLabel);
+    sendModeWrap.appendChild(sendLaterLabel);
+    mbody.appendChild(sendModeWrap);
+
+    const sendWhenInput = document.createElement('input');
+    sendWhenInput.type = 'datetime-local';
+    sendWhenInput.style.display = 'none';
+    mbody.appendChild(sendWhenInput);
+    sendLaterRadio.addEventListener('change', () => { sendWhenInput.style.display = 'block'; });
+    sendNowRadio.addEventListener('change', () => { sendWhenInput.style.display = 'none'; });
+
+    const sendRepeat = addRepeatBlock(mbody);
+
     const sendMsg = el('div', 'sy-modal-msg');
     const sendBtn = el('button', 'sy-modal-btn sy-primary', 'Send to Stage');
     sendBtn.addEventListener('click', async () => {
       const tpl = tplPicker.getSelected();
-      if (!tpl) { sendMsg.className = 'sy-modal-msg sy-error'; sendMsg.textContent = 'Pick a template.'; return; }
-      if (!confirm(`Send "${tpl.name}" to everyone in "${stageSelect.value.replace(/_/g, ' ')}" now?`)) return;
+      const text = sendTextarea.value.trim();
+      const mediaUrl = sendMediaInput.value.trim();
+      const mode = sendLaterRadio.checked ? 'schedule' : 'now';
+      if (!tpl && !text) { sendMsg.className = 'sy-modal-msg sy-error'; sendMsg.textContent = 'Pick a template or type a message.'; return; }
+      if (!sendRepeat.isEnabled() && mode === 'schedule' && !sendWhenInput.value) {
+        sendMsg.className = 'sy-modal-msg sy-error'; sendMsg.textContent = 'Pick a date/time, choose Send now, or turn on Repeat.'; return;
+      }
+      if (!confirm(`Send to everyone in "${stageSelect.value.replace(/_/g, ' ')}"?`)) return;
+
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Sending…';
-      const createRes = await adminApi('/api/admin/crm/broadcast-runs', 'POST', {
+      sendBtn.textContent = 'Working…';
+
+      let templateId = tpl?._id;
+      if (!templateId) {
+        const templatePayload = { templateName: `adhoc_${Date.now()}`, category: 'MARKETING', language: 'en', templateContent: text };
+        if (mediaUrl) { templatePayload.headerFormat = 'IMAGE'; templatePayload.headerContent = mediaUrl; }
+        const created = await sendMessage({ type: 'CREATE_TEMPLATE', template: templatePayload });
+        if (!created.ok || !created.data?.success) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send to Stage';
+          sendMsg.className = 'sy-modal-msg sy-error';
+          sendMsg.textContent = created.data?.error || 'Failed to save message.';
+          return;
+        }
+        templateId = created.data.template._id;
+      }
+
+      const sendOne = async (scheduleAt) => adminApi('/api/admin/crm/broadcast-runs', 'POST', {
         name: `Extension Funnel Send — ${stageSelect.value} — ${new Date().toLocaleString()}`,
-        templateId: tpl._id,
-        mode: 'now',
+        templateId,
+        mode: scheduleAt ? 'schedule' : 'now',
         provider: 'qr',
+        scheduleAt,
         target: { type: 'filters', filters: { status: stageSelect.value } },
       });
+
+      let okCount = 0;
+      const errors = [];
+      if (sendRepeat.isEnabled()) {
+        const timestamps = sendRepeat.getTimestamps();
+        if (!timestamps.length) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send to Stage';
+          sendMsg.className = 'sy-modal-msg sy-error';
+          sendMsg.textContent = 'No days selected for Repeat.';
+          return;
+        }
+        for (const ts of timestamps) {
+          const res = await sendOne(new Date(ts).toISOString());
+          if (res.ok && res.data?.success) okCount++; else errors.push(res.data?.error || 'failed');
+        }
+      } else {
+        const scheduleAt = mode === 'schedule' ? new Date(sendWhenInput.value).toISOString() : undefined;
+        const createRes = await sendOne(scheduleAt);
+        if (createRes.ok && createRes.data?.success) {
+          okCount = 1;
+          if (mode === 'now') {
+            const runId = createRes.data.data?._id;
+            if (runId) await adminApi('/api/admin/crm/broadcast-runs/run', 'POST', { runId });
+          }
+        } else {
+          errors.push(createRes.data?.error || 'failed');
+        }
+      }
+
       sendBtn.disabled = false;
       sendBtn.textContent = 'Send to Stage';
-      if (!createRes.ok || !createRes.data?.success) {
+      if (okCount) {
+        sendMsg.className = 'sy-modal-msg sy-ok';
+        sendMsg.textContent = `✅ ${mode === 'now' && !sendRepeat.isEnabled() ? 'Started' : 'Scheduled'} ${okCount} send(s) to "${stageSelect.value.replace(/_/g, ' ')}"${errors.length ? `, ${errors.length} failed` : ''}. Check Report for progress.`;
+      } else {
         sendMsg.className = 'sy-modal-msg sy-error';
-        sendMsg.textContent = createRes.data?.error || 'Failed to start.';
-        return;
+        sendMsg.textContent = errors[0] || 'Failed.';
       }
-      const runId = createRes.data?.data?._id;
-      if (runId) await adminApi('/api/admin/crm/broadcast-runs/run', 'POST', { runId });
-      sendMsg.className = 'sy-modal-msg sy-ok';
-      sendMsg.textContent = '✅ Started — check Report for progress.';
     });
     mbody.appendChild(sendMsg);
     const footer = el('div', 'sy-modal-footer');
@@ -2695,6 +2873,113 @@
    * (sent/pending/read/delivered/failed + blocked numbers), pulled straight
    * from the same aggregation the admin CRM's broadcast history uses.
    */
+  /**
+   * "Leads" popup — native searchable table (not the live admin page),
+   * pulling the same /api/admin/crm/leads data already used elsewhere in
+   * the extension. Click a row to open that lead's chat.
+   */
+  function openLeadsModal() {
+    const { overlay, body: mbody } = openModal('📋 Leads', { large: true });
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search by name or phone…';
+    mbody.appendChild(searchInput);
+
+    const countLine = el('div', 'sy-fmt-hint', 'Loading…');
+    mbody.appendChild(countLine);
+
+    const listBox = el('div');
+    listBox.style.marginTop = '10px';
+    mbody.appendChild(listBox);
+
+    function renderTable(leads, total) {
+      countLine.textContent = `${total} lead(s)${total > leads.length ? ` (showing first ${leads.length})` : ''}`;
+      listBox.innerHTML = '';
+      if (!leads.length) { listBox.appendChild(el('div', 'sy-empty', 'No leads found.')); return; }
+      const wrap = el('div', 'sy-report-table-wrap');
+      const table = document.createElement('table');
+      table.className = 'sy-report-table';
+      const thead = document.createElement('thead');
+      thead.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Status</th><th>Source</th><th>Created</th></tr>';
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for (const lead of leads) {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.title = 'Click to open this chat';
+        [
+          lead.name || 'Unnamed',
+          lead.phoneNumber || '',
+          (lead.status || '').replace(/_/g, ' '),
+          lead.source || '',
+          lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '',
+        ].forEach((val) => {
+          const td = document.createElement('td');
+          td.textContent = val;
+          tr.appendChild(td);
+        });
+        tr.addEventListener('click', () => {
+          if (lead.phoneNumber) { overlay.remove(); startNewChat(lead.phoneNumber); }
+        });
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      listBox.appendChild(wrap);
+    }
+
+    let searchTimer = null;
+    async function runSearch() {
+      countLine.textContent = 'Searching…';
+      const params = new URLSearchParams({ qrOnly: '1', limit: '50', selectAll: 'true', fields: 'name,phoneNumber,status,source,createdAt' });
+      const q = searchInput.value.trim();
+      if (q) params.set('q', q);
+      const res = await adminApi(`/api/admin/crm/leads?${params.toString()}`);
+      if (!res.ok) { countLine.textContent = res.data?.error || 'Failed to load leads.'; return; }
+      const leads = res.data?.data?.leads || [];
+      const total = res.data?.data?.total ?? leads.length;
+      renderTable(leads, total);
+    }
+    searchInput.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 350); });
+    runSearch();
+
+    const footer = el('div', 'sy-modal-footer');
+    const closeBtn = el('button', 'sy-modal-btn sy-primary', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(closeBtn);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Sales" popup — the REAL admin Sales page (uploads, Tally sync, PDF
+   * extraction, bulk import — too complex to meaningfully rebuild) shown
+   * in an iframe. Requires swaryoga.com's middleware to specifically allow
+   * framing this one path from web.whatsapp.com's origin (see
+   * EXTENSION_EMBEDDABLE_PATHS in middleware.ts) — every other admin page
+   * still blocks framing entirely. You need to already be logged into
+   * swaryoga.com in this browser for the iframe to show real data.
+   */
+  function openSalesModal() {
+    const { overlay, body: mbody } = openModal('💰 Sales', { large: true });
+
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://swaryoga.com/admin/crm/sales';
+    iframe.className = 'sy-embed-iframe';
+    const loadingMsg = el('div', 'sy-empty', 'Loading… (you need to already be logged into swaryoga.com in this browser)');
+    mbody.appendChild(loadingMsg);
+    iframe.addEventListener('load', () => loadingMsg.remove());
+    mbody.appendChild(iframe);
+
+    const footer = el('div', 'sy-modal-footer');
+    const openTabBtn = el('button', 'sy-modal-btn', 'Open in new tab instead');
+    openTabBtn.addEventListener('click', () => window.open('https://swaryoga.com/admin/crm/sales', '_blank', 'noopener,noreferrer'));
+    const closeBtn = el('button', 'sy-modal-btn sy-primary', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(openTabBtn);
+    footer.appendChild(closeBtn);
+    mbody.appendChild(footer);
+  }
+
   function openReportModal() {
     const { overlay, body: mbody } = openModal('📈 QR Broadcast Report', { large: true });
     const summaryBox = el('div', 'sy-empty', 'Loading…');

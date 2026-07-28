@@ -143,16 +143,32 @@ const RELAXED_CSP_RULES = [
 
 const CSP = STRICT_CSP_ENABLED ? STRICT_CSP_RULES : RELAXED_CSP_RULES;
 
+// Scoped clickjacking exception for the Swar Yoga WhatsApp CRM browser
+// extension: it embeds these two admin pages in a popup rendered inside
+// web.whatsapp.com's own page, which the browser treats as that origin
+// framing this one. X-Frame-Options can't express "allow this one other
+// origin" (the old ALLOW-FROM directive is ignored by modern Chrome), so
+// for just these two paths we skip the blanket DENY and rely on the
+// modern frame-ancestors CSP directive instead, scoped to exactly this
+// one origin. Every other route keeps X-Frame-Options: DENY untouched.
+const EXTENSION_EMBEDDABLE_PATHS = ['/admin/crm/sales'];
+function isExtensionEmbeddablePath(pathname: string): boolean {
+  return EXTENSION_EMBEDDABLE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 function applySecurityHeaders(res: NextResponse, requestId: string, pathname: string, searchParams: URLSearchParams): void {
   res.headers.set('X-Request-Id', requestId);
   const isLandingPagePreview = pathname.startsWith('/lp/') && searchParams.get('preview') === 'true';
-  res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+  const embeddable = isExtensionEmbeddablePath(pathname);
+  if (!embeddable) {
+    res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+  }
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-XSS-Protection', '1; mode=block');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');
   res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-  res.headers.set('Content-Security-Policy', CSP);
+  res.headers.set('Content-Security-Policy', embeddable ? `${CSP}; frame-ancestors 'self' https://web.whatsapp.com` : CSP);
 }
 
 // ===========================================================================
