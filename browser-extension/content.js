@@ -567,6 +567,12 @@
 
     const toolsRow = el('div', 'sy-btn-row');
 
+    // Applies to New Group / Add Members — these drive a regular WhatsApp
+    // Group's UI and are not built for WhatsApp Communities (announcement
+    // group + linked sub-groups, up to 5000 members) — those have a
+    // different structure entirely, and grow via invite link, not admin-add.
+    const MAX_ADD_MEMBERS = 30;
+
     const newChatBtn = el('button', 'sy-btn', '💬 New Chat');
     newChatBtn.addEventListener('click', () => {
       const phone = prompt('Phone number to start a chat with:');
@@ -575,12 +581,17 @@
     toolsRow.appendChild(newChatBtn);
 
     const newGroupBtn = el('button', 'sy-btn', '👥 New Group');
+    newGroupBtn.title = 'Creates a regular WhatsApp Group (not a Community) — communities have a different structure this doesn\'t support';
     newGroupBtn.addEventListener('click', async () => {
       const name = prompt('Group name:');
       if (!name || !name.trim()) return;
-      const raw = prompt('Participant phone numbers — comma separated:');
+      const raw = prompt(`Participant phone numbers — comma separated (max ${MAX_ADD_MEMBERS}):`);
       if (!raw || !raw.trim()) return;
       const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      if (phones.length > MAX_ADD_MEMBERS) {
+        setToolStatus(`❌ ${phones.length} numbers is too many (max ${MAX_ADD_MEMBERS}) — create the group with a few people, then use Add Members to grow it gradually.`, true);
+        return;
+      }
       newGroupBtn.disabled = true;
       const result = await createNewGroup(name.trim(), phones, (msg) => setToolStatus(msg));
       newGroupBtn.disabled = false;
@@ -594,11 +605,19 @@
     toolsRow.appendChild(newGroupBtn);
 
     const mergeBtn = el('button', 'sy-btn', '➕ Add Members');
-    mergeBtn.title = 'Adds phone numbers to the currently open group (3-7 min gap between each, same safety pacing as the QR bridge)';
+    mergeBtn.title = 'Adds phone numbers to the currently open GROUP (not a Community) — 3-7 min gap between each, same safety pacing as the QR bridge. Not built for WhatsApp Communities — use the invite link to grow those.';
     mergeBtn.addEventListener('click', async () => {
-      const raw = prompt('Add to the CURRENTLY OPEN group — phone numbers, comma separated:\n\n(Paced 3-7 min apart to protect this WhatsApp number — a large list will take a while. You can close this tab; it will just stop where it is.)');
+      const raw = prompt(
+        `Add to the CURRENTLY OPEN group — phone numbers, comma separated (max ${MAX_ADD_MEMBERS} at a time):\n\n` +
+        'This is for a regular WhatsApp Group, NOT a Community (Communities/5000-member entities have a different structure this doesn\'t support — use the invite link to grow those instead).\n\n' +
+        'Paced 3-7 min apart to protect this WhatsApp number — a large list will take a while. You can close this tab; it will just stop where it is.'
+      );
       if (!raw || !raw.trim()) return;
       const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      if (phones.length > MAX_ADD_MEMBERS) {
+        setToolStatus(`❌ ${phones.length} numbers is too many for this tool (max ${MAX_ADD_MEMBERS}) — this isn't meant for large-scale growth (that's what invite links are for). Split into smaller batches if this is genuinely a small group.`, true);
+        return;
+      }
       mergeBtn.disabled = true;
       const result = await addParticipantsToOpenGroup(phones, (msg) => setToolStatus(msg));
       mergeBtn.disabled = false;
@@ -612,6 +631,7 @@
     toolsRow.appendChild(mergeBtn);
 
     const deleteGroupBtn = el('button', 'sy-btn', '🗑️ Leave/Delete Group');
+    deleteGroupBtn.title = 'For a regular WhatsApp Group, not a Community';
     deleteGroupBtn.addEventListener('click', async () => {
       if (!confirm('Leave the currently open group? This removes you from it (deletes it if you were the last member).')) return;
       deleteGroupBtn.disabled = true;
