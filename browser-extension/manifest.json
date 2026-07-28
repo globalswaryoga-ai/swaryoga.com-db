@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Swar Yoga WhatsApp CRM",
-  "version": "1.1.1",
-  "description": "CRM sidebar, AI Fix/Reply, quick replies, and full WhatsApp templates directly on your own WhatsApp Web — no separate bridge, uses your real WhatsApp Web login.",
+  "version": "1.2.0",
+  "description": "CRM sidebar, AI Fix/Reply, templates, scheduling, and group tools directly on your own WhatsApp Web — no separate bridge, uses your real WhatsApp Web login.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -21,7 +21,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "alarms", "tabs"],
   "host_permissions": [
     "https://swaryoga.com/*",
     "https://crm.swaryoga.com/*",

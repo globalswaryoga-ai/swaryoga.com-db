@@ -97,6 +97,21 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    // ── Scheduling ──────────────────────────────────────────────────────
+    // Uses chrome.alarms, which only fires while Chrome is running (not
+    // after the laptop sleeps/quits) — there's no persistent server-side
+    // WhatsApp session behind this the way the QR bridge has, so this is a
+    // best-effort "fires if this Chrome window is still open" scheduler,
+    // not a guaranteed one. The sidebar tells the user this explicitly.
+    case 'SCHEDULE_MESSAGE': {
+      const id = `sched_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const { scheduledMessages = [] } = await chrome.storage.local.get(['scheduledMessages']);
+      scheduledMessages.push({ id, phone: msg.phone, text: msg.text, sendAt: msg.sendAt, status: 'pending' });
+      await chrome.storage.local.set({ scheduledMessages });
+      chrome.alarms.create(id, { when: msg.sendAt });
+      return { ok: true, id };
+    }
+
     default:
       return { ok: false, error: `Unknown message type: ${msg.type}` };
   }
@@ -105,4 +120,29 @@ async function handleMessage(msg) {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   handleMessage(msg).then(sendResponse).catch((err) => sendResponse({ ok: false, error: err.message }));
   return true; // keep the message channel open for the async response
+});
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  const { scheduledMessages = [] } = await chrome.storage.local.get(['scheduledMessages']);
+  const job = scheduledMessages.find((m) => m.id === alarm.name);
+  if (!job) return;
+
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+    if (!tabs.length) {
+      job.status = 'missed_no_tab';
+    } else {
+      const results = await chrome.tabs.sendMessage(tabs[0].id, {
+        type: 'RUN_SCHEDULED_SEND',
+        phone: job.phone,
+        text: job.text,
+      }).catch(() => null);
+      job.status = results?.ok ? 'sent' : 'failed';
+    }
+  } catch (e) {
+    job.status = 'failed';
+  }
+
+  const updated = scheduledMessages.map((m) => (m.id === job.id ? job : m));
+  await chrome.storage.local.set({ scheduledMessages: updated });
 });

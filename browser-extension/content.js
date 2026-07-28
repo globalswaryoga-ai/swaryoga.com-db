@@ -66,6 +66,96 @@
     return box ? box.innerText || '' : '';
   }
 
+  function findSendButton() {
+    const candidates = [
+      'button[aria-label="Send"]',
+      'span[data-icon="send"]',
+      'span[data-icon="wds-ic-send-filled"]',
+    ];
+    for (const sel of candidates) {
+      const found = document.querySelector(sel);
+      if (found) return found.closest('button') || found;
+    }
+    return null;
+  }
+
+  /** Clicks WhatsApp's own Send button — used by AI/template/quick-reply
+   *  insert-then-send flows (scheduling) that run with nobody at the
+   *  keyboard. Manual use of Fix/AI-reply/templates never calls this —
+   *  the user still reviews and presses Send themselves. */
+  function sendCurrentMessage() {
+    const btn = findSendButton();
+    if (btn) { btn.click(); return true; }
+    // Fallback: dispatch a real Enter keydown on the compose box, which
+    // WhatsApp's own listener treats as "send" (Shift+Enter is the one
+    // that's a newline — handled separately by setComposeText above).
+    const box = findComposeBox();
+    if (!box) return false;
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    return true;
+  }
+
+  function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+  /** Poll for an element matching selector (optionally filtered by text) to appear, up to timeoutMs. */
+  async function waitFor(selector, { text, timeoutMs = 6000, intervalMs = 200 } = {}) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const nodes = Array.from(document.querySelectorAll(selector));
+      const match = text
+        ? nodes.find((n) => (n.textContent || '').trim().toLowerCase().includes(text.toLowerCase()))
+        : nodes[0];
+      if (match) return match;
+      await sleep(intervalMs);
+    }
+    return null;
+  }
+
+  /** Find a clickable element (button/role=button/li) whose visible text matches, case-insensitive substring. */
+  async function waitForClickableText(text, { timeoutMs = 6000 } = {}) {
+    return waitFor('button, div[role="button"], li, span[role="button"]', { text, timeoutMs });
+  }
+
+  /** Find the currently-focused/visible search input in whatever WA panel is open (new chat/group participant picker, etc). */
+  function findVisibleSearchInput() {
+    const candidates = [
+      'div[contenteditable="true"][data-tab][aria-label]',
+      'input[type="text"][aria-label]',
+      'div[contenteditable="true"][role="textbox"]',
+    ];
+    for (const sel of candidates) {
+      const nodes = Array.from(document.querySelectorAll(sel));
+      const visible = nodes.find((n) => n.offsetParent !== null && n !== findComposeBox());
+      if (visible) return visible;
+    }
+    return null;
+  }
+
+  function typeIntoSearch(box, text) {
+    box.focus();
+    document.execCommand('selectAll', false, undefined);
+    document.execCommand('delete', false, undefined);
+    document.execCommand('insertText', false, text);
+    // WA's search is debounced — its own keyup/input listeners already fired
+    // from execCommand's synthetic input event, so no extra dispatch needed.
+  }
+
+  /**
+   * Search for a contact by phone/name in whatever picker panel is
+   * currently open, and click the first matching result row.
+   * Returns true if a result was clicked.
+   */
+  async function searchAndSelectContact(query) {
+    const searchBox = findVisibleSearchInput();
+    if (!searchBox) return false;
+    typeIntoSearch(searchBox, query);
+    await sleep(700); // let WA's own debounced search render results
+    const resultRow = await waitFor('div[role="listitem"], div[data-testid="cell-frame-container"]', { timeoutMs: 3000 });
+    if (!resultRow) return false;
+    resultRow.click();
+    return true;
+  }
+
   // ── Detect the currently open chat's phone number ─────────────────────────
   function looksLikePhone(text) {
     const digits = (text || '').replace(/\D/g, '');
@@ -94,6 +184,166 @@
     const last = inbound[inbound.length - 1];
     const textNode = last.querySelector('span.selectable-text, span[dir="ltr"], span[dir="rtl"]');
     return textNode ? textNode.textContent || '' : '';
+  }
+
+  // ── WhatsApp feature automation ──────────────────────────────────────────
+  // Everything below drives WhatsApp Web's own real UI (clicks + typed
+  // input via the same execCommand technique as the compose box) rather than
+  // WhatsApp's internal/undocumented JS modules — more verifiable and more
+  // maintainable if a selector needs updating later. Each step reports
+  // clearly if it couldn't find what it expected, instead of failing silently.
+
+  /** 3-7 min random gap, matching the same human-paced safety window used
+   *  server-side for QR group operations (lib/safeGroupMergeV2.ts) — bulk
+   *  participant adds are exactly the pattern that gets accounts flagged. */
+  function humanGapMs() {
+    return Math.floor(Math.random() * (420000 - 180000) + 180000);
+  }
+
+  function startNewChat(phone) {
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return false;
+    // WhatsApp Web's own documented click-to-chat URL — opens the chat
+    // in-place if already logged in, far more reliable than simulating the
+    // "New chat" button + search flow.
+    location.href = `https://web.whatsapp.com/send?phone=${digits}`;
+    return true;
+  }
+
+  async function openNewChatPanel() {
+    const newChatBtn =
+      document.querySelector('[aria-label="New chat"]') ||
+      document.querySelector('span[data-icon="new-chat-outline"]')?.closest('button') ||
+      document.querySelector('span[data-icon="chat"]')?.closest('button');
+    if (!newChatBtn) return false;
+    newChatBtn.click();
+    return true;
+  }
+
+  /**
+   * Creates a new group with the given name and participant phone numbers,
+   * via WhatsApp's own "New chat → New group" flow.
+   */
+  async function createNewGroup(name, phones, onProgress) {
+    onProgress?.('Opening new chat panel…');
+    if (!(await openNewChatPanel())) return { ok: false, error: "Couldn't find the New Chat button." };
+    await sleep(400);
+
+    onProgress?.('Opening New Group…');
+    const newGroupEntry = await waitForClickableText('New group', { timeoutMs: 4000 });
+    if (!newGroupEntry) return { ok: false, error: "Couldn't find \"New group\" in the menu — WhatsApp Web's layout may differ on your version." };
+    newGroupEntry.click();
+    await sleep(600);
+
+    const added = [];
+    const failed = [];
+    for (let i = 0; i < phones.length; i++) {
+      if (i > 0) { onProgress?.(`Waiting before adding ${phones[i]}…`); await sleep(humanGapMs()); }
+      onProgress?.(`Adding ${phones[i]} (${i + 1}/${phones.length})…`);
+      const found = await searchAndSelectContact(phones[i]);
+      if (found) added.push(phones[i]); else failed.push(phones[i]);
+    }
+
+    onProgress?.('Confirming participant selection…');
+    const nextBtn = document.querySelector('[aria-label="Next"]') || (await waitForClickableText('Next', { timeoutMs: 3000 }));
+    if (!nextBtn) return { ok: false, error: "Selected participants but couldn't find the Next/confirm button.", added, failed };
+    nextBtn.click();
+    await sleep(600);
+
+    onProgress?.('Naming the group…');
+    const nameBox = findVisibleSearchInput();
+    if (!nameBox) return { ok: false, error: "Couldn't find the group name field.", added, failed };
+    typeIntoSearch(nameBox, name);
+    await sleep(300);
+
+    const createBtn = document.querySelector('[aria-label="Create group"]') || (await waitForClickableText('Create', { timeoutMs: 3000 }));
+    if (!createBtn) return { ok: false, error: "Named the group but couldn't find the Create button.", added, failed };
+    createBtn.click();
+
+    return { ok: true, added, failed };
+  }
+
+  async function openGroupInfoPanel() {
+    const header = document.querySelector('header');
+    const titleEl = header?.querySelector('span[dir="auto"][title], span[dir="auto"]');
+    if (!titleEl) return false;
+    titleEl.click();
+    await sleep(500);
+    return true;
+  }
+
+  /** Adds participants (phone numbers) to whichever group chat is currently open. */
+  async function addParticipantsToOpenGroup(phones, onProgress) {
+    onProgress?.('Opening group info…');
+    if (!(await openGroupInfoPanel())) return { ok: false, error: "Couldn't open group info for the current chat — make sure a group chat is open." };
+
+    const addBtn = await waitForClickableText('Add participant', { timeoutMs: 4000 });
+    if (!addBtn) return { ok: false, error: "Couldn't find \"Add participant\" — make sure you're an admin of this group and a group chat is open." };
+    addBtn.click();
+    await sleep(500);
+
+    const added = [];
+    const failed = [];
+    for (let i = 0; i < phones.length; i++) {
+      if (i > 0) { onProgress?.(`Waiting before adding ${phones[i]}…`); await sleep(humanGapMs()); }
+      onProgress?.(`Adding ${phones[i]} (${i + 1}/${phones.length})…`);
+      const found = await searchAndSelectContact(phones[i]);
+      if (found) added.push(phones[i]); else failed.push(phones[i]);
+    }
+
+    onProgress?.('Confirming…');
+    const confirmBtn =
+      document.querySelector('[aria-label="Add"]') ||
+      document.querySelector('span[data-icon="checkmark-medium"]')?.closest('button') ||
+      (await waitForClickableText('Add', { timeoutMs: 3000 }));
+    if (confirmBtn) confirmBtn.click();
+
+    return { ok: true, added, failed };
+  }
+
+  /** Leaves (and, if you're the only member left, effectively deletes) the currently open group. */
+  async function leaveAndDeleteOpenGroup(onProgress) {
+    onProgress?.('Opening group info…');
+    if (!(await openGroupInfoPanel())) return { ok: false, error: "Couldn't open group info — make sure a group chat is open." };
+
+    const exitBtn = await waitForClickableText('Exit group', { timeoutMs: 4000 });
+    if (!exitBtn) return { ok: false, error: "Couldn't find \"Exit group\"." };
+    exitBtn.click();
+    await sleep(400);
+
+    // WhatsApp shows a confirm dialog — click its own "Exit"/"Leave" confirm button.
+    const confirmBtn = await waitForClickableText('Exit', { timeoutMs: 3000 });
+    if (confirmBtn) confirmBtn.click();
+
+    return { ok: true };
+  }
+
+  /** Posts a plain text WhatsApp Status update. */
+  async function postTextStatus(text, onProgress) {
+    onProgress?.('Opening Status…');
+    const statusNav =
+      document.querySelector('[aria-label="Status"]') ||
+      document.querySelector('span[data-icon="status-refreshed"]')?.closest('button');
+    if (!statusNav) return { ok: false, error: "Couldn't find the Status tab in the left navigation." };
+    statusNav.click();
+    await sleep(500);
+
+    const addBtn = await waitForClickableText('Add status', { timeoutMs: 4000 });
+    if (!addBtn) return { ok: false, error: "Couldn't find \"Add status\"." };
+    addBtn.click();
+    await sleep(500);
+
+    // Text-status composer is a separate contenteditable, distinct from the chat compose box.
+    const textBox = findVisibleSearchInput();
+    if (!textBox) return { ok: false, error: "Opened status composer but couldn't find the text field — WhatsApp may have defaulted to photo/video status instead of text." };
+    typeIntoSearch(textBox, text);
+    await sleep(300);
+
+    const sendBtn = findSendButton() || (await waitForClickableText('Send', { timeoutMs: 3000 }));
+    if (!sendBtn) return { ok: false, error: "Typed the status but couldn't find the Send button." };
+    sendBtn.click();
+
+    return { ok: true };
   }
 
   // ── Sidebar rendering ──────────────────────────────────────────────────
@@ -221,6 +471,132 @@
       }
     }
     body.appendChild(tplSection);
+
+    // ── Tools ──
+    const toolsSection = el('div', 'sy-section');
+    toolsSection.appendChild(el('div', 'sy-section-title', 'Tools'));
+
+    const statusBox = el('div', 'sy-empty');
+    statusBox.style.display = 'none';
+    const setToolStatus = (msg, isError) => {
+      if (!msg) { statusBox.style.display = 'none'; return; }
+      statusBox.style.display = 'block';
+      statusBox.style.fontStyle = 'normal';
+      statusBox.style.color = isError ? '#b91c1c' : '#374151';
+      statusBox.textContent = msg;
+    };
+
+    const toolsRow = el('div', 'sy-btn-row');
+
+    const newChatBtn = el('button', 'sy-btn', '💬 New Chat');
+    newChatBtn.addEventListener('click', () => {
+      const phone = prompt('Phone number to start a chat with:');
+      if (phone && phone.trim()) startNewChat(phone.trim());
+    });
+    toolsRow.appendChild(newChatBtn);
+
+    const newGroupBtn = el('button', 'sy-btn', '👥 New Group');
+    newGroupBtn.addEventListener('click', async () => {
+      const name = prompt('Group name:');
+      if (!name || !name.trim()) return;
+      const raw = prompt('Participant phone numbers — comma separated:');
+      if (!raw || !raw.trim()) return;
+      const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      newGroupBtn.disabled = true;
+      const result = await createNewGroup(name.trim(), phones, (msg) => setToolStatus(msg));
+      newGroupBtn.disabled = false;
+      setToolStatus(
+        result.ok
+          ? `✅ Group created. Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
+          : `❌ ${result.error}`,
+        !result.ok
+      );
+    });
+    toolsRow.appendChild(newGroupBtn);
+
+    const mergeBtn = el('button', 'sy-btn', '➕ Add Members');
+    mergeBtn.title = 'Adds phone numbers to the currently open group (3-7 min gap between each, same safety pacing as the QR bridge)';
+    mergeBtn.addEventListener('click', async () => {
+      const raw = prompt('Add to the CURRENTLY OPEN group — phone numbers, comma separated:\n\n(Paced 3-7 min apart to protect this WhatsApp number — a large list will take a while. You can close this tab; it will just stop where it is.)');
+      if (!raw || !raw.trim()) return;
+      const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      mergeBtn.disabled = true;
+      const result = await addParticipantsToOpenGroup(phones, (msg) => setToolStatus(msg));
+      mergeBtn.disabled = false;
+      setToolStatus(
+        result.ok
+          ? `✅ Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
+          : `❌ ${result.error}`,
+        !result.ok
+      );
+    });
+    toolsRow.appendChild(mergeBtn);
+
+    const deleteGroupBtn = el('button', 'sy-btn', '🗑️ Leave/Delete Group');
+    deleteGroupBtn.addEventListener('click', async () => {
+      if (!confirm('Leave the currently open group? This removes you from it (deletes it if you were the last member).')) return;
+      deleteGroupBtn.disabled = true;
+      const result = await leaveAndDeleteOpenGroup((msg) => setToolStatus(msg));
+      deleteGroupBtn.disabled = false;
+      setToolStatus(result.ok ? '✅ Left the group.' : `❌ ${result.error}`, !result.ok);
+    });
+    toolsRow.appendChild(deleteGroupBtn);
+
+    const statusBtn = el('button', 'sy-btn', '📸 Post Status');
+    statusBtn.addEventListener('click', async () => {
+      const text = prompt('Status text:');
+      if (!text || !text.trim()) return;
+      statusBtn.disabled = true;
+      const result = await postTextStatus(text.trim(), (msg) => setToolStatus(msg));
+      statusBtn.disabled = false;
+      setToolStatus(result.ok ? '✅ Status posted.' : `❌ ${result.error}`, !result.ok);
+    });
+    toolsRow.appendChild(statusBtn);
+
+    const scheduleBtn = el('button', 'sy-btn sy-primary', '📅 Schedule Message');
+    scheduleBtn.title = 'Schedules the current compose box text to send later — only fires if this Chrome window is still open at that time';
+    scheduleBtn.addEventListener('click', async () => {
+      const text = getComposeText();
+      if (!text.trim()) { setToolStatus('❌ Type the message in WhatsApp\'s compose box first, then click Schedule.', true); return; }
+      if (!state.currentPhone) { setToolStatus('❌ Open a chat (or enter a phone number above) first.', true); return; }
+      const when = prompt('Send at? (e.g. "2026-08-04 09:00", 24h local time)');
+      if (!when) return;
+      const sendAt = new Date(when.replace(' ', 'T'));
+      if (isNaN(sendAt.getTime()) || sendAt.getTime() <= Date.now()) {
+        setToolStatus('❌ Couldn\'t understand that date/time, or it\'s in the past.', true);
+        return;
+      }
+      const res = await sendMessage({ type: 'SCHEDULE_MESSAGE', phone: state.currentPhone, text, sendAt: sendAt.getTime() });
+      setToolStatus(
+        res.ok
+          ? `✅ Scheduled for ${sendAt.toLocaleString()}. Keep this Chrome window open (it doesn't need to be the active tab) so it can actually fire.`
+          : `❌ ${res.error || 'Failed to schedule'}`,
+        !res.ok
+      );
+    });
+    toolsRow.appendChild(scheduleBtn);
+
+    toolsSection.appendChild(toolsRow);
+    toolsSection.appendChild(statusBox);
+    body.appendChild(toolsSection);
+
+    // ── CRM Dashboards ── (full pages — tables/kanban/charts don't fit a 300px sidebar)
+    const dashSection = el('div', 'sy-section');
+    dashSection.appendChild(el('div', 'sy-section-title', 'CRM Dashboards'));
+    const dashRow = el('div', 'sy-btn-row');
+    const dashLinks = [
+      ['📋 QR Leads', '/admin/crm/qr/leads'],
+      ['🔻 QR Funnel', '/admin/crm/qr/funnel'],
+      ['⚙️ QR Manage', '/admin/crm/qr/manage'],
+      ['📊 QR Reports', '/admin/crm/qr/agent-report'],
+    ];
+    for (const [label, path] of dashLinks) {
+      const btn = el('button', 'sy-btn', label);
+      btn.addEventListener('click', () => window.open(`https://swaryoga.com${path}`, '_blank'));
+      dashRow.appendChild(btn);
+    }
+    dashSection.appendChild(dashRow);
+    body.appendChild(dashSection);
   }
 
   function buildSidebar() {
@@ -300,11 +676,53 @@
     }, 1500);
   }
 
+  // ── Scheduled sends (fired from background.js's chrome.alarms) ──────────
+  // Opening a different chat via the click-to-chat URL is a real page
+  // navigation (WhatsApp Web isn't routed client-side for that URL from
+  // outside its own app), which destroys this script's execution context
+  // mid-flight — so a navigation-requiring send can't complete within the
+  // same message handler. Instead: if already on the right chat, send
+  // immediately; otherwise stash the pending send in storage and let the
+  // *next* page load (checkPendingScheduledSend, called from init()) finish it.
+  async function runScheduledSend(phone, text) {
+    const digits = phone.replace(/\D/g, '');
+    if (detectPhoneFromHeader() === digits && findComposeBox()) {
+      setComposeText(text);
+      await sleep(300);
+      sendCurrentMessage();
+      return { ok: true, navigating: false };
+    }
+    await chrome.storage.local.set({ pendingScheduledSend: { phone: digits, text } });
+    location.href = `https://web.whatsapp.com/send?phone=${digits}`;
+    return { ok: true, navigating: true };
+  }
+
+  async function checkPendingScheduledSend() {
+    const { pendingScheduledSend } = await chrome.storage.local.get(['pendingScheduledSend']);
+    if (!pendingScheduledSend) return;
+    await chrome.storage.local.remove('pendingScheduledSend');
+    const box = await waitFor('footer div[contenteditable="true"]', { timeoutMs: 15000 });
+    if (!box) return;
+    await sleep(1000);
+    setComposeText(pendingScheduledSend.text);
+    await sleep(300);
+    sendCurrentMessage();
+  }
+
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type === 'RUN_SCHEDULED_SEND') {
+      runScheduledSend(msg.phone, msg.text).then(sendResponse);
+      return true;
+    }
+    return false;
+  });
+
   function init() {
     buildSidebar();
     render();
     refreshAuthState();
     watchOpenChat();
+    checkPendingScheduledSend();
     // Re-check login/approval state periodically in case the user logs in
     // via the popup while this tab is already open.
     setInterval(refreshAuthState, 15000);
