@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3 } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -2758,7 +2758,87 @@ export default function QRWhatsAppPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-16">
+      {/* ═══ Left Icon Rail — matches web.whatsapp.com's own vertical icon
+          strip (Chats/Calls/Status/Communities + Settings/profile at the
+          bottom). Fixed positioning keeps it clear of every fixed inset-0
+          modal in this page (unaffected by the root's padding-left). Wires
+          into the SAME state/handlers as the top toolbar — this is a
+          second entry point for the same actions, not new functionality;
+          removing the now-redundant top toolbar/tabs is a later cleanup
+          pass once this placement is confirmed to be what's wanted. */}
+      <div className="fixed left-0 top-0 bottom-0 w-16 bg-gray-50 border-r flex flex-col items-center py-3 gap-1 z-30">
+        <button
+          onClick={() => { setTab('inbox'); if (isConnected) fetchChats(); }}
+          className={`relative p-3 rounded-full transition ${tab === 'inbox' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Inbox"
+        >
+          <MessageSquare className="w-5 h-5" />
+          {chats.filter(c => c.unreadCount > 0).length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center">
+              {chats.filter(c => c.unreadCount > 0).length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab('connection')}
+          className={`relative p-3 rounded-full transition ${tab === 'connection' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Connection (QR & Status)"
+        >
+          <QrCode className="w-5 h-5" />
+          {isConnected && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-500" />}
+        </button>
+        <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="Stories / Status">
+          <Radio className="w-5 h-5" />
+        </button>
+        {isConnected && (
+          <>
+            <button onClick={() => setShowNewChat(true)} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="New Chat">
+              <Plus className="w-5 h-5" />
+            </button>
+            <button onClick={() => setShowGroupCreate(true)} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="New Group">
+              <Users className="w-5 h-5" />
+            </button>
+          </>
+        )}
+        <div className="w-8 h-px bg-gray-200 my-1" />
+        <button
+          onClick={() => setTab('history')}
+          className={`p-3 rounded-full transition ${tab === 'history' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Sent Messages"
+        >
+          <Calendar className="w-5 h-5" />
+        </button>
+        {isConnected && (
+          <button
+            onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }}
+            className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition"
+            title="Merge Groups"
+          >
+            <Merge className="w-5 h-5" />
+          </button>
+        )}
+        <a href="/admin/crm/qr/broadcast-report" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Broadcast Reports">
+          <BarChart3 className="w-5 h-5" />
+        </a>
+
+        <div className="flex-1" />
+
+        <a href="/admin/crm/qr/leads" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Leads">
+          <UserCircle className="w-5 h-5" />
+        </a>
+        <a href="/admin/crm/qr/funnel-report" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Funnel Report">
+          <Funnel className="w-5 h-5" />
+        </a>
+        <button
+          onClick={() => setTab('settings')}
+          className={`p-3 rounded-full transition ${tab === 'settings' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* ═══ Error Banner ═══ */}
       {error && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between">
@@ -2807,38 +2887,40 @@ export default function QRWhatsAppPage() {
               {isSuperAdminUser ? '👑 Admin' : currentUserId || 'User'}
             </div>
           </div>
-          {/* Right: Quick Actions */}
-          <div className="flex items-center gap-2">
+          {/* Right: Quick Actions — monochrome icon rail, matching web.whatsapp.com's
+              own header icons (video call/phone/search/menu) instead of a row of
+              colorful pill buttons. Same handlers/routes as before, restyled only. */}
+          <div className="flex items-center gap-0.5">
             {isConnected && (
               <>
-                <button onClick={() => setShowNewChat(true)} className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200 flex items-center gap-1.5 transition" title="New Chat">
-                  <Plus className="w-3.5 h-3.5" /> New Chat
+                <button onClick={() => setShowNewChat(true)} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="New Chat">
+                  <Plus className="w-5 h-5" />
                 </button>
-                <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
-                  <Users className="w-3.5 h-3.5" /> New Group
+                <button onClick={() => setShowGroupCreate(true)} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="New Group">
+                  <Users className="w-5 h-5" />
                 </button>
-                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }} className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 flex items-center gap-1.5 transition" title="Merge Groups">
-                  <Merge className="w-3.5 h-3.5" /> Merge Group
+                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Merge Groups">
+                  <Merge className="w-5 h-5" />
                 </button>
               </>
             )}
-            <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5 transition" title="View Statuses">
-              <Radio className="w-3.5 h-3.5" /> Stories
+            <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Stories / Status">
+              <Radio className="w-5 h-5" />
             </button>
-            <a href="/admin/crm/qr/leads" className="px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 border border-teal-200 flex items-center gap-1.5 transition" title="QR Leads">
-              👥 QR Leads
+            <a href="/admin/crm/qr/leads" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="QR Leads">
+              <UserCircle className="w-5 h-5" />
             </a>
-            <a href="/admin/crm/qr/funnel-report" className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1.5 transition" title="QR Funnel Report">
-              🔻 QR Funnel
+            <a href="/admin/crm/qr/funnel-report" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="QR Funnel Report">
+              <Funnel className="w-5 h-5" />
             </a>
-            <a href="/admin/crm/qr/manage" className="px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 border border-orange-200 flex items-center gap-1.5 transition" title="Manage QR Funnel">
-              ⚙️ QR Manage
+            <a href="/admin/crm/qr/manage" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Manage QR Funnel">
+              <Settings className="w-5 h-5" />
             </a>
-            <a href="/admin/crm/qr/broadcast-report" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 transition" title="QR Broadcast Reports">
-              📊 QR Reports
+            <a href="/admin/crm/qr/broadcast-report" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="QR Broadcast Reports">
+              <BarChart3 className="w-5 h-5" />
             </a>
-            <a href="/admin/crm/qr/merge-group-v2" className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 border border-red-200 flex items-center gap-1.5 transition" title="Group members: remove one/some/all — group auto-deletes when empty">
-              🗑️ Group Delete
+            <a href="/admin/crm/qr/merge-group-v2" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Group members: remove one/some/all — group auto-deletes when empty">
+              <Trash2 className="w-5 h-5" />
             </a>
           </div>
         </div>
