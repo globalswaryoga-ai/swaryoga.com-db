@@ -3477,10 +3477,10 @@ export default function QRWhatsAppPage() {
             ) : (
               <>
                 {/* Chat Header — Compact Single Row */}
-                <div className="bg-white px-3 py-1.5 border-b flex items-center gap-2 justify-between">
+                <div className="bg-white px-3 py-2.5 border-b flex items-center gap-2 justify-between">
                   {/* Left: Avatar + Phone + Online + Stage (clickable to open details) */}
                   <div
-                    className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer hover:bg-gray-50 rounded-lg px-1 py-0.5 transition"
+                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:bg-gray-50 rounded-lg px-1 py-0.5 transition"
                     onClick={() => openDetailsPanel(selectedChat)}
                   >
                     <button onClick={(e) => { e.stopPropagation(); setSelectedChat(null); }} className="lg:hidden p-1 hover:bg-gray-100 rounded flex-shrink-0">
@@ -3521,11 +3521,11 @@ export default function QRWhatsAppPage() {
                             <img
                               src={profilePics[selectedChat]!}
                               alt={chatName}
-                              className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
                             />
                           ) : null}
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0 ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0 ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
                             {isGroupChat ? <Users className="w-4 h-4" /> : (initials || '👤')}
                           </div>
                           <div className="flex-1 min-w-0">
