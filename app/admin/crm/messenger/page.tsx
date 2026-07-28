@@ -295,7 +295,9 @@ export default function MessengerInboxPage() {
       setMessages(loadedMessages);
       if (conversation) {
         setSelected(conversation);
-        syncSidebarFromConversation(conversation);
+        // Skip on silent (background) refreshes — overwriting these while an
+        // admin is mid-edit in the sidebar looks like the fields "vibrating".
+        if (!silent) syncSidebarFromConversation(conversation);
         setConversations((prev) => prev.map((item) => (item._id === conversation._id ? { ...item, ...conversation, unreadCount: 0 } : item)));
       }
     } catch (error) {
@@ -308,7 +310,7 @@ export default function MessengerInboxPage() {
     }
   }, [getStoredAdminToken, syncSidebarFromConversation]);
 
-  const loadMessengerConversations = useCallback(async () => {
+  const loadMessengerConversations = useCallback(async (silent = false) => {
     const adminToken = getStoredAdminToken();
     if (!adminToken) return;
 
@@ -327,10 +329,11 @@ export default function MessengerInboxPage() {
         const refreshedSelected = rows.find((item: Conversation) => item._id === selected._id) || null;
         if (refreshedSelected) {
           setSelected(refreshedSelected);
-          syncSidebarFromConversation(refreshedSelected);
+          if (!silent) syncSidebarFromConversation(refreshedSelected);
         }
       }
     } catch (error) {
+      if (silent) return;
       setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger conversations');
       setConversations([]);
     }
@@ -513,7 +516,7 @@ export default function MessengerInboxPage() {
       // Refresh to get the real message — silent so the panel doesn't blank
       // out while it re-fetches.
       await loadMessengerMessages(selected._id, true);
-      await loadMessengerConversations();
+      await loadMessengerConversations(true);
     } catch (error) {
       setComposerText(messageText);
       setMessages((prev) => prev.filter((m) => m._id !== optimisticMessage._id));
