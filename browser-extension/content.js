@@ -42,26 +42,25 @@
     document.body.appendChild(banner);
   }
 
-  const sendMessage = (msg) => new Promise((resolve) => {
+  // chrome.runtime.sendMessage always returns a Promise internally in MV3,
+  // even when a callback is also passed — that internal promise can still
+  // reject with "Extension context invalidated" and surface as an uncaught
+  // rejection completely bypassing a try/catch wrapped only around the
+  // synchronous call. Using plain async/await here instead routes the
+  // rejection through this function's own try/catch correctly.
+  const sendMessage = async (msg) => {
     if (extensionContextLost || !chrome.runtime?.id) {
       markContextLost();
-      resolve({ ok: false, error: 'Extension was updated — please refresh this page.' });
-      return;
+      return { ok: false, error: 'Extension was updated — please refresh this page.' };
     }
     try {
-      chrome.runtime.sendMessage(msg, (response) => {
-        if (chrome.runtime.lastError) {
-          markContextLost();
-          resolve({ ok: false, error: chrome.runtime.lastError.message });
-          return;
-        }
-        resolve(response);
-      });
+      const response = await chrome.runtime.sendMessage(msg);
+      return response;
     } catch (err) {
       markContextLost();
-      resolve({ ok: false, error: err.message });
+      return { ok: false, error: err?.message || String(err) };
     }
-  });
+  };
 
   // Loaded from /api/extension/funnel-stages (built-in list + this user's
   // own custom stages) — see loadFunnelStages().
