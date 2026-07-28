@@ -45,7 +45,19 @@
     if (!box) return false;
     box.focus();
     document.execCommand('selectAll', false, undefined);
-    document.execCommand('insertText', false, text);
+    document.execCommand('delete', false, undefined);
+    // Insert line-by-line with execCommand('insertLineBreak') between lines
+    // instead of a single insertText call with raw \n characters. Raw \n in
+    // execCommand text doesn't reliably become the proper internal line
+    // break WhatsApp Web expects for a multi-line message — it can leave the
+    // message in a state that shows the "!" failed-to-send icon once you hit
+    // Send, even though the text looked fine in the box. insertLineBreak
+    // matches what a real Shift+Enter keypress produces.
+    const lines = text.split('\n');
+    lines.forEach((line, i) => {
+      if (i > 0) document.execCommand('insertLineBreak', false, undefined);
+      if (line) document.execCommand('insertText', false, line);
+    });
     return true;
   }
 
