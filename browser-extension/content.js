@@ -574,26 +574,22 @@
     // not a plain contenteditable — document.execCommand('insertLineBreak')
     // is a legacy API that editor frequently ignores, which silently drops
     // every line break and flattens multi-paragraph templates into one
-    // run-on line (confirmed: a template with correct blank lines in the DB
-    // arrived on WhatsApp as a single paragraph). Real users get line breaks
-    // by typing or by pasting, and WhatsApp's own paste handler correctly
-    // turns \n in pasted plain text into real message line breaks — so we
-    // simulate a paste instead of chaining execCommand calls.
-    try {
-      const dt = new DataTransfer();
-      dt.setData('text/plain', text);
-      box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-      if ((box.innerText || '').trim()) return true;
-    } catch (e) {
-      // fall through to the legacy method below
-    }
-
-    // Fallback for environments where the simulated paste didn't take.
-    const lines = text.split('\n');
-    lines.forEach((line, i) => {
-      if (i > 0) document.execCommand('insertLineBreak', false, undefined);
-      if (line) document.execCommand('insertText', false, line);
-    });
+    // run-on line. Real users get line breaks by typing or by pasting, and
+    // WhatsApp's own paste handler correctly turns \n in pasted plain text
+    // into real message line breaks — so we simulate a paste instead.
+    //
+    // Deliberately NOT falling back to execCommand if this "doesn't look
+    // like it worked" — WhatsApp's paste handler can finish updating the
+    // DOM asynchronously (after this function returns), so a synchronous
+    // "did it work?" check reads stale state and looks like it failed even
+    // when the paste is still landing. Running the execCommand fallback in
+    // that case doesn't replace the pasted text, it runs ALONGSIDE it once
+    // the paste catches up — which is what put every message out twice
+    // (once flattened via execCommand, once correctly via the delayed
+    // paste). Trust the paste; it's the one that's actually reliable here.
+    const dt = new DataTransfer();
+    dt.setData('text/plain', text);
+    box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
     return true;
   }
 
