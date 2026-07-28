@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3 } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -2823,6 +2823,13 @@ export default function QRWhatsAppPage() {
         <a href="/admin/crm/qr/broadcast-report" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Broadcast Reports">
           <BarChart3 className="w-5 h-5" />
         </a>
+        {/* "Channel" has no CRM equivalent (WA's one-way broadcast channels
+            aren't a feature here) — skipped rather than mapped to something
+            meaningless. "Meta bulk message" -> the separate Meta WhatsApp
+            Business API broadcast tool, a different provider from QR. */}
+        <a href="/admin/crm/meta" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="Meta WhatsApp Bulk Message">
+          <Megaphone className="w-5 h-5" />
+        </a>
 
         <div className="flex-1" />
 
@@ -3306,8 +3313,8 @@ export default function QRWhatsAppPage() {
                   <div
                     key={chat.id}
                     data-chat-id={chat.id}
-                    className={`group w-full text-left px-2 py-2 border-b hover:bg-gray-50 transition flex items-center gap-2 cursor-pointer ${
-                      selectedChat === chat.id ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                    className={`group w-full text-left px-3 py-2.5 border-b border-gray-100 hover:bg-gray-100 transition flex items-center gap-3 cursor-pointer ${
+                      selectedChat === chat.id ? 'bg-gray-100' : ''
                     }`}
                     onClick={() => selectChat(chat.id)}
                   >
@@ -3319,17 +3326,17 @@ export default function QRWhatsAppPage() {
                       }
                     </div>
 
-                    {/* Avatar / Profile Picture */}
+                    {/* Avatar / Profile Picture — sized to match web.whatsapp.com's own chat-row avatar */}
                     <div className="relative flex-shrink-0">
                       {profilePics[chat.id] ? (
                         <img
                           src={profilePics[chat.id]!}
                           alt={chat.name}
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-12 h-12 rounded-full object-cover"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
                         />
                       ) : null}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-xs ${avatarColor} ${profilePics[chat.id] ? 'hidden' : ''}`}>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm ${avatarColor} ${profilePics[chat.id] ? 'hidden' : ''}`}>
                         {chat.isGroup ? <Users className="w-5 h-5" /> : (initials || '👤')}
                       </div>
                       {chat.isGroup && (
