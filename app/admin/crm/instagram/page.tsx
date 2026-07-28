@@ -13,6 +13,7 @@ interface Conversation {
   participantName?: string;
   participantId?: string;
   participantUsername?: string;
+  participantProfilePic?: string;
   igScopedId?: string;
   phoneNumber?: string;
   lastMessage?: string;
@@ -689,7 +690,7 @@ export default function InstagramInboxPage() {
             style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)' }}
           >
             <i className="ph-bold ph-plus-circle text-xs"></i>
-            <span className="hidden lg:inline uppercase tracking-wider">New Post</span>
+            <span className="uppercase tracking-wider">New Post</span>
           </button>
         </div>
       </header>
@@ -854,7 +855,15 @@ export default function InstagramInboxPage() {
                     className="mt-2.5 h-4 w-4 shrink-0 cursor-pointer accent-[#C13584]"
                     title="Select for bulk send"
                   />
-                  <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C, #F77737)' }}>
+                  {conv.participantProfilePic ? (
+                    <img
+                      src={conv.participantProfilePic}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover shrink-0 bg-slate-100"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                    />
+                  ) : null}
+                  <div className={`h-9 w-9 rounded-full items-center justify-center text-white font-bold text-sm shrink-0 ${conv.participantProfilePic ? 'hidden' : 'flex'}`} style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C, #F77737)' }}>
                     {conv.participantName?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1061,7 +1070,16 @@ export default function InstagramInboxPage() {
             {/* Avatar */}
             <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(193,53,132,0.1)' }}>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0" style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 35%, #E1306C 70%, #F77737 100%)', boxShadow: '0 4px 12px rgba(193,53,132,0.3)' }}>
+                {selected.participantProfilePic ? (
+                  <img
+                    src={selected.participantProfilePic}
+                    alt=""
+                    className="w-12 h-12 rounded-2xl object-cover shrink-0 bg-slate-100"
+                    style={{ boxShadow: '0 4px 12px rgba(193,53,132,0.3)' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                  />
+                ) : null}
+                <div className={`w-12 h-12 rounded-2xl items-center justify-center text-white font-extrabold text-xl shrink-0 ${selected.participantProfilePic ? 'hidden' : 'flex'}`} style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 35%, #E1306C 70%, #F77737 100%)', boxShadow: '0 4px 12px rgba(193,53,132,0.3)' }}>
                   {selected.participantName?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0 flex-1">
