@@ -157,7 +157,16 @@
     const body = el('div', 'sy-modal-body');
     modal.appendChild(body);
     overlay.appendChild(modal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    // "Click outside to close" — but a click event fires based on where the
+    // mouse is released, not where it was pressed. Dragging the modal's
+    // native CSS resize handle (bottom-right corner) can end with the
+    // cursor resolving to the overlay backdrop even though the drag
+    // started ON the modal, which was closing the popup mid-resize.
+    // Requiring BOTH mousedown and click to land on the overlay itself
+    // (not just the click) fixes that without disabling click-to-close.
+    let overlayPressedOnSelf = false;
+    overlay.addEventListener('mousedown', (e) => { overlayPressedOnSelf = (e.target === overlay); });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay && overlayPressedOnSelf) overlay.remove(); });
     document.body.appendChild(overlay);
     return { overlay, body };
   }
@@ -418,14 +427,26 @@
     searchInput.placeholder = 'Search by name or phone…';
     container.appendChild(searchInput);
 
+    const actionsRow = el('div', 'sy-repeat-actions');
+    const selectAllBtn = el('button', 'sy-modal-btn', 'Select all');
+    selectAllBtn.type = 'button';
+    const clearAllBtn = el('button', 'sy-modal-btn', 'Clear all');
+    clearAllBtn.type = 'button';
+    actionsRow.appendChild(selectAllBtn);
+    actionsRow.appendChild(clearAllBtn);
+    container.appendChild(actionsRow);
+
     const resultsBox = el('div', 'sy-modal-checklist');
     container.appendChild(resultsBox);
     const countLine = el('div', 'sy-fmt-hint', '0 selected');
     container.appendChild(countLine);
 
+    let lastLeads = [];
+
     function updateCount() { countLine.textContent = `${selected.size} selected`; }
 
     function renderResults(leads) {
+      lastLeads = leads;
       resultsBox.innerHTML = '';
       if (!leads.length) { resultsBox.appendChild(el('div', 'sy-empty', 'No matches.')); return; }
       for (const lead of leads) {
@@ -443,6 +464,17 @@
         resultsBox.appendChild(label);
       }
     }
+
+    selectAllBtn.addEventListener('click', () => {
+      for (const lead of lastLeads) selected.set(lead._id, lead);
+      resultsBox.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = true; });
+      updateCount();
+    });
+    clearAllBtn.addEventListener('click', () => {
+      for (const lead of lastLeads) selected.delete(lead._id);
+      resultsBox.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = false; });
+      updateCount();
+    });
 
     let searchTimer = null;
     async function runSearch() {
