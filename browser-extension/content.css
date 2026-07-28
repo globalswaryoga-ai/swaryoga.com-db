@@ -363,12 +363,18 @@
 #swaryoga-compose-actions-popup {
   position: fixed;
   width: 240px;
+  /* Capped height + internal scroll instead of unbounded growth — this
+     popup is anchored with `bottom` (grows upward from the button), so
+     without a cap, switching to the chatbot-flow list (more rows than the
+     4-item menu) could push its top edge above the visible viewport on a
+     short window, making it look like nothing happened when you clicked. */
+  max-height: min(360px, 70vh);
+  overflow-y: auto;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
   z-index: 100000;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  overflow: hidden;
 }
 
 .sy-actions-popup-header {
