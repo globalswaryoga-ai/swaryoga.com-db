@@ -1326,6 +1326,65 @@
    * opening the full sidebar, matching the pattern of competitor tools
    * (eazybe etc.) that put one action button right next to the message box.
    */
+  async function runAiFix() {
+    const text = getComposeText();
+    if (!text.trim()) return { ok: false };
+    const res = await sendMessage({ type: 'AI_FIX', text });
+    if (res.ok && res.data?.success && res.data.result) setComposeText(res.data.result);
+    return res;
+  }
+
+  async function runAiReply() {
+    const context = detectLastInboundMessage();
+    const res = await sendMessage({ type: 'AI_REPLY', context });
+    if (res.ok && res.data?.success && res.data.result) setComposeText(res.data.result);
+    return res;
+  }
+
+  /** Text-labeled Spell/AI reply buttons injected right into the compose
+   *  footer near the mic/send icon, so they're reachable while typing
+   *  instead of needing the sidebar open. */
+  function injectComposeAiButtons() {
+    const box = findComposeBox();
+    if (!box) return;
+    const footer = box.closest('footer');
+    if (!footer) return;
+    if (footer.querySelector('#swaryoga-compose-ai-row')) return;
+
+    const row = document.createElement('div');
+    row.id = 'swaryoga-compose-ai-row';
+
+    const fixBtn = document.createElement('button');
+    fixBtn.type = 'button';
+    fixBtn.className = 'sy-compose-ai-btn';
+    fixBtn.textContent = '✏️ Spell';
+    fixBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      fixBtn.disabled = true;
+      fixBtn.textContent = '…';
+      await runAiFix();
+      fixBtn.disabled = false;
+      fixBtn.textContent = '✏️ Spell';
+    });
+
+    const replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.className = 'sy-compose-ai-btn sy-compose-ai-primary';
+    replyBtn.textContent = '✨ AI reply';
+    replyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      replyBtn.disabled = true;
+      replyBtn.textContent = '…';
+      await runAiReply();
+      replyBtn.disabled = false;
+      replyBtn.textContent = '✨ AI reply';
+    });
+
+    row.appendChild(fixBtn);
+    row.appendChild(replyBtn);
+    footer.appendChild(row);
+  }
+
   function injectComposeActionButton() {
     const box = findComposeBox();
     if (!box) return;
@@ -3339,26 +3398,17 @@
 
     const fixBtn = el('button', 'sy-btn', '✏️ Fix spelling');
     fixBtn.addEventListener('click', async () => {
-      const text = getComposeText();
-      if (!text.trim()) return;
       fixBtn.textContent = 'Fixing…';
-      const res = await sendMessage({ type: 'AI_FIX', text });
+      await runAiFix();
       fixBtn.textContent = '✏️ Fix spelling';
-      if (res.ok && res.data?.success && res.data.result) {
-        setComposeText(res.data.result);
-      }
     });
     aiRow.appendChild(fixBtn);
 
     const replyBtn = el('button', 'sy-btn sy-primary', '✨ AI reply');
     replyBtn.addEventListener('click', async () => {
-      const context = detectLastInboundMessage();
       replyBtn.textContent = 'Thinking…';
-      const res = await sendMessage({ type: 'AI_REPLY', context });
+      await runAiReply();
       replyBtn.textContent = '✨ AI reply';
-      if (res.ok && res.data?.success && res.data.result) {
-        setComposeText(res.data.result);
-      }
     });
     aiRow.appendChild(replyBtn);
 
@@ -3500,6 +3550,7 @@
       if (state.loggedIn && state.allowed) {
         renderConversationHeaderActions();
         injectComposeActionButton();
+        injectComposeAiButtons();
       }
       const detectedPhone = detectPhoneFromHeader();
       if (detectedPhone && detectedPhone !== lastPhone) {

@@ -370,6 +370,48 @@
   background: #1b4332;
 }
 
+#swaryoga-compose-ai-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.sy-compose-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sy-compose-ai-btn:hover {
+  background: #f3f4f6;
+}
+
+.sy-compose-ai-btn.sy-compose-ai-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+.sy-compose-ai-btn.sy-compose-ai-primary:hover {
+  background: #1b4332;
+}
+
+.sy-compose-ai-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 #swaryoga-compose-actions-popup {
   position: fixed;
   width: 240px;
