@@ -183,6 +183,193 @@
     return { scheduled, failed, lastAt: new Date(sendAt + cumulativeMs) };
   }
 
+  // ── Message formatting toolbar (Bold/Italic/Strike + emoji), matching the
+  // admin CRM's Schedule/Template forms — shared by every popup that has a
+  // message textarea. ──
+  const EMOJI_QUICK = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'];
+
+  function wrapSelection(textarea, l, r) {
+    const s = textarea.selectionStart ?? textarea.value.length;
+    const e = textarea.selectionEnd ?? textarea.value.length;
+    const val = textarea.value;
+    textarea.value = `${val.slice(0, s)}${l}${val.slice(s, e)}${r}${val.slice(e)}`;
+    const cursor = e + l.length + r.length;
+    textarea.focus();
+    textarea.setSelectionRange(cursor, cursor);
+  }
+
+  function insertAtCursor(textarea, text) {
+    const s = textarea.selectionStart ?? textarea.value.length;
+    const e = textarea.selectionEnd ?? textarea.value.length;
+    const val = textarea.value;
+    textarea.value = `${val.slice(0, s)}${text}${val.slice(e)}`;
+    const cursor = s + text.length;
+    textarea.focus();
+    textarea.setSelectionRange(cursor, cursor);
+  }
+
+  function addFormatToolbar(container, textarea) {
+    const bar = el('div', 'sy-fmt-toolbar');
+    const boldBtn = el('button', 'sy-fmt-btn', 'B');
+    boldBtn.type = 'button'; boldBtn.title = 'Bold (*text*)';
+    boldBtn.addEventListener('click', () => wrapSelection(textarea, '*', '*'));
+    const italicBtn = el('button', 'sy-fmt-btn sy-fmt-italic', 'I');
+    italicBtn.type = 'button'; italicBtn.title = 'Italic (_text_)';
+    italicBtn.addEventListener('click', () => wrapSelection(textarea, '_', '_'));
+    const strikeBtn = el('button', 'sy-fmt-btn sy-fmt-strike', 'S');
+    strikeBtn.type = 'button'; strikeBtn.title = 'Strikethrough (~text~)';
+    strikeBtn.addEventListener('click', () => wrapSelection(textarea, '~', '~'));
+    bar.appendChild(boldBtn);
+    bar.appendChild(italicBtn);
+    bar.appendChild(strikeBtn);
+    container.appendChild(bar);
+
+    const emojiRow = el('div', 'sy-emoji-row');
+    for (const em of EMOJI_QUICK) {
+      const btn = el('button', 'sy-emoji-btn', em);
+      btn.type = 'button';
+      btn.addEventListener('click', () => insertAtCursor(textarea, em));
+      emojiRow.appendChild(btn);
+    }
+    container.appendChild(emojiRow);
+    container.appendChild(el('div', 'sy-fmt-hint', 'Format: *bold* · _italic_ · ~strike~'));
+  }
+
+  // ── "Repeat on these days" block — same shape as the admin Group
+  // Scheduler (start date + block size + a day checklist), shared by the
+  // Schedule Message / Schedule Groups / Schedule Selected popups. Off by
+  // default (single Send-at time); when turned on, one alarm gets queued
+  // per checked day via scheduleTargets, same 3-7 min per-target pacing. ──
+  function todayPlusDateStr(daysAhead) {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function genDateList(startStr, count) {
+    const [y, m, d] = (startStr || todayPlusDateStr(1)).split('-').map(Number);
+    const base = new Date(y, (m || 1) - 1, d || 1);
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const dt = new Date(base);
+      dt.setDate(base.getDate() + i);
+      out.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
+    }
+    return out;
+  }
+
+  function fmtDayLabel(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  function addRepeatBlock(mbody) {
+    const toggleLabel = el('label', 'sy-repeat-toggle');
+    const toggleCb = document.createElement('input');
+    toggleCb.type = 'checkbox';
+    toggleLabel.appendChild(toggleCb);
+    toggleLabel.appendChild(document.createTextNode('🔁 Repeat on these days'));
+    mbody.appendChild(toggleLabel);
+
+    const panel = el('div');
+    panel.style.display = 'none';
+
+    panel.appendChild(el('div', 'sy-modal-label', 'Time (IST)'));
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.value = '18:00';
+    panel.appendChild(timeInput);
+
+    const row = el('div', 'sy-repeat-row');
+    const startWrap = el('div', 'sy-repeat-col');
+    startWrap.appendChild(el('div', 'sy-modal-label', 'Start date'));
+    const startInput = document.createElement('input');
+    startInput.type = 'date';
+    startInput.value = todayPlusDateStr(1);
+    startWrap.appendChild(startInput);
+    row.appendChild(startWrap);
+
+    const blockWrap = el('div', 'sy-repeat-col-narrow');
+    blockWrap.appendChild(el('div', 'sy-modal-label', 'Block size (days)'));
+    const blockInput = document.createElement('input');
+    blockInput.type = 'text';
+    blockInput.value = '15';
+    blockWrap.appendChild(blockInput);
+    row.appendChild(blockWrap);
+    panel.appendChild(row);
+
+    const actionsRow = el('div', 'sy-repeat-actions');
+    const selectAllBtn = el('button', 'sy-modal-btn', 'Select all');
+    selectAllBtn.type = 'button';
+    const clearAllBtn = el('button', 'sy-modal-btn', 'Clear all');
+    clearAllBtn.type = 'button';
+    actionsRow.appendChild(selectAllBtn);
+    actionsRow.appendChild(clearAllBtn);
+    panel.appendChild(actionsRow);
+
+    const daysGrid = el('div', 'sy-repeat-days');
+    panel.appendChild(daysGrid);
+    panel.appendChild(el('div', 'sy-fmt-hint', 'One schedule per checked day, at the time above — this Chrome window needs to stay open for each to fire.'));
+
+    function renderDays() {
+      daysGrid.innerHTML = '';
+      const count = Math.max(1, Math.min(60, parseInt(blockInput.value, 10) || 15));
+      const dates = genDateList(startInput.value, count);
+      for (const d of dates) {
+        const chip = document.createElement('label');
+        chip.className = 'sy-day-chip';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.dataset.date = d;
+        chip.appendChild(cb);
+        chip.appendChild(document.createTextNode(fmtDayLabel(d)));
+        daysGrid.appendChild(chip);
+      }
+    }
+    renderDays();
+    startInput.addEventListener('change', renderDays);
+    blockInput.addEventListener('change', renderDays);
+    selectAllBtn.addEventListener('click', () => daysGrid.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = true; }));
+    clearAllBtn.addEventListener('click', () => daysGrid.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = false; }));
+    toggleCb.addEventListener('change', () => { panel.style.display = toggleCb.checked ? 'block' : 'none'; });
+    mbody.appendChild(panel);
+
+    return {
+      isEnabled: () => toggleCb.checked,
+      getTimestamps: () => {
+        const [hh, mm] = (timeInput.value || '18:00').split(':').map(Number);
+        return Array.from(daysGrid.querySelectorAll('input[type="checkbox"]:checked'))
+          .map((c) => c.dataset.date)
+          .map((d) => {
+            const [y, m, dd] = d.split('-').map(Number);
+            return new Date(y, (m || 1) - 1, dd || 1, hh || 0, mm || 0, 0, 0).getTime();
+          })
+          .sort((a, b) => a - b);
+      },
+    };
+  }
+
+  /** Runs scheduleTargets once (single send) or once per repeat day (if repeat is enabled). */
+  async function runScheduleWithRepeat(targets, text, repeat, singleSendAt) {
+    if (repeat.isEnabled()) {
+      const timestamps = repeat.getTimestamps();
+      if (!timestamps.length) return { scheduled: 0, failed: ['No days selected'], days: 0 };
+      let scheduled = 0;
+      const failed = [];
+      let lastAt = null;
+      for (const ts of timestamps) {
+        const r = await scheduleTargets(targets, text, ts);
+        scheduled += r.scheduled;
+        failed.push(...r.failed);
+        lastAt = r.lastAt;
+      }
+      return { scheduled, failed, days: timestamps.length, lastAt };
+    }
+    const r = await scheduleTargets(targets, text, singleSendAt);
+    return { ...r, days: 1 };
+  }
+
   /** A <select> of saved templates ("Custom message" first) that fills `textarea` on change. */
   function addTemplatePicker(container, textarea) {
     container.appendChild(el('div', 'sy-modal-label', 'Template (optional)'));
@@ -848,12 +1035,15 @@
     textarea.placeholder = 'Message text';
     addTemplatePicker(mbody, textarea);
     mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+    addFormatToolbar(mbody, textarea);
     mbody.appendChild(textarea);
 
     mbody.appendChild(el('div', 'sy-modal-label', 'Send at'));
     const whenInput = document.createElement('input');
     whenInput.type = 'datetime-local';
     mbody.appendChild(whenInput);
+
+    const repeat = addRepeatBlock(mbody);
 
     const msg = el('div', 'sy-modal-msg');
     const footer = el('div', 'sy-modal-footer');
@@ -864,11 +1054,13 @@
       const text = textarea.value.trim();
       const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
       if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
-      if (isNaN(sendAt) || sendAt <= Date.now()) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time.'; return; }
+      if (!repeat.isEnabled() && (isNaN(sendAt) || sendAt <= Date.now())) {
+        msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time, or turn on Repeat.'; return;
+      }
 
       submitBtn.disabled = true;
       const targets = Array.from(selectedChats.entries()).map(([value, type]) => ({ type, value }));
-      const { scheduled, failed } = await scheduleTargets(targets, text, sendAt);
+      const { scheduled, failed } = await runScheduleWithRepeat(targets, text, repeat, sendAt);
       submitBtn.disabled = false;
       if (scheduled) {
         selectedChats.clear();
@@ -878,6 +1070,180 @@
       } else {
         msg.className = 'sy-modal-msg sy-error';
         msg.textContent = `Failed: ${failed.join(', ') || 'unknown error'}`;
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Create Template" popup — same shape as the admin's Create Template page
+   * (name/language/category, header type, body with the formatting toolbar,
+   * footer, up to 3 buttons), but always QR / auto-approved. Saves via
+   * CREATE_TEMPLATE, then reloads the sidebar's Templates list.
+   */
+  function openCreateTemplateModal() {
+    const { overlay, body: mbody } = openModal('📝 Create Template');
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Template Name'));
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'welcome_message';
+    mbody.appendChild(nameInput);
+
+    const metaRow = el('div', 'sy-repeat-row');
+    const langCol = el('div', 'sy-repeat-col');
+    langCol.appendChild(el('div', 'sy-modal-label', 'Language'));
+    const langSelect = document.createElement('select');
+    for (const [v, label] of [['en', 'English'], ['hi', 'Hindi'], ['mr', 'Marathi'], ['gu', 'Gujarati'], ['ta', 'Tamil'], ['te', 'Telugu']]) {
+      const opt = document.createElement('option'); opt.value = v; opt.textContent = label; langSelect.appendChild(opt);
+    }
+    langCol.appendChild(langSelect);
+    metaRow.appendChild(langCol);
+
+    const catCol = el('div', 'sy-repeat-col');
+    catCol.appendChild(el('div', 'sy-modal-label', 'Category'));
+    const catSelect = document.createElement('select');
+    for (const v of ['MARKETING', 'UTILITY', 'OTP', 'ACCOUNT_UPDATE']) {
+      const opt = document.createElement('option'); opt.value = v; opt.textContent = v; catSelect.appendChild(opt);
+    }
+    catCol.appendChild(catSelect);
+    metaRow.appendChild(catCol);
+    mbody.appendChild(metaRow);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Header (optional)'));
+    const headerTypeRow = el('div', 'sy-header-type-row');
+    let headerType = 'NONE';
+    const headerBtns = {};
+    for (const t of ['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT']) {
+      const btn = el('button', 'sy-header-type-btn' + (t === 'NONE' ? ' sy-active' : ''), t === 'NONE' ? '× None' : t.charAt(0) + t.slice(1).toLowerCase());
+      btn.type = 'button';
+      btn.addEventListener('click', () => {
+        headerType = t;
+        for (const k in headerBtns) headerBtns[k].classList.toggle('sy-active', k === t);
+        headerTextWrap.style.display = t === 'TEXT' ? 'block' : 'none';
+        headerMediaWrap.style.display = (t === 'IMAGE' || t === 'VIDEO' || t === 'DOCUMENT') ? 'block' : 'none';
+      });
+      headerBtns[t] = btn;
+      headerTypeRow.appendChild(btn);
+    }
+    mbody.appendChild(headerTypeRow);
+
+    const headerTextWrap = el('div');
+    headerTextWrap.style.display = 'none';
+    const headerTextInput = document.createElement('input');
+    headerTextInput.type = 'text';
+    headerTextInput.placeholder = 'Header text';
+    headerTextWrap.appendChild(headerTextInput);
+    mbody.appendChild(headerTextWrap);
+
+    const headerMediaWrap = el('div');
+    headerMediaWrap.style.display = 'none';
+    const headerMediaInput = document.createElement('input');
+    headerMediaInput.type = 'text';
+    headerMediaInput.placeholder = 'Paste a hosted image/video/document URL';
+    headerMediaWrap.appendChild(headerMediaInput);
+    mbody.appendChild(headerMediaWrap);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Message Body'));
+    const bodyTextarea = document.createElement('textarea');
+    bodyTextarea.placeholder = 'Type your message here… Use *bold*, _italic_, ~strikethrough~';
+    addFormatToolbar(mbody, bodyTextarea);
+    mbody.appendChild(bodyTextarea);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Footer Text (optional)'));
+    const footerInput = document.createElement('input');
+    footerInput.type = 'text';
+    footerInput.placeholder = 'Optional footer';
+    mbody.appendChild(footerInput);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Buttons (max 3)'));
+    const buttonsWrap = el('div');
+    mbody.appendChild(buttonsWrap);
+    const addButtonBtn = el('button', 'sy-modal-btn', '+ Add Button');
+    addButtonBtn.type = 'button';
+    addButtonBtn.addEventListener('click', () => {
+      if (buttonsWrap.children.length >= 3) return;
+      const row = el('div', 'sy-button-row');
+      const titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.placeholder = 'Button label';
+      titleInput.className = 'sy-button-title';
+      const typeSelect = document.createElement('select');
+      typeSelect.className = 'sy-button-type';
+      for (const v of ['QUICK_REPLY', 'URL', 'PHONE_NUMBER']) {
+        const opt = document.createElement('option'); opt.value = v; opt.textContent = v.replace('_', ' '); typeSelect.appendChild(opt);
+      }
+      const valueInput = document.createElement('input');
+      valueInput.type = 'text';
+      valueInput.placeholder = 'URL or phone number';
+      valueInput.className = 'sy-button-value';
+      valueInput.style.display = 'none';
+      typeSelect.addEventListener('change', () => {
+        valueInput.style.display = typeSelect.value === 'QUICK_REPLY' ? 'none' : 'block';
+        valueInput.placeholder = typeSelect.value === 'URL' ? 'https://…' : 'Phone number';
+      });
+      const removeBtn = el('button', 'sy-button-remove', '×');
+      removeBtn.type = 'button';
+      removeBtn.addEventListener('click', () => row.remove());
+      row.appendChild(titleInput);
+      row.appendChild(typeSelect);
+      row.appendChild(valueInput);
+      row.appendChild(removeBtn);
+      buttonsWrap.appendChild(row);
+      addButtonBtn.style.display = buttonsWrap.children.length >= 3 ? 'none' : 'inline-flex';
+    });
+    mbody.appendChild(addButtonBtn);
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Create Template');
+    submitBtn.addEventListener('click', async () => {
+      const templateName = nameInput.value.trim();
+      const templateContent = bodyTextarea.value.trim();
+      if (!templateName) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Template name is required.'; return; }
+      if (!templateContent) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Message body is required.'; return; }
+
+      const buttons = Array.from(buttonsWrap.querySelectorAll('.sy-button-row')).map((row) => {
+        const title = row.querySelector('.sy-button-title').value.trim();
+        const type = row.querySelector('.sy-button-type').value;
+        const value = row.querySelector('.sy-button-value').value.trim();
+        const out = { title, type };
+        if (type === 'URL' && value) out.url = value;
+        if (type === 'PHONE_NUMBER' && value) out.phoneNumber = value;
+        return out;
+      }).filter((b) => b.title);
+
+      const template = {
+        templateName,
+        language: langSelect.value,
+        category: catSelect.value,
+        templateContent,
+        footerText: footerInput.value.trim(),
+        buttons,
+      };
+      if (headerType === 'TEXT' && headerTextInput.value.trim()) {
+        template.headerFormat = 'TEXT';
+        template.headerContent = headerTextInput.value.trim();
+      } else if ((headerType === 'IMAGE' || headerType === 'VIDEO' || headerType === 'DOCUMENT') && headerMediaInput.value.trim()) {
+        template.headerFormat = headerType;
+        template.headerContent = headerMediaInput.value.trim();
+      }
+
+      submitBtn.disabled = true;
+      const res = await sendMessage({ type: 'CREATE_TEMPLATE', template });
+      submitBtn.disabled = false;
+      if (res.ok && res.data?.success) {
+        sectionOpen.templates = true;
+        loadTemplates();
+        overlay.remove();
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = res.data?.error || 'Failed to create template.';
       }
     });
     footer.appendChild(cancelBtn);
@@ -1034,12 +1400,15 @@
       textarea.placeholder = 'Message text';
       addTemplatePicker(mbody, textarea);
       mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+      addFormatToolbar(mbody, textarea);
       mbody.appendChild(textarea);
 
       mbody.appendChild(el('div', 'sy-modal-label', 'Send at'));
       const whenInput = document.createElement('input');
       whenInput.type = 'datetime-local';
       mbody.appendChild(whenInput);
+
+      const repeat = addRepeatBlock(mbody);
 
       const msg = el('div', 'sy-modal-msg');
       const footer = el('div', 'sy-modal-footer');
@@ -1052,13 +1421,15 @@
         const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
         if (!phone) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a phone number.'; return; }
         if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
-        if (isNaN(sendAt) || sendAt <= Date.now()) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time.'; return; }
+        if (!repeat.isEnabled() && (isNaN(sendAt) || sendAt <= Date.now())) {
+          msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time, or turn on Repeat.'; return;
+        }
 
         submitBtn.disabled = true;
-        const { scheduled, failed } = await scheduleTargets([{ type: 'phone', value: phone }], text, sendAt);
+        const { scheduled, failed, days } = await runScheduleWithRepeat([{ type: 'phone', value: phone }], text, repeat, sendAt);
         submitBtn.disabled = false;
         if (scheduled) {
-          setToolStatus(`✅ Scheduled for ${new Date(sendAt).toLocaleString()}. Keep this Chrome window open so it can fire.`);
+          setToolStatus(`✅ Scheduled ${scheduled} send${scheduled > 1 ? 's' : ''}${days > 1 ? ` across ${days} days` : ` for ${new Date(sendAt).toLocaleString()}`}. Keep this Chrome window open so it can fire.`);
           overlay.remove();
         } else {
           msg.className = 'sy-modal-msg sy-error';
@@ -1104,12 +1475,15 @@
       textarea.placeholder = 'Message text';
       addTemplatePicker(mbody, textarea);
       mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+      addFormatToolbar(mbody, textarea);
       mbody.appendChild(textarea);
 
       mbody.appendChild(el('div', 'sy-modal-label', 'Send at (first group — rest follow 3-7 min apart)'));
       const whenInput = document.createElement('input');
       whenInput.type = 'datetime-local';
       mbody.appendChild(whenInput);
+
+      const repeat = addRepeatBlock(mbody);
 
       const msg = el('div', 'sy-modal-msg');
       const footer = el('div', 'sy-modal-footer');
@@ -1124,14 +1498,16 @@
         const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
         if (!groupNames.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Select or type at least one group.'; return; }
         if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
-        if (isNaN(sendAt) || sendAt <= Date.now()) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time.'; return; }
+        if (!repeat.isEnabled() && (isNaN(sendAt) || sendAt <= Date.now())) {
+          msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time, or turn on Repeat.'; return;
+        }
 
         submitBtn.disabled = true;
         const targets = groupNames.map((value) => ({ type: 'group', value }));
-        const { scheduled, failed, lastAt } = await scheduleTargets(targets, text, sendAt);
+        const { scheduled, failed, days } = await runScheduleWithRepeat(targets, text, repeat, sendAt);
         submitBtn.disabled = false;
         if (scheduled) {
-          setToolStatus(`✅ Scheduled ${scheduled}/${groupNames.length} groups (spread to ${lastAt.toLocaleString()})${failed.length ? `, failed: ${failed.join(', ')}` : ''}. Keep this Chrome window open.`, failed.length > 0);
+          setToolStatus(`✅ Scheduled ${scheduled} send${scheduled > 1 ? 's' : ''} across ${groupNames.length} group(s)${days > 1 ? ` × ${days} days` : ''}${failed.length ? `, failed: ${failed.join(', ')}` : ''}. Keep this Chrome window open.`, failed.length > 0);
           overlay.remove();
         } else {
           msg.className = 'sy-modal-msg sy-error';
@@ -1374,7 +1750,10 @@
     body.appendChild(qrSection);
 
     // ── Templates (collapsible) ── fuller library: headers/images/buttons, from QR + Meta templates
-    const { section: tplSection, body: tplBody } = makeCollapsibleSection('templates', `Templates (${state.templates.length})`);
+    const { section: tplSection, body: tplBody } = makeCollapsibleSection('templates', `Templates (${state.templates.length})`, {
+      addTitle: 'Create a new template',
+      onAdd: () => openCreateTemplateModal(),
+    });
     if (!state.templates.length) {
       tplBody.appendChild(el('div', 'sy-empty', 'No templates saved yet — create some in the CRM.'));
     } else {

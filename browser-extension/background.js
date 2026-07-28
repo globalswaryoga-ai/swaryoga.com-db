@@ -107,6 +107,14 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    case 'CREATE_TEMPLATE': {
+      const res = await apiFetch('/api/extension/templates', {
+        method: 'POST',
+        body: JSON.stringify(msg.template),
+      });
+      return { ok: res.ok, data: res.data };
+    }
+
     case 'GET_FUNNEL_STAGES': {
       const res = await apiFetch('/api/extension/funnel-stages');
       return { ok: res.ok, data: res.data };

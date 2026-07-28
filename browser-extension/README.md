@@ -51,6 +51,15 @@ all.
   same safety window used server-side for the QR bridge's Merge Group tool —
   this runs on your *personal* WhatsApp account, so the same anti-spam risk
   that's caused QR bridge restrictions before applies here too.
+- **Repeat on these days** (Schedule Message / Schedule Groups / Schedule
+  Selected) — pick a start date and a block size, uncheck any days you don't
+  want, and one schedule gets queued per checked day at the time you set.
+  Same "this Chrome window needs to stay open" caveat as a single schedule,
+  just repeated per day.
+- **Create Template** (Templates section, **+**) — same fields as the admin
+  Create Template page (name, language, category, header type, body with the
+  Bold/Italic/Strike + emoji toolbar, footer, up to 3 buttons). Always saved
+  as a QR template — auto-approved, no Meta review.
 
 ## Install (not on the Chrome Web Store — sideloaded / "developer mode")
 
