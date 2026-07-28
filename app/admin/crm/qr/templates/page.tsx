@@ -880,7 +880,10 @@ export default function QRTemplatesPage() {
                   {t.headerContent && !t.headerContent.startsWith('http') && (
                     <p className="text-xs font-bold text-gray-800 mb-1">{t.headerContent}</p>
                   )}
-                  <p className="text-sm text-gray-600 line-clamp-3 whitespace-pre-wrap">{t.templateContent}</p>
+                  <p
+                    className="text-sm text-gray-600 line-clamp-3 whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: formatWA(t.templateContent || '') }}
+                  />
                   {t.footerText && <p className="text-[11px] text-gray-400 mt-1">{t.footerText}</p>}
                   {t.buttons && t.buttons.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">

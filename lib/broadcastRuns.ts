@@ -764,6 +764,15 @@ export async function processDueBroadcastRuns(options?: {
 
             // ── Send via bridge ───────────────────────────────────────────────
             let bridgeResponse: Response;
+            // Tracks whether the image/video/document actually went out, so the
+            // qr_whatsapp_messages history record below doesn't claim media was
+            // delivered when the recipient only got the text fallback (WhatsApp
+            // often rejects unsolicited media to cold leads with "forbidden"
+            // while still allowing plain text — that's a platform anti-spam
+            // signal, not a fetch/upload bug, so we don't retry harder here,
+            // just make sure the failure is visible instead of silent).
+            let mediaDeliveryFailed = false;
+            let mediaFailureReason = '';
 
             if (hasMedia && mediaUrl) {
               // type:'media' is correct — bridge expects media/cdnUrl, NOT type:'image'/imageUrl
@@ -788,7 +797,9 @@ export async function processDueBroadcastRuns(options?: {
 
               // If media send failed, fall back to sending text only
               if (!bridgeResponse.ok) {
-                console.warn('[Broadcast QR] Media send failed, falling back to text-only');
+                mediaDeliveryFailed = true;
+                mediaFailureReason = await bridgeResponse.text().catch(() => `HTTP ${bridgeResponse.status}`);
+                console.warn('[Broadcast QR] Media send failed, falling back to text-only. Bridge said:', bridgeResponse.status, mediaFailureReason);
                 const fallbackMsg = fullMessage || `[Media: ${fileName}]\n\n${caption}`.trim();
                 bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                   method: 'POST',
@@ -850,8 +861,16 @@ export async function processDueBroadcastRuns(options?: {
             const waMessageId = bridgeData?.id || bridgeData?.messageId || bridgeData?.key?.id || `qr_${Date.now()}`;
             apiResult = {
               waMessageId,
-              raw: { provider: 'qr' },
+              raw: {
+                provider: 'qr',
+                ...(mediaDeliveryFailed ? { mediaDeliveryFailed: true, mediaFailureReason } : {}),
+              },
             };
+
+            // Did the image/video/document actually reach the recipient, or did
+            // we silently fall back to text? Only mark the history record as
+            // media if it really was delivered as media.
+            const mediaActuallyDelivered = hasImage && !mediaDeliveryFailed;
 
             // Save to qr_whatsapp_messages so the stats/history page shows this send
             if (connectedPhone) {
@@ -869,13 +888,13 @@ export async function processDueBroadcastRuns(options?: {
                       direction: 'outbound',
                       fromMe: true,
                       text: String((template as any).templateContent || '').trim(),
-                      type: hasImage ? 'image' : 'text',
+                      type: mediaActuallyDelivered ? 'image' : 'text',
                       participant: '',
                       pushName: '',
                       timestamp: Math.floor(Date.now() / 1000),
                       status: 1,
-                      hasMedia: hasImage,
-                      mediaUrl: hasImage ? (mediaUrl || '') : '',
+                      hasMedia: mediaActuallyDelivered,
+                      mediaUrl: mediaActuallyDelivered ? (mediaUrl || '') : '',
                       mediaMimetype: '',
                       mediaFileName: '',
                       metadata: { sessionKey, tenantId: sessionKey, runId: String((run as any)._id) },

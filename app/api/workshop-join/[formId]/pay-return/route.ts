@@ -67,10 +67,15 @@ export async function GET(
         // link for forms with no time slots.
         const slot = (order as any).workshopTimeSlot;
         const effectiveGroupLink = slot?.groupLink || form.groupLink;
+        // The amount actually charged — order.total, not form.price (the legacy
+        // single-price field), since forms with multiple fee tiers (e.g. "New
+        // Participant Fees" ₹2999 vs "Repeater Fees" ₹600) resolve the real
+        // price onto the order at checkout, and form.price doesn't reflect it.
+        const paidAmount = Number((order as any).total) || 0;
         if (effectiveGroupLink) {
           const slotSuffix = slot?.label ? ` (${slot.label})` : '';
           const msg =
-            `Payment received, ${firstName}! ✅\n\nThank you for joining *${form.workshopName}*${slotSuffix} (${symbol}${form.price}).\n\nJoin the workshop WhatsApp group here:\n${effectiveGroupLink}\n\n— Swar Yoga 🙏`;
+            `Payment received, ${firstName}! ✅\n\nThank you for joining *${form.workshopName}*${slotSuffix} (${symbol}${paidAmount}).\n\nJoin the workshop WhatsApp group here:\n${effectiveGroupLink}\n\n— Swar Yoga 🙏`;
           await sendTextViaQrBridge(phone, msg);
         }
 
@@ -84,7 +89,7 @@ export async function GET(
               payment: {
                 ...((lead.metadata as any)?.payment || {}),
                 status: 'paid',
-                amount: form.price,
+                amount: paidAmount,
                 currency,
                 workshopName: form.workshopName,
                 formId: params.formId,
@@ -111,8 +116,8 @@ export async function GET(
                   customerEmail: lead.email || '',
                   workshopName: form.workshopName,
                   reportedByUserId: 'system',
-                  saleAmount: form.price,
-                  paidAmount: form.price,
+                  saleAmount: paidAmount,
+                  paidAmount: paidAmount,
                   dueAmount: 0,
                   paymentType: 'full',
                   paymentMode: 'cashfree',

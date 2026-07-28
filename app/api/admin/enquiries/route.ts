@@ -115,12 +115,14 @@ export async function GET(request: NextRequest) {
           notes: l.notes || '',
           labels: l.labels || [],
           timeSlot: meta.timeSlot || null,
-          payment: (payment?.status === 'paid' || (l.labels || []).includes('paid'))
+          // Include 'pending' (Pay Later link sent, not yet paid) too — not just
+          // 'paid' — so the admin can see amount due, not just amount received.
+          payment: payment
             ? {
-                status: payment?.status || 'paid',
-                amount: payment?.amount,
-                currency: payment?.currency || 'INR',
-                paidAt: payment?.paidAt || null,
+                status: payment.status || ((l.labels || []).includes('paid') ? 'paid' : 'pending'),
+                amount: payment.amount,
+                currency: payment.currency || 'INR',
+                paidAt: payment.paidAt || null,
               }
             : null,
         };

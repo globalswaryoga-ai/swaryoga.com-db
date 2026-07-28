@@ -592,6 +592,33 @@ export default function EnquiriesPage() {
       year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
 
+  // Compact badge for the list/table rows: green "Received ₹X" once paid,
+  // amber "₹X due" while a Pay Later link is out but unpaid.
+  const paymentBadge = (payment: Enquiry['payment']) => {
+    if (!payment?.amount) return null;
+    const amount = `${payment.currency || 'INR'} ${payment.amount}`;
+    return payment.status === 'paid'
+      ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">💰 Received {amount}</span>
+      : <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">⏳ {amount} due</span>;
+  };
+
+  // Fuller line for the expanded detail view.
+  const paymentDetail = (payment: Enquiry['payment']) => {
+    if (!payment?.amount) return null;
+    const amount = `${payment.currency || 'INR'} ${payment.amount}`;
+    return payment.status === 'paid'
+      ? (
+        <p className="text-green-700 font-semibold">
+          💰 Amount Received: {amount}{payment.paidAt && ` on ${formatDate(payment.paidAt)}`}
+        </p>
+      )
+      : (
+        <p className="text-amber-700 font-semibold">
+          ⏳ Amount Due: {amount} (Pay Later link sent, not yet paid)
+        </p>
+      );
+  };
+
   const MODE_LABELS: Record<string, string> = { online: 'Online', offline: 'Offline', residential: 'Residential', recorded: 'Recorded' };
   const MODE_ICONS: Record<string, string> = { online: '💻', offline: '📍', residential: '🏡', recorded: '🎥' };
 
@@ -777,11 +804,7 @@ export default function EnquiriesPage() {
                                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
                                         {enquiry.status}
                                       </span>
-                                      {enquiry.payment?.status === 'paid' && (
-                                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                                          💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
-                                        </span>
-                                      )}
+                                      {paymentBadge(enquiry.payment)}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-swar-text-secondary mb-2">
@@ -858,13 +881,7 @@ export default function EnquiriesPage() {
                                             <option value="contacted">Contacted</option>
                                             <option value="registered">Registered</option>
                                           </select>
-                                          {enquiry.payment?.status === 'paid' && (
-                                            <div className="mt-1">
-                                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800" title={enquiry.payment.paidAt ? `Paid on ${formatDate(enquiry.payment.paidAt)}` : 'Paid'}>
-                                                💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
-                                              </span>
-                                            </div>
-                                          )}
+                                          {enquiry.payment?.amount ? <div className="mt-1">{paymentBadge(enquiry.payment)}</div> : null}
                                         </td>
                                         <td className="px-5 py-3">
                                           <div className="flex items-center gap-2">
@@ -927,12 +944,7 @@ export default function EnquiriesPage() {
                                                   </a>
                                                 )}
                                               </p>
-                                              {enquiry.payment?.status === 'paid' && (
-                                                <p className="text-green-700 font-semibold">
-                                                  💰 Payment: {enquiry.payment.amount ? `${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : 'Paid'}
-                                                  {enquiry.payment.paidAt && ` on ${formatDate(enquiry.payment.paidAt)}`}
-                                                </p>
-                                              )}
+                                              {paymentDetail(enquiry.payment)}
                                             </div>
                                           </td>
                                         </tr>
@@ -1082,13 +1094,7 @@ export default function EnquiriesPage() {
                                               <option value="contacted">Contacted</option>
                                               <option value="registered">Registered</option>
                                             </select>
-                                            {enquiry.payment?.status === 'paid' && (
-                                              <div className="mt-1">
-                                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800" title={enquiry.payment.paidAt ? `Paid on ${formatDate(enquiry.payment.paidAt)}` : 'Paid'}>
-                                                  💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
-                                                </span>
-                                              </div>
-                                            )}
+                                            {enquiry.payment?.amount ? <div className="mt-1">{paymentBadge(enquiry.payment)}</div> : null}
                                           </td>
                                           <td className="px-5 py-3">
                                             <div className="flex items-center gap-2">
@@ -1126,12 +1132,7 @@ export default function EnquiriesPage() {
                                                   </a>
                                                 )}
                                               </p>
-                                              {enquiry.payment?.status === 'paid' && (
-                                                <p className="text-green-700 font-semibold">
-                                                  💰 Payment: {enquiry.payment.amount ? `${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : 'Paid'}
-                                                  {enquiry.payment.paidAt && ` on ${formatDate(enquiry.payment.paidAt)}`}
-                                                </p>
-                                              )}
+                                              {paymentDetail(enquiry.payment)}
                                             </td>
                                           </tr>
                                         )}
@@ -1152,11 +1153,7 @@ export default function EnquiriesPage() {
                                       </div>
                                       <div className="flex flex-col items-end gap-1">
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>{enquiry.status}</span>
-                                        {enquiry.payment?.status === 'paid' && (
-                                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                                            💰 Paid{enquiry.payment.amount ? ` ${enquiry.payment.currency || 'INR'} ${enquiry.payment.amount}` : ''}
-                                          </span>
-                                        )}
+                                        {paymentBadge(enquiry.payment)}
                                       </div>
                                     </div>
                                     <div className="text-xs text-swar-text-secondary mb-2 flex items-center gap-1.5"><Phone className="w-3 h-3" />{enquiry.mobile}</div>
