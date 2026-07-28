@@ -296,14 +296,22 @@
   border-radius: 12px;
   width: 380px;
   max-height: 85vh;
-  overflow-y: auto;
+  overflow: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  /* Drag the bottom-right corner to resize — sometimes you want the full
+     Report table or recipient list visible, sometimes just a quick popup
+     out of the way. */
+  resize: both;
+  min-width: 320px;
+  min-height: 220px;
+  max-width: 96vw;
 }
 
 .sy-modal.sy-modal-lg {
   width: 75vw;
   max-width: 1200px;
   max-height: 85vh;
+  min-width: 480px;
 }
 
 /* ── Buttons injected into WhatsApp's own open-chat header ── */
