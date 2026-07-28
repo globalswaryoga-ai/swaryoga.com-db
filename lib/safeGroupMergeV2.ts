@@ -6,8 +6,8 @@
  * Solution: Variable gaps (no repeats) + compliance checking + failure monitoring
  *
  * Strategy:
- * - Hour 1: Add 60 participants (60-90 second random gaps, first 2 at 10s)
- * - Hour 2: Remove 60 participants (same safe gap pattern)
+ * - First 2 operations: 30 second warm-up
+ * - Rest: random 3-7 minute gaps, no repeats (human-like, non-robotic)
  * - Randomize processing order (group order, participant order)
  * - Stop if 20%+ operations fail (prevent cascading bans)
  * - Check compliance before each operation
@@ -61,10 +61,10 @@ interface MergeOperationGaps {
 }
 
 /**
- * Calculate variable gaps for group operations (~15/hour, matches QR send pace)
+ * Calculate variable gaps for group operations (~9/hour, matches QR send pace)
  * Pattern:
  * - Operations 1-2: 30 second warm-up
- * - Operations 3+: Random 120-300 second gaps (2–5 min, ~15/hr)
+ * - Operations 3+: Random 180-420 second gaps (3–7 min, ~9/hr)
  * - No repeated gaps (ensures human-like, non-robotic behavior)
  */
 export function calculateGroupOperationGaps(totalOperations: number): MergeOperationGaps {
@@ -78,10 +78,10 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
       // First 2 operations: 30 second warm-up
       gap = 30000;
     } else {
-      // Rest: Random 120-300 second gaps (2–5 min, ~15/hr — non-robotic)
+      // Rest: Random 180-420 second gaps (3–7 min, ~9/hr — non-robotic)
       let attempts = 0;
       do {
-        gap = Math.random() * (300000 - 120000) + 120000;
+        gap = Math.random() * (420000 - 180000) + 180000;
         attempts++;
       } while (gap === lastGap && attempts < 10);
     }
@@ -97,7 +97,7 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
     gaps,
     totalMs,
     totalMinutes,
-    strategy: `First 2: 30s | Rest: 2–5 min random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
+    strategy: `First 2: 30s | Rest: 3–7 min random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
   };
 }
 
@@ -201,9 +201,9 @@ export function getNextGroupOperationGap(operationIndex: number, lastGap?: numbe
   let attempts = 0;
 
   do {
-    // 120–300s random (mean 210s = 3.5 min) → ~15-17 operations/hour, non-robotic.
+    // 180–420s random (mean 300s = 5 min) → ~9 operations/hour, non-robotic.
     // No repeated gaps keeps it human/non-robotic.
-    gap = Math.random() * (300000 - 120000) + 120000;
+    gap = Math.random() * (420000 - 180000) + 180000;
     attempts++;
   } while (lastGap && gap === lastGap && attempts < 10);
 

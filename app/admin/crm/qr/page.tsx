@@ -1798,24 +1798,50 @@ export default function QRWhatsAppPage() {
     if (!selectedChat || phones.length === 0) return;
     const jids = phones.map(p => `${p.replace(/[^0-9]/g, '')}@s.whatsapp.net`).filter(j => j !== '@s.whatsapp.net');
     if (jids.length === 0) return;
-    // Same conservative pacing as bulk-remove — the real cap (15/hour, 150/day)
-    // is enforced server-side at the qr-bridge proxy; this just looks human.
-    const batchSize = 3;
-    for (let i = 0; i < jids.length; i += batchSize) {
-      const batch = jids.slice(i, i + batchSize);
-      if (i > 0) await new Promise(r => setTimeout(r, 4000 + Math.random() * 5000));
+
+    // A couple of adds is fine to do immediately — pacing only matters once
+    // there's an actual sequence of operations that could look like a burst.
+    if (jids.length <= 2) {
       try {
-        await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'add', participants: batch });
+        await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'add', participants: jids });
       } catch (e: any) {
         if (String(e?.message || '').includes('rate limit reached')) {
-          setError('Reached the hourly/daily group-operation limit — remaining members were not added. Please try again later.');
-          break;
+          setError('Reached the hourly/daily group-operation limit — please try again later.');
+        } else {
+          setError(e.message || `Failed to add ${jids.join(', ')}`);
         }
-        setError(e.message || `Failed to add ${batch.join(', ')}`);
       }
+      await fetchGroupInfo(selectedChat);
+      return;
     }
-    await fetchGroupInfo(selectedChat);
-  }, [selectedChat, bridgeCall, fetchGroupInfo]);
+
+    // Larger bulk adds go through the same human-paced background queue the
+    // Merge Group tool uses (3-7 min random gaps, no repeats) instead of a
+    // fast client-side loop — a rapid burst of group-add calls is exactly
+    // the pattern that has gotten this number restricted before, and a
+    // client-side setTimeout loop for tens of minutes also breaks the moment
+    // the tab is closed or the laptop sleeps, leaving the add half-done.
+    try {
+      const res = await fetch('/api/admin/crm/qr/merge-group-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          sessionKey: qrStorageScope,
+          targetGroupId: selectedChat,
+          participantIds: jids,
+          operationType: 'add',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || `Failed to queue add (${res.status})`);
+        return;
+      }
+      setError(`✅ Queued: ${jids.length} members will be added over ~${data.estimatedDuration} min (human-paced, 3-7 min gaps) — no need to keep this tab open.`);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to queue bulk add');
+    }
+  }, [selectedChat, bridgeCall, fetchGroupInfo, token, qrStorageScope]);
 
   // ── Bulk remove participants from group ──
   const bulkRemoveParticipants = useCallback(async (jids: string[]) => {
