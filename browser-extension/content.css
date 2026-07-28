@@ -46,6 +46,17 @@
   border-color: #2d6a4f;
 }
 
+.sy-header-tab.sy-header-action {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+  font-weight: 700;
+}
+
+.sy-header-tab.sy-header-action:hover {
+  background: #1b4332;
+}
+
 .sy-row-checkbox {
   cursor: pointer;
 }

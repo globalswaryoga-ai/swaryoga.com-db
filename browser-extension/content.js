@@ -989,6 +989,24 @@
     }
     headerTabsEl.innerHTML = '';
 
+    // Quick-access row for tools that are more useful reachable from the top
+    // of the chat list than buried in the sidebar — shown as soon as you're
+    // logged in and approved, unlike the filter tabs below which only
+    // appear once there's label/funnel data to filter by.
+    if (state.loggedIn && state.allowed) {
+      const actionRow = el('div', 'sy-header-tab-row');
+      const funnelBtn = el('span', 'sy-header-tab sy-header-action', '🔻 Funnel');
+      funnelBtn.addEventListener('click', () => openFunnelModal());
+      const reportBtn = el('span', 'sy-header-tab sy-header-action', '📈 Report');
+      reportBtn.addEventListener('click', () => openReportModal());
+      const broadcastBtn = el('span', 'sy-header-tab sy-header-action', '📣 Broadcast');
+      broadcastBtn.addEventListener('click', () => openBroadcastModal());
+      actionRow.appendChild(funnelBtn);
+      actionRow.appendChild(reportBtn);
+      actionRow.appendChild(broadcastBtn);
+      headerTabsEl.appendChild(actionRow);
+    }
+
     function makeTabRow(items, activeKind) {
       const row = el('div', 'sy-header-tab-row');
       const allTab = el('span', 'sy-header-tab', 'All');
