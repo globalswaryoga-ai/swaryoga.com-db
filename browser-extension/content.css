@@ -324,6 +324,21 @@
   margin-right: 6px;
 }
 
+.sy-conv-header-textlink {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2d6a4f;
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.sy-conv-header-textlink:hover {
+  background: rgba(45, 106, 79, 0.1);
+  text-decoration: underline;
+}
+
 .sy-conv-header-btn {
   width: 34px;
   height: 34px;
@@ -666,6 +681,25 @@
 
 .sy-modal-btn.sy-status-primary:hover {
   filter: brightness(0.95);
+}
+
+/* ── Merge Groups popup ── */
+.sy-modal-header.sy-modal-header-merge {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+}
+
+.sy-modal-btn.sy-merge-primary {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #fff;
+  border: none;
+}
+
+.sy-modal-btn.sy-merge-primary:hover {
+  filter: brightness(0.95);
+}
+
+.sy-modal-btn.sy-merge-primary:disabled {
+  opacity: 0.6;
 }
 
 .sy-modal-btn:disabled {

@@ -1317,6 +1317,19 @@
       btn.addEventListener('click', handler);
       conversationHeaderActionsEl.appendChild(btn);
     }
+    const textLinks = [
+      ['Leads', '/admin/crm/qr/leads'],
+      ['Sales', '/admin/crm/sales'],
+    ];
+    for (const [label, path] of textLinks) {
+      const a = document.createElement('a');
+      a.href = `https://swaryoga.com${path}`;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'sy-conv-header-textlink';
+      a.textContent = label;
+      conversationHeaderActionsEl.appendChild(a);
+    }
     anchor.header.insertBefore(conversationHeaderActionsEl, anchor.before);
   }
 
@@ -2809,6 +2822,118 @@
    * tab. Pick any group you administer, load its members, select who to
    * remove — runs server-side, survives this tab closing.
    */
+  function randomMergeDelayMs() { return Math.floor(Math.random() * (180000 - 60000 + 1)) + 60000; } // 60-180s
+  function randomMergeBatchSize() { return Math.floor(Math.random() * 3) + 2; } // 2-4
+
+  /**
+   * "Merge Groups" popup — pulls every member of ONE source group into a
+   * target group (deduped against the target's current members), via the
+   * QR bridge's raw group-participants endpoint, paced in small batches
+   * (2-4 people, 60-180s gaps) the same way the admin CRM's Merge Groups
+   * page does — but simplified to one source group per run, not several at
+   * once. Runs for as long as this modal stays open (this Chrome tab needs
+   * to stay open — there's no server-side queue for this the way Remove
+   * Member has via merge-group-v2).
+   */
+  function openMergeGroupsModal() {
+    const { overlay, body: mbody } = openModal('⬆️ Merge Groups');
+    overlay.querySelector('.sy-modal-header')?.classList.add('sy-modal-header-merge');
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Merge Into (Target Group)'));
+    const targetSelect = document.createElement('select');
+    targetSelect.appendChild(new Option('Loading your groups…', ''));
+    mbody.appendChild(targetSelect);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Merge From (Source Group) — one at a time'));
+    const sourceSelect = document.createElement('select');
+    sourceSelect.appendChild(new Option('Loading your groups…', ''));
+    mbody.appendChild(sourceSelect);
+
+    (async () => {
+      const res = await adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: '/chats' }).toString()}`);
+      const raw = res.ok ? (res.data?.data ?? res.data) : null;
+      const arr = Array.isArray(raw) ? raw : (Array.isArray(raw?.chats) ? raw.chats : []);
+      const groups = arr.filter((c) => c.id?.endsWith?.('@g.us')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      for (const sel of [targetSelect, sourceSelect]) {
+        sel.innerHTML = '';
+        sel.appendChild(new Option(groups.length ? '— Select group —' : 'No groups found', ''));
+        for (const g of groups) sel.appendChild(new Option(g.name || g.id, g.id));
+      }
+    })();
+
+    const removeLabel = el('label', 'sy-radio-label');
+    removeLabel.style.marginTop = '10px';
+    const removeCb = document.createElement('input');
+    removeCb.type = 'checkbox';
+    removeLabel.appendChild(removeCb);
+    removeLabel.appendChild(document.createTextNode('Remove members from source group after merge'));
+    mbody.appendChild(removeLabel);
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-merge-primary', '⬆️ Merge Group into Target');
+    submitBtn.addEventListener('click', async () => {
+      const targetId = targetSelect.value;
+      const sourceId = sourceSelect.value;
+      if (!targetId || !sourceId) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick both a target and a source group.'; return; }
+      if (targetId === sourceId) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Target and source must be different groups.'; return; }
+      const targetLabel = targetSelect.options[targetSelect.selectedIndex].text;
+      const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex].text;
+      if (!confirm(`Merge all members of "${sourceLabel}" into "${targetLabel}"?\n\nPaced in small batches with 1-3 min gaps — this can take a while and needs this Chrome tab to stay open.`)) return;
+
+      submitBtn.disabled = true;
+      msg.className = 'sy-modal-msg';
+      msg.textContent = 'Fetching group members…';
+
+      const [targetInfoRes, sourceInfoRes] = await Promise.all([
+        adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: `/group-info/${targetId}` }).toString()}`),
+        adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: `/group-info/${sourceId}` }).toString()}`),
+      ]);
+      const targetInfo = targetInfoRes.ok ? (targetInfoRes.data?.data ?? targetInfoRes.data) : null;
+      const sourceInfo = sourceInfoRes.ok ? (sourceInfoRes.data?.data ?? sourceInfoRes.data) : null;
+      const targetIds = new Set((targetInfo?.participants || []).map((p) => p.id));
+      const ids = (sourceInfo?.participants || []).map((p) => p.id).filter((id) => id && !targetIds.has(id));
+
+      if (!ids.length) {
+        submitBtn.disabled = false;
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = 'No new members to merge — everyone in the source group is already in the target (or the source is empty).';
+        return;
+      }
+
+      let added = 0;
+      const failed = [];
+      for (let i = 0; i < ids.length; ) {
+        const batch = ids.slice(i, i + randomMergeBatchSize());
+        i += batch.length;
+        msg.textContent = `Adding ${Math.min(i, ids.length)}/${ids.length} to target…`;
+        const res = await adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: `/group-participants/${targetId}` }).toString()}`, 'POST', { action: 'add', participants: batch });
+        if (res.ok) added += batch.length; else failed.push(...batch);
+        if (i < ids.length) await sleep(randomMergeDelayMs());
+      }
+
+      if (removeCb.checked) {
+        for (let i = 0; i < ids.length; ) {
+          const batch = ids.slice(i, i + randomMergeBatchSize());
+          i += batch.length;
+          msg.textContent = `Removing ${Math.min(i, ids.length)}/${ids.length} from source…`;
+          await adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: `/group-participants/${sourceId}` }).toString()}`, 'POST', { action: 'remove', participants: batch });
+          if (i < ids.length) await sleep(randomMergeDelayMs());
+        }
+      }
+
+      submitBtn.disabled = false;
+      msg.className = 'sy-modal-msg sy-ok';
+      msg.textContent = `✅ Merged ${added}/${ids.length}${failed.length ? `, failed: ${failed.length}` : ''}${removeCb.checked ? ' (removed from source too)' : ''}.`;
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
   function openRemoveMemberModal() {
     const { overlay, body: mbody } = openModal('➖ Remove Group Members', { large: true });
     mbody.appendChild(el('div', 'sy-fmt-hint', 'Runs via the QR bridge (server-side, ~15/hour paced with random gaps) — same engine as CRM → Group Merge V2. Works on any group you administer, not just the one open right now.'));
@@ -3185,6 +3310,7 @@
     });
 
     addIconTool('➖', 'Remove Group Members — any group, server-side paced removal', () => openRemoveMemberModal());
+    addIconTool('⬆️', 'Merge Groups — move one group\'s members into another, paced', () => openMergeGroupsModal());
 
     // Leave/Delete Group and Post Status were dropped — WhatsApp Web already
     // has both natively (group menu → Exit group; the Status tab), so a
