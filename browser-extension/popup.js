@@ -1,4 +1,10 @@
-const sendMessage = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
+const sendMessage = async (msg) => {
+  try {
+    return await chrome.runtime.sendMessage(msg);
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+};
 
 const loginView = document.getElementById('loginView');
 const statusView = document.getElementById('statusView');
@@ -27,6 +33,14 @@ async function init() {
     showStatus(state);
   }
 }
+
+document.getElementById('togglePassword').addEventListener('click', () => {
+  const pwInput = document.getElementById('password');
+  const btn = document.getElementById('togglePassword');
+  const showing = pwInput.type === 'text';
+  pwInput.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? '👁' : '🙈';
+});
 
 loginBtn.addEventListener('click', async () => {
   const userId = document.getElementById('userId').value.trim();

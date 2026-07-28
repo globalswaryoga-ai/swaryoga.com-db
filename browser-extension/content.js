@@ -1184,10 +1184,7 @@
         sectionOpen.templates = true;
         render();
       }],
-      ['🤖', 'Chatbot flow', () => {
-        closeComposeActionsPopup();
-        window.open('https://swaryoga.com/admin/crm/qr/chatbot', '_blank', 'noopener,noreferrer');
-      }],
+      ['🤖', 'Chatbot flow', () => showChatbotFlowsInPopup(popup)],
     ];
     for (const [icon, label, handler] of items) {
       const row = el('div', 'sy-actions-popup-item');
@@ -1212,6 +1209,56 @@
         document.removeEventListener('click', onDocClick);
       }, { once: true });
     }, 0);
+  }
+
+  /**
+   * Replaces the ⚡ popup's contents with a list of this user's QR chatbot
+   * flows and a "▶ Start" button per flow — same shape as the Meta WhatsApp
+   * inbox's inline chatbot-flow picker (fetch flows, click Start), instead
+   * of redirecting to the chatbot builder page. QR flows are trigger-keyword
+   * based (not a stateful node-by-node engine like Meta's Cloud API flows),
+   * so "starting" one here means: insert its opening message into the
+   * compose box for the currently open chat, ready to review and send —
+   * the same click-to-insert convention as Templates/Quick Replies.
+   */
+  async function showChatbotFlowsInPopup(popup) {
+    const list = popup.querySelector('.sy-actions-popup-list');
+    list.innerHTML = '';
+    list.appendChild(el('div', 'sy-empty', 'Loading your chatbot flows…'));
+
+    const res = await adminApi('/api/admin/crm/qr/chatbot-flows?limit=50');
+    const flows = res.ok ? (res.data?.data?.flows || res.data?.flows || []) : [];
+    list.innerHTML = '';
+
+    if (!flows.length) {
+      list.appendChild(el('div', 'sy-empty', res.ok ? 'No chatbot flows yet.' : (res.data?.error || 'Failed to load flows.')));
+    } else {
+      for (const flow of flows) {
+        const row = el('div', 'sy-actions-popup-item sy-actions-popup-flow');
+        const label = el('span', '', flow.name || '(unnamed flow)');
+        const startBtn = el('button', 'sy-modal-btn sy-primary', '▶ Start');
+        startBtn.type = 'button';
+        startBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const startNode = (flow.nodes || []).find((n) => n.nodeId === flow.startNodeId) || (flow.nodes || [])[0];
+          const text = startNode?.messageText || startNode?.questionText || '';
+          closeComposeActionsPopup();
+          if (text) setComposeText(text);
+          else alert(`"${flow.name}" has no opening message text to insert — open it in the Chatbot Builder to check its first node.`);
+        });
+        row.appendChild(label);
+        row.appendChild(startBtn);
+        list.appendChild(row);
+      }
+    }
+
+    const createLink = document.createElement('a');
+    createLink.href = 'https://swaryoga.com/admin/crm/qr/chatbot';
+    createLink.target = '_blank';
+    createLink.rel = 'noopener noreferrer';
+    createLink.className = 'sy-actions-popup-create-link';
+    createLink.textContent = '+ Create a new flow in Chatbot Builder →';
+    list.appendChild(createLink);
   }
 
   /** Adds a small checkbox to each visible chat row for bulk-select → Schedule Selected. */

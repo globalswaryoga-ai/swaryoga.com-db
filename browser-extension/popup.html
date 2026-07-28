@@ -29,6 +29,27 @@
       border-radius: 6px;
       font-size: 12px;
     }
+    .sy-password-row { position: relative; }
+    .sy-password-row input { padding-right: 32px; }
+    .sy-password-toggle {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: none;
+      margin: 0;
+      padding: 0;
+      font-size: 14px;
+      color: #6b7280;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sy-password-toggle:hover { color: #111827; background: none; }
     button {
       width: 100%;
       margin-top: 12px;
@@ -60,7 +81,10 @@
     <label for="userId">CRM User ID or Email</label>
     <input id="userId" type="text" autocomplete="username" />
     <label for="password">Password</label>
-    <input id="password" type="password" autocomplete="current-password" />
+    <div class="sy-password-row">
+      <input id="password" type="password" autocomplete="current-password" />
+      <button type="button" id="togglePassword" class="sy-password-toggle" title="Show/hide password">👁</button>
+    </div>
     <button id="loginBtn">Sign in</button>
     <div id="loginError" class="sy-error"></div>
   </div>

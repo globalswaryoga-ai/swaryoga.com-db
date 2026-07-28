@@ -412,6 +412,34 @@
   text-align: center;
 }
 
+.sy-actions-popup-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: default;
+}
+
+.sy-actions-popup-flow .sy-modal-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.sy-actions-popup-create-link {
+  display: block;
+  padding: 8px 10px;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2d6a4f;
+  text-decoration: none;
+}
+
+.sy-actions-popup-create-link:hover {
+  text-decoration: underline;
+}
+
 /* ── Report page (large modal) ── */
 .sy-report-table-wrap {
   overflow-x: auto;
