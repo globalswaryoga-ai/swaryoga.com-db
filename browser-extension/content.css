@@ -14,6 +14,58 @@
   transition: transform 0.2s ease;
 }
 
+/* ── Elements injected into WhatsApp's OWN DOM (not the sidebar) ── */
+#swaryoga-header-tabs {
+  padding: 6px 12px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e9edef;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.sy-header-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 3px 0;
+}
+
+.sy-header-tab {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.sy-header-tab.sy-active {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+.sy-row-checkbox {
+  cursor: pointer;
+}
+
+#swaryoga-selected-bar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  padding: 6px 10px;
+  display: flex;
+  gap: 8px;
+  z-index: 99998;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
 #swaryoga-crm-sidebar.swaryoga-collapsed {
   transform: translateX(292px);
 }

@@ -16,10 +16,25 @@
   // own custom stages) — see loadFunnelStages().
   let funnelStages = [];
 
-  let state = { loggedIn: false, allowed: false, currentPhone: '', currentGroupName: '', quickReplies: [], templates: [], lead: null };
+  let state = {
+    loggedIn: false, allowed: false, currentPhone: '', currentGroupName: '', currentChatKey: '',
+    quickReplies: [], templates: [], lead: null,
+    labelPresets: [], chatLabels: {}, // { chatKey: [labelKey, ...] }
+  };
 
   // Collapsed by default — keeps the sidebar short until the user wants to browse.
-  let sectionOpen = { quickReplies: false, templates: false, dashboards: false };
+  let sectionOpen = { quickReplies: false, templates: false, dashboards: false, labels: false };
+
+  // Grows as you open chats — funnel-tab filtering only knows about chats
+  // looked up this way (no bulk lookup for the whole chat list; that would
+  // mean N API calls just to render filter tabs).
+  let chatFunnelCache = {}; // { chatKey: status }
+
+  // Multi-select for bulk scheduling, keyed by chatKey; value is 'phone' | 'group'.
+  let selectedChats = new Map();
+
+  // Which header-injected tab is active: null = All, {kind:'label', key} or {kind:'funnel', key}.
+  let activeChatFilter = null;
 
   function el(tag, cls, html) {
     const e = document.createElement(tag);
@@ -85,6 +100,37 @@
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
     return { overlay, body };
+  }
+
+  /**
+   * Runs a list of {type, value} targets through SCHEDULE_MESSAGE, each
+   * staggered 3-7 min apart starting at sendAt. Group targets are gated by
+   * the same server-enforced group-op limit as Add/Remove Member; phone
+   * targets are exempt. Returns a summary object for the popup to show.
+   * Shared by the Schedule Message / Schedule Groups / Schedule Selected modals.
+   */
+  async function scheduleTargets(targets, text, sendAt) {
+    let cumulativeMs = 0;
+    let scheduled = 0;
+    const failed = [];
+    for (let i = 0; i < targets.length; i++) {
+      if (i > 0) cumulativeMs += humanGapMs();
+      const t = targets[i];
+      if (t.type === 'group') {
+        const gate = await reserveGroupOp();
+        if (!gate.allowed) { failed.push(`${t.value} (${gate.error})`); continue; }
+      }
+      const res = await sendMessage({
+        type: 'SCHEDULE_MESSAGE',
+        targetType: t.type,
+        phone: t.type === 'phone' ? t.value : undefined,
+        groupName: t.type === 'group' ? t.value : undefined,
+        text,
+        sendAt: sendAt + cumulativeMs,
+      });
+      if (res.ok) scheduled++; else failed.push(t.value);
+    }
+    return { scheduled, failed, lastAt: new Date(sendAt + cumulativeMs) };
   }
 
   /** A <select> of saved templates ("Custom message" first) that fills `textarea` on change. */
@@ -564,6 +610,219 @@
     return { ok: true };
   }
 
+  // ── Header tabs (injected into WhatsApp's own chat-list header) + row
+  // checkboxes for bulk-select — the riskier surface: this adds NEW
+  // persistent elements into WhatsApp's own layout (everything else in this
+  // file only clicks WhatsApp's existing buttons), so it's more likely to
+  // need adjustment if WhatsApp changes their DOM. Both are re-applied on an
+  // interval since WhatsApp virtualizes the chat list (rows get recycled as
+  // you scroll, silently dropping anything injected into them).
+  let headerTabsEl = null;
+
+  function findChatListHeaderInsertionPoint() {
+    // Prefer inserting right after WhatsApp's own native filter chips row
+    // ("All/Unread/Favourites/Groups") if present; else right after the
+    // search box, which is a more stable anchor across versions.
+    const nativeFilters = document.querySelector('div[aria-label="Chat list filters"]');
+    if (nativeFilters?.parentElement) return { after: nativeFilters };
+    const searchBox = document.querySelector('[aria-label="Search input textbox"]');
+    const searchContainer = searchBox?.closest('div[class]')?.parentElement;
+    if (searchContainer) return { after: searchContainer };
+    return null;
+  }
+
+  function renderHeaderTabs() {
+    const insertion = findChatListHeaderInsertionPoint();
+    if (!insertion) return; // will retry on next interval tick
+
+    if (!headerTabsEl || !document.body.contains(headerTabsEl)) {
+      headerTabsEl = el('div');
+      headerTabsEl.id = 'swaryoga-header-tabs';
+    }
+    headerTabsEl.innerHTML = '';
+
+    function makeTabRow(items, activeKind) {
+      const row = el('div', 'sy-header-tab-row');
+      const allTab = el('span', 'sy-header-tab', 'All');
+      if (!activeChatFilter || activeChatFilter.kind !== activeKind) allTab.classList.add('sy-active');
+      allTab.addEventListener('click', () => { activeChatFilter = null; renderHeaderTabs(); });
+      row.appendChild(allTab);
+      for (const item of items) {
+        const tab = el('span', 'sy-header-tab', `${item.label}${item.count !== undefined ? ` (${item.count})` : ''}`);
+        if (item.color) tab.style.borderColor = item.color;
+        if (activeChatFilter?.kind === activeKind && activeChatFilter.key === item.key) {
+          tab.classList.add('sy-active');
+          if (item.color) tab.style.background = item.color;
+        }
+        tab.addEventListener('click', () => { activeChatFilter = { kind: activeKind, key: item.key }; renderHeaderTabs(); });
+        row.appendChild(tab);
+      }
+      return row;
+    }
+
+    if (state.labelPresets.length) {
+      const counts = {};
+      for (const labels of Object.values(state.chatLabels)) {
+        for (const k of labels) counts[k] = (counts[k] || 0) + 1;
+      }
+      headerTabsEl.appendChild(makeTabRow(
+        state.labelPresets.map((p) => ({ key: p.key, label: `🏷️ ${p.label}`, color: p.color, count: counts[p.key] || 0 })),
+        'label'
+      ));
+    }
+
+    const funnelCounts = {};
+    for (const status of Object.values(chatFunnelCache)) funnelCounts[status] = (funnelCounts[status] || 0) + 1;
+    const funnelWithChats = Object.keys(funnelCounts);
+    if (funnelWithChats.length) {
+      headerTabsEl.appendChild(makeTabRow(
+        funnelWithChats.map((key) => ({ key, label: key.replace(/_/g, ' '), count: funnelCounts[key] })),
+        'funnel'
+      ));
+    }
+
+    if (headerTabsEl.children.length === 0) return; // nothing to show yet
+
+    if (!document.body.contains(headerTabsEl)) {
+      insertion.after.insertAdjacentElement('afterend', headerTabsEl);
+    }
+    applyChatListFilter();
+  }
+
+  /** Returns the same "whatever WhatsApp shows as the title" key used for labels/funnel-cache lookups. */
+  function chatKeyForRow(row) {
+    const titleEl = row.querySelector('span[dir="auto"][title]');
+    if (!titleEl) return '';
+    return (titleEl.getAttribute('title') || titleEl.textContent || '').trim();
+  }
+
+  function isGroupRow(row) {
+    return !!row.querySelector('span[data-icon="default-group"], span[data-icon="community-default"], span[data-icon="group"]');
+  }
+
+  /** Hides/shows currently-rendered chat rows per the active header-tab filter. Re-run often — WA recycles rows on scroll. */
+  function applyChatListFilter() {
+    const rows = document.querySelectorAll('div[role="listitem"], div[data-testid="cell-frame-container"]');
+    for (const row of rows) {
+      const target = row.closest('div[role="listitem"]') || row;
+      if (!activeChatFilter) { target.style.display = ''; continue; }
+      const key = chatKeyForRow(row);
+      let matches = false;
+      if (activeChatFilter.kind === 'label') {
+        matches = (state.chatLabels[key] || []).includes(activeChatFilter.key);
+      } else if (activeChatFilter.kind === 'funnel') {
+        matches = chatFunnelCache[key] === activeChatFilter.key;
+      }
+      target.style.display = matches ? '' : 'none';
+    }
+  }
+
+  /** Adds a small checkbox to each visible chat row for bulk-select → Schedule Selected. */
+  function injectRowCheckboxes() {
+    const rows = document.querySelectorAll('div[role="listitem"], div[data-testid="cell-frame-container"]');
+    for (const row of rows) {
+      const target = row.closest('div[role="listitem"]') || row;
+      const key = chatKeyForRow(row);
+      if (!key) continue;
+
+      const existing = target.querySelector('.sy-row-checkbox');
+      // WhatsApp recycles row DOM nodes during virtualized scrolling — a
+      // checkbox created for a previous chat can end up sitting on a row
+      // that now shows a DIFFERENT chat. Recreate it whenever the row's
+      // current chat key doesn't match what the checkbox was built for,
+      // instead of trusting a stale "already injected" checkbox blindly.
+      if (existing && existing.dataset.syChatkey === key) continue;
+      existing?.remove();
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'sy-row-checkbox';
+      cb.dataset.syChatkey = key;
+      cb.checked = selectedChats.has(key);
+      cb.addEventListener('click', (e) => e.stopPropagation());
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        if (cb.checked) selectedChats.set(key, isGroupRow(row) ? 'group' : 'phone');
+        else selectedChats.delete(key);
+        renderSelectedBar();
+      });
+
+      if (getComputedStyle(target).position === 'static') target.style.position = 'relative';
+      target.style.paddingLeft = '26px';
+      cb.style.cssText = 'position:absolute;left:4px;top:50%;transform:translateY(-50%);z-index:5;width:15px;height:15px;';
+      target.insertBefore(cb, target.firstChild);
+    }
+  }
+
+  /** Floating "Schedule Selected (N)" bar shown once 1+ chats are checked. */
+  let selectedBarEl = null;
+  function renderSelectedBar() {
+    if (selectedChats.size === 0) {
+      selectedBarEl?.remove();
+      selectedBarEl = null;
+      return;
+    }
+    if (!selectedBarEl) {
+      selectedBarEl = el('div');
+      selectedBarEl.id = 'swaryoga-selected-bar';
+      document.body.appendChild(selectedBarEl);
+    }
+    selectedBarEl.innerHTML = '';
+    const btn = el('button', 'sy-btn sy-primary', `📅 Schedule Selected (${selectedChats.size})`);
+    btn.addEventListener('click', () => openScheduleSelectedModal());
+    const clearBtn = el('button', 'sy-btn', 'Clear');
+    clearBtn.addEventListener('click', () => { selectedChats.clear(); renderSelectedBar(); injectRowCheckboxes(); });
+    selectedBarEl.appendChild(btn);
+    selectedBarEl.appendChild(clearBtn);
+  }
+
+  function openScheduleSelectedModal() {
+    const { overlay, body: mbody } = openModal(`📅 Schedule to ${selectedChats.size} selected`);
+    const list = el('div', 'sy-empty', Array.from(selectedChats.keys()).join(', '));
+    mbody.appendChild(list);
+
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = 'Message text';
+    addTemplatePicker(mbody, textarea);
+    mbody.appendChild(el('div', 'sy-modal-label', 'Message'));
+    mbody.appendChild(textarea);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Send at'));
+    const whenInput = document.createElement('input');
+    whenInput.type = 'datetime-local';
+    mbody.appendChild(whenInput);
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', 'Schedule All');
+    submitBtn.addEventListener('click', async () => {
+      const text = textarea.value.trim();
+      const sendAt = whenInput.value ? new Date(whenInput.value).getTime() : NaN;
+      if (!text) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a message or pick a template.'; return; }
+      if (isNaN(sendAt) || sendAt <= Date.now()) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time.'; return; }
+
+      submitBtn.disabled = true;
+      const targets = Array.from(selectedChats.entries()).map(([value, type]) => ({ type, value }));
+      const { scheduled, failed } = await scheduleTargets(targets, text, sendAt);
+      submitBtn.disabled = false;
+      if (scheduled) {
+        selectedChats.clear();
+        renderSelectedBar();
+        injectRowCheckboxes();
+        overlay.remove();
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = `Failed: ${failed.join(', ') || 'unknown error'}`;
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
   // ── Sidebar rendering ──────────────────────────────────────────────────
   let sidebarEl = null;
   let collapsed = false;
@@ -695,36 +954,6 @@
       statusBtn.disabled = false;
       setToolStatus(result.ok ? '✅ Status posted.' : `❌ ${result.error}`, !result.ok);
     });
-
-    /**
-     * Runs a list of {type, value} targets through SCHEDULE_MESSAGE, each
-     * staggered 3-7 min apart starting at sendAt. Group targets are gated by
-     * the same server-enforced group-op limit as Add/Remove Member; phone
-     * targets are exempt. Returns a summary object for the popup to show.
-     */
-    async function scheduleTargets(targets, text, sendAt) {
-      let cumulativeMs = 0;
-      let scheduled = 0;
-      const failed = [];
-      for (let i = 0; i < targets.length; i++) {
-        if (i > 0) cumulativeMs += humanGapMs();
-        const t = targets[i];
-        if (t.type === 'group') {
-          const gate = await reserveGroupOp();
-          if (!gate.allowed) { failed.push(`${t.value} (${gate.error})`); continue; }
-        }
-        const res = await sendMessage({
-          type: 'SCHEDULE_MESSAGE',
-          targetType: t.type,
-          phone: t.type === 'phone' ? t.value : undefined,
-          groupName: t.type === 'group' ? t.value : undefined,
-          text,
-          sendAt: sendAt + cumulativeMs,
-        });
-        if (res.ok) scheduled++; else failed.push(t.value);
-      }
-      return { scheduled, failed, lastAt: new Date(sendAt + cumulativeMs) };
-    }
 
     const scheduleBtn = el('button', 'sy-icon-btn sy-primary', '📅');
     scheduleBtn.title = 'Schedule Message — pick a contact, a template (optional), and a time';
@@ -975,6 +1204,49 @@
     }
     body.appendChild(leadSection);
 
+    // ── Labels (also shown as filter tabs injected into WhatsApp's own header) ──
+    if (state.currentChatKey) {
+      const { section: labelSection, body: labelBody } = makeCollapsibleSection('labels', 'Labels', {
+        addTitle: 'Create a new label',
+        onAdd: async () => {
+          const label = prompt('New label name:');
+          if (!label || !label.trim()) return;
+          const res = await sendMessage({ type: 'CREATE_LABEL_PRESET', label: label.trim() });
+          if (res.ok && res.data?.success) {
+            sectionOpen.labels = true;
+            loadLabels();
+          } else {
+            alert(`Couldn't create label: ${res.data?.error || 'unknown error'}`);
+          }
+        },
+      });
+      const assigned = state.chatLabels[state.currentChatKey] || [];
+      if (!state.labelPresets.length) {
+        labelBody.appendChild(el('div', 'sy-empty', 'No labels yet — click + to create one.'));
+      } else {
+        const chipRow = el('div', 'sy-btn-row');
+        for (const preset of state.labelPresets) {
+          const on = assigned.includes(preset.key);
+          const chip = el('button', 'sy-btn', (on ? '✓ ' : '') + preset.label);
+          chip.style.borderColor = preset.color;
+          if (on) { chip.style.background = preset.color; chip.style.color = '#fff'; }
+          chip.addEventListener('click', async () => {
+            chip.disabled = true;
+            const res = await sendMessage({ type: 'ASSIGN_LABEL', chatKey: state.currentChatKey, labelKey: preset.key, on: !on });
+            chip.disabled = false;
+            if (res.ok && res.data?.success) {
+              state.chatLabels[state.currentChatKey] = res.data.labels;
+              render();
+              renderHeaderTabs();
+            }
+          });
+          chipRow.appendChild(chip);
+        }
+        labelBody.appendChild(chipRow);
+      }
+      body.appendChild(labelSection);
+    }
+
     // ── AI toolbar ──
     const aiSection = el('div', 'sy-section');
     aiSection.appendChild(el('div', 'sy-section-title', 'AI'));
@@ -1116,6 +1388,11 @@
     render();
     const res = await sendMessage({ type: 'GET_LEAD', phone: state.currentPhone });
     state.lead = res.ok ? res.data : null;
+    // Feeds the Funnel header-tab filter — it only knows about chats opened
+    // this way, not the whole contact list (no bulk lookup to keep this cheap).
+    if (state.lead?.found && state.lead.status && state.currentChatKey) {
+      chatFunnelCache[state.currentChatKey] = state.lead.status;
+    }
     render();
   }
 
@@ -1143,6 +1420,16 @@
     }
   }
 
+  async function loadLabels() {
+    const res = await sendMessage({ type: 'GET_LABELS' });
+    if (res.ok && res.data?.success) {
+      state.labelPresets = res.data.presets || [];
+      state.chatLabels = res.data.chatLabels || {};
+      render();
+      renderHeaderTabs();
+    }
+  }
+
   async function refreshAuthState() {
     const s = await sendMessage({ type: 'GET_STATE' });
     state.loggedIn = !!s.loggedIn;
@@ -1152,6 +1439,7 @@
       loadQuickReplies();
       loadTemplates();
       loadFunnelStages();
+      loadLabels();
     }
   }
 
@@ -1168,6 +1456,7 @@
         lastGroupName = '';
         state.currentPhone = detectedPhone;
         state.currentGroupName = '';
+        state.currentChatKey = detectedPhone;
         loadLead();
         render();
       } else if (!detectedPhone) {
@@ -1177,6 +1466,7 @@
           lastPhone = '';
           state.currentGroupName = detectedGroup;
           state.currentPhone = '';
+          state.currentChatKey = detectedGroup;
           state.lead = null;
           render();
         }
@@ -1251,6 +1541,16 @@
     // Re-check login/approval state periodically in case the user logs in
     // via the popup while this tab is already open.
     setInterval(refreshAuthState, 15000);
+    // WhatsApp virtualizes the chat list (rows are recycled as you scroll,
+    // silently dropping our injected checkboxes/filter state) and its own
+    // header can get torn down/rebuilt — re-apply everything on a short
+    // interval rather than relying on one-time DOM mutation events.
+    setInterval(() => {
+      if (!state.loggedIn || !state.allowed) return;
+      renderHeaderTabs();
+      injectRowCheckboxes();
+      applyChatListFilter();
+    }, 1200);
   }
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {

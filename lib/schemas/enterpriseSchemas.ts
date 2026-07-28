@@ -3740,6 +3740,18 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // extension sidebar, in addition to the fixed Lead.status list —
     // per-user since each person's pipeline vocabulary can differ.
     extensionFunnelStages: { type: [String], default: [] },
+    // Chat labels for the browser extension's own WhatsApp (personal number,
+    // not the QR bridge) — same shape as chatLabels/labelPresets above but
+    // kept separate since chat identities differ between the two surfaces.
+    // Key is a phone number (1:1) or group name (group), not a WA JID.
+    extensionChatLabels: { type: mongoose.Schema.Types.Mixed, default: {} }, // { chatKey: [labelKey1, labelKey2] }
+    extensionLabelPresets: [
+      {
+        key: { type: String, required: true },
+        label: { type: String, required: true },
+        color: { type: String, default: '#2d6a4f' },
+      },
+    ],
     // Currently connected WhatsApp phone number (e.g. '919876543210')
     // Saved automatically when QR scan connects. Used for session isolation:
     // if bridge returns chats from a different phone, old chats are NOT shown.

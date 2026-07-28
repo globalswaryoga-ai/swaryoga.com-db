@@ -120,6 +120,27 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    case 'GET_LABELS': {
+      const res = await apiFetch('/api/extension/labels');
+      return { ok: res.ok, data: res.data };
+    }
+
+    case 'CREATE_LABEL_PRESET': {
+      const res = await apiFetch('/api/extension/labels', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create_preset', label: msg.label, color: msg.color }),
+      });
+      return { ok: res.ok, data: res.data };
+    }
+
+    case 'ASSIGN_LABEL': {
+      const res = await apiFetch('/api/extension/labels', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'assign', chatKey: msg.chatKey, labelKey: msg.labelKey, on: msg.on }),
+      });
+      return { ok: res.ok, data: res.data };
+    }
+
     case 'AI_FIX': {
       const res = await apiFetch('/api/extension/ai', {
         method: 'POST',
