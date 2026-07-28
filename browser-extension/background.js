@@ -76,6 +76,14 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    case 'UPDATE_LEAD_STATUS': {
+      const res = await apiFetch('/api/extension/lead', {
+        method: 'PATCH',
+        body: JSON.stringify({ leadId: msg.leadId, status: msg.status }),
+      });
+      return { ok: res.ok, data: res.data };
+    }
+
     case 'GET_TEMPLATES': {
       const res = await apiFetch('/api/extension/templates');
       return { ok: res.ok, data: res.data };
@@ -106,7 +114,15 @@ async function handleMessage(msg) {
     case 'SCHEDULE_MESSAGE': {
       const id = `sched_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const { scheduledMessages = [] } = await chrome.storage.local.get(['scheduledMessages']);
-      scheduledMessages.push({ id, phone: msg.phone, text: msg.text, sendAt: msg.sendAt, status: 'pending' });
+      scheduledMessages.push({
+        id,
+        targetType: msg.targetType || 'phone',
+        phone: msg.phone,
+        groupName: msg.groupName,
+        text: msg.text,
+        sendAt: msg.sendAt,
+        status: 'pending',
+      });
       await chrome.storage.local.set({ scheduledMessages });
       chrome.alarms.create(id, { when: msg.sendAt });
       return { ok: true, id };
@@ -134,7 +150,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     } else {
       const results = await chrome.tabs.sendMessage(tabs[0].id, {
         type: 'RUN_SCHEDULED_SEND',
+        targetType: job.targetType,
         phone: job.phone,
+        groupName: job.groupName,
         text: job.text,
       }).catch(() => null);
       job.status = results?.ok ? 'sent' : 'failed';

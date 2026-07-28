@@ -12,7 +12,14 @@
 (function () {
   const sendMessage = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
 
-  let state = { loggedIn: false, allowed: false, currentPhone: '', quickReplies: [], templates: [], lead: null };
+  // Must match FUNNEL_STATUSES in app/api/extension/lead/route.ts.
+  const FUNNEL_STATUSES = [
+    'new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation',
+    'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak',
+    'only_for_post', 'lead', 'hot', 'prospect', 'customer',
+  ];
+
+  let state = { loggedIn: false, allowed: false, currentPhone: '', currentGroupName: '', quickReplies: [], templates: [], lead: null };
 
   function el(tag, cls, html) {
     const e = document.createElement(tag);
@@ -156,26 +163,67 @@
     return true;
   }
 
+  /**
+   * Reopen a chat (used for groups, which have no click-to-chat URL like 1:1
+   * numbers do) by searching the main chat list on the left and clicking the
+   * first match. Returns true if a matching chat was opened.
+   */
+  async function openChatByName(name) {
+    const mainSearchBox =
+      document.querySelector('[aria-label="Search input textbox"]') ||
+      document.querySelector('div[contenteditable="true"][data-tab="3"]');
+    if (!mainSearchBox) return false;
+    typeIntoSearch(mainSearchBox, name);
+    await sleep(700);
+    const resultRow = await waitFor('div[role="listitem"], div[data-testid="cell-frame-container"]', { timeoutMs: 3000 });
+    if (!resultRow) return false;
+    resultRow.click();
+    await sleep(500);
+    // Clear the search so the chat list returns to normal.
+    mainSearchBox.focus();
+    document.execCommand('selectAll', false, undefined);
+    document.execCommand('delete', false, undefined);
+    return true;
+  }
+
   // ── Detect the currently open chat's phone number ─────────────────────────
   function looksLikePhone(text) {
     const digits = (text || '').replace(/\D/g, '');
     return digits.length >= 10 && digits.length <= 15;
   }
 
-  function detectPhoneFromHeader() {
-    const headerSelectors = [
-      'header span[dir="auto"][title]',
-      'header ._21S-L span',
-      'header span.x1lliihq',
-    ];
-    for (const sel of headerSelectors) {
+  const HEADER_TITLE_SELECTORS = [
+    'header span[dir="auto"][title]',
+    'header ._21S-L span',
+    'header span.x1lliihq',
+  ];
+
+  function readHeaderTitle() {
+    for (const sel of HEADER_TITLE_SELECTORS) {
       const nodes = document.querySelectorAll(sel);
       for (const n of nodes) {
         const text = (n.getAttribute('title') || n.textContent || '').trim();
-        if (looksLikePhone(text)) return text.replace(/\D/g, '');
+        if (text) return text;
       }
     }
     return '';
+  }
+
+  function detectPhoneFromHeader() {
+    const text = readHeaderTitle();
+    return looksLikePhone(text) ? text.replace(/\D/g, '') : '';
+  }
+
+  /** A group chat's header shows its name, not a phone number — used to
+   *  target group scheduling, since groups have no "phone" to detect. */
+  function detectGroupNameFromHeader() {
+    const text = readHeaderTitle();
+    if (!text || looksLikePhone(text)) return '';
+    // Groups (vs. a saved 1:1 contact name) show a member-list subtitle
+    // ("You, X, Y...") right under the header title — use that as the signal.
+    const subtitle = document.querySelector('header span[title]')?.parentElement?.nextElementSibling?.textContent || '';
+    const isGroupish = /,/.test(subtitle) || /you/i.test(subtitle);
+    return isGroupish ? text : '';
   }
 
   function detectLastInboundMessage() {
@@ -378,7 +426,9 @@
     });
     leadSection.appendChild(phoneInput);
 
-    if (state.lead === undefined) {
+    if (state.currentGroupName && !state.currentPhone) {
+      leadSection.appendChild(el('div', 'sy-empty', `👥 Group open: ${state.currentGroupName} (leads don't apply to groups — but Schedule Message below works for this group)`));
+    } else if (state.lead === undefined) {
       leadSection.appendChild(el('div', 'sy-empty', 'Loading…'));
     } else if (!state.lead || !state.lead.found) {
       leadSection.appendChild(el('div', 'sy-empty', state.currentPhone ? 'No CRM lead found for this number.' : 'Open a chat, or type a number above.'));
@@ -386,7 +436,36 @@
       const card = el('div', 'sy-lead-card');
       card.appendChild(el('div', 'sy-lead-name', state.lead.name || 'Unknown'));
       card.appendChild(el('div', 'sy-lead-meta', `#${state.lead.leadNumber || ''} · ${state.lead.email || 'no email'}`));
-      if (state.lead.status) card.appendChild(el('span', 'sy-badge', state.lead.status));
+
+      const funnelSelect = document.createElement('select');
+      funnelSelect.style.cssText = 'margin-top:4px;width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:11px;';
+      for (const s of FUNNEL_STATUSES) {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s.replace(/_/g, ' ');
+        if (s === state.lead.status) opt.selected = true;
+        funnelSelect.appendChild(opt);
+      }
+      const funnelError = el('div', 'sy-empty');
+      funnelError.style.cssText = 'display:none;color:#b91c1c;margin-top:3px;';
+      funnelSelect.addEventListener('change', async () => {
+        const newStatus = funnelSelect.value;
+        const prevStatus = state.lead.status;
+        funnelSelect.disabled = true;
+        funnelError.style.display = 'none';
+        const res = await sendMessage({ type: 'UPDATE_LEAD_STATUS', leadId: state.lead._id, status: newStatus });
+        funnelSelect.disabled = false;
+        if (res.ok && res.data?.success) {
+          state.lead.status = newStatus;
+        } else {
+          funnelSelect.value = prevStatus;
+          funnelError.textContent = `❌ Couldn't update: ${res.data?.error || 'unknown error'}`;
+          funnelError.style.display = 'block';
+        }
+      });
+      card.appendChild(funnelSelect);
+      card.appendChild(funnelError);
+
       if (state.lead.notes) {
         const notes = el('div', '', state.lead.notes);
         notes.style.marginTop = '6px';
@@ -554,24 +633,61 @@
     toolsRow.appendChild(statusBtn);
 
     const scheduleBtn = el('button', 'sy-btn sy-primary', '📅 Schedule Message');
-    scheduleBtn.title = 'Schedules the current compose box text to send later — only fires if this Chrome window is still open at that time';
+    scheduleBtn.title = 'Schedules the current compose box text to send later, to whichever chat (person or group) is currently open — only fires if this Chrome window is still open at that time';
     scheduleBtn.addEventListener('click', async () => {
       const text = getComposeText();
       if (!text.trim()) { setToolStatus('❌ Type the message in WhatsApp\'s compose box first, then click Schedule.', true); return; }
-      if (!state.currentPhone) { setToolStatus('❌ Open a chat (or enter a phone number above) first.', true); return; }
+
+      // Primary target = whichever chat is currently open (optional — the
+      // list below can be used on its own too).
+      const primaryTarget = state.currentPhone
+        ? { type: 'phone', value: state.currentPhone }
+        : state.currentGroupName
+          ? { type: 'group', value: state.currentGroupName }
+          : null;
+
       const when = prompt('Send at? (e.g. "2026-08-04 09:00", 24h local time)');
       if (!when) return;
-      const sendAt = new Date(when.replace(' ', 'T'));
-      if (isNaN(sendAt.getTime()) || sendAt.getTime() <= Date.now()) {
+      const baseSendAt = new Date(when.replace(' ', 'T'));
+      if (isNaN(baseSendAt.getTime()) || baseSendAt.getTime() <= Date.now()) {
         setToolStatus('❌ Couldn\'t understand that date/time, or it\'s in the past.', true);
         return;
       }
-      const res = await sendMessage({ type: 'SCHEDULE_MESSAGE', phone: state.currentPhone, text, sendAt: sendAt.getTime() });
+
+      const rawList = prompt(
+        'Also send to (optional) — phone numbers and/or group names, comma separated.\n\n' +
+        'Each one is paced 3-7 min apart starting at the time above, same safety window as Add Members — this is real bulk sending on your personal WhatsApp, so a long list means real time and real risk.'
+      );
+      const listTargets = (rawList || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => ({ type: looksLikePhone(s) ? 'phone' : 'group', value: s }));
+
+      const targets = [primaryTarget, ...listTargets].filter(Boolean);
+      if (targets.length === 0) { setToolStatus('❌ Open a chat/group, or enter at least one recipient, first.', true); return; }
+
+      let cumulativeMs = 0;
+      let scheduled = 0;
+      let failed = [];
+      for (let i = 0; i < targets.length; i++) {
+        if (i > 0) cumulativeMs += humanGapMs();
+        const t = targets[i];
+        const res = await sendMessage({
+          type: 'SCHEDULE_MESSAGE',
+          targetType: t.type,
+          phone: t.type === 'phone' ? t.value : undefined,
+          groupName: t.type === 'group' ? t.value : undefined,
+          text,
+          sendAt: baseSendAt.getTime() + cumulativeMs,
+        });
+        if (res.ok) scheduled++; else failed.push(t.value);
+      }
+
+      const lastAt = new Date(baseSendAt.getTime() + cumulativeMs);
       setToolStatus(
-        res.ok
-          ? `✅ Scheduled for ${sendAt.toLocaleString()}. Keep this Chrome window open (it doesn't need to be the active tab) so it can actually fire.`
-          : `❌ ${res.error || 'Failed to schedule'}`,
-        !res.ok
+        `✅ Scheduled ${scheduled}/${targets.length} (spread from ${baseSendAt.toLocaleString()} to ${lastAt.toLocaleString()})${failed.length ? `, failed to schedule: ${failed.join(', ')}` : ''}. Keep this Chrome window open the whole time so they actually fire.`,
+        failed.length > 0
       );
     });
     toolsRow.appendChild(scheduleBtn);
@@ -666,26 +782,57 @@
   // switch often enough that a light interval is more reliable in practice.
   function watchOpenChat() {
     let lastPhone = '';
+    let lastGroupName = '';
     setInterval(() => {
-      const detected = detectPhoneFromHeader();
-      if (detected && detected !== lastPhone) {
-        lastPhone = detected;
-        state.currentPhone = detected;
+      const detectedPhone = detectPhoneFromHeader();
+      if (detectedPhone && detectedPhone !== lastPhone) {
+        lastPhone = detectedPhone;
+        lastGroupName = '';
+        state.currentPhone = detectedPhone;
+        state.currentGroupName = '';
         loadLead();
+        render();
+      } else if (!detectedPhone) {
+        const detectedGroup = detectGroupNameFromHeader();
+        if (detectedGroup && detectedGroup !== lastGroupName) {
+          lastGroupName = detectedGroup;
+          lastPhone = '';
+          state.currentGroupName = detectedGroup;
+          state.currentPhone = '';
+          state.lead = null;
+          render();
+        }
       }
     }, 1500);
   }
 
   // ── Scheduled sends (fired from background.js's chrome.alarms) ──────────
-  // Opening a different chat via the click-to-chat URL is a real page
-  // navigation (WhatsApp Web isn't routed client-side for that URL from
-  // outside its own app), which destroys this script's execution context
-  // mid-flight — so a navigation-requiring send can't complete within the
-  // same message handler. Instead: if already on the right chat, send
-  // immediately; otherwise stash the pending send in storage and let the
-  // *next* page load (checkPendingScheduledSend, called from init()) finish it.
-  async function runScheduledSend(phone, text) {
-    const digits = phone.replace(/\D/g, '');
+  // Opening a 1:1 chat via the click-to-chat URL is a real page navigation
+  // (WhatsApp Web isn't routed client-side for that URL from outside its own
+  // app), which destroys this script's execution context mid-flight — so a
+  // navigation-requiring 1:1 send can't complete within the same message
+  // handler. Instead: if already on the right chat, send immediately;
+  // otherwise stash the pending send in storage and let the *next* page load
+  // (checkPendingScheduledSend, called from init()) finish it. Groups don't
+  // have this problem — openChatByName() searches/clicks in-app with no
+  // reload, so a group send can always complete in one go.
+  async function runScheduledSend(job) {
+    const text = job.text;
+
+    if (job.targetType === 'group') {
+      if (detectGroupNameFromHeader() !== job.groupName) {
+        const opened = await openChatByName(job.groupName);
+        if (!opened) return { ok: false, error: `Couldn't find group "${job.groupName}" in the chat list.` };
+        await sleep(500);
+      }
+      if (!findComposeBox()) return { ok: false, error: 'Group opened but compose box not found.' };
+      setComposeText(text);
+      await sleep(300);
+      sendCurrentMessage();
+      return { ok: true, navigating: false };
+    }
+
+    const digits = job.phone.replace(/\D/g, '');
     if (detectPhoneFromHeader() === digits && findComposeBox()) {
       setComposeText(text);
       await sleep(300);
@@ -711,7 +858,7 @@
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'RUN_SCHEDULED_SEND') {
-      runScheduledSend(msg.phone, msg.text).then(sendResponse);
+      runScheduledSend(msg).then(sendResponse);
       return true;
     }
     return false;

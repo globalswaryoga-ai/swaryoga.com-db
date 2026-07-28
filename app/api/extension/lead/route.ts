@@ -83,3 +83,49 @@ export async function GET(req: NextRequest) {
     return extensionJson({ success: false, error: 'Internal error' }, 500);
   }
 }
+
+const FUNNEL_STATUSES = [
+  'new_lead', 'contacted', 'interested', 'demo_trial', 'negotiation',
+  'enrolled', 'completed', 'inactive', 'repeater', 'old_sadhak',
+  'only_for_post', 'lead', 'hot', 'prospect', 'customer',
+];
+
+/**
+ * PATCH /api/extension/lead
+ * Body: { leadId: string, status: string }
+ * Updates a lead's funnel stage from the sidebar's Contact card.
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const decoded = await requireExtensionAccess(req);
+    if (!decoded) {
+      return extensionJson({ success: false, error: 'Extension access not approved for this user' }, 403);
+    }
+
+    const { leadId, status } = await req.json();
+    if (!leadId || !status) {
+      return extensionJson({ success: false, error: 'leadId and status are required' }, 400);
+    }
+    if (!FUNNEL_STATUSES.includes(status)) {
+      return extensionJson({ success: false, error: `Invalid status. Must be one of: ${FUNNEL_STATUSES.join(', ')}` }, 400);
+    }
+
+    await connectDB();
+    let tf: Record<string, any> = tenantOrFilter(decoded);
+    if (Object.keys(tf).length === 0) {
+      const viewerId = getViewerUserId(decoded);
+      tf = { $or: [{ assignedToUserId: viewerId }, { createdByUserId: viewerId }] };
+    }
+
+    const Lead = getLead();
+    const updated = await Lead.findOneAndUpdate({ _id: leadId, ...tf }, { $set: { status } }, { new: true }).lean();
+    if (!updated) {
+      return extensionJson({ success: false, error: 'Lead not found or not yours to edit' }, 404);
+    }
+
+    return extensionJson({ success: true, status: (updated as any).status });
+  } catch (err) {
+    console.error('[extension/lead PATCH]', err);
+    return extensionJson({ success: false, error: 'Internal error' }, 500);
+  }
+}
