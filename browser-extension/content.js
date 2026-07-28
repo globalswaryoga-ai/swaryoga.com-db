@@ -252,13 +252,26 @@
     box.focus();
     document.execCommand('selectAll', false, undefined);
     document.execCommand('delete', false, undefined);
-    // Insert line-by-line with execCommand('insertLineBreak') between lines
-    // instead of a single insertText call with raw \n characters. Raw \n in
-    // execCommand text doesn't reliably become the proper internal line
-    // break WhatsApp Web expects for a multi-line message — it can leave the
-    // message in a state that shows the "!" failed-to-send icon once you hit
-    // Send, even though the text looked fine in the box. insertLineBreak
-    // matches what a real Shift+Enter keypress produces.
+
+    // WhatsApp Web's compose box runs on its own rich-text editor (Lexical),
+    // not a plain contenteditable — document.execCommand('insertLineBreak')
+    // is a legacy API that editor frequently ignores, which silently drops
+    // every line break and flattens multi-paragraph templates into one
+    // run-on line (confirmed: a template with correct blank lines in the DB
+    // arrived on WhatsApp as a single paragraph). Real users get line breaks
+    // by typing or by pasting, and WhatsApp's own paste handler correctly
+    // turns \n in pasted plain text into real message line breaks — so we
+    // simulate a paste instead of chaining execCommand calls.
+    try {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', text);
+      box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      if ((box.innerText || '').trim()) return true;
+    } catch (e) {
+      // fall through to the legacy method below
+    }
+
+    // Fallback for environments where the simulated paste didn't take.
     const lines = text.split('\n');
     lines.forEach((line, i) => {
       if (i > 0) document.execCommand('insertLineBreak', false, undefined);
