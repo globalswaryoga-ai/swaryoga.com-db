@@ -300,6 +300,165 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
+.sy-modal.sy-modal-lg {
+  width: 75vw;
+  max-width: 1200px;
+  max-height: 85vh;
+}
+
+/* ── Buttons injected into WhatsApp's own open-chat header ── */
+.sy-conv-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+.sy-conv-header-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sy-conv-header-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ── "⚡ Actions" button injected into the compose footer + its popup ── */
+#swaryoga-compose-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #2d6a4f;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+#swaryoga-compose-action-btn:hover {
+  background: #1b4332;
+}
+
+#swaryoga-compose-actions-popup {
+  position: fixed;
+  width: 240px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
+  z-index: 100000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+
+.sy-actions-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.sy-actions-popup-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+.sy-modal-close-sm {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sy-actions-popup-list {
+  padding: 4px 6px 8px;
+}
+
+.sy-actions-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.sy-actions-popup-item:hover {
+  background: #f0fdf4;
+}
+
+.sy-actions-popup-icon {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+}
+
+/* ── Report page (large modal) ── */
+.sy-report-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.sy-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sy-report-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.sy-report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.sy-report-table tr:last-child td {
+  border-bottom: none;
+}
+
+.sy-report-status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+}
+
 .sy-modal-header {
   display: flex;
   align-items: center;

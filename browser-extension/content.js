@@ -145,9 +145,9 @@
   }
 
   /** Centered popup modal (Schedule Message / Schedule Groups). Click outside or × to close. */
-  function openModal(title) {
+  function openModal(title, opts = {}) {
     const overlay = el('div', 'sy-modal-overlay');
-    const modal = el('div', 'sy-modal');
+    const modal = el('div', opts.large ? 'sy-modal sy-modal-lg' : 'sy-modal');
     const header = el('div', 'sy-modal-header');
     header.appendChild(el('span', '', title));
     const closeBtn = el('button', 'sy-modal-close', '×');
@@ -989,24 +989,6 @@
     }
     headerTabsEl.innerHTML = '';
 
-    // Quick-access row for tools that are more useful reachable from the top
-    // of the chat list than buried in the sidebar — shown as soon as you're
-    // logged in and approved, unlike the filter tabs below which only
-    // appear once there's label/funnel data to filter by.
-    if (state.loggedIn && state.allowed) {
-      const actionRow = el('div', 'sy-header-tab-row');
-      const funnelBtn = el('span', 'sy-header-tab sy-header-action', '🔻 Funnel');
-      funnelBtn.addEventListener('click', () => openFunnelModal());
-      const reportBtn = el('span', 'sy-header-tab sy-header-action', '📈 Report');
-      reportBtn.addEventListener('click', () => openReportModal());
-      const broadcastBtn = el('span', 'sy-header-tab sy-header-action', '📣 Broadcast');
-      broadcastBtn.addEventListener('click', () => openBroadcastModal());
-      actionRow.appendChild(funnelBtn);
-      actionRow.appendChild(reportBtn);
-      actionRow.appendChild(broadcastBtn);
-      headerTabsEl.appendChild(actionRow);
-    }
-
     function makeTabRow(items, activeKind) {
       const row = el('div', 'sy-header-tab-row');
       const allTab = el('span', 'sy-header-tab', 'All');
@@ -1081,6 +1063,141 @@
       }
       target.style.display = matches ? '' : 'none';
     }
+  }
+
+  /**
+   * Quick-access row (🔻 Funnel · 📈 Report · 📣 Broadcast · ⚙️ Settings)
+   * injected into the OPEN CHAT's own header — not the chat-list header —
+   * placed before whatever WhatsApp/other extensions already put there
+   * (e.g. a third-party "Add to list" button), by prepending to the
+   * header's action-icon row. Best-effort: WhatsApp's conversation header
+   * structure isn't a documented API, so this silently no-ops if it can't
+   * find a sane insertion point, same pattern as the chat-list header tabs.
+   */
+  let conversationHeaderActionsEl = null;
+  function findConversationHeaderActionsRow() {
+    const header = document.querySelector('header');
+    if (!header) return null;
+    // The action-icon row is a direct child <div> of <header> that holds
+    // one or more clickable icons (video call / search / menu / third-party
+    // buttons) — prefer the LAST such div, since the name/avatar section
+    // (no buttons) always comes first.
+    const divs = Array.from(header.children).filter((c) => c.tagName === 'DIV');
+    for (let i = divs.length - 1; i >= 0; i--) {
+      if (divs[i].querySelector('button, div[role="button"], span[role="button"]')) return divs[i];
+    }
+    return divs[divs.length - 1] || null;
+  }
+
+  function renderConversationHeaderActions() {
+    const row = findConversationHeaderActionsRow();
+    if (!row) return;
+    if (conversationHeaderActionsEl && document.body.contains(conversationHeaderActionsEl) && row.contains(conversationHeaderActionsEl)) return;
+    conversationHeaderActionsEl = el('div', 'sy-conv-header-actions');
+    const items = [
+      ['🔻', 'Funnel', () => openFunnelModal()],
+      ['📈', 'Report', () => openReportModal()],
+      ['📣', 'Broadcast', () => openBroadcastModal()],
+      ['⚙️', 'Settings', () => openSettingsModal()],
+    ];
+    for (const [icon, title, handler] of items) {
+      const btn = el('button', 'sy-conv-header-btn', icon);
+      btn.type = 'button';
+      btn.title = title;
+      btn.addEventListener('click', handler);
+      conversationHeaderActionsEl.appendChild(btn);
+    }
+    row.insertBefore(conversationHeaderActionsEl, row.firstChild);
+  }
+
+  /**
+   * "⚡ Actions" button injected into the compose footer — a fast path to
+   * Quick message / Template / Schedule message / Chatbot flow without
+   * opening the full sidebar, matching the pattern of competitor tools
+   * (eazybe etc.) that put one action button right next to the message box.
+   */
+  function injectComposeActionButton() {
+    const box = findComposeBox();
+    if (!box) return;
+    const footer = box.closest('footer');
+    if (!footer) return;
+    if (footer.querySelector('#swaryoga-compose-action-btn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'swaryoga-compose-action-btn';
+    btn.type = 'button';
+    btn.title = 'Swar Yoga CRM — Quick message / Template / Schedule / Chatbot';
+    btn.textContent = '⚡';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleComposeActionsPopup(btn);
+    });
+    footer.insertBefore(btn, footer.firstChild);
+  }
+
+  let composeActionsPopupEl = null;
+  function closeComposeActionsPopup() {
+    composeActionsPopupEl?.remove();
+    composeActionsPopupEl = null;
+  }
+
+  function toggleComposeActionsPopup(anchorBtn) {
+    if (composeActionsPopupEl) { closeComposeActionsPopup(); return; }
+
+    const popup = el('div');
+    popup.id = 'swaryoga-compose-actions-popup';
+    const header = el('div', 'sy-actions-popup-header');
+    header.appendChild(el('span', 'sy-actions-popup-title', 'ACTIONS'));
+    const closeBtn = el('button', 'sy-modal-close-sm', '×');
+    closeBtn.addEventListener('click', closeComposeActionsPopup);
+    header.appendChild(closeBtn);
+    popup.appendChild(header);
+
+    const list = el('div', 'sy-actions-popup-list');
+    const items = [
+      ['⚡', 'Quick message', () => {
+        closeComposeActionsPopup();
+        collapsed = false;
+        sidebarEl?.classList.remove('swaryoga-collapsed');
+        sectionOpen.quickReplies = true;
+        render();
+        sidebarEl?.querySelector('.sy-quick-reply')?.scrollIntoView({ block: 'nearest' });
+      }],
+      ['📅', 'Schedule message', () => { closeComposeActionsPopup(); openScheduleMessageModal(); }],
+      ['📋', 'Template', () => {
+        closeComposeActionsPopup();
+        collapsed = false;
+        sidebarEl?.classList.remove('swaryoga-collapsed');
+        sectionOpen.templates = true;
+        render();
+      }],
+      ['🤖', 'Chatbot flow', () => {
+        closeComposeActionsPopup();
+        window.open('https://swaryoga.com/admin/crm/qr/chatbot', '_blank', 'noopener,noreferrer');
+      }],
+    ];
+    for (const [icon, label, handler] of items) {
+      const row = el('div', 'sy-actions-popup-item');
+      row.appendChild(el('span', 'sy-actions-popup-icon', icon));
+      row.appendChild(el('span', '', label));
+      row.addEventListener('click', handler);
+      list.appendChild(row);
+    }
+    popup.appendChild(list);
+    document.body.appendChild(popup);
+
+    const rect = anchorBtn.getBoundingClientRect();
+    popup.style.left = `${Math.round(rect.left)}px`;
+    popup.style.bottom = `${Math.round(window.innerHeight - rect.top + 8)}px`;
+    composeActionsPopupEl = popup;
+
+    setTimeout(() => {
+      document.addEventListener('click', function onDocClick(e) {
+        if (composeActionsPopupEl && !composeActionsPopupEl.contains(e.target) && e.target !== anchorBtn) {
+          closeComposeActionsPopup();
+        }
+        document.removeEventListener('click', onDocClick);
+      }, { once: true });
+    }, 0);
   }
 
   /** Adds a small checkbox to each visible chat row for bulk-select → Schedule Selected. */
@@ -1915,7 +2032,7 @@
    * from the same aggregation the admin CRM's broadcast history uses.
    */
   function openReportModal() {
-    const { overlay, body: mbody } = openModal('📈 QR Broadcast Report');
+    const { overlay, body: mbody } = openModal('📈 QR Broadcast Report', { large: true });
     const summaryBox = el('div', 'sy-empty', 'Loading…');
     mbody.appendChild(summaryBox);
     const runsBox = el('div');
@@ -1923,7 +2040,7 @@
 
     (async () => {
       const [runsRes, blockedRes] = await Promise.all([
-        adminApi('/api/admin/crm/broadcast-runs?provider=qr&limit=10'),
+        adminApi('/api/admin/crm/broadcast-runs?provider=qr&limit=25'),
         adminApi('/api/admin/crm/whatsapp/qr/broadcast-blocked'),
       ]);
 
@@ -1943,6 +2060,7 @@
         ['pending', 'Pending'], ['failed', 'Failed'], ['skipped', 'Skipped'],
       ];
       const grid = el('div', 'sy-report-grid');
+      grid.style.gridTemplateColumns = 'repeat(7, 1fr)';
       for (const [key, label] of statLabels) {
         const card = el('div', 'sy-report-card');
         card.appendChild(el('div', 'sy-report-num', String(summary[key] || 0)));
@@ -1959,14 +2077,37 @@
       if (!runs.length) {
         runsBox.appendChild(el('div', 'sy-empty', 'No broadcasts yet.'));
       } else {
+        const wrap = el('div', 'sy-report-table-wrap');
+        const table = document.createElement('table');
+        table.className = 'sy-report-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Name</th><th>Status</th><th>Total</th><th>Sent</th><th>Delivered</th><th>Read</th><th>Pending</th><th>Failed</th><th>Blocked</th><th>Created</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
         for (const run of runs) {
-          const row = el('div', 'sy-quick-reply');
-          row.appendChild(el('div', 'sy-quick-reply-title', run.name || '(unnamed)'));
-          const stats = run.stats || {};
-          row.appendChild(el('div', 'sy-quick-reply-text',
-            `${run.status || 'unknown'} · sent ${stats.sent || 0}/${stats.total || 0}${stats.failed ? `, failed ${stats.failed}` : ''} · ${new Date(run.createdAt).toLocaleString()}`));
-          runsBox.appendChild(row);
+          const s = run.stats || {};
+          const tr = document.createElement('tr');
+          const cells = [
+            run.name || '(unnamed)',
+            null, // status pill, built below
+            s.total || 0, s.sent || 0, s.delivered || 0, s.read || 0, s.pending || 0, s.failed || 0, s.blocked || 0,
+            new Date(run.createdAt).toLocaleString(),
+          ];
+          cells.forEach((val, i) => {
+            const td = document.createElement('td');
+            if (i === 1) {
+              const pill = el('span', 'sy-report-status-pill', run.status || 'unknown');
+              td.appendChild(pill);
+            } else {
+              td.textContent = String(val);
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
         }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        runsBox.appendChild(wrap);
       }
     })();
 
@@ -2557,6 +2698,10 @@
     let lastPhone = '';
     let lastGroupName = '';
     trackInterval(setInterval(() => {
+      if (state.loggedIn && state.allowed) {
+        renderConversationHeaderActions();
+        injectComposeActionButton();
+      }
       const detectedPhone = detectPhoneFromHeader();
       if (detectedPhone && detectedPhone !== lastPhone) {
         lastPhone = detectedPhone;
