@@ -10,7 +10,58 @@
 // input so the sidebar stays usable.
 
 (function () {
-  const sendMessage = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
+  // Set once the extension is reloaded/updated while this tab was already
+  // open — chrome.runtime.id disappears from the stale content script's
+  // perspective, and any chrome.runtime.* call throws "Extension context
+  // invalidated." Checked before every call so we fail with one clear
+  // on-page banner + stop all polling, instead of throwing that same error
+  // repeatedly forever (previously: an uncaught rejection every 1.2s).
+  let extensionContextLost = false;
+  const activeIntervals = [];
+
+  function trackInterval(id) { activeIntervals.push(id); return id; }
+
+  function markContextLost() {
+    if (extensionContextLost) return;
+    extensionContextLost = true;
+    for (const id of activeIntervals) clearInterval(id);
+    showContextLostBanner();
+  }
+
+  function showContextLostBanner() {
+    if (document.getElementById('swaryoga-context-lost-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'swaryoga-context-lost-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#b45309;color:#fff;padding:8px 14px;font:600 13px -apple-system,sans-serif;text-align:center;';
+    banner.textContent = '🔄 Swar Yoga CRM extension was updated — refresh this page to keep using it.';
+    const btn = document.createElement('button');
+    btn.textContent = 'Refresh now';
+    btn.style.cssText = 'margin-left:12px;padding:3px 10px;border-radius:5px;border:none;background:#fff;color:#b45309;font-weight:700;cursor:pointer;';
+    btn.addEventListener('click', () => location.reload());
+    banner.appendChild(btn);
+    document.body.appendChild(banner);
+  }
+
+  const sendMessage = (msg) => new Promise((resolve) => {
+    if (extensionContextLost || !chrome.runtime?.id) {
+      markContextLost();
+      resolve({ ok: false, error: 'Extension was updated — please refresh this page.' });
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(msg, (response) => {
+        if (chrome.runtime.lastError) {
+          markContextLost();
+          resolve({ ok: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        resolve(response);
+      });
+    } catch (err) {
+      markContextLost();
+      resolve({ ok: false, error: err.message });
+    }
+  });
 
   // Loaded from /api/extension/funnel-stages (built-in list + this user's
   // own custom stages) — see loadFunnelStages().
@@ -1449,7 +1500,7 @@
   function watchOpenChat() {
     let lastPhone = '';
     let lastGroupName = '';
-    setInterval(() => {
+    trackInterval(setInterval(() => {
       const detectedPhone = detectPhoneFromHeader();
       if (detectedPhone && detectedPhone !== lastPhone) {
         lastPhone = detectedPhone;
@@ -1471,7 +1522,7 @@
           render();
         }
       }
-    }, 1500);
+    }, 1500));
   }
 
   // ── Scheduled sends (fired from background.js's chrome.alarms) ──────────
@@ -1540,17 +1591,17 @@
     checkPendingScheduledSend();
     // Re-check login/approval state periodically in case the user logs in
     // via the popup while this tab is already open.
-    setInterval(refreshAuthState, 15000);
+    trackInterval(setInterval(refreshAuthState, 15000));
     // WhatsApp virtualizes the chat list (rows are recycled as you scroll,
     // silently dropping our injected checkboxes/filter state) and its own
     // header can get torn down/rebuilt — re-apply everything on a short
     // interval rather than relying on one-time DOM mutation events.
-    setInterval(() => {
+    trackInterval(setInterval(() => {
       if (!state.loggedIn || !state.allowed) return;
       renderHeaderTabs();
       injectRowCheckboxes();
       applyChatListFilter();
-    }, 1200);
+    }, 1200));
   }
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
