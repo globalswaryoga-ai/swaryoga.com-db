@@ -214,10 +214,31 @@ async function handleMessage(msg) {
       const { scheduledMessages = [] } = await chrome.storage.local.get(['scheduledMessages']);
       scheduledMessages.push({
         id,
+        jobType: 'message',
         targetType: msg.targetType || 'phone',
         phone: msg.phone,
         groupName: msg.groupName,
         text: msg.text,
+        sendAt: msg.sendAt,
+        status: 'pending',
+      });
+      await chrome.storage.local.set({ scheduledMessages });
+      chrome.alarms.create(id, { when: msg.sendAt });
+      return { ok: true, id };
+    }
+
+    // "My Status" — text and/or media, one-time or (via repeated calls from
+    // content.js, one per selected day) recurring. Same best-effort
+    // chrome.alarms mechanism as SCHEDULE_MESSAGE — fires only if this
+    // Chrome window is open at the scheduled time.
+    case 'SCHEDULE_STATUS': {
+      const id = `status_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const { scheduledMessages = [] } = await chrome.storage.local.get(['scheduledMessages']);
+      scheduledMessages.push({
+        id,
+        jobType: 'status',
+        text: msg.text || '',
+        mediaUrl: msg.mediaUrl || '',
         sendAt: msg.sendAt,
         status: 'pending',
       });
@@ -246,7 +267,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (!tabs.length) {
       job.status = 'missed_no_tab';
     } else {
-      const results = await chrome.tabs.sendMessage(tabs[0].id, {
+      const results = await chrome.tabs.sendMessage(tabs[0].id, job.jobType === 'status' ? {
+        type: 'RUN_SCHEDULED_STATUS',
+        text: job.text,
+        mediaUrl: job.mediaUrl,
+      } : {
         type: 'RUN_SCHEDULED_SEND',
         targetType: job.targetType,
         phone: job.phone,

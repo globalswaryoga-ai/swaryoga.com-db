@@ -71,6 +71,9 @@ export async function GET(req: NextRequest) {
             provider: t.provider || 'meta',
             headerFormat: headerFormat || 'NONE',
             imageUrl: t.imageFile?.url || (headerFormat === 'IMAGE' ? t.headerContent : '') || '',
+            category: t.category || '',
+            language: t.language || '',
+            status: t.status || '',
           };
         })
         .filter((t: any) => t.text),

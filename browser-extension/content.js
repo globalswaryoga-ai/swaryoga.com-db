@@ -157,6 +157,47 @@
     const body = el('div', 'sy-modal-body');
     modal.appendChild(body);
     overlay.appendChild(modal);
+
+    // Drag-to-move via the header. The modal is normally centered by the
+    // overlay's flexbox with no explicit position — switching to
+    // position:fixed with explicit left/top (computed from wherever it
+    // currently sits) only happens on the first drag, so it doesn't move
+    // until you actually grab it.
+    let dragging = false;
+    let dragStartX = 0, dragStartY = 0, modalStartLeft = 0, modalStartTop = 0;
+    function onDragMove(e) {
+      if (!document.body.contains(overlay)) {
+        document.removeEventListener('mousemove', onDragMove);
+        document.removeEventListener('mouseup', onDragEnd);
+        return;
+      }
+      if (!dragging) return;
+      modal.style.left = `${Math.max(0, modalStartLeft + (e.clientX - dragStartX))}px`;
+      modal.style.top = `${Math.max(0, modalStartTop + (e.clientY - dragStartY))}px`;
+    }
+    function onDragEnd() {
+      if (dragging) { dragging = false; header.style.cursor = 'grab'; }
+    }
+    header.addEventListener('mousedown', (e) => {
+      if (e.target === closeBtn) return;
+      const rect = modal.getBoundingClientRect();
+      if (modal.style.position !== 'fixed') {
+        modal.style.position = 'fixed';
+        modal.style.margin = '0';
+        modal.style.left = `${rect.left}px`;
+        modal.style.top = `${rect.top}px`;
+      }
+      dragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      modalStartLeft = rect.left;
+      modalStartTop = rect.top;
+      header.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+
     // "Click outside to close" — but a click event fires based on where the
     // mouse is released, not where it was pressed. Dragging the modal's
     // native CSS resize handle (bottom-right corner) can end with the
@@ -206,6 +247,12 @@
   // admin CRM's Schedule/Template forms — shared by every popup that has a
   // message textarea. ──
   const EMOJI_QUICK = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'];
+
+  // Applies to New Group / Add Members (DOM-automation path only) — these
+  // drive a regular WhatsApp Group's UI and are not built for WhatsApp
+  // Communities (announcement group + linked sub-groups, up to 5000
+  // members), which grow via invite link, not admin-add.
+  const MAX_ADD_MEMBERS = 30;
 
   function wrapSelection(textarea, l, r) {
     const s = textarea.selectionStart ?? textarea.value.length;
@@ -1047,6 +1094,56 @@
     return { ok: true };
   }
 
+  /** Same "Status" entry point as postTextStatus, but attaches an image via
+   *  WhatsApp's file input (same technique as attachImageToCompose) instead
+   *  of typing into the text composer, then adds `caption` in the resulting
+   *  preview's caption box before sending. */
+  async function postMediaStatus(imageUrl, caption) {
+    const statusNav =
+      document.querySelector('[aria-label="Status"]') ||
+      document.querySelector('span[data-icon="status-refreshed"]')?.closest('button');
+    if (!statusNav) return { ok: false, error: "Couldn't find the Status tab in the left navigation." };
+    statusNav.click();
+    await sleep(500);
+
+    const addBtn = await waitForClickableText('Add status', { timeoutMs: 4000 });
+    if (!addBtn) return { ok: false, error: "Couldn't find \"Add status\"." };
+    addBtn.click();
+    await sleep(500);
+
+    const fetchRes = await sendMessage({ type: 'FETCH_IMAGE_DATA_URL', url: imageUrl });
+    if (!fetchRes.ok) return { ok: false, error: fetchRes.error || 'Failed to download the media.' };
+
+    const input = findAttachFileInput();
+    if (!input) return { ok: false, error: "Couldn't find WhatsApp's attach input for status." };
+
+    try {
+      const blob = await (await fetch(fetchRes.dataUrl)).blob();
+      const filename = (imageUrl.split('/').pop() || 'status.jpg').split('?')[0];
+      const file = new File([blob], filename, { type: fetchRes.mimeType || 'image/jpeg' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      const captionBox = await waitFor('div[contenteditable="true"][data-tab]', { timeoutMs: 6000 });
+      if (captionBox && caption) {
+        captionBox.focus();
+        const cdt = new DataTransfer();
+        cdt.setData('text/plain', caption);
+        captionBox.dispatchEvent(new ClipboardEvent('paste', { clipboardData: cdt, bubbles: true, cancelable: true }));
+        await sleep(300);
+      }
+
+      const sendBtn = findSendButton() || (await waitForClickableText('Send', { timeoutMs: 3000 }));
+      if (!sendBtn) return { ok: false, error: 'Attached the media but could not find the Send button.' };
+      sendBtn.click();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  }
+
   // ── Header tabs (injected into WhatsApp's own chat-list header) + row
   // checkboxes for bulk-select — the riskier surface: this adds NEW
   // persistent elements into WhatsApp's own layout (everything else in this
@@ -1192,19 +1289,29 @@
     return { header, before: lastChild };
   }
 
+  // Monochrome stroke-based icons (currentColor) sized/styled to match
+  // WhatsApp's own black/gray header icon buttons, instead of colorful
+  // emoji that stand out against WA's native icon row.
+  const SVG_ICON = {
+    funnel: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4 4 20 4 14 12 14 19 10 21 10 12 4 4"></polygon></svg>',
+    report: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
+    broadcast: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h1l5 4V6l-5 4H4a1 1 0 0 0-1 1z"></path><path d="M15 8a3 3 0 0 1 0 8"></path><path d="M17.5 5.5a7 7 0 0 1 0 13"></path></svg>',
+    settings: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+  };
+
   function renderConversationHeaderActions() {
     const anchor = findConversationHeaderInsertionAnchor();
     if (!anchor) return;
     if (conversationHeaderActionsEl && document.body.contains(conversationHeaderActionsEl) && anchor.header.contains(conversationHeaderActionsEl)) return;
     conversationHeaderActionsEl = el('div', 'sy-conv-header-actions');
     const items = [
-      ['🔻', 'Funnel', () => openFunnelModal()],
-      ['📈', 'Report', () => openReportModal()],
-      ['📣', 'Broadcast', () => openBroadcastModal()],
-      ['⚙️', 'Settings', () => openSettingsModal()],
+      [SVG_ICON.funnel, 'Funnel', () => openFunnelModal()],
+      [SVG_ICON.report, 'Report', () => openReportModal()],
+      [SVG_ICON.broadcast, 'Broadcast', () => openBroadcastModal()],
+      [SVG_ICON.settings, 'Settings', () => openSettingsModal()],
     ];
-    for (const [icon, title, handler] of items) {
-      const btn = el('button', 'sy-conv-header-btn', icon);
+    for (const [svg, title, handler] of items) {
+      const btn = el('button', 'sy-conv-header-btn', svg);
       btn.type = 'button';
       btn.title = title;
       btn.addEventListener('click', handler);
@@ -1257,22 +1364,9 @@
 
     const list = el('div', 'sy-actions-popup-list');
     const items = [
-      ['⚡', 'Quick message', () => {
-        closeComposeActionsPopup();
-        collapsed = false;
-        sidebarEl?.classList.remove('swaryoga-collapsed');
-        sectionOpen.quickReplies = true;
-        render();
-        sidebarEl?.querySelector('.sy-quick-reply')?.scrollIntoView({ block: 'nearest' });
-      }],
+      ['⚡', 'Quick message', () => { closeComposeActionsPopup(); openQuickReplyModal(); }],
       ['📅', 'Schedule message', () => { closeComposeActionsPopup(); openScheduleMessageModal(); }],
-      ['📋', 'Template', () => {
-        closeComposeActionsPopup();
-        collapsed = false;
-        sidebarEl?.classList.remove('swaryoga-collapsed');
-        sectionOpen.templates = true;
-        render();
-      }],
+      ['📋', 'Template', () => { closeComposeActionsPopup(); openTemplatesModal(); }],
       ['🤖', 'Chatbot flow', () => showChatbotFlowsInPopup(popup)],
     ];
     for (const [icon, label, handler] of items) {
@@ -1310,8 +1404,11 @@
    * compose box for the currently open chat, ready to review and send —
    * the same click-to-insert convention as Templates/Quick Replies.
    */
-  async function showChatbotFlowsInPopup(popup) {
-    const list = popup.querySelector('.sy-actions-popup-list');
+  /** Fetches this user's QR chatbot flows and renders a Start-button list
+   *  into `list` — shared by the ⚡ compose popup and the standalone
+   *  Chatbot modal. `onStart(flow)` fires after inserting the flow's
+   *  opening message, so each caller can close its own container. */
+  async function renderChatbotFlowsList(list, onStart) {
     list.innerHTML = '';
     list.appendChild(el('div', 'sy-empty', 'Loading your chatbot flows…'));
 
@@ -1331,9 +1428,9 @@
           e.stopPropagation();
           const startNode = (flow.nodes || []).find((n) => n.nodeId === flow.startNodeId) || (flow.nodes || [])[0];
           const text = startNode?.messageText || startNode?.questionText || '';
-          closeComposeActionsPopup();
           if (text) setComposeText(text);
           else alert(`"${flow.name}" has no opening message text to insert — open it in the Chatbot Builder to check its first node.`);
+          onStart?.(flow);
         });
         row.appendChild(label);
         row.appendChild(startBtn);
@@ -1348,6 +1445,26 @@
     createLink.className = 'sy-actions-popup-create-link';
     createLink.textContent = '+ Create a new flow in Chatbot Builder →';
     list.appendChild(createLink);
+  }
+
+  function showChatbotFlowsInPopup(popup) {
+    const list = popup.querySelector('.sy-actions-popup-list');
+    renderChatbotFlowsList(list, () => closeComposeActionsPopup());
+  }
+
+  /** Standalone "Chatbot" modal — same flow list + Start button, reachable
+   *  from the sidebar icon row without needing to be mid-compose. */
+  function openChatbotFlowsModal() {
+    const { overlay, body: mbody } = openModal('🤖 Chatbot flows');
+    const list = el('div', 'sy-actions-popup-list');
+    list.style.padding = '0';
+    mbody.appendChild(list);
+    renderChatbotFlowsList(list, () => overlay.remove());
+    const footer = el('div', 'sy-modal-footer');
+    const closeBtn = el('button', 'sy-modal-btn sy-primary', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(closeBtn);
+    mbody.appendChild(footer);
   }
 
   /** Adds a small checkbox to each visible chat row for bulk-select → Schedule Selected. */
@@ -1970,6 +2087,116 @@
    * the CRM's own Broadcast page uses, and it doesn't need this Chrome tab
    * to stay open.
    */
+  /**
+   * "My Status" popup — text and/or an image/video URL, Post now or
+   * Schedule/Repeat (chrome.alarms-based, same as Schedule Selected — best
+   * effort, needs this Chrome window open at the scheduled time; there's
+   * no server-side equivalent for Status the way there is for chats).
+   */
+  function openMyStatusModal() {
+    const { overlay, body: mbody } = openModal('📸 My Status');
+    overlay.querySelector('.sy-modal-header')?.classList.add('sy-modal-header-status');
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Status Text'));
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = "What's on your mind?";
+    addFormatToolbar(mbody, textarea);
+    mbody.appendChild(textarea);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Image / Video URL (optional)'));
+    const mediaInput = document.createElement('input');
+    mediaInput.type = 'text';
+    mediaInput.placeholder = 'https://…';
+    mbody.appendChild(mediaInput);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'When'));
+    const modeWrap = el('div', 'sy-repeat-row');
+    const nowLabel = el('label', 'sy-radio-label');
+    const nowRadio = document.createElement('input');
+    nowRadio.type = 'radio'; nowRadio.name = 'sy-status-mode'; nowRadio.value = 'now'; nowRadio.checked = true;
+    nowLabel.appendChild(nowRadio);
+    nowLabel.appendChild(document.createTextNode('Post now'));
+    const laterLabel = el('label', 'sy-radio-label');
+    const laterRadio = document.createElement('input');
+    laterRadio.type = 'radio'; laterRadio.name = 'sy-status-mode'; laterRadio.value = 'schedule';
+    laterLabel.appendChild(laterRadio);
+    laterLabel.appendChild(document.createTextNode('Schedule'));
+    modeWrap.appendChild(nowLabel);
+    modeWrap.appendChild(laterLabel);
+    mbody.appendChild(modeWrap);
+
+    const whenInput = document.createElement('input');
+    whenInput.type = 'datetime-local';
+    whenInput.style.display = 'none';
+    mbody.appendChild(whenInput);
+    laterRadio.addEventListener('change', () => { whenInput.style.display = 'block'; });
+    nowRadio.addEventListener('change', () => { whenInput.style.display = 'none'; });
+
+    const repeat = addRepeatBlock(mbody);
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'Scheduled/repeated posts fire from this browser — keep this Chrome window open at the scheduled time(s).'));
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-status-primary', '📸 Post Status');
+    submitBtn.addEventListener('click', async () => {
+      const text = textarea.value.trim();
+      const mediaUrl = mediaInput.value.trim();
+      const mode = laterRadio.checked ? 'schedule' : 'now';
+      if (!text && !mediaUrl) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Add status text or a media URL.'; return; }
+
+      if (mode === 'now' && !repeat.isEnabled()) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Posting…';
+        const result = mediaUrl ? await postMediaStatus(mediaUrl, text) : await postTextStatus(text);
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📸 Post Status';
+        if (result.ok) {
+          msg.className = 'sy-modal-msg sy-ok';
+          msg.textContent = '✅ Status posted.';
+          setTimeout(() => overlay.remove(), 1400);
+        } else {
+          msg.className = 'sy-modal-msg sy-error';
+          msg.textContent = `❌ ${result.error}`;
+        }
+        return;
+      }
+
+      let timestamps = [];
+      if (repeat.isEnabled()) {
+        timestamps = repeat.getTimestamps();
+        if (!timestamps.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'No days selected for Repeat.'; return; }
+      } else {
+        if (!whenInput.value) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a date/time, or choose Post now.'; return; }
+        const t = new Date(whenInput.value).getTime();
+        if (isNaN(t) || t <= Date.now()) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Pick a valid future date/time.'; return; }
+        timestamps = [t];
+      }
+
+      submitBtn.disabled = true;
+      let scheduled = 0;
+      for (const ts of timestamps) {
+        const res = await sendMessage({ type: 'SCHEDULE_STATUS', text, mediaUrl, sendAt: ts });
+        if (res.ok) scheduled++;
+      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = '📸 Post Status';
+      if (scheduled) {
+        msg.className = 'sy-modal-msg sy-ok';
+        msg.textContent = `✅ Scheduled ${scheduled} status post(s). Keep this Chrome window open at the scheduled time(s).`;
+        setTimeout(() => overlay.remove(), 1800);
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = 'Failed to schedule.';
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
   function openBroadcastModal() {
     const { overlay, body: mbody } = openModal('📣 Broadcast');
     mbody.appendChild(el('div', 'sy-fmt-hint', 'Runs via the QR bridge (server-side, auto-paced) — same engine as CRM → QR Broadcast.'));
@@ -2312,6 +2539,408 @@
     mbody.appendChild(footer);
   }
 
+  /**
+   * "New Group" popup — replaces the old prompt()/prompt() pair with a real
+   * form: Regular Group vs Announcement Group, a name field, and a
+   * one-per-line members box. Regular Group runs the existing DOM-automation
+   * createNewGroup() unchanged. Announcement Group is refused with an
+   * explanation rather than silently failing — WhatsApp's own "New Group"
+   * flow (the one this drives) has no such option; Communities/Announcement
+   * groups need a different creation flow this doesn't support.
+   */
+  function openNewGroupModal() {
+    const { overlay, body: mbody } = openModal('👥 New Group');
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Group Type'));
+    const typeRow = el('div', 'sy-header-type-row');
+    let groupType = 'regular';
+    const regularBtn = el('button', 'sy-header-type-btn sy-active', 'Regular Group');
+    regularBtn.type = 'button';
+    const announceBtn = el('button', 'sy-header-type-btn', 'Announcement Group');
+    announceBtn.type = 'button';
+    const announceNote = el('div', 'sy-modal-msg sy-error', 'Communities/Announcement groups can\'t be created through automation — WhatsApp\'s own "New Group" flow (which this drives) has no option for it. Create it directly in WhatsApp, then use ➕ Add Members to grow the linked group.');
+    announceNote.style.display = 'none';
+    regularBtn.addEventListener('click', () => {
+      groupType = 'regular';
+      regularBtn.classList.add('sy-active');
+      announceBtn.classList.remove('sy-active');
+      announceNote.style.display = 'none';
+    });
+    announceBtn.addEventListener('click', () => {
+      groupType = 'announcement';
+      announceBtn.classList.add('sy-active');
+      regularBtn.classList.remove('sy-active');
+      announceNote.style.display = 'block';
+    });
+    typeRow.appendChild(regularBtn);
+    typeRow.appendChild(announceBtn);
+    mbody.appendChild(typeRow);
+    mbody.appendChild(announceNote);
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Group Name'));
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'Enter group name';
+    mbody.appendChild(nameInput);
+
+    mbody.appendChild(el('div', 'sy-modal-label', `Members (phone numbers, one per line — max ${MAX_ADD_MEMBERS})`));
+    const membersArea = document.createElement('textarea');
+    membersArea.placeholder = '919876543210\n919876543211';
+    mbody.appendChild(membersArea);
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'Use full phone numbers with country code (e.g. 919876543210).'));
+
+    const msg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Cancel');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const submitBtn = el('button', 'sy-modal-btn sy-primary', '+ Create Group');
+    submitBtn.addEventListener('click', async () => {
+      if (groupType === 'announcement') {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = "Announcement groups can't be created here — see the note above.";
+        return;
+      }
+      const name = nameInput.value.trim();
+      const phones = membersArea.value.split('\n').map((p) => p.trim()).filter(Boolean);
+      if (!name) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter a group name.'; return; }
+      if (!phones.length) { msg.className = 'sy-modal-msg sy-error'; msg.textContent = 'Enter at least one phone number.'; return; }
+      if (phones.length > MAX_ADD_MEMBERS) {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = `${phones.length} numbers is too many (max ${MAX_ADD_MEMBERS}) — create with a few, then use Add Members to grow it.`;
+        return;
+      }
+
+      submitBtn.disabled = true;
+      const result = await createNewGroup(name, phones, (m) => { msg.className = 'sy-modal-msg'; msg.textContent = m; });
+      submitBtn.disabled = false;
+      if (result.ok) {
+        msg.className = 'sy-modal-msg sy-ok';
+        msg.textContent = `✅ Group created. Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`;
+        setTimeout(() => overlay.remove(), 1800);
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = `❌ ${result.error}`;
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(submitBtn);
+    mbody.appendChild(msg);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Remove Group Members" popup — rebuilt on the same server-side engine
+   * as CRM → Group Merge V2 (real group list from the QR bridge, ~15/hour
+   * paced removal with random gaps via /api/admin/crm/qr/merge-group-v2)
+   * instead of only working on whatever group happens to be open in this
+   * tab. Pick any group you administer, load its members, select who to
+   * remove — runs server-side, survives this tab closing.
+   */
+  function openRemoveMemberModal() {
+    const { overlay, body: mbody } = openModal('➖ Remove Group Members', { large: true });
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'Runs via the QR bridge (server-side, ~15/hour paced with random gaps) — same engine as CRM → Group Merge V2. Works on any group you administer, not just the one open right now.'));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Target Group'));
+    const groupSelect = document.createElement('select');
+    const loadingOpt = document.createElement('option');
+    loadingOpt.textContent = 'Loading your groups…';
+    groupSelect.appendChild(loadingOpt);
+    mbody.appendChild(groupSelect);
+
+    mbody.appendChild(el('div', 'sy-modal-label', '…or paste a group ID (…@g.us)'));
+    const jidInput = document.createElement('input');
+    jidInput.type = 'text';
+    jidInput.placeholder = '120363xxxxxxxxxxx@g.us';
+    mbody.appendChild(jidInput);
+    groupSelect.addEventListener('change', () => { if (groupSelect.value) jidInput.value = groupSelect.value; });
+
+    let sessionKey = '';
+    (async () => {
+      const [chatsRes, settingsRes] = await Promise.all([
+        adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: '/chats' }).toString()}`),
+        adminApi('/api/admin/crm/settings'),
+      ]);
+      sessionKey = settingsRes.data?.data?.permanentTenantId || '';
+      const raw = chatsRes.ok ? (chatsRes.data?.data ?? chatsRes.data) : null;
+      const arr = Array.isArray(raw) ? raw : (Array.isArray(raw?.chats) ? raw.chats : []);
+      const groups = arr.filter((c) => c.id?.endsWith?.('@g.us'));
+      groupSelect.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = groups.length ? '— Pick a group —' : 'No groups found';
+      groupSelect.appendChild(opt0);
+      for (const g of groups.sort((a, b) => (a.name || '').localeCompare(b.name || ''))) {
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.name || g.id;
+        groupSelect.appendChild(opt);
+      }
+    })();
+
+    const loadBtn = el('button', 'sy-modal-btn', '🔄 Load members');
+    loadBtn.type = 'button';
+    mbody.appendChild(loadBtn);
+
+    const membersMsg = el('div', 'sy-modal-msg');
+    mbody.appendChild(membersMsg);
+
+    const actionsRow = el('div', 'sy-repeat-actions');
+    const selectAllBtn = el('button', 'sy-modal-btn', 'Select all');
+    selectAllBtn.type = 'button';
+    const clearAllBtn = el('button', 'sy-modal-btn', 'Clear all');
+    clearAllBtn.type = 'button';
+    actionsRow.appendChild(selectAllBtn);
+    actionsRow.appendChild(clearAllBtn);
+    mbody.appendChild(actionsRow);
+
+    const membersBox = el('div', 'sy-modal-checklist');
+    mbody.appendChild(membersBox);
+    selectAllBtn.addEventListener('click', () => membersBox.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = true; }));
+    clearAllBtn.addEventListener('click', () => membersBox.querySelectorAll('input[type="checkbox"]').forEach((c) => { c.checked = false; }));
+
+    loadBtn.addEventListener('click', async () => {
+      const jid = jidInput.value.trim();
+      if (!jid.endsWith('@g.us')) { membersMsg.className = 'sy-modal-msg sy-error'; membersMsg.textContent = 'Pick a group or paste a group ID ending in @g.us.'; return; }
+      loadBtn.disabled = true;
+      membersMsg.className = 'sy-modal-msg';
+      membersMsg.textContent = 'Loading…';
+      membersBox.innerHTML = '';
+      const res = await adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: `/group-info/${jid}` }).toString()}`);
+      loadBtn.disabled = false;
+      const info = res.ok ? (res.data?.data ?? res.data) : null;
+      const participants = Array.isArray(info?.participants) ? info.participants : [];
+      if (!participants.length) {
+        membersMsg.className = 'sy-modal-msg sy-error';
+        membersMsg.textContent = res.ok ? 'No members found (besides your own account).' : (res.data?.error || 'Failed to load members.');
+        return;
+      }
+      membersMsg.textContent = '';
+      for (const p of participants) {
+        const id = String(p.id || '');
+        if (!id) continue;
+        const digits = id.split('@')[0];
+        const label = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = id;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(`${digits}${p.admin ? ' (admin)' : ''}`));
+        membersBox.appendChild(label);
+      }
+    });
+
+    const removeMsg = el('div', 'sy-modal-msg');
+    const footer = el('div', 'sy-modal-footer');
+    const cancelBtn = el('button', 'sy-modal-btn', 'Close');
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const removeBtn = el('button', 'sy-modal-btn sy-primary', 'Remove Selected');
+    removeBtn.addEventListener('click', async () => {
+      const ids = Array.from(membersBox.querySelectorAll('input[type="checkbox"]:checked')).map((c) => c.value);
+      const jid = jidInput.value.trim();
+      if (!ids.length) { removeMsg.className = 'sy-modal-msg sy-error'; removeMsg.textContent = 'Select at least one member.'; return; }
+      if (ids.length > 300) { removeMsg.className = 'sy-modal-msg sy-error'; removeMsg.textContent = `WhatsApp safety cap: max 300 per job. Select up to 300 (you picked ${ids.length}) and run again for the rest.`; return; }
+      const hrs = Math.ceil(ids.length / 15);
+      if (!confirm(`Remove ${ids.length} member(s) from this group?\n\nPaced ~15/hour with random gaps (~${hrs} hr total) — runs server-side even if you close this tab.`)) return;
+
+      removeBtn.disabled = true;
+      const res = await adminApi('/api/admin/crm/qr/merge-group-v2', 'POST', {
+        sessionKey, targetGroupId: jid, participantIds: ids, operationType: 'remove',
+      });
+      removeBtn.disabled = false;
+      if (res.ok && (res.data?.message || res.data?.success !== false)) {
+        removeMsg.className = 'sy-modal-msg sy-ok';
+        removeMsg.textContent = `✅ ${res.data?.message || 'Removal scheduled.'}`;
+      } else {
+        removeMsg.className = 'sy-modal-msg sy-error';
+        removeMsg.textContent = res.data?.error || 'Failed to schedule removal.';
+      }
+    });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(removeBtn);
+    mbody.appendChild(removeMsg);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Quick Message" popup — replaces the prompt()/prompt() pair (title,
+   * then content) with a single multi-line box (Ctrl+Enter to add) plus the
+   * full saved list below, matching the reference design: no separate
+   * title field shown to the user — one gets auto-derived from the first
+   * line of the content, since the backend still requires one.
+   */
+  function openQuickReplyModal() {
+    const { overlay, body: mbody } = openModal('⚡ Quick Message');
+    const contextName = state.lead?.name || state.currentGroupName || '';
+    if (contextName) mbody.appendChild(el('div', 'sy-modal-context-title', contextName));
+
+    mbody.appendChild(el('div', 'sy-modal-label', 'Manage Quick Replies'));
+    const addRow = el('div', 'sy-qr-add-row');
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = 'Type new quick reply (multi-line supported)…';
+    const addBtn = el('button', 'sy-modal-btn sy-primary', 'Add');
+    addBtn.type = 'button';
+    addRow.appendChild(textarea);
+    addRow.appendChild(addBtn);
+    mbody.appendChild(addRow);
+    mbody.appendChild(el('div', 'sy-fmt-hint', 'Press Ctrl+Enter to add'));
+
+    const msg = el('div', 'sy-modal-msg');
+    mbody.appendChild(msg);
+
+    const listBox = el('div');
+    mbody.appendChild(listBox);
+
+    function renderList() {
+      listBox.innerHTML = '';
+      if (!state.quickReplies.length) {
+        listBox.appendChild(el('div', 'sy-empty', 'No quick replies saved yet.'));
+        return;
+      }
+      for (const qr of state.quickReplies) {
+        const item = el('div', 'sy-quick-reply');
+        item.appendChild(el('div', 'sy-quick-reply-text', formatWA(qr.content)));
+        item.addEventListener('click', () => { setComposeText(qr.content); overlay.remove(); });
+        listBox.appendChild(item);
+      }
+    }
+    renderList();
+
+    async function submitAdd() {
+      const content = textarea.value.trim();
+      if (!content) return;
+      const title = content.split('\n')[0].slice(0, 60) || 'Quick reply';
+      addBtn.disabled = true;
+      const res = await sendMessage({ type: 'CREATE_QUICK_REPLY', title, content });
+      addBtn.disabled = false;
+      if (res.ok && res.data?.success) {
+        textarea.value = '';
+        msg.className = 'sy-modal-msg sy-ok';
+        msg.textContent = '✅ Added.';
+        await loadQuickReplies();
+        renderList();
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = res.data?.error || "Couldn't save.";
+      }
+    }
+    addBtn.addEventListener('click', submitAdd);
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitAdd(); }
+    });
+
+    const footer = el('div', 'sy-modal-footer');
+    const closeBtn = el('button', 'sy-modal-btn', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(closeBtn);
+    mbody.appendChild(footer);
+  }
+
+  /**
+   * "Message Templates" popup — full-size, search + category/language
+   * filters, one card per template with a "▶ Use" button, matching the
+   * reference design instead of the cramped collapsible sidebar list.
+   */
+  function openTemplatesModal() {
+    const { overlay, body: mbody } = openModal('📋 Message Templates', { large: true });
+    const contextName = state.lead?.name || state.currentGroupName || '';
+    if (contextName) mbody.appendChild(el('div', 'sy-modal-context-title', contextName));
+    const countLine = el('div', 'sy-fmt-hint', `${state.templates.length} template(s) available`);
+    mbody.appendChild(countLine);
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search templates…';
+    mbody.appendChild(searchInput);
+
+    const filterRow = el('div', 'sy-repeat-row');
+    const catSelect = document.createElement('select');
+    const langSelect = document.createElement('select');
+    function fillFilter(select, values, allLabel) {
+      select.innerHTML = '';
+      const allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent = allLabel;
+      select.appendChild(allOpt);
+      for (const v of values) {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        select.appendChild(opt);
+      }
+    }
+    fillFilter(catSelect, Array.from(new Set(state.templates.map((t) => t.category).filter(Boolean))), 'All Categories');
+    fillFilter(langSelect, Array.from(new Set(state.templates.map((t) => t.language).filter(Boolean))), 'All Languages');
+    filterRow.appendChild(catSelect);
+    filterRow.appendChild(langSelect);
+    mbody.appendChild(filterRow);
+
+    const listBox = el('div');
+    listBox.style.marginTop = '10px';
+    mbody.appendChild(listBox);
+
+    function renderCards() {
+      const q = searchInput.value.trim().toLowerCase();
+      const cat = catSelect.value;
+      const lang = langSelect.value;
+      const filtered = state.templates.filter((t) => {
+        if (cat && t.category !== cat) return false;
+        if (lang && t.language !== lang) return false;
+        if (q && !`${t.name} ${t.body}`.toLowerCase().includes(q)) return false;
+        return true;
+      });
+      listBox.innerHTML = '';
+      if (!filtered.length) {
+        listBox.appendChild(el('div', 'sy-empty', 'No templates match.'));
+        return;
+      }
+      for (const tpl of filtered) {
+        const card = el('div', 'sy-tpl-card');
+        const topRow = el('div', 'sy-tpl-card-top');
+        if (tpl.imageUrl) {
+          topRow.appendChild(el('div', 'sy-tpl-card-thumb', '🖼️'));
+        }
+        const nameCol = el('div', 'sy-tpl-card-namecol');
+        nameCol.appendChild(el('div', 'sy-tpl-card-name', tpl.name));
+        const badgeRow = el('div', 'sy-tpl-card-badges');
+        if (tpl.language) badgeRow.appendChild(el('span', 'sy-badge', tpl.language.toUpperCase()));
+        if (tpl.category) badgeRow.appendChild(el('span', 'sy-badge', tpl.category));
+        badgeRow.appendChild(el('span', 'sy-badge', tpl.provider === 'qr' ? 'QR' : 'Meta'));
+        if (tpl.status) badgeRow.appendChild(el('span', 'sy-badge', tpl.status));
+        nameCol.appendChild(badgeRow);
+        topRow.appendChild(nameCol);
+        const useBtn = el('button', 'sy-modal-btn sy-primary', '▶ Use');
+        useBtn.type = 'button';
+        useBtn.addEventListener('click', async () => {
+          if (!tpl.imageUrl) { setComposeText(tpl.text); overlay.remove(); return; }
+          useBtn.disabled = true;
+          useBtn.textContent = 'Attaching…';
+          const res = await attachImageToCompose(tpl.imageUrl, tpl.text);
+          useBtn.disabled = false;
+          useBtn.textContent = '▶ Use';
+          if (!res.ok) {
+            alert(`Couldn't attach the image: ${res.error}\n\nInserting the text only — attach the image manually.`);
+            setComposeText(tpl.text);
+          }
+          overlay.remove();
+        });
+        topRow.appendChild(useBtn);
+        card.appendChild(topRow);
+        card.appendChild(el('div', 'sy-tpl-card-body', formatWA(tpl.body)));
+        listBox.appendChild(card);
+      }
+    }
+    renderCards();
+    searchInput.addEventListener('input', renderCards);
+    catSelect.addEventListener('change', renderCards);
+    langSelect.addEventListener('change', renderCards);
+
+    const footer = el('div', 'sy-modal-footer');
+    const closeBtn = el('button', 'sy-modal-btn', 'Close');
+    closeBtn.addEventListener('click', () => overlay.remove());
+    footer.appendChild(closeBtn);
+    mbody.appendChild(footer);
+  }
+
   // ── Sidebar rendering ──────────────────────────────────────────────────
   let sidebarEl = null;
   let collapsed = false;
@@ -2342,13 +2971,6 @@
       statusBox.textContent = msg;
     };
 
-    // Applies to New Group / Add Members / Remove Member — these drive a
-    // regular WhatsApp Group's UI and are not built for WhatsApp Communities
-    // (announcement group + linked sub-groups, up to 5000 members) — those
-    // have a different structure entirely, and grow via invite link, not
-    // admin-add.
-    const MAX_ADD_MEMBERS = 30;
-
     const iconRow = el('div', 'sy-icon-row');
 
     function addIconTool(icon, title, onClick) {
@@ -2364,26 +2986,7 @@
       if (phone && phone.trim()) startNewChat(phone.trim());
     });
 
-    const newGroupBtn = addIconTool('👥', 'New Group — regular WhatsApp Group only, not a Community', async () => {
-      const name = prompt('Group name:');
-      if (!name || !name.trim()) return;
-      const raw = prompt(`Participant phone numbers — comma separated (max ${MAX_ADD_MEMBERS}):`);
-      if (!raw || !raw.trim()) return;
-      const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
-      if (phones.length > MAX_ADD_MEMBERS) {
-        setToolStatus(`❌ ${phones.length} numbers is too many (max ${MAX_ADD_MEMBERS}) — create the group with a few people, then use Add Members to grow it gradually.`, true);
-        return;
-      }
-      newGroupBtn.disabled = true;
-      const result = await createNewGroup(name.trim(), phones, (msg) => setToolStatus(msg));
-      newGroupBtn.disabled = false;
-      setToolStatus(
-        result.ok
-          ? `✅ Group created. Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
-          : `❌ ${result.error}`,
-        !result.ok
-      );
-    });
+    addIconTool('👥', 'New Group — regular or Announcement, with a proper form', () => openNewGroupModal());
 
     const mergeBtn = addIconTool('➕', 'Add Members — to the currently open GROUP (not a Community), paced 3-7 min apart', async () => {
       const raw = prompt(
@@ -2408,41 +3011,17 @@
       );
     });
 
-    const removeMemberBtn = addIconTool('➖', 'Remove Member — from the currently open group, paced 3-7 min apart', async () => {
-      const raw = prompt(`Remove from the CURRENTLY OPEN group — phone numbers or names, comma separated (max ${MAX_ADD_MEMBERS}):`);
-      if (!raw || !raw.trim()) return;
-      const queries = raw.split(',').map((p) => p.trim()).filter(Boolean);
-      if (queries.length > MAX_ADD_MEMBERS) {
-        setToolStatus(`❌ ${queries.length} is too many for this tool (max ${MAX_ADD_MEMBERS}).`, true);
-        return;
-      }
-      removeMemberBtn.disabled = true;
-      const result = await removeParticipantsFromOpenGroup(queries, (msg) => setToolStatus(msg));
-      removeMemberBtn.disabled = false;
-      setToolStatus(
-        result.ok
-          ? `✅ Removed ${result.removed?.length || 0}/${queries.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
-          : `❌ ${result.error}`,
-        !result.ok
-      );
-    });
+    addIconTool('➖', 'Remove Group Members — any group, server-side paced removal', () => openRemoveMemberModal());
 
-    const deleteGroupBtn = addIconTool('🗑️', 'Leave/Delete Group — regular WhatsApp Group only, not a Community', async () => {
-      if (!confirm('Leave the currently open group? This removes you from it (deletes it if you were the last member).')) return;
-      deleteGroupBtn.disabled = true;
-      const result = await leaveAndDeleteOpenGroup((msg) => setToolStatus(msg));
-      deleteGroupBtn.disabled = false;
-      setToolStatus(result.ok ? '✅ Left the group.' : `❌ ${result.error}`, !result.ok);
-    });
+    // Leave/Delete Group and Post Status were dropped — WhatsApp Web already
+    // has both natively (group menu → Exit group; the Status tab), so a
+    // shortcut for them here was redundant. Replaced with quick access to
+    // Templates and Chatbot flows instead.
+    addIconTool('📋', 'Templates', () => openTemplatesModal());
 
-    const statusBtn = addIconTool('📸', 'Post Status', async () => {
-      const text = prompt('Status text:');
-      if (!text || !text.trim()) return;
-      statusBtn.disabled = true;
-      const result = await postTextStatus(text.trim(), (msg) => setToolStatus(msg));
-      statusBtn.disabled = false;
-      setToolStatus(result.ok ? '✅ Status posted.' : `❌ ${result.error}`, !result.ok);
-    });
+    addIconTool('🤖', 'Chatbot flows', () => openChatbotFlowsModal());
+
+    addIconTool('📸', 'My Status — text/image/video, Post now or Schedule/Repeat', () => openMyStatusModal());
 
     const scheduleBtn = el('button', 'sy-icon-btn sy-primary', '📅');
     scheduleBtn.title = 'Schedule Message — pick a contact, Send Now or Schedule/Repeat, via the QR bridge';
@@ -2675,19 +3254,7 @@
     // ── Quick Replies (collapsible, "+" to add) ──
     const { section: qrSection, body: qrBody } = makeCollapsibleSection('quickReplies', `Quick Replies (${state.quickReplies.length})`, {
       addTitle: 'Add a new quick reply',
-      onAdd: async () => {
-        const title = prompt('Quick reply title:');
-        if (!title || !title.trim()) return;
-        const content = prompt('Message text (WhatsApp formatting: *bold*, _italic_, ~strike~):');
-        if (!content || !content.trim()) return;
-        const res = await sendMessage({ type: 'CREATE_QUICK_REPLY', title: title.trim(), content: content.trim() });
-        if (res.ok && res.data?.success) {
-          sectionOpen.quickReplies = true;
-          loadQuickReplies();
-        } else {
-          alert(`Couldn't save: ${res.data?.error || 'unknown error'}`);
-        }
-      },
+      onAdd: () => openQuickReplyModal(),
     });
     if (!state.quickReplies.length) {
       qrBody.appendChild(el('div', 'sy-empty', 'No quick replies saved yet — click + to add one.'));
@@ -2702,63 +3269,21 @@
     }
     body.appendChild(qrSection);
 
-    // ── Templates (collapsible) ── fuller library: headers/images/buttons, from QR + Meta templates
-    const { section: tplSection, body: tplBody } = makeCollapsibleSection('templates', `Templates (${state.templates.length})`, {
-      addTitle: 'Create a new template',
-      onAdd: () => openCreateTemplateModal(),
-    });
-    if (!state.templates.length) {
-      tplBody.appendChild(el('div', 'sy-empty', 'No templates saved yet — create some in the CRM.'));
-    } else {
-      for (const tpl of state.templates) {
-        const item = el('div', 'sy-quick-reply');
-        const titleRow = el('div', 'sy-quick-reply-title', `${tpl.name} `);
-        const badge = el('span', 'sy-badge', tpl.provider === 'qr' ? 'QR' : 'Meta');
-        badge.style.marginLeft = '4px';
-        badge.style.fontSize = '9px';
-        titleRow.appendChild(badge);
-        item.appendChild(titleRow);
-
-        // Structured blocks (header/body/footer/buttons) instead of one
-        // flowing paragraph — matches the template's actual message shape.
-        function addBlock(label, text) {
-          if (!text) return;
-          const block = el('div', 'sy-tpl-block');
-          block.appendChild(el('div', 'sy-tpl-block-label', label));
-          block.appendChild(el('div', 'sy-tpl-block-text', formatWA(text)));
-          item.appendChild(block);
-        }
-        let imageStatusEl = null;
-        if (tpl.imageUrl) {
-          addBlock('Header', '🖼️ Image — attaches as a real image with this text as the caption.');
-          imageStatusEl = item.lastChild.querySelector('.sy-tpl-block-text');
-        } else if (tpl.headerText) {
-          addBlock('Header', tpl.headerText);
-        }
-        addBlock('Body', tpl.body);
-        addBlock('Footer', tpl.footer);
-        if (tpl.buttons && tpl.buttons.length) {
-          const btnBlock = el('div', 'sy-tpl-block');
-          btnBlock.appendChild(el('div', 'sy-tpl-block-label', 'Buttons'));
-          const chipRow = el('div', 'sy-tpl-buttons');
-          for (const b of tpl.buttons) chipRow.appendChild(el('span', 'sy-tpl-button-chip', b));
-          btnBlock.appendChild(chipRow);
-          item.appendChild(btnBlock);
-        }
-
-        item.addEventListener('click', async () => {
-          if (!tpl.imageUrl) { setComposeText(tpl.text); return; }
-          const original = imageStatusEl?.textContent;
-          if (imageStatusEl) imageStatusEl.textContent = '⏳ Attaching image…';
-          const res = await attachImageToCompose(tpl.imageUrl, tpl.text);
-          if (imageStatusEl) imageStatusEl.textContent = original;
-          if (!res.ok) alert(`Couldn't attach the image: ${res.error}\n\nInserting the text only — attach the image manually.`);
-          if (!res.ok) setComposeText(tpl.text);
-        });
-        tplBody.appendChild(item);
-      }
-    }
-    body.appendChild(tplSection);
+    // ── Templates — opens the full search/filter popup instead of a
+    // cramped inline list (matches the reference "Message Templates" modal).
+    const tplRow = el('div', 'sy-section');
+    const tplTrigger = el('div', 'sy-section-header');
+    tplTrigger.style.cursor = 'pointer';
+    tplTrigger.appendChild(el('span', 'sy-section-title', `📋 Templates (${state.templates.length})`));
+    const tplControls = el('div', 'sy-section-controls');
+    const tplAddBtn = el('span', 'sy-add-btn', '+');
+    tplAddBtn.title = 'Create a new template';
+    tplAddBtn.addEventListener('click', (e) => { e.stopPropagation(); openCreateTemplateModal(); });
+    tplControls.appendChild(tplAddBtn);
+    tplTrigger.appendChild(tplControls);
+    tplTrigger.addEventListener('click', () => openTemplatesModal());
+    tplRow.appendChild(tplTrigger);
+    body.appendChild(tplRow);
   }
 
   function buildSidebar() {
@@ -2939,6 +3464,10 @@
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'RUN_SCHEDULED_SEND') {
       runScheduledSend(msg).then(sendResponse);
+      return true;
+    }
+    if (msg.type === 'RUN_SCHEDULED_STATUS') {
+      (msg.mediaUrl ? postMediaStatus(msg.mediaUrl, msg.text) : postTextStatus(msg.text)).then(sendResponse);
       return true;
     }
     return false;

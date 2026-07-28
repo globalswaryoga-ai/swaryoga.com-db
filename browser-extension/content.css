@@ -318,25 +318,33 @@
 .sy-conv-header-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
-  margin-right: 4px;
+  gap: 6px;
+  margin-right: 6px;
 }
 
 .sy-conv-header-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
   border: none;
   background: transparent;
-  font-size: 15px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  /* Same neutral gray WhatsApp Web uses for its own header icons — swap
+     colorful emoji for monochrome stroke icons that blend into the row
+     instead of standing out against it. */
+  color: #54656f;
 }
 
 .sy-conv-header-btn:hover {
   background: rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  .sy-conv-header-btn { color: #aebac1; }
 }
 
 /* ── "⚡ Actions" button injected into the compose footer + its popup ── */
@@ -513,6 +521,8 @@
   border-radius: 12px 12px 0 0;
   position: sticky;
   top: 0;
+  cursor: grab;
+  user-select: none;
 }
 
 .sy-modal-close {
@@ -597,6 +607,21 @@
   background: #2d6a4f;
   color: #fff;
   border-color: #2d6a4f;
+}
+
+/* ── My Status popup — colorful, distinct from the CRM-green modals ── */
+.sy-modal-header.sy-modal-header-status {
+  background: linear-gradient(135deg, #f59e0b, #ec4899 55%, #8b5cf6);
+}
+
+.sy-modal-btn.sy-status-primary {
+  background: linear-gradient(135deg, #f59e0b, #ec4899 55%, #8b5cf6);
+  color: #fff;
+  border: none;
+}
+
+.sy-modal-btn.sy-status-primary:hover {
+  filter: brightness(0.95);
 }
 
 .sy-modal-btn:disabled {
@@ -956,6 +981,89 @@
   border-color: #2d6a4f;
   color: #2d6a4f;
 }
+
+.sy-modal-context-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin: 2px 0 10px;
+}
+
+/* ── Quick Message popup ── */
+.sy-qr-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.sy-qr-add-row textarea {
+  flex: 1;
+  min-width: 0;
+}
+
+.sy-qr-add-row .sy-modal-btn {
+  flex-shrink: 0;
+  height: 38px;
+}
+
+/* ── Message Templates popup cards ── */
+.sy-tpl-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.sy-tpl-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sy-tpl-card-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.sy-tpl-card-namecol {
+  flex: 1;
+  min-width: 0;
+}
+
+.sy-tpl-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #111827;
+}
+
+.sy-tpl-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.sy-tpl-card-body {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.sy-tpl-card-body strong { color: #111827; }
+.sy-tpl-card-body em { font-style: italic; }
+.sy-tpl-card-body del { text-decoration: line-through; }
 
 /* ── Dashboards dropdown ── */
 #swaryoga-crm-sidebar .sy-dropdown-wrap {
