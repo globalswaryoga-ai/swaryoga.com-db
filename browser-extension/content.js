@@ -1075,24 +1075,36 @@
    * find a sane insertion point, same pattern as the chat-list header tabs.
    */
   let conversationHeaderActionsEl = null;
-  function findConversationHeaderActionsRow() {
-    const header = document.querySelector('header');
-    if (!header) return null;
-    // The action-icon row is a direct child <div> of <header> that holds
-    // one or more clickable icons (video call / search / menu / third-party
-    // buttons) — prefer the LAST such div, since the name/avatar section
-    // (no buttons) always comes first.
-    const divs = Array.from(header.children).filter((c) => c.tagName === 'DIV');
-    for (let i = divs.length - 1; i >= 0; i--) {
-      if (divs[i].querySelector('button, div[role="button"], span[role="button"]')) return divs[i];
+  // document.querySelector('header') alone is ambiguous — WhatsApp Web has
+  // TWO <header> elements on screen at once (the chat-LIST panel's own
+  // "WhatsApp" title bar, and the open conversation's header), and
+  // querySelector always returns whichever comes first in DOM order. That
+  // was silently grabbing the wrong one, so nothing ever appeared where
+  // expected. Anchoring on the same title element phone/group detection
+  // already relies on (HEADER_TITLE_SELECTORS, proven reliable) and walking
+  // up to ITS closest <header> guarantees we're in the open chat's header.
+  function findConversationHeaderInsertionAnchor() {
+    let titleEl = null;
+    for (const sel of HEADER_TITLE_SELECTORS) {
+      titleEl = document.querySelector(sel);
+      if (titleEl) break;
     }
-    return divs[divs.length - 1] || null;
+    const header = titleEl?.closest('header');
+    if (!header) return null;
+    const divs = Array.from(header.children).filter((c) => c.tagName === 'DIV');
+    if (!divs.length) return null;
+    // The first <div> holds the avatar+name+status (it contains the title
+    // element) — insert right after it, ahead of WhatsApp's own icon row
+    // AND any third-party buttons (e.g. "Add to list") that come after it,
+    // regardless of whether those live in one shared div or several.
+    const nameSection = divs.find((d) => d.contains(titleEl)) || divs[0];
+    return { header, after: nameSection };
   }
 
   function renderConversationHeaderActions() {
-    const row = findConversationHeaderActionsRow();
-    if (!row) return;
-    if (conversationHeaderActionsEl && document.body.contains(conversationHeaderActionsEl) && row.contains(conversationHeaderActionsEl)) return;
+    const anchor = findConversationHeaderInsertionAnchor();
+    if (!anchor) return;
+    if (conversationHeaderActionsEl && document.body.contains(conversationHeaderActionsEl) && anchor.header.contains(conversationHeaderActionsEl)) return;
     conversationHeaderActionsEl = el('div', 'sy-conv-header-actions');
     const items = [
       ['🔻', 'Funnel', () => openFunnelModal()],
@@ -1107,7 +1119,7 @@
       btn.addEventListener('click', handler);
       conversationHeaderActionsEl.appendChild(btn);
     }
-    row.insertBefore(conversationHeaderActionsEl, row.firstChild);
+    anchor.after.insertAdjacentElement('afterend', conversationHeaderActionsEl);
   }
 
   /**
