@@ -77,14 +77,26 @@ function evictStaleBridgeCache() {
   }
 }
 
-type BridgeResolution = 
+type BridgeResolution =
   | { ok: true; url: string; secret: string; userId: string; ownerUserId: string; bridgeSessionId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
-  | { ok: false; reason: 'no_bridge' | 'unauthorized' };
+  | { ok: false; reason: 'no_bridge' | 'unauthorized' | 'internal_error' };
 
 async function resolveUserBridge(authHeader: string | null): Promise<BridgeResolution> {
+  // Token check is OUTSIDE the try block below on purpose. Everything after
+  // it (connectDB, CRMUserSettings lookups, reconcileQrConnectedPhone, ...)
+  // can throw for reasons that have nothing to do with the user's session
+  // (a transient Mongo hiccup during the 30s inbox poll, for example) — that
+  // used to fall into the same catch as a real auth failure and get reported
+  // to the user as "Unauthorized — please log in again" even though their
+  // token was completely valid, which is confusing (the rest of the page
+  // still has their data loaded) and prompts an unnecessary re-login.
+  const decoded = verifyToken(authHeader || '');
+  if (!decoded?.userId || !decoded?.isAdmin) {
+    return { ok: false, reason: 'unauthorized' };
+  }
+
   try {
-    const decoded = verifyToken(authHeader || '');
-    if (decoded?.userId && decoded?.isAdmin) {
+    {
       // ── Check cache first ──
       const cacheKey = decoded.userId;
       const cached = bridgeCache.get(cacheKey);
@@ -185,7 +197,11 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       return noBridge;
     }
   } catch (e) {
-    console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
+    // A valid, already-verified token got this far — anything thrown past
+    // this point is a backend problem (DB, session lookup, ...), not the
+    // user needing to log back in.
+    console.warn('[QR Bridge Proxy] Failed to resolve user bridge (internal error, not an auth failure):', (e as Error).message);
+    return { ok: false, reason: 'internal_error' };
   }
   return { ok: false, reason: 'unauthorized' };
 }
@@ -765,6 +781,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { error: 'No WhatsApp bridge configured. Please set up your bridge URL in Settings tab.', noBridge: true },
           { status: 422 }
+        );
+      }
+      if (resolution.reason === 'internal_error') {
+        // Token was valid — this is a transient backend hiccup (DB, session
+        // lookup, ...), not the user needing to log back in. 503 so the
+        // frontend can retry instead of prompting a re-login.
+        return NextResponse.json(
+          { error: 'Temporary error loading your WhatsApp session — please try again in a moment.', transient: true },
+          { status: 503 }
         );
       }
       return NextResponse.json(
@@ -1473,6 +1498,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(
           { error: 'No WhatsApp bridge configured. Please set up your bridge URL in Settings tab.', noBridge: true },
           { status: 422 }
+        );
+      }
+      if (resolution.reason === 'internal_error') {
+        return NextResponse.json(
+          { error: 'Temporary error loading your WhatsApp session — please try again in a moment.', transient: true },
+          { status: 503 }
         );
       }
       return NextResponse.json(
