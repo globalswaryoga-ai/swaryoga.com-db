@@ -3731,6 +3731,11 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // QR WhatsApp access control — only super admin can enable this for each user
     // When false/unset, non-super-admin users cannot access the shared bridge (privacy compartment)
     qrWhatsappEnabled: { type: Boolean, default: false },
+    // Browser extension (CRM sidebar on the user's own WhatsApp Web) access control —
+    // same super-admin-approval gate as qrWhatsappEnabled, but independent: a user can
+    // have one, both, or neither, since the extension runs on their own personal
+    // WhatsApp Web login rather than the shared QR bridge session.
+    extensionEnabled: { type: Boolean, default: false },
     // Currently connected WhatsApp phone number (e.g. '919876543210')
     // Saved automatically when QR scan connects. Used for session isolation:
     // if bridge returns chats from a different phone, old chats are NOT shown.

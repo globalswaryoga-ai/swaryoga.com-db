@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
         qrWhatsappEnabled: 1,
         qrBridgeUrl: 1,
         qrBridgeSecret: 1,
+        extensionEnabled: 1,
         updatedAt: 1,
       }
     ).lean();
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
         hasOwnBridge: !!settings?.qrBridgeUrl,
         bridgeUrl: settings?.qrBridgeUrl || '',
         bridgeSecret: settings?.qrBridgeSecret || '',
+        extensionEnabled: settings?.extensionEnabled || false,
       };
     });
 
@@ -87,6 +89,7 @@ export async function GET(req: NextRequest) {
           hasOwnBridge: !!s.qrBridgeUrl,
           bridgeUrl: s.qrBridgeUrl || '',
           bridgeSecret: s.qrBridgeSecret || '',
+          extensionEnabled: s.extensionEnabled || false,
         });
       }
     }
@@ -100,10 +103,10 @@ export async function GET(req: NextRequest) {
 
 /**
  * PUT /api/admin/crm/whatsapp/qr-access
- * Super admin only: Enable/disable QR WhatsApp access for a specific user.
+ * Super admin only: Enable/disable QR WhatsApp and/or browser-extension access for a specific user.
  * Also allows setting a bridge URL for a user.
- * 
- * Body: { targetUserId: string, qrWhatsappEnabled?: boolean, qrBridgeUrl?: string, qrBridgeSecret?: string }
+ *
+ * Body: { targetUserId: string, qrWhatsappEnabled?: boolean, qrBridgeUrl?: string, qrBridgeSecret?: string, extensionEnabled?: boolean }
  */
 export async function PUT(req: NextRequest) {
   try {
@@ -116,7 +119,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { targetUserId, qrWhatsappEnabled, qrBridgeUrl, qrBridgeSecret } = body;
+    const { targetUserId, qrWhatsappEnabled, qrBridgeUrl, qrBridgeSecret, extensionEnabled } = body;
 
     if (!targetUserId) {
       return apiError('targetUserId is required', 400);
@@ -129,6 +132,7 @@ export async function PUT(req: NextRequest) {
     if (qrWhatsappEnabled !== undefined) update.qrWhatsappEnabled = !!qrWhatsappEnabled;
     if (qrBridgeUrl !== undefined) update.qrBridgeUrl = qrBridgeUrl;
     if (qrBridgeSecret !== undefined) update.qrBridgeSecret = qrBridgeSecret;
+    if (extensionEnabled !== undefined) update.extensionEnabled = !!extensionEnabled;
 
     if (Object.keys(update).length === 0) {
       return apiError('No fields to update', 400);
@@ -146,6 +150,7 @@ export async function PUT(req: NextRequest) {
       userId: targetUserId,
       qrWhatsappEnabled: result.qrWhatsappEnabled,
       qrBridgeUrl: result.qrBridgeUrl || '',
+      extensionEnabled: result.extensionEnabled || false,
     });
   } catch (err) {
     console.error('[qr-access PUT]', err);

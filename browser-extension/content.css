@@ -1,0 +1,181 @@
+#swaryoga-crm-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100vh;
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.08);
+  z-index: 99999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease;
+}
+
+#swaryoga-crm-sidebar.swaryoga-collapsed {
+  transform: translateX(292px);
+}
+
+#swaryoga-crm-toggle {
+  position: absolute;
+  left: -28px;
+  top: 16px;
+  width: 28px;
+  height: 40px;
+  background: #2d6a4f;
+  border-radius: 8px 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  font-size: 14px;
+  user-select: none;
+}
+
+#swaryoga-crm-sidebar .sy-header {
+  padding: 12px 14px;
+  background: #2d6a4f;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#swaryoga-crm-sidebar .sy-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+#swaryoga-crm-sidebar .sy-section {
+  margin-bottom: 16px;
+}
+
+#swaryoga-crm-sidebar .sy-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-lead-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  color: #111827;
+}
+
+#swaryoga-crm-sidebar .sy-lead-name {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+#swaryoga-crm-sidebar .sy-lead-meta {
+  color: #6b7280;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #166534;
+}
+
+#swaryoga-crm-sidebar input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+#swaryoga-crm-sidebar .sy-btn:hover {
+  background: #f3f4f6;
+}
+
+#swaryoga-crm-sidebar .sy-btn.sy-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-btn.sy-primary:hover {
+  background: #1b4332;
+}
+
+#swaryoga-crm-sidebar .sy-btn-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply {
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 11px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  background: #fff;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply:hover {
+  background: #f0fdf4;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply-title {
+  font-weight: 700;
+  color: #111827;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply-text {
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#swaryoga-crm-sidebar .sy-empty {
+  color: #9ca3af;
+  font-size: 11px;
+  font-style: italic;
+}
+
+#swaryoga-crm-sidebar .sy-locked {
+  padding: 16px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 12px;
+}

@@ -27,13 +27,21 @@ const path = require('path');
 // CONFIGURATION
 // ============════════════════════════════════════════════════════════════════
 
+// No hardcoded fallback credentials — this script gets downloaded and run
+// on individual machines, so a hardcoded default here would mean shipping a
+// real production secret to whoever downloads it. Fail fast instead.
+if (!process.env.WHATSAPP_BRIDGE_SECRET || !process.env.MONGODB_URI_MAIN) {
+  console.error('Missing required environment variables. Create a .env.local next to this script with WHATSAPP_BRIDGE_SECRET and MONGODB_URI_MAIN set.');
+  process.exit(1);
+}
+
 const CONFIG = {
   // WhatsApp Bridge
   BRIDGE_URL: process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333',
-  BRIDGE_SECRET: process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024',
+  BRIDGE_SECRET: process.env.WHATSAPP_BRIDGE_SECRET,
 
   // MongoDB
-  MONGODB_URI: process.env.MONGODB_URI_MAIN || 'mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB',
+  MONGODB_URI: process.env.MONGODB_URI_MAIN,
   MONGODB_CRM_DB: process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm',
 
   // Batch Settings

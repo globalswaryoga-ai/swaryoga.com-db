@@ -2498,29 +2498,20 @@ export default function QRWhatsAppPage() {
   const handleDownloadInstaller = useCallback(async () => {
     setDownloadingExtension(true);
     try {
-      // First download the installer script
-      const response = await fetch('/api/admin/crm/whatsapp/download-installer');
-      if (!response.ok) throw new Error('Failed to download installer');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.download = 'install.sh';
+      link.href = '/downloads/swar-yoga-whatsapp-extension.zip';
+      link.download = 'swar-yoga-whatsapp-extension.zip';
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-      
+      setTimeout(() => document.body.removeChild(link), 100);
+
       // Show install guide after download
       setTimeout(() => {
         setShowInstallGuide(true);
       }, 500);
     } catch (err: any) {
-      setError(err.message || 'Failed to download installer');
+      setError(err.message || 'Failed to download extension');
     } finally {
       setDownloadingExtension(false);
     }
