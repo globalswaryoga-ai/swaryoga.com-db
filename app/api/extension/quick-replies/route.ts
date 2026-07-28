@@ -35,3 +35,35 @@ export async function GET(req: NextRequest) {
     return extensionJson({ success: false, error: 'Internal error' }, 500);
   }
 }
+
+/**
+ * POST /api/extension/quick-replies
+ * Body: { title: string, content: string }
+ * Lets the sidebar's "+" button add a new quick reply without leaving WhatsApp Web.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const decoded = await requireExtensionAccess(req);
+    if (!decoded) {
+      return extensionJson({ success: false, error: 'Extension access not approved for this user' }, 403);
+    }
+
+    const { title, content } = await req.json();
+    if (!title?.trim() || !content?.trim()) {
+      return extensionJson({ success: false, error: 'title and content are required' }, 400);
+    }
+
+    await connectDB();
+    const reply = await QuickReply.create({
+      title: title.trim(),
+      content: content.trim(),
+      createdByUserId: String(decoded.userId),
+      enabled: true,
+    });
+
+    return extensionJson({ success: true, reply: { title: reply.title, content: reply.content } });
+  } catch (err) {
+    console.error('[extension/quick-replies POST]', err);
+    return extensionJson({ success: false, error: 'Internal error' }, 500);
+  }
+}

@@ -29,14 +29,25 @@ type TemplateRow = {
   templateName?: string;
   templateContent?: string;
   headerContent?: string;
+  headerFormat?: string;
   footerText?: string;
   language?: string;
   category?: string;
 };
 
-/** Flatten a stored template into the plain text we drop into the composer. */
+/**
+ * Flatten a stored template into the plain text we drop into the composer.
+ * headerContent is only real header TEXT when headerFormat is 'TEXT' — for
+ * IMAGE/VIDEO/DOCUMENT headers it instead holds the raw media URL, and
+ * including it unconditionally was dumping that URL straight into the
+ * message body with no separator from whatever followed it.
+ */
 function renderTemplateText(t: TemplateRow): string {
-  return [t.headerContent, t.templateContent, t.footerText]
+  const headerFormat = String(t.headerFormat || '').toUpperCase();
+  const headerText = headerFormat === 'TEXT' && t.headerContent && !t.headerContent.startsWith('http')
+    ? t.headerContent
+    : '';
+  return [headerText, t.templateContent, t.footerText]
     .map((part) => String(part || '').trim())
     .filter(Boolean)
     .join('\n\n');

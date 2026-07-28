@@ -9,9 +9,21 @@ export async function OPTIONS() {
   return extensionOptions();
 }
 
-/** Flatten a stored template into the plain text dropped into the compose box — same shape as SocialComposer.tsx's renderTemplateText. */
+/**
+ * Flatten a stored template into the plain text dropped into the compose
+ * box. headerContent is only real header TEXT when headerFormat is 'TEXT' —
+ * for IMAGE/VIDEO/DOCUMENT headers (especially legacy QR templates), it
+ * instead holds the raw media URL, and including it here was dumping that
+ * URL straight into the message body, jammed against whatever followed it
+ * with no separator. Same "doesn't start with http" guard already used for
+ * this exact ambiguity in app/admin/crm/qr/templates/page.tsx.
+ */
 function renderTemplateText(t: any): string {
-  return [t.headerContent, t.templateContent, t.footerText]
+  const headerFormat = String(t.headerFormat || '').toUpperCase();
+  const headerText = headerFormat === 'TEXT' && t.headerContent && !String(t.headerContent).startsWith('http')
+    ? t.headerContent
+    : '';
+  return [headerText, t.templateContent, t.footerText]
     .map((part: any) => String(part || '').trim())
     .filter(Boolean)
     .join('\n\n');

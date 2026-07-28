@@ -21,11 +21,55 @@
 
   let state = { loggedIn: false, allowed: false, currentPhone: '', currentGroupName: '', quickReplies: [], templates: [], lead: null };
 
+  // Collapsed by default — keeps the sidebar short until the user wants to browse.
+  let sectionOpen = { quickReplies: false, templates: false, dashboards: false };
+
   function el(tag, cls, html) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
     if (html !== undefined) e.innerHTML = html;
     return e;
+  }
+
+  /** Renders WhatsApp's own markdown (*bold*, _italic_, ~strike~) plus real
+   *  line breaks as HTML, for previews only — click-to-insert always uses
+   *  the raw markdown text via setComposeText, never this HTML. */
+  function formatWA(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/~(.+?)~/g, '<del>$1</del>')
+      .replace(/\n/g, '<br>');
+  }
+
+  /** A collapsible section with a title, optional "+" add button, and a
+   *  chevron that toggles sectionOpen[key] (persisted across re-renders). */
+  function makeCollapsibleSection(key, title, opts = {}) {
+    const section = el('div', 'sy-section');
+    const header = el('div', 'sy-section-header');
+    header.appendChild(el('span', 'sy-section-title', title));
+
+    const controls = el('div', 'sy-section-controls');
+    if (opts.onAdd) {
+      const addBtn = el('span', 'sy-add-btn', '+');
+      addBtn.title = opts.addTitle || 'Add new';
+      addBtn.addEventListener('click', (e) => { e.stopPropagation(); opts.onAdd(); });
+      controls.appendChild(addBtn);
+    }
+    controls.appendChild(el('span', 'sy-chevron', sectionOpen[key] ? '▾' : '▸'));
+    header.appendChild(controls);
+
+    const body = el('div');
+    body.style.display = sectionOpen[key] ? 'block' : 'none';
+    header.addEventListener('click', () => {
+      sectionOpen[key] = !sectionOpen[key];
+      render();
+    });
+
+    section.appendChild(header);
+    section.appendChild(body);
+    return { section, body };
   }
 
   // ── Find WhatsApp's own message compose box ──────────────────────────────
@@ -479,6 +523,223 @@
       return;
     }
 
+    // ── Tools (compact icon strip, kept up top) ──
+    const toolsSection = el('div', 'sy-section');
+    const statusBox = el('div', 'sy-empty');
+    statusBox.style.display = 'none';
+    const setToolStatus = (msg, isError) => {
+      if (!msg) { statusBox.style.display = 'none'; return; }
+      statusBox.style.display = 'block';
+      statusBox.style.fontStyle = 'normal';
+      statusBox.style.color = isError ? '#b91c1c' : '#374151';
+      statusBox.textContent = msg;
+    };
+
+    // Applies to New Group / Add Members / Remove Member — these drive a
+    // regular WhatsApp Group's UI and are not built for WhatsApp Communities
+    // (announcement group + linked sub-groups, up to 5000 members) — those
+    // have a different structure entirely, and grow via invite link, not
+    // admin-add.
+    const MAX_ADD_MEMBERS = 30;
+
+    const iconRow = el('div', 'sy-icon-row');
+
+    function addIconTool(icon, title, onClick) {
+      const btn = el('button', 'sy-icon-btn', icon);
+      btn.title = title;
+      btn.addEventListener('click', onClick);
+      iconRow.appendChild(btn);
+      return btn;
+    }
+
+    addIconTool('💬', 'New Chat', () => {
+      const phone = prompt('Phone number to start a chat with:');
+      if (phone && phone.trim()) startNewChat(phone.trim());
+    });
+
+    const newGroupBtn = addIconTool('👥', 'New Group — regular WhatsApp Group only, not a Community', async () => {
+      const name = prompt('Group name:');
+      if (!name || !name.trim()) return;
+      const raw = prompt(`Participant phone numbers — comma separated (max ${MAX_ADD_MEMBERS}):`);
+      if (!raw || !raw.trim()) return;
+      const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      if (phones.length > MAX_ADD_MEMBERS) {
+        setToolStatus(`❌ ${phones.length} numbers is too many (max ${MAX_ADD_MEMBERS}) — create the group with a few people, then use Add Members to grow it gradually.`, true);
+        return;
+      }
+      newGroupBtn.disabled = true;
+      const result = await createNewGroup(name.trim(), phones, (msg) => setToolStatus(msg));
+      newGroupBtn.disabled = false;
+      setToolStatus(
+        result.ok
+          ? `✅ Group created. Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
+          : `❌ ${result.error}`,
+        !result.ok
+      );
+    });
+
+    const mergeBtn = addIconTool('➕', 'Add Members — to the currently open GROUP (not a Community), paced 3-7 min apart', async () => {
+      const raw = prompt(
+        `Add to the CURRENTLY OPEN group — phone numbers, comma separated (max ${MAX_ADD_MEMBERS} at a time):\n\n` +
+        'This is for a regular WhatsApp Group, NOT a Community (Communities/5000-member entities have a different structure this doesn\'t support — use the invite link to grow those instead).\n\n' +
+        'Paced 3-7 min apart to protect this WhatsApp number — a large list will take a while. You can close this tab; it will just stop where it is.'
+      );
+      if (!raw || !raw.trim()) return;
+      const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      if (phones.length > MAX_ADD_MEMBERS) {
+        setToolStatus(`❌ ${phones.length} numbers is too many for this tool (max ${MAX_ADD_MEMBERS}) — this isn't meant for large-scale growth (that's what invite links are for).`, true);
+        return;
+      }
+      mergeBtn.disabled = true;
+      const result = await addParticipantsToOpenGroup(phones, (msg) => setToolStatus(msg));
+      mergeBtn.disabled = false;
+      setToolStatus(
+        result.ok
+          ? `✅ Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
+          : `❌ ${result.error}`,
+        !result.ok
+      );
+    });
+
+    const removeMemberBtn = addIconTool('➖', 'Remove Member — from the currently open group, paced 3-7 min apart', async () => {
+      const raw = prompt(`Remove from the CURRENTLY OPEN group — phone numbers or names, comma separated (max ${MAX_ADD_MEMBERS}):`);
+      if (!raw || !raw.trim()) return;
+      const queries = raw.split(',').map((p) => p.trim()).filter(Boolean);
+      if (queries.length > MAX_ADD_MEMBERS) {
+        setToolStatus(`❌ ${queries.length} is too many for this tool (max ${MAX_ADD_MEMBERS}).`, true);
+        return;
+      }
+      removeMemberBtn.disabled = true;
+      const result = await removeParticipantsFromOpenGroup(queries, (msg) => setToolStatus(msg));
+      removeMemberBtn.disabled = false;
+      setToolStatus(
+        result.ok
+          ? `✅ Removed ${result.removed?.length || 0}/${queries.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
+          : `❌ ${result.error}`,
+        !result.ok
+      );
+    });
+
+    const deleteGroupBtn = addIconTool('🗑️', 'Leave/Delete Group — regular WhatsApp Group only, not a Community', async () => {
+      if (!confirm('Leave the currently open group? This removes you from it (deletes it if you were the last member).')) return;
+      deleteGroupBtn.disabled = true;
+      const result = await leaveAndDeleteOpenGroup((msg) => setToolStatus(msg));
+      deleteGroupBtn.disabled = false;
+      setToolStatus(result.ok ? '✅ Left the group.' : `❌ ${result.error}`, !result.ok);
+    });
+
+    const statusBtn = addIconTool('📸', 'Post Status', async () => {
+      const text = prompt('Status text:');
+      if (!text || !text.trim()) return;
+      statusBtn.disabled = true;
+      const result = await postTextStatus(text.trim(), (msg) => setToolStatus(msg));
+      statusBtn.disabled = false;
+      setToolStatus(result.ok ? '✅ Status posted.' : `❌ ${result.error}`, !result.ok);
+    });
+
+    const scheduleBtn = el('button', 'sy-icon-btn sy-primary', '📅');
+    scheduleBtn.title = 'Schedule Message — sends the current compose box text later, to the open chat/group or a list of recipients; only fires if this Chrome window is still open at that time';
+    scheduleBtn.addEventListener('click', async () => {
+      const text = getComposeText();
+      if (!text.trim()) { setToolStatus('❌ Type the message in WhatsApp\'s compose box first, then click Schedule.', true); return; }
+
+      const primaryTarget = state.currentPhone
+        ? { type: 'phone', value: state.currentPhone }
+        : state.currentGroupName
+          ? { type: 'group', value: state.currentGroupName }
+          : null;
+
+      const when = prompt('Send at? (e.g. "2026-08-04 09:00", 24h local time)');
+      if (!when) return;
+      const baseSendAt = new Date(when.replace(' ', 'T'));
+      if (isNaN(baseSendAt.getTime()) || baseSendAt.getTime() <= Date.now()) {
+        setToolStatus('❌ Couldn\'t understand that date/time, or it\'s in the past.', true);
+        return;
+      }
+
+      const rawList = prompt(
+        'Also send to (optional) — phone numbers and/or group names, comma separated.\n\n' +
+        'Each one is paced 3-7 min apart starting at the time above — this is real bulk sending on your personal WhatsApp, so a long list means real time and real risk.'
+      );
+      const listTargets = (rawList || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => ({ type: looksLikePhone(s) ? 'phone' : 'group', value: s }));
+
+      const targets = [primaryTarget, ...listTargets].filter(Boolean);
+      if (targets.length === 0) { setToolStatus('❌ Open a chat/group, or enter at least one recipient, first.', true); return; }
+
+      // Group-targeted scheduled sends count against the same group-op cap
+      // as Add Members/New Group/Remove Member — reserved at schedule time,
+      // not send time, so nobody can schedule past the daily/hourly budget.
+      // 1:1 (phone) targets are exempt — no gate call for those at all.
+      let cumulativeMs = 0;
+      let scheduled = 0;
+      let failed = [];
+      for (let i = 0; i < targets.length; i++) {
+        if (i > 0) cumulativeMs += humanGapMs();
+        const t = targets[i];
+        if (t.type === 'group') {
+          const gate = await reserveGroupOp();
+          if (!gate.allowed) { failed.push(`${t.value} (${gate.error})`); continue; }
+        }
+        const res = await sendMessage({
+          type: 'SCHEDULE_MESSAGE',
+          targetType: t.type,
+          phone: t.type === 'phone' ? t.value : undefined,
+          groupName: t.type === 'group' ? t.value : undefined,
+          text,
+          sendAt: baseSendAt.getTime() + cumulativeMs,
+        });
+        if (res.ok) scheduled++; else failed.push(t.value);
+      }
+
+      const lastAt = new Date(baseSendAt.getTime() + cumulativeMs);
+      setToolStatus(
+        `✅ Scheduled ${scheduled}/${targets.length} (spread from ${baseSendAt.toLocaleString()} to ${lastAt.toLocaleString()})${failed.length ? `, failed to schedule: ${failed.join(', ')}` : ''}. Keep this Chrome window open the whole time so they actually fire.`,
+        failed.length > 0
+      );
+    });
+    iconRow.appendChild(scheduleBtn);
+
+    // Dashboards — one icon, dropdown menu (full table/kanban/chart pages don't fit a 300px sidebar).
+    const dashWrap = el('div', 'sy-dropdown-wrap');
+    const dashBtn = el('button', 'sy-icon-btn', '📊');
+    dashBtn.title = 'CRM Dashboards';
+    const dashMenu = el('div', 'sy-dropdown-menu');
+    dashMenu.style.display = 'none';
+    const dashLinks = [
+      ['📋 QR Leads', '/admin/crm/qr/leads'],
+      ['🔻 QR Funnel', '/admin/crm/qr/funnel'],
+      ['⚙️ QR Manage', '/admin/crm/qr/manage'],
+      ['📊 QR Reports', '/admin/crm/qr/agent-report'],
+    ];
+    for (const [label, path] of dashLinks) {
+      const a = document.createElement('a');
+      a.href = `https://swaryoga.com${path}`;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = label;
+      dashMenu.appendChild(a);
+    }
+    dashBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dashMenu.style.display = dashMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', () => { dashMenu.style.display = 'none'; });
+    dashWrap.appendChild(dashBtn);
+    dashWrap.appendChild(dashMenu);
+    iconRow.appendChild(dashWrap);
+
+    toolsSection.appendChild(iconRow);
+
+    const limitsNote = el('div', 'sy-empty', 'Group actions: max 150/day, 15/hour, 5:00 AM-10:30 PM IST. 1:1 messages unlimited, any time. Need more? Use Meta WhatsApp Business API.');
+    limitsNote.style.marginTop = '6px';
+    toolsSection.appendChild(limitsNote);
+    toolsSection.appendChild(statusBox);
+    body.appendChild(toolsSection);
+
     // ── Lead card ──
     const leadSection = el('div', 'sy-section');
     leadSection.appendChild(el('div', 'sy-section-title', 'Contact'));
@@ -576,27 +837,40 @@
     aiSection.appendChild(aiRow);
     body.appendChild(aiSection);
 
-    // ── Quick replies ──
-    const qrSection = el('div', 'sy-section');
-    qrSection.appendChild(el('div', 'sy-section-title', 'Quick Replies'));
+    // ── Quick Replies (collapsible, "+" to add) ──
+    const { section: qrSection, body: qrBody } = makeCollapsibleSection('quickReplies', `Quick Replies (${state.quickReplies.length})`, {
+      addTitle: 'Add a new quick reply',
+      onAdd: async () => {
+        const title = prompt('Quick reply title:');
+        if (!title || !title.trim()) return;
+        const content = prompt('Message text (WhatsApp formatting: *bold*, _italic_, ~strike~):');
+        if (!content || !content.trim()) return;
+        const res = await sendMessage({ type: 'CREATE_QUICK_REPLY', title: title.trim(), content: content.trim() });
+        if (res.ok && res.data?.success) {
+          sectionOpen.quickReplies = true;
+          loadQuickReplies();
+        } else {
+          alert(`Couldn't save: ${res.data?.error || 'unknown error'}`);
+        }
+      },
+    });
     if (!state.quickReplies.length) {
-      qrSection.appendChild(el('div', 'sy-empty', 'No quick replies saved yet — add some in the CRM.'));
+      qrBody.appendChild(el('div', 'sy-empty', 'No quick replies saved yet — click + to add one.'));
     } else {
       for (const qr of state.quickReplies) {
         const item = el('div', 'sy-quick-reply');
         item.appendChild(el('div', 'sy-quick-reply-title', qr.title));
-        item.appendChild(el('div', 'sy-quick-reply-text', qr.content));
+        item.appendChild(el('div', 'sy-quick-reply-text', formatWA(qr.content)));
         item.addEventListener('click', () => setComposeText(qr.content));
-        qrSection.appendChild(item);
+        qrBody.appendChild(item);
       }
     }
     body.appendChild(qrSection);
 
-    // ── Templates ── (fuller library: headers/images/buttons, from QR + Meta templates)
-    const tplSection = el('div', 'sy-section');
-    tplSection.appendChild(el('div', 'sy-section-title', 'Templates'));
+    // ── Templates (collapsible) ── fuller library: headers/images/buttons, from QR + Meta templates
+    const { section: tplSection, body: tplBody } = makeCollapsibleSection('templates', `Templates (${state.templates.length})`);
     if (!state.templates.length) {
-      tplSection.appendChild(el('div', 'sy-empty', 'No templates saved yet — create some in the CRM.'));
+      tplBody.appendChild(el('div', 'sy-empty', 'No templates saved yet — create some in the CRM.'));
     } else {
       for (const tpl of state.templates) {
         const item = el('div', 'sy-quick-reply');
@@ -606,233 +880,17 @@
         badge.style.fontSize = '9px';
         titleRow.appendChild(badge);
         item.appendChild(titleRow);
-        item.appendChild(el('div', 'sy-quick-reply-text', tpl.text));
+        item.appendChild(el('div', 'sy-quick-reply-text', formatWA(tpl.text)));
         if (tpl.imageUrl) {
           const imgNote = el('div', 'sy-empty', '🖼️ Has an image header — inserts text only; attach the image manually in WhatsApp.');
           imgNote.style.marginTop = '3px';
           item.appendChild(imgNote);
         }
         item.addEventListener('click', () => setComposeText(tpl.text));
-        tplSection.appendChild(item);
+        tplBody.appendChild(item);
       }
     }
     body.appendChild(tplSection);
-
-    // ── Tools ──
-    const toolsSection = el('div', 'sy-section');
-    toolsSection.appendChild(el('div', 'sy-section-title', 'Tools'));
-    const limitsNote = el('div', 'sy-empty', 'Group actions (Add/Remove Member, New Group, Group Schedule): max 150/day, 15/hour, 5:00 AM-10:30 PM IST only. 1:1 messages are unlimited, any time. Need more group volume? Use Meta WhatsApp Business API.');
-    limitsNote.style.marginBottom = '6px';
-    toolsSection.appendChild(limitsNote);
-
-    const statusBox = el('div', 'sy-empty');
-    statusBox.style.display = 'none';
-    const setToolStatus = (msg, isError) => {
-      if (!msg) { statusBox.style.display = 'none'; return; }
-      statusBox.style.display = 'block';
-      statusBox.style.fontStyle = 'normal';
-      statusBox.style.color = isError ? '#b91c1c' : '#374151';
-      statusBox.textContent = msg;
-    };
-
-    const toolsRow = el('div', 'sy-btn-row');
-
-    // Applies to New Group / Add Members — these drive a regular WhatsApp
-    // Group's UI and are not built for WhatsApp Communities (announcement
-    // group + linked sub-groups, up to 5000 members) — those have a
-    // different structure entirely, and grow via invite link, not admin-add.
-    const MAX_ADD_MEMBERS = 30;
-
-    const newChatBtn = el('button', 'sy-btn', '💬 New Chat');
-    newChatBtn.addEventListener('click', () => {
-      const phone = prompt('Phone number to start a chat with:');
-      if (phone && phone.trim()) startNewChat(phone.trim());
-    });
-    toolsRow.appendChild(newChatBtn);
-
-    const newGroupBtn = el('button', 'sy-btn', '👥 New Group');
-    newGroupBtn.title = 'Creates a regular WhatsApp Group (not a Community) — communities have a different structure this doesn\'t support';
-    newGroupBtn.addEventListener('click', async () => {
-      const name = prompt('Group name:');
-      if (!name || !name.trim()) return;
-      const raw = prompt(`Participant phone numbers — comma separated (max ${MAX_ADD_MEMBERS}):`);
-      if (!raw || !raw.trim()) return;
-      const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
-      if (phones.length > MAX_ADD_MEMBERS) {
-        setToolStatus(`❌ ${phones.length} numbers is too many (max ${MAX_ADD_MEMBERS}) — create the group with a few people, then use Add Members to grow it gradually.`, true);
-        return;
-      }
-      newGroupBtn.disabled = true;
-      const result = await createNewGroup(name.trim(), phones, (msg) => setToolStatus(msg));
-      newGroupBtn.disabled = false;
-      setToolStatus(
-        result.ok
-          ? `✅ Group created. Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
-          : `❌ ${result.error}`,
-        !result.ok
-      );
-    });
-    toolsRow.appendChild(newGroupBtn);
-
-    const mergeBtn = el('button', 'sy-btn', '➕ Add Members');
-    mergeBtn.title = 'Adds phone numbers to the currently open GROUP (not a Community) — 3-7 min gap between each, same safety pacing as the QR bridge. Not built for WhatsApp Communities — use the invite link to grow those.';
-    mergeBtn.addEventListener('click', async () => {
-      const raw = prompt(
-        `Add to the CURRENTLY OPEN group — phone numbers, comma separated (max ${MAX_ADD_MEMBERS} at a time):\n\n` +
-        'This is for a regular WhatsApp Group, NOT a Community (Communities/5000-member entities have a different structure this doesn\'t support — use the invite link to grow those instead).\n\n' +
-        'Paced 3-7 min apart to protect this WhatsApp number — a large list will take a while. You can close this tab; it will just stop where it is.'
-      );
-      if (!raw || !raw.trim()) return;
-      const phones = raw.split(',').map((p) => p.trim()).filter(Boolean);
-      if (phones.length > MAX_ADD_MEMBERS) {
-        setToolStatus(`❌ ${phones.length} numbers is too many for this tool (max ${MAX_ADD_MEMBERS}) — this isn't meant for large-scale growth (that's what invite links are for). Split into smaller batches if this is genuinely a small group.`, true);
-        return;
-      }
-      mergeBtn.disabled = true;
-      const result = await addParticipantsToOpenGroup(phones, (msg) => setToolStatus(msg));
-      mergeBtn.disabled = false;
-      setToolStatus(
-        result.ok
-          ? `✅ Added ${result.added?.length || 0}/${phones.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
-          : `❌ ${result.error}`,
-        !result.ok
-      );
-    });
-    toolsRow.appendChild(mergeBtn);
-
-    const deleteGroupBtn = el('button', 'sy-btn', '🗑️ Leave/Delete Group');
-    deleteGroupBtn.title = 'For a regular WhatsApp Group, not a Community';
-    deleteGroupBtn.addEventListener('click', async () => {
-      if (!confirm('Leave the currently open group? This removes you from it (deletes it if you were the last member).')) return;
-      deleteGroupBtn.disabled = true;
-      const result = await leaveAndDeleteOpenGroup((msg) => setToolStatus(msg));
-      deleteGroupBtn.disabled = false;
-      setToolStatus(result.ok ? '✅ Left the group.' : `❌ ${result.error}`, !result.ok);
-    });
-    toolsRow.appendChild(deleteGroupBtn);
-
-    const removeMemberBtn = el('button', 'sy-btn', '➖ Remove Member');
-    removeMemberBtn.title = 'Removes specific people from the currently open group (paced, rate-limited) — for a regular Group, not a Community';
-    removeMemberBtn.addEventListener('click', async () => {
-      const raw = prompt(`Remove from the CURRENTLY OPEN group — phone numbers or names, comma separated (max ${MAX_ADD_MEMBERS}):`);
-      if (!raw || !raw.trim()) return;
-      const queries = raw.split(',').map((p) => p.trim()).filter(Boolean);
-      if (queries.length > MAX_ADD_MEMBERS) {
-        setToolStatus(`❌ ${queries.length} is too many for this tool (max ${MAX_ADD_MEMBERS}).`, true);
-        return;
-      }
-      removeMemberBtn.disabled = true;
-      const result = await removeParticipantsFromOpenGroup(queries, (msg) => setToolStatus(msg));
-      removeMemberBtn.disabled = false;
-      setToolStatus(
-        result.ok
-          ? `✅ Removed ${result.removed?.length || 0}/${queries.length}${result.failed?.length ? `, failed: ${result.failed.join(', ')}` : ''}.`
-          : `❌ ${result.error}`,
-        !result.ok
-      );
-    });
-    toolsRow.appendChild(removeMemberBtn);
-
-    const statusBtn = el('button', 'sy-btn', '📸 Post Status');
-    statusBtn.addEventListener('click', async () => {
-      const text = prompt('Status text:');
-      if (!text || !text.trim()) return;
-      statusBtn.disabled = true;
-      const result = await postTextStatus(text.trim(), (msg) => setToolStatus(msg));
-      statusBtn.disabled = false;
-      setToolStatus(result.ok ? '✅ Status posted.' : `❌ ${result.error}`, !result.ok);
-    });
-    toolsRow.appendChild(statusBtn);
-
-    const scheduleBtn = el('button', 'sy-btn sy-primary', '📅 Schedule Message');
-    scheduleBtn.title = 'Schedules the current compose box text to send later, to whichever chat (person or group) is currently open — only fires if this Chrome window is still open at that time';
-    scheduleBtn.addEventListener('click', async () => {
-      const text = getComposeText();
-      if (!text.trim()) { setToolStatus('❌ Type the message in WhatsApp\'s compose box first, then click Schedule.', true); return; }
-
-      // Primary target = whichever chat is currently open (optional — the
-      // list below can be used on its own too).
-      const primaryTarget = state.currentPhone
-        ? { type: 'phone', value: state.currentPhone }
-        : state.currentGroupName
-          ? { type: 'group', value: state.currentGroupName }
-          : null;
-
-      const when = prompt('Send at? (e.g. "2026-08-04 09:00", 24h local time)');
-      if (!when) return;
-      const baseSendAt = new Date(when.replace(' ', 'T'));
-      if (isNaN(baseSendAt.getTime()) || baseSendAt.getTime() <= Date.now()) {
-        setToolStatus('❌ Couldn\'t understand that date/time, or it\'s in the past.', true);
-        return;
-      }
-
-      const rawList = prompt(
-        'Also send to (optional) — phone numbers and/or group names, comma separated.\n\n' +
-        'Each one is paced 3-7 min apart starting at the time above, same safety window as Add Members — this is real bulk sending on your personal WhatsApp, so a long list means real time and real risk.'
-      );
-      const listTargets = (rawList || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((s) => ({ type: looksLikePhone(s) ? 'phone' : 'group', value: s }));
-
-      const targets = [primaryTarget, ...listTargets].filter(Boolean);
-      if (targets.length === 0) { setToolStatus('❌ Open a chat/group, or enter at least one recipient, first.', true); return; }
-
-      // Group-targeted scheduled sends count against the same group-op cap
-      // as Add Members/New Group/Remove Member — reserved at schedule time,
-      // not send time, so nobody can schedule past the daily/hourly budget.
-      // 1:1 (phone) targets are exempt — no gate call for those at all.
-      let cumulativeMs = 0;
-      let scheduled = 0;
-      let failed = [];
-      for (let i = 0; i < targets.length; i++) {
-        if (i > 0) cumulativeMs += humanGapMs();
-        const t = targets[i];
-        if (t.type === 'group') {
-          const gate = await reserveGroupOp();
-          if (!gate.allowed) { failed.push(`${t.value} (${gate.error})`); continue; }
-        }
-        const res = await sendMessage({
-          type: 'SCHEDULE_MESSAGE',
-          targetType: t.type,
-          phone: t.type === 'phone' ? t.value : undefined,
-          groupName: t.type === 'group' ? t.value : undefined,
-          text,
-          sendAt: baseSendAt.getTime() + cumulativeMs,
-        });
-        if (res.ok) scheduled++; else failed.push(t.value);
-      }
-
-      const lastAt = new Date(baseSendAt.getTime() + cumulativeMs);
-      setToolStatus(
-        `✅ Scheduled ${scheduled}/${targets.length} (spread from ${baseSendAt.toLocaleString()} to ${lastAt.toLocaleString()})${failed.length ? `, failed to schedule: ${failed.join(', ')}` : ''}. Keep this Chrome window open the whole time so they actually fire.`,
-        failed.length > 0
-      );
-    });
-    toolsRow.appendChild(scheduleBtn);
-
-    toolsSection.appendChild(toolsRow);
-    toolsSection.appendChild(statusBox);
-    body.appendChild(toolsSection);
-
-    // ── CRM Dashboards ── (full pages — tables/kanban/charts don't fit a 300px sidebar)
-    const dashSection = el('div', 'sy-section');
-    dashSection.appendChild(el('div', 'sy-section-title', 'CRM Dashboards'));
-    const dashRow = el('div', 'sy-btn-row');
-    const dashLinks = [
-      ['📋 QR Leads', '/admin/crm/qr/leads'],
-      ['🔻 QR Funnel', '/admin/crm/qr/funnel'],
-      ['⚙️ QR Manage', '/admin/crm/qr/manage'],
-      ['📊 QR Reports', '/admin/crm/qr/agent-report'],
-    ];
-    for (const [label, path] of dashLinks) {
-      const btn = el('button', 'sy-btn', label);
-      btn.addEventListener('click', () => window.open(`https://swaryoga.com${path}`, '_blank'));
-      dashRow.appendChild(btn);
-    }
-    dashSection.appendChild(dashRow);
-    body.appendChild(dashSection);
   }
 
   function buildSidebar() {

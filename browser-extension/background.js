@@ -76,6 +76,14 @@ async function handleMessage(msg) {
       return { ok: res.ok, data: res.data };
     }
 
+    case 'CREATE_QUICK_REPLY': {
+      const res = await apiFetch('/api/extension/quick-replies', {
+        method: 'POST',
+        body: JSON.stringify({ title: msg.title, content: msg.content }),
+      });
+      return { ok: res.ok, data: res.data };
+    }
+
     // Call once immediately BEFORE each group mutation (one member
     // add/remove, one group creation, one group-targeted scheduled send).
     // 150/day, 15/hour, 5:00 AM-10:30 PM IST — server-enforced (not just in

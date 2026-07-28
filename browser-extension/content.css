@@ -162,10 +162,18 @@
 
 #swaryoga-crm-sidebar .sy-quick-reply-text {
   color: #6b7280;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+  margin-top: 2px;
 }
+
+#swaryoga-crm-sidebar .sy-quick-reply-text strong { color: #111827; }
+#swaryoga-crm-sidebar .sy-quick-reply-text em { font-style: italic; }
+#swaryoga-crm-sidebar .sy-quick-reply-text del { text-decoration: line-through; }
 
 #swaryoga-crm-sidebar .sy-empty {
   color: #9ca3af;
@@ -178,4 +186,122 @@
   text-align: center;
   color: #6b7280;
   font-size: 12px;
+}
+
+/* ── Compact icon-only tool strip ── */
+#swaryoga-crm-sidebar .sy-icon-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn:hover {
+  background: #f3f4f6;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn.sy-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn.sy-primary:hover {
+  background: #1b4332;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── Collapsible section header ── */
+#swaryoga-crm-sidebar .sy-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-section-header .sy-section-title {
+  margin-bottom: 0;
+}
+
+#swaryoga-crm-sidebar .sy-section-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-add-btn {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #2d6a4f;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#swaryoga-crm-sidebar .sy-add-btn:hover {
+  background: #f0fdf4;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-chevron {
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+/* ── Dashboards dropdown ── */
+#swaryoga-crm-sidebar .sy-dropdown-wrap {
+  position: relative;
+}
+
+#swaryoga-crm-sidebar .sy-dropdown-menu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  z-index: 10;
+  min-width: 140px;
+}
+
+#swaryoga-crm-sidebar .sy-dropdown-menu a {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#swaryoga-crm-sidebar .sy-dropdown-menu a:hover {
+  background: #f0fdf4;
+  color: #2d6a4f;
 }
