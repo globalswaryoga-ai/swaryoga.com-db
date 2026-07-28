@@ -131,6 +131,29 @@ async function handleMessage(msg) {
       }
     }
 
+    // Uploads a locally-picked file (image/video/document, sent as a File
+    // through chrome.runtime.sendMessage's structured clone) to Bunny
+    // Storage via the same endpoint the admin CRM's template editor uses,
+    // returning a real hosted URL — needed because template headers are
+    // read later by server-side Broadcast/Schedule, which need a fetchable
+    // URL, not a local file that only exists in this browser session.
+    case 'UPLOAD_MEDIA': {
+      try {
+        const { token } = await getStored();
+        const formData = new FormData();
+        formData.append('file', msg.file, msg.file.name);
+        const res = await fetch(`${API_BASE}/api/admin/crm/whatsapp/media-upload`, {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok, status: res.status, data };
+      } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+      }
+    }
+
     case 'CREATE_TEMPLATE': {
       const res = await apiFetch('/api/extension/templates', {
         method: 'POST',

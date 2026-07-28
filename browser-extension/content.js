@@ -1839,6 +1839,10 @@
         for (const k in headerBtns) headerBtns[k].classList.toggle('sy-active', k === t);
         headerTextWrap.style.display = t === 'TEXT' ? 'block' : 'none';
         headerMediaWrap.style.display = (t === 'IMAGE' || t === 'VIDEO' || t === 'DOCUMENT') ? 'block' : 'none';
+        if (t === 'IMAGE' || t === 'VIDEO' || t === 'DOCUMENT') {
+          headerFileInput.accept = t === 'IMAGE' ? 'image/*' : t === 'VIDEO' ? 'video/*' : '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          headerFileInput.click();
+        }
       });
       headerBtns[t] = btn;
       headerTypeRow.appendChild(btn);
@@ -1857,8 +1861,30 @@
     headerMediaWrap.style.display = 'none';
     const headerMediaInput = document.createElement('input');
     headerMediaInput.type = 'text';
-    headerMediaInput.placeholder = 'Paste a hosted image/video/document URL';
+    headerMediaInput.placeholder = 'Paste a hosted URL, or upload below';
     headerMediaWrap.appendChild(headerMediaInput);
+    const headerUploadBtn = el('button', 'sy-modal-btn', '📁 Upload a file instead');
+    headerUploadBtn.type = 'button';
+    headerUploadBtn.addEventListener('click', () => headerFileInput.click());
+    headerMediaWrap.appendChild(headerUploadBtn);
+    const headerFileInput = document.createElement('input');
+    headerFileInput.type = 'file';
+    headerFileInput.style.display = 'none';
+    const headerUploadStatus = el('div', 'sy-fmt-hint', '');
+    headerFileInput.addEventListener('change', async () => {
+      const file = headerFileInput.files?.[0];
+      if (!file) return;
+      headerUploadStatus.textContent = `⏳ Uploading ${file.name}…`;
+      const res = await sendMessage({ type: 'UPLOAD_MEDIA', file });
+      if (res.ok && res.data?.success !== false && res.data?.url) {
+        headerMediaInput.value = res.data.url;
+        headerUploadStatus.textContent = `✅ Uploaded: ${file.name}`;
+      } else {
+        headerUploadStatus.textContent = `❌ ${res.data?.error || 'Upload failed'} — paste a URL instead.`;
+      }
+    });
+    headerMediaWrap.appendChild(headerFileInput);
+    headerMediaWrap.appendChild(headerUploadStatus);
     mbody.appendChild(headerMediaWrap);
 
     mbody.appendChild(el('div', 'sy-modal-label', 'Message Body'));
