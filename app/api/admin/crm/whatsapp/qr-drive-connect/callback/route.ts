@@ -24,9 +24,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=missing_code`, request.url));
   }
 
-  const decoded = verifyToken(state || undefined);
+  if (!state) {
+    console.error('[QR Drive Callback] No state token provided');
+    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=missing_state`, request.url));
+  }
+
+  let decoded;
+  try {
+    decoded = verifyToken(state);
+  } catch (tokenErr: any) {
+    console.error('[QR Drive Callback] Token verification failed:', tokenErr?.message);
+  }
+
   if (!decoded?.userId) {
-    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=session_expired`, request.url));
+    console.error('[QR Drive Callback] Invalid or expired token — decoded:', decoded);
+    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=invalid_token`, request.url));
   }
 
   try {
