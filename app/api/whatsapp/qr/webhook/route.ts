@@ -15,6 +15,30 @@ function normalizeConnectedPhone(value: string): string {
 }
 
 /**
+ * Drops inline base64 media before the payload is persisted as `rawMessage`.
+ *
+ * The bridge ships each photo/video/document as base64 in the webhook body. By
+ * the time we store the message that binary has already been uploaded to Bunny
+ * and its CDN URL saved in `mediaUrl`, so keeping the base64 too stored every
+ * attachment twice — and the Mongo copy was by far the more expensive one
+ * (single messages reached 2 MB, averaging ~59 KB against ~500 bytes for text).
+ * Everything except the binary is preserved, since rawMessage is still read for
+ * fromMe/participant resolution.
+ */
+function stripInlineMedia(payload: any): any {
+  if (!payload || typeof payload !== 'object') return payload;
+  const { mediaBase64, ...rest } = payload as Record<string, any>;
+  if (rest.media && typeof rest.media === 'object') {
+    const { data, ...mediaRest } = rest.media as Record<string, any>;
+    rest.media = mediaRest;
+  }
+  if (Array.isArray(rest.messages)) {
+    rest.messages = rest.messages.map((m: any) => (m && typeof m === 'object' ? stripInlineMedia(m) : m));
+  }
+  return rest;
+}
+
+/**
  * QR Chat webhook receiver.
  *
  * This endpoint is meant for waofficialapi.in (or similar) providers that forward WhatsApp Web events.
@@ -338,7 +362,7 @@ async function ingestQRPayload(payload: any) {
                 quotedId: '',
                 quotedText: '',
                 quotedParticipant: '',
-                rawMessage: payload,
+                rawMessage: stripInlineMedia(payload),
                 metadata: doc.metadata,
               },
               $setOnInsert: { createdAt: new Date() }
