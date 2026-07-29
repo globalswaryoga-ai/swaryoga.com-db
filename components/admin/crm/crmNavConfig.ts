@@ -355,7 +355,7 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Broadcast',      href: '/admin/crm/qr/broadcast',         icon: Radio },
       { label: 'Group Contacts', href: '/admin/crm/qr/group-contacts',    icon: Users },
       { label: 'Group Schedule', href: '/admin/crm/qr/group-scheduler',   icon: CalendarDays },
-      { label: 'Group Delete',   href: '/admin/crm/qr/merge-group-v2',    icon: Trash2 },
+      { label: 'Group Delete',   href: '/admin/crm/qr/group-delete',      icon: Trash2 },
       { label: 'Reports',        href: '/admin/crm/qr/broadcast-report',  icon: BarChart3 },
     ],
     // No "More" dropdown — AI & Chatbot, Automation, Schedule etc. are reached
@@ -366,7 +366,7 @@ export const sectionConfigs: SectionConfig[] = [
       '/admin/crm/qr', '/admin/crm/qr/templates', '/admin/crm/qr/broadcast',
       '/admin/crm/qr/group-contacts', '/admin/crm/qr/group-scheduler', '/admin/crm/qr/broadcast-report',
       '/admin/crm/qr/broadcast-schedule', '/admin/crm/qr/automation',
-      '/admin/crm/qr/chatbot', '/admin/crm/qr/health-report', '/admin/crm/qr/merge-group-v2',
+      '/admin/crm/qr/chatbot', '/admin/crm/qr/health-report', '/admin/crm/qr/group-delete',
     ],
   },
 
@@ -776,7 +776,7 @@ export const sectionConfigs: SectionConfig[] = [
           { label: 'QR Broadcast (old)',  href: '/admin/crm/qr-broadcast',              icon: Radio },
           { label: 'QR Templates (old)',  href: '/admin/crm/qr-templates',              icon: FileEdit },
           { label: 'QR Broadcast V2',     href: '/admin/crm/qr/broadcast-v2',           icon: Radio },
-          { label: 'QR Merge Group V2',   href: '/admin/crm/qr/merge-group-v2',         icon: Users },
+          { label: 'QR Delete Group Members', href: '/admin/crm/qr/group-delete',        icon: Trash2 },
         ],
       },
       {

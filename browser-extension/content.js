@@ -1315,6 +1315,14 @@
   // WhatsApp's own black/gray header icon buttons, instead of colorful
   // emoji that stand out against WA's native icon row.
   const SVG_ICON = {
+    // Same stroke-only 24x24 set throughout, so the row stays monochrome and
+    // matches WhatsApp's own header icons rather than mixing in emoji.
+    template: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line></svg>',
+    merge: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V9a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v12"></path><polyline points="8 7 12 3 16 7"></polyline></svg>',
+    groupSchedule: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><circle cx="9" cy="15" r="1.6"></circle><circle cx="14" cy="15" r="1.6"></circle></svg>',
+    schedule: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+    remove: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>',
+    status: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M4.9 4.9a10 10 0 0 0 0 14.2"></path><path d="M19.1 4.9a10 10 0 0 1 0 14.2"></path></svg>',
     funnel: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4 4 20 4 14 12 14 19 10 21 10 12 4 4"></polygon></svg>',
     report: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
     broadcast: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h1l5 4V6l-5 4H4a1 1 0 0 0-1 1z"></path><path d="M15 8a3 3 0 0 1 0 8"></path><path d="M17.5 5.5a7 7 0 0 1 0 13"></path></svg>',
@@ -1332,12 +1340,21 @@
     // native hover tooltip (title attribute) — matching WhatsApp's own
     // icon buttons (video call, phone, search, menu) instead of standing
     // out as colorful emoji or plain text links.
+    // Kept in step with the CRM's header row so the same actions are present
+    // on both surfaces — Template, Merge, Schedule and Remove members were
+    // previously only reachable from the sidebar or the compose popup.
     const items = [
-      [SVG_ICON.funnel, 'Funnel', () => openFunnelModal()],
+      [SVG_ICON.template, 'Template', () => openTemplatesModal()],
+      [SVG_ICON.merge, 'Merge Groups', () => openMergeGroupsModal()],
       [SVG_ICON.report, 'Report', () => openReportModal()],
+      [SVG_ICON.funnel, 'Funnel', () => openFunnelModal()],
       [SVG_ICON.broadcast, 'Broadcast', () => openBroadcastModal()],
       [SVG_ICON.leads, 'Leads', () => openLeadsModal()],
       [SVG_ICON.sales, 'Sales', () => openSalesModal()],
+      [SVG_ICON.remove, 'Remove Members', () => openRemoveMemberModal()],
+      [SVG_ICON.schedule, 'Schedule Message', () => openScheduleMessageModal()],
+      [SVG_ICON.groupSchedule, 'Group Schedule', () => openScheduleGroupsModal()],
+      [SVG_ICON.status, 'My Status', () => openMyStatusModal()],
       [SVG_ICON.settings, 'Settings', () => openSettingsModal()],
     ];
     for (const [svg, title, handler] of items) {
@@ -1379,9 +1396,21 @@
     if (!box) return;
     const footer = box.closest('footer');
     if (!footer) return;
-    if (footer.querySelector('#swaryoga-compose-ai-row')) return;
 
-    const row = document.createElement('div');
+    // Re-entrant: this runs from a MutationObserver, and on the first pass
+    // WhatsApp has often not rendered the mic yet. Previously the mere
+    // existence of the row caused an early return, so that first fallback
+    // placement (below the composer, on the left) was locked in permanently
+    // and never corrected once the mic appeared. Only stop early once the row
+    // is actually anchored beside the mic.
+    const existingRow = footer.querySelector('#swaryoga-compose-ai-row');
+    if (existingRow && existingRow.dataset.anchored === 'mic') return;
+
+    const row = existingRow || document.createElement('div');
+    if (existingRow) {
+      placeComposeAiRow(row, box, footer);
+      return;
+    }
     row.id = 'swaryoga-compose-ai-row';
 
     const fixBtn = document.createElement('button');
@@ -1412,13 +1441,48 @@
 
     row.appendChild(fixBtn);
     row.appendChild(replyBtn);
-    // The mic/send button sits as the footer's LAST element — insert right
-    // before it (not after everything) so this row lands immediately to
-    // its left, adjacent on the right side, instead of trailing off after
-    // the whole compose row.
-    const lastChild = footer.lastElementChild;
-    if (lastChild && lastChild !== row) footer.insertBefore(row, lastChild);
-    else footer.appendChild(row);
+
+    placeComposeAiRow(row, box, footer);
+  }
+
+  /**
+   * Puts the Spell/AI-reply row inside the composer's own flex row, directly
+   * left of the mic. Anchoring is structural rather than by icon name, since
+   * WhatsApp renames data-icon values between releases. Marks the row as
+   * anchored only on success, so a fallback placement is retried on the next
+   * observer pass instead of becoming permanent.
+   */
+  function placeComposeAiRow(row, box, footer) {
+    const micOrSend = footer.querySelector(
+      '[data-icon="ptt"], [data-icon="mic"], [data-icon="send"], [data-icon="ptt-inline"], [data-icon="audio-send"], button[aria-label*="Voice" i], button[aria-label*="Send" i]'
+    );
+
+    if (micOrSend) {
+      let container = box.parentElement;
+      while (container && container !== footer && !container.contains(micOrSend)) {
+        container = container.parentElement;
+      }
+      if (container) {
+        let micWrapper = micOrSend;
+        while (micWrapper.parentElement && micWrapper.parentElement !== container) {
+          micWrapper = micWrapper.parentElement;
+        }
+        if (micWrapper.parentElement === container) {
+          if (row.nextElementSibling !== micWrapper || row.parentElement !== container) {
+            container.insertBefore(row, micWrapper);
+          }
+          row.dataset.anchored = 'mic';
+          return;
+        }
+      }
+    }
+
+    // Mic not in the DOM yet (or renamed). Park the row at the end of the
+    // compose box's row so it still reads on the right, and leave it
+    // un-anchored so the next pass can move it once the mic renders.
+    const composeRow = box.parentElement?.parentElement;
+    const fallbackParent = composeRow && composeRow !== footer ? composeRow : footer;
+    if (row.parentElement !== fallbackParent) fallbackParent.appendChild(row);
   }
 
   function injectComposeActionButton() {
@@ -3521,7 +3585,7 @@
    * reference design instead of the cramped collapsible sidebar list.
    */
   function openTemplatesModal() {
-    const { overlay, body: mbody } = openModal('📋 Message Templates', { large: true });
+    const { overlay, body: mbody } = openModal('📋 Use a Template', { large: true });
     const contextName = state.lead?.name || state.currentGroupName || '';
     if (contextName) mbody.appendChild(el('div', 'sy-modal-context-title', contextName));
     const countLine = el('div', 'sy-fmt-hint', `${state.templates.length} template(s) available`);
@@ -3615,6 +3679,17 @@
     langSelect.addEventListener('change', renderCards);
 
     const footer = el('div', 'sy-modal-footer');
+    // Using a template and authoring one are separate actions. Creating was
+    // only reachable from a small "+" in the sidebar, so from here there was
+    // no way to add one — this is the bridge, mirroring the "+ Create new"
+    // link in the CRM's template picker.
+    const createBtn = el('button', 'sy-modal-btn', '＋ Create new template');
+    createBtn.type = 'button';
+    createBtn.addEventListener('click', () => {
+      overlay.remove();
+      openCreateTemplateModal();
+    });
+    footer.appendChild(createBtn);
     const closeBtn = el('button', 'sy-modal-btn', 'Close');
     closeBtn.addEventListener('click', () => overlay.remove());
     footer.appendChild(closeBtn);

@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone, MoreVertical, CloudUpload } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone, MoreVertical, CloudUpload, DollarSign, TrendingUp, Clock } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -28,6 +28,7 @@ import {
   HistoryTab,
 } from './components';
 import ChatSidebar from './components/ChatSidebar';
+import { LeadsModal, SalesModal } from './components/LeadsSalesModals';
 import ChatArea from './components/ChatArea';
 import { useCrmSidebarAutoHide } from '@/components/admin/crm/CrmShell';
 
@@ -359,6 +360,11 @@ export default function QRWhatsAppPage() {
   const [chatPresence, setChatPresence] = useState<{ presence: string; lastSeen: number | null } | null>(null);
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
+  // Spell / AI reply — mirrors the pair the browser extension injects into
+  // WhatsApp Web's composer, so the same two actions are available whether
+  // the user is in web.whatsapp.com or here.
+  const [aiFixing, setAiFixing] = useState(false);
+  const [aiReplying, setAiReplying] = useState(false);
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as any) || 'connection';
   const [tab, setTab] = useState<'connection' | 'inbox' | 'templates' | 'broadcast' | 'history' | 'settings'>(initialTab);
@@ -413,6 +419,10 @@ export default function QRWhatsAppPage() {
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [groupSettingsLoading, setGroupSettingsLoading] = useState<string | null>(null);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
+  // Leads / Sales open over the inbox rather than navigating away, so a lead
+  // can be looked up and its chat opened without losing the current thread.
+  const [showLeadsModal, setShowLeadsModal] = useState(false);
+  const [showSalesModal, setShowSalesModal] = useState(false);
   const [statusData, setStatusData] = useState<any[]>([]);
   const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [selectedStatusUser, setSelectedStatusUser] = useState<any>(null);
@@ -1970,6 +1980,49 @@ export default function QRWhatsAppPage() {
     e.target.value = '';
   }, []);
 
+  // ── Spell / AI reply ──
+  // Same two actions the extension injects into WhatsApp Web's composer,
+  // backed by the CRM-authenticated /ai-assist route rather than the
+  // extension's token-based /api/extension/ai.
+  const runAiAssist = useCallback(async (mode: 'fix' | 'reply') => {
+    if (!token) return;
+    const setBusy = mode === 'fix' ? setAiFixing : setAiReplying;
+    if (mode === 'fix' && !composerText.trim()) return;
+
+    // 'reply' drafts from the most recent inbound message in this chat.
+    const lastInbound = mode === 'reply'
+      ? [...messages].reverse().find(m => !m.fromMe && (m.text || '').trim())
+      : undefined;
+    if (mode === 'reply' && !lastInbound) {
+      setError('No incoming message to reply to yet.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/crm/ai-assist', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          mode === 'fix'
+            ? { mode, text: composerText }
+            : { mode, context: lastInbound?.text || '' }
+        ),
+      });
+      const data = await res.json();
+      if (res.ok && data?.success && data.result) {
+        setComposerText(data.result);
+        composerInputRef.current?.focus();
+      } else {
+        setError(data?.error || (mode === 'fix' ? 'Spell check failed' : 'Could not draft a reply'));
+      }
+    } catch (e: any) {
+      setError(e?.message || 'AI request failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [token, composerText, messages]);
+
   // ── Send message (text or media) ──
   const handleSend = useCallback(async () => {
     if ((!composerText.trim() && !mediaPreview) || !selectedChat || sending || sendLockRef.current) return;
@@ -2977,63 +3030,42 @@ export default function QRWhatsAppPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setTab('templates')}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              Template
-            </button>
-            <button
-              type="button"
-              onClick={() => alert('Merge groups feature')}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
-            >
-              <Merge className="w-3.5 h-3.5" />
-              Merge
-            </button>
-            <button
-              type="button"
-              onClick={() => alert('Report feature')}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              Report
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('broadcast')}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
-            >
-              <Radio className="w-3.5 h-3.5" />
-              Broadcast
-            </button>
-            <button
-              type="button"
-              onClick={() => alert('Delete group feature')}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete
-            </button>
-            <button
-              type="button"
-              onClick={() => alert('Group schedule feature')}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              Schedule
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('settings')}
-              className="inline-flex items-center gap-2 rounded-full border border-black bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-white hover:text-black hover:border-black transition"
-            >
-              <CloudUpload className="w-3.5 h-3.5" />
-              Drive
-            </button>
+          {/* Monochrome symbol row, matching the extension's conversation
+              header. Icon-only with a native tooltip instead of a text label,
+              so both surfaces read the same. Merge / Report / Delete / Schedule
+              were previously alert() stubs; they now open the pages that
+              already implement each feature. */}
+          <div className="flex items-center gap-0.5">
+            {/* One distinct symbol per function — Radio was previously used for
+                both Broadcast and Status, and the trash icon pointed at the
+                group-contacts page rather than group deletion. */}
+            {[
+              { icon: FileText, label: 'Template', onClick: () => setTab('templates') },
+              { icon: Merge, label: 'Merge Groups', onClick: () => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); } },
+              { icon: Megaphone, label: 'Broadcast', onClick: () => setTab('broadcast') },
+              { icon: Clock, label: 'Schedule Message', href: '/admin/crm/qr/broadcast-schedule' },
+              { icon: Calendar, label: 'Group Schedule', href: '/admin/crm/qr/group-scheduler' },
+              { icon: Users, label: 'Group Contacts', href: '/admin/crm/qr/group-contacts' },
+              { icon: Trash2, label: 'Delete Group Members', href: '/admin/crm/qr/group-delete' },
+              { icon: Funnel, label: 'Funnel Report', href: '/admin/crm/qr/funnel-report' },
+              { icon: BarChart3, label: 'Broadcast Report', href: '/admin/crm/qr/broadcast-report' },
+              { icon: TrendingUp, label: 'Event Charts', href: '/admin/crm/sales/events' },
+              { icon: UserCircle, label: 'QR Leads', onClick: () => setShowLeadsModal(true) },
+              { icon: DollarSign, label: 'QR Sales', onClick: () => setShowSalesModal(true) },
+              { icon: Eye, label: 'Status', onClick: () => { setShowStatusPanel(true); fetchStatuses(); } },
+              { icon: CloudUpload, label: 'Google Drive Backup', onClick: () => setTab('settings') },
+            ].map(({ icon: Icon, label, onClick, href }) => {
+              const cls = 'p-1.5 rounded-full text-gray-800 hover:bg-gray-200 hover:text-black transition';
+              return href ? (
+                <a key={label} href={href} className={cls} title={label} aria-label={label}>
+                  <Icon className="w-4 h-4" />
+                </a>
+              ) : (
+                <button key={label} type="button" onClick={onClick} className={cls} title={label} aria-label={label}>
+                  <Icon className="w-4 h-4" />
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -4038,6 +4070,25 @@ export default function QRWhatsAppPage() {
                         className="flex-1 resize-none border-0 bg-white px-3 py-2.5 rounded-lg text-sm leading-normal max-h-[120px] overflow-y-auto text-[#111b21] placeholder:text-[#667781] focus:outline-none focus:ring-0"
                         disabled={!isConnected || sending}
                       />
+                      {/* Spell / AI reply — right side, beside Send */}
+                      <button
+                        onClick={() => runAiAssist('fix')}
+                        disabled={!isConnected || aiFixing || !composerText.trim()}
+                        className="shrink-0 inline-flex items-center gap-1 h-[30px] px-2.5 rounded-full border border-gray-300 bg-white text-[#374151] text-xs font-bold whitespace-nowrap hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        title="Fix spelling and grammar in your message"
+                      >
+                        {aiFixing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pencil className="w-3 h-3" />}
+                        Spell
+                      </button>
+                      <button
+                        onClick={() => runAiAssist('reply')}
+                        disabled={!isConnected || aiReplying}
+                        className="shrink-0 inline-flex items-center gap-1 h-[30px] px-2.5 rounded-full border border-[#2d6a4f] bg-[#2d6a4f] text-white text-xs font-bold whitespace-nowrap hover:bg-[#1b4332] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        title="Draft a reply to the last incoming message"
+                      >
+                        {aiReplying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                        AI reply
+                      </button>
                       {/* Star button — Quick Actions */}
                       <button
                         onClick={() => { setShowStarPopup(true); closeComposerPopups(); }}
@@ -4114,9 +4165,24 @@ export default function QRWhatsAppPage() {
         setSelectedStatusUser={setSelectedStatusUser}
         currentStatusIndex={currentStatusIndex}
         setCurrentStatusIndex={setCurrentStatusIndex}
-        onPostStatus={async (text: string) => {
-          const data = await bridgeCall('/post-status', 'POST', { text });
+        onPostStatus={async (text: string, imageUrl?: string) => {
+          // imageUrl posts an image status with `text` as its caption; the
+          // bridge accepts either form.
+          const data = await bridgeCall('/post-status', 'POST', imageUrl ? { imageUrl, caption: text, text } : { text });
           return data?.audienceSize || data?.data?.audienceSize || 0;
+        }}
+        onUploadMedia={async (file: File) => {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await fetch('/api/admin/crm/media/upload', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+          const data = await res.json();
+          const url = data?.data?.url || data?.url;
+          if (!res.ok || !url) throw new Error(data?.error || 'Upload failed');
+          return url;
         }}
       />
       <ExtensionModal
@@ -4154,7 +4220,16 @@ export default function QRWhatsAppPage() {
         selectedChat={selectedChat}
         token={token}
         crmFetch={crmFetch}
+        onCreateTemplate={() => { setShowStarPopup(false); setTab('templates'); }}
       />
+      {showLeadsModal && (
+        <LeadsModal
+          token={token}
+          onClose={() => setShowLeadsModal(false)}
+          onOpenChat={(phone) => { setTab('inbox'); selectChat(`${String(phone).replace(/\D/g, '')}@s.whatsapp.net`); }}
+        />
+      )}
+      {showSalesModal && <SalesModal token={token} onClose={() => setShowSalesModal(false)} />}
       <Lightbox lightboxImage={lightboxImage} setLightboxImage={setLightboxImage} />
       <GroupCreateModal
         showGroupCreate={showGroupCreate}

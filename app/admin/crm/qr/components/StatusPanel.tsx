@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, RefreshCw, Eye, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Image as ImageIcon, Send } from 'lucide-react';
 import { getAvatarColor } from '../utils';
 
@@ -27,7 +27,11 @@ interface StatusPanelProps {
   setSelectedStatusUser: (u: StatusUser | null) => void;
   currentStatusIndex: number;
   setCurrentStatusIndex: (i: number) => void;
-  onPostStatus?: (text: string) => Promise<number | void>;
+  /** Posts a status. `imageUrl`, when given, posts an image status with the
+   *  text as its caption — the bridge's /post-status supports both. */
+  onPostStatus?: (text: string, imageUrl?: string) => Promise<number | void>;
+  /** Uploads a local file and resolves to a public URL the bridge can fetch. */
+  onUploadMedia?: (file: File) => Promise<string>;
 }
 
 export function StatusPanel({
@@ -41,18 +45,59 @@ export function StatusPanel({
   currentStatusIndex,
   setCurrentStatusIndex,
   onPostStatus,
+  onUploadMedia,
 }: StatusPanelProps) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState('');
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const composeRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  /** Wraps the selection in WhatsApp's markers, matching the extension's B/I/S. */
+  const wrapSelection = (marker: string) => {
+    const el = composeRef.current;
+    if (!el) return;
+    const { selectionStart: a, selectionEnd: b } = el;
+    const next = composeText.slice(0, a) + marker + composeText.slice(a, b) + marker + composeText.slice(b);
+    setComposeText(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(a + marker.length, b + marker.length);
+    });
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const el = composeRef.current;
+    const at = el ? el.selectionStart : composeText.length;
+    setComposeText(composeText.slice(0, at) + emoji + composeText.slice(at));
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(at + emoji.length, at + emoji.length); });
+  };
+
+  const handleUpload = async (file: File) => {
+    if (!onUploadMedia) return;
+    setUploading(true);
+    setPostResult('');
+    try {
+      setMediaUrl(await onUploadMedia(file));
+    } catch (e: any) {
+      setPostResult(`❌ ${e?.message || 'Upload failed'}`);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handlePost = async () => {
-    if (!composeText.trim() || posting || !onPostStatus) return;
+    // An image status can carry an empty caption, so text alone is not required
+    // once media is attached.
+    if ((!composeText.trim() && !mediaUrl.trim()) || posting || !onPostStatus) return;
     setPosting(true);
     setPostResult('');
     try {
-      const audience = await onPostStatus(composeText.trim());
+      const audience = await onPostStatus(composeText.trim(), mediaUrl.trim() || undefined);
       setComposeText('');
+      setMediaUrl('');
       setPostResult(typeof audience === 'number' && audience > 0 ? `✅ Posted to ${audience} contacts` : '✅ Status posted');
       setTimeout(() => setPostResult(''), 4000);
     } catch (e: any) {
@@ -89,23 +134,93 @@ export function StatusPanel({
         {/* Post-your-status composer */}
         {onPostStatus && !selectedStatusUser && (
           <div className="px-4 py-3 border-b bg-green-50/60 flex-shrink-0">
-            <div className="flex items-center gap-2">
+            {/* Formatting + emoji, matching the extension's status composer */}
+            <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+              {([['B', '*', 'font-bold'], ['I', '_', 'italic'], ['S', '~', 'line-through']] as const).map(
+                ([label, marker, cls]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => wrapSelection(marker)}
+                    className={`w-7 h-7 rounded border border-gray-300 bg-white text-xs text-gray-700 hover:bg-gray-100 transition ${cls}`}
+                    title={`${label} (${marker}text${marker})`}
+                  >
+                    {label}
+                  </button>
+                )
+              )}
+              <span className="w-px h-5 bg-gray-300 mx-1" />
+              {['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'].map(e => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => insertEmoji(e)}
+                  className="w-7 h-7 rounded border border-gray-300 bg-white text-sm hover:bg-gray-100 transition"
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-500 mb-1.5">Format: *bold* · _italic_ · ~strike~</p>
+
+            <textarea
+              ref={composeRef}
+              rows={3}
+              value={composeText}
+              onChange={(e) => setComposeText(e.target.value)}
+              placeholder="What's on your mind?"
+              maxLength={700}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-y focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+            />
+
+            {/* Image / video: paste a URL, or upload and we hand the bridge the CDN link */}
+            <div className="flex items-center gap-2 mt-2">
               <input
                 type="text"
-                value={composeText}
-                onChange={(e) => setComposeText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handlePost()}
-                placeholder="Post a status update (offers, class reminders)…"
-                maxLength={700}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                placeholder="Image / video URL (optional)"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
               />
+              {onUploadMedia && (
+                <>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="px-2.5 py-2 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition whitespace-nowrap"
+                  >
+                    {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Upload'}
+                  </button>
+                </>
+              )}
+              {mediaUrl && (
+                <button
+                  type="button"
+                  onClick={() => setMediaUrl('')}
+                  className="px-2 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-500 hover:bg-gray-100"
+                  title="Remove media"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end mt-2">
               <button
                 onClick={handlePost}
-                disabled={posting || !composeText.trim()}
-                className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 transition"
-                title="Post status"
+                disabled={posting || uploading || (!composeText.trim() && !mediaUrl.trim())}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:bg-gray-300 transition"
               >
                 {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Post Status
               </button>
             </div>
             {postResult && <p className="text-[11px] mt-1.5 text-gray-600">{postResult}</p>}

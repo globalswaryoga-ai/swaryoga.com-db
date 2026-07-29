@@ -227,14 +227,17 @@ export default function MergeGroupV2Page() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">🔄 Group Merge V2 (~15/hour Safe)</h1>
+        {/* This page only ever performed removals (operationType 'remove');
+            it was titled "Group Merge V2", which put member deletion under
+            Merge in the nav. Merging lives in the inbox's Merge Groups
+            dialog — this is removal only. */}
+        <h1 className="text-3xl font-bold mb-8">🗑️ Delete Group Members (~15/hour Safe)</h1>
 
         {/* Info Box */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
           <h2 className="font-bold mb-2">📋 How It Works</h2>
           <ul className="text-sm space-y-1 text-gray-700">
-            <li>✅ <strong>~15 participants per hour</strong> (30s × 2 warm-up, then 2–5 min random gaps)</li>
-            <li>✅ <strong>Remove at the same safe ~15/hr pace</strong></li>
+            <li>✅ <strong>~15 removals per hour</strong> (30s × 2 warm-up, then 2–5 min random gaps)</li>
             <li>✅ <strong>No repeated gaps, irregular timing</strong> (100% human-like)</li>
             <li>✅ <strong>Auto-stops on 20%+ failures</strong> (prevents bans)</li>
             <li>✅ <strong>Randomized participant order</strong> (not systematic)</li>
