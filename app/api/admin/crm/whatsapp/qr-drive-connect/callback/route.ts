@@ -55,7 +55,14 @@ export async function GET(request: NextRequest) {
     console.log('[QR Drive Callback] Getting Google user email...');
     const googleEmail = await getGoogleUserEmail(accessToken);
 
-    await connectDB();
+    console.log('[QR Drive Callback] Connecting to database...');
+    try {
+      await connectDB();
+    } catch (dbErr: any) {
+      console.error('[QR Drive Callback] Database connection failed:', dbErr?.message);
+      throw new Error('Database connection failed: ' + dbErr?.message);
+    }
+
     const CRMUserSettings = getCRMUserSettings();
     const settings = await CRMUserSettings.findOne({ userId }, { qrConnectedPhoneNumber: 1 }).lean();
     const connectedPhone = (settings as any)?.qrConnectedPhoneNumber || '';
