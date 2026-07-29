@@ -48,7 +48,10 @@
       "Bash(grep -E \"\\\\.\\(ts|js|env|json\\)$\")",
       "Bash(node --check /Users/mohankalburgi/swaryoga.com-db/deploy/wa-baileys/index.js)",
       "Bash(cat > *)",
-      "Bash(node --check /Users/mohankalburgi/swaryoga.com-db/app/admin/crm/qr/components/SettingsTab.tsx)"
+      "Bash(node --check /Users/mohankalburgi/swaryoga.com-db/app/admin/crm/qr/components/SettingsTab.tsx)",
+      "Bash(pkill -9 node)",
+      "Bash(curl -s http://localhost:3000/admin/crm/qr)",
+      "Bash(killall -9 node npm)"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-501/-Users-mohankalburgi-swaryoga-com-db/76c4b1d1-9042-4990-b642-405d922849fa/scratchpad",

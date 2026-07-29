@@ -2926,7 +2926,7 @@ export default function QRWhatsAppPage() {
       {/* Page identity only. Navigation and actions live in the icon rail so the
           inbox does not repeat the same controls in a second header/tab row. */}
       <div className="bg-white border-b">
-        <div className="px-4 py-3 flex items-center justify-between">
+        <div className="px-4 py-1.5 flex items-center justify-between">
           {/* Left: Title + Status Badge + Compartment */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -3149,7 +3149,7 @@ export default function QRWhatsAppPage() {
             className={`bg-white/95 backdrop-blur-sm flex flex-col border-r border-gray-200 shadow-xl ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%', minWidth: 280, maxWidth: 600, flexShrink: 0 }}
           >
-            <div className="px-4 py-3 bg-white border-b flex items-center justify-between">
+            <div className="px-4 py-1.5 bg-white border-b flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-900">Your WhatsApp chats</h2>
               <div className="text-[10px] text-gray-500">Updated live</div>
             </div>
