@@ -2977,54 +2977,54 @@ export default function QRWhatsAppPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setTab('templates')}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
-              title="Templates"
+              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
+              Template
             </button>
             <button
               type="button"
               onClick={() => alert('Merge groups feature')}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
-              title="Merge groups"
+              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
             >
-              <Merge className="w-4 h-4" />
+              <Merge className="w-3.5 h-3.5" />
+              Merge
             </button>
             <button
               type="button"
               onClick={() => alert('Report feature')}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
-              title="Report"
+              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
             >
-              <BarChart3 className="w-4 h-4" />
+              <BarChart3 className="w-3.5 h-3.5" />
+              Report
             </button>
             <button
               type="button"
               onClick={() => setTab('broadcast')}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
-              title="Broadcast"
+              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
             >
-              <Radio className="w-4 h-4" />
+              <Radio className="w-3.5 h-3.5" />
+              Broadcast
             </button>
             <button
               type="button"
               onClick={() => alert('Delete group feature')}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
-              title="Delete group"
+              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
             </button>
             <button
               type="button"
               onClick={() => alert('Group schedule feature')}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
-              title="Group schedule"
+              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition"
             >
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-3.5 h-3.5" />
+              Schedule
             </button>
             <button
               type="button"
