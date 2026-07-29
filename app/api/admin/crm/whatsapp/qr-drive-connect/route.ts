@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getDriveOAuthUrl } from '@/lib/googleDriveSync';
+import { getDriveOAuthUrl, getDriveClientCredentials } from '@/lib/googleDriveSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      return NextResponse.json({ error: 'GOOGLE_CLIENT_ID not configured on the server' }, { status: 500 });
+    if (!getDriveClientCredentials().clientId) {
+      return NextResponse.json({ error: 'Google Drive OAuth client not configured on the server' }, { status: 500 });
     }
 
     // state carries the bearer token so the callback (a plain browser

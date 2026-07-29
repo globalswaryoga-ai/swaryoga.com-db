@@ -26,9 +26,25 @@ const USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
 export const DRIVE_BACKUP_FOLDER_NAME = 'Swar Yoga WhatsApp Backup';
 
+/**
+ * The QR WhatsApp Google integrations (Drive backup, contacts, gmail) use
+ * their own OAuth client, separate from the shared GOOGLE_CLIENT_ID that
+ * YouTube publishing and the Zoom uploader authenticate with. Refresh tokens
+ * are issued per-client, so pointing this flow at the shared client — or
+ * repointing the shared client here — would invalidate every stored YouTube
+ * token. Falls back to the shared client when the dedicated vars are unset,
+ * so behaviour is unchanged until they are configured.
+ */
+export function getDriveClientCredentials(): { clientId?: string; clientSecret?: string } {
+  return {
+    clientId: process.env.GOOGLE_DRIVE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET,
+  };
+}
+
 export function getGoogleOAuthUrl(redirectUri: string, state: string, scopes: string[]): string {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  if (!clientId) throw new Error('GOOGLE_CLIENT_ID not configured');
+  const { clientId } = getDriveClientCredentials();
+  if (!clientId) throw new Error('GOOGLE_DRIVE_CLIENT_ID / GOOGLE_CLIENT_ID not configured');
 
   const url = new URL(GOOGLE_AUTH_URL);
   url.searchParams.set('client_id', clientId);
@@ -52,9 +68,8 @@ export async function exchangeCodeForTokens(code: string, redirectUri: string): 
   refreshToken: string | null;
   expiresIn: number;
 }> {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not configured');
+  const { clientId, clientSecret } = getDriveClientCredentials();
+  if (!clientId || !clientSecret) throw new Error('Google Drive OAuth client not configured');
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
@@ -76,9 +91,8 @@ export async function exchangeCodeForTokens(code: string, redirectUri: string): 
 
 /** Throws with `err.code === 'invalid_grant'` when the refresh token is dead (expired/revoked). */
 export async function refreshAccessToken(refreshToken: string): Promise<string> {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not configured');
+  const { clientId, clientSecret } = getDriveClientCredentials();
+  if (!clientId || !clientSecret) throw new Error('Google Drive OAuth client not configured');
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
