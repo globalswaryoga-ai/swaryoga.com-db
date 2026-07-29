@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { QrCode, Wifi, WifiOff, RefreshCw, Loader2, CheckCircle2, Phone, MessageSquare, Settings, Unplug, LogOut, Info, Radio, Users, Eye, ChevronRight, CloudUpload } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, Loader2, CheckCircle2, Phone, MessageSquare, Settings, Unplug, LogOut, Info, Radio, Users, Eye, ChevronRight, ChevronUp, ChevronDown, CloudUpload } from 'lucide-react';
 import type { BridgeStatus, ChatItem } from '../types';
 import { getAvatarColor, formatUptime } from '../utils';
 
