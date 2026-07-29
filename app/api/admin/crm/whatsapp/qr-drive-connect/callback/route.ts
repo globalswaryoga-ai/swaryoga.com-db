@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 import { encryptCredential } from '@/lib/encryption';
 import { getCRMUserSettings, getQrWhatsappDriveConnection } from '@/lib/schemas/enterpriseSchemas';
 import { exchangeCodeForTokens, getGoogleUserEmail, ensureDriveFolder, upsertFileInDriveFolder } from '@/lib/googleDriveSync';
 import { buildChatHistoryExport, renderChatHistoryHtml } from '@/lib/qrWhatsappChatExport';
-import { stateStore } from '../route';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
   const oauthError = searchParams.get('error');
-  const state = searchParams.get('state'); // State ID from stateStore
+  const state = searchParams.get('state'); // bearer token, passed through from the connect step
 
   if (oauthError) {
     return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=${encodeURIComponent(oauthError)}`, request.url));
@@ -24,20 +24,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=missing_code`, request.url));
   }
 
-  if (!state) {
-    console.error('[QR Drive Callback] No state provided');
-    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=missing_state`, request.url));
+  const decoded = verifyToken(state || undefined);
+  const userId = decoded?.userId;
+  if (!userId) {
+    console.error('[QR Drive Callback] Could not verify tenant from state token');
+    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=session_expired`, request.url));
   }
-
-  // Look up userId from state store
-  const stateData = stateStore.get(state);
-  if (!stateData || stateData.expiresAt < Date.now()) {
-    console.error('[QR Drive Callback] Invalid or expired state:', state);
-    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=invalid_state`, request.url));
-  }
-
-  const userId = stateData.userId;
-  stateStore.delete(state); // Clean up used state
 
   console.log('[QR Drive Callback] Processing for userId:', userId);
 

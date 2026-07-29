@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { CloudUpload, CheckCircle2, Clock, AlertTriangle, Loader2, RotateCcw } from 'lucide-react';
-import GoogleOAuthSetupGuide from './GoogleOAuthSetupGuide';
 
 interface BackupStatus {
   backupEnabled: boolean;
@@ -31,7 +30,36 @@ export default function BackupPanel({ token }: BackupPanelProps) {
   const [backingUp, setBackingUp] = useState(false);
   const [syncingContacts, setSyncingContacts] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showGoogleSetup, setShowGoogleSetup] = useState(false);
+  const [connectingDrive, setConnectingDrive] = useState(false);
+
+  // Google Drive connect goes through the same per-tenant flow the Settings
+  // "Google Drive Backup" card uses (/qr-drive-connect). There used to be a
+  // second flow here (/qr/auth/google-connect) that built its redirect URI
+  // from NEXT_PUBLIC_APP_URL (swaryoga.com, not crm.swaryoga.com) — that URI
+  // was never in the Google Cloud allowlist, so it always failed with
+  // redirect_uri_mismatch.
+  const connectGoogleDrive = async () => {
+    if (!token) {
+      setError('Not authenticated');
+      return;
+    }
+    try {
+      setConnectingDrive(true);
+      const res = await fetch('/api/admin/crm/whatsapp/qr-drive-connect', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data?.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setError(data?.error || 'Failed to start Google Drive connection');
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to start Google Drive connection');
+    } finally {
+      setConnectingDrive(false);
+    }
+  };
 
   // Fetch backup status on mount
   useEffect(() => {
@@ -261,25 +289,15 @@ export default function BackupPanel({ token }: BackupPanelProps) {
               Enable Google Drive integration to auto-backup your data to your personal Google Drive
             </p>
             <button
-              onClick={() => setShowGoogleSetup(true)}
-              className="mt-2 text-xs font-semibold px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
+              onClick={connectGoogleDrive}
+              disabled={connectingDrive}
+              className="mt-2 text-xs font-semibold px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-60 transition"
             >
-              Connect Google Drive
+              {connectingDrive ? 'Connecting…' : 'Connect Google Drive'}
             </button>
           </div>
         </div>
       )}
-
-      {/* Google OAuth Setup Modal */}
-      <GoogleOAuthSetupGuide
-        isOpen={showGoogleSetup}
-        onClose={() => setShowGoogleSetup(false)}
-        token={token}
-        onSetupComplete={() => {
-          setShowGoogleSetup(false);
-          fetchBackupStatus();
-        }}
-      />
 
       {/* Contacts Sync Section */}
       {status.googleDriveConnected && (
@@ -374,17 +392,6 @@ export default function BackupPanel({ token }: BackupPanelProps) {
           </div>
         </div>
       )}
-
-      {/* Google OAuth Setup Modal */}
-      <GoogleOAuthSetupGuide
-        isOpen={showGoogleSetup}
-        onClose={() => setShowGoogleSetup(false)}
-        token={token}
-        onSetupComplete={() => {
-          setShowGoogleSetup(false);
-          fetchBackupStatus();
-        }}
-      />
     </div>
   );
 }
