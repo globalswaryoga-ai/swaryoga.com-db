@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getQrWhatsappDriveConnection } from '@/lib/schemas/enterpriseSchemas';
+import { RETENTION_DAYS } from '@/lib/qrWhatsappArchive';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         backupEnabled: true,
         googleDriveConnected: !!(driveConn && !(driveConn as any).needsReconnect),
-        retentionDays: 180 * 365,
+        retentionDays: RETENTION_DAYS,
         lastBackupAt: (driveConn as any)?.lastSyncedAt || null,
         lastBackupStatus: (driveConn as any)?.lastSyncedAt ? 'completed' : 'pending',
         backupHistory: [],
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         backupEnabled: true,
         googleDriveConnected: false,
-        retentionDays: 730,
+        retentionDays: RETENTION_DAYS,
         lastBackupAt: null,
         lastBackupStatus: 'pending',
         backupHistory: [],

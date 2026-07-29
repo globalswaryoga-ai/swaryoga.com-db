@@ -230,7 +230,9 @@ export default function BackupPanel({ token }: BackupPanelProps) {
           <div className="p-2 bg-white rounded border border-gray-200">
             <p className="text-[10px] uppercase text-gray-500">Retention</p>
             <p className="text-sm font-semibold text-gray-900 mt-1">
-              {Math.floor(status.retentionDays / 365)}y
+              {status.retentionDays >= 365
+                ? `${Math.floor(status.retentionDays / 365)}y`
+                : `${status.retentionDays}d`}
             </p>
           </div>
         </div>
