@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive, Download, CloudUpload, AlertTriangle } from 'lucide-react';
 import type { FunnelStage, LabelPreset } from '../types';
 import BackupPanel from './BackupPanel';
+import QuickLinksPanel from './QuickLinksPanel';
 
 type QRAccessUser = {
   userId: string;
@@ -287,6 +288,9 @@ export function SettingsTab({
   }, [token, togglingUser]);
   return (
     <div className="max-w-4xl mx-auto mt-6 px-6 pb-8 space-y-6">
+
+      {/* ── Quick Links Panel ── */}
+      <QuickLinksPanel />
 
       {/* ── Bridge Configuration ── */}
       <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
