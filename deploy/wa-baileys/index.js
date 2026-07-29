@@ -1437,8 +1437,26 @@ app.get('/qr', async (req, res) => {
       try { session.sock.ev.removeAllListeners(); session.sock.end(undefined); } catch {}
       session.sock = null;
     }
+    // Start a fresh session. Wait for the bridge to generate a QR (or connect)
+    // but don't block forever — poll for a short timeout so the UI gets a
+    // usable response instead of a silent deadlock. This helps avoid the
+    // situation where the UI asks for /qr while the bridge is still starting
+    // and the QR hasn't been produced yet.
     startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
-    await new Promise(r => setTimeout(r, 2000));
+
+    const waitForQrMs = 12000; // total wait time for QR (ms)
+    const pollInterval = 500; // poll interval (ms)
+    let waited = 0;
+    while (waited < waitForQrMs) {
+      if (session.connectionState === 'connected') break;
+      if (session.qrBase64) break;
+      // If the session is explicitly logged_out and no qr was produced, stop
+      // waiting early so the caller can show a manual Reconnect flow.
+      if (session.connectionState === 'logged_out' && !session.qrBase64) break;
+      // small sleep
+      await new Promise(r => setTimeout(r, pollInterval));
+      waited += pollInterval;
+    }
   }
 
   if (session.connectionState === 'connected') {

@@ -514,6 +514,24 @@ const QrWhatsappDriveConnectionSchema = new mongoose.Schema(
   { timestamps: true, collection: 'qr_whatsapp_drive_connections' }
 );
 
+// Separate Google OAuth grants for contacts and Gmail. Drive intentionally
+// stays in its own narrow-scope connection above. One service failing or being
+// disconnected must never affect chat archival or another Google service.
+const QrWhatsappGoogleServiceConnectionSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    service: { type: String, required: true, enum: ['contacts', 'gmail'] },
+    googleEmail: { type: String, default: '' },
+    refreshToken: { type: String, required: true },
+    needsReconnect: { type: Boolean, default: false },
+    lastSyncedAt: { type: Date },
+    lastError: { type: String, default: '' },
+    connectedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_google_service_connections' }
+);
+QrWhatsappGoogleServiceConnectionSchema.index({ userId: 1, service: 1 }, { unique: true });
+
 // ============================================================================
 // META WHATSAPP CHAT ARCHIVAL — mirrors the QR retention pipeline, but for
 // the Meta Cloud API channel (WhatsAppMessage/provider:'meta') and a
@@ -3325,6 +3343,7 @@ export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsA
 export function getQrWhatsappStorageUsage() { return getModel('QrWhatsappStorageUsage', QrWhatsappStorageUsageSchema); }
 export function getQrWhatsappArchiveManifest() { return getModel('QrWhatsappArchiveManifest', QrWhatsappArchiveManifestSchema); }
 export function getQrWhatsappDriveConnection() { return getModel('QrWhatsappDriveConnection', QrWhatsappDriveConnectionSchema); }
+export function getQrWhatsappGoogleServiceConnection() { return getModel('QrWhatsappGoogleServiceConnection', QrWhatsappGoogleServiceConnectionSchema); }
 export function getMetaWhatsappStorageUsage() { return getModel('MetaWhatsappStorageUsage', MetaWhatsappStorageUsageSchema); }
 export function getMetaWhatsappArchiveManifest() { return getModel('MetaWhatsappArchiveManifest', MetaWhatsappArchiveManifestSchema); }
 export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }

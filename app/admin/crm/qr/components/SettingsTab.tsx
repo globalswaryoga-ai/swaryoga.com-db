@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive, Download, CloudUpload, AlertTriangle } from 'lucide-react';
+import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive, Download, CloudUpload, Mail, AlertTriangle } from 'lucide-react';
 import type { FunnelStage, LabelPreset } from '../types';
 
 type QRAccessUser = {
@@ -77,6 +77,15 @@ export function SettingsTab({
   const [driveDisconnecting, setDriveDisconnecting] = useState(false);
   const [driveBanner, setDriveBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  type GoogleServiceType = 'contacts' | 'gmail';
+  const [googleServiceStatus, setGoogleServiceStatus] = useState<Record<GoogleServiceType, {
+    connected: boolean; googleEmail?: string; needsReconnect?: boolean; lastSyncedAt?: string | null; lastError?: string;
+  } | null>>({ contacts: null, gmail: null });
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleConnecting, setGoogleConnecting] = useState<GoogleServiceType | null>(null);
+  const [googleDisconnecting, setGoogleDisconnecting] = useState<GoogleServiceType | null>(null);
+  const [googleBanner, setGoogleBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const refreshDriveStatus = useCallback(async () => {
     if (!token) return;
     try {
@@ -89,21 +98,114 @@ export function SettingsTab({
     }
   }, [token]);
 
-  useEffect(() => { refreshDriveStatus(); }, [refreshDriveStatus]);
+  const refreshGoogleServiceStatuses = useCallback(async () => {
+    if (!token) return;
+    setGoogleLoading(true);
+    try {
+      const services = ['contacts', 'gmail'] as const;
+      const nextStatus: Record<GoogleServiceType, any> = { contacts: null, gmail: null };
+      await Promise.all(services.map(async (service) => {
+        try {
+          const res = await fetch(`/api/admin/crm/whatsapp/google/${service}/status`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          if (res.ok) {
+            nextStatus[service] = await res.json();
+          } else {
+            nextStatus[service] = null;
+          }
+        } catch {
+          nextStatus[service] = null;
+        }
+      }));
+      setGoogleServiceStatus(nextStatus);
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { refreshDriveStatus(); refreshGoogleServiceStatuses(); }, [refreshDriveStatus, refreshGoogleServiceStatuses]);
 
   // Show a banner after returning from the Google OAuth redirect
   useEffect(() => {
     const driveConnect = searchParams?.get('driveConnect');
-    if (!driveConnect) return;
-    if (driveConnect === 'success') {
-      const email = searchParams.get('email');
-      setDriveBanner({ type: 'success', message: email ? `Connected to Google Drive as ${email}.` : 'Connected to Google Drive.' });
-      refreshDriveStatus();
-    } else if (driveConnect === 'error') {
-      const reason = searchParams.get('reason') || 'unknown_error';
-      setDriveBanner({ type: 'error', message: `Couldn't connect Google Drive: ${reason.replace(/_/g, ' ')}` });
+    if (driveConnect) {
+      if (driveConnect === 'success') {
+        const email = searchParams.get('email');
+        setDriveBanner({ type: 'success', message: email ? `Connected to Google Drive as ${email}.` : 'Connected to Google Drive.' });
+        refreshDriveStatus();
+      } else if (driveConnect === 'error') {
+        const reason = searchParams.get('reason') || 'unknown_error';
+        setDriveBanner({ type: 'error', message: `Couldn't connect Google Drive: ${reason.replace(/_/g, ' ')}` });
+      }
     }
-  }, [searchParams, refreshDriveStatus]);
+
+    const contactsConnect = searchParams?.get('contactsConnect');
+    if (contactsConnect) {
+      if (contactsConnect === 'success') {
+        setGoogleBanner({ type: 'success', message: 'Connected Google Contacts.' });
+        refreshGoogleServiceStatuses();
+      } else {
+        const reason = searchParams.get('reason') || 'unknown_error';
+        setGoogleBanner({ type: 'error', message: `Couldn't connect Google Contacts: ${reason.replace(/_/g, ' ')}` });
+      }
+    }
+
+    const gmailConnect = searchParams?.get('gmailConnect');
+    if (gmailConnect) {
+      if (gmailConnect === 'success') {
+        setGoogleBanner({ type: 'success', message: 'Connected Gmail.' });
+        refreshGoogleServiceStatuses();
+      } else {
+        const reason = searchParams.get('reason') || 'unknown_error';
+        setGoogleBanner({ type: 'error', message: `Couldn't connect Gmail: ${reason.replace(/_/g, ' ')}` });
+      }
+    }
+  }, [searchParams, refreshDriveStatus, refreshGoogleServiceStatuses]);
+
+  const connectGoogleService = useCallback(async (service: GoogleServiceType) => {
+    if (!token) return;
+    setGoogleConnecting(service);
+    setGoogleBanner(null);
+    try {
+      const res = await fetch(`/api/admin/crm/whatsapp/google/${service}/connect`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data?.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setGoogleBanner({ type: 'error', message: data?.error || `Failed to start Google ${service} connection` });
+      }
+    } catch (e: any) {
+      setGoogleBanner({ type: 'error', message: e?.message || `Failed to start Google ${service} connection` });
+    } finally {
+      setGoogleConnecting(null);
+    }
+  }, [token]);
+
+  const disconnectGoogleService = useCallback(async (service: GoogleServiceType) => {
+    if (!token) return;
+    setGoogleDisconnecting(service);
+    setGoogleBanner(null);
+    try {
+      const res = await fetch(`/api/admin/crm/whatsapp/google/${service}/disconnect`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setGoogleBanner({ type: 'success', message: `Disconnected Google ${service.charAt(0).toUpperCase() + service.slice(1)}.` });
+        refreshGoogleServiceStatuses();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setGoogleBanner({ type: 'error', message: data?.error || `Failed to disconnect Google ${service}` });
+      }
+    } catch (e: any) {
+      setGoogleBanner({ type: 'error', message: e?.message || `Failed to disconnect Google ${service}` });
+    } finally {
+      setGoogleDisconnecting(null);
+    }
+  }, [token, refreshGoogleServiceStatuses]);
 
   const connectDrive = useCallback(async () => {
     if (!token) return;
@@ -484,6 +586,109 @@ export function SettingsTab({
                 </button>
               </div>
             </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Google Contacts & Gmail Connections ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+            <Mail className="w-4 h-4 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Google Contacts & Gmail</h3>
+            <p className="text-xs text-gray-500">Connect additional Google services for contacts sync and Gmail actions</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          {googleBanner && (
+            <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-xs ${
+              googleBanner.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {googleBanner.type === 'success' ? <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+              <span>{googleBanner.message}</span>
+            </div>
+          )}
+
+          {googleLoading ? (
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading Google service status…
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {(['contacts', 'gmail'] as const).map(service => {
+                const status = googleServiceStatus[service];
+                const label = service === 'contacts' ? 'Google Contacts' : 'Gmail';
+                const description = service === 'contacts'
+                  ? 'Grant access to manage your Google Contacts from the CRM.'
+                  : 'Grant Gmail send access for CRM email actions.';
+                return (
+                  <div key={service} className="rounded-2xl border p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{label}</p>
+                        <p className="text-xs text-gray-500">{description}</p>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full ${status?.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {status?.connected ? 'Connected' : 'Not connected'}
+                      </span>
+                    </div>
+                    {status?.connected ? (
+                      <>
+                        <p className="text-[10px] text-gray-500">
+                          Connected as <strong>{status.googleEmail || 'your Google account'}</strong>.
+                          {status.lastSyncedAt ? ` Last refreshed ${new Date(status.lastSyncedAt).toLocaleString()}.` : ''}
+                        </p>
+                        {status.needsReconnect && (
+                          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700">
+                            Your {label} connection needs reconnecting. Google refresh tokens may expire when the app is unverified.
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => connectGoogleService(service)}
+                            disabled={googleConnecting === service}
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 transition"
+                          >
+                            {googleConnecting === service ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            {status.needsReconnect ? 'Reconnect' : 'Refresh'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => disconnectGoogleService(service)}
+                            disabled={googleDisconnecting === service}
+                            className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-60 transition"
+                          >
+                            {googleDisconnecting === service ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unplug className="w-3.5 h-3.5" />}
+                            Disconnect
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[10px] text-gray-500">
+                          Connect {label} so the CRM can use this Google service where available.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => connectGoogleService(service)}
+                          disabled={googleConnecting === service}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 transition"
+                        >
+                          {googleConnecting === service ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                          Connect {label}
+                        </button>
+                      </>
+                    )}
+                    {status?.lastError && (
+                      <p className="text-[10px] text-red-600">Last error: {status.lastError}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

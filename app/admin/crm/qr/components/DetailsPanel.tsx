@@ -160,22 +160,22 @@ export function DetailsPanel({
         <button
           onClick={() => window.open(`tel:+${phone}`, '_blank')}
           className="flex flex-col items-center gap-1 group"
-          title="Voice Call"
+          title="Phone call"
         >
           <div className="w-10 h-10 rounded-full bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition">
             <Phone className="w-5 h-5 text-green-600" />
           </div>
-          <span className="text-[10px] text-gray-500">Audio</span>
+          <span className="text-[10px] text-gray-500">Phone</span>
         </button>
         <button
-          onClick={() => window.open(`https://wa.me/${phone}?video=true`, '_blank')}
+          onClick={() => alert('Native WhatsApp video calls must be started from WhatsApp itself. Use the video-class button in the chat header to send a Zoom, Meet, or Jitsi class invitation through QR WhatsApp.')}
           className="flex flex-col items-center gap-1 group"
-          title="Video Call"
+          title="Video class information"
         >
           <div className="w-10 h-10 rounded-full bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition">
             <Video className="w-5 h-5 text-indigo-600" />
           </div>
-          <span className="text-[10px] text-gray-500">Video</span>
+          <span className="text-[10px] text-gray-500">Class link</span>
         </button>
         <button
           onClick={() => window.open(`https://wa.me/${phone}`, '_blank')}

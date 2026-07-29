@@ -26,7 +26,7 @@ const USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
 export const DRIVE_BACKUP_FOLDER_NAME = 'Swar Yoga WhatsApp Backup';
 
-export function getDriveOAuthUrl(redirectUri: string, state: string): string {
+export function getGoogleOAuthUrl(redirectUri: string, state: string, scopes: string[]): string {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID not configured');
 
@@ -34,11 +34,17 @@ export function getDriveOAuthUrl(redirectUri: string, state: string): string {
   url.searchParams.set('client_id', clientId);
   url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.file email');
+  url.searchParams.set('scope', [...new Set([...scopes, 'email'])].join(' '));
   url.searchParams.set('access_type', 'offline'); // need a refresh token for ongoing sync
   url.searchParams.set('prompt', 'consent');       // force a fresh refresh token every reconnect
   url.searchParams.set('state', state);
   return url.toString();
+}
+
+export function getDriveOAuthUrl(redirectUri: string, state: string): string {
+  // drive.file limits access to files created by this app; it cannot browse a
+  // customer's existing Drive content.
+  return getGoogleOAuthUrl(redirectUri, state, ['https://www.googleapis.com/auth/drive.file']);
 }
 
 export async function exchangeCodeForTokens(code: string, redirectUri: string): Promise<{

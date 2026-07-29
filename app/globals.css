@@ -215,6 +215,14 @@ button, .btn {
   display: none;
 }
 
+/* QR WhatsApp inbox: light, low-contrast doodle texture. The pattern is
+   embedded so it works offline and cannot affect page performance or loading. */
+.qr-chat-texture {
+  background-color: #fdf9f2;
+  background-image: url("data:image/svg+xml,%3Csvg width='280' height='220' viewBox='0 0 280 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23eadfcd' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' opacity='.55'%3E%3Cpath d='M32 29c-9 0-16 6-16 14s7 14 16 14c3 0 6-1 8-2l8 4-3-8c2-2 3-5 3-8 0-8-7-14-16-14Z'/%3E%3Cpath d='m87 25 4 8 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1 4-8Z'/%3E%3Ccircle cx='150' cy='38' r='16'/%3E%3Cpath d='M150 13v6m0 38v6m-25-25h6m38 0h6m-43-18 4 4m28 28 4 4m0-36-4 4m-28 28-4 4'/%3E%3Cpath d='M217 26h28a5 5 0 0 1 5 5v20a5 5 0 0 1-5 5h-15l-8 7 2-7h-7a5 5 0 0 1-5-5V31a5 5 0 0 1 5-5Z'/%3E%3Cpath d='m38 113 10-13 10 13-6 1 2 12H42l2-12-6-1Zm55-7c0-10 8-18 18-18s18 8 18 18v15H93v-15Z'/%3E%3Cpath d='M166 96c8-7 21-7 29 0l-4 5c-5-4-12-4-17 0l-4-5Zm-3 14c10-9 26-9 36 0l-5 6c-7-6-18-6-25 0l-6-6Z'/%3E%3Cpath d='m235 96 6 12 13 2-10 9 3 13-12-7-12 7 3-13-10-9 13-2 6-12Z'/%3E%3Ccircle cx='24' cy='178' r='4'/%3E%3Ccircle cx='63' cy='164' r='7'/%3E%3Ccircle cx='139' cy='175' r='5'/%3E%3Ccircle cx='193' cy='158' r='8'/%3E%3Cpath d='M83 171c0-9 7-16 16-16s16 7 16 16c0 8-7 15-16 15s-16-7-16-15Zm7 0h18m-9-9v18'/%3E%3Cpath d='m247 168 4 8 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1 4-8Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 280px 220px;
+}
+
 /* ===== MOBILE TOUCH UTILITIES ===== */
 .touch-target {
   min-height: 44px;

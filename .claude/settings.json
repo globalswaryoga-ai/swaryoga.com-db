@@ -19,7 +19,40 @@
       "Bash(vercel inspect *)",
       "Bash(git reset *)",
       "Bash(git checkout *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(gh run *)",
+      "Bash(gh auth *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://crm.swaryoga.com/admin/crm/messenger)",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(node /private/tmp/claude-501/-Users-mohankalburgi-swaryoga-com-db/76c4b1d1-9042-4990-b642-405d922849fa/scratchpad/verify-fb-scopes.mjs)",
+      "Bash(node /Users/mohankalburgi/swaryoga.com-db/verify-fb-scopes.tmp.mjs)",
+      "Bash(node /Users/mohankalburgi/swaryoga.com-db/verify-scope-isolation.tmp.mjs)",
+      "Bash(node /Users/mohankalburgi/swaryoga.com-db/verify-ig-status.tmp.mjs)",
+      "Bash(curl -s \"https://graph.facebook.com/v24.0/1818511178556728/subscriptions?access_token=1818511178556728%7Cce4bf92f6be0c7bace755a216cbf1ef2\")",
+      "Bash(NEW_TOKEN='EAAZA17SDRZATgBSOXspcBp8BzkHwZCflJ9WvVwaozhLnG5Vo1sCh2Le9gcZB5oOrBoGHJZAeKbjNOVCLf2066RKpikiDDJ5JSoiFAM7AFgEJLumvJGftTbByTfqd6DLgbAUr3pTJafIZBZAY0H1BoF2mPmmZAUOv3dzJZBWwbgFXKqYqrdWIR8jlF07KRV6WwMHMY4AZDZD' META_APP_SECRET='ce4bf92f6be0c7bace755a216cbf1ef2' node /private/tmp/claude-501/-Users-mohankalburgi-swaryoga-com-db/76c4b1d1-9042-4990-b642-405d922849fa/scratchpad/test-new-token.mjs)",
+      "Bash(NEW_TOKEN='EAAZA17SDRZATgBSOXspcBp8BzkHwZCflJ9WvVwaozhLnG5Vo1sCh2Le9gcZB5oOrBoGHJZAeKbjNOVCLf2066RKpikiDDJ5JSoiFAM7AFgEJLumvJGftTbByTfqd6DLgbAUr3pTJafIZBZAY0H1BoF2mPmmZAUOv3dzJZBWwbgFXKqYqrdWIR8jlF07KRV6WwMHMY4AZDZD' node update-super-admin-tokens.tmp.mjs)",
+      "Bash(rm -f /private/tmp/claude-501/-Users-mohankalburgi-swaryoga-com-db/76c4b1d1-9042-4990-b642-405d922849fa/scratchpad/*.mjs 2>/dev/null; true)",
+      "Bash(curl -s \"https://crm.swaryoga.com/api/webhooks/meta-inbox?hub.mode=subscribe&hub.verify_token=swaryoga_webhook_verify_2026&hub.challenge=diagnostic_test_123\")",
+      "Bash(echo \"--- exit code: $? ---\")",
+      "Bash(git rebase *)",
+      "Bash(curl -s -i \"https://swaryoga.com/api/webhooks/meta-inbox?hub.mode=subscribe&hub.verify_token=swaryoga_webhook_verify_2026&hub.challenge=test_no_crm\")",
+      "Bash(curl -s -i \"https://crm.swaryoga.com/api/webhooks/meta-inbox?hub.mode=subscribe&hub.verify_token=swaryoga_webhook_verify_2026&hub.challenge=test_with_crm\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('vercel.json','utf-8'\\)\\); console.log\\('valid JSON'\\)\")",
+      "Bash(vercel crons *)",
+      "Bash(vercel --help)",
+      "Bash(curl -s -H \"User-Agent: vercel-cron/1.0\" \"https://crm.swaryoga.com/api/cron/social-inbox-sync\")",
+      "Bash(awk '{print $2, $11, $12, $13}')",
+      "Bash(kill 41878)",
+      "Bash(kill 41887)",
+      "Bash(awk '{print $2}')",
+      "Bash(grep -E \"\\\\.\\(ts|js|env|json\\)$\")",
+      "Bash(node --check /Users/mohankalburgi/swaryoga.com-db/deploy/wa-baileys/index.js)",
+      "Bash(cat > *)",
+      "Bash(node --check /Users/mohankalburgi/swaryoga.com-db/app/admin/crm/qr/components/SettingsTab.tsx)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp/claude-501/-Users-mohankalburgi-swaryoga-com-db/76c4b1d1-9042-4990-b642-405d922849fa/scratchpad",
+      "/tmp"
     ]
   }
 }
