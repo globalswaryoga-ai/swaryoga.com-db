@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive, Download, CloudUpload, AlertTriangle } from 'lucide-react';
 import type { FunnelStage, LabelPreset } from '../types';
+import BackupPanel from './BackupPanel';
 
 type QRAccessUser = {
   userId: string;
@@ -488,6 +489,22 @@ export function SettingsTab({
               </div>
             </>
           )}
+        </div>
+      </div>
+
+      {/* ── WhatsApp Chat Backup ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
+            <CloudUpload className="w-4 h-4 text-cyan-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Chat Backup & Recovery</h3>
+            <p className="text-xs text-gray-500">Automatic backup of all chats, contacts, and messages with 1-3 year retention</p>
+          </div>
+        </div>
+        <div className="p-6">
+          <BackupPanel token={token} />
         </div>
       </div>
 
