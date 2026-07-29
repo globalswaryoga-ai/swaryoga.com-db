@@ -2977,7 +2977,55 @@ export default function QRWhatsAppPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTab('templates')}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
+              title="Templates"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => alert('Merge groups feature')}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
+              title="Merge groups"
+            >
+              <Merge className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => alert('Report feature')}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
+              title="Report"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('broadcast')}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
+              title="Broadcast"
+            >
+              <Radio className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => alert('Delete group feature')}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
+              title="Delete group"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => alert('Group schedule feature')}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition"
+              title="Group schedule"
+            >
+              <Calendar className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={() => setTab('settings')}
