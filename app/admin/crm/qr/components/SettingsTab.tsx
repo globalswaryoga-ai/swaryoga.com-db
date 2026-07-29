@@ -156,7 +156,7 @@ export function SettingsTab({
       });
       const data = await res.json();
       if (res.ok) {
-        setDriveBanner({ type: 'success', message: `Backed up ${data.totalMessages?.toLocaleString?.() || 0} messages across ${data.chatsCount || 0} chats to Drive.` });
+        setDriveBanner({ type: 'success', message: `Backed up ${data.totalMessages?.toLocaleString() || 0} messages across ${data.chatsCount || 0} chats to Drive.` });
         refreshDriveStatus();
       } else {
         setDriveBanner({ type: 'error', message: data?.error || 'Backup failed' });
