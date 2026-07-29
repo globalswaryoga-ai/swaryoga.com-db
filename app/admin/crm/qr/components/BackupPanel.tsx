@@ -14,14 +14,22 @@ interface BackupStatus {
   totalBackups: number;
 }
 
+interface ContactsSyncStatus {
+  lastSyncAt: string | null;
+  lastSyncStatus: string;
+  syncedContactsCount: number;
+}
+
 interface BackupPanelProps {
   token: string | null;
 }
 
 export default function BackupPanel({ token }: BackupPanelProps) {
   const [status, setStatus] = useState<BackupStatus | null>(null);
+  const [contactsStatus, setContactsStatus] = useState<ContactsSyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [backingUp, setBackingUp] = useState(false);
+  const [syncingContacts, setSyncingContacts] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGoogleSetup, setShowGoogleSetup] = useState(false);
 
@@ -34,13 +42,24 @@ export default function BackupPanel({ token }: BackupPanelProps) {
   const fetchBackupStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/crm/qr/backup/status', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const [backupRes, contactsRes] = await Promise.all([
+        fetch('/api/admin/crm/qr/backup/status', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/admin/crm/qr/backup/sync-contacts', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      if (!response.ok) throw new Error('Failed to fetch backup status');
-      const data = await response.json();
-      setStatus(data);
+      if (!backupRes.ok) throw new Error('Failed to fetch backup status');
+      const backupData = await backupRes.json();
+      setStatus(backupData);
+
+      if (contactsRes.ok) {
+        const contactsData = await contactsRes.json();
+        setContactsStatus(contactsData);
+      }
+
       setError(null);
     } catch (e: any) {
       setError(e.message);
@@ -82,6 +101,38 @@ export default function BackupPanel({ token }: BackupPanelProps) {
       alert('❌ Backup failed: ' + e.message);
     } finally {
       setBackingUp(false);
+    }
+  };
+
+  const handleSyncContacts = async () => {
+    if (!token) {
+      setError('Not authenticated');
+      return;
+    }
+
+    try {
+      setSyncingContacts(true);
+      const response = await fetch('/api/admin/crm/qr/backup/sync-contacts', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Contact sync failed');
+      const data = await response.json();
+
+      setError(null);
+      // Refresh status after sync
+      setTimeout(fetchBackupStatus, 1000);
+
+      alert(`✅ Contacts synced!\n\n${data.syncedCount} contacts from Google added.`);
+    } catch (e: any) {
+      setError(e.message);
+      alert('❌ Contact sync failed: ' + e.message);
+    } finally {
+      setSyncingContacts(false);
     }
   };
 
@@ -230,6 +281,70 @@ export default function BackupPanel({ token }: BackupPanelProps) {
         }}
       />
 
+      {/* Contacts Sync Section */}
+      {status.googleDriveConnected && (
+        <div className="p-4 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900">Google Contacts Sync</h4>
+              <p className="text-xs text-gray-500 mt-1">
+                Import your Google Contacts to WhatsApp chat contacts
+              </p>
+            </div>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+              contactsStatus?.syncedContactsCount
+                ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
+                : 'bg-gray-100 text-gray-700 ring-1 ring-gray-300'
+            }`}>
+              {contactsStatus?.syncedContactsCount || 0} synced
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="p-2 bg-white rounded border border-gray-200">
+              <p className="text-[10px] uppercase text-gray-500">Last Sync</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">
+                {contactsStatus?.lastSyncAt
+                  ? new Date(contactsStatus.lastSyncAt).toLocaleDateString('en-IN', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : 'Never'}
+              </p>
+            </div>
+            <div className="p-2 bg-white rounded border border-gray-200">
+              <p className="text-[10px] uppercase text-gray-500">Contacts</p>
+              <p className="text-sm font-semibold text-gray-900 mt-1">
+                {contactsStatus?.syncedContactsCount || 0}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSyncContacts}
+            disabled={syncingContacts}
+            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            {syncingContacts ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Syncing contacts...
+              </>
+            ) : (
+              <>
+                <RotateCcw className="w-4 h-4" />
+                Sync Google Contacts Now
+              </>
+            )}
+          </button>
+          <p className="text-[10px] text-gray-500 mt-2">
+            Syncs names, phone numbers, and emails from your Google Contacts
+          </p>
+        </div>
+      )}
+
       {/* Backup History */}
       {status.backupHistory.length > 0 && (
         <div className="p-4 bg-white rounded-lg border border-gray-200">
@@ -259,6 +374,17 @@ export default function BackupPanel({ token }: BackupPanelProps) {
           </div>
         </div>
       )}
+
+      {/* Google OAuth Setup Modal */}
+      <GoogleOAuthSetupGuide
+        isOpen={showGoogleSetup}
+        onClose={() => setShowGoogleSetup(false)}
+        token={token}
+        onSetupComplete={() => {
+          setShowGoogleSetup(false);
+          fetchBackupStatus();
+        }}
+      />
     </div>
   );
 }
