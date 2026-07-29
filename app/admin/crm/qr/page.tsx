@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone, MoreVertical } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -442,12 +442,19 @@ export default function QRWhatsAppPage() {
   const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
   const [reactingToMsg, setReactingToMsg] = useState<string | null>(null);
   const [showMsgActions, setShowMsgActions] = useState<string | null>(null);
+  const [showChatContextMenu, setShowChatContextMenu] = useState(false);
   const [showGroupCreate, setShowGroupCreate] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState('');
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState('');
+  const [showClassInvite, setShowClassInvite] = useState(false);
+  const [classInviteType, setClassInviteType] = useState<'video' | 'voice'>('video');
+  const [classInviteTitle, setClassInviteTitle] = useState('');
+  const [classInviteLink, setClassInviteLink] = useState('');
+  const [classInviteStart, setClassInviteStart] = useState('');
+  const [sendingClassInvite, setSendingClassInvite] = useState(false);
   const [contactAbout, setContactAbout] = useState<string | null>(null);
   const [showMergeGroups, setShowMergeGroups] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState('');
@@ -2078,6 +2085,44 @@ export default function QRWhatsAppPage() {
     }
   }, [composerText, mediaPreview, selectedChat, sending, bridgeCall, fetchMessages, token, replyingTo]);
 
+  // WhatsApp Web's QR protocol cannot initiate native voice/video calls. A
+  // secure meeting link (Zoom, Google Meet, Jitsi, etc.) is therefore sent
+  // through the connected QR WhatsApp account for live classes.
+  const handleSendClassInvite = useCallback(async () => {
+    if (!selectedChat || !classInviteTitle.trim() || !classInviteLink.trim() || sendingClassInvite) return;
+    let joinUrl: URL;
+    try {
+      joinUrl = new URL(classInviteLink.trim());
+      if (!['https:', 'http:'].includes(joinUrl.protocol)) throw new Error('Unsupported link');
+    } catch {
+      setError('Enter a valid Zoom, Google Meet, Jitsi, or other HTTPS class link.');
+      return;
+    }
+
+    setSendingClassInvite(true);
+    try {
+      const startsAt = classInviteStart ? new Date(classInviteStart) : null;
+      const timeLabel = startsAt && !Number.isNaN(startsAt.getTime())
+        ? startsAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }) + ' IST'
+        : 'Starting now';
+      const typeLabel = classInviteType === 'video' ? 'Video class' : 'Voice class';
+      const message = `🧘 *${classInviteTitle.trim()}*\n\n🎓 ${typeLabel}\n🗓️ ${timeLabel}\n\n🔗 Join class: ${joinUrl.toString()}\n\nPlease join a few minutes early.`;
+      const to = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid')
+        ? selectedChat
+        : selectedChat.replace('@s.whatsapp.net', '');
+      await bridgeCall('/send', 'POST', { to, message, type: 'text' });
+      setShowClassInvite(false);
+      setClassInviteTitle('');
+      setClassInviteLink('');
+      setClassInviteStart('');
+      setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), 500);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to send the class invitation.');
+    } finally {
+      setSendingClassInvite(false);
+    }
+  }, [selectedChat, classInviteTitle, classInviteLink, classInviteStart, classInviteType, sendingClassInvite, bridgeCall, fetchMessages]);
+
   // ── Send a poll ──
   const handleSendPoll = useCallback(async () => {
     const opts = pollOptions.map(o => o.trim()).filter(Boolean);
@@ -2860,8 +2905,9 @@ export default function QRWhatsAppPage() {
           </button>
         </div>
       )}
-      {/* ═══ Page Header ═══ */}
-      <div className="bg-white border-b shadow-sm">
+      {/* Page identity only. Navigation and actions live in the icon rail so the
+          inbox does not repeat the same controls in a second header/tab row. */}
+      <div className="bg-white border-b">
         <div className="px-4 py-3 flex items-center justify-between">
           {/* Left: Title + Status Badge + Compartment */}
           <div className="flex items-center gap-3">
@@ -2896,102 +2942,6 @@ export default function QRWhatsAppPage() {
               {isSuperAdminUser ? '👑 Admin' : currentUserId || 'User'}
             </div>
           </div>
-          {/* Right: Quick Actions — monochrome icon rail, matching web.whatsapp.com's
-              own header icons (video call/phone/search/menu) instead of a row of
-              colorful pill buttons. Same handlers/routes as before, restyled only. */}
-          <div className="flex items-center gap-0.5">
-            {isConnected && (
-              <>
-                <button onClick={() => setShowNewChat(true)} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="New Chat">
-                  <Plus className="w-5 h-5" />
-                </button>
-                <button onClick={() => setShowGroupCreate(true)} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="New Group">
-                  <Users className="w-5 h-5" />
-                </button>
-                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Merge Groups">
-                  <Merge className="w-5 h-5" />
-                </button>
-              </>
-            )}
-            <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Stories / Status">
-              <Radio className="w-5 h-5" />
-            </button>
-            <a href="/admin/crm/qr/leads" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="QR Leads">
-              <UserCircle className="w-5 h-5" />
-            </a>
-            <a href="/admin/crm/qr/funnel-report" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="QR Funnel Report">
-              <Funnel className="w-5 h-5" />
-            </a>
-            <a href="/admin/crm/qr/manage" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Manage QR Funnel">
-              <Settings className="w-5 h-5" />
-            </a>
-            <a href="/admin/crm/qr/broadcast-report" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="QR Broadcast Reports">
-              <BarChart3 className="w-5 h-5" />
-            </a>
-            <a href="/admin/crm/qr/merge-group-v2" className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition" title="Group members: remove one/some/all — group auto-deletes when empty">
-              <Trash2 className="w-5 h-5" />
-            </a>
-          </div>
-        </div>
-
-        {/* ═══ Tab Navigation ═══ */}
-        <div className="px-4 flex items-center gap-1 border-t bg-gray-50/50">
-          {([
-            { key: 'connection' as const, label: 'Connection', icon: <QrCode className="w-3.5 h-3.5" />, desc: 'QR & Status' },
-            { key: 'inbox' as const, label: 'Inbox', icon: <MessageSquare className="w-3.5 h-3.5" />, desc: `${chats.length} chats`, badge: chats.filter(c => c.unreadCount > 0).length },
-            { key: 'history' as const, label: 'Sent Messages', icon: <Calendar className="w-3.5 h-3.5" />, desc: 'Delivery history' },
-            { key: 'settings' as const, label: 'Settings', icon: <Settings className="w-3.5 h-3.5" />, desc: 'Configure' },
-          ]).map(t => (
-            <button
-              key={t.key}
-              onClick={() => { setTab(t.key); if (t.key === 'inbox' && isConnected) fetchChats(); }}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
-                tab === t.key
-                  ? 'border-green-600 text-green-700 bg-white'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {t.icon}
-              <span>{t.label}</span>
-              {t.key === 'inbox' && (t.badge ?? 0) > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-green-600 text-white font-semibold">{t.badge}</span>
-              )}
-            </button>
-          ))}
-
-          {/* NOTE: Templates / Broadcast / Group Contacts intentionally live ONLY
-              in the top QR WhatsApp menu (CrmSubNav) — not here — to avoid the
-              duplicate header labels. */}
-
-          {/* Funnel pills — visible only on inbox tab */}
-          {tab === 'inbox' && (
-            <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide ml-4 flex-1">
-              {funnelStages.map(stage => {
-                const count = stage.key === 'all'
-                  ? chats.length
-                  : chats.filter(c => chatFunnels[c.id] === stage.key).length;
-                return (
-                  <div key={stage.key} className="flex items-center flex-shrink-0 group">
-                    <button
-                      onClick={() => { setActiveFunnel(stage.key); setSelectedChats(new Set()); }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border whitespace-nowrap transition ${activeFunnel === stage.key ? stage.color + ' ring-1 ring-offset-1 ring-current' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      {stage.label}
-                      <span className={`text-[10px] px-1 rounded-full ${activeFunnel === stage.key ? 'bg-white/60' : 'bg-gray-100'}`}>{count}</span>
-                    </button>
-                    {stage.key !== 'all' && (
-                      <button onClick={() => openEditModal('funnel', 'edit', stage)} className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition" title="Edit">
-                        <Pencil className="w-2.5 h-2.5 text-gray-400" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              <button onClick={() => openEditModal('funnel', 'add')} className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border border-dashed border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400 whitespace-nowrap transition flex-shrink-0" title="Add funnel stage">
-                <Plus className="w-3 h-3" /> Add
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -3100,7 +3050,7 @@ export default function QRWhatsAppPage() {
         </div>
       )}
       {!loading && tab === 'inbox' && isConnected && (
-        <div className="flex h-[calc(100vh-105px)]">
+        <div className="flex h-[calc(100vh-57px)]">
           {/* Chat List — full width on mobile, resizable sidebar on lg+ */}
           <div
             className={`bg-white flex flex-col border-r ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
@@ -3468,8 +3418,9 @@ export default function QRWhatsAppPage() {
           {/* Message Area — hidden on mobile when no chat selected */}
           <div className={`flex-1 flex flex-col bg-gray-100 ${!selectedChat ? 'hidden lg:flex' : 'flex'}`}>
             {!selectedChat ? (
-              <div className="flex-1 flex items-center justify-center text-gray-400">
-                <div className="text-center">
+              <div className="flex-1 flex items-center justify-center text-gray-400 relative overflow-hidden">
+                <span className="pointer-events-none absolute right-8 bottom-10 text-6xl opacity-10 select-none">🪷</span>
+                <div className="text-center relative">
                   <Send className="w-12 h-12 mx-auto mb-3 opacity-30" />
                   <p>Select a chat to start messaging</p>
                 </div>
@@ -3562,29 +3513,23 @@ export default function QRWhatsAppPage() {
                     })()}
                   </div>
 
-                  {/* Right: Call buttons + Info + Refresh */}
+                  {/* Right: familiar WhatsApp Web conversation actions */}
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
-                      onClick={() => {
-                        const chatInfo = chats.find(c => c.id === selectedChat);
-                        const phone = chatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', '').replace('@g.us', '');
-                        window.open(`tel:+${phone}`, '_blank');
-                      }}
-                      className="p-1.5 rounded-full hover:bg-green-50 text-gray-500 hover:text-green-600 transition"
-                      title="Voice Call"
-                    >
-                      <Phone className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        const chatInfo = chats.find(c => c.id === selectedChat);
-                        const phone = chatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', '').replace('@g.us', '');
-                        window.open(`https://wa.me/${phone}?video=true`, '_blank');
-                      }}
+                      onClick={() => { setClassInviteType('video'); setShowClassInvite(true); }}
                       className="p-1.5 rounded-full hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 transition"
-                      title="Video Call"
+                      title="Send video class invite"
+                      aria-label="Send video class invite"
                     >
                       <Video className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => { setClassInviteType('voice'); setShowClassInvite(true); }}
+                      className="p-1.5 rounded-full hover:bg-green-50 text-gray-500 hover:text-green-600 transition"
+                      title="Send voice class invite"
+                      aria-label="Send voice class invite"
+                    >
+                      <Phone className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => openDetailsPanel(selectedChat)}
@@ -3600,13 +3545,58 @@ export default function QRWhatsAppPage() {
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                     </button>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowChatContextMenu(v => !v)}
+                        className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500 transition"
+                        title="Chat menu"
+                        aria-label="Open chat menu"
+                        aria-expanded={showChatContextMenu}
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      {showChatContextMenu && (
+                        <div className="absolute right-0 top-full mt-1 w-52 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl z-30">
+                          <button
+                            onClick={() => { openDetailsPanel(selectedChat); setShowChatContextMenu(false); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Info className="w-4 h-4" /> Contact info
+                          </button>
+                          <button
+                            onClick={() => { togglePinChat(selectedChat); setShowChatContextMenu(false); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Star className="w-4 h-4" /> {pinnedChats.includes(selectedChat) ? 'Remove from favourites' : 'Add to favourites'}
+                          </button>
+                          <button
+                            onClick={() => { setSelectedChats(new Set([selectedChat])); setShowBulkLabel(true); setShowChatContextMenu(false); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Tag className="w-4 h-4" /> Manage labels
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Remove this chat from your inbox? This only hides it here and does not delete WhatsApp messages.')) {
+                                setChats(prev => prev.filter(chat => chat.id !== selectedChat));
+                                setChatFunnels(prev => { const next = { ...prev }; delete next[selectedChat]; return next; });
+                                setChatLabels(prev => { const next = { ...prev }; delete next[selectedChat]; return next; });
+                                setSelectedChat(null);
+                              }
+                              setShowChatContextMenu(false);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" /> Remove from inbox
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Messages - Simple clean background */}
-                <div ref={messengerRef} className="flex-1 overflow-y-auto p-4 space-y-2 bg-gradient-to-b from-white to-gray-50" style={{
-                  backgroundColor: '#fafafa',
-                }}>
+                {/* Messages — warm, low-contrast WhatsApp-inspired doodle texture */}
+                <div ref={messengerRef} className="qr-chat-texture flex-1 overflow-y-auto p-4 space-y-2">
                   {messages.length === 0 && (
                     <div className="text-center text-gray-400 text-sm py-10">No messages yet</div>
                   )}
@@ -3834,7 +3824,7 @@ export default function QRWhatsAppPage() {
                 )}
 
                 {/* Composer */}
-                <div className="bg-white border-t relative">
+                <div className="bg-[#f0f2f5] border-t border-gray-200 relative">
                   {/* Emoji Picker Popup */}
                   {showEmojiPicker && (
                     <div className="absolute bottom-full left-12 mb-1 bg-white border rounded-xl shadow-xl p-3 w-80 z-30">
@@ -3925,12 +3915,12 @@ export default function QRWhatsAppPage() {
 
                   {/* Input Row — Only show when connected */}
                   {isConnected && (
-                    <div className="px-3 py-2 flex items-center gap-1.5">
+                    <div className="px-3 py-2 flex items-end gap-1.5">
                       {/* Attach button */}
                       <button
                         onClick={() => { setShowAttachMenu(!showAttachMenu); setShowEmojiPicker(false); setShowFormatBar(false); }}
                         disabled={!isConnected}
-                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-green-600 disabled:opacity-40 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] disabled:opacity-40 transition"
                         title="Attach"
                       >
                         <Paperclip className="w-4 h-4" />
@@ -3938,7 +3928,7 @@ export default function QRWhatsAppPage() {
                       {/* Emoji button */}
                       <button
                         onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowAttachMenu(false); setShowFormatBar(false); }}
-                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-yellow-600 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] transition"
                         title="Emoji"
                       >
                         <Smile className="w-4 h-4" />
@@ -3946,7 +3936,7 @@ export default function QRWhatsAppPage() {
                       {/* Format button */}
                       <button
                         onClick={() => { setShowFormatBar(!showFormatBar); setShowEmojiPicker(false); setShowAttachMenu(false); }}
-                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-indigo-600 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] transition"
                         title="Format text"
                       >
                         <Type className="w-4 h-4" />
@@ -3974,14 +3964,14 @@ export default function QRWhatsAppPage() {
                         }}
                         onFocus={closeComposerPopups}
                         placeholder={replyingTo ? `Reply to ${replyingTo.pushName || replyingTo.from}...` : mediaPreview ? 'Add caption...' : 'Type a message...'}
-                        className="flex-1 resize-none px-4 py-2 border rounded-2xl text-sm leading-normal max-h-[120px] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-green-300"
+                        className="flex-1 resize-none border-0 bg-white px-3 py-2.5 rounded-lg text-sm leading-normal max-h-[120px] overflow-y-auto text-[#111b21] placeholder:text-[#667781] focus:outline-none focus:ring-0"
                         disabled={!isConnected || sending}
                       />
                       {/* Star button — Quick Actions */}
                       <button
                         onClick={() => { setShowStarPopup(true); closeComposerPopups(); }}
                         disabled={!isConnected}
-                        className="p-2 rounded-full hover:bg-yellow-50 text-gray-500 hover:text-yellow-600 disabled:opacity-40 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] disabled:opacity-40 transition"
                         title="Quick Actions"
                       >
                         <Star className="w-4 h-4" />
@@ -3990,7 +3980,7 @@ export default function QRWhatsAppPage() {
                       <button
                         onClick={handleSend}
                         disabled={(!composerText.trim() && !mediaPreview) || !isConnected || sending}
-                        className="p-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        className="p-2.5 bg-[#00a884] text-white rounded-full hover:bg-[#008f72] disabled:bg-[#aebac1] disabled:opacity-100 disabled:cursor-not-allowed transition"
                       >
                         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       </button>
@@ -4249,6 +4239,57 @@ export default function QRWhatsAppPage() {
                 className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
               >
                 <MessageSquare className="w-4 h-4" /> Start Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Voice/video classes are hosted by the supplied meeting platform; this
+          sends the join invitation through the connected QR WhatsApp account. */}
+      {showClassInvite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !sendingClassInvite && setShowClassInvite(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between rounded-t-2xl bg-[#00a884] px-5 py-4 text-white">
+              <div>
+                <h3 className="font-semibold">Send class invitation</h3>
+                <p className="mt-0.5 text-xs text-white/80">Sent through your connected QR WhatsApp</p>
+              </div>
+              <button onClick={() => setShowClassInvite(false)} disabled={sendingClassInvite} className="rounded-full p-1 hover:bg-white/10 disabled:opacity-50" aria-label="Close class invitation">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 p-5">
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                WhatsApp QR supports sending class invitations, not starting native WhatsApp calls. Add your Zoom, Google Meet, Jitsi, or other class link below.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['video', 'voice'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setClassInviteType(type)}
+                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${classInviteType === type ? 'border-[#00a884] bg-emerald-50 text-[#007d65]' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {type === 'video' ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+                    {type === 'video' ? 'Video class' : 'Voice class'}
+                  </button>
+                ))}
+              </div>
+              <label className="block text-sm font-medium text-gray-700">
+                Class name
+                <input value={classInviteTitle} onChange={event => setClassInviteTitle(event.target.value)} placeholder="e.g. Morning Swar Yoga" className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#00a884] focus:ring-2 focus:ring-emerald-100" autoFocus />
+              </label>
+              <label className="block text-sm font-medium text-gray-700">
+                Join link
+                <input type="url" value={classInviteLink} onChange={event => setClassInviteLink(event.target.value)} placeholder="https://zoom.us/j/..." className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#00a884] focus:ring-2 focus:ring-emerald-100" />
+              </label>
+              <label className="block text-sm font-medium text-gray-700">
+                Start time <span className="font-normal text-gray-400">(optional)</span>
+                <input type="datetime-local" value={classInviteStart} onChange={event => setClassInviteStart(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#00a884] focus:ring-2 focus:ring-emerald-100" />
+              </label>
+              <button onClick={handleSendClassInvite} disabled={sendingClassInvite || !classInviteTitle.trim() || !classInviteLink.trim()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#00a884] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#008f72] disabled:cursor-not-allowed disabled:bg-gray-300">
+                {sendingClassInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendingClassInvite ? 'Sending invitation…' : 'Send class invitation'}
               </button>
             </div>
           </div>
