@@ -24,50 +24,53 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=missing_code`, request.url));
   }
 
-  if (!state) {
-    console.error('[QR Drive Callback] No state token provided');
-    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=missing_state`, request.url));
+  let userId: string | null = null;
+
+  // Try to verify state token
+  if (state) {
+    try {
+      const decoded = verifyToken(state);
+      userId = decoded?.userId || null;
+      if (userId) console.log('[QR Drive Callback] User verified from state token:', userId);
+    } catch (tokenErr: any) {
+      console.warn('[QR Drive Callback] State token verification failed:', tokenErr?.message);
+    }
   }
 
-  let decoded;
-  try {
-    decoded = verifyToken(state);
-  } catch (tokenErr: any) {
-    console.error('[QR Drive Callback] Token verification failed:', tokenErr?.message);
-  }
-
-  if (!decoded?.userId) {
-    console.error('[QR Drive Callback] Invalid or expired token — decoded:', decoded);
-    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=invalid_token`, request.url));
+  if (!userId) {
+    console.error('[QR Drive Callback] Could not verify user from state token');
+    return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=unauthorized`, request.url));
   }
 
   try {
     const base = process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000';
     const redirectUri = `${base.replace(/\/$/, '')}/api/admin/crm/whatsapp/qr-drive-connect/callback`;
 
+    console.log('[QR Drive Callback] Exchanging code for tokens...');
     const { accessToken, refreshToken } = await exchangeCodeForTokens(code, redirectUri);
     if (!refreshToken) {
-      // Happens if the tenant had already granted consent before and Google
-      // skipped issuing a new refresh token — ask them to reconnect with the
-      // account picker so we force a fresh one (we always request prompt=consent).
+      console.warn('[QR Drive Callback] No refresh token received from Google');
       return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=no_refresh_token`, request.url));
     }
 
+    console.log('[QR Drive Callback] Getting Google user email...');
     const googleEmail = await getGoogleUserEmail(accessToken);
 
     await connectDB();
     const CRMUserSettings = getCRMUserSettings();
-    const settings = await CRMUserSettings.findOne({ userId: decoded.userId }, { qrConnectedPhoneNumber: 1 }).lean();
+    const settings = await CRMUserSettings.findOne({ userId }, { qrConnectedPhoneNumber: 1 }).lean();
     const connectedPhone = (settings as any)?.qrConnectedPhoneNumber || '';
 
+    console.log('[QR Drive Callback] Ensuring Drive folder exists...');
     const folderId = await ensureDriveFolder(accessToken);
 
+    console.log('[QR Drive Callback] Saving connection to database...');
     const DriveConn = getQrWhatsappDriveConnection();
     await DriveConn.updateOne(
-      { userId: decoded.userId },
+      { userId },
       {
         $set: {
-          userId: decoded.userId,
+          userId,
           connectedPhone,
           googleEmail,
           refreshToken: encryptCredential(refreshToken),
@@ -84,7 +87,8 @@ export async function GET(request: NextRequest) {
     // Drive right away, rather than waiting for tonight's archive cron.
     try {
       if (connectedPhone) {
-        const { chats, truncated } = await buildChatHistoryExport(decoded.userId, connectedPhone);
+        console.log('[QR Drive Callback] Building initial chat export...');
+        const { chats, truncated } = await buildChatHistoryExport(userId, connectedPhone);
         const html = renderChatHistoryHtml(connectedPhone, chats, truncated);
         await upsertFileInDriveFolder(
           accessToken,
@@ -93,15 +97,17 @@ export async function GET(request: NextRequest) {
           Buffer.from(html, 'utf-8'),
           'text/html'
         );
-        await DriveConn.updateOne({ userId: decoded.userId }, { $set: { lastSyncedAt: new Date() } });
+        await DriveConn.updateOne({ userId }, { $set: { lastSyncedAt: new Date() } });
+        console.log('[QR Drive Callback] Initial backup completed');
       }
-    } catch (backupErr) {
-      console.warn('[QR Drive Connect] Initial backup failed (non-fatal, connection still saved):', backupErr);
+    } catch (backupErr: any) {
+      console.warn('[QR Drive Callback] Initial backup failed (non-fatal):', backupErr?.message);
     }
 
+    console.log('[QR Drive Callback] Success! Redirecting with email:', googleEmail);
     return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=success&email=${encodeURIComponent(googleEmail)}`, request.url));
   } catch (error: any) {
-    console.error('[QR Drive Connect] Callback error:', error);
+    console.error('[QR Drive Callback] Error during callback:', error?.message || error);
     return NextResponse.redirect(new URL(`${SETTINGS_REDIRECT}&driveConnect=error&reason=${encodeURIComponent(error?.message || 'internal_error')}`, request.url));
   }
 }
