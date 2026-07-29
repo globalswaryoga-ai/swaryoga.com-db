@@ -487,6 +487,7 @@ export default function QRWhatsAppPage() {
   });
   const [failedInlineMediaIds, setFailedInlineMediaIds] = useState<Set<string>>(new Set());
   const [isPageVisible, setIsPageVisible] = useState(true);
+  const [inboxOverviewCollapsed, setInboxOverviewCollapsed] = useState(false);
 
   // All refs must come before any hooks
   const presenceSubRef = useRef<string | null>(null);
@@ -3084,65 +3085,81 @@ export default function QRWhatsAppPage() {
             className={`bg-white/95 backdrop-blur-sm flex flex-col border-r border-gray-200 shadow-xl ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%', minWidth: 280, maxWidth: 600, flexShrink: 0 }}
           >
-            <div className="px-4 py-4 bg-gradient-to-r from-emerald-50 via-white to-cyan-50 border-b border-gray-200">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Inbox overview</p>
-                  <h2 className="text-lg font-semibold text-slate-900">Your WhatsApp chats</h2>
-                </div>
-                <div className="flex items-center gap-2">
+            <div className="bg-gradient-to-r from-emerald-50 via-white to-cyan-50 border-b border-gray-200">
+              <div className="px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
                   <button
-                    type="button"
-                    className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
-                    title="Filter"
+                    onClick={() => setInboxOverviewCollapsed(!inboxOverviewCollapsed)}
+                    className="flex-1 text-left"
                   >
-                    <Funnel className="w-4 h-4" />
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Inbox overview</p>
+                    <h2 className="text-lg font-semibold text-slate-900">Your WhatsApp chats</h2>
                   </button>
                   <button
-                    type="button"
-                    className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
-                    title="Analytics"
+                    onClick={() => setInboxOverviewCollapsed(!inboxOverviewCollapsed)}
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-slate-900 transition flex-shrink-0"
+                    title={inboxOverviewCollapsed ? "Expand" : "Collapse"}
                   >
-                    <BarChart3 className="w-4 h-4" />
+                    {inboxOverviewCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                   </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
-                    title="Announcements"
-                  >
-                    <Megaphone className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
-                    title="Teams"
-                  >
-                    <Users className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
-                    title="Sort newest"
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </button>
-                  <div className="rounded-3xl bg-white px-3 py-1.5 shadow-sm ring-1 ring-slate-200 text-[11px] text-slate-500">Updated live</div>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <div className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Total chats</p>
-                  <p className="mt-2 text-xl font-semibold text-slate-900">{chats.length}</p>
-                </div>
-                <div className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Unread</p>
-                  <p className="mt-2 text-xl font-semibold text-emerald-600">{chats.filter(c => c.unreadCount > 0).length}</p>
-                </div>
-                <div className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Groups</p>
-                  <p className="mt-2 text-xl font-semibold text-slate-900">{chats.filter(c => c.isGroup).length}</p>
-                </div>
-              </div>
+              {!inboxOverviewCollapsed && (
+                <>
+                  <div className="px-4 pb-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
+                      title="Filter"
+                    >
+                      <Funnel className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
+                      title="Analytics"
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
+                      title="Announcements"
+                    >
+                      <Megaphone className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
+                      title="Teams"
+                    >
+                      <Users className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
+                      title="Sort newest"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                    <div className="rounded-3xl bg-white px-3 py-1.5 shadow-sm ring-1 ring-slate-200 text-[11px] text-slate-500">Updated live</div>
+                  </div>
+                  <div className="px-4 pb-4 grid grid-cols-3 gap-2">
+                    <div className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Total chats</p>
+                      <p className="mt-2 text-xl font-semibold text-slate-900">{chats.length}</p>
+                    </div>
+                    <div className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Unread</p>
+                      <p className="mt-2 text-xl font-semibold text-emerald-600">{chats.filter(c => c.unreadCount > 0).length}</p>
+                    </div>
+                    <div className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Groups</p>
+                      <p className="mt-2 text-xl font-semibold text-slate-900">{chats.filter(c => c.isGroup).length}</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             {/* Chat filter tabs: All | Unread | Read | Groups */}
             <div className="px-2 py-1 border-b flex items-center gap-0.5 bg-gray-50">
