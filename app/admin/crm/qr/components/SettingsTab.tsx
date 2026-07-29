@@ -107,14 +107,6 @@ export function SettingsTab({
       }
     }
   }, [searchParams, refreshDriveStatus]);
-        setGoogleBanner({ type: 'error', message: data?.error || `Failed to disconnect Google ${service}` });
-      }
-    } catch (e: any) {
-      setGoogleBanner({ type: 'error', message: e?.message || `Failed to disconnect Google ${service}` });
-    } finally {
-      setGoogleDisconnecting(null);
-    }
-  }, [token, refreshGoogleServiceStatuses]);
 
   const connectDrive = useCallback(async () => {
     if (!token) return;
