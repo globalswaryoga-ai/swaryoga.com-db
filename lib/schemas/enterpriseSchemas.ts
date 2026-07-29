@@ -607,6 +607,33 @@ QrCsatSchema.index({ userId: 1, phone: 1, sentAt: -1 });
 QrCsatSchema.index({ userId: 1, ratedAt: -1 });
 
 // ============================================================================
+// 1a-STATUS. QR STATUS SCHEDULES — post a WhatsApp status later / on repeat
+// ============================================================================
+// Scheduling lives server-side rather than in the browser: the extension's
+// equivalent runs on chrome.alarms, which only fire while that Chrome window
+// is open, so a "scheduled" post silently never happens if the laptop sleeps.
+// A cron drains this collection instead, so posts fire regardless of who is
+// logged in. Per-tenant via userId.
+const QrStatusScheduleSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    text: { type: String, default: '' },
+    imageUrl: { type: String, default: '' },
+    // Absolute time for a one-off post. For repeating posts this is the next
+    // due time and is advanced after each run.
+    scheduledAt: { type: Date, required: true, index: true },
+    // 0=Sun..6=Sat. Empty means a one-off that is marked done after firing.
+    repeatDays: { type: [Number], default: [] },
+    active: { type: Boolean, default: true, index: true },
+    lastRunAt: { type: Date },
+    lastError: { type: String, default: '' },
+    runCount: { type: Number, default: 0 },
+  },
+  { timestamps: true, collection: 'qr_status_schedules' }
+);
+QrStatusScheduleSchema.index({ active: 1, scheduledAt: 1 });
+
+// ============================================================================
 // 1a-DRIP. QR DRIP SEQUENCES — multi-step lead journeys with stop-on-reply
 // ============================================================================
 const QrDripSequenceSchema = new mongoose.Schema(
@@ -3348,6 +3375,7 @@ export function getMetaWhatsappStorageUsage() { return getModel('MetaWhatsappSto
 export function getMetaWhatsappArchiveManifest() { return getModel('MetaWhatsappArchiveManifest', MetaWhatsappArchiveManifestSchema); }
 export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
 export function getQrDripSequence() { return getModel('QrDripSequence', QrDripSequenceSchema); }
+export function getQrStatusSchedule() { return getModel('QrStatusSchedule', QrStatusScheduleSchema); }
 export function getQrDripEnrollment() { return getModel('QrDripEnrollment', QrDripEnrollmentSchema); }
 export function getQrCsat() { return getModel('QrCsat', QrCsatSchema); }
 export function getSocialInboxConversation() { return getModel('SocialInboxConversation', SocialInboxConversationSchema); }

@@ -3349,30 +3349,51 @@
         return;
       }
 
-      let added = 0;
-      const failed = [];
-      for (let i = 0; i < ids.length; ) {
-        const batch = ids.slice(i, i + randomMergeBatchSize());
-        i += batch.length;
-        msg.textContent = `Adding ${Math.min(i, ids.length)}/${ids.length} to target…`;
-        const res = await adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: `/group-participants/${targetId}` }).toString()}`, 'POST', { action: 'add', participants: batch });
-        if (res.ok) added += batch.length; else failed.push(...batch);
-        if (i < ids.length) await sleep(randomMergeDelayMs());
+      // Hand the whole job to the server-side paced queue rather than looping
+      // here. A client-side loop dies the moment this tab closes or the laptop
+      // sleeps, leaving a half-merged group, and its pacing is independent of
+      // every other merge/removal running for the same number — the overlapping
+      // -batch pattern that got this number restricted before. merge-group-v2
+      // paces ~15/hour with randomised gaps and stops itself on repeated
+      // failures, and is the same queue the CRM and Remove Members already use.
+      if (ids.length > 300) {
+        submitBtn.disabled = false;
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = `WhatsApp safety cap: max 300 per job. This merge needs ${ids.length} — split it across runs.`;
+        return;
       }
 
-      if (removeCb.checked) {
-        for (let i = 0; i < ids.length; ) {
-          const batch = ids.slice(i, i + randomMergeBatchSize());
-          i += batch.length;
-          msg.textContent = `Removing ${Math.min(i, ids.length)}/${ids.length} from source…`;
-          await adminApi(`/api/admin/crm/whatsapp/qr-bridge?${new URLSearchParams({ path: `/group-participants/${sourceId}` }).toString()}`, 'POST', { action: 'remove', participants: batch });
-          if (i < ids.length) await sleep(randomMergeDelayMs());
-        }
+      const settingsRes = await adminApi('/api/admin/crm/settings');
+      const sessionKey = settingsRes.data?.data?.permanentTenantId || '';
+      const hrs = Math.ceil(ids.length / 15);
+      if (!confirm(`Merge ${ids.length} member(s) into the target group?\n\nPaced ~15/hour with random gaps (~${hrs} hr total) — runs server-side even if you close this tab.`)) {
+        submitBtn.disabled = false;
+        msg.textContent = '';
+        return;
+      }
+
+      const addRes = await adminApi('/api/admin/crm/qr/merge-group-v2', 'POST', {
+        sessionKey, targetGroupId: targetId, participantIds: ids, operationType: 'add',
+      });
+
+      let removeNote = '';
+      if (addRes.ok && removeCb.checked) {
+        const remRes = await adminApi('/api/admin/crm/qr/merge-group-v2', 'POST', {
+          sessionKey, targetGroupId: sourceId, participantIds: ids, operationType: 'remove',
+        });
+        removeNote = remRes.ok
+          ? ' Removal from the source group is queued behind it.'
+          : ' (Could not queue the removal from the source group — run Remove Members separately.)';
       }
 
       submitBtn.disabled = false;
-      msg.className = 'sy-modal-msg sy-ok';
-      msg.textContent = `✅ Merged ${added}/${ids.length}${failed.length ? `, failed: ${failed.length}` : ''}${removeCb.checked ? ' (removed from source too)' : ''}.`;
+      if (addRes.ok && addRes.data?.success !== false) {
+        msg.className = 'sy-modal-msg sy-ok';
+        msg.textContent = `✅ ${addRes.data?.message || `Merge of ${ids.length} member(s) scheduled`} (~${hrs} hr).${removeNote}`;
+      } else {
+        msg.className = 'sy-modal-msg sy-error';
+        msg.textContent = addRes.data?.error || 'Failed to schedule the merge.';
+      }
     });
     footer.appendChild(cancelBtn);
     footer.appendChild(submitBtn);

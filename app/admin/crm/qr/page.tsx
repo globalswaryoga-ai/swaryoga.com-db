@@ -4171,6 +4171,15 @@ export default function QRWhatsAppPage() {
           const data = await bridgeCall('/post-status', 'POST', imageUrl ? { imageUrl, caption: text, text } : { text });
           return data?.audienceSize || data?.data?.audienceSize || 0;
         }}
+        onScheduleStatus={async ({ text, imageUrl, scheduledAt, repeatDays }) => {
+          const res = await fetch('/api/admin/crm/qr/status-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ text, imageUrl, scheduledAt, repeatDays }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || 'Failed to schedule status');
+        }}
         onUploadMedia={async (file: File) => {
           const fd = new FormData();
           fd.append('file', file);

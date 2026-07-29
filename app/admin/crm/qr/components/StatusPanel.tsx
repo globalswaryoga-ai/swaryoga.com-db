@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { X, RefreshCw, Eye, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Image as ImageIcon, Send } from 'lucide-react';
+import { X, RefreshCw, Eye, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Image as ImageIcon, Send, Calendar } from 'lucide-react';
 import { getAvatarColor } from '../utils';
 
 interface StatusUser {
@@ -32,6 +32,9 @@ interface StatusPanelProps {
   onPostStatus?: (text: string, imageUrl?: string) => Promise<number | void>;
   /** Uploads a local file and resolves to a public URL the bridge can fetch. */
   onUploadMedia?: (file: File) => Promise<string>;
+  /** Queues a status for later. Fires server-side, so it does not depend on
+   *  this browser staying open. */
+  onScheduleStatus?: (input: { text: string; imageUrl?: string; scheduledAt: string; repeatDays: number[] }) => Promise<void>;
 }
 
 export function StatusPanel({
@@ -46,12 +49,16 @@ export function StatusPanel({
   setCurrentStatusIndex,
   onPostStatus,
   onUploadMedia,
+  onScheduleStatus,
 }: StatusPanelProps) {
   const [composeText, setComposeText] = useState('');
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [when, setWhen] = useState<'now' | 'later'>('now');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const composeRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +98,36 @@ export function StatusPanel({
   const handlePost = async () => {
     // An image status can carry an empty caption, so text alone is not required
     // once media is attached.
-    if ((!composeText.trim() && !mediaUrl.trim()) || posting || !onPostStatus) return;
+    if ((!composeText.trim() && !mediaUrl.trim()) || posting) return;
+
+    if (when === 'later') {
+      if (!onScheduleStatus) return;
+      if (!scheduledAt) { setPostResult('❌ Pick a date and time'); return; }
+      setPosting(true);
+      setPostResult('');
+      try {
+        await onScheduleStatus({
+          text: composeText.trim(),
+          imageUrl: mediaUrl.trim() || undefined,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          repeatDays,
+        });
+        setComposeText('');
+        setMediaUrl('');
+        setScheduledAt('');
+        setRepeatDays([]);
+        setWhen('now');
+        setPostResult('✅ Status scheduled');
+        setTimeout(() => setPostResult(''), 4000);
+      } catch (e: any) {
+        setPostResult(`❌ ${e?.message || 'Failed to schedule status'}`);
+      } finally {
+        setPosting(false);
+      }
+      return;
+    }
+
+    if (!onPostStatus) return;
     setPosting(true);
     setPostResult('');
     try {
@@ -213,14 +249,64 @@ export function StatusPanel({
               )}
             </div>
 
+            {/* When: post now, or hand it to the server-side scheduler */}
+            {onScheduleStatus && (
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-4 text-xs">
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={when === 'now'} onChange={() => setWhen('now')} className="accent-green-600" />
+                    Post now
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={when === 'later'} onChange={() => setWhen('later')} className="accent-green-600" />
+                    Schedule
+                  </label>
+                </div>
+
+                {when === 'later' && (
+                  <>
+                    <input
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={e => setScheduledAt(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[11px] text-gray-600 mr-1">Repeat:</span>
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setRepeatDays(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                          className={`px-2 py-1 rounded text-[11px] font-medium border transition ${
+                            repeatDays.includes(i)
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+                          }`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-500">
+                      {repeatDays.length
+                        ? 'Repeats on the selected days at that time.'
+                        : 'One-off post.'}{' '}
+                      Runs on the server — you do not need to keep this page open.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-end mt-2">
               <button
                 onClick={handlePost}
-                disabled={posting || uploading || (!composeText.trim() && !mediaUrl.trim())}
+                disabled={posting || uploading || (!composeText.trim() && !mediaUrl.trim()) || (when === 'later' && !scheduledAt)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:bg-gray-300 transition"
               >
-                {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Post Status
+                {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : when === 'later' ? <Calendar className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                {when === 'later' ? 'Schedule Status' : 'Post Status'}
               </button>
             </div>
             {postResult && <p className="text-[11px] mt-1.5 text-gray-600">{postResult}</p>}
