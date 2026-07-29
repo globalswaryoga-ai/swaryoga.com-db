@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CloudUpload, CheckCircle2, Clock, AlertTriangle, Loader2, RotateCcw } from 'lucide-react';
+import GoogleOAuthSetupGuide from './GoogleOAuthSetupGuide';
 
 interface BackupStatus {
   backupEnabled: boolean;
@@ -22,6 +23,7 @@ export default function BackupPanel({ token }: BackupPanelProps) {
   const [loading, setLoading] = useState(true);
   const [backingUp, setBackingUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showGoogleSetup, setShowGoogleSetup] = useState(false);
 
   // Fetch backup status on mount
   useEffect(() => {
@@ -202,17 +204,31 @@ export default function BackupPanel({ token }: BackupPanelProps) {
       {!status.googleDriveConnected && (
         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-yellow-700">
+          <div className="text-sm text-yellow-700 flex-1">
             <p className="font-semibold">Connect Google Drive</p>
             <p className="text-xs mt-0.5">
               Enable Google Drive integration to auto-backup your data to your personal Google Drive
             </p>
-            <button className="mt-2 text-xs font-semibold px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700">
+            <button
+              onClick={() => setShowGoogleSetup(true)}
+              className="mt-2 text-xs font-semibold px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
+            >
               Connect Google Drive
             </button>
           </div>
         </div>
       )}
+
+      {/* Google OAuth Setup Modal */}
+      <GoogleOAuthSetupGuide
+        isOpen={showGoogleSetup}
+        onClose={() => setShowGoogleSetup(false)}
+        token={token}
+        onSetupComplete={() => {
+          setShowGoogleSetup(false);
+          fetchBackupStatus();
+        }}
+      />
 
       {/* Backup History */}
       {status.backupHistory.length > 0 && (
