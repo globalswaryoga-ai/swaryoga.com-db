@@ -3039,13 +3039,8 @@ export default function QRWhatsAppPage() {
       </div>
 
       {/* Error Banner */}
-      {error && error !== 'NO_BRIDGE' && !error.includes('bridge configured') && (
-        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600 text-sm font-medium">×</button>
-        </div>
-      )}
+      {/* The page-level error banner above is the single place errors render.
+          A second copy used to sit here, so every error appeared twice. */}
 
       {/* Loading */}
       {loading && (

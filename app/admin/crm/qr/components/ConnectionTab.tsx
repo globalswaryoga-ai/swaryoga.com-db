@@ -94,30 +94,51 @@ export function ConnectionTab({
         </div>
       )}
 
-      {/* ── Disconnected (No QR available) ── */}
-      {connState === 'disconnected' && !qrData && (
+      {/* ── Not connected, no QR to show ──
+          Covers every non-connected state without a QR, not just 'disconnected'.
+          'qr_expired' in particular used to fall through every branch, leaving
+          the user told to click Reconnect on a screen that rendered no such
+          button. */}
+      {!isConnected && !qrData && connState !== 'connecting' && (
         <div className="bg-white rounded-2xl shadow-lg border p-10 text-center max-w-lg mx-auto">
           <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
             <WifiOff className="w-10 h-10 text-red-300" />
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">WhatsApp Not Connected</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            {connState === 'qr_expired' ? 'QR Code Expired' : 'WhatsApp Not Connected'}
+          </h2>
           <p className="text-sm text-gray-500 mb-6">
-            The bridge service may not be running, or your session has expired.
+            {connState === 'qr_expired'
+              ? 'Pairing stopped after the QR went unscanned several times — this is deliberate, since repeated pairing attempts can get the number restricted. Click below for a fresh code, and have your phone ready to scan.'
+              : 'The bridge service may not be running, or your session has expired.'}
           </p>
           <button
             onClick={handleReconnect}
             className="px-8 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold text-sm inline-flex items-center gap-2 shadow-md shadow-green-200"
           >
             <RefreshCw className="w-4 h-4" />
-            Try Reconnect
+            {connState === 'qr_expired' ? 'Get a Fresh QR Code' : 'Try Reconnect'}
           </button>
           <div className="mt-8 p-4 bg-gray-50 rounded-xl text-left text-xs text-gray-500">
-            <p className="font-semibold text-gray-700 mb-2">Troubleshooting:</p>
-            <ul className="list-disc ml-4 space-y-1.5">
-              <li>Make sure the Baileys bridge service is running</li>
-              <li>Check <code className="bg-gray-200 px-1 rounded">WHATSAPP_BRIDGE_HTTP_URL</code> env var</li>
-              <li>Go to <button onClick={() => setTab('settings')} className="text-green-600 hover:underline font-medium">Settings</button> to configure a custom bridge URL</li>
-            </ul>
+            {connState === 'qr_expired' ? (
+              <>
+                <p className="font-semibold text-gray-700 mb-2">Before you scan:</p>
+                <ul className="list-disc ml-4 space-y-1.5">
+                  <li>Open WhatsApp → Settings → Linked Devices first, so you can scan as soon as the code appears</li>
+                  <li>Each code lasts about 20 seconds before it refreshes</li>
+                  <li>Keep your phone online while scanning</li>
+                </ul>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-gray-700 mb-2">Troubleshooting:</p>
+                <ul className="list-disc ml-4 space-y-1.5">
+                  <li>Make sure the Baileys bridge service is running</li>
+                  <li>Check <code className="bg-gray-200 px-1 rounded">WHATSAPP_BRIDGE_HTTP_URL</code> env var</li>
+                  <li>Go to <button onClick={() => setTab('settings')} className="text-green-600 hover:underline font-medium">Settings</button> to configure a custom bridge URL</li>
+                </ul>
+              </>
+            )}
           </div>
         </div>
       )}
