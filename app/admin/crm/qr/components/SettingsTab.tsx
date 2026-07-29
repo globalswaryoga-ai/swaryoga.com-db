@@ -124,7 +124,13 @@ export function SettingsTab({
     }
   }, [token]);
 
-  useEffect(() => { refreshDriveStatus(); refreshGoogleServiceStatuses(); }, [refreshDriveStatus, refreshGoogleServiceStatuses]);
+  useEffect(() => {
+    refreshDriveStatus();
+    refreshGoogleServiceStatuses().catch(() => {
+      // Non-fatal: Google services may not be configured yet
+      console.log('[SettingsTab] Google services status check failed (non-critical)');
+    });
+  }, [refreshDriveStatus, refreshGoogleServiceStatuses]);
 
   // Show a banner after returning from the Google OAuth redirect
   useEffect(() => {
