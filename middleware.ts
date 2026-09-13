@@ -158,17 +158,25 @@ function isExtensionEmbeddablePath(pathname: string): boolean {
 
 function applySecurityHeaders(res: NextResponse, requestId: string, pathname: string, searchParams: URLSearchParams): void {
   res.headers.set('X-Request-Id', requestId);
+  const isDev = process.env.NODE_ENV !== 'production';
   const isLandingPagePreview = pathname.startsWith('/lp/') && searchParams.get('preview') === 'true';
   const embeddable = isExtensionEmbeddablePath(pathname);
-  if (!embeddable) {
-    res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+  
+  // Strict security headers (CSP, Frame denial, HSTS) are ONLY applied in production
+  // In development, they are omitted so that IDE webview previews (vscode-webview:),
+  // HMR websockets, and iframe testing render cleanly without being blocked.
+  if (!isDev) {
+    if (!embeddable) {
+      res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+    }
+    res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    res.headers.set('Content-Security-Policy', embeddable ? `${CSP}; frame-ancestors 'self' https://web.whatsapp.com` : CSP);
   }
+
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-XSS-Protection', '1; mode=block');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');
-  res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-  res.headers.set('Content-Security-Policy', embeddable ? `${CSP}; frame-ancestors 'self' https://web.whatsapp.com` : CSP);
 }
 
 // ===========================================================================
@@ -181,6 +189,23 @@ export function middleware(request: NextRequest) {
   // ── 0. Tenant Detection ──
   const hostname = request.nextUrl.hostname || request.headers.get('host') || '';
   const tenantSlug = extractTenantSlugEdge(request.headers, hostname);
+
+  // Public workshop language aliases. Keep the requested URL visible while
+  // loading the shared multilingual workshop form internally.
+  const workshopAlias = request.nextUrl.pathname.match(/^\/forms\/(ML-1|HL-1|EL-1)\/workshop\/?$/i);
+  if (workshopAlias) {
+    const aliasLanguage: Record<string, string> = {
+      'ml-1': 'marathi',
+      'hl-1': 'hindi',
+      'el-1': 'english',
+    };
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = '/forms/workshop';
+    rewriteUrl.searchParams.set('lang', aliasLanguage[workshopAlias[1].toLowerCase()]);
+    const response = NextResponse.rewrite(rewriteUrl);
+    applySecurityHeaders(response, requestId, request.nextUrl.pathname, request.nextUrl.searchParams);
+    return response;
+  }
 
   // ── 0b. CRM Site Subdomain Rewrite ──
   const lowerHost = hostname.toLowerCase().split(':')[0];

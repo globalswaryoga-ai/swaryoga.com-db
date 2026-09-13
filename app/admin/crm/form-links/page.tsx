@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Link as LinkIcon, Copy, Check, ExternalLink, QrCode, Share2,
-  Users, BookOpen, ShoppingCart, HelpCircle, UserPlus, Globe
+  Users, BookOpen, ShoppingCart, HelpCircle, UserPlus, Globe, FileSpreadsheet
 } from 'lucide-react';
 
 interface FormLink {
@@ -157,6 +157,12 @@ export default function AdminFormLinksPage() {
               className="px-6 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
             >
               ← Back to CRM
+            </button>
+            <button
+              onClick={() => router.push('/admin/crm/form-submissions')}
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
+            >
+              <FileSpreadsheet size={16} /> Form Submissions
             </button>
           </div>
         </div>

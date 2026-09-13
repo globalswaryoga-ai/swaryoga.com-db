@@ -1388,30 +1388,148 @@
     return res;
   }
 
-  /** Text-labeled Spell/AI reply buttons injected right into the compose
-   *  footer near the mic/send icon, so they're reachable while typing
-   *  instead of needing the sidebar open. */
+  const TOOLBAR_STORAGE_KEY = 'swaryogaComposeToolbarPosition';
+
+  async function getStoredComposeToolbarPosition() {
+    if (typeof chrome !== 'undefined' && chrome?.storage?.local) {
+      try {
+        return await new Promise((resolve, reject) => {
+          chrome.storage.local.get([TOOLBAR_STORAGE_KEY], (result) => {
+            if (chrome.runtime?.lastError) return reject(chrome.runtime.lastError);
+            resolve(result[TOOLBAR_STORAGE_KEY] || null);
+          });
+        });
+      } catch {
+        // fall through to localStorage fallback
+      }
+    }
+    try {
+      const raw = window.localStorage.getItem(TOOLBAR_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function saveComposeToolbarPosition(position) {
+    if (typeof chrome !== 'undefined' && chrome?.storage?.local) {
+      try {
+        await new Promise((resolve, reject) => {
+          chrome.storage.local.set({ [TOOLBAR_STORAGE_KEY]: position }, () => {
+            if (chrome.runtime?.lastError) return reject(chrome.runtime.lastError);
+            resolve();
+          });
+        });
+        return;
+      } catch {
+        // fall through to localStorage fallback
+      }
+    }
+    try {
+      window.localStorage.setItem(TOOLBAR_STORAGE_KEY, JSON.stringify(position));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function ensureComposeToolbar(box) {
+    let toolbar = document.body.querySelector('#swaryoga-compose-toolbar');
+    if (toolbar) return toolbar;
+
+    toolbar = document.createElement('div');
+    toolbar.id = 'swaryoga-compose-toolbar';
+    toolbar.className = 'sy-compose-toolbar';
+
+    const handle = document.createElement('span');
+    handle.className = 'sy-compose-toolbar-handle';
+    handle.title = 'Drag to move';
+    handle.textContent = '≡';
+    toolbar.appendChild(handle);
+
+    const actionBtn = document.createElement('button');
+    actionBtn.id = 'swaryoga-compose-action-btn';
+    actionBtn.type = 'button';
+    actionBtn.title = 'Swar Yoga CRM — Quick message / Template / Schedule / Chatbot';
+    actionBtn.textContent = '⚡';
+    actionBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleComposeActionsPopup(actionBtn);
+    });
+    toolbar.appendChild(actionBtn);
+
+    const row = document.createElement('div');
+    row.id = 'swaryoga-compose-ai-row';
+    toolbar.appendChild(row);
+
+    document.body.appendChild(toolbar);
+    await positionComposeToolbar(toolbar, box);
+    makeComposeToolbarDraggable(toolbar, handle);
+    return toolbar;
+  }
+
+  async function positionComposeToolbar(toolbar, box) {
+    const stored = await getStoredComposeToolbarPosition();
+    if (stored?.left != null && stored?.top != null) {
+      toolbar.style.left = `${stored.left}px`;
+      toolbar.style.top = `${stored.top}px`;
+      return;
+    }
+
+    const rect = box?.getBoundingClientRect();
+    const defaultLeft = rect ? Math.min(Math.max(16, rect.left), window.innerWidth - 260) : window.innerWidth - 240;
+    const defaultTop = rect ? Math.max(16, rect.top - 58) : window.innerHeight - 120;
+    toolbar.style.left = `${defaultLeft}px`;
+    toolbar.style.top = `${defaultTop}px`;
+  }
+
+  function makeComposeToolbarDraggable(toolbar, handle) {
+    let dragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    handle.style.cursor = 'grab';
+
+    function onMouseMove(e) {
+      if (!dragging) return;
+      const nextLeft = Math.min(Math.max(0, startLeft + (e.clientX - dragStartX)), window.innerWidth - toolbar.offsetWidth);
+      const nextTop = Math.min(Math.max(0, startTop + (e.clientY - dragStartY)), window.innerHeight - toolbar.offsetHeight);
+      toolbar.style.left = `${nextLeft}px`;
+      toolbar.style.top = `${nextTop}px`;
+    }
+
+    function onMouseUp() {
+      if (!dragging) return;
+      dragging = false;
+      handle.style.cursor = 'grab';
+      saveComposeToolbarPosition({ left: toolbar.offsetLeft, top: toolbar.offsetTop });
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
+
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      dragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      startLeft = toolbar.offsetLeft;
+      startTop = toolbar.offsetTop;
+      handle.style.cursor = 'grabbing';
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
   function injectComposeAiButtons() {
     const box = findComposeBox();
     if (!box) return;
-    const footer = box.closest('footer');
-    if (!footer) return;
+    const toolbar = await ensureComposeToolbar(box);
+    if (!toolbar) return;
 
-    // Re-entrant: this runs from a MutationObserver, and on the first pass
-    // WhatsApp has often not rendered the mic yet. Previously the mere
-    // existence of the row caused an early return, so that first fallback
-    // placement (below the composer, on the left) was locked in permanently
-    // and never corrected once the mic appeared. Only stop early once the row
-    // is actually anchored beside the mic.
-    const existingRow = footer.querySelector('#swaryoga-compose-ai-row');
-    if (existingRow && existingRow.dataset.anchored === 'mic') return;
-
-    const row = existingRow || document.createElement('div');
-    if (existingRow) {
-      placeComposeAiRow(row, box, footer);
-      return;
-    }
-    row.id = 'swaryoga-compose-ai-row';
+    const row = toolbar.querySelector('#swaryoga-compose-ai-row');
+    if (!row) return;
+    row.innerHTML = '';
 
     const fixBtn = document.createElement('button');
     fixBtn.type = 'button';
@@ -1441,8 +1559,12 @@
 
     row.appendChild(fixBtn);
     row.appendChild(replyBtn);
+  }
 
-    placeComposeAiRow(row, box, footer);
+  function injectComposeActionButton() {
+    const box = findComposeBox();
+    if (!box) return;
+    ensureComposeToolbar(box);
   }
 
   /**

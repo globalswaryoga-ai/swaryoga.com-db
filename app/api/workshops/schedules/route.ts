@@ -7,7 +7,7 @@
 
 // Public API endpoint to get workshop schedules (published only)
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, WorkshopSchedule } from '@/lib/db';
+import { connectDB, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,6 +85,30 @@ export async function GET(request: NextRequest) {
       })
       .lean();
 
+    const inventoryDocs = await WorkshopSeatInventory.find({
+      scheduleId: { $in: (docs as any[]).map((doc) => String(doc._id)) },
+    })
+      .select({ scheduleId: 1, seatsRemaining: 1 })
+      .lean();
+    await Promise.all(
+      (docs as any[]).map((doc) => WorkshopSeatInventory.updateOne(
+        { workshopSlug: String(doc.workshopSlug || ''), scheduleId: String(doc._id) },
+        {
+          $setOnInsert: {
+            workshopSlug: String(doc.workshopSlug || ''),
+            scheduleId: String(doc._id),
+            seatsTotal: Number(doc.seatsTotal || 0),
+            seatsRemaining: Number(doc.seatsTotal || 0),
+          },
+          $set: { updatedAt: new Date() },
+        },
+        { upsert: true },
+      ))
+    );
+    const inventoryByScheduleId = new Map(
+      (inventoryDocs as any[]).map((doc) => [String(doc.scheduleId), Number(doc.seatsRemaining ?? 0)])
+    );
+
     const schedules = (docs as any[]).map((doc) => ({
       id: String(doc._id),
       workshopSlug: String(doc.workshopSlug || ''),
@@ -99,6 +123,7 @@ export async function GET(request: NextRequest) {
       startTime: doc.startTime,
       endTime: doc.endTime,
       seatsTotal: doc.seatsTotal,
+      seatsRemaining: inventoryByScheduleId.get(String(doc._id)) ?? Number(doc.seatsTotal ?? 0),
       registrationCloseDate: doc.registrationCloseDate,
       location: doc.location,
       price: doc.price,

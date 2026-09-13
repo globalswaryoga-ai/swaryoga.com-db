@@ -389,11 +389,41 @@
   background: #1b4332;
 }
 
+#swaryoga-compose-toolbar {
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(10px);
+  max-width: 320px;
+  min-width: 140px;
+}
+
+.sy-compose-toolbar-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-size: 13px;
+  cursor: grab;
+  user-select: none;
+}
+
 #swaryoga-compose-ai-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 6px;
+  margin: 0;
   flex-shrink: 0;
 }
 

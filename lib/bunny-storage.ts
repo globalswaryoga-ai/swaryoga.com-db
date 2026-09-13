@@ -231,6 +231,37 @@ export async function uploadToPath(
   return getPublicFileUrl(cleanPath);
 }
 
+/** Upload under a content hash so identical bytes are stored only once. */
+export async function uploadDeduplicatedToPath(
+  fileBuffer: Buffer,
+  folder: string,
+  fileName: string,
+  contentType?: string,
+): Promise<string> {
+  const cleanFolder = folder.replace(/^\/+|\/+$/g, '');
+  const rawExtension = fileName.split('.').pop()?.toLowerCase() || 'bin';
+  const extension = rawExtension.replace(/[^a-z0-9]/g, '') || 'bin';
+  const hash = createHash('sha256').update(fileBuffer).digest('hex');
+  const cleanPath = `${cleanFolder}/${hash}.${extension}`;
+  const { zoneName, apiKey } = ensureConfigured();
+  const storageUrl = `https://${getStorageHost()}/${zoneName}/${cleanPath}`;
+
+  const existing = await fetch(storageUrl, {
+    headers: { AccessKey: apiKey, Range: 'bytes=0-0' },
+  });
+  if (existing.ok || existing.status === 206) return getPublicFileUrl(cleanPath);
+
+  const response = await fetch(storageUrl, {
+    method: 'PUT',
+    headers: { AccessKey: apiKey, 'Content-Type': contentType || getContentType(fileName) },
+    body: new Uint8Array(fileBuffer),
+  });
+  if (!response.ok) {
+    throw new Error(`Bunny Storage upload failed (${response.status}): ${await response.text()}`);
+  }
+  return getPublicFileUrl(cleanPath);
+}
+
 /**
  * Delete a file from Bunny Storage
  * Drop-in replacement for deleteFromS3()
@@ -673,8 +704,7 @@ export async function uploadPublicFile(
   fileName: string,
   fileType: 'images' | 'documents' | 'videos' = 'images'
 ): Promise<string> {
-  const key = `public/${fileType}/${Date.now()}-${fileName}`;
-  return await uploadToPath(fileBuffer, key, getContentType(fileName));
+  return uploadDeduplicatedToPath(fileBuffer, `public/${fileType}`, fileName, getContentType(fileName));
 }
 
 /**
@@ -686,8 +716,7 @@ export async function uploadAdminFile(
   fileName: string,
   fileType: 'images' | 'documents' | 'videos' | 'reports' = 'documents'
 ): Promise<string> {
-  const key = `admin/${fileType}/${Date.now()}-${fileName}`;
-  return await uploadToPath(fileBuffer, key, getContentType(fileName));
+  return uploadDeduplicatedToPath(fileBuffer, `admin/${fileType}`, fileName, getContentType(fileName));
 }
 
 /**
@@ -701,8 +730,7 @@ export async function uploadCommunityFile(
   fileType: 'images' | 'documents' | 'videos' = 'images'
 ): Promise<string> {
   if (!communityId) throw new Error('Community ID is required for community uploads');
-  const key = `community/${communityId}/${fileType}/${Date.now()}-${fileName}`;
-  return await uploadToPath(fileBuffer, key, getContentType(fileName));
+  return uploadDeduplicatedToPath(fileBuffer, `community/${communityId}/${fileType}`, fileName, getContentType(fileName));
 }
 
 /**
@@ -715,8 +743,7 @@ export async function uploadCommunityVideo(
   communityId: string
 ): Promise<string> {
   if (!communityId) throw new Error('Community ID is required for community video uploads');
-  const key = `community/${communityId}/videos/${Date.now()}-${fileName}`;
-  return await uploadToPath(fileBuffer, key, getContentType(fileName));
+  return uploadDeduplicatedToPath(fileBuffer, `community/${communityId}/videos`, fileName, getContentType(fileName));
 }
 
 /**

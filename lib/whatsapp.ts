@@ -24,6 +24,7 @@ import type { WhatsAppCredentials } from './whatsappAccounts';
 export { resetCircuit, isCircuitOpen } from './whatsappProtection';
 
 const OLD_CDN_HOST = 'swaryogadb.b-cdn.net';
+const OLD_CDN_HOSTS = [OLD_CDN_HOST, 'swaryoga.b-cdn.net'];
 const NEW_CDN_HOST = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
 
 /**
@@ -35,8 +36,9 @@ export async function getPublicMediaUrl(url: string): Promise<string> {
   if (!url) return url;
   
   // Fix old suspended Bunny CDN URLs → rewrite to new CDN host
-  if (url.includes(OLD_CDN_HOST)) {
-    const fixed = url.replace(OLD_CDN_HOST, NEW_CDN_HOST);
+  const oldHost = OLD_CDN_HOSTS.find(host => url.includes(host));
+  if (oldHost) {
+    const fixed = url.replace(oldHost, NEW_CDN_HOST);
     console.log(`[WHATSAPP] 🔄 Rewrote old Bunny CDN URL: ${fixed.substring(0, 80)}`);
     return fixed;
   }

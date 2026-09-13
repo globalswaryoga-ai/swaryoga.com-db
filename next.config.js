@@ -215,6 +215,9 @@ const nextConfig = {
       // Tenants (crm.swaryoga.com/admin/crm) and /api/admin/crm are untouched.
       { source: '/super-admin/crm', destination: '/admin/crm' },
       { source: '/super-admin/crm/:path*', destination: '/admin/crm/:path*' },
+      { source: '/form/workshop-L1', destination: '/forms/workshop?workshop=workshop-L1' },
+      { source: '/forms/workshop-L1', destination: '/forms/workshop?workshop=workshop-L1' },
+      { source: '/form/:formType*', destination: '/forms/:formType*' },
     ],
     afterFiles: [],
     fallback: [],

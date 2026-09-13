@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
@@ -9,11 +10,11 @@
   font-family: 'Poppins', system-ui, -apple-system, sans-serif;
 }
 
-/* ===== DEVANAGARI FONT FOR HINDI/MARATHI ===== */
+/* ===== DEVANAGARI / MARATHI PREMIUM FONT ===== */
 :lang(hi), :lang(mr),
 [lang="hi"], [lang="mr"],
-.devanagari, .hindi, .marathi {
-  font-family: 'Noto Sans Devanagari', 'Poppins', system-ui, sans-serif;
+.devanagari, .hindi, .marathi, .marathi-font, .marathi-font * {
+  font-family: 'Mukta', 'Noto Sans Devanagari', 'Poppins', system-ui, -apple-system, sans-serif !important;
 }
 
 html {
