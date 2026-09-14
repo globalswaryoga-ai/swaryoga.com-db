@@ -26,8 +26,13 @@ export async function POST(request: NextRequest) {
     { $set: {
         cohortId: body.cohortId,
         classDate: new Date(body.classDate),
+        dayNumber: body.dayNumber || undefined,
+        zoomMeetingId: body.zoomMeetingId || undefined,
+        zoomMeetingUuid: body.zoomMeetingUuid || undefined,
         youtubeSpeakerId: body.youtubeSpeakerId || undefined,
         youtubeGalleryId: body.youtubeGalleryId || undefined,
+        youtubeSpeakerUrl: body.youtubeSpeakerUrl || (body.youtubeSpeakerId ? `https://youtu.be/${body.youtubeSpeakerId}` : undefined),
+        youtubeGalleryUrl: body.youtubeGalleryUrl || (body.youtubeGalleryId ? `https://youtu.be/${body.youtubeGalleryId}` : undefined),
         bunnySpeakerUrl: body.bunnySpeakerUrl || undefined,
         bunnyGalleryUrl: body.bunnyGalleryUrl || undefined,
         deliveredStudentIds,

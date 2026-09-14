@@ -334,6 +334,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Existing students are updated by WhatsApp JID, email, phone, or WhatsApp number instead of being duplicated; invalid rows are reported as skipped
 - Added the import control and result summary to `/admin/crm/workshop-management` beside the manual Add student form
 
+### Automatic Workshop YouTube Recording Links (Session: September 14, 2026 — Phase 145) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` to persist the Zoom meeting ID with each uploaded recording
+- Workshop management now synchronizes uploaded YouTube/Bunny metadata automatically when a cohort is opened
+- Recording deliveries are labeled by class day and expose full unlisted YouTube URLs for Speaker and Gallery views
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**

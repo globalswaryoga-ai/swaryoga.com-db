@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; active: boolean; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
-interface Recording { _id: string; cohortId: string; classDate: string; youtubeSpeakerId?: string; youtubeGalleryId?: string; bunnySpeakerUrl?: string; bunnyGalleryUrl?: string; deliveredStudentIds?: string[]; }
+interface Recording { _id: string; cohortId: string; classDate: string; dayNumber?: number; youtubeSpeakerId?: string; youtubeGalleryId?: string; youtubeSpeakerUrl?: string; youtubeGalleryUrl?: string; bunnySpeakerUrl?: string; bunnyGalleryUrl?: string; deliveredStudentIds?: string[]; }
 
 export default function WorkshopManagementPage() {
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
@@ -189,8 +189,9 @@ export default function WorkshopManagementPage() {
 
           {recordings.length > 0 && <div className="rounded-lg border border-slate-200 p-4"><h3 className="mb-3 font-semibold">Recording deliveries</h3><div className="space-y-2">{recordings.map((recording) => <div key={recording._id} className="rounded border border-slate-200 p-3 text-sm">
             <div className="mb-1 font-medium">{new Date(recording.classDate).toLocaleDateString()}</div>
-            <div className="text-slate-600">Speaker: {recording.youtubeSpeakerId ? <a className="text-indigo-600 underline" href={`https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer">YouTube</a> : '—'} · {recording.bunnySpeakerUrl ? <a className="text-indigo-600 underline" href={recording.bunnySpeakerUrl} target="_blank" rel="noreferrer">Bunny</a> : '—'}</div>
-            <div className="text-slate-600">Gallery: {recording.youtubeGalleryId ? <a className="text-indigo-600 underline" href={`https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer">YouTube</a> : '—'} · {recording.bunnyGalleryUrl ? <a className="text-indigo-600 underline" href={recording.bunnyGalleryUrl} target="_blank" rel="noreferrer">Bunny</a> : '—'}</div>
+            <div className="mb-1 font-semibold text-indigo-700">Day {recording.dayNumber || '—'}</div>
+            <div className="text-slate-600">Speaker: {recording.youtubeSpeakerUrl || recording.youtubeSpeakerId ? <a className="text-indigo-600 underline" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer">YouTube (Unlisted)</a> : '—'} · {recording.bunnySpeakerUrl ? <a className="text-indigo-600 underline" href={recording.bunnySpeakerUrl} target="_blank" rel="noreferrer">Bunny</a> : '—'}</div>
+            <div className="text-slate-600">Gallery: {recording.youtubeGalleryUrl || recording.youtubeGalleryId ? <a className="text-indigo-600 underline" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer">YouTube (Unlisted)</a> : '—'} · {recording.bunnyGalleryUrl ? <a className="text-indigo-600 underline" href={recording.bunnyGalleryUrl} target="_blank" rel="noreferrer">Bunny</a> : '—'}</div>
             <div className="mt-1 text-xs text-slate-500">Delivered students: {(recording.deliveredStudentIds || []).length || 0}</div>
           </div>)}</div></div>}
         </>}</section>

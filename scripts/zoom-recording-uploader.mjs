@@ -321,7 +321,7 @@ function bunnyCdnUrl(dest) {
         try { await trashRecording(m.uuid, zt); result.trashed = true; log('  Zoom recording → trash ✓'); }
         catch (e) { log('  Zoom trash FAIL:', e.message); }
       }
-      await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, topic: m.topic, startTime: m.start_time, youtube: result.youtube, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
+      await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
       processed++;
     }
   }

@@ -94,8 +94,13 @@ WorkshopAttendanceSchema.index({ cohortId: 1, studentId: 1, classDate: 1 }, { un
 export interface IWorkshopRecordingDelivery extends Document {
   cohortId: mongoose.Types.ObjectId;
   classDate: Date;
+  dayNumber?: number;
+  zoomMeetingId?: string;
+  zoomMeetingUuid?: string;
   youtubeSpeakerId?: string;
   youtubeGalleryId?: string;
+  youtubeSpeakerUrl?: string;
+  youtubeGalleryUrl?: string;
   bunnySpeakerUrl?: string;
   bunnyGalleryUrl?: string;
   deliveredStudentIds: mongoose.Types.ObjectId[];
@@ -106,8 +111,13 @@ export interface IWorkshopRecordingDelivery extends Document {
 const WorkshopRecordingDeliverySchema = new Schema<IWorkshopRecordingDelivery>({
   cohortId: { type: Schema.Types.ObjectId, ref: 'WorkshopCohort', required: true, index: true },
   classDate: { type: Date, required: true },
+  dayNumber: Number,
+  zoomMeetingId: String,
+  zoomMeetingUuid: String,
   youtubeSpeakerId: String,
   youtubeGalleryId: String,
+  youtubeSpeakerUrl: String,
+  youtubeGalleryUrl: String,
   bunnySpeakerUrl: String,
   bunnyGalleryUrl: String,
   deliveredStudentIds: [{ type: Schema.Types.ObjectId, ref: 'WorkshopStudent' }],
