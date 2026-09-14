@@ -24,6 +24,7 @@ export default function WorkshopManagementPage() {
   const [studentImportMapping, setStudentImportMapping] = useState({ name: '', email: '', phone: '', whatsappNumber: '', whatsappJid: '' });
   const [selectedImportFields, setSelectedImportFields] = useState<string[]>(['name', 'email', 'phone', 'whatsappNumber', 'whatsappJid']);
   const [googleFormLink, setGoogleFormLink] = useState('');
+  const [syncingWhatsapp, setSyncingWhatsapp] = useState(false);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -173,6 +174,33 @@ export default function WorkshopManagementPage() {
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
+  const syncWhatsappGroup = async () => {
+    if (!selected) return;
+    setSyncingWhatsapp(true);
+    try {
+      const groupsRes = await fetch('/api/admin/crm/whatsapp/qr-bridge?path=%2Fgroups', { headers: { Authorization: `Bearer ${token}` } });
+      const groupsData = await groupsRes.json();
+      if (!groupsRes.ok) throw new Error(groupsData.error || 'QR WhatsApp is not connected. Scan the QR code first.');
+      const groups = groupsData.data?.groups || groupsData.groups || [];
+      const groupLink = selected.whatsappGroupLink || '';
+      const group = groups.find((item: any) => item.id === groupLink || item.inviteCode === groupLink || (groupLink && String(groupLink).includes(item.inviteCode)) || item.name === groupLink);
+      if (!group?.id) throw new Error('WhatsApp group was not found in the connected QR session. Make sure the account is a member of the group.');
+      const infoRes = await fetch(`/api/admin/crm/whatsapp/qr-bridge?path=${encodeURIComponent(`/group-info/${group.id}`)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const infoData = await infoRes.json();
+      if (!infoRes.ok) throw new Error(infoData.error || 'Could not read WhatsApp group members.');
+      const participants = infoData.data?.participants || infoData.participants || group.participants || [];
+      const syncRes = await fetch('/api/admin/crm/workshop-management/students/sync-whatsapp', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id, participants }) });
+      const syncData = await syncRes.json();
+      if (!syncRes.ok) throw new Error(syncData.error || 'Could not sync group students');
+      await load(selected._id);
+      alert(`Imported ${syncData.imported || 0} WhatsApp group participants. CRM matches: ${syncData.matchedLeads || 0}.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not sync WhatsApp group');
+    } finally {
+      setSyncingWhatsapp(false);
+    }
+  };
+
   const saveAttendance = async (e: React.FormEvent) => {
     e.preventDefault(); if (!selected) return;
     const durationSeconds = Math.max(0, Number(attendanceForm.durationMinutes || 0) * 60);
@@ -243,7 +271,7 @@ export default function WorkshopManagementPage() {
       <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-xl bg-white p-4 shadow-sm"><h2 className="mb-3 font-semibold">Workshops</h2>{cohorts.map((c) => <button key={c._id} onClick={() => { setSelected(c); void load(c._id); }} className={`mb-2 w-full rounded-lg p-3 text-left ${selected?._id === c._id ? 'bg-indigo-50 text-indigo-800' : 'bg-slate-50'}`}><b>{c.name}</b><span className="block text-xs text-slate-500">{new Date(c.startDate).toLocaleDateString()}</span></button>)}</aside>
         <section className="space-y-4 rounded-xl bg-white p-5 shadow-sm">{!selected ? <p className="text-slate-500">Select a workshop to manage students.</p> : <>
-          <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p></div>
+          <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p>{selected.whatsappGroupLink && <button type="button" onClick={() => void syncWhatsappGroup()} disabled={syncingWhatsapp} className="mt-3 rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingWhatsapp ? 'Syncing WhatsApp group…' : 'Sync WhatsApp group students'}</button>}</div>
 
           <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
