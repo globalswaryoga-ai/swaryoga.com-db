@@ -159,6 +159,29 @@ export default function QRGroupContactsPage() {
     return '';
   };
 
+  // Reuse the same live chat identity mapping shown in the QR inbox sidebar.
+  // The sidebar can learn a LID's real phone from message/contact events even
+  // when /lid-map has not been updated yet.
+  const buildSidebarPhoneMap = (chatRows: any[]): Record<string, string> => {
+    const map: Record<string, string> = {};
+    for (const chat of chatRows) {
+      const phone = String(
+        chat?.resolvedPhone || chat?.phoneNumber || chat?.phone || chat?.contact?.phone || ''
+      ).replace(/\D/g, '');
+      if (!phone || /^\d{14,}$/.test(phone)) continue;
+      const ids = [chat?.id, chat?.jid, chat?.chatId, chat?.lid, chat?.contact?.lid].filter(Boolean);
+      for (const id of ids) {
+        const value = String(id);
+        if (value.endsWith('@lid') || /^\d{14,}$/.test(value.split('@')[0])) {
+          map[value] = phone;
+          map[`${value.split('@')[0]}@lid`] = phone;
+          map[`${value.split('@')[0]}@s.whatsapp.net`] = phone;
+        }
+      }
+    }
+    return map;
+  };
+
   // Merge: collect all contacts from selected groups → add to existing group OR create new
   const handleMergeGroups = async () => {
     if (mergeMode === 'new' && !mergeNewGroupName.trim()) { setError('Please enter a group name'); return; }
@@ -551,10 +574,10 @@ export default function QRGroupContactsPage() {
       const groupChats = allChats.filter((c) => c.isGroup);
       setGroups(groupChats);
 
-      // Store LID map
-      if (lidData?.map) {
-        setLidMap(lidData.map);
-      }
+      // Merge the bridge map with live sidebar chat mappings. The live chat
+      // response is the source used by the QR inbox sidebar and may contain a
+      // newer LID→phone mapping than the dedicated map endpoint.
+      setLidMap({ ...(lidData?.map || {}), ...buildSidebarPhoneMap(allChats) });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch groups');
     } finally {

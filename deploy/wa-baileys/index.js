@@ -1699,7 +1699,7 @@ app.get('/chats', async (req, res) => {
         if (subject) chat.name = subject;
       } else if (!chat.isGroup && (chat.id.endsWith('@lid') || isLidNumber(chat.id))) {
         chat.isLid = true;
-        const phoneNum = resolveToPhone(session, chat.id);
+        const phoneNum = resolveParticipantPhone(session, chat.id, chat);
         if (phoneNum) {
           chat.resolvedPhone = phoneNum;
           if (/^\d{14,}$/.test(chat.name)) chat.name = phoneNum;
