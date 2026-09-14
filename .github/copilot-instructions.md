@@ -346,6 +346,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Added spreadsheet preview and selectable mappings for Name, Email, Phone, WhatsApp number, and WhatsApp JID
 - Google Forms `.xlsx`, `.xls`, and `.csv` exports can now be reviewed before import, with existing student duplicate protection preserved
 
+### Workshop Student Import Field Checklist (Session: September 14, 2026 — Phase 147) — Commit `N/A (working tree only)`
+
+- Added checkbox selection for the student fields to collect/import: Name, Email, Phone, WhatsApp number, and WhatsApp JID
+- Added Select all fields and Clear optional fields actions; Name remains required for safe student creation
+- The import API now ignores unchecked fields while preserving the selected spreadsheet-column mapping
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**

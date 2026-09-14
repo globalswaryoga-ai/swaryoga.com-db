@@ -41,6 +41,8 @@ export async function POST(request: NextRequest) {
 
     const mappingRaw = String(formData.get('mapping') || '{}');
     const mapping = JSON.parse(mappingRaw) as { name?: string; email?: string; phone?: string; whatsappNumber?: string; whatsappJid?: string };
+    const selectedFieldsRaw = String(formData.get('selectedFields') || '["name","email","phone","whatsappNumber","whatsappJid"]');
+    const selectedFields = new Set<string>(JSON.parse(selectedFieldsRaw));
     const googleFormLink = String(formData.get('googleFormLink') || '').trim();
     if (googleFormLink) {
       await connectDB();
@@ -55,11 +57,11 @@ export async function POST(request: NextRequest) {
 
     for (const [index, row] of rows.entries()) {
       const mapped = (column?: string) => column ? String(row[column] || '').trim() : '';
-      const name = mapped(mapping.name) || getColumn(row, ['name', 'student name', 'full name', 'participant name', 'your name']);
-      const email = (mapped(mapping.email) || getColumn(row, ['email', 'email address', 'gmail', 'gmail address'])).toLowerCase();
-      const phone = mapped(mapping.phone) || getColumn(row, ['phone', 'phone number', 'mobile', 'mobile number', 'contact number']);
-      const whatsappNumber = mapped(mapping.whatsappNumber) || getColumn(row, ['whatsapp', 'whatsapp number', 'whatsapp mobile', 'whatsapp phone']);
-      const whatsappJid = mapped(mapping.whatsappJid) || getColumn(row, ['whatsapp jid', 'jid', 'whatsapp id']);
+      const name = selectedFields.has('name') ? (mapped(mapping.name) || getColumn(row, ['name', 'student name', 'full name', 'participant name', 'your name'])) : '';
+      const email = selectedFields.has('email') ? (mapped(mapping.email) || getColumn(row, ['email', 'email address', 'gmail', 'gmail address'])).toLowerCase() : '';
+      const phone = selectedFields.has('phone') ? (mapped(mapping.phone) || getColumn(row, ['phone', 'phone number', 'mobile', 'mobile number', 'contact number'])) : '';
+      const whatsappNumber = selectedFields.has('whatsappNumber') ? (mapped(mapping.whatsappNumber) || getColumn(row, ['whatsapp', 'whatsapp number', 'whatsapp mobile', 'whatsapp phone'])) : '';
+      const whatsappJid = selectedFields.has('whatsappJid') ? (mapped(mapping.whatsappJid) || getColumn(row, ['whatsapp jid', 'jid', 'whatsapp id'])) : '';
 
       if (!name) {
         skipped++;

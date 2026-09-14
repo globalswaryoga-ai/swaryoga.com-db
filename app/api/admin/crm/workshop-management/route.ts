@@ -102,3 +102,22 @@ export async function POST(request: NextRequest) {
   });
   return NextResponse.json({ cohort }, { status: 201 });
 }
+
+export async function PATCH(request: NextRequest) {
+  const decoded = admin(request);
+  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const body = await request.json();
+  if (!body.cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
+  const googleFormLink = String(body.googleFormLink || '').trim();
+  if (googleFormLink && !/^https?:\/\//i.test(googleFormLink)) {
+    return NextResponse.json({ error: 'Google Forms link must start with http:// or https://' }, { status: 400 });
+  }
+  await connectDB();
+  const cohort = await getWorkshopCohort().findByIdAndUpdate(
+    body.cohortId,
+    { $set: { googleFormLink: googleFormLink || undefined } },
+    { new: true },
+  ).lean();
+  if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+  return NextResponse.json({ cohort });
+}
