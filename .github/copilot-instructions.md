@@ -279,31 +279,31 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Added a Google-style `Use Google/Gmail autofill` action that focuses the field and opens saved browser/Password Manager email suggestions
 - The browser still requires the user to choose an email; websites cannot silently read a device Google account email without explicit OAuth consent
 
-### QR Group Contacts Complete Export (Session: September 14, 2026 — Phase 136) — Commit `N/A (working tree only)`
+### QR Group Contacts Complete Export (Session: September 14, 2026 — Phase 136) — Commit `b34a6224`
 
 - Updated `app/admin/crm/qr/group-contacts/page.tsx` so single-group, selected-group, and all-group Excel exports include every WhatsApp participant
 - LID-only participants without a resolved phone number are retained with their JID/LID identifiers instead of being silently excluded
 - Export deduplication now uses the resolved phone when available and falls back to the participant JID; the page also clarifies that all members are downloadable
 
-### QR Group Contacts Large-Group Loading (Session: September 14, 2026 — Phase 139) — Commit `N/A (working tree only)`
+### QR Group Contacts Large-Group Loading (Session: September 14, 2026 — Phase 139) — Commit `b34a6224`
 
 - Updated `app/admin/crm/qr/group-contacts/page.tsx` to verify the live QR WhatsApp session before loading groups or group participants
 - Logged-out or expired QR sessions now clear stale group data and show the bridge status with a direct `Open Connection` action instead of producing a generic 503 group error
 - Verified the route still returns HTTP 200 and the modified page has no editor diagnostics
 
-### Hetzner Bridge Host Cleanup (Session: September 14, 2026 — Phase 138) — Commit `N/A (working tree only)`
+### Hetzner Bridge Host Cleanup (Session: September 14, 2026 — Phase 138) — Commit `b34a6224`
 
 - Updated `lib/whatsappBridgeConfig.ts` to normalize known retired bridge IPs to the active `https://wa-bridge.swaryoga.com` hostname
 - Updated `.env.production` so production QR proxy requests use the active Hetzner bridge hostname directly
 - This prevents stale deployment environment values from producing `Bridge service temporarily unavailable` while the current bridge is healthy
 
-### QR Group Contacts Connection Recovery (Session: September 14, 2026 — Phase 137) — Commit `N/A (working tree only)`
+### QR Group Contacts Connection Recovery (Session: September 14, 2026 — Phase 137) — Commit `b34a6224`
 
 - Increased QR proxy timeouts for large `/group-info` requests and added short retries so slow WhatsApp metadata refreshes do not appear as bridge disconnects
 - Updated `deploy/wa-baileys/index.js` to return server-resolved phone numbers for known LID participants while retaining unresolved LIDs
 - Group Contacts now opens large groups more reliably and displays more usable phone numbers without dropping any participants
 
-### QR Group Info Cached-Member Type Fix (Session: September 14, 2026 — Phase 140) — Commit `N/A (working tree only)`
+### QR Group Info Cached-Member Type Fix (Session: September 14, 2026 — Phase 140) — Commit `b34a6224`
 
 - Fixed `deploy/wa-baileys/index.js` `/group-info` failures caused by cached participant objects being treated as strings
 - Cached member entries are now normalized from JID/object shapes before suffix checks and response merging
