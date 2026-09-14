@@ -1566,15 +1566,30 @@ app.get('/group-info/:jid', async (req, res) => {
     const metadata = await session.sock.groupMetadata(jid);
     let participants = metadata.participants || [];
     const mappedParticipants = participants.map(p => ({
-      id: p.jid || p.id, lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined), admin: p.admin || null,
+      id: p.jid || p.id,
+      lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined),
+      resolvedPhone: resolveToPhone(session, p.jid || p.id || p.lid),
+      admin: p.admin || null,
     }));
     const cachedMembers = session.groupMembersCache.get(jid);
     if (cachedMembers) {
       const existingIds = new Set(mappedParticipants.map(p => p.id));
       const existingLids = new Set(mappedParticipants.map(p => p.lid).filter(Boolean));
-      for (const memberId of cachedMembers) {
+      for (const memberEntry of cachedMembers) {
+        // Older cache entries and some Baileys events can contain participant
+        // objects rather than a raw JID string. Normalize both shapes before
+        // checking suffixes or adding them to the response.
+        const memberId = typeof memberEntry === 'string'
+          ? memberEntry
+          : memberEntry?.jid || memberEntry?.id || memberEntry?.participant || '';
+        if (!memberId || typeof memberId !== 'string') continue;
         if (!existingIds.has(memberId) && !existingLids.has(memberId))
-          mappedParticipants.push({ id: memberId, lid: memberId.endsWith('@lid') ? memberId : undefined, admin: null });
+          mappedParticipants.push({
+            id: memberId,
+            lid: memberId.endsWith('@lid') ? memberId : undefined,
+            resolvedPhone: resolveToPhone(session, memberId),
+            admin: null,
+          });
       }
     }
     const actualSize = Math.max(metadata.size || participants.length, mappedParticipants.length);

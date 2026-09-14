@@ -1099,13 +1099,16 @@ export async function POST(req: NextRequest) {
     // /send with media: 45s (large base64 payloads)
     // Messages polling: 12s (can be slow, needs more time)
     // Status check: 8s
-    // Contact/Group details: 3s (timeout quickly, use fallback)
+    // Contact/Group details: group metadata can take several seconds while
+    // WhatsApp refreshes a large member list; do not mislabel that delay as a
+    // disconnected bridge.
     // Other endpoints: 8s
     let timeoutMs = 8000;
     if (['/logout', '/reconnect', '/disconnect'].includes(decodedPath)) timeoutMs = 30000;
     if (decodedPath.includes('/send')) timeoutMs = 45000; // Large media uploads need more time
     if (decodedPath.includes('/messages')) timeoutMs = 12000;
-    if (decodedPath.includes('/contact') || decodedPath.includes('/group')) timeoutMs = 3000;
+    if (decodedPath.includes('/contact')) timeoutMs = 8000;
+    if (decodedPath.includes('/group')) timeoutMs = 15000;
     
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -1659,7 +1662,8 @@ export async function GET(req: NextRequest) {
     let timeoutMs = 8000;
     if (path.includes('/media')) timeoutMs = 30000; // Long timeout for media downloads
     if (path.includes('/messages')) timeoutMs = 12000; // Increased from 5s to 12s
-    if (path.includes('/contact') || path.includes('/group')) timeoutMs = 3000;
+    if (path.includes('/contact')) timeoutMs = 8000;
+    if (path.includes('/group')) timeoutMs = 15000;
     
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);

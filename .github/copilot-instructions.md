@@ -255,6 +255,60 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Added Excel upload that updates existing records by `_id`, `leadNumber`, or email and never creates duplicates
 - Kept Admin authentication and CRM lead ownership checks on the API
 
+### International First-and-Last Name Fields (Session: September 14, 2026 — Phase 132) — Commit `N/A (working tree only)`
+
+- Replaced the single public form name input with separate `First Name` and `Last Name` fields
+- The submission API still receives the combined full name, preserving CRM, login, duplicate-check, and Excel compatibility
+- Existing saved full names are split back into first and last name when form details are restored
+
+### Progressive Required-Field Focus Map (Session: September 14, 2026 — Phase 133) — Commit `N/A (working tree only)`
+
+- Added a soft red highlight to the first incomplete required field, starting with Email
+- The highlight advances to the next incomplete field as each value becomes valid
+- Completed fields return to the normal border color, while submitted invalid fields retain a stronger red error style
+
+### Online and Residential Workshop Modes (Session: September 14, 2026 — Phase 134) — Commit `N/A (working tree only)`
+
+- Added `Online on Zoom` and `Residential at Mumbai` as the two workshop mode choices
+- Online mode keeps the current language-specific dates
+- Residential mode requests Admin-published residential schedules and shows a pending-date message until those dates are available
+
+### Google/Gmail Email Autofill Support (Session: September 14, 2026 — Phase 135) — Commit `N/A (working tree only)`
+
+- Added browser-standard `autocomplete="email"` metadata to the public email field
+- Added a Google-style `Use Google/Gmail autofill` action that focuses the field and opens saved browser/Password Manager email suggestions
+- The browser still requires the user to choose an email; websites cannot silently read a device Google account email without explicit OAuth consent
+
+### QR Group Contacts Complete Export (Session: September 14, 2026 — Phase 136) — Commit `N/A (working tree only)`
+
+- Updated `app/admin/crm/qr/group-contacts/page.tsx` so single-group, selected-group, and all-group Excel exports include every WhatsApp participant
+- LID-only participants without a resolved phone number are retained with their JID/LID identifiers instead of being silently excluded
+- Export deduplication now uses the resolved phone when available and falls back to the participant JID; the page also clarifies that all members are downloadable
+
+### QR Group Contacts Large-Group Loading (Session: September 14, 2026 — Phase 139) — Commit `N/A (working tree only)`
+
+- Updated `app/admin/crm/qr/group-contacts/page.tsx` to verify the live QR WhatsApp session before loading groups or group participants
+- Logged-out or expired QR sessions now clear stale group data and show the bridge status with a direct `Open Connection` action instead of producing a generic 503 group error
+- Verified the route still returns HTTP 200 and the modified page has no editor diagnostics
+
+### Hetzner Bridge Host Cleanup (Session: September 14, 2026 — Phase 138) — Commit `N/A (working tree only)`
+
+- Updated `lib/whatsappBridgeConfig.ts` to normalize known retired bridge IPs to the active `https://wa-bridge.swaryoga.com` hostname
+- Updated `.env.production` so production QR proxy requests use the active Hetzner bridge hostname directly
+- This prevents stale deployment environment values from producing `Bridge service temporarily unavailable` while the current bridge is healthy
+
+### QR Group Contacts Connection Recovery (Session: September 14, 2026 — Phase 137) — Commit `N/A (working tree only)`
+
+- Increased QR proxy timeouts for large `/group-info` requests and added short retries so slow WhatsApp metadata refreshes do not appear as bridge disconnects
+- Updated `deploy/wa-baileys/index.js` to return server-resolved phone numbers for known LID participants while retaining unresolved LIDs
+- Group Contacts now opens large groups more reliably and displays more usable phone numbers without dropping any participants
+
+### QR Group Info Cached-Member Type Fix (Session: September 14, 2026 — Phase 140) — Commit `N/A (working tree only)`
+
+- Fixed `deploy/wa-baileys/index.js` `/group-info` failures caused by cached participant objects being treated as strings
+- Cached member entries are now normalized from JID/object shapes before suffix checks and response merging
+- This removes the `memberId.endsWith is not a function` error that was surfacing in the UI as `Bridge service temporarily unavailable`
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**

@@ -878,7 +878,15 @@ function DynamicFormPage() {
   };
 
   // Form fields
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const fullName = `${firstName} ${lastName}`.trim();
+
+  const setNameParts = useCallback((value: unknown) => {
+    const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+    setFirstName(parts.shift() || '');
+    setLastName(parts.join(' '));
+  }, []);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
@@ -895,7 +903,7 @@ function DynamicFormPage() {
   );
   const [workshopName, setWorkshopName] = useState(defaultWorkshop);
   const [workshopLanguage, setWorkshopLanguage] = useState<SupportedLanguage>(initialLang);
-  const workshopMode = 'online' as const;
+  const [workshopMode, setWorkshopMode] = useState<'online' | 'residential'>('online');
   const [educationStatus, setEducationStatus] = useState('');
   const [customEducation, setCustomEducation] = useState('');
   const [batchPreference, setBatchPreference] = useState('');
@@ -916,7 +924,7 @@ function DynamicFormPage() {
 
   const workshopBatches = adminWorkshopBatches.length > 0
     ? adminWorkshopBatches
-    : WORKSHOP_BATCHES_BY_LANGUAGE[workshopLanguage];
+    : workshopMode === 'online' ? WORKSHOP_BATCHES_BY_LANGUAGE[workshopLanguage] : [];
   const selectedWorkshopBatch = workshopBatches.find((batch) => batch.value === batchPreference);
 
   // Use future schedules approved in Admin when available. The local list is
@@ -928,7 +936,7 @@ function DynamicFormPage() {
     const loadAdminWorkshopBatches = async () => {
       try {
         const response = await fetch(
-          `/api/workshops/schedules?workshopSlug=swar-yoga-level-1&mode=online&language=${workshopLanguage}`,
+          `/api/workshops/schedules?workshopSlug=swar-yoga-level-1&mode=${workshopMode}&language=${workshopLanguage}`,
           { cache: 'no-store' },
         );
         const data = await response.json();
@@ -964,7 +972,7 @@ function DynamicFormPage() {
 
     loadAdminWorkshopBatches();
     return () => { cancelled = true; };
-  }, [formType, workshopLanguage]);
+  }, [formType, workshopLanguage, workshopMode]);
   
   // Password fields (for signup & workshop forms)
   const needsPassword = formType === 'signup' || formType === 'workshop';
@@ -987,6 +995,12 @@ function DynamicFormPage() {
       case 'name':
         if (!val || !String(val).trim()) return 'Full name is required';
         return '';
+      case 'firstName':
+        if (!val || !String(val).trim()) return 'First name is required';
+        return '';
+      case 'lastName':
+        if (!val || !String(val).trim()) return 'Last name is required';
+        return '';
       case 'gender':
         if (!val) return 'Please select your gender';
         return '';
@@ -1006,7 +1020,7 @@ function DynamicFormPage() {
         if (!val) return 'Please select language';
         return '';
       case 'workshopMode':
-        if (val !== 'online') return 'This workshop is available online on Zoom';
+        if (!val) return 'Please select a workshop mode';
         return '';
       case 'batchPreference':
         if (!val) return 'Please select workshop date and time';
@@ -1071,7 +1085,8 @@ function DynamicFormPage() {
 
     checkAndSet('email', email);
     checkAndSet('phone', phone);
-    checkAndSet('name', name);
+    checkAndSet('firstName', firstName);
+    checkAndSet('lastName', lastName);
 
     if (config.fields.includes('gender')) checkAndSet('gender', gender);
     if (config.fields.includes('age')) checkAndSet('age', age);
@@ -1128,17 +1143,71 @@ function DynamicFormPage() {
     });
   };
 
+  const getFieldValue = (fName: string): any => {
+    const values: Record<string, any> = {
+      email,
+      phone,
+      firstName,
+      lastName,
+      gender,
+      age,
+      educationStatus,
+      profession,
+      country,
+      state: useCustomState || state === 'Other' ? customState : state,
+      city,
+      workshopName,
+      workshopLanguage,
+      workshopMode,
+      batchPreference,
+      participantStatus,
+      timeAvailable,
+      videoOnDuringClass,
+      regularAttendance,
+      deviceForWorkshop,
+      donationReady,
+      awarenessConfirmed,
+      finalConfirmation,
+      interest,
+      courseName,
+      paymentMode,
+      message,
+    };
+    return values[fName];
+  };
+
+  const requiredFieldOrder = [
+    'email',
+    'phone',
+    'firstName',
+    'lastName',
+    ...(config.fields.includes('gender') ? ['gender'] : []),
+    ...(config.fields.includes('age') ? ['age'] : []),
+    ...(formType === 'workshop' ? ['educationStatus', 'profession'] : config.fields.includes('profession') ? ['profession'] : []),
+    ...(config.fields.includes('country') ? ['country', 'state'] : []),
+    ...(formType === 'workshop' ? ['city', 'workshopName', 'workshopLanguage', 'workshopMode', 'batchPreference', 'participantStatus', 'timeAvailable', 'videoOnDuringClass', 'regularAttendance', 'deviceForWorkshop', 'donationReady', 'awarenessConfirmed', 'finalConfirmation'] : []),
+    ...(config.fields.includes('interest') ? ['interest'] : []),
+    ...(config.fields.includes('courseName') ? ['courseName'] : []),
+    ...(config.fields.includes('paymentMode') ? ['paymentMode'] : []),
+    ...(config.fields.includes('message') ? ['message'] : []),
+  ];
+  const focusField = requiredFieldOrder.find((field) => Boolean(validateField(field, getFieldValue(field))));
+  const isFocusField = (fName: string) => focusField === fName;
+
   const getFieldClass = (fName: string, isSelect = false) => {
     const hasError = (formSubmitted || touched[fName]) && !!fieldErrors[fName];
     if (hasError) {
       return `w-full h-12 px-4 border-2 border-red-500 bg-red-50/50 text-gray-900 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-400 focus:border-red-500 transition-all ${isSelect ? 'bg-white' : ''}`;
+    }
+    if (isFocusField(fName)) {
+      return `w-full h-12 px-4 border-2 border-red-300 bg-red-50/40 text-gray-900 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition-all ${isSelect ? 'bg-white' : ''}`;
     }
     return `w-full h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-400 transition-all ${isSelect ? 'bg-white' : ''}`;
   };
 
   const getLabelClass = (fName: string) => {
     const hasError = (formSubmitted || touched[fName]) && !!fieldErrors[fName];
-    return `block text-sm font-bold mb-2 transition-colors ${hasError ? 'text-red-600' : 'text-gray-700'}`;
+    return `block text-sm font-bold mb-2 transition-colors ${hasError || isFocusField(fName) ? 'text-red-600' : 'text-gray-700'}`;
   };
 
   const renderFieldError = (fName: string) => {
@@ -1160,6 +1229,12 @@ function DynamicFormPage() {
   const [savedDataLoaded, setSavedDataLoaded] = useState(false);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emailLookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  const openEmailAutofill = () => {
+    emailInputRef.current?.focus();
+    emailInputRef.current?.click();
+  };
 
   const applySavedContact = useCallback((saved: Record<string, any>) => {
     const savedCountryCode = saved.countryCode || '+91';
@@ -1169,7 +1244,7 @@ function DynamicFormPage() {
       ? rawPhone.slice(countryDigits.length)
       : rawPhone;
 
-    setName(saved.name || '');
+    setNameParts(saved.name || '');
     setEmail(saved.email || '');
     setPhone(localPhone);
     setCountryCode(savedCountryCode);
@@ -1180,6 +1255,7 @@ function DynamicFormPage() {
     setInterest(saved.interest || '');
     setWorkshopName(saved.workshopName || '');
     setWorkshopLanguage(saved.workshopLanguage || 'english');
+    setWorkshopMode(saved.workshopMode === 'residential' ? 'residential' : 'online');
     if (['english', 'hindi', 'marathi'].includes(saved.workshopLanguage)) {
       setSelectedLanguage(saved.workshopLanguage as SupportedLanguage);
     }
@@ -1203,7 +1279,7 @@ function DynamicFormPage() {
     setExistingUser(true);
     setExistingUserInfo({ name: saved.name || '' });
     setSavedDataLoaded(true);
-  }, []);
+  }, [setNameParts]);
 
   const lookupSavedContact = useCallback(async (emailValue: string) => {
     const normalizedEmail = emailValue.trim().toLowerCase();
@@ -1360,7 +1436,7 @@ function DynamicFormPage() {
       const data = await response.json();
       
       if (data.found && data.user) {
-        setName(data.user.name || '');
+        setNameParts(data.user.name || '');
         setEmail(data.user.email || '');
         setPhone(data.user.phone || '');
         setCountryCode(data.user.countryCode || '+91');
@@ -1390,7 +1466,7 @@ function DynamicFormPage() {
     } finally {
       setLookupLoading(false);
     }
-  }, [userId]);
+  }, [setNameParts, userId]);
   
   // Get effective state value
   const getEffectiveState = () => {
@@ -1430,7 +1506,7 @@ function DynamicFormPage() {
         source: sourceParam || 'form-link',
         ref: refParam,
         existingUserId: userFound ? userId : undefined,
-        name: name.trim(),
+        name: fullName,
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         countryCode,
@@ -1682,7 +1758,12 @@ function DynamicFormPage() {
                   </label>
                   <div className="relative">
                     <input
+                      ref={emailInputRef}
                       type="email"
+                      name="email"
+                      autoComplete="email"
+                      autoCapitalize="none"
+                      spellCheck={false}
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
@@ -1698,6 +1779,15 @@ function DynamicFormPage() {
                       <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500" size={18} aria-label="Valid email" />
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={openEmailAutofill}
+                    className="mt-2 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                    title="Open saved Google/Gmail email suggestions"
+                  >
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white font-black text-[13px] text-blue-600 shadow-sm">G</span>
+                    Use Google/Gmail autofill
+                  </button>
                   {renderFieldError('email')}
                   {emailLookupLoading && (
                     <p className="mt-1 text-xs text-gray-500">Checking saved details...</p>
@@ -1756,24 +1846,41 @@ function DynamicFormPage() {
                   <p className="text-xs text-gray-500 mt-1">📱 {COUNTRY_PHONE_CODES[country]?.flag} {workshopUi.countryHint}</p>
                 </div>
 
-                {/* Full Name */}
-                <div id="field-name">
-                  <label className={getLabelClass('name')}>
-                    <User size={14} className="inline mr-2" />
-                    {commonText.fullName} *
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      clearError('name', e.target.value);
-                    }}
-                    onBlur={() => clearError('name', name)}
-                    placeholder="Enter your full name"
-                    className={getFieldClass('name')}
-                  />
-                  {renderFieldError('name')}
+                {/* International-style First and Last Name */}
+                <div id="field-firstName" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={getLabelClass('firstName')}>
+                      <User size={14} className="inline mr-2" />
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => {
+                        setFirstName(e.target.value);
+                        clearError('firstName', e.target.value);
+                      }}
+                      onBlur={() => clearError('firstName', firstName)}
+                      placeholder="Enter your first name"
+                      className={getFieldClass('firstName')}
+                    />
+                    {renderFieldError('firstName')}
+                  </div>
+                  <div id="field-lastName">
+                    <label className={getLabelClass('lastName')}>Last Name *</label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => {
+                        setLastName(e.target.value);
+                        clearError('lastName', e.target.value);
+                      }}
+                      onBlur={() => clearError('lastName', lastName)}
+                      placeholder="Enter your last name"
+                      className={getFieldClass('lastName')}
+                    />
+                    {renderFieldError('lastName')}
+                  </div>
                 </div>
 
                 {/* Gender & Age */}
@@ -2043,9 +2150,21 @@ function DynamicFormPage() {
 
                     <div id="field-workshopMode">
                       <label className={getLabelClass('workshopMode')}>{workshopText.mode} *</label>
-                      <div className="flex h-12 items-center rounded-xl border border-purple-200 bg-purple-50 px-4 text-sm font-bold text-purple-800">
-                        🌐 Online on Zoom
-                      </div>
+                      <select
+                        value={workshopMode}
+                        onChange={(e) => {
+                          const nextMode = e.target.value as 'online' | 'residential';
+                          setWorkshopMode(nextMode);
+                          setBatchPreference('');
+                          setAdminWorkshopBatches([]);
+                          clearError('workshopMode', nextMode);
+                        }}
+                        onBlur={() => clearError('workshopMode', workshopMode)}
+                        className={getFieldClass('workshopMode', true)}
+                      >
+                        <option value="online">🌐 Online on Zoom</option>
+                        <option value="residential">🏠 Residential at Mumbai</option>
+                      </select>
                       {renderFieldError('workshopMode')}
                     </div>
                   </div>
@@ -2086,7 +2205,9 @@ function DynamicFormPage() {
                           </label>
                         );
                       }) : (
-                        <p className="text-sm font-semibold text-gray-500">No approved online batches are available.</p>
+                        <p className="text-sm font-semibold text-gray-500">
+                          No approved {workshopMode === 'residential' ? 'residential' : 'online'} batches are available yet. Dates will be added soon.
+                        </p>
                       )}
                     </div>
                     {selectedWorkshopBatch && (
