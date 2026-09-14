@@ -309,6 +309,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Cached member entries are now normalized from JID/object shapes before suffix checks and response merging
 - This removes the `memberId.endsWith is not a function` error that was surfacing in the UI as `Bridge service temporarily unavailable`
 
+### QR Group Contact Phone Resolution (Session: September 14, 2026 — Phase 141) — Commit `10952978`
+
+- Added a bridge contact-cache fallback for resolving known LID participants to phone numbers
+- Changed unresolved Group Contacts rows to show `Phone unavailable` instead of displaying an internal LID as a phone number
+- Verified the target group opens with HTTP 200 and all participants remain available for export; WhatsApp-only LIDs without a phone mapping remain identifiable in the download
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**
