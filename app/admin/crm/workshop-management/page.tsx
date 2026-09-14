@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; }
+interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; active: boolean; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface Recording { _id: string; cohortId: string; classDate: string; dayNumber?: number; youtubeSpeakerId?: string; youtubeGalleryId?: string; youtubeSpeakerUrl?: string; youtubeGalleryUrl?: string; bunnySpeakerUrl?: string; bunnyGalleryUrl?: string; deliveredStudentIds?: string[]; }
@@ -19,6 +19,10 @@ export default function WorkshopManagementPage() {
   const [recordingForm, setRecordingForm] = useState({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
   const [loading, setLoading] = useState(false);
   const [importingStudents, setImportingStudents] = useState(false);
+  const [studentImportFile, setStudentImportFile] = useState<File | null>(null);
+  const [studentImportColumns, setStudentImportColumns] = useState<string[]>([]);
+  const [studentImportMapping, setStudentImportMapping] = useState({ name: '', email: '', phone: '', whatsappNumber: '', whatsappJid: '' });
+  const [googleFormLink, setGoogleFormLink] = useState('');
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -89,14 +93,41 @@ export default function WorkshopManagementPage() {
     event.target.value = '';
     if (!file || !selected) return;
     setImportingStudents(true);
+    const previewBody = new FormData();
+    previewBody.append('cohortId', selected._id);
+    previewBody.append('action', 'preview');
+    previewBody.append('file', file);
+    const previewRes = await fetch('/api/admin/crm/workshop-management/students/import', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: previewBody });
+    const preview = await previewRes.json();
+    setImportingStudents(false);
+    if (!previewRes.ok) { alert(preview.error || 'Could not read the file'); return; }
+    setStudentImportFile(file);
+    setStudentImportColumns(preview.columns || []);
+    setStudentImportMapping((prev) => ({
+      name: prev.name || (preview.columns || []).find((c: string) => /name/i.test(c)) || '',
+      email: prev.email || (preview.columns || []).find((c: string) => /email|gmail/i.test(c)) || '',
+      phone: prev.phone || (preview.columns || []).find((c: string) => /phone|mobile/i.test(c)) || '',
+      whatsappNumber: prev.whatsappNumber || (preview.columns || []).find((c: string) => /whatsapp/i.test(c)) || '',
+      whatsappJid: prev.whatsappJid || (preview.columns || []).find((c: string) => /jid/i.test(c)) || '',
+    }));
+  };
+
+  const importMappedStudents = async () => {
+    if (!studentImportFile || !selected) return;
+    setImportingStudents(true);
     const body = new FormData();
     body.append('cohortId', selected._id);
-    body.append('file', file);
+    body.append('file', studentImportFile);
+    body.append('mapping', JSON.stringify(studentImportMapping));
+    body.append('googleFormLink', googleFormLink);
     const res = await fetch('/api/admin/crm/workshop-management/students/import', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body });
     const data = await res.json();
     setImportingStudents(false);
     if (res.ok) {
       await load(selected._id);
+      setStudentImportFile(null);
+      setStudentImportColumns([]);
+      setStudentImportMapping({ name: '', email: '', phone: '', whatsappNumber: '', whatsappJid: '' });
       alert(`Imported ${data.imported || 0} students. Skipped ${data.skipped || 0} rows.`);
     } else {
       alert(data.error || 'Could not import students');
@@ -167,7 +198,7 @@ export default function WorkshopManagementPage() {
           <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p></div>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            <form onSubmit={addStudent} className="rounded-lg bg-slate-50 p-4"><h3 className="mb-3 font-semibold">Add student</h3><div className="grid gap-3 md:grid-cols-2"><input required placeholder="Student name" value={student.name} onChange={(e) => setStudent({ ...student, name: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Email" value={student.email} onChange={(e) => setStudent({ ...student, email: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Phone" value={student.phone} onChange={(e) => setStudent({ ...student, phone: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="WhatsApp number" value={student.whatsappNumber} onChange={(e) => setStudent({ ...student, whatsappNumber: e.target.value })} className="rounded border px-3 py-2" /><button className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white md:col-span-2">Add student</button></div><div className="mt-4 border-t border-slate-200 pt-4"><label className="block text-sm font-medium text-slate-700">Import Google Forms Excel export<input type="file" accept=".xlsx,.xls,.csv" onChange={importStudents} disabled={importingStudents} className="mt-2 block w-full rounded border bg-white px-3 py-2 text-sm font-normal" /></label><p className="mt-1 text-xs text-slate-500">Use columns such as Name, Email Address, Phone Number, or WhatsApp Number. Existing students are updated instead of duplicated.</p>{importingStudents && <p className="mt-2 text-sm font-medium text-indigo-600">Importing students…</p>}</div></form>
+            <form onSubmit={addStudent} className="rounded-lg bg-slate-50 p-4"><h3 className="mb-3 font-semibold">Add student</h3><div className="grid gap-3 md:grid-cols-2"><input required placeholder="Student name" value={student.name} onChange={(e) => setStudent({ ...student, name: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Email" value={student.email} onChange={(e) => setStudent({ ...student, email: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Phone" value={student.phone} onChange={(e) => setStudent({ ...student, phone: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="WhatsApp number" value={student.whatsappNumber} onChange={(e) => setStudent({ ...student, whatsappNumber: e.target.value })} className="rounded border px-3 py-2" /><button className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white md:col-span-2">Add student</button></div><div className="mt-4 border-t border-slate-200 pt-4 space-y-3"><label className="block text-sm font-medium text-slate-700">Google Forms link (optional)<input type="url" placeholder="https://docs.google.com/forms/..." value={googleFormLink} onChange={(e) => setGoogleFormLink(e.target.value)} className="mt-2 block w-full rounded border bg-white px-3 py-2 text-sm font-normal" /></label><label className="block text-sm font-medium text-slate-700">Import Google Forms Excel export<input type="file" accept=".xlsx,.xls,.csv" onChange={importStudents} disabled={importingStudents} className="mt-2 block w-full rounded border bg-white px-3 py-2 text-sm font-normal" /></label>{studentImportColumns.length > 0 && <div className="grid gap-2 sm:grid-cols-2"><p className="sm:col-span-2 text-sm font-semibold text-slate-700">Select columns before importing</p>{([['name','Name'],['email','Email'],['phone','Phone'],['whatsappNumber','WhatsApp number'],['whatsappJid','WhatsApp JID']] as const).map(([key, label]) => <label key={key} className="text-xs font-medium text-slate-600">{label}<select value={studentImportMapping[key]} onChange={(e) => setStudentImportMapping({ ...studentImportMapping, [key]: e.target.value })} className="mt-1 w-full rounded border bg-white px-2 py-2 text-sm"><option value="">Auto-detect</option>{studentImportColumns.map((column) => <option key={column} value={column}>{column}</option>)}</select></label>)}<button type="button" onClick={importMappedStudents} disabled={importingStudents || !studentImportMapping.name} className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white sm:col-span-2 disabled:opacity-50">{importingStudents ? 'Importing students…' : 'Import mapped students'}</button></div>}<p className="text-xs text-slate-500">Upload your Google Forms export, select the matching columns, then import. Existing students are updated instead of duplicated.</p></div></form>
 
             <form onSubmit={saveAttendance} className="rounded-lg bg-slate-50 p-4"><h3 className="mb-3 font-semibold">Record attendance</h3><div className="grid gap-3 md:grid-cols-2"><select value={attendanceForm.studentId} onChange={(e) => setAttendanceForm({ ...attendanceForm, studentId: e.target.value })} className="rounded border px-3 py-2"><option value="">Select student</option>{students.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}</select><input type="date" value={attendanceForm.classDate} onChange={(e) => setAttendanceForm({ ...attendanceForm, classDate: e.target.value })} className="rounded border px-3 py-2" /><input type="number" min={0} placeholder="Minutes attended" value={attendanceForm.durationMinutes} onChange={(e) => setAttendanceForm({ ...attendanceForm, durationMinutes: e.target.value })} className="rounded border px-3 py-2" /><input type="number" min={1} placeholder="Class duration minutes" value={attendanceForm.classDurationMinutes} onChange={(e) => setAttendanceForm({ ...attendanceForm, classDurationMinutes: e.target.value })} className="rounded border px-3 py-2" /><button className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white md:col-span-2">Save attendance</button></div></form>
           </div>

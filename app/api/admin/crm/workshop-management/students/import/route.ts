@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getWorkshopStudent } from '@/lib/schemas/workshopStudentManagementSchemas';
+import { getWorkshopCohort, getWorkshopStudent } from '@/lib/schemas/workshopStudentManagementSchemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const cohortId = String(formData.get('cohortId') || '').trim();
+    const action = String(formData.get('action') || 'import');
     const file = formData.get('file');
     if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
     if (!(file instanceof File)) return NextResponse.json({ error: 'Please upload an Excel file' }, { status: 400 });
@@ -34,7 +35,17 @@ export async function POST(request: NextRequest) {
     const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer', cellDates: true });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
+    const columns = rows.length ? Object.keys(rows[0]) : [];
+    if (action === 'preview') return NextResponse.json({ success: true, columns, sample: rows.slice(0, 3) });
     if (!rows.length) return NextResponse.json({ success: true, imported: 0, skipped: 0, errors: [] });
+
+    const mappingRaw = String(formData.get('mapping') || '{}');
+    const mapping = JSON.parse(mappingRaw) as { name?: string; email?: string; phone?: string; whatsappNumber?: string; whatsappJid?: string };
+    const googleFormLink = String(formData.get('googleFormLink') || '').trim();
+    if (googleFormLink) {
+      await connectDB();
+      await getWorkshopCohort().findByIdAndUpdate(cohortId, { $set: { googleFormLink } });
+    }
 
     await connectDB();
     const Student = getWorkshopStudent();
@@ -43,11 +54,12 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     for (const [index, row] of rows.entries()) {
-      const name = getColumn(row, ['name', 'student name', 'full name', 'participant name', 'your name']);
-      const email = getColumn(row, ['email', 'email address', 'gmail', 'gmail address']).toLowerCase();
-      const phone = getColumn(row, ['phone', 'phone number', 'mobile', 'mobile number', 'contact number']);
-      const whatsappNumber = getColumn(row, ['whatsapp', 'whatsapp number', 'whatsapp mobile', 'whatsapp phone']);
-      const whatsappJid = getColumn(row, ['whatsapp jid', 'jid', 'whatsapp id']);
+      const mapped = (column?: string) => column ? String(row[column] || '').trim() : '';
+      const name = mapped(mapping.name) || getColumn(row, ['name', 'student name', 'full name', 'participant name', 'your name']);
+      const email = (mapped(mapping.email) || getColumn(row, ['email', 'email address', 'gmail', 'gmail address'])).toLowerCase();
+      const phone = mapped(mapping.phone) || getColumn(row, ['phone', 'phone number', 'mobile', 'mobile number', 'contact number']);
+      const whatsappNumber = mapped(mapping.whatsappNumber) || getColumn(row, ['whatsapp', 'whatsapp number', 'whatsapp mobile', 'whatsapp phone']);
+      const whatsappJid = mapped(mapping.whatsappJid) || getColumn(row, ['whatsapp jid', 'jid', 'whatsapp id']);
 
       if (!name) {
         skipped++;

@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
     zoomMeetingId: body.zoomMeetingId || undefined,
     zoomJoinUrl: body.zoomJoinUrl || undefined,
     whatsappGroupLink: body.whatsappGroupLink || undefined,
+    googleFormLink: body.googleFormLink || undefined,
     whatsappGroupId: body.whatsappGroupId || undefined,
     communityId: body.communityId || undefined,
     createdByUserId: decoded.userId,

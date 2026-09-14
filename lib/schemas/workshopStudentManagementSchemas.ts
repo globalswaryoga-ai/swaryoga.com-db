@@ -11,6 +11,7 @@ export interface IWorkshopCohort extends Document {
   zoomMeetingId?: string;
   zoomJoinUrl?: string;
   whatsappGroupLink?: string;
+  googleFormLink?: string;
   whatsappGroupId?: string;
   communityId?: string;
   recordingPolicy: 'speaker_and_gallery';
@@ -30,6 +31,7 @@ const WorkshopCohortSchema = new Schema<IWorkshopCohort>({
   zoomMeetingId: String,
   zoomJoinUrl: String,
   whatsappGroupLink: String,
+  googleFormLink: String,
   whatsappGroupId: String,
   communityId: String,
   recordingPolicy: { type: String, enum: ['speaker_and_gallery'], default: 'speaker_and_gallery' },

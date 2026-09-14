@@ -340,6 +340,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Workshop management now synchronizes uploaded YouTube/Bunny metadata automatically when a cohort is opened
 - Recording deliveries are labeled by class day and expose full unlisted YouTube URLs for Speaker and Gallery views
 
+### Workshop Student Google Forms Column Mapping (Session: September 14, 2026 — Phase 146) — Commit `N/A (working tree only)`
+
+- Added an optional Google Forms link field to the workshop student import panel
+- Added spreadsheet preview and selectable mappings for Name, Email, Phone, WhatsApp number, and WhatsApp JID
+- Google Forms `.xlsx`, `.xls`, and `.csv` exports can now be reviewed before import, with existing student duplicate protection preserved
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**
