@@ -30,9 +30,17 @@ export async function POST(request: NextRequest) {
     const action = String(formData.get('action') || 'import');
     const file = formData.get('file');
     if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
-    if (!(file instanceof File)) return NextResponse.json({ error: 'Please upload an Excel file' }, { status: 400 });
+    if (!(file instanceof File)) return NextResponse.json({ error: 'Please upload an Excel or CSV file' }, { status: 400 });
 
-    const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer', cellDates: true });
+    const fileName = file.name.toLowerCase();
+    if (!/\.(xlsx|xls|csv)$/.test(fileName)) {
+      return NextResponse.json({ error: 'Please upload an .xlsx, .xls, or .csv file' }, { status: 400 });
+    }
+
+    const fileBytes = await file.arrayBuffer();
+    const workbook = fileName.endsWith('.csv')
+      ? XLSX.read(new TextDecoder('utf-8').decode(fileBytes).replace(/^\uFEFF/, ''), { type: 'string', cellDates: true, raw: false })
+      : XLSX.read(Buffer.from(fileBytes), { type: 'buffer', cellDates: true });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
     const columns = rows.length ? Object.keys(rows[0]) : [];
