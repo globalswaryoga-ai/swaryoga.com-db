@@ -64,7 +64,10 @@ const WorkshopStudentSchema = new Schema<IWorkshopStudent>({
   metadata: Schema.Types.Mixed,
 }, { timestamps: true });
 
-WorkshopStudentSchema.index({ cohortId: 1, whatsappJid: 1 }, { unique: true, sparse: true });
+WorkshopStudentSchema.index(
+  { cohortId: 1, whatsappJid: 1 },
+  { unique: true, partialFilterExpression: { whatsappJid: { $type: 'string', $ne: '' } } },
+);
 WorkshopStudentSchema.index({ cohortId: 1, phone: 1 });
 
 export interface IWorkshopAttendance extends Document {

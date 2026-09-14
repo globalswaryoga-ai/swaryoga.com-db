@@ -29,6 +29,23 @@ function getFirstDataValue(row: Record<string, unknown>) {
   return entry ? String(entry[1]).trim() : '';
 }
 
+async function ensureStudentIndexes() {
+  const collection = getWorkshopStudent().collection;
+  const indexes = await collection.listIndexes().toArray();
+  const conflicting = indexes.find((index) => index.name === 'cohortId_1_whatsappJid_1');
+  if (conflicting) {
+    const partial = conflicting.partialFilterExpression?.whatsappJid;
+    const isSafe = partial && typeof partial === 'object' && '$type' in partial;
+    if (!isSafe) {
+      await collection.dropIndex('cohortId_1_whatsappJid_1');
+      await collection.createIndex(
+        { cohortId: 1, whatsappJid: 1 },
+        { name: 'cohortId_1_whatsappJid_1', unique: true, partialFilterExpression: { whatsappJid: { $type: 'string', $ne: '' } } },
+      );
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
 
@@ -89,6 +106,7 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const Student = getWorkshopStudent();
+    await ensureStudentIndexes();
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
@@ -120,12 +138,17 @@ export async function POST(request: NextRequest) {
           ? { email }
           : { $or: [{ phone }, { whatsappNumber }] };
 
-      await Student.findOneAndUpdate(
-        { cohortId, ...identity },
-        { $set: { cohortId, name, ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(whatsappNumber ? { whatsappNumber } : {}), ...(whatsappJid ? { whatsappJid } : {}), source: 'form', active: true, ...(Object.keys(extraData).length ? { metadata: extraData } : {}) } },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
-      imported++;
+      try {
+        await Student.findOneAndUpdate(
+          { cohortId, ...identity },
+          { $set: { cohortId, name, ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(whatsappNumber ? { whatsappNumber } : {}), ...(whatsappJid ? { whatsappJid } : {}), source: 'form', active: true, ...(Object.keys(extraData).length ? { metadata: extraData } : {}) } },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        );
+        imported++;
+      } catch (rowError) {
+        skipped++;
+        errors.push(`Row ${index + 2}: ${rowError instanceof Error ? rowError.message : 'duplicate or invalid student record'}`);
+      }
     }
 
     return NextResponse.json({ success: true, imported, skipped, errors, message: `Imported ${imported} student(s); skipped ${skipped} row(s).` });
