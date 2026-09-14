@@ -21,6 +21,14 @@ function getColumn(row: Record<string, unknown>, names: string[]) {
   return key ? String(row[key] || '').trim() : '';
 }
 
+function getFirstDataValue(row: Record<string, unknown>) {
+  const entry = Object.entries(row).find(([column, value]) => {
+    const header = normalizeHeader(column);
+    return header !== 'timestamp' && header !== 'date' && String(value || '').trim();
+  });
+  return entry ? String(entry[1]).trim() : '';
+}
+
 export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
 
@@ -30,17 +38,29 @@ export async function POST(request: NextRequest) {
     const action = String(formData.get('action') || 'import');
     const file = formData.get('file');
     if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
-    if (!(file instanceof File)) return NextResponse.json({ error: 'Please upload an Excel or CSV file' }, { status: 400 });
+    if (!file || typeof file === 'string' || typeof (file as File).arrayBuffer !== 'function') {
+      return NextResponse.json({ error: 'Please upload an Excel or CSV file' }, { status: 400 });
+    }
 
     const fileName = file.name.toLowerCase();
     if (!/\.(xlsx|xls|csv)$/.test(fileName)) {
       return NextResponse.json({ error: 'Please upload an .xlsx, .xls, or .csv file' }, { status: 400 });
     }
 
-    const fileBytes = await file.arrayBuffer();
-    const workbook = fileName.endsWith('.csv')
-      ? XLSX.read(new TextDecoder('utf-8').decode(fileBytes).replace(/^\uFEFF/, ''), { type: 'string', cellDates: true, raw: false })
-      : XLSX.read(Buffer.from(fileBytes), { type: 'buffer', cellDates: true });
+    const fileBytes = await (file as File).arrayBuffer();
+    const binary = Buffer.from(fileBytes);
+    let workbook;
+    if (fileName.endsWith('.csv')) {
+      // Google Forms may export UTF-8 CSV or UTF-16LE CSV depending on the
+      // browser/Sheets download path. Detect both so regional column names stay readable.
+      const csvText = binary[0] === 0xff && binary[1] === 0xfe
+        ? new TextDecoder('utf-16le').decode(binary).replace(/^\uFEFF/, '')
+        : new TextDecoder('utf-8').decode(binary).replace(/^\uFEFF/, '');
+      workbook = XLSX.read(csvText, { type: 'string', cellDates: true, raw: false });
+    } else {
+      workbook = XLSX.read(binary, { type: 'buffer', cellDates: true });
+    }
+    if (!workbook.SheetNames.length) return NextResponse.json({ error: 'The uploaded file has no worksheet or CSV data' }, { status: 400 });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
     const columns = rows.length ? Object.keys(rows[0]) : [];
@@ -48,9 +68,19 @@ export async function POST(request: NextRequest) {
     if (!rows.length) return NextResponse.json({ success: true, imported: 0, skipped: 0, errors: [] });
 
     const mappingRaw = String(formData.get('mapping') || '{}');
-    const mapping = JSON.parse(mappingRaw) as { name?: string; email?: string; phone?: string; whatsappNumber?: string; whatsappJid?: string };
+    let mapping: { name?: string; email?: string; phone?: string; whatsappNumber?: string; whatsappJid?: string };
+    try {
+      mapping = JSON.parse(mappingRaw);
+    } catch {
+      return NextResponse.json({ error: 'Invalid column mapping. Please choose the columns again.' }, { status: 400 });
+    }
     const selectedFieldsRaw = String(formData.get('selectedFields') || '["name","email","phone","whatsappNumber","whatsappJid"]');
-    const selectedFields = new Set<string>(JSON.parse(selectedFieldsRaw));
+    let selectedFields: Set<string>;
+    try {
+      selectedFields = new Set<string>(JSON.parse(selectedFieldsRaw));
+    } catch {
+      return NextResponse.json({ error: 'Invalid selected fields. Please select the fields again.' }, { status: 400 });
+    }
     const googleFormLink = String(formData.get('googleFormLink') || '').trim();
     if (googleFormLink) {
       await connectDB();
@@ -65,11 +95,13 @@ export async function POST(request: NextRequest) {
 
     for (const [index, row] of rows.entries()) {
       const mapped = (column?: string) => column ? String(row[column] || '').trim() : '';
-      const name = selectedFields.has('name') ? (mapped(mapping.name) || getColumn(row, ['name', 'student name', 'full name', 'participant name', 'your name'])) : '';
+      const name = selectedFields.has('name') ? (mapped(mapping.name) || getColumn(row, ['name', 'student name', 'full name', 'participant name', 'your name']) || getFirstDataValue(row)) : '';
       const email = selectedFields.has('email') ? (mapped(mapping.email) || getColumn(row, ['email', 'email address', 'gmail', 'gmail address'])).toLowerCase() : '';
       const phone = selectedFields.has('phone') ? (mapped(mapping.phone) || getColumn(row, ['phone', 'phone number', 'mobile', 'mobile number', 'contact number'])) : '';
       const whatsappNumber = selectedFields.has('whatsappNumber') ? (mapped(mapping.whatsappNumber) || getColumn(row, ['whatsapp', 'whatsapp number', 'whatsapp mobile', 'whatsapp phone'])) : '';
       const whatsappJid = selectedFields.has('whatsappJid') ? (mapped(mapping.whatsappJid) || getColumn(row, ['whatsapp jid', 'jid', 'whatsapp id'])) : '';
+      const knownColumns = new Set(Object.values(mapping).filter(Boolean));
+      const extraData = Object.fromEntries(Object.entries(row).filter(([column]) => !knownColumns.has(column)));
 
       if (!name) {
         skipped++;
@@ -90,15 +122,15 @@ export async function POST(request: NextRequest) {
 
       await Student.findOneAndUpdate(
         { cohortId, ...identity },
-        { $set: { cohortId, name, ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(whatsappNumber ? { whatsappNumber } : {}), ...(whatsappJid ? { whatsappJid } : {}), source: 'form', active: true } },
+        { $set: { cohortId, name, ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(whatsappNumber ? { whatsappNumber } : {}), ...(whatsappJid ? { whatsappJid } : {}), source: 'form', active: true, ...(Object.keys(extraData).length ? { metadata: extraData } : {}) } },
         { upsert: true, new: true, setDefaultsOnInsert: true },
       );
       imported++;
     }
 
-    return NextResponse.json({ success: true, imported, skipped, errors });
+    return NextResponse.json({ success: true, imported, skipped, errors, message: `Imported ${imported} student(s); skipped ${skipped} row(s).` });
   } catch (error) {
     console.error('[workshop-students-import] POST failed:', error);
-    return NextResponse.json({ error: 'Failed to import students' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? `Failed to import students: ${error.message}` : 'Failed to import students' }, { status: 500 });
   }
 }
