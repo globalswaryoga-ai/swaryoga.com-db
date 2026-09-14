@@ -270,9 +270,21 @@ function resolveToPhone(session, jid) {
   return null;
 }
 
-function resolveParticipantPhone(session, jid) {
+function resolveParticipantPhone(session, jid, participant = null) {
   const direct = resolveToPhone(session, jid);
   if (direct && !/^\d{14,}$/.test(direct)) return direct;
+  const participantCandidates = [
+    participant?.pn,
+    participant?.phoneNumber,
+    participant?.phone,
+    participant?.jid,
+    participant?.id,
+  ];
+  for (const candidate of participantCandidates) {
+    if (!candidate) continue;
+    const number = String(candidate).split('@')[0].replace(/\D/g, '');
+    if (/^\d{7,13}$/.test(number)) return number;
+  }
   if (!jid) return null;
 
   const contact = session.contactsCache.get(jid);
@@ -1590,7 +1602,7 @@ app.get('/group-info/:jid', async (req, res) => {
     const mappedParticipants = participants.map(p => ({
       id: p.jid || p.id,
       lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined),
-      resolvedPhone: resolveParticipantPhone(session, p.jid || p.id || p.lid),
+      resolvedPhone: resolveParticipantPhone(session, p.jid || p.id || p.lid, p),
       admin: p.admin || null,
     }));
     const cachedMembers = session.groupMembersCache.get(jid);
