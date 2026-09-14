@@ -270,6 +270,28 @@ function resolveToPhone(session, jid) {
   return null;
 }
 
+function resolveParticipantPhone(session, jid) {
+  const direct = resolveToPhone(session, jid);
+  if (direct && !/^\d{14,}$/.test(direct)) return direct;
+  if (!jid) return null;
+
+  const contact = session.contactsCache.get(jid);
+  const candidates = [contact?.jid, contact?.id, contact?.phone, contact?.pn];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const number = String(candidate).split('@')[0];
+    if (/^\d{7,13}$/.test(number)) return number;
+  }
+
+  for (const [contactId, cached] of session.contactsCache.entries()) {
+    if (cached?.lid === jid || cached?.jid === jid || contactId === jid) {
+      const number = String(cached.jid || cached.id || cached.phone || '').split('@')[0];
+      if (/^\d{7,13}$/.test(number)) return number;
+    }
+  }
+  return null;
+}
+
 function getChatAliasJids(session, jid) {
   if (!jid) return [];
 
@@ -1568,7 +1590,7 @@ app.get('/group-info/:jid', async (req, res) => {
     const mappedParticipants = participants.map(p => ({
       id: p.jid || p.id,
       lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined),
-      resolvedPhone: resolveToPhone(session, p.jid || p.id || p.lid),
+      resolvedPhone: resolveParticipantPhone(session, p.jid || p.id || p.lid),
       admin: p.admin || null,
     }));
     const cachedMembers = session.groupMembersCache.get(jid);
@@ -1587,7 +1609,7 @@ app.get('/group-info/:jid', async (req, res) => {
           mappedParticipants.push({
             id: memberId,
             lid: memberId.endsWith('@lid') ? memberId : undefined,
-            resolvedPhone: resolveToPhone(session, memberId),
+            resolvedPhone: resolveParticipantPhone(session, memberId),
             admin: null,
           });
       }

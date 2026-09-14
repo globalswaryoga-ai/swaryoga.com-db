@@ -1084,7 +1084,7 @@ export default function QRGroupContactsPage() {
                                         <span className="font-mono text-gray-900">{formatPhone(phone)}</span>
                                       </span>
                                     ) : (
-                                      <span className="text-gray-400 italic">LID (no phone)</span>
+                                      <span className="text-gray-400 italic">Phone unavailable</span>
                                     )}
                                   </td>
                                   <td className="px-4 py-2.5 text-gray-400 font-mono text-xs truncate max-w-[200px]">
