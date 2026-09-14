@@ -315,6 +315,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Changed unresolved Group Contacts rows to show `Phone unavailable` instead of displaying an internal LID as a phone number
 - Verified the target group opens with HTTP 200 and all participants remain available for export; WhatsApp-only LIDs without a phone mapping remain identifiable in the download
 
+### QR Sidebar Contact Phone Resolution (Session: September 14, 2026 — Phase 142) — Commit `b1c4a59e`
+
+- Updated the QR bridge `/chats` response to use the contact-cache-aware phone resolver before the sidebar renders contact identities
+- Updated Group Contacts to merge live sidebar chat mappings with `/lid-map`, so a phone learned in the sidebar automatically appears in group participants
+- Unresolved WhatsApp LIDs remain safe and downloadable without being displayed as fake phone numbers
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**
