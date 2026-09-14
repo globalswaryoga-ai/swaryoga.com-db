@@ -12,6 +12,10 @@ export interface IWorkshopCohort extends Document {
   zoomJoinUrl?: string;
   whatsappGroupLink?: string;
   googleFormLink?: string;
+  aiWorkerEnabled?: boolean;
+  autoSyncWhatsappGroup?: boolean;
+  autoSendRecordings?: boolean;
+  workerLastRunAt?: Date;
   whatsappGroupId?: string;
   communityId?: string;
   recordingPolicy: 'speaker_and_gallery';
@@ -32,6 +36,10 @@ const WorkshopCohortSchema = new Schema<IWorkshopCohort>({
   zoomJoinUrl: String,
   whatsappGroupLink: String,
   googleFormLink: String,
+  aiWorkerEnabled: { type: Boolean, default: true },
+  autoSyncWhatsappGroup: { type: Boolean, default: false },
+  autoSendRecordings: { type: Boolean, default: false },
+  workerLastRunAt: Date,
   whatsappGroupId: String,
   communityId: String,
   recordingPolicy: { type: String, enum: ['speaker_and_gallery'], default: 'speaker_and_gallery' },

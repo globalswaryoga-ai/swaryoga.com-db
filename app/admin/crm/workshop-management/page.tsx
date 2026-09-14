@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 
-interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; }
+interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; active: boolean; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
+interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
 interface Recording { _id: string; cohortId: string; classDate: string; dayNumber?: number; youtubeSpeakerId?: string; youtubeGalleryId?: string; youtubeSpeakerUrl?: string; youtubeGalleryUrl?: string; bunnySpeakerUrl?: string; bunnyGalleryUrl?: string; deliveredStudentIds?: string[]; }
 
 export default function WorkshopManagementPage() {
@@ -13,7 +14,7 @@ export default function WorkshopManagementPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '' });
+  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', aiWorkerEnabled: true, autoSendRecordings: false });
   const [student, setStudent] = useState({ name: '', email: '', phone: '', whatsappNumber: '' });
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', classDate: '', durationMinutes: '0', classDurationMinutes: '60' });
   const [recordingForm, setRecordingForm] = useState({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
@@ -25,6 +26,11 @@ export default function WorkshopManagementPage() {
   const [selectedImportFields, setSelectedImportFields] = useState<string[]>(['name', 'email', 'phone', 'whatsappNumber', 'whatsappJid']);
   const [googleFormLink, setGoogleFormLink] = useState('');
   const [syncingWhatsapp, setSyncingWhatsapp] = useState(false);
+  const [detailStudent, setDetailStudent] = useState<Student | null>(null);
+  const [attendanceChart, setAttendanceChart] = useState<AttendanceChartRow[]>([]);
+  const [chartClassDuration, setChartClassDuration] = useState('60');
+  const [savingChart, setSavingChart] = useState(false);
+  const [runningWorker, setRunningWorker] = useState(false);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -73,7 +79,7 @@ export default function WorkshopManagementPage() {
     if (res.ok) {
       setCohorts((prev) => [data.cohort, ...prev]);
       setSelected(data.cohort);
-      setForm({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '' });
+      setForm({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', aiWorkerEnabled: true, autoSendRecordings: false });
       await load(data.cohort._id);
     } else alert(data.error || 'Could not create workshop');
   };
@@ -201,6 +207,16 @@ export default function WorkshopManagementPage() {
     }
   };
 
+  const runWorkshopWorker = async (dryRun = false) => {
+    if (!selected) return;
+    setRunningWorker(true);
+    const res = await fetch('/api/admin/crm/workshop-management/worker', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id, dryRun }) });
+    const data = await res.json();
+    setRunningWorker(false);
+    if (!res.ok) alert(data.error || 'Workshop worker failed');
+    else alert(`Workshop worker complete. Sent: ${data.result?.sent || 0}, skipped: ${data.result?.skipped || 0}, failed: ${data.result?.failed || 0}.`);
+  };
+
   const saveAttendance = async (e: React.FormEvent) => {
     e.preventDefault(); if (!selected) return;
     const durationSeconds = Math.max(0, Number(attendanceForm.durationMinutes || 0) * 60);
@@ -213,6 +229,36 @@ export default function WorkshopManagementPage() {
     } else {
       alert(data.error || 'Could not save attendance');
     }
+  };
+
+  const openStudentChart = (currentStudent: Student) => {
+    if (!selected) return;
+    const holidaySet = new Set((selected.holidayDates || []).map((date) => new Date(date).toISOString().slice(0, 10)));
+    const existing = new Map(attendance.filter((row) => row.studentId === currentStudent._id).map((row) => [new Date(row.classDate).toISOString().slice(0, 10), row]));
+    const rows: AttendanceChartRow[] = [];
+    let cursor = new Date(`${selected.startDate}T00:00:00`);
+    let dayNumber = 0;
+    while (rows.length < 14) {
+      const date = cursor.toISOString().slice(0, 10);
+      const holiday = holidaySet.has(date) || cursor.getDay() === 0;
+      if (!holiday) dayNumber++;
+      const saved = existing.get(date);
+      rows.push({ classDate: date, dayNumber: holiday ? dayNumber : dayNumber, holiday, durationMinutes: saved ? String(Math.round((saved.durationSeconds || 0) / 60)) : '0', status: holiday ? 'holiday' : saved?.joined ? 'joined' : 'absent' });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    setDetailStudent(currentStudent);
+    setAttendanceChart(rows);
+  };
+
+  const saveStudentChart = async () => {
+    if (!selected || !detailStudent) return;
+    setSavingChart(true);
+    const res = await fetch('/api/admin/crm/workshop-management/attendance/bulk', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id, studentId: detailStudent._id, classDurationMinutes: chartClassDuration, rows: attendanceChart }) });
+    const data = await res.json();
+    setSavingChart(false);
+    if (!res.ok) { alert(data.error || 'Could not save attendance chart'); return; }
+    await load(selected._id);
+    alert(`Saved ${data.saved || 0} class attendance records.`);
   };
 
   const saveRecording = async (e: React.FormEvent) => {
@@ -266,12 +312,17 @@ export default function WorkshopManagementPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-5 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm md:col-span-3">
+          <label className="flex items-center gap-2 font-medium text-violet-900"><input type="checkbox" checked={form.aiWorkerEnabled} onChange={(e) => setForm({ ...form, aiWorkerEnabled: e.target.checked })} /> Enable Workshop AI Worker</label>
+          <label className="flex items-center gap-2 font-medium text-violet-900"><input type="checkbox" checked={form.autoSendRecordings} onChange={(e) => setForm({ ...form, autoSendRecordings: e.target.checked })} /> Automatically send recordings by WhatsApp</label>
+        </div>
+
         <button disabled={loading} className="rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white md:col-span-3">{loading ? 'Saving…' : 'Save workshop'}</button>
       </form></section>
       <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-xl bg-white p-4 shadow-sm"><h2 className="mb-3 font-semibold">Workshops</h2>{cohorts.map((c) => <button key={c._id} onClick={() => { setSelected(c); void load(c._id); }} className={`mb-2 w-full rounded-lg p-3 text-left ${selected?._id === c._id ? 'bg-indigo-50 text-indigo-800' : 'bg-slate-50'}`}><b>{c.name}</b><span className="block text-xs text-slate-500">{new Date(c.startDate).toLocaleDateString()}</span></button>)}</aside>
         <section className="space-y-4 rounded-xl bg-white p-5 shadow-sm">{!selected ? <p className="text-slate-500">Select a workshop to manage students.</p> : <>
-          <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p>{selected.whatsappGroupLink && <button type="button" onClick={() => void syncWhatsappGroup()} disabled={syncingWhatsapp} className="mt-3 rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingWhatsapp ? 'Syncing WhatsApp group…' : 'Sync WhatsApp group students'}</button>}</div>
+          <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p><div className="mt-3 flex flex-wrap gap-2">{selected.whatsappGroupLink && <button type="button" onClick={() => void syncWhatsappGroup()} disabled={syncingWhatsapp} className="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingWhatsapp ? 'Syncing WhatsApp group…' : 'Sync WhatsApp group students'}</button>}<button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className="rounded bg-violet-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Preview AI worker</button><button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className="rounded bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{runningWorker ? 'Running worker…' : 'Run Workshop AI Worker'}</button></div></div>
 
           <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -307,7 +358,9 @@ export default function WorkshopManagementPage() {
             </div>
           </form>
 
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2">Student</th><th className="p-2">Phone</th><th className="p-2">Attendance days</th><th className="p-2">Status</th></tr></thead><tbody>{students.map((s) => { const rows = attendance.filter((a) => String(a.studentId) === s._id); return <tr key={s._id} className="border-b"><td className="p-2 font-medium">{s.name}<span className="block text-xs text-slate-400">{s.email || ''}</span></td><td className="p-2">{s.phone || s.whatsappNumber || '—'}</td><td className="p-2">{rows.filter((a) => a.joined).length} joined · {Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60)} min</td><td className="p-2">{s.active ? 'Active' : 'Inactive'}</td></tr>; })}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2">Student</th><th className="p-2">Phone</th><th className="p-2">Attendance days</th><th className="p-2">Status</th></tr></thead><tbody>{students.map((s) => { const rows = attendance.filter((a) => String(a.studentId) === s._id); return <tr key={s._id} className="border-b"><td className="p-2 font-medium"><button type="button" onClick={() => openStudentChart(s)} className="text-left font-semibold text-indigo-700 hover:underline">{s.name}</button><span className="block text-xs text-slate-400">{s.email || ''}</span></td><td className="p-2">{s.phone || s.whatsappNumber || '—'}</td><td className="p-2">{rows.filter((a) => a.joined).length} joined · {Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60)} min</td><td className="p-2">{s.active ? 'Active' : 'Inactive'}</td></tr>; })}</tbody></table></div>
+
+          {detailStudent && <section className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-emerald-50 p-5 shadow-sm"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-xl font-bold text-slate-900">{detailStudent.name}</h3><p className="text-sm text-slate-600">{detailStudent.email || 'No email'} · {detailStudent.phone || detailStudent.whatsappNumber || 'No phone'}</p></div><button type="button" onClick={() => setDetailStudent(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Close</button></div><div className="mb-4 flex items-center gap-3 text-sm"><label className="font-medium">Class duration minutes<input type="number" min={1} value={chartClassDuration} onChange={(e) => setChartClassDuration(e.target.value)} className="ml-2 w-24 rounded border px-2 py-1" /></label><span className="rounded-full bg-indigo-100 px-3 py-1 font-semibold text-indigo-800">14 class days</span></div><div className="overflow-x-auto rounded-lg border border-slate-200 bg-white"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-indigo-600 text-white"><tr><th className="p-3">Class</th><th className="p-3">Date</th><th className="p-3">Type</th><th className="p-3">Duration (minutes)</th><th className="p-3">Attendance</th></tr></thead><tbody>{attendanceChart.map((row, index) => <tr key={row.classDate} className={row.holiday ? 'bg-amber-50' : index % 2 ? 'bg-slate-50' : 'bg-white'}><td className="p-3 font-semibold">{row.holiday ? '—' : `Day ${row.dayNumber}`}</td><td className="p-3">{new Date(`${row.classDate}T00:00:00`).toLocaleDateString()}</td><td className="p-3">{row.holiday ? <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">Holiday</span> : 'Class'}</td><td className="p-3">{row.holiday ? '—' : <input type="number" min={0} value={row.durationMinutes} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, durationMinutes: e.target.value } : item))} className="w-28 rounded border px-2 py-1" />}</td><td className="p-3">{row.holiday ? '—' : <select value={row.status} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, status: e.target.value as AttendanceChartRow['status'] } : item))} className="rounded border px-2 py-1"><option value="joined">Joined</option><option value="absent">Absent</option></select>}</td></tr>)}</tbody></table></div><button type="button" onClick={() => void saveStudentChart()} disabled={savingChart} className="mt-4 rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{savingChart ? 'Saving attendance…' : 'Save attendance chart'}</button></section>}
 
           {recordings.length > 0 && <div className="rounded-lg border border-slate-200 p-4"><h3 className="mb-3 font-semibold">Recording deliveries</h3><div className="space-y-2">{recordings.map((recording) => <div key={recording._id} className="rounded border border-slate-200 p-3 text-sm">
             <div className="mb-1 font-medium">{new Date(recording.classDate).toLocaleDateString()}</div>

@@ -352,6 +352,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Added Select all fields and Clear optional fields actions; Name remains required for safe student creation
 - The import API now ignores unchecked fields while preserving the selected spreadsheet-column mapping
 
+### Workshop AI Worker and Editable Attendance Chart (Session: September 15, 2026 — Phase 148) — Commit `N/A (working tree only)`
+
+- Added an admin-controlled Workshop AI Worker that previews and sends newly available recording links to active workshop students through the QR WhatsApp bridge
+- Added duplicate-safe delivery tracking using `deliveredStudentIds`, plus worker result counts for sent, skipped, and failed messages
+- Added a clickable student detail chart with editable 14-day class attendance, holiday highlighting, duration minutes, status, and bulk Save
+- Added explicit workshop settings for enabling the worker and opting into automatic WhatsApp recording delivery
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**

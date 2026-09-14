@@ -96,6 +96,8 @@ export async function POST(request: NextRequest) {
     zoomJoinUrl: body.zoomJoinUrl || undefined,
     whatsappGroupLink: body.whatsappGroupLink || undefined,
     googleFormLink: body.googleFormLink || undefined,
+    aiWorkerEnabled: body.aiWorkerEnabled !== false,
+    autoSendRecordings: body.autoSendRecordings === true,
     whatsappGroupId: body.whatsappGroupId || undefined,
     communityId: body.communityId || undefined,
     createdByUserId: decoded.userId,
