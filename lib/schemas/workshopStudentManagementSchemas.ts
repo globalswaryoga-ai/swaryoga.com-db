@@ -53,6 +53,8 @@ export interface IWorkshopStudent extends Document {
   phone?: string;
   whatsappJid?: string;
   whatsappNumber?: string;
+  leadId?: string;
+  leadNumber?: string;
   source: 'manual' | 'whatsapp_group' | 'form' | 'crm_lead';
   active: boolean;
   metadata?: Record<string, unknown>;
@@ -67,6 +69,8 @@ const WorkshopStudentSchema = new Schema<IWorkshopStudent>({
   phone: String,
   whatsappJid: String,
   whatsappNumber: String,
+  leadId: String,
+  leadNumber: String,
   source: { type: String, enum: ['manual', 'whatsapp_group', 'form', 'crm_lead'], default: 'manual' },
   active: { type: Boolean, default: true },
   metadata: Schema.Types.Mixed,

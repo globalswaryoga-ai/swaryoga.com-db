@@ -359,6 +359,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Added a clickable student detail chart with editable 14-day class attendance, holiday highlighting, duration minutes, status, and bulk Save
 - Added explicit workshop settings for enabling the worker and opting into automatic WhatsApp recording delivery
 
+### Workshop Student CRM Lead Linking and Removal (Session: September 15, 2026 — Phase 149) — Commit `N/A (working tree only)`
+
+- Manual, Excel, and WhatsApp-group student imports now reuse matching CRM Leads by email/phone and create a Lead when a valid phone is available
+- Workshop students now store and display the linked CRM Lead Number and Lead ID
+- Added checkbox selection and bulk Remove selected behavior; removal soft-deactivates workshop enrollment without deleting CRM Leads or attendance history
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**

@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getWorkshopStudent } from '@/lib/schemas/workshopStudentManagementSchemas';
+import { syncWorkshopStudentLead } from '@/lib/workshopStudentLeadSync';
 
 function isAdmin(request: NextRequest) {
   const raw = request.headers.get('authorization') || '';
@@ -16,6 +17,7 @@ function phoneOf(value: unknown) {
 
 export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const decoded: any = verifyToken((request.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
   const body = await request.json();
   const cohortId = String(body.cohortId || '').trim();
   const participants = Array.isArray(body.participants) ? body.participants : [];
@@ -41,9 +43,10 @@ export async function POST(request: NextRequest) {
     const lead = leadByPhone.get(phone) || leadByPhone.get(phone.replace(/^91/, ''));
     const name = String(participant.name || participant.notify || lead?.name || phone).trim();
     const whatsappJid = String(participant.jid || participant.id || `${phone}@s.whatsapp.net`);
+    const leadLink = await syncWorkshopStudentLead({ name, phone, whatsappNumber: phone, ownerUserId: decoded?.userId });
     await Student.findOneAndUpdate(
       { cohortId, phone },
-      { $set: { cohortId, name, phone, whatsappNumber: phone, whatsappJid, source: 'whatsapp_group', active: true, ...(lead ? { metadata: { leadId: String(lead._id), leadNumber: lead.leadNumber } } : {}) } },
+      { $set: { cohortId, name, phone, whatsappNumber: phone, whatsappJid, ...leadLink, source: 'whatsapp_group', active: true, ...(lead ? { metadata: { leadId: String(lead._id), leadNumber: lead.leadNumber } } : {}) } },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
     imported++;

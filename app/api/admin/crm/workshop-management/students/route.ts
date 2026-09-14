@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWorkshopStudent } from '@/lib/schemas/workshopStudentManagementSchemas';
+import { syncWorkshopStudentLead } from '@/lib/workshopStudentLeadSync';
 
 function isAdmin(request: NextRequest) {
   const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
@@ -13,10 +14,12 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   if (!body.cohortId || !body.name) return NextResponse.json({ error: 'cohortId and name are required' }, { status: 400 });
   await connectDB();
+  const decoded: any = verifyToken((request.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+  const lead = await syncWorkshopStudentLead({ ...body, ownerUserId: decoded?.userId });
   const Student = getWorkshopStudent();
   const student = await Student.findOneAndUpdate(
     { cohortId: body.cohortId, ...(body.whatsappJid ? { whatsappJid: body.whatsappJid } : { phone: body.phone }) },
-    { $set: { ...body, active: body.active !== false } },
+    { $set: { ...body, ...lead, active: body.active !== false } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
   return NextResponse.json({ student });

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; }
-interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; active: boolean; }
+interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
 interface Recording { _id: string; cohortId: string; classDate: string; dayNumber?: number; youtubeSpeakerId?: string; youtubeGalleryId?: string; youtubeSpeakerUrl?: string; youtubeGalleryUrl?: string; bunnySpeakerUrl?: string; bunnyGalleryUrl?: string; deliveredStudentIds?: string[]; }
@@ -30,6 +30,7 @@ export default function WorkshopManagementPage() {
   const [attendanceChart, setAttendanceChart] = useState<AttendanceChartRow[]>([]);
   const [chartClassDuration, setChartClassDuration] = useState('60');
   const [savingChart, setSavingChart] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [runningWorker, setRunningWorker] = useState(false);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -40,6 +41,7 @@ export default function WorkshopManagementPage() {
     if (!res.ok) return;
     if (cohortId) {
       setStudents(data.students || []);
+      setSelectedStudentIds([]);
       setAttendance(data.attendance || []);
       setRecordings(data.recordings || []);
       setGoogleFormLink(data.cohort?.googleFormLink || '');
@@ -95,6 +97,12 @@ export default function WorkshopManagementPage() {
     } else {
       alert(data.error || 'Could not save student');
     }
+  };
+
+  const removeSelectedStudents = async () => {
+    if (!selectedStudentIds.length || !window.confirm(`Remove ${selectedStudentIds.length} student(s) from this workshop? Their CRM Lead records and attendance history will remain.`)) return;
+    await Promise.all(selectedStudentIds.map((id) => fetch(`/api/admin/crm/workshop-management/students?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers })));
+    if (selected) await load(selected._id);
   };
 
   const importStudents = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -358,7 +366,7 @@ export default function WorkshopManagementPage() {
             </div>
           </form>
 
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2">Student</th><th className="p-2">Phone</th><th className="p-2">Attendance days</th><th className="p-2">Status</th></tr></thead><tbody>{students.map((s) => { const rows = attendance.filter((a) => String(a.studentId) === s._id); return <tr key={s._id} className="border-b"><td className="p-2 font-medium"><button type="button" onClick={() => openStudentChart(s)} className="text-left font-semibold text-indigo-700 hover:underline">{s.name}</button><span className="block text-xs text-slate-400">{s.email || ''}</span></td><td className="p-2">{s.phone || s.whatsappNumber || '—'}</td><td className="p-2">{rows.filter((a) => a.joined).length} joined · {Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60)} min</td><td className="p-2">{s.active ? 'Active' : 'Inactive'}</td></tr>; })}</tbody></table></div>
+          <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold text-slate-800">Workshop students</h3><button type="button" onClick={() => void removeSelectedStudents()} disabled={!selectedStudentIds.length} className="rounded bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Remove selected ({selectedStudentIds.length})</button></div><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2"><input type="checkbox" checked={students.length > 0 && selectedStudentIds.length === students.length} onChange={(e) => setSelectedStudentIds(e.target.checked ? students.map((s) => s._id) : [])} /></th><th className="p-2">Student / CRM Lead</th><th className="p-2">Phone</th><th className="p-2">Attendance days</th><th className="p-2">Status</th></tr></thead><tbody>{students.map((s) => { const rows = attendance.filter((a) => String(a.studentId) === s._id); return <tr key={s._id} className="border-b"><td className="p-2"><input type="checkbox" checked={selectedStudentIds.includes(s._id)} onChange={(e) => setSelectedStudentIds((prev) => e.target.checked ? [...prev, s._id] : prev.filter((id) => id !== s._id))} /></td><td className="p-2 font-medium"><button type="button" onClick={() => openStudentChart(s)} className="text-left font-semibold text-indigo-700 hover:underline">{s.name}</button><span className="block text-xs text-slate-400">{s.email || ''}</span><span className="block text-xs font-semibold text-violet-600">Lead: {s.leadNumber || 'Not linked'}</span></td><td className="p-2">{s.phone || s.whatsappNumber || '—'}</td><td className="p-2">{rows.filter((a) => a.joined).length} joined · {Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60)} min</td><td className="p-2">{s.active ? 'Active' : 'Inactive'}</td></tr>; })}</tbody></table></div>
 
           {detailStudent && <section className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-emerald-50 p-5 shadow-sm"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-xl font-bold text-slate-900">{detailStudent.name}</h3><p className="text-sm text-slate-600">{detailStudent.email || 'No email'} · {detailStudent.phone || detailStudent.whatsappNumber || 'No phone'}</p></div><button type="button" onClick={() => setDetailStudent(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Close</button></div><div className="mb-4 flex items-center gap-3 text-sm"><label className="font-medium">Class duration minutes<input type="number" min={1} value={chartClassDuration} onChange={(e) => setChartClassDuration(e.target.value)} className="ml-2 w-24 rounded border px-2 py-1" /></label><span className="rounded-full bg-indigo-100 px-3 py-1 font-semibold text-indigo-800">14 class days</span></div><div className="overflow-x-auto rounded-lg border border-slate-200 bg-white"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-indigo-600 text-white"><tr><th className="p-3">Class</th><th className="p-3">Date</th><th className="p-3">Type</th><th className="p-3">Duration (minutes)</th><th className="p-3">Attendance</th></tr></thead><tbody>{attendanceChart.map((row, index) => <tr key={row.classDate} className={row.holiday ? 'bg-amber-50' : index % 2 ? 'bg-slate-50' : 'bg-white'}><td className="p-3 font-semibold">{row.holiday ? '—' : `Day ${row.dayNumber}`}</td><td className="p-3">{new Date(`${row.classDate}T00:00:00`).toLocaleDateString()}</td><td className="p-3">{row.holiday ? <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">Holiday</span> : 'Class'}</td><td className="p-3">{row.holiday ? '—' : <input type="number" min={0} value={row.durationMinutes} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, durationMinutes: e.target.value } : item))} className="w-28 rounded border px-2 py-1" />}</td><td className="p-3">{row.holiday ? '—' : <select value={row.status} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, status: e.target.value as AttendanceChartRow['status'] } : item))} className="rounded border px-2 py-1"><option value="joined">Joined</option><option value="absent">Absent</option></select>}</td></tr>)}</tbody></table></div><button type="button" onClick={() => void saveStudentChart()} disabled={savingChart} className="mt-4 rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{savingChart ? 'Saving attendance…' : 'Save attendance chart'}</button></section>}
 

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWorkshopCohort, getWorkshopStudent } from '@/lib/schemas/workshopStudentManagementSchemas';
+import { syncWorkshopStudentLead } from '@/lib/workshopStudentLeadSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
 
   try {
+    const decoded: any = verifyToken((request.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
     const formData = await request.formData();
     const cohortId = String(formData.get('cohortId') || '').trim();
     const action = String(formData.get('action') || 'import');
@@ -139,9 +141,10 @@ export async function POST(request: NextRequest) {
           : { $or: [{ phone }, { whatsappNumber }] };
 
       try {
+        const lead = await syncWorkshopStudentLead({ name, email, phone, whatsappNumber, ownerUserId: decoded?.userId });
         await Student.findOneAndUpdate(
           { cohortId, ...identity },
-          { $set: { cohortId, name, ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(whatsappNumber ? { whatsappNumber } : {}), ...(whatsappJid ? { whatsappJid } : {}), source: 'form', active: true, ...(Object.keys(extraData).length ? { metadata: extraData } : {}) } },
+          { $set: { cohortId, name, ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(whatsappNumber ? { whatsappNumber } : {}), ...(whatsappJid ? { whatsappJid } : {}), ...lead, source: 'form', active: true, ...(Object.keys(extraData).length ? { metadata: { ...extraData, ...lead } } : {}) } },
           { upsert: true, new: true, setDefaultsOnInsert: true },
         );
         imported++;
