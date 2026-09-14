@@ -311,10 +311,11 @@ export const sectionConfigs: SectionConfig[] = [
     items: [
       { label: 'Recordings',     href: '/admin/crm/recording-management', icon: Video },
       { label: 'Zoom Analytics', href: '/admin/crm/zoom-analytics',       icon: BarChart2 },
+      { label: 'Workshop Students', href: '/admin/crm/workshop-management', icon: Users },
     ],
     moreItems: [],
     prefixes: [
-      '/admin/crm/recording-management', '/admin/crm/zoom-analytics',
+      '/admin/crm/recording-management', '/admin/crm/zoom-analytics', '/admin/crm/workshop-management',
     ],
   },
 

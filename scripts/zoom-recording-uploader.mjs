@@ -3,10 +3,10 @@
  * Zoom recording → YouTube (+ Bunny) auto-uploader.
  *
  * Rule:
- *   • YouTube (Private): Speaker view + Gallery view.
+ *   • YouTube (Unlisted): Speaker view + Gallery view.
  *       - Prefer the WITH-screen version when the class shared a screen, else plain.
- *   • Bunny Storage: Speaker view only (with or without screen share), saved as an
- *     MP4 file under the `zoom-videos/` folder of the storage zone.
+ *   • Bunny Storage: Speaker view + Gallery view, saved as exactly two MP4 files
+ *     under the `zoom-videos/` folder of the storage zone.
  *
  * Idempotent: tracks done meetings in `zoom_recording_uploads` (main DB) keyed by
  * the Zoom meeting UUID, so it never re-uploads. Safe to run as often as you like.
@@ -73,7 +73,7 @@ async function ytUpload(access, srcUrl, size, title, desc) {
   const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
     method: 'POST',
     headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(size), 'X-Upload-Content-Type': 'video/mp4' },
-    body: JSON.stringify({ snippet: { title: title.slice(0, 99), description: desc, categoryId: '22' }, status: { privacyStatus: 'private', selfDeclaredMadeForKids: false } }),
+    body: JSON.stringify({ snippet: { title: title.slice(0, 99), description: desc, categoryId: '22' }, status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false } }),
   });
   if (!init.ok) throw new Error('yt init ' + init.status + ' ' + await init.text());
   const loc = init.headers.get('location');
@@ -146,9 +146,9 @@ async function trashRecording(uuid, token) {
   throw new Error('trash ' + r.status + ' ' + await r.text());
 }
 
-// Auto-add speaker view recording to the configured community using its
+// Auto-add a selected recording to the configured community using its
 // public Bunny CDN MP4 URL — plays directly, no YouTube invite step needed.
-async function autoAddToConfiguredCommunity(videoUrl, topic, dateLabel, zoomMeetingId, db, thumbnailUrl) {
+async function autoAddToConfiguredCommunity(videoUrl, topic, dateLabel, zoomMeetingId, db, thumbnailUrl, recordingType) {
   const Videos = db.collection('communityvideos');
   const Accounts = db.collection('socialmediaaccounts');
 
@@ -200,7 +200,7 @@ async function autoAddToConfiguredCommunity(videoUrl, topic, dateLabel, zoomMeet
       isCommon: true,
       source: 'zoom',
       zoomMeetingId,
-      recordingType: 'speaker_view',
+      recordingType,
       tags: [`folder:${communityName}`, playlistTag, 'recording', `video:${videoNumber}`],
       createdAt: new Date(),
     };
@@ -268,7 +268,7 @@ function bunnyCdnUrl(dest) {
     const gallery = pick('shared_screen_with_gallery_view', 'gallery_view');
     const dl = (f) => `${f.download_url}?access_token=${zt}`;
     const dateLabel = m.start_time.slice(0, 10);
-    const result = { _id: m.uuid, topic: m.topic, startTime: m.start_time, youtube: {}, bunny: null, uploadedAt: new Date() };
+    const result = { _id: m.uuid, topic: m.topic, startTime: m.start_time, youtube: {}, bunny: {}, uploadedAt: new Date() };
     log(`→ ${m.topic} (${dateLabel}) speaker=${speaker?.recording_type || 'none'} gallery=${gallery?.recording_type || 'none'}`);
 
     for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
@@ -279,14 +279,19 @@ function bunnyCdnUrl(dest) {
         log(`  YT OK ${view}: https://youtu.be/${id}`);
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
-    if (speaker) {
+    for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
+      if (!f) continue;
       try {
-        result.bunny = await bunnyStorageSave(dl(speaker), speaker.file_size, `${dateLabel} ${m.topic} (speaker).mp4`);
-        log('  Bunny Storage OK:', result.bunny);
-        // Auto-add speaker view to configured community using the public Bunny CDN URL
-        const thumb = result.youtube.speaker ? `https://img.youtube.com/vi/${result.youtube.speaker}/hqdefault.jpg` : null;
-        await autoAddToConfiguredCommunity(bunnyCdnUrl(result.bunny), m.topic, dateLabel, String(m.id), mongoose.connection.db, thumb);
-      } catch (e) { log('  Bunny FAIL:', e.message); }
+        const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.topic} (${key}).mp4`);
+        result.bunny[key] = bunnyPath;
+        log(`  Bunny Storage OK ${view}:`, bunnyPath);
+        const ytId = result.youtube[key];
+        const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+        await autoAddToConfiguredCommunity(
+          bunnyCdnUrl(bunnyPath), m.topic, dateLabel, String(m.id),
+          mongoose.connection.db, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
+        );
+      } catch (e) { log(`  Bunny FAIL ${view}:`, e.message); }
     }
     // Add newly uploaded videos to the workshop's YouTube playlist (unlisted),
     // creating the playlist on demand. The mapping's youtubePlaylistName can use

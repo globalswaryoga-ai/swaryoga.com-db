@@ -321,6 +321,19 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Updated Group Contacts to merge live sidebar chat mappings with `/lid-map`, so a phone learned in the sidebar automatically appears in group participants
 - Unresolved WhatsApp LIDs remain safe and downloadable without being displayed as fake phone numbers
 
+### Workshop Student Management and Two-View Recording Rule (Session: September 14, 2026 — Phase 143) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` so each class prefers screen-shared speaker/gallery files, uploads both selected views to YouTube as unlisted, and stores both MP4 files in Bunny
+- Added cohort, student, attendance, and recording-delivery schemas in `lib/schemas/workshopStudentManagementSchemas.ts`
+- Added `/admin/crm/workshop-management` with APIs for workshop setup and student records; fields include dates, holidays, class times, Zoom ID/link, WhatsApp group link, and attendance summaries
+
+### Workshop Student Google Forms Excel Import (Session: September 14, 2026 — Phase 144) — Commit `N/A (working tree only)`
+
+- Added `POST /api/admin/crm/workshop-management/students/import` to import `.xlsx`, `.xls`, and `.csv` Google Forms exports into the selected cohort
+- Added flexible matching for common headers such as Name, Email Address, Phone Number, and WhatsApp Number
+- Existing students are updated by WhatsApp JID, email, phone, or WhatsApp number instead of being duplicated; invalid rows are reported as skipped
+- Added the import control and result summary to `/admin/crm/workshop-management` beside the manual Add student form
+
 ### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
 
 **✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**
