@@ -12,6 +12,8 @@ export default function WorkshopManagementPage() {
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [selected, setSelected] = useState<Cohort | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [studentEditForm, setStudentEditForm] = useState({ name: '', email: '', phone: '', whatsappNumber: '', active: true });
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', aiWorkerEnabled: true, autoSendRecordings: false });
@@ -26,7 +28,9 @@ export default function WorkshopManagementPage() {
   const [selectedImportFields, setSelectedImportFields] = useState<string[]>(['name', 'email', 'phone', 'whatsappNumber', 'whatsappJid']);
   const [googleFormLink, setGoogleFormLink] = useState('');
   const [syncingWhatsapp, setSyncingWhatsapp] = useState(false);
+  const [syncingZoomAttendance, setSyncingZoomAttendance] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showStudentTools, setShowStudentTools] = useState(false);
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
   const [attendanceChart, setAttendanceChart] = useState<AttendanceChartRow[]>([]);
   const [chartClassDuration, setChartClassDuration] = useState('60');
@@ -53,6 +57,13 @@ export default function WorkshopManagementPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!selected?._id) return;
+    const refreshRecordings = () => { void load(selected._id); };
+    const timer = window.setInterval(refreshRecordings, 60_000);
+    return () => window.clearInterval(timer);
+  }, [selected?._id]);
 
   const addHolidayDateField = () => {
     setForm((prev) => {
@@ -99,6 +110,29 @@ export default function WorkshopManagementPage() {
     } else {
       alert(data.error || 'Could not save student');
     }
+  };
+
+  const openStudentEditor = (currentStudent: Student) => {
+    setEditingStudent(currentStudent);
+    setStudentEditForm({
+      name: currentStudent.name || '',
+      email: currentStudent.email || '',
+      phone: currentStudent.phone || '',
+      whatsappNumber: currentStudent.whatsappNumber || '',
+      active: currentStudent.active !== false,
+    });
+  };
+
+  const saveStudentEdit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingStudent || !selected) return;
+    const res = await fetch('/api/admin/crm/workshop-management/students', {
+      method: 'PATCH', headers, body: JSON.stringify({ id: editingStudent._id, ...studentEditForm }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Could not update student'); return; }
+    setEditingStudent(null);
+    await load(selected._id);
   };
 
   const removeSelectedStudents = async () => {
@@ -217,6 +251,29 @@ export default function WorkshopManagementPage() {
     }
   };
 
+  const syncZoomAttendance = async () => {
+    if (!selected) return;
+    setSyncingZoomAttendance(true);
+    try {
+      const res = await fetch('/api/admin/crm/workshop-management/attendance/zoom', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ cohortId: selected._id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not sync Zoom attendance');
+      await load(selected._id);
+      const result = data.result || {};
+      alert(result.skipped
+        ? (result.message || 'Zoom has not published attendance yet. It can take up to two hours after the class ends.')
+        : `Zoom attendance updated: ${result.updated || 0} student records. ${result.unmatched || 0} Zoom participant(s) were not matched to enrolled students.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not sync Zoom attendance');
+    } finally {
+      setSyncingZoomAttendance(false);
+    }
+  };
+
   const runWorkshopWorker = async (dryRun = false) => {
     if (!selected) return;
     setRunningWorker(true);
@@ -224,7 +281,13 @@ export default function WorkshopManagementPage() {
     const data = await res.json();
     setRunningWorker(false);
     if (!res.ok) alert(data.error || 'Workshop worker failed');
-    else alert(`Workshop worker complete. Sent: ${data.result?.sent || 0}, skipped: ${data.result?.skipped || 0}, failed: ${data.result?.failed || 0}.`);
+    else {
+      const zoom = data.result?.zoomAttendance;
+      const attendanceNote = zoom
+        ? ` Zoom attendance: ${zoom.updated || 0} updated${zoom.unmatched ? `, ${zoom.unmatched} unmatched` : ''}.`
+        : '';
+      alert(`Workshop worker complete. Sent: ${data.result?.sent || 0}, skipped: ${data.result?.skipped || 0}, failed: ${data.result?.failed || 0}.${attendanceNote}`);
+    }
   };
 
   const saveAttendance = async (e: React.FormEvent) => {
@@ -241,12 +304,28 @@ export default function WorkshopManagementPage() {
     }
   };
 
+  const toDateKey = (value: unknown): string | null => {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = value instanceof Date ? value : new Date(String(value || ''));
+    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+  };
+
   const openStudentChart = (currentStudent: Student) => {
     if (!selected) return;
-    const holidaySet = new Set((selected.holidayDates || []).map((date) => new Date(date).toISOString().slice(0, 10)));
-    const existing = new Map(attendance.filter((row) => row.studentId === currentStudent._id).map((row) => [new Date(row.classDate).toISOString().slice(0, 10), row]));
+    const startDateKey = toDateKey(selected.startDate);
+    if (!startDateKey) {
+      alert('This workshop has an invalid start date. Please correct the workshop schedule first.');
+      return;
+    }
+    const holidaySet = new Set((selected.holidayDates || []).map(toDateKey).filter((date): date is string => Boolean(date)));
+    const existing = new Map(
+      attendance
+        .filter((row) => row.studentId === currentStudent._id)
+        .map((row) => [toDateKey(row.classDate), row] as const)
+        .filter(([date]) => Boolean(date)) as Array<[string, Attendance]>,
+    );
     const rows: AttendanceChartRow[] = [];
-    let cursor = new Date(`${selected.startDate}T00:00:00`);
+    let cursor = new Date(`${startDateKey}T00:00:00Z`);
     let dayNumber = 0;
     while (rows.length < 14) {
       const date = cursor.toISOString().slice(0, 10);
@@ -332,9 +411,11 @@ export default function WorkshopManagementPage() {
       <section className="grid gap-5 lg:grid-cols-[290px_1fr]">
         <aside className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"><div className="mb-4 flex items-center justify-between"><h2 className="font-semibold text-slate-900">Workshops</h2><span className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">{cohorts.length}</span></div>{cohorts.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">No workshops yet.<br />Click <b>+ Add New Workshop</b> to begin.</div> : cohorts.map((c) => <button key={c._id} onClick={() => { setSelected(c); void load(c._id); }} className={`mb-2 w-full rounded-xl border p-3 text-left transition ${selected?._id === c._id ? 'border-indigo-300 bg-indigo-50 text-indigo-800 shadow-sm' : 'border-transparent bg-slate-50 hover:border-indigo-200 hover:bg-indigo-50/50'}`}><b className="block truncate">{c.name}</b><span className="mt-1 block text-xs text-slate-500">Starts {new Date(c.startDate).toLocaleDateString()} · {c.zoomMeetingId ? 'Zoom ready' : 'Zoom pending'}</span></button>)}</aside>
         <section className="min-w-0 space-y-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">{!selected ? <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500"><div><div className="mb-2 text-4xl">📚</div><p className="font-semibold text-slate-700">Select a workshop to manage students</p><p className="mt-1 text-sm">Choose a workshop from the left, or create a new one above.</p></div></div> : <>
-          <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p><div className="mt-3 flex flex-wrap gap-2">{selected.whatsappGroupLink && <button type="button" onClick={() => void syncWhatsappGroup()} disabled={syncingWhatsapp} className="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingWhatsapp ? 'Syncing WhatsApp group…' : 'Sync WhatsApp group students'}</button>}<button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className="rounded bg-violet-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Preview AI worker</button><button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className="rounded bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{runningWorker ? 'Running worker…' : 'Run Workshop AI Worker'}</button></div></div>
+          <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p><div className="mt-3 flex flex-wrap gap-2">{selected.whatsappGroupLink && <button type="button" onClick={() => void syncWhatsappGroup()} disabled={syncingWhatsapp} className="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingWhatsapp ? 'Syncing WhatsApp group…' : 'Sync WhatsApp group students'}</button>}{selected.zoomMeetingId && <button type="button" onClick={() => void syncZoomAttendance()} disabled={syncingZoomAttendance} className="rounded bg-sky-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingZoomAttendance ? 'Syncing Zoom attendance…' : 'Sync Zoom attendance'}</button>}<button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className="rounded bg-violet-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Preview AI worker</button><button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className="rounded bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{runningWorker ? 'Running worker…' : 'Run Workshop AI Worker'}</button></div></div>
 
-          <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
+          <button type="button" onClick={() => setShowStudentTools((open) => !open)} className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left font-semibold text-emerald-800 transition hover:bg-emerald-100">{showStudentTools ? 'Close student tools' : '+ Add Students'}</button>
+
+          {showStudentTools && <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold text-slate-800">Choose data to collect/import</h3>
               <div className="flex gap-2 text-xs">
@@ -347,13 +428,11 @@ export default function WorkshopManagementPage() {
               {importFieldOptions.map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={selectedImportFields.includes(key)} disabled={key === 'name'} onChange={(e) => setSelectedImportFields((prev) => e.target.checked ? [...prev, key] : prev.filter((field) => field !== key))} /> {label}{key === 'name' && <span className="text-xs text-red-600">required</span>}</label>)}
             </div>
             <p className="mt-2 text-xs text-slate-500">Only checked fields will be imported from the Google Forms Excel file. Name is required for every student.</p>
-          </div>
-
           <div className="grid gap-4 xl:grid-cols-2">
             <form onSubmit={addStudent} className="rounded-lg bg-slate-50 p-4"><h3 className="mb-3 font-semibold">Add student</h3><div className="grid gap-3 md:grid-cols-2"><input required placeholder="Student name" value={student.name} onChange={(e) => setStudent({ ...student, name: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Email" value={student.email} onChange={(e) => setStudent({ ...student, email: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Phone" value={student.phone} onChange={(e) => setStudent({ ...student, phone: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="WhatsApp number" value={student.whatsappNumber} onChange={(e) => setStudent({ ...student, whatsappNumber: e.target.value })} className="rounded border px-3 py-2" /><button className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white md:col-span-2">Add student</button></div><div className="mt-4 border-t border-slate-200 pt-4 space-y-3"><label className="block text-sm font-medium text-slate-700">Google Forms link (optional)<input type="url" placeholder="https://docs.google.com/forms/..." value={googleFormLink} onChange={(e) => setGoogleFormLink(e.target.value)} className="mt-2 block w-full rounded border bg-white px-3 py-2 text-sm font-normal" /></label><div className="grid grid-cols-2 gap-2"><button type="button" onClick={saveGoogleFormLink} className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white">Save link</button><button type="button" onClick={openGoogleForm} className="rounded bg-sky-600 px-3 py-2 font-semibold text-white">Open Google Form</button></div><label className="block text-sm font-medium text-slate-700">Import Google Forms Excel export<input type="file" accept=".xlsx,.xls,.csv" onChange={importStudents} disabled={importingStudents} className="mt-2 block w-full rounded border bg-white px-3 py-2 text-sm font-normal" /></label>{studentImportColumns.length > 0 && <div className="grid gap-2 sm:grid-cols-2"><p className="sm:col-span-2 text-sm font-semibold text-slate-700">Select columns before importing</p>{([['name','Name'],['email','Email'],['phone','Phone'],['whatsappNumber','WhatsApp number'],['whatsappJid','WhatsApp JID']] as const).map(([key, label]) => <label key={key} className="text-xs font-medium text-slate-600">{label}<select value={studentImportMapping[key]} onChange={(e) => setStudentImportMapping({ ...studentImportMapping, [key]: e.target.value })} className="mt-1 w-full rounded border bg-white px-2 py-2 text-sm"><option value="">Auto-detect</option>{studentImportColumns.map((column) => <option key={column} value={column}>{column}</option>)}</select></label>)}<button type="button" onClick={() => void autoImportStudents()} disabled={importingStudents} className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white sm:col-span-2 disabled:opacity-50">{importingStudents ? 'Importing all data…' : 'Auto-import all detected data'}</button><button type="button" onClick={() => void importMappedStudents()} disabled={importingStudents || !studentImportMapping.name} className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white sm:col-span-2 disabled:opacity-50">{importingStudents ? 'Importing students…' : 'Import selected fields'}</button></div>}<p className="text-xs text-slate-500">Auto-import detects the standard fields and preserves additional Google Forms columns in student metadata. Existing students are updated instead of duplicated.</p></div></form>
 
             <form onSubmit={saveAttendance} className="rounded-lg bg-slate-50 p-4"><h3 className="mb-3 font-semibold">Record attendance</h3><div className="grid gap-3 md:grid-cols-2"><select value={attendanceForm.studentId} onChange={(e) => setAttendanceForm({ ...attendanceForm, studentId: e.target.value })} className="rounded border px-3 py-2"><option value="">Select student</option>{students.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}</select><input type="date" value={attendanceForm.classDate} onChange={(e) => setAttendanceForm({ ...attendanceForm, classDate: e.target.value })} className="rounded border px-3 py-2" /><input type="number" min={0} placeholder="Minutes attended" value={attendanceForm.durationMinutes} onChange={(e) => setAttendanceForm({ ...attendanceForm, durationMinutes: e.target.value })} className="rounded border px-3 py-2" /><input type="number" min={1} placeholder="Class duration minutes" value={attendanceForm.classDurationMinutes} onChange={(e) => setAttendanceForm({ ...attendanceForm, classDurationMinutes: e.target.value })} className="rounded border px-3 py-2" /><button className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white md:col-span-2">Save attendance</button></div></form>
-          </div>
+          </div></div>}
 
           <form onSubmit={saveRecording} className="rounded-lg bg-slate-50 p-4">
             <h3 className="mb-3 font-semibold">Recording delivery</h3>

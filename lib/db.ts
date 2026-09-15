@@ -532,6 +532,7 @@ const communityVideoSchema = new mongoose.Schema({
   
   // For YouTube videos (unlisted)
   youtubeVideoId: { type: String }, // Just the video ID (not full URL)
+  youtubeUrl: { type: String }, // Canonical unlisted URL, e.g. https://youtu.be/{id}
   youtubeUnlisted: { type: Boolean, default: true }, // Must be unlisted for security
   
   duration: { type: Number }, // Duration in seconds

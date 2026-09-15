@@ -25,6 +25,29 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ student });
 }
 
+export async function PATCH(request: NextRequest) {
+  if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const body = await request.json();
+  if (!body.id || !body.name?.trim()) return NextResponse.json({ error: 'id and name are required' }, { status: 400 });
+
+  await connectDB();
+  const Student = getWorkshopStudent();
+  const existing: any = await Student.findById(body.id).lean();
+  if (!existing) return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+
+  const decoded: any = verifyToken((request.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+  const update = {
+    name: String(body.name).trim(),
+    email: String(body.email || '').trim() || undefined,
+    phone: String(body.phone || '').trim() || undefined,
+    whatsappNumber: String(body.whatsappNumber || '').trim() || undefined,
+    active: body.active !== false,
+  };
+  const lead = await syncWorkshopStudentLead({ ...existing, ...update, ownerUserId: decoded?.userId });
+  const student = await Student.findByIdAndUpdate(body.id, { $set: { ...update, ...lead } }, { new: true });
+  return NextResponse.json({ student });
+}
+
 export async function DELETE(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const id = request.nextUrl.searchParams.get('id');

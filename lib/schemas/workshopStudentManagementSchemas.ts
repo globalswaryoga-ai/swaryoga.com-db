@@ -15,6 +15,8 @@ export interface IWorkshopCohort extends Document {
   aiWorkerEnabled?: boolean;
   autoSyncWhatsappGroup?: boolean;
   autoSendRecordings?: boolean;
+  autoSyncZoomAttendance?: boolean;
+  zoomAttendanceLastSyncAt?: Date;
   workerLastRunAt?: Date;
   whatsappGroupId?: string;
   communityId?: string;
@@ -39,6 +41,8 @@ const WorkshopCohortSchema = new Schema<IWorkshopCohort>({
   aiWorkerEnabled: { type: Boolean, default: true },
   autoSyncWhatsappGroup: { type: Boolean, default: false },
   autoSendRecordings: { type: Boolean, default: false },
+  autoSyncZoomAttendance: { type: Boolean, default: true },
+  zoomAttendanceLastSyncAt: Date,
   workerLastRunAt: Date,
   whatsappGroupId: String,
   communityId: String,

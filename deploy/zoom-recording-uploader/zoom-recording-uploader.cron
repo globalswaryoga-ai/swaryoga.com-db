@@ -1,0 +1,5 @@
+# Zoom recording uploader schedule for the bridge/worker server.
+# Times are India Standard Time (IST).
+# Install with: crontab deploy/zoom-recording-uploader/zoom-recording-uploader.cron
+CRON_TZ=Asia/Kolkata
+0 2,11,14,22 * * * cd /opt/swaryoga.com-db && /usr/bin/node scripts/zoom-recording-uploader.mjs >> /var/log/swaryoga-zoom-recording-uploader.log 2>&1

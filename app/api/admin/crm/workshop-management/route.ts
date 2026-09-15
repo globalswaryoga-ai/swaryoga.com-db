@@ -33,9 +33,22 @@ async function syncUploadedRecordings(cohort: any, Recording: any) {
     if (String(upload.zoomMeetingId || '') !== String(cohort.zoomMeetingId)) continue;
     const classDate = new Date(upload.startTime);
     if (Number.isNaN(classDate.getTime()) || classDate < start || classDate > end) continue;
-    const speakerId = upload.youtube?.speaker;
-    const galleryId = upload.youtube?.gallery;
+    const speakerId = upload.youtube?.speaker || upload.youtubeUrls?.speaker;
+    const galleryId = upload.youtube?.gallery || upload.youtubeUrls?.gallery;
+    const extractYoutubeId = (value: unknown) => {
+      const text = String(value || '');
+      const match = text.match(/(?:youtu\.be\/|[?&]v=|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
+      return match?.[1] || (/^[A-Za-z0-9_-]{11}$/.test(text) ? text : undefined);
+    };
+    const normalizedSpeakerId = extractYoutubeId(speakerId);
+    const normalizedGalleryId = extractYoutubeId(galleryId);
     if (!speakerId && !galleryId) continue;
+    const bunnyUrl = (value: unknown) => {
+      const text = String(value || '');
+      return text.startsWith('http://') || text.startsWith('https://')
+        ? text
+        : `https://${process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net'}/${text}`;
+    };
     await Recording.findOneAndUpdate(
       { cohortId: cohort._id, classDate: new Date(classDate.toISOString().slice(0, 10)) },
       { $set: {
@@ -44,10 +57,10 @@ async function syncUploadedRecordings(cohort: any, Recording: any) {
         dayNumber: classDay(classDate),
         zoomMeetingId: String(upload.zoomMeetingId),
         zoomMeetingUuid: upload.uuid,
-        ...(speakerId ? { youtubeSpeakerId: speakerId, youtubeSpeakerUrl: `https://youtu.be/${speakerId}` } : {}),
-        ...(galleryId ? { youtubeGalleryId: galleryId, youtubeGalleryUrl: `https://youtu.be/${galleryId}` } : {}),
-        ...(upload.bunny?.speaker ? { bunnySpeakerUrl: `https://${process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net'}/${upload.bunny.speaker}` } : {}),
-        ...(upload.bunny?.gallery ? { bunnyGalleryUrl: `https://${process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net'}/${upload.bunny.gallery}` } : {}),
+        ...(normalizedSpeakerId ? { youtubeSpeakerId: normalizedSpeakerId, youtubeSpeakerUrl: upload.youtubeUrls?.speaker || `https://youtu.be/${normalizedSpeakerId}` } : {}),
+        ...(normalizedGalleryId ? { youtubeGalleryId: normalizedGalleryId, youtubeGalleryUrl: upload.youtubeUrls?.gallery || `https://youtu.be/${normalizedGalleryId}` } : {}),
+        ...(upload.bunny?.speaker ? { bunnySpeakerUrl: bunnyUrl(upload.bunny.speaker) } : {}),
+        ...(upload.bunny?.gallery ? { bunnyGalleryUrl: bunnyUrl(upload.bunny.gallery) } : {}),
       } },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );

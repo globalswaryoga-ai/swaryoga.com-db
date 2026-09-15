@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { getWorkshopCohort, getWorkshopRecordingDelivery, getWorkshopStudent } from '@/lib/schemas/workshopStudentManagementSchemas';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
+import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
 
 function auth(request: NextRequest) {
   const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
@@ -33,8 +34,17 @@ export async function POST(request: NextRequest) {
 
   const students: any[] = await Student.find({ cohortId, active: true }).lean();
   const recordings: any[] = await Recording.find({ cohortId }).sort({ classDate: 1 }).lean();
-  const result = { worker: 'workshop-management', dryRun, studentsChecked: students.length, recordingsChecked: recordings.length, sent: 0, skipped: 0, failed: 0, errors: [] as string[] };
-  if (!cohort.aiWorkerEnabled) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Worker is disabled for this workshop.' } });
+  const result: any = { worker: 'workshop-management', dryRun, studentsChecked: students.length, recordingsChecked: recordings.length, sent: 0, skipped: 0, failed: 0, errors: [] as string[] };
+  // Attendance is independent of recording delivery. Run it first so the same
+  // AI worker button also refreshes daily Zoom attendance.
+  if (cohort.zoomMeetingId) {
+    try {
+      result.zoomAttendance = await syncWorkshopZoomAttendance(String(cohort._id));
+    } catch (error) {
+      result.zoomAttendance = { updated: 0, message: error instanceof Error ? error.message : 'Zoom attendance sync failed' };
+    }
+  }
+  if (!cohort.aiWorkerEnabled) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Recording worker is disabled; Zoom attendance sync was still attempted.' } });
   if (!cohort.autoSendRecordings) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Automatic recording delivery is disabled.' } });
 
   const settings: any = await getCRMUserSettings().findOne({ userId: cohort.createdByUserId || decoded.userId }).lean();

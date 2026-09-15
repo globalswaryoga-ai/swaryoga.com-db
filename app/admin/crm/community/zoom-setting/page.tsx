@@ -296,8 +296,8 @@ export default function ZoomSettingsPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Applied to every speaker-view recording auto-added to this community.
-                Leave blank to use the default.
+                Applied to every YouTube and Bunny recording auto-added to this community.
+                Leave blank to use the YouTube thumbnail default.
               </p>
               {thumbnailUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -464,8 +464,9 @@ export default function ZoomSettingsPage() {
           <ol className="text-sm text-blue-800 space-y-2 ml-4">
             <li>1. Add a Zoom meeting ID here + select its community</li>
             <li>2. Before starting the workshop, note the Zoom meeting ID (from the Zoom URL)</li>
-            <li>3. When the recording uploads to YouTube, it automatically goes to the selected community</li>
-            <li>4. Members see the video in their community recordings immediately</li>
+            <li>3. Each uploaded Speaker/Gallery YouTube video is added to the selected community as Day 1, Day 2, and so on</li>
+            <li>4. The Bunny MP4 copy is also added for reliable direct playback</li>
+            <li>5. Members see both recording links in their community recordings</li>
           </ol>
         </div>
       </div>

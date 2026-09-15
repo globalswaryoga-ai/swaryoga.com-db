@@ -16,10 +16,13 @@
  * Required env:
  *   ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_USER_EMAIL (host)
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+ *   YOUTUBE_REFRESH_TOKEN (optional; otherwise uses the admin YouTube connection)
  *   MONGODB_URI_MAIN, MONGODB_MAIN_DB_NAME (default swaryogaDB)
  *   ENCRYPTION_KEY   (same key prod used to encrypt the YouTube refresh token)
  *   BUNNY_ZOOM_STORAGE_ZONE (default swaryogadb), BUNNY_ZOOM_STORAGE_KEY
  *   RECORDING_LOOKBACK_DAYS (default 2)
+ *   RECORDING_MIN_AGE_MINUTES (default 10; gives Zoom time to finish processing)
+ *   ZOOM_MEETING_ID (optional; process only one meeting for a one-time run)
  *
  * Env is auto-loaded from .env.zoom-uploader next to the repo root (if present).
  */
@@ -40,6 +43,8 @@ try {
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const LOOKBACK = Number(process.env.RECORDING_LOOKBACK_DAYS || 2);
+const MIN_AGE_MINUTES = Number(process.env.RECORDING_MIN_AGE_MINUTES || 10);
+const TARGET_MEETING_ID = String(process.env.ZOOM_MEETING_ID || '').trim();
 
 function decrypt(enc) {
   const k = process.env.ENCRYPTION_KEY || 'default-32-character-encryption-key';
@@ -67,6 +72,25 @@ async function ytAccessToken(refresh) {
   const j = await r.json();
   if (!j.access_token) throw new Error('yt token: ' + JSON.stringify(j));
   return j.access_token;
+}
+
+// Match the website's YouTube post system: use a still-valid stored access
+// token first, then refresh it. An environment refresh token takes priority
+// when explicitly configured for the worker server.
+async function getYouTubeAccessToken(account) {
+  if (process.env.YOUTUBE_REFRESH_TOKEN) {
+    return ytAccessToken(process.env.YOUTUBE_REFRESH_TOKEN);
+  }
+
+  const storedAccessToken = account?.accessToken ? decrypt(account.accessToken) : '';
+  const expiry = account?.tokenExpiresAt ? new Date(account.tokenExpiresAt).getTime() : 0;
+  if (storedAccessToken && Number.isFinite(expiry) && expiry > Date.now() + 60_000) {
+    return storedAccessToken;
+  }
+
+  const storedRefreshToken = account?.refreshToken ? decrypt(account.refreshToken) : '';
+  if (!storedRefreshToken) throw new Error('No YouTube refresh token configured');
+  return ytAccessToken(storedRefreshToken);
 }
 
 async function ytUpload(access, srcUrl, size, title, desc) {
@@ -212,6 +236,80 @@ async function autoAddToConfiguredCommunity(videoUrl, topic, dateLabel, zoomMeet
   }
 }
 
+// Add the unlisted YouTube copy to the same community as an ordered Day N
+// recording. Speaker and Gallery views from one Zoom meeting share one day
+// number; the next meeting gets the next available day number.
+async function autoAddYoutubeToConfiguredCommunity(youtubeVideoId, topic, dateLabel, zoomMeetingId, db, thumbnailUrl, recordingType) {
+  const Videos = db.collection('communityvideos');
+  const Accounts = db.collection('socialmediaaccounts');
+
+  let communityId = 'global';
+  let communityName = 'Global';
+  let playlistName = dateLabel;
+  let configuredThumbnail = thumbnailUrl || null;
+
+  try {
+    const ytAccount = await Accounts.findOne({ platform: 'youtube' });
+    const mapping = (ytAccount?.metadata?.zoomMappings || []).find(
+      (m) => m.zoomMeetingId === zoomMeetingId
+    );
+    if (mapping) {
+      communityId = mapping.communityId;
+      communityName = mapping.communityName || mapping.communityId;
+      playlistName = mapping.zoomTopic || dateLabel;
+      configuredThumbnail = mapping.thumbnailUrl || configuredThumbnail;
+    }
+  } catch (e) {
+    log(`  YouTube community mapping lookup failed:`, e.message);
+  }
+
+  const playlistTag = `playlist:${playlistName}`;
+  const existingSameMeeting = await Videos.findOne({
+    communityId,
+    zoomMeetingId,
+    tags: playlistTag,
+  }, { projection: { tags: 1 } });
+  const existingDay = existingSameMeeting?.tags?.find((tag) => /^day:\d+$/.test(tag));
+
+  let dayNumber = existingDay ? Number(existingDay.slice(4)) : 0;
+  if (!dayNumber) {
+    const existing = await Videos.find({ communityId, tags: playlistTag }, { projection: { tags: 1 } }).toArray();
+    dayNumber = existing.reduce((max, video) => {
+      const dayTag = video.tags?.find((tag) => /^day:\d+$/.test(tag));
+      return Math.max(max, dayTag ? Number(dayTag.slice(4)) : 0);
+    }, 0) + 1;
+  }
+
+  const existingVideo = await Videos.findOne({ communityId, youtubeVideoId });
+  if (existingVideo) {
+    log(`  YouTube community already has ${youtubeVideoId}; skipping duplicate`);
+    return;
+  }
+
+  const viewName = recordingType === 'speaker_view' ? 'Speaker View' : 'Gallery View';
+  const youtubeUrl = `https://youtu.be/${youtubeVideoId}`;
+  const title = `${communityName} > ${playlistName} > Day ${dayNumber} - ${viewName}`;
+  await Videos.insertOne({
+    communityId,
+    title,
+    description: `Day ${dayNumber} recording from ${dateLabel} (${viewName})`,
+    videoSource: 'youtube',
+    youtubeVideoId,
+    youtubeUrl,
+    youtubeUnlisted: true,
+    thumbnailUrl: configuredThumbnail || `https://img.youtube.com/vi/${youtubeVideoId}/maxresdefault.jpg`,
+    uploadedBy: 'zoom-uploader',
+    isShareable: false,
+    isCommon: true,
+    source: 'youtube_recording',
+    zoomMeetingId,
+    recordingType,
+    tags: [`folder:${communityName}`, playlistTag, `day:${dayNumber}`, 'recording', 'youtube'],
+    createdAt: new Date(),
+  });
+  log(`  YouTube community OK: added "${title}" (${youtubeUrl})`);
+}
+
 // Save the MP4 into the Bunny STORAGE zone under zoom-videos/ (a real folder),
 // streaming straight from Zoom — no temp file on disk.
 async function bunnyStorageSave(srcUrl, size, fileName) {
@@ -247,28 +345,56 @@ function bunnyCdnUrl(dest) {
   const fmt = (d) => d.toISOString().slice(0, 10);
   const r = await fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(host)}/recordings?from=${fmt(from)}&to=${fmt(to)}&page_size=100`, { headers: { Authorization: `Bearer ${zt}` } });
   const meetings = (await r.json()).meetings || [];
-  log('found', meetings.length, 'recorded meeting(s) in window');
+  const selectedMeetings = TARGET_MEETING_ID
+    ? meetings.filter((meeting) => String(meeting.id) === TARGET_MEETING_ID)
+    : meetings;
+  if (TARGET_MEETING_ID) log('target meeting filter:', TARGET_MEETING_ID, 'matched', selectedMeetings.length);
+  log('found', selectedMeetings.length, 'recorded meeting(s) in window');
 
   await mongoose.connect(process.env.MONGODB_URI_MAIN, { dbName: process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB' });
   const Accounts = mongoose.connection.db.collection('socialmediaaccounts');
   const ytDoc = await Accounts.findOne({ platform: 'youtube' });
   if (!ytDoc?.refreshToken) { log('No YouTube account connected — aborting.'); await mongoose.disconnect(); return; }
-  const yt = await ytAccessToken(decrypt(ytDoc.refreshToken));
+  const yt = await getYouTubeAccessToken(ytDoc);
   // Idempotency without a new collection (Atlas is at its 500-collection cap):
   // track done meetings as an array on the YouTube account doc's metadata.
   const done = new Set((ytDoc.metadata?.uploadedMeetings || []).map((u) => u.uuid));
 
   let processed = 0;
-  for (const m of meetings) {
+  for (const m of selectedMeetings) {
     if (done.has(m.uuid)) continue; // already uploaded
-    const mp4 = (m.recording_files || []).filter((f) => f.file_type === 'MP4');
-    if (!mp4.length) continue;
+    const ageMinutes = (Date.now() - new Date(m.start_time).getTime()) / 60000;
+    if (Number.isFinite(ageMinutes) && ageMinutes < MIN_AGE_MINUTES) {
+      log(`→ ${m.topic}: waiting ${Math.ceil(MIN_AGE_MINUTES - ageMinutes)} more minute(s) for Zoom processing`);
+      continue;
+    }
+
+    if (m.status && !['completed', 'complete'].includes(String(m.status).toLowerCase())) {
+      log(`→ ${m.topic}: Zoom status is ${m.status}; waiting for completed recording`);
+      continue;
+    }
+
+    const allMp4 = (m.recording_files || []).filter((f) => f.file_type === 'MP4');
+    const isReady = (f) => !f.status || ['completed', 'complete'].includes(String(f.status).toLowerCase());
+    const mp4 = allMp4.filter(isReady);
+    if (!mp4.length) {
+      if (allMp4.length) log(`→ ${m.topic}: MP4 files are still processing; waiting for the next run`);
+      continue;
+    }
     const pick = (...t) => { for (const x of t) { const f = mp4.find((y) => y.recording_type === x); if (f) return f; } return null; };
+    const hasRecordingType = (...t) => allMp4.some((f) => t.includes(f.recording_type));
     const speaker = pick('shared_screen_with_speaker_view', 'active_speaker', 'speaker_view');
     const gallery = pick('shared_screen_with_gallery_view', 'gallery_view');
+    // If Zoom has listed a desired view but has not finished that file yet,
+    // wait rather than uploading one view and marking the meeting complete.
+    if ((hasRecordingType('shared_screen_with_speaker_view', 'active_speaker', 'speaker_view') && !speaker) ||
+        (hasRecordingType('shared_screen_with_gallery_view', 'gallery_view') && !gallery)) {
+      log(`→ ${m.topic}: one or more MP4 views are still processing; waiting for the next run`);
+      continue;
+    }
     const dl = (f) => `${f.download_url}?access_token=${zt}`;
     const dateLabel = m.start_time.slice(0, 10);
-    const result = { _id: m.uuid, topic: m.topic, startTime: m.start_time, youtube: {}, bunny: {}, uploadedAt: new Date() };
+    const result = { _id: m.uuid, topic: m.topic, startTime: m.start_time, youtube: {}, youtubeUrls: {}, bunny: {}, uploadedAt: new Date() };
     log(`→ ${m.topic} (${dateLabel}) speaker=${speaker?.recording_type || 'none'} gallery=${gallery?.recording_type || 'none'}`);
 
     for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
@@ -276,7 +402,16 @@ function bunnyCdnUrl(dest) {
       try {
         const id = await ytUpload(yt, dl(f), f.file_size, `${m.topic} — ${view} — ${dateLabel}`, `${m.topic}\nRecorded ${m.start_time}\n${view} (${f.recording_type})`);
         result.youtube[key] = id;
-        log(`  YT OK ${view}: https://youtu.be/${id}`);
+        result.youtubeUrls[key] = `https://youtu.be/${id}`;
+        log(`  YT OK ${view}: ${result.youtubeUrls[key]}`);
+        try {
+          await autoAddYoutubeToConfiguredCommunity(
+            id, m.topic, dateLabel, String(m.id), mongoose.connection.db,
+            `https://img.youtube.com/vi/${id}/hqdefault.jpg`, key === 'speaker' ? 'speaker_view' : 'gallery_view'
+          );
+        } catch (e) {
+          log(`  YouTube community FAIL ${view}:`, e.message);
+        }
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
     for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
@@ -313,15 +448,22 @@ function bunnyCdnUrl(dest) {
         }
       } catch (e) { log('  Playlist FAIL:', e.message); }
     }
-    // Only mark done if at least one YouTube upload succeeded (so failures retry next run).
-    if (result.youtube.speaker || result.youtube.gallery) {
+    // Mark done only after every available selected view is uploaded to both
+    // YouTube and Bunny. This also prevents Zoom cleanup when Bunny storage
+    // is temporarily unavailable.
+    // If Zoom was still processing one view, the meeting was skipped above and
+    // will be picked up on a later run.
+    const expectedYoutubeKeys = [speaker && 'speaker', gallery && 'gallery'].filter(Boolean);
+    const allYoutubeUploaded = expectedYoutubeKeys.length > 0 && expectedYoutubeKeys.every((key) => result.youtube[key]);
+    const allBunnyStored = expectedYoutubeKeys.every((key) => result.bunny[key]);
+    if (allYoutubeUploaded && allBunnyStored) {
       // After a successful upload, move the cloud recording to Zoom trash
       // (frees cloud storage; recoverable ~30 days). Disable with DELETE_AFTER_UPLOAD=off.
       if ((process.env.DELETE_AFTER_UPLOAD || 'trash') !== 'off') {
         try { await trashRecording(m.uuid, zt); result.trashed = true; log('  Zoom recording → trash ✓'); }
         catch (e) { log('  Zoom trash FAIL:', e.message); }
       }
-      await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
+      await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, youtubeUrls: result.youtubeUrls, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
       processed++;
     }
   }

@@ -172,6 +172,55 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Delayed Zoom Recording Processing Safety (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` with a 10-minute minimum age before processing newly ended Zoom meetings.
+- The uploader now waits when the Zoom meeting or MP4 view is still processing, so delayed Speaker/Gallery files are retried on the next run.
+- A meeting is marked uploaded only after all selected recording views have successfully reached YouTube; partial uploads remain eligible for retry.
+- Existing YouTube playlist insertion, Day N community links, Bunny MP4 storage, and Zoom trash behavior remain unchanged.
+- Validation: uploader syntax and `git diff --check` pass; no live upload was triggered.
+
+### Canonical YouTube Links Stored for Community Recordings (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added `youtubeUrl` to the `CommunityVideo` schema and recording API responses.
+- The Zoom uploader now builds and stores the canonical `https://youtu.be/{videoId}` link for every successful unlisted YouTube upload.
+- The same link is saved in the mapped community recording and `metadata.uploadedMeetings.youtubeUrls`, while existing YouTube IDs remain supported.
+- Validation: uploader syntax, `git diff --check`, and target-file diagnostics pass; no live upload was triggered.
+
+### Scheduled Zoom Recording Uploads and Safe Zoom Cleanup (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added `deploy/zoom-recording-uploader/zoom-recording-uploader.cron` for daily runs at 2:00 AM, 11:00 AM, 2:00 PM, and 10:00 PM IST.
+- Added `deploy/zoom-recording-uploader/README.md` with worker-server installation and environment guidance.
+- Updated `scripts/zoom-recording-uploader.mjs` so Zoom recordings move to recoverable Trash only after all selected YouTube and Bunny uploads succeed.
+- Delayed or failed recordings remain in Zoom and are retried by the next scheduled run; the existing two-day lookback finds morning recordings during the later runs.
+- Validation: uploader syntax, `git diff --check`, and target-file diagnostics pass; the server crontab itself still needs installation on the worker host.
+
+### One-Time Marathi Day 1 Upload Attempt (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added optional `ZOOM_MEETING_ID` filtering to `scripts/zoom-recording-uploader.mjs` so a one-time run can target only the mapped Marathi Swar Yoga L-1 session (`84612021311`).
+- The targeted run found exactly one Zoom meeting, but Google returned `invalid_grant` while refreshing the stored YouTube OAuth token.
+- No YouTube/Bunny upload and no Zoom cleanup occurred; reconnecting YouTube OAuth is required before rerunning the targeted upload.
+
+### YouTube Post-System Token Alignment (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` to use the same token precedence as the website YouTube post system: explicit `YOUTUBE_REFRESH_TOKEN`, valid stored access token, then stored refresh token.
+- Confirmed `.env.local` and `.env.zoom-uploader` contain matching Google OAuth client credentials and encryption key; neither currently contains `YOUTUBE_REFRESH_TOKEN`.
+- The current database access token expired on June 10, 2026 and its refresh token returns Google `invalid_grant`, so YouTube must be reconnected before the Marathi upload can proceed.
+
+### Automatic Workshop Recording Delivery Link Sync (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `app/api/admin/crm/workshop-management/route.ts` to sync uploader history into workshop recording deliveries using canonical YouTube URLs and Bunny CDN URLs.
+- The workshop page now refreshes the selected cohort every minute, so newly completed uploads appear automatically without manual link entry or page reload.
+- The existing Marathi Day 1 upload was populated immediately with both YouTube links and both Bunny links for cohort `Marathi Swar yoga L1`.
+- Validation: target page/API diagnostics, uploader syntax, and `git diff --check` pass.
+
+### Workshop Student Detail Date Safety (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Fixed `app/admin/crm/workshop-management/page.tsx` so clicking a student safely opens the attendance detail table even when optional holiday or attendance dates are blank/invalid.
+- Invalid workshop start dates now show an actionable message instead of causing `RangeError: Invalid time value` in the browser.
+- Bunny Database remains the planned cutover target; this change does not add new Mongo collections or pretend the existing workshop APIs have already migrated before SQL parity is verified.
+- Validation: no diagnostics in the workshop page and no matching TypeScript errors in the workshop-management files.
+
 ### Automatic Email Password Delivery for Public Forms (Session: September 13, 2026 — Phase 125) — Commit `N/A (working tree only)`
 
 **✅ REMOVED USER PASSWORD ENTRY AND ADDED SERVER-GENERATED EMAIL CREDENTIALS**
