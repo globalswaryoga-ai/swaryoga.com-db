@@ -21,6 +21,7 @@ export default function WorkshopManagementPage() {
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', classDate: '', durationMinutes: '0', classDurationMinutes: '60' });
   const [recordingForm, setRecordingForm] = useState({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [importingStudents, setImportingStudents] = useState(false);
   const [studentImportFile, setStudentImportFile] = useState<File | null>(null);
   const [studentImportColumns, setStudentImportColumns] = useState<string[]>([]);
@@ -41,18 +42,23 @@ export default function WorkshopManagementPage() {
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const load = async (cohortId?: string) => {
-    const res = await fetch(`/api/admin/crm/workshop-management${cohortId ? `?cohortId=${cohortId}` : ''}`, { headers });
-    const data = await res.json();
-    if (!res.ok) return;
-    if (cohortId) {
-      setStudents(data.students || []);
-      setSelectedStudentIds([]);
-      setAttendance(data.attendance || []);
-      setRecordings(data.recordings || []);
-      setGoogleFormLink(data.cohort?.googleFormLink || '');
-      if (data.students?.length && !attendanceForm.studentId) setAttendanceForm((prev) => ({ ...prev, studentId: data.students[0]._id }));
-    } else {
-      setCohorts(data.cohorts || []);
+    try {
+      const res = await fetch(`/api/admin/crm/workshop-management${cohortId ? `?cohortId=${cohortId}` : ''}`, { headers });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Workshop API returned ${res.status}`);
+      setLoadError('');
+      if (cohortId) {
+        setStudents(data.students || []);
+        setSelectedStudentIds([]);
+        setAttendance(data.attendance || []);
+        setRecordings(data.recordings || []);
+        setGoogleFormLink(data.cohort?.googleFormLink || '');
+        if (data.students?.length && !attendanceForm.studentId) setAttendanceForm((prev) => ({ ...prev, studentId: data.students[0]._id }));
+      } else {
+        setCohorts(data.cohorts || []);
+      }
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Could not load workshops');
     }
   };
 
@@ -374,6 +380,7 @@ export default function WorkshopManagementPage() {
 
   return <main className="min-h-screen bg-slate-50 p-6">
     <div className="mx-auto max-w-7xl space-y-6">
+      {loadError && <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span><b>Could not load workshop data:</b> {loadError}</span><button type="button" onClick={() => void load()} className="rounded-lg bg-red-700 px-3 py-1.5 font-semibold text-white">Retry</button></div>}
       <header className="flex flex-col gap-4 rounded-2xl bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600 p-6 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between"><div><h1 className="text-2xl font-bold">Workshop Student Management</h1><p className="mt-1 text-sm text-indigo-100">Manage cohorts, WhatsApp groups, Zoom attendance, recordings, and student history.</p></div><button type="button" onClick={() => setShowCreateForm((open) => !open)} className="rounded-xl bg-white px-4 py-2.5 font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50">{showCreateForm ? 'Close form' : '+ Add New Workshop'}</button></header>
       {showCreateForm && <section className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm"><div className="mb-4 flex items-center justify-between"><div><h2 className="text-lg font-semibold text-slate-900">Create workshop / batch</h2><p className="text-sm text-slate-500">Set the class schedule, holidays, links, and automation options.</p></div><button type="button" onClick={() => setShowCreateForm(false)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600">Cancel</button></div><form onSubmit={createCohort} className="grid gap-3 md:grid-cols-3">
         {([['name','Workshop name'],['startDate','Start date'],['endDate','End date'],['classStartTime','Class start time'],['classEndTime','Class end time'],['zoomMeetingId','Zoom meeting ID'],['zoomJoinUrl','Zoom meeting link'],['whatsappGroupLink','WhatsApp group link']] as const).map(([key, label]) => <label key={key} className="text-sm font-medium text-slate-700">{label}<input required={key === 'name' || key === 'startDate'} type={key.includes('Date') ? 'date' : key.includes('Time') ? 'time' : 'text'} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-normal" /></label>)}

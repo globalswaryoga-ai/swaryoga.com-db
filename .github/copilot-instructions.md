@@ -221,6 +221,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Bunny Database remains the planned cutover target; this change does not add new Mongo collections or pretend the existing workshop APIs have already migrated before SQL parity is verified.
 - Validation: no diagnostics in the workshop page and no matching TypeScript errors in the workshop-management files.
 
+### Workshop Management Database Error Visibility (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `app/admin/crm/workshop-management/page.tsx` so failed workshop API/database loads show the actual error and a Retry button instead of incorrectly displaying `No workshops yet`.
+- Verified the current local MongoDB connection is failing with Atlas `ReplicaSetNoPrimary`; no delete operation or deletion route was introduced by the recent deployment commits.
+- This protects the UI from making an unavailable database look like a deleted Marathi Swar Yoga workshop while Bunny SQL cutover work is still being validated.
+
 ### Automatic Email Password Delivery for Public Forms (Session: September 13, 2026 — Phase 125) — Commit `N/A (working tree only)`
 
 **✅ REMOVED USER PASSWORD ENTRY AND ADDED SERVER-GENERATED EMAIL CREDENTIALS**
