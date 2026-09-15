@@ -1,5 +1,5 @@
 import { getFullMeetingAnalytics, type SessionParticipant } from './zoom-analytics';
-import { getWorkshopAttendance, getWorkshopCohort, getWorkshopStudent } from './schemas/workshopStudentManagementSchemas';
+import { getCohort, listCohorts, listStudents, upsertAttendance, updateCohort } from './workshopBunnyRepository';
 
 type SyncResult = {
   cohortId: string;
@@ -30,15 +30,12 @@ const dayKey = (value: string | Date) => new Date(value).toISOString().slice(0, 
  * with a delay of up to two hours), so this is designed to be safely retried.
  */
 export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: string): Promise<SyncResult> {
-  const Cohort = getWorkshopCohort();
-  const Student = getWorkshopStudent();
-  const Attendance = getWorkshopAttendance();
-  const cohort: any = await Cohort.findById(cohortId).lean();
+  const cohort: any = await getCohort(cohortId);
 
   if (!cohort) throw new Error('Workshop not found');
   if (!cohort.zoomMeetingId) throw new Error('This workshop does not have a Zoom meeting ID');
 
-  const students: any[] = await Student.find({ cohortId, active: true }).lean();
+  const students: any[] = await listStudents(cohortId, true);
   if (!students.length) {
     return { cohortId, cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: 'No active students to match.' };
   }
@@ -98,35 +95,21 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
 
     for (const attendee of attendees.values()) {
       const classDurationSeconds = Math.max(1, Number(session.duration || 60) * 60);
-      await Attendance.findOneAndUpdate(
-        { cohortId: cohort._id, studentId: attendee.student._id, classDate: new Date(`${session.date}T00:00:00.000Z`) },
-        { $set: {
-          cohortId: cohort._id,
-          studentId: attendee.student._id,
-          classDate: new Date(`${session.date}T00:00:00.000Z`),
-          joined: attendee.duration > 0,
-          joinedAt: attendee.joinedAt ? new Date(attendee.joinedAt) : undefined,
-          leftAt: attendee.leftAt ? new Date(attendee.leftAt) : undefined,
-          durationSeconds: attendee.duration,
-          attendancePercent: Math.min(100, Math.round(attendee.duration / classDurationSeconds * 100)),
-          source: 'zoom',
-        } },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
+      await upsertAttendance({ cohortId, studentId: attendee.student._id, classDate: session.date, joined: attendee.duration > 0, joinedAt: attendee.joinedAt, leftAt: attendee.leftAt, durationSeconds: attendee.duration, attendancePercent: Math.min(100, Math.round(attendee.duration / classDurationSeconds * 100)), source: 'zoom' });
       matched++;
       updated++;
     }
   }
 
-  await Cohort.findByIdAndUpdate(cohort._id, { $set: { zoomAttendanceLastSyncAt: new Date() } });
+  await updateCohort(cohortId, { zoomAttendanceLastSyncAt: new Date().toISOString() });
   return { cohortId: String(cohort._id), cohortName: cohort.name, sessions: sessions.length, matched, unmatched, updated, skipped: false };
 }
 
 export async function syncDueWorkshopZoomAttendance() {
-  const Cohort = getWorkshopCohort();
-  const cohorts: any[] = await Cohort.find({ zoomMeetingId: { $exists: true, $ne: '' }, autoSyncZoomAttendance: { $ne: false } }).lean();
+  const cohorts: any[] = await listCohorts();
+  const eligible = cohorts.filter((cohort) => cohort.zoomMeetingId && cohort.autoSyncZoomAttendance !== false);
   const results: SyncResult[] = [];
-  for (const cohort of cohorts) {
+  for (const cohort of eligible) {
     try {
       results.push(await syncWorkshopZoomAttendance(String(cohort._id)));
     } catch (error) {

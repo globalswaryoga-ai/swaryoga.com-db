@@ -227,6 +227,14 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 - Verified the current local MongoDB connection is failing with Atlas `ReplicaSetNoPrimary`; no delete operation or deletion route was introduced by the recent deployment commits.
 - This protects the UI from making an unavailable database look like a deleted Marathi Swar Yoga workshop while Bunny SQL cutover work is still being validated.
 
+### Workshop Management Bunny SQL Cutover (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added `migrations/0015_workshop_management.sql` and `lib/workshopBunnyRepository.ts` for Bunny SQL cohorts, students, attendance, and recording deliveries.
+- Switched the workshop management, student CRUD/import/group sync, attendance, Zoom attendance persistence, worker, and recording delivery paths to Bunny SQL storage instead of MongoDB workshop models.
+- Restored the Marathi Swar Yoga L-1 cohort in Bunny SQL with Zoom meeting ID `84612021311` and restored its Day 1 YouTube/Bunny recording links.
+- Bunny SQL verification: one cohort, zero students (no student archive was available), zero attendance rows, and one recording delivery.
+- Validation: target diagnostics, focused TypeScript checks, and `git diff --check` pass; live MongoDB is no longer required for the workshop management page.
+
 ### Automatic Email Password Delivery for Public Forms (Session: September 13, 2026 — Phase 125) — Commit `N/A (working tree only)`
 
 **✅ REMOVED USER PASSWORD ENTRY AND ADDED SERVER-GENERATED EMAIL CREDENTIALS**

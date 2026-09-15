@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
 
@@ -14,7 +13,6 @@ export async function POST(request: NextRequest) {
   if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
 
   try {
-    await connectDB();
     const result = await syncWorkshopZoomAttendance(String(cohortId), classDate || undefined);
     return NextResponse.json({ success: true, result });
   } catch (error) {
