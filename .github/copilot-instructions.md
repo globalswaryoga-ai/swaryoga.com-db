@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### CRM Subscription Bunny SQL Cutover (Session: September 18, 2026) — Commit `pending`
+
+- Updated `app/api/crm-site/subscription/route.ts` to resolve tenant, lead usage, and user usage from Bunny SQL instead of connecting to MongoDB Atlas.
+- Subscription requests now remain available during Atlas outages and preserve the existing response contract for the CRM frontend.
+- Storage usage is reported as a safe Bunny-backed baseline until dedicated per-tenant storage accounting is completed.
+
 ### Vercel Dashboard API Filesystem Crash Fix (Session: September 18, 2026) — Commit `pending`
 
 - Fixed `lib/backup/logger.ts` so Vercel/serverless API bundles do not call `mkdirSync('.logs/backup')` during module initialization.
