@@ -35,7 +35,7 @@ async function main() {
     if (dryRun) return;
     const migration = await fs.readFile(path.join(process.cwd(), 'migrations/0020_meta_whatsapp_sql.sql'), 'utf8');
     for (const statement of migration.split(';').map((s) => s.trim()).filter(Boolean)) await bunny.execute(statement);
-    await bunny.execute({ sql: 'INSERT INTO __bunny_migrations (version,filename,checksum) VALUES (?,?,?) ON CONFLICT(version) DO UPDATE SET filename=excluded.filename,checksum=excluded.checksum', args: ['0020', '0020_meta_whatsapp_sql.sql', crypto.createHash('sha256').update(migration).digest('hex')] });
+    await bunny.execute({ sql: 'INSERT INTO __bunny_migrations (name,checksum) VALUES (?,?) ON CONFLICT(name) DO UPDATE SET checksum=excluded.checksum', args: ['0020_meta_whatsapp_sql.sql', crypto.createHash('sha256').update(migration).digest('hex')] });
     for (const row of messages) {
       const documentId = id(row._id || row.waMessageId);
       await bunny.execute({ sql: `INSERT INTO meta_messages_sql (document_id,lead_id,phone_number,provider,direction,message_type,status,wa_message_id,sender_number,sent_at,created_at,updated_at,data_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET data_json=excluded.data_json,status=excluded.status,updated_at=excluded.updated_at`, args: [documentId, row.leadId ? id(row.leadId) : null, String(row.phoneNumber || ''), 'meta', String(row.direction || 'outbound'), String(row.messageType || 'text'), String(row.status || 'queued'), row.waMessageId ? String(row.waMessageId) : null, row.senderNumber ? String(row.senderNumber) : null, iso(row.sentAt), iso(row.createdAt), iso(row.updatedAt) || new Date().toISOString(), json(row)] });

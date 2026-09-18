@@ -30,8 +30,8 @@ async function ddl(bunny) {
   const migration = await fs.readFile(path.join(process.cwd(), 'migrations/0019_qr_whatsapp_sql.sql'), 'utf8');
   for (const statement of migration.split(';').map((s) => s.trim()).filter(Boolean)) await bunny.execute(statement);
   await bunny.execute({
-    sql: 'INSERT INTO __bunny_migrations (version,filename,checksum) VALUES (?,?,?) ON CONFLICT(version) DO UPDATE SET filename=excluded.filename,checksum=excluded.checksum',
-    args: ['0019', '0019_qr_whatsapp_sql.sql', crypto.createHash('sha256').update(migration).digest('hex')],
+    sql: 'INSERT INTO __bunny_migrations (name,checksum) VALUES (?,?) ON CONFLICT(name) DO UPDATE SET checksum=excluded.checksum',
+    args: ['0019_qr_whatsapp_sql.sql', crypto.createHash('sha256').update(migration).digest('hex')],
   });
 }
 async function main() {

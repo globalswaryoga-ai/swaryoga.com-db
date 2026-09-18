@@ -30,7 +30,7 @@ async function main() {
     if (dryRun) return;
     const migration = await fs.readFile(path.join(process.cwd(), 'migrations/0021_whatsapp_accounts_sql.sql'), 'utf8');
     for (const statement of migration.split(';').map((s) => s.trim()).filter(Boolean)) await bunny.execute(statement);
-    await bunny.execute({ sql: 'INSERT INTO __bunny_migrations (version,filename,checksum) VALUES (?,?,?) ON CONFLICT(version) DO UPDATE SET filename=excluded.filename,checksum=excluded.checksum', args: ['0021', '0021_whatsapp_accounts_sql.sql', crypto.createHash('sha256').update(migration).digest('hex')] });
+    await bunny.execute({ sql: 'INSERT INTO __bunny_migrations (name,checksum) VALUES (?,?) ON CONFLICT(name) DO UPDATE SET checksum=excluded.checksum', args: ['0021_whatsapp_accounts_sql.sql', crypto.createHash('sha256').update(migration).digest('hex')] });
     for (const account of accounts) {
       await bunny.execute({ sql: `INSERT INTO whatsapp_accounts_sql (document_id,account_type,created_by_user_id,meta_phone_number_id,meta_phone_number,is_active,status,data_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET data_json=excluded.data_json,is_active=excluded.is_active,status=excluded.status,updated_at=excluded.updated_at`, args: [id(account._id), String(account.accountType || 'meta'), String(account.createdByUserId || ''), account.metaPhoneNumberId ? String(account.metaPhoneNumberId) : null, account.metaPhoneNumber ? String(account.metaPhoneNumber) : null, account.isActive === false ? 0 : 1, String(account.status || 'disconnected'), json(account), iso(account.createdAt), iso(account.updatedAt)] });
     }
