@@ -172,6 +172,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bunny SQL Meta WhatsApp Storage Foundation (Session: September 18, 2026) — Commit `7e104e06`
+
+- Added `migrations/0020_meta_whatsapp_sql.sql` for Meta messages and webhook event storage with indexed phone, lead, provider, and message identity.
+- Added `lib/bunnyMetaWhatsAppRepository.ts` with JSON preservation so existing Meta message fields remain available during the read-path cutover.
+- Added non-destructive `scripts/migrate-meta-whatsapp-to-bunny.mjs` to import historical Meta data and record the migration checksum without deleting MongoDB records.
+- Updated the live migration dashboard and cutover checklist to show Meta schema/repository work as in progress until historical parity is verified.
+
 ### Bunny SQL QR WhatsApp Storage Foundation (Session: September 18, 2026) — Commit `b4e09e56`
 
 - Added `migrations/0019_qr_whatsapp_sql.sql` for QR sessions, chats, messages, archive manifests, storage usage, queues, and migration tracking.
