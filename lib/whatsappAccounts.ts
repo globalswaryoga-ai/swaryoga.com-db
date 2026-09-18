@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { decryptCredential } from '@/lib/encryption';
+import { getBunnyMetaCredentialsByPhoneNumberId, getBunnyMetaCredentialsForTenant } from '@/lib/bunnyWhatsAppAccounts';
 
 // Credentials for a single Meta WhatsApp Business number — either a
 // tenant's own connected WhatsAppAccount, or (when null is returned by the
@@ -29,6 +30,12 @@ function toCredentials(account: any): WhatsAppCredentials | null {
 // connected their own number, so callers fall back to the shared default.
 export async function getMetaCredentialsForTenant(tenantUserId: string): Promise<WhatsAppCredentials | null> {
   if (!tenantUserId) return null;
+  try {
+    const bunnyCredentials = await getBunnyMetaCredentialsForTenant(tenantUserId);
+    if (bunnyCredentials) return bunnyCredentials;
+  } catch (error) {
+    console.warn('[whatsappAccounts] Bunny tenant lookup failed; using legacy fallback:', error instanceof Error ? error.message : error);
+  }
   await connectDB();
   const account = await WhatsAppAccount.findOne({
     accountType: 'meta',
@@ -46,6 +53,12 @@ export async function getMetaCredentialsByPhoneNumberId(
   phoneNumberId: string
 ): Promise<{ tenantUserId: string; creds: WhatsAppCredentials } | null> {
   if (!phoneNumberId) return null;
+  try {
+    const bunnyAccount = await getBunnyMetaCredentialsByPhoneNumberId(phoneNumberId);
+    if (bunnyAccount) return bunnyAccount;
+  } catch (error) {
+    console.warn('[whatsappAccounts] Bunny phone lookup failed; using legacy fallback:', error instanceof Error ? error.message : error);
+  }
   await connectDB();
   const account = await WhatsAppAccount.findOne({
     accountType: 'meta',

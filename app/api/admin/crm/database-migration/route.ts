@@ -55,6 +55,7 @@ const phases = [
     tasks: [
       { id: 'meta-schema', title: 'Meta messages and webhook event SQL tables', status: 'in-progress' as MigrationTaskStatus },
       { id: 'meta-repository', title: 'Bunny repository for Meta messages and conversations', status: 'in-progress' as MigrationTaskStatus },
+      { id: 'meta-accounts', title: 'Meta account ownership and encrypted credentials use Bunny SQL', status: 'in-progress' as MigrationTaskStatus },
       { id: 'meta-import', title: 'Import and reconcile historical Meta messages', status: 'pending' as MigrationTaskStatus },
       { id: 'meta-runtime', title: 'Meta webhook and inbox prefer Bunny SQL for available records', status: 'completed' as MigrationTaskStatus },
       { id: 'meta-lead-boundary', title: 'Meta account ownership and lead association no longer require MongoDB', status: 'pending' as MigrationTaskStatus },

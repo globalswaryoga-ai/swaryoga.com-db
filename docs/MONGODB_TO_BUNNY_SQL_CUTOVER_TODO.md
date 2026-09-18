@@ -75,6 +75,8 @@
 - [x] Meta inbound webhook writes and Meta inbox/message reads prefer Bunny SQL when Bunny records are available.
 - [ ] Run `scripts/migrate-meta-whatsapp-to-bunny.mjs` and reconcile historical Meta messages before changing Meta runtime reads.
 - [ ] Move Meta account ownership lookup and lead association out of MongoDB before declaring the Meta webhook Mongo-free.
+- [x] Add Bunny-first Meta account ownership/credential repository (`migrations/0021_whatsapp_accounts_sql.sql`, `lib/bunnyWhatsAppAccounts.ts`).
+- [ ] Run `scripts/migrate-whatsapp-accounts-to-bunny.mjs` and reconcile account ownership before removing the fallback.
 - [ ] Move QR chat/message snapshots, queue, lead ownership checks, and archive processors from MongoDB to Bunny SQL.
 - [ ] Move webhooks, inbox reads, sends, schedulers, and cron processors to SQL transactions.
 - [ ] Validate tenant isolation, deduplication, unread counts, receipts, media references, and retry behavior.
