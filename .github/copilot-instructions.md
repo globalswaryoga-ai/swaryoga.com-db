@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bunny SQL QR/Meta Historical Restore (Session: September 18, 2026) — Commit `pending`
+
+- Added `scripts/restore-whatsapp-data-from-bunny-archive.mjs` to restore preserved Mongo documents from Bunny SQL `mongo_documents` without contacting MongoDB.
+- Verified Bunny SQL now contains 85,650 QR messages, 24,373 QR chats, 5,527 QR archive manifests, and 11 Meta messages.
+- The restore is non-destructive; no MongoDB records were changed or deleted. The archive contains no `whatsapp_accounts` documents, so account ownership import remains blocked separately.
+
 ### MongoDB Outage Route Recovery (Session: September 18, 2026) — Commit `pending`
 
 - CRM analytics overview now reaches Bunny SQL before any legacy MongoDB connection attempt.

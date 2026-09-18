@@ -79,6 +79,8 @@
 - [ ] Run `scripts/migrate-whatsapp-accounts-to-bunny.mjs` and reconcile account ownership before removing the fallback.
 - [x] Apply and checksum migrations `0019`, `0020`, and `0021` in Bunny SQL; existing ledger format is `name + checksum`.
 - [ ] Import historical QR/Meta messages and account rows after a readable legacy export/source is available.
+- [x] Restore preserved QR/Meta records from the Bunny `mongo_documents` archive without MongoDB: 85,650 QR messages, 24,373 QR chats, 5,527 QR archive manifests, and 11 Meta messages.
+- [ ] Import Meta account rows when a preserved account export becomes available; the current archive contains zero `whatsapp_accounts` documents.
 - [ ] Move QR chat/message snapshots, queue, lead ownership checks, and archive processors from MongoDB to Bunny SQL.
 - [ ] Move webhooks, inbox reads, sends, schedulers, and cron processors to SQL transactions.
 - [ ] Validate tenant isolation, deduplication, unread counts, receipts, media references, and retry behavior.
