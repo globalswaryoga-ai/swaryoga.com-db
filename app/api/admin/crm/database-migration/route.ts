@@ -50,6 +50,17 @@ const phases = [
     ],
   },
   {
+    id: 'meta',
+    title: 'Meta WhatsApp and messaging',
+    tasks: [
+      { id: 'meta-schema', title: 'Meta messages and webhook event SQL tables', status: 'in-progress' as MigrationTaskStatus },
+      { id: 'meta-repository', title: 'Bunny repository for Meta messages and conversations', status: 'in-progress' as MigrationTaskStatus },
+      { id: 'meta-import', title: 'Import and reconcile historical Meta messages', status: 'pending' as MigrationTaskStatus },
+      { id: 'meta-runtime', title: 'Meta webhook, inbox, send, and broadcast paths use Bunny SQL', status: 'pending' as MigrationTaskStatus },
+      { id: 'meta-access', title: 'Tenant WABA ownership and lead visibility remain isolated', status: 'pending' as MigrationTaskStatus },
+    ],
+  },
+  {
     id: 'workshops',
     title: 'Workshops and recordings',
     tasks: [
