@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,18 +17,9 @@ export async function GET(req: NextRequest) {
       return apiError('Unauthorized', 401);
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
-    const user = await crmDb.collection('admin_users').findOne(
-      { $or: [{ userId: decoded.userId }, { email: decoded.userId }] },
-      {
-        projection: {
-          password: 0, // never return password
-        },
-      }
-    );
+    const identity = String(decoded.userId || '');
+    const result = await bunnyExecute({ sql: 'SELECT * FROM admin_users_sql WHERE lower(user_id)=lower(?) OR lower(email)=lower(?) LIMIT 1', args: [identity, identity] });
+    const user: any = result.rows[0] || null;
 
     if (!user) {
       return apiError('User not found', 404);
@@ -36,18 +27,13 @@ export async function GET(req: NextRequest) {
 
     return apiSuccess({
       profile: {
-        userId: user.userId || user.email,
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        role: user.role || 'admin',
-        profilePhoto: user.profilePhoto || '',
-        company: user.company || '',
-        designation: user.designation || '',
-        tenantSlug: user.tenantSlug || '',
-        bankDetails: user.bankDetails || null,
-        createdAt: user.createdAt,
-        lastLoginAt: user.lastLoginAt,
+        userId: user.user_id || user.email,
+        name: user.name || '', email: user.email || '', phone: user.phone || '', role: user.role || 'admin',
+        profilePhoto: user.metadata_json ? JSON.parse(user.metadata_json).profilePhoto || '' : '',
+        company: user.metadata_json ? JSON.parse(user.metadata_json).company || '' : '',
+        designation: user.metadata_json ? JSON.parse(user.metadata_json).designation || '' : '',
+        tenantSlug: user.tenant_slug || '', bankDetails: user.metadata_json ? JSON.parse(user.metadata_json).bankDetails || null : null,
+        createdAt: user.created_at, lastLoginAt: user.last_login_at,
       },
     });
   } catch (err) {
@@ -75,10 +61,6 @@ export async function PUT(req: NextRequest) {
       return apiError('Profile photo is too large (max 500KB)', 400);
     }
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
-
     const update: Record<string, any> = { updatedAt: new Date() };
     if (name !== undefined) update.name = name.trim();
     if (phone !== undefined) update.phone = phone.trim();
@@ -87,11 +69,14 @@ export async function PUT(req: NextRequest) {
     if (designation !== undefined) update.designation = designation.trim();
     if (bankDetails !== undefined) update.bankDetails = bankDetails;
 
-    const result: any = await crmDb.collection('admin_users').findOneAndUpdate(
-      { $or: [{ userId: decoded.userId }, { email: decoded.userId }] },
-      { $set: update },
-      { returnDocument: 'after', projection: { password: 0 } }
-    );
+    const identity = String(decoded.userId || '');
+    const current = await bunnyExecute({ sql: 'SELECT * FROM admin_users_sql WHERE lower(user_id)=lower(?) OR lower(email)=lower(?) LIMIT 1', args: [identity, identity] });
+    const currentUser: any = current.rows[0];
+    if (!currentUser) return apiError('User not found', 404);
+    let metadata: any = {}; try { metadata = currentUser.metadata_json ? JSON.parse(currentUser.metadata_json) : {}; } catch {}
+    Object.assign(metadata, update);
+    const saved: any = await bunnyExecute({ sql: 'UPDATE admin_users_sql SET name=?,phone=?,metadata_json=?,updated_at=? WHERE user_id=?', args: [update.name ?? currentUser.name, update.phone ?? currentUser.phone, JSON.stringify(metadata), new Date().toISOString(), currentUser.user_id] });
+    const result: any = { ...currentUser, name: update.name ?? currentUser.name, phone: update.phone ?? currentUser.phone, metadata_json: JSON.stringify(metadata) };
 
     if (!result) {
       return apiError('User not found', 404);
@@ -99,7 +84,7 @@ export async function PUT(req: NextRequest) {
 
     return apiSuccess({
       profile: {
-        userId: result.userId || result.email,
+        userId: result.user_id || result.email,
         name: result.name || '',
         email: result.email || '',
         phone: result.phone || '',
@@ -107,7 +92,7 @@ export async function PUT(req: NextRequest) {
         profilePhoto: result.profilePhoto || '',
         company: result.company || '',
         designation: result.designation || '',
-        tenantSlug: result.tenantSlug || '',
+        tenantSlug: result.tenant_slug || '',
       },
     });
   } catch (err) {

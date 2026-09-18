@@ -172,6 +172,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### MongoDB Outage Route Recovery (Session: September 18, 2026) — Commit `pending`
+
+- CRM analytics overview now reaches Bunny SQL before any legacy MongoDB connection attempt.
+- CRM account profile and tenant module routes now read Bunny SQL instead of MongoDB `admin_users`/tenant collections.
+- Community member listing now reads preserved Bunny archive data and keeps the existing filters/pagination response shape; deletion reports an explicit Bunny mutation migration status.
+- Focused diagnostics, TypeScript checks, and `git diff --check` pass while the historical WhatsApp restore continues independently.
+
 ### Bunny SQL Schema Application and Meta Migration Ledger Repair (Session: September 18, 2026) — Commit `pending`
 
 - Applied and verified QR, Meta WhatsApp, and WhatsApp-account schemas in Bunny SQL; the remote ledger now records migrations `0019`–`0021` with SHA-256 checksums.
