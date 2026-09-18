@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Community } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { COMMUNITY_DESIGNS } from '@/lib/communityColorSystem';
+import { listBunnyCommunities } from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,13 +19,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-
-    // Fetch all communities from database
-    const communities = await Community.find({})
-      .select('id name isPublic category createdAt')
-      .sort({ createdAt: -1 })
-      .lean();
+    // Community metadata is read from Bunny SQL archive during the SQL cutover.
+    const communities = await listBunnyCommunities();
 
     // Enrich with design info from communityColorSystem
     const enrichedCommunities = communities.map((community: any) => {

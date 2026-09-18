@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     // Verify admin
-    const token = request.cookies.get('token')?.value;
+    const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || request.cookies.get('token')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Verify admin
-    const token = request.cookies.get('token')?.value;
+    const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || request.cookies.get('token')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

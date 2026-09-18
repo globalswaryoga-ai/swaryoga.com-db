@@ -6,12 +6,15 @@ import { createClient, type Client, type InStatement, type ResultSet } from '@li
  * This is an application connection layer only. Existing routes continue to use
  * MongoDB until each module has a SQL schema, repository, and verified cutover.
  */
-const databaseUrl = process.env.BUNNY_DATABASE_URL?.trim();
-const databaseToken = process.env.BUNNY_DATABASE_AUTH_TOKEN?.trim();
-
 let client: Client | null = null;
 
 function getConfig(): { url: string; authToken: string } {
+  // Read environment variables when the client is created rather than at module
+  // import time. Next.js dev workers can load this module before a refreshed
+  // environment is visible, which otherwise leaves a stale empty configuration.
+  const databaseUrl = process.env.BUNNY_DATABASE_URL?.trim();
+  const databaseToken = process.env.BUNNY_DATABASE_AUTH_TOKEN?.trim();
+
   if (!databaseUrl || !databaseToken) {
     throw new Error(
       'Bunny Database is not configured. Set BUNNY_DATABASE_URL and BUNNY_DATABASE_AUTH_TOKEN.',
@@ -56,5 +59,8 @@ export function closeBunnyDatabase(): void {
 }
 
 export function isBunnyDatabaseConfigured(): boolean {
-  return Boolean(databaseUrl && databaseToken);
+  return Boolean(
+    process.env.BUNNY_DATABASE_URL?.trim() &&
+      process.env.BUNNY_DATABASE_AUTH_TOKEN?.trim(),
+  );
 }

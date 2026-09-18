@@ -7,9 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB, Community, CommunityVideo } from '@/lib/db';
 import { getZoomAccessToken, syncZoomRecordingsToS3 } from '@/lib/zoom-s3-sync';
-import { getZoomRecordingSync } from '@/lib/schemas/enterpriseSchemas';
+import { getBunnyZoomRecordingByUuid, saveBunnyZoomRecording } from '@/lib/bunnyZoomRecordingRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,8 +42,6 @@ export async function POST(request: NextRequest) {
       );
     }
     syncCooldowns.set(meetingId, Date.now());
-
-    await connectDB();
 
     // Get Zoom access token
     console.log('[Sync Recordings] Getting Zoom access token...');
@@ -93,10 +90,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Check for existing sync record
-    const ZoomRecordingSync = getZoomRecordingSync();
-    const existingSync = await ZoomRecordingSync.findOne({
-      zoomMeetingId: meetingRecording.id,
-    });
+    const existingSync = await getBunnyZoomRecordingByUuid(String(meetingRecording.uuid || meetingRecording.id));
 
     if (existingSync && !body.force) {
       console.log('[Sync Recordings] Meeting already synced, returning existing data');
@@ -120,7 +114,7 @@ export async function POST(request: NextRequest) {
       const syncResult = await syncZoomRecordingsToS3(meetingRecording);
 
       // Save sync record
-      const syncRecord = new ZoomRecordingSync({
+      const syncRecord = await saveBunnyZoomRecording({
         zoomMeetingId: meetingRecording.id,
         zoomMeetingUuid: meetingRecording.uuid,
         topic: meetingRecording.topic,
@@ -143,17 +137,12 @@ export async function POST(request: NextRequest) {
         syncedAt: new Date(),
       });
 
-      await syncRecord.save();
-
       // Add to community if specified
       if (addToCommunity && communityId && syncResult.syncedFiles.length > 0) {
         console.log(`[Sync Recordings] Adding ${syncResult.syncedFiles.length} videos to community...`);
         
-        const community = await Community.findById(communityId);
-        if (!community) {
-          results.errors.push(`Community ${communityId} not found`);
-        } else {
-          for (const file of syncResult.syncedFiles) {
+        results.errors.push('Community video linking is pending Bunny SQL community-video cutover. Recording files were saved to Bunny SQL.');
+        /* for (const file of syncResult.syncedFiles) {
             // Only add gallery_view to community
             if (file.recordingType !== 'gallery_view') continue;
 
@@ -196,8 +185,7 @@ export async function POST(request: NextRequest) {
               status: 'synced',
             });
             results.synced++;
-          }
-        }
+          } */
       }
 
       results.recordings.push(...syncResult.syncedFiles.map(f => ({
@@ -278,13 +266,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Check which are already synced
-    await connectDB();
-    const ZoomRecordingSync = getZoomRecordingSync();
-    const syncedMeetings = await ZoomRecordingSync.find({
-      zoomMeetingId: { $in: meetings.map((m: any) => m.id) },
-    }).select('zoomMeetingId syncedAt').lean();
-
-    const syncedMap = new Map(syncedMeetings.map((s: any) => [s.zoomMeetingId, s.syncedAt]));
+    const syncedMap = new Map<number, string>();
+    for (const meeting of meetings) {
+      const synced = await getBunnyZoomRecordingByUuid(String(meeting.uuid || meeting.id));
+      if (synced) syncedMap.set(Number(meeting.id), synced.syncedAt);
+    }
 
     return NextResponse.json({
       success: true,

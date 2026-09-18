@@ -12,24 +12,23 @@ const json = (value: unknown, fallback: unknown) => JSON.stringify(value ?? fall
 const parse = <T>(value: unknown, fallback: T): T => {
   try { return value ? JSON.parse(String(value)) as T : fallback; } catch { return fallback; }
 };
-const bool = (value: unknown) => Boolean(Number(value));
-const isoDate = (value: unknown) => {
-  const date = new Date(String(value || ''));
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-};
+const bool = (value: unknown) => value === true || value === 1 || value === '1' || value === 'true';
 
 function cohort(row: any): BunnyWorkshopCohort {
-  return { ...row, _id: String(row.id), holidayDates: parse(row.holiday_dates_json, []), aiWorkerEnabled: bool(row.ai_worker_enabled), autoSyncWhatsappGroup: bool(row.auto_sync_whatsapp_group), autoSendRecordings: bool(row.auto_send_recordings), autoSyncZoomAttendance: bool(row.auto_sync_zoom_attendance), metadata: parse(row.metadata_json, {}) };
+  return { ...row, _id: String(row.id), startDate: row.start_date, endDate: row.end_date, classStartTime: row.class_start_time, classEndTime: row.class_end_time, zoomMeetingId: row.zoom_meeting_id, zoomJoinUrl: row.zoom_join_url, whatsappGroupLink: row.whatsapp_group_link, googleFormLink: row.google_form_link, aiWorkerEnabled: bool(row.ai_worker_enabled), autoSyncWhatsappGroup: bool(row.auto_sync_whatsapp_group), autoSendRecordings: bool(row.auto_send_recordings), autoSyncZoomAttendance: bool(row.auto_sync_zoom_attendance), zoomAttendanceLastSyncAt: row.zoom_attendance_last_sync_at, workerLastRunAt: row.worker_last_run_at, whatsappGroupId: row.whatsapp_group_id, communityId: row.community_id, recordingPolicy: row.recording_policy, createdByUserId: row.created_by_user_id, holidayDates: parse(row.holiday_dates_json, []), metadata: parse(row.metadata_json, {}) };
 }
-function student(row: any): BunnyWorkshopStudent { return { ...row, _id: String(row.id), cohortId: row.cohort_id, active: bool(row.active), metadata: parse(row.metadata_json, {}) }; }
-function attendance(row: any): BunnyWorkshopAttendance { return { ...row, _id: String(row.id), cohortId: row.cohort_id, studentId: row.student_id, classDate: row.class_date, joined: bool(row.joined), metadata: parse(row.metadata_json, {}) }; }
-function recording(row: any): BunnyWorkshopRecording { return { ...row, _id: String(row.id), cohortId: row.cohort_id, classDate: row.class_date, deliveredStudentIds: parse(row.delivered_student_ids_json, []), metadata: parse(row.metadata_json, {}) }; }
+function student(row: any): BunnyWorkshopStudent { return { ...row, _id: String(row.id), cohortId: row.cohort_id, whatsappJid: row.whatsapp_jid, whatsappNumber: row.whatsapp_number, leadId: row.lead_id, leadNumber: row.lead_number, active: bool(row.active), metadata: parse(row.metadata_json, {}) }; }
+function attendance(row: any): BunnyWorkshopAttendance { return { ...row, _id: String(row.id), cohortId: row.cohort_id, studentId: row.student_id, classDate: row.class_date, joinedAt: row.joined_at, leftAt: row.left_at, joined: bool(row.joined), durationSeconds: Number(row.duration_seconds || 0), attendancePercent: Number(row.attendance_percent || 0), metadata: parse(row.metadata_json, {}) }; }
+function recording(row: any): BunnyWorkshopRecording { return { ...row, _id: String(row.id), cohortId: row.cohort_id, classDate: row.class_date, dayNumber: row.day_number, zoomMeetingId: row.zoom_meeting_id, zoomMeetingUuid: row.zoom_meeting_uuid, youtubeSpeakerId: row.youtube_speaker_id, youtubeGalleryId: row.youtube_gallery_id, youtubeSpeakerUrl: row.youtube_speaker_url, youtubeGalleryUrl: row.youtube_gallery_url, bunnySpeakerUrl: row.bunny_speaker_url, bunnyGalleryUrl: row.bunny_gallery_url, deliveredStudentIds: parse(row.delivered_student_ids_json, []), metadata: parse(row.metadata_json, {}) }; }
 
 export async function initWorkshopBunnySchema() {
   await bunnyBatch([
     { sql: `CREATE TABLE IF NOT EXISTS workshop_cohorts_sql (id TEXT PRIMARY KEY,name TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT,holiday_dates_json TEXT NOT NULL DEFAULT '[]',class_start_time TEXT,class_end_time TEXT,timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',zoom_meeting_id TEXT,zoom_join_url TEXT,whatsapp_group_link TEXT,google_form_link TEXT,ai_worker_enabled INTEGER NOT NULL DEFAULT 1,auto_sync_whatsapp_group INTEGER NOT NULL DEFAULT 0,auto_send_recordings INTEGER NOT NULL DEFAULT 0,auto_sync_zoom_attendance INTEGER NOT NULL DEFAULT 1,zoom_attendance_last_sync_at TEXT,worker_last_run_at TEXT,whatsapp_group_id TEXT,community_id TEXT,recording_policy TEXT NOT NULL DEFAULT 'speaker_and_gallery',created_by_user_id TEXT,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)` , args: [] },
     { sql: `CREATE TABLE IF NOT EXISTS workshop_students_sql (id TEXT PRIMARY KEY,cohort_id TEXT NOT NULL,name TEXT NOT NULL,email TEXT,phone TEXT,whatsapp_jid TEXT,whatsapp_number TEXT,lead_id TEXT,lead_number TEXT,source TEXT NOT NULL DEFAULT 'manual',active INTEGER NOT NULL DEFAULT 1,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`, args: [] },
     { sql: `CREATE UNIQUE INDEX IF NOT EXISTS uq_workshop_student_jid ON workshop_students_sql(cohort_id,whatsapp_jid)`, args: [] },
+    { sql: `CREATE INDEX IF NOT EXISTS idx_workshop_student_email ON workshop_students_sql(cohort_id,email)`, args: [] },
+    { sql: `CREATE INDEX IF NOT EXISTS idx_workshop_student_phone ON workshop_students_sql(cohort_id,phone)`, args: [] },
+    { sql: `CREATE INDEX IF NOT EXISTS idx_workshop_student_whatsapp_number ON workshop_students_sql(cohort_id,whatsapp_number)`, args: [] },
     { sql: `CREATE INDEX IF NOT EXISTS idx_workshop_students_cohort ON workshop_students_sql(cohort_id,active)`, args: [] },
     { sql: `CREATE TABLE IF NOT EXISTS workshop_attendance_sql (id TEXT PRIMARY KEY,cohort_id TEXT NOT NULL,student_id TEXT NOT NULL,class_date TEXT NOT NULL,joined_at TEXT,left_at TEXT,joined INTEGER NOT NULL DEFAULT 0,duration_seconds INTEGER NOT NULL DEFAULT 0,attendance_percent INTEGER NOT NULL DEFAULT 0,source TEXT NOT NULL DEFAULT 'zoom',metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`, args: [] },
     { sql: `CREATE UNIQUE INDEX IF NOT EXISTS uq_workshop_attendance ON workshop_attendance_sql(cohort_id,student_id,class_date)`, args: [] },

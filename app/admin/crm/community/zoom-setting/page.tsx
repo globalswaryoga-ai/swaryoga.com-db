@@ -92,6 +92,7 @@ export default function ZoomSettingsPage() {
         body: JSON.stringify({
           zoomMeetingId,
           communityId: selectedCommunity,
+          communityName: getCommunityName(selectedCommunity),
           zoomTopic: zoomTopic || undefined,
           thumbnailUrl: thumbnailUrl || undefined,
           youtubePlaylistName: youtubePlaylistName || undefined,

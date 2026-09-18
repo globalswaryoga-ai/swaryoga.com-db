@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bunny SQL Runtime Deployment Alignment (Session: September 18, 2026) — Commit `pending`
+
+- Added the pending Bunny SQL authentication, leads, moderation, Zoom, recording, and storage repository files that were present locally but not included in the deployed commit.
+- Included the related route cutovers and environment templates so production CRM routes use the same Bunny-backed runtime as the local code.
+- Added the required `BUNNY_DATABASE_URL` and `BUNNY_DATABASE_AUTH_TOKEN` values to Vercel Production and redeployed; MongoDB Atlas remains a separate health warning while Bunny-backed routes continue independently.
+
 ### Bunny Dashboard Repository Deploy Fix (Session: September 18, 2026) — Commit `b48624bf`
 
 - Added the previously untracked `lib/bunnyDashboardRepository.ts` required by `app/api/admin/crm/analytics/route.ts` and `app/api/admin/dashboard/route.ts`.

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead, getQrWhatsAppChat, getQrWhatsAppMessage, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getQrWhatsAppChat, getQrWhatsAppMessage, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
-import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
+import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, normalizeConnectedPhone } from '@/lib/qrSessionIsolation';
 import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
+import { getBunnyCrmUserSettings, saveBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
@@ -107,22 +107,11 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const superAdmin = checkSuperAdmin(decoded);
 
       // Check if user has a custom bridge URL or permanent tenant ID
-      await connectDB();
-      const CRMUserSettings = getCRMUserSettings();
-      const settings = await CRMUserSettings.findOne(
-        { userId: decoded.userId },
-        { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1, senderDisplayName: 1 }
-      ).lean();
-
-      const rawStoredPhone = (settings as any)?.qrConnectedPhoneNumber || '';
-      const reconciledPhone = await reconcileQrConnectedPhone(decoded.userId, {
-        isSuperAdmin: superAdmin,
-        storedPhone: rawStoredPhone,
-        phoneChangedAt: (settings as any)?.qrPhoneChangedAt || null,
-      });
-      const authStatePhone = reconciledPhone.authStatePhone;
-      const storedPhone = reconciledPhone.resolvedPhone;
-      const phoneChangedAt = reconciledPhone.phoneChangedAt;
+      // QR session identity is now read from Bunny SQL. The bridge is an
+      // external Hetzner service and does not require MongoDB for resolution.
+      const settings = await getBunnyCrmUserSettings(decoded.userId);
+      const storedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || '');
+      const phoneChangedAt = settings?.qrPhoneChangedAt ? new Date(settings.qrPhoneChangedAt) : null;
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
@@ -136,10 +125,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
         : await resolveOwnerSessionKey({ userId: decoded.userId, tenantSlug: (decoded as any).tenantSlug });
       const sessionKey = ownerSessionKey || permanentTenantId;
       const ownerSettings: any = ownerSessionKey
-        ? await CRMUserSettings.findOne(
-            { permanentTenantId: ownerSessionKey },
-            { userId: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1 }
-          ).lean()
+        ? await getBunnyCrmUserSettings(ownerSessionKey)
         : null;
       const sessionOwnerUserId = String(ownerSettings?.userId || decoded.userId);
       const sessionStoredPhone = normalizeConnectedPhone(ownerSettings?.qrConnectedPhoneNumber || storedPhone);
@@ -252,19 +238,13 @@ async function saveConnectedPhone(
     // Strip the @s.whatsapp.net suffix if present: "919876543210:xx@s.whatsapp.net" → "919876543210"
     const phone = phoneId.split(':')[0].split('@')[0].replace(/\D/g, '');
     if (!phone) return;
-    const CRMUserSettings = getCRMUserSettings();
     const normalizedPhone = normalizeConnectedPhone(phoneId);
-    const authStatePhone = await getAuthStatePhone(userId);
-    const nextPhone = authStatePhone || normalizedPhone;
+    const nextPhone = normalizedPhone;
     const update: any = { qrConnectedPhoneNumber: phone };
     if (isChange) {
       update.qrPhoneChangedAt = new Date();
     }
-    await CRMUserSettings.updateOne(
-      { userId },
-      { $set: { ...update, qrConnectedPhoneNumber: nextPhone || phone } },
-      { upsert: true }
-    );
+    await saveBunnyCrmUserSettings(userId, { ...update, qrConnectedPhoneNumber: nextPhone || phone });
     invalidateBridgeCache(userId);
     console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}${isChange ? ' (PHONE CHANGED)' : ''}`);
     if (isChange && resolved) {
@@ -281,11 +261,11 @@ async function saveConnectedPhone(
  */
 async function clearPhoneChangedFlag(userId: string): Promise<void> {
   try {
-    const CRMUserSettings = getCRMUserSettings();
-    await CRMUserSettings.updateOne(
-      { userId },
-      { $unset: { qrPhoneChangedAt: 1 } }
-    );
+    const settings = await getBunnyCrmUserSettings(userId);
+    if (settings) {
+      delete settings.qrPhoneChangedAt;
+      await saveBunnyCrmUserSettings(userId, settings);
+    }
     invalidateBridgeCache(userId);
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to clear phoneChangedAt:', (e as Error).message);

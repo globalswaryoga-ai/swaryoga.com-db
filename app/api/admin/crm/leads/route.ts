@@ -17,6 +17,7 @@ import { getTenantFilter, enrichTenantData } from '@/lib/crm/tenantIsolation';
 export const dynamic = 'force-dynamic';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { logger } from '@/lib/logger';
+import { listBunnyLeads } from '@/lib/bunnyLeadsRepository';
 
 // Mark as dynamic since this route uses request.headers or request.url
 
@@ -51,6 +52,8 @@ export async function GET(request: NextRequest) {
     const label = url.searchParams.get('label');
     const q = url.searchParams.get('q');
     const userIdParam = url.searchParams.get('userId');
+    const source = url.searchParams.get('source');
+    const excludeSource = url.searchParams.get('excludeSource');
     const metaOnly24h = url.searchParams.get('metaOnly24h') === '1';  // Filter for Meta messages in 24h
     const qrOnly = url.searchParams.get('qrOnly') === '1';            // Filter for QR bridge contacts only
     // NOTE: Some admin screens (e.g., Broadcast) need a large dataset so client-side
@@ -62,6 +65,26 @@ export async function GET(request: NextRequest) {
     const maxLimit = selectAll ? 10000 : 200;
     const limit = Math.min(requestedLimit, maxLimit);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
+
+    // Bunny SQL is the current lead archive/live read source. Preserve the
+    // existing response shape while Atlas is unavailable; write operations
+    // remain on their existing path until SQL mutation parity is verified.
+    if (!url.searchParams.get('ids') && !qrOnly && !metaOnly24h) {
+      const bunnyResult = await listBunnyLeads({
+        visibleUserIds,
+        viewerUserId,
+        status,
+        workshop,
+        label,
+        source,
+        excludeSource,
+        q,
+        userId: userIdParam,
+        skip,
+        limit,
+      });
+      return NextResponse.json({ success: true, data: bunnyResult }, { status: 200, headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' } });
+    }
 
     await connectDB();
     const Lead = getLead();
@@ -89,7 +112,6 @@ export async function GET(request: NextRequest) {
     // admin must be scoped to their OWN qr_whatsapp leads (no cross-tenant view).
     // The QR pages use the unified lead pool (no source param), so they pass
     // scope=own instead; qrOnly is also a QR context and must be own-scoped.
-    const source = url.searchParams.get('source');
     const scopeOwn = url.searchParams.get('scope') === 'own';
     const isQrSource = source === 'qr_whatsapp';
 
@@ -151,7 +173,6 @@ export async function GET(request: NextRequest) {
       accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
-    const excludeSource = url.searchParams.get('excludeSource');
     // status/workshop/label accept comma-separated values for multi-select filters.
     if (status) {
       const values = status.split(',').map(s => s.trim()).filter(Boolean);

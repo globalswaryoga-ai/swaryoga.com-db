@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { getLead, getCrmLeadSettings } from '@/lib/schemas/enterpriseSchemas';
 import { CANONICAL_LABELS } from '@/lib/crm/labels';
+import { getBunnyLeadMetadata } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,14 +31,23 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const userIdParam = url.searchParams.get('userId');
     const sourceParam = url.searchParams.get('source');
+    const excludeSourceParam = url.searchParams.get('excludeSource') || '';
     const superAdmin = isSuperAdmin(decoded);
+
+    const bunnyMetadata = await getBunnyLeadMetadata({
+      visibleUserIds: superAdmin ? null : [viewerUserId],
+      viewerUserId,
+      source: sourceParam,
+      excludeSource: excludeSourceParam || undefined,
+      userId: userIdParam,
+    });
+    return NextResponse.json({ success: true, data: { ...bunnyMetadata, canonicalLabels: CANONICAL_LABELS } }, { status: 200 });
 
     const baseFilter: any = {};
     // Source filter (e.g. qr_whatsapp)
     if (sourceParam && String(sourceParam).trim()) {
       baseFilter.source = String(sourceParam).trim();
     }
-    const excludeSourceParam = url.searchParams.get('excludeSource');
     if (excludeSourceParam) {
       const excluded = excludeSourceParam.split(',').map((s: string) => s.trim()).filter(Boolean);
       if (excluded.length) baseFilter.source = { ...(typeof baseFilter.source === 'object' ? baseFilter.source : {}), $nin: excluded };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import mongoose from 'mongoose';
+import { listBunnyModerationItems, countBunnyModerationPending } from '@/lib/bunnyModerationRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,12 @@ function getTip() {
  */
 export async function GET(request: NextRequest) {
   try {
+    const bunnyUrl = new URL(request.url);
+    const requestedStatus = bunnyUrl.searchParams.get('status') || 'answered';
+    const bunnyLimit = parseInt(bunnyUrl.searchParams.get('limit') || '50');
+    const bunnyItems = await listBunnyModerationItems('community_tips', requestedStatus, bunnyLimit);
+    const bunnyPendingCount = await countBunnyModerationPending('community_tips');
+    if (requestedStatus === 'pending' || requestedStatus === 'answered' || requestedStatus === 'all') return NextResponse.json({ success: true, tips: bunnyItems, pendingCount: bunnyPendingCount, categories: [] });
     await connectDB();
     const Tip = getTip();
     

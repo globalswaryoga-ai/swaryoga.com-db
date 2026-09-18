@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { syncDueWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +9,6 @@ export async function GET(request: NextRequest) {
   if (expected && request.headers.get('authorization') !== `Bearer ${expected}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  await connectDB();
   const results = await syncDueWorkshopZoomAttendance();
   return NextResponse.json({ success: true, checked: results.length, results });
 }

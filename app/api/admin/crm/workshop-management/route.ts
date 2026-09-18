@@ -15,10 +15,14 @@ export async function GET(request: NextRequest) {
   if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const cohortId = request.nextUrl.searchParams.get('cohortId');
   if (cohortId) {
-    const cohort = await getCohort(cohortId);
-    if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-    const [students, attendance, recordings] = await Promise.all([listStudents(cohortId), listAttendance(cohortId), listRecordings(cohortId)]);
-    return NextResponse.json({ cohort, students, attendance, recordings });
+    try {
+      const cohort = await getCohort(cohortId);
+      if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+      const [students, attendance, recordings] = await Promise.all([listStudents(cohortId), listAttendance(cohortId), listRecordings(cohortId)]);
+      return NextResponse.json({ cohort, students, attendance, recordings });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load Bunny workshop' }, { status: 500 });
+    }
   }
   try { return NextResponse.json({ cohorts: await listCohorts() }); }
   catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load Bunny workshops' }, { status: 500 }); }
