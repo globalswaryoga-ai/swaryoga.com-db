@@ -172,6 +172,29 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Live Bunny Database Migration Dashboard and CRM Settings Cutover (Session: September 18, 2026) — Commit `fece5a04`
+
+- Added `/admin/crm/database-migration` with a read-only checklist, phase progress bars, Bunny SQL health, migration-ledger status, and automatic 15-second refresh.
+- Added the dashboard to the Super Admin navigation so migration progress is visible without manually reading repository files.
+- Moved CRM settings GET/PUT and QR auto-provision persistence to Bunny SQL, including Bunny-backed bridge-secret uniqueness and tenant-owner lookup.
+- MongoDB remains protected as temporary legacy storage; QR reconciliation, chats/messages, archive metadata, and remaining modules are still tracked as pending work.
+
+### MongoDB → Bunny SQL Cutover Audit and Workshop Stability Fixes (Session: September 18, 2026) — Commit `N/A (working tree only)`
+
+- Added `docs/MONGODB_TO_BUNNY_SQL_CUTOVER_TODO.md` with the complete staged SQL migration backlog, parity rules, and rollback requirements.
+- Fixed `lib/bunnyDatabase.ts` to read Bunny environment variables when the client is created, preventing stale Next.js module initialization from reporting a false “Bunny Database is not configured” error.
+- Added `migrations/0016_admin_authentication.sql`, `lib/bunnyAuthRepository.ts`, and `scripts/migrate-admin-users-archive-to-bunny.mjs`; `/api/admin/auth/login` now verifies admin bcrypt hashes and records sign-ins in Bunny SQL.
+- Moved QR bridge session resolution and connected-phone persistence in `app/api/admin/crm/whatsapp/qr-bridge/route.ts` to Bunny SQL so a MongoDB outage no longer prevents the Hetzner QR session from loading.
+- Added Bunny SQL Zoom mapping and recording-ledger repositories; Community Zoom Settings and Zoom Management recording reads/writes no longer require MongoDB. Community-video linking and YouTube-result reconciliation remain explicitly tracked as follow-up work.
+- Fixed Community Moderation startup in `app/admin/crm/community-moderation/page.tsx`: archived submission reads use Bunny SQL first and client requests time out instead of leaving the page stuck when a backend is unavailable.
+- Moved CRM analytics overview and Super Admin dashboard metrics to Bunny SQL/archive reads in `lib/bunnyDashboardRepository.ts`; `/api/admin/crm/analytics?view=overview` and `/api/admin/dashboard` no longer require MongoDB Atlas.
+- Fixed `app/api/cron/export/route.ts` so daily exports snapshot Bunny SQL directly to Bunny Storage via `lib/bunnySqlStorageSnapshot.ts`; Atlas outages no longer block the SQL archive pipeline. `CRON_SECRET` must be configured for the cron to run.
+- Added `lib/bunnyLeadsRepository.ts`; the main Leads list and metadata GET routes now read `leads_sql` with tenant ownership, search, pagination, status/workshop/label/source filters preserved. Lead writes remain staged until SQL mutation parity is complete.
+- Fixed `lib/workshopBunnyRepository.ts` so SQL snake_case rows expose the camelCase cohort, student, attendance, and recording fields expected by the UI and workers.
+- Added workshop student identity indexes, removed the unnecessary MongoDB connection from `app/api/cron/workshop-zoom-attendance/route.ts`, and hardened the detailed workshop GET route's Bunny error response.
+- Added `BUNNY_DATABASE_URL` and `BUNNY_DATABASE_AUTH_TOKEN` to the committed environment templates; `.env.local` values remain local and are not printed or committed.
+- Validation: target diagnostics, TypeScript checks, and `git diff --check` pass. Full SQL cutover remains staged; legacy Mongo-backed modules are not switched blindly.
+
 ### Delayed Zoom Recording Processing Safety (Session: September 15, 2026) — Commit `N/A (working tree only)`
 
 - Updated `scripts/zoom-recording-uploader.mjs` with a 10-minute minimum age before processing newly ended Zoom meetings.
