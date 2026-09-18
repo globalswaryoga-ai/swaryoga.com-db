@@ -172,6 +172,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Zoom Management and Workshop Recording Data Verification (Session: September 18, 2026) — Commit `pending`
+
+- Verified Bunny SQL contains 4 Zoom community mappings and 1 workshop recording delivery.
+- The workshop delivery has both Speaker/Gallery YouTube URLs and both Speaker/Gallery Bunny URLs; no preserved Mongo Zoom/recording source collections remain to import.
+- The Zoom recording-sync ledger is currently empty and remains a follow-up only for future uploader records.
+- Updated the live migration dashboard and cutover checklist to reflect the verified Zoom state.
+
 ### Bunny SQL Community Data Restore (Session: September 18, 2026) — Commit `pending`
 
 - Added `migrations/0022_community_sql.sql` and extended `lib/bunnyCommunityRepository.ts` for members, videos, posts, watch logs, experiences, and questions.

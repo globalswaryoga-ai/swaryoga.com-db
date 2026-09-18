@@ -70,7 +70,7 @@ const phases = [
       { id: 'workshop-core', title: 'Workshop cohorts and attendance use Bunny SQL', status: 'completed' as MigrationTaskStatus },
       { id: 'workshop-reconcile', title: 'Reconcile all students, attendance, recordings, and deliveries', status: 'blocked' as MigrationTaskStatus },
       { id: 'workshop-leads', title: 'Workshop student CRM lead sync uses Bunny SQL', status: 'pending' as MigrationTaskStatus },
-      { id: 'recording-links', title: 'YouTube and Bunny recording links reconcile completely', status: 'pending' as MigrationTaskStatus },
+      { id: 'recording-links', title: 'Existing YouTube and Bunny recording links reconcile', status: 'completed' as MigrationTaskStatus },
     ],
   },
   {

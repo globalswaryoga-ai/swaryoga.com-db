@@ -107,6 +107,8 @@
 - [ ] Replace the legacy Mongo community-video link path with a Bunny SQL community-video repository.
 - [ ] When a recording is mapped to a Bunny workshop cohort, upsert Speaker/Gallery Bunny and YouTube links into `workshop_recordings_sql`.
 - [ ] Run the workshop student worker only after recording delivery links are present and verify duplicate-safe student delivery.
+- [x] Verified Bunny Zoom state: 4 community mappings and 1 workshop recording delivery with Speaker/Gallery YouTube and Bunny URLs.
+- [ ] Populate the Zoom recording-sync ledger when additional preserved uploader records become available; current Bunny ledger is empty.
 
 ### Phase 6 — Decommission and operations
 
