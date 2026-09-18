@@ -14,6 +14,7 @@ import {
 export const dynamic = 'force-dynamic';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { listBunnyMetaConversations } from '@/lib/bunnyMetaWhatsAppRepository';
 
 export const revalidate = 0;
 
@@ -116,6 +117,19 @@ export async function GET(request: NextRequest) {
     // have no Meta conversations of their own.
     if (providerParam !== 'all' && !superAdmin) {
       return formatCrmSuccess({ conversations: [], total: 0 }, buildMetadata(0, limit, skip));
+    }
+
+    // Bunny SQL is the new runtime source. Use it as soon as migrated/new
+    // records exist, while retaining MongoDB only as a temporary fallback for
+    // historical records that have not yet been imported.
+    if (providerParam !== 'all') {
+      const bunnyRows = await listBunnyMetaConversations(limit + skip);
+      if (bunnyRows.length > 0) {
+        return formatCrmSuccess(
+          { conversations: bunnyRows.slice(skip, skip + limit), total: bunnyRows.length },
+          buildMetadata(bunnyRows.length, limit, skip),
+        );
+      }
     }
 
     await connectDB();

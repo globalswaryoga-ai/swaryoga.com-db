@@ -52,3 +52,26 @@ export async function countBunnyMetaMessages(input: { phoneNumber?: string; lead
   const result = await bunnyExecute({ sql: `SELECT COUNT(*) AS count FROM meta_messages_sql WHERE ${clauses.join(' AND ')}`, args });
   return Number(result.rows[0]?.count || 0);
 }
+
+export async function listBunnyMetaConversations(limit = 100) {
+  await initBunnyMetaWhatsAppSchema();
+  const result = await bunnyExecute({ sql: `SELECT phone_number, COUNT(*) AS message_count, MAX(COALESCE(sent_at,created_at)) AS last_at, MAX(created_at) AS updated_at FROM meta_messages_sql WHERE provider = 'meta' GROUP BY phone_number ORDER BY last_at DESC LIMIT ?`, args: [Math.min(Math.max(limit, 1), 500)] });
+  const rows: Array<Record<string, any>> = [];
+  for (const summary of result.rows) {
+    const latest = await bunnyExecute({ sql: 'SELECT data_json FROM meta_messages_sql WHERE provider = \'meta\' AND phone_number = ? ORDER BY COALESCE(sent_at,created_at) DESC LIMIT 1', args: [String(summary.phone_number)] });
+    const message = parse<Record<string, any>>(latest.rows[0]?.data_json, {});
+    const unread = await bunnyExecute({ sql: "SELECT COUNT(*) AS count FROM meta_messages_sql WHERE provider = 'meta' AND phone_number = ? AND direction = 'inbound' AND status <> 'read'", args: [String(summary.phone_number)] });
+    rows.push({
+      _id: String(summary.phone_number),
+      leadId: message.leadId || '',
+      phoneNumber: String(summary.phone_number),
+      lastMessageContent: message.messageContent || '',
+      lastMessageAt: summary.last_at || summary.updated_at,
+      lastDirection: message.direction || 'inbound',
+      unreadCount: Number(unread.rows[0]?.count || 0),
+      hasLead: Boolean(message.leadId),
+      source: 'whatsapp',
+    });
+  }
+  return rows;
+}

@@ -17,6 +17,7 @@ import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 import { normalizePhone as normalizePhoneDigits, resubscribeWABAWebhooks } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { getMetaCredentialsByPhoneNumberId } from '@/lib/whatsappAccounts';
+import { upsertBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { META_WHATSAPP_OWNER_IDS } from '@/lib/crm-handlers';
 
 // Import media helpers
@@ -804,6 +805,29 @@ async function handleWebhookPayload(payload: any) {
               },
               { upsert: true }
             );
+
+            // Bunny SQL is the future runtime source. Keep this write
+            // non-blocking for the legacy Mongo compatibility path while the
+            // historical import/reconciliation is still in progress.
+            await upsertBunnyMetaMessage({
+              _id: inboundWaMessageId || `${from}-${msgTimestampSec}-${body}`,
+              leadId: String(lead._id),
+              phoneNumber: from,
+              direction: 'inbound',
+              messageType: finalMessageType,
+              messageContent: body,
+              status: 'delivered',
+              deliveredAt: now,
+              sentAt: msgSentAt,
+              waMessageId: inboundWaMessageId,
+              senderNumber: ourBusinessNumber,
+              provider: 'meta',
+              media: insertData.media,
+              isRead: false,
+              createdAt: now,
+            }).catch((bunnyError) => {
+              console.error('[WEBHOOK] Bunny Meta message write failed:', bunnyError);
+            });
 
             await logWebhookEvent({
               kind: 'inbound_message',

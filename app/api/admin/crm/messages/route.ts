@@ -18,6 +18,7 @@ import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
 import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
+import { listBunnyMetaMessages, countBunnyMetaMessages } from '@/lib/bunnyMetaWhatsAppRepository';
 
 /**
  * WhatsApp message management - REFACTORED
@@ -109,6 +110,23 @@ export async function GET(request: NextRequest) {
           { sentAt: { $exists: false }, createdAt: { $lt: beforeDate } },
         ],
       });
+    }
+
+    // Prefer Bunny SQL for a selected Meta conversation. If the historical
+    // import has not populated Bunny yet, continue to the legacy Mongo fallback
+    // so existing records remain available during reconciliation.
+    if (providerParam !== 'all' && (filterParams.phoneNumber || filterParams.leadId)) {
+      const bunnyMessages = await listBunnyMetaMessages({
+        phoneNumber: filterParams.phoneNumber ? normalizePhone(filterParams.phoneNumber) : undefined,
+        leadId: filterParams.leadId,
+        limit,
+        skip,
+        before: beforeParam || undefined,
+      });
+      if (bunnyMessages.length > 0) {
+        const bunnyTotal = await countBunnyMetaMessages({ phoneNumber: filterParams.phoneNumber ? normalizePhone(filterParams.phoneNumber) : undefined, leadId: filterParams.leadId });
+        return formatCrmSuccess({ messages: bunnyMessages, total: bunnyTotal }, buildMetadata(bunnyTotal, limit, skip));
+      }
     }
 
     // Access control:
