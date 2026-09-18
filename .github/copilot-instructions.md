@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Dashboard API Serverless Module-Load Fix (Session: September 18, 2026) — Commit `pending`
+
+- Removed the legacy `BunnyStorageClient`/`node-fetch` import from `lib/bunnyDashboardRepository.ts`, which could crash `/api/admin/dashboard` and CRM analytics before authentication with an HTML 500 response.
+- Optional Bunny Storage snapshots now use lazy native `fetch` and safely fall back to Bunny SQL/archive data when unavailable.
+- Focused route diagnostics and production build validation are included before deployment.
+
 ### Messenger and Instagram Bunny SQL Migration Foundation (Session: September 18, 2026) — Commit `pending`
 
 - Added `migrations/0024_social_inbox_sql.sql` for connected social accounts, Messenger/Instagram conversations, and messages with indexed scope/platform fields and lossless `data_json` preservation.

@@ -1,5 +1,4 @@
 import { bunnyExecute } from '@/lib/bunnyDatabase';
-import { BunnyStorageClient } from '@/lib/backup/bunny-client';
 
 function parse(value: unknown): any | null { try { return JSON.parse(String(value)); } catch { return null; } }
 function dateValue(value: any) { const raw = value?.$date || value; const time = new Date(raw || 0).getTime(); return Number.isFinite(time) ? time : 0; }
@@ -9,20 +8,25 @@ async function archived(collection: string) {
   return result.rows.map((row: any) => parse(row.document_json)).filter(Boolean);
 }
 
-let storageClient: BunnyStorageClient | null | undefined;
-function getStorageClient() {
-  if (storageClient !== undefined) return storageClient;
+let storageConfig: { key: string; zone: string } | null | undefined;
+function getStorageConfig() {
+  if (storageConfig !== undefined) return storageConfig;
   const key = process.env.BUNNY_STORAGE_KEY || process.env.BUNNY_STORAGE_API_KEY || process.env.BUNNY_STORAGE_READONLY_KEY;
-  storageClient = key ? new BunnyStorageClient(key, process.env.BUNNY_STORAGE_ZONE_BACKUP || process.env.BUNNY_STORAGE_ZONE) : null;
-  return storageClient;
+  const zone = process.env.BUNNY_STORAGE_ZONE_BACKUP || process.env.BUNNY_STORAGE_ZONE;
+  storageConfig = key && zone ? { key, zone } : null;
+  return storageConfig;
 }
 
 async function latestExport(collection: string) {
-  const client = getStorageClient();
-  if (!client) return null;
+  const config = getStorageConfig();
+  if (!config) return null;
   try {
-    const data = await client.download(`/data/latest/${collection}.json`, 1);
-    const parsed = JSON.parse(data.toString());
+    const response = await fetch(`https://storage.bunnycdn.com/${config.zone}/data/latest/${collection}.json`, {
+      headers: { AccessKey: config.key },
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    const parsed = await response.json();
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
@@ -30,11 +34,15 @@ async function latestExport(collection: string) {
 }
 
 async function latestSqlSnapshot(table: string) {
-  const client = getStorageClient();
-  if (!client) return null;
+  const config = getStorageConfig();
+  if (!config) return null;
   try {
-    const data = await client.download(`/sql/latest/${table}.json`, 1);
-    const parsed = JSON.parse(data.toString());
+    const response = await fetch(`https://storage.bunnycdn.com/${config.zone}/sql/latest/${table}.json`, {
+      headers: { AccessKey: config.key },
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    const parsed = await response.json();
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
