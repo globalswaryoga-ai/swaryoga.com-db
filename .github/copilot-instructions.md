@@ -172,6 +172,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bunny SQL Schema Application and Meta Migration Ledger Repair (Session: September 18, 2026) — Commit `pending`
+
+- Applied and verified QR, Meta WhatsApp, and WhatsApp-account schemas in Bunny SQL; the remote ledger now records migrations `0019`–`0021` with SHA-256 checksums.
+- Repaired the Meta schema mismatch found during application by adding the declared `sent_by_user_id` ownership column before reapplying the index.
+- Verified Bunny SQL connectivity and table creation; Meta/QR tables are empty until historical source data can be imported.
+- MongoDB remains untouched; historical import is blocked by the current Atlas server-selection timeout.
+
 ### Meta WhatsApp Account Lookup on Bunny SQL (Session: September 18, 2026) — Commit `11d6f48d`
 
 - Added `migrations/0021_whatsapp_accounts_sql.sql` and `lib/bunnyWhatsAppAccounts.ts` for Meta account ownership and encrypted credential storage.

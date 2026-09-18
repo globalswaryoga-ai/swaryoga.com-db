@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS meta_messages_sql (
   status TEXT NOT NULL DEFAULT 'queued',
   wa_message_id TEXT,
   sender_number TEXT,
+  sent_by_user_id TEXT,
   sent_at TEXT,
   created_at TEXT,
   updated_at TEXT,

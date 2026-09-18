@@ -8,11 +8,12 @@ function iso(value: unknown): string | null { return value ? new Date(value as a
 
 export async function initBunnyMetaWhatsAppSchema() {
   await bunnyBatch([
-    { sql: 'CREATE TABLE IF NOT EXISTS meta_messages_sql (document_id TEXT PRIMARY KEY,lead_id TEXT,phone_number TEXT NOT NULL DEFAULT \'\',provider TEXT NOT NULL DEFAULT \'meta\',direction TEXT NOT NULL DEFAULT \'outbound\',message_type TEXT NOT NULL DEFAULT \'text\',status TEXT NOT NULL DEFAULT \'queued\',wa_message_id TEXT,sender_number TEXT,sent_at TEXT,created_at TEXT,updated_at TEXT,data_json TEXT NOT NULL)', args: [] },
+    { sql: 'CREATE TABLE IF NOT EXISTS meta_messages_sql (document_id TEXT PRIMARY KEY,lead_id TEXT,phone_number TEXT NOT NULL DEFAULT \'\',provider TEXT NOT NULL DEFAULT \'meta\',direction TEXT NOT NULL DEFAULT \'outbound\',message_type TEXT NOT NULL DEFAULT \'text\',status TEXT NOT NULL DEFAULT \'queued\',wa_message_id TEXT,sender_number TEXT,sent_by_user_id TEXT,sent_at TEXT,created_at TEXT,updated_at TEXT,data_json TEXT NOT NULL)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_phone_time ON meta_messages_sql(phone_number,sent_at DESC,created_at DESC)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_lead_time ON meta_messages_sql(lead_id,sent_at DESC,created_at DESC)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_provider ON meta_messages_sql(provider,sent_at DESC)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_wa_id ON meta_messages_sql(wa_message_id)', args: [] },
+    { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_owner ON meta_messages_sql(sent_by_user_id)', args: [] },
   ]);
 }
 
