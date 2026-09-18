@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { listBunnyCommunityMembers } from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +25,9 @@ export async function GET(request: NextRequest) {
     // No limit by default (0 = unlimited)
     const limit = limitParam ? parseInt(limitParam) : 0;
 
-    const result = await bunnyExecute({ sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'communitymembers' ORDER BY created_at DESC", args: [] });
-    let members = result.rows.flatMap((row: any) => { try { return [JSON.parse(String(row.document_json))]; } catch { return []; } });
-    members = members.filter((member: any) => (!communityId || member.communityId === communityId) && (status === 'all' || (status === 'pending' ? member.approved === false : member.status === status)));
-    const total = members.length;
-    const membersWithDevices = members.slice(skip, limit > 0 ? skip + limit : undefined).map((member: any) => ({ ...member, deviceCount: 0, activeDeviceCount: 0, latestDevice: null }));
+    const bunnyMembers = await listBunnyCommunityMembers({ communityId: communityId || undefined, status, skip, limit });
+    const total = bunnyMembers.total;
+    const membersWithDevices = bunnyMembers.members;
 
     return NextResponse.json(
       {

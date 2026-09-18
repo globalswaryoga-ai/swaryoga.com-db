@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bunny SQL Community Data Restore (Session: September 18, 2026) — Commit `pending`
+
+- Added `migrations/0022_community_sql.sql` and extended `lib/bunnyCommunityRepository.ts` for members, videos, posts, watch logs, experiences, and questions.
+- Added non-destructive `scripts/restore-community-from-bunny-archive.mjs`; verified 435 members, 22 videos, 10 posts, 22 watch logs, 2 experiences, and 1 question restored into Bunny SQL.
+- Community member reads now use the Bunny repository; moderation mutations and remaining e-learning runtime paths remain separate follow-up work.
+
 ### Bunny SQL QR/Meta Historical Restore (Session: September 18, 2026) — Commit `pending`
 
 - Added `scripts/restore-whatsapp-data-from-bunny-archive.mjs` to restore preserved Mongo documents from Bunny SQL `mongo_documents` without contacting MongoDB.

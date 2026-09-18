@@ -78,7 +78,8 @@ const phases = [
     title: 'Remaining platform modules',
     tasks: [
       { id: 'forms', title: 'Forms, signup, billing, and plan access', status: 'pending' as MigrationTaskStatus },
-      { id: 'community', title: 'Community, moderation, and e-learning', status: 'pending' as MigrationTaskStatus },
+      { id: 'community-data', title: 'Community members, videos, posts, watch logs, experiences, and questions', status: 'completed' as MigrationTaskStatus },
+      { id: 'community-mutations', title: 'Community moderation mutations and e-learning runtime', status: 'pending' as MigrationTaskStatus },
       { id: 'automation', title: 'Chatbots, workflows, email, and Sadhana', status: 'pending' as MigrationTaskStatus },
       { id: 'accounting', title: 'Accounting, Tally, planner, and remaining website data', status: 'pending' as MigrationTaskStatus },
       { id: 'decommission', title: 'Remove MongoDB runtime dependencies after acceptance testing', status: 'pending' as MigrationTaskStatus },
