@@ -986,6 +986,9 @@ export default function QRWhatsAppPage() {
           } else if (qr?.qr) {
             setQrData(qr.qr);
             setError(null);
+          } else if (qr?.error) {
+            setQrData(null);
+            setError(`Bridge could not start QR: ${qr.error}`);
           }
         } catch {
           // Keep existing QR if fetch fails
@@ -1049,6 +1052,9 @@ export default function QRWhatsAppPage() {
             // Bridge is starting but hasn't produced a QR yet — show friendly state
             setQrData(null);
             setError('Waiting for bridge to produce QR. Click Reconnect if this persists.');
+          } else if (qr?.error) {
+            setQrData(null);
+            setError(`Bridge could not start QR: ${qr.error}`);
           }
       } catch {
         // Keep existing QR if fetch fails

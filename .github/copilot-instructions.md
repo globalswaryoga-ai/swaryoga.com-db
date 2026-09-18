@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Bridge Startup Diagnostics (Session: September 19, 2026) — Commit `pending`
+
+- Updated `deploy/wa-baileys/index.js` to expose `lastStartError` in `/status` and `/qr` when a session cannot initialize.
+- Updated `app/admin/crm/qr/page.tsx` to show the bridge startup error instead of an indefinite generic QR waiting message.
+- Hetzner bridge HTTPS is reachable, but SSH access is currently rejected for both configured users, so PM2/Docker logs and restart remain blocked until the correct key/user is supplied.
+
 ### CRM Subscription Bunny SQL Cutover (Session: September 18, 2026) — Commit `pending`
 
 - Updated `app/api/crm-site/subscription/route.ts` to resolve tenant, lead usage, and user usage from Bunny SQL instead of connecting to MongoDB Atlas.

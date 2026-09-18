@@ -95,6 +95,7 @@ class UserSession {
     this.qrCode = null;
     this.qrBase64 = null;
     this.connectionState = 'disconnected';
+    this.lastStartError = null;
     this.retryCount = 0;
     this.phoneInfo = null;
     this.lastQrTime = 0;
@@ -725,6 +726,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
+        session.lastStartError = null;
         session.qrCode = qr;
         session.qrBase64 = await QRCode.toDataURL(qr);
         session.connectionState = 'connecting';
@@ -1343,6 +1345,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
 
   } catch (err) {
     console.error(`[${session.ownerUserId}] startSocket error for session ${session.sessionKey}:`, err.message);
+    session.lastStartError = String(err?.message || err);
+    session.connectionState = 'disconnected';
     if (!session.intentionalDisconnect) {
       session.retryCount++;
       const delay = Math.min(session.retryCount * 3000, 30000);
@@ -1452,6 +1456,7 @@ app.get('/status', async (req, res) => {
       isStabilized: session.connectionStabilizedTime > 0,
       lastDisconnectTime: session.lastDisconnectTime,
     },
+    lastStartError: session.lastStartError || null,
   });
 });
 
@@ -1497,7 +1502,9 @@ app.get('/qr', async (req, res) => {
     return res.json({ connected: true, message: 'Already connected', qr: null });
   }
   if (!session.qrBase64) {
-    return res.json({ connected: false, qr: null, message: 'QR not yet generated. Waiting...' });
+    return res.json({ connected: false, qr: null, message: session.lastStartError
+      ? 'Bridge failed to start QR session.'
+      : 'QR not yet generated. Waiting...', error: session.lastStartError || null });
   }
   res.json({
     connected: false,
