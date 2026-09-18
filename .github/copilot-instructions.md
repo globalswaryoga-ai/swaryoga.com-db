@@ -172,6 +172,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bunny SQL QR WhatsApp Storage Foundation (Session: September 18, 2026) — Commit `b4e09e56`
+
+- Added `migrations/0019_qr_whatsapp_sql.sql` for QR sessions, chats, messages, archive manifests, storage usage, queues, and migration tracking.
+- Added `lib/bunnyQrRepository.ts` with session-safe composite keys and JSON preservation for old QR fields.
+- Added non-destructive `scripts/migrate-qr-whatsapp-to-bunny.mjs`; it reports source counts, records the migration checksum, and never deletes MongoDB data.
+- Updated the live migration dashboard and cutover checklist to show QR schema/repository work as in progress until source/target parity is verified.
+
 ### Live Bunny Database Migration Dashboard and CRM Settings Cutover (Session: September 18, 2026) — Commit `fece5a04`
 
 - Added `/admin/crm/database-migration` with a read-only checklist, phase progress bars, Bunny SQL health, migration-ledger status, and automatic 15-second refresh.
