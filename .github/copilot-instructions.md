@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Bunny Dashboard Repository Deploy Fix (Session: September 18, 2026) — Commit `b48624bf`
+
+- Added the previously untracked `lib/bunnyDashboardRepository.ts` required by `app/api/admin/crm/analytics/route.ts` and `app/api/admin/dashboard/route.ts`.
+- This resolves Vercel’s `Module not found: Can't resolve '@/lib/bunnyDashboardRepository'` webpack failure.
+- Focused TypeScript diagnostics for the repository and importing routes are clean; unrelated pre-existing repository-wide TypeScript errors remain outside this fix.
+
 ### Meta WhatsApp Archived Conversation Discovery (Session: September 18, 2026) — Commit `pending`
 
 - Restored 2,646 preserved `meta_whatsapp_archive_manifest` rows into Bunny SQL, covering 1,165 phone conversations.
