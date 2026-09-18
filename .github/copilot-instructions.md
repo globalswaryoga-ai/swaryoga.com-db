@@ -172,6 +172,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Meta WhatsApp Account Lookup on Bunny SQL (Session: September 18, 2026) — Commit `11d6f48d`
+
+- Added `migrations/0021_whatsapp_accounts_sql.sql` and `lib/bunnyWhatsAppAccounts.ts` for Meta account ownership and encrypted credential storage.
+- `lib/whatsappAccounts.ts` now resolves tenant and phone-number Meta credentials from Bunny SQL first, with MongoDB retained only for unimported legacy accounts.
+- Added non-destructive `scripts/migrate-whatsapp-accounts-to-bunny.mjs` and updated the live dashboard/checklist.
+- Historical account/message import remains pending because MongoDB Atlas is currently timing out; no legacy data was deleted.
+
 ### Meta WhatsApp Bunny-First Read/Write Follow-up (Session: September 18, 2026) — Commit `1625b994`
 
 - Meta webhook writes and Meta inbox/message reads prefer Bunny SQL whenever Bunny records are available, while preserving MongoDB only as a temporary historical fallback.
