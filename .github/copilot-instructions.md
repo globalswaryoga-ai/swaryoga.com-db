@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Messenger and Instagram Bunny SQL Migration Foundation (Session: September 18, 2026) — Commit `pending`
+
+- Added `migrations/0024_social_inbox_sql.sql` for connected social accounts, Messenger/Instagram conversations, and messages with indexed scope/platform fields and lossless `data_json` preservation.
+- Added `lib/bunnySocialInboxRepository.ts` and `scripts/migrate-social-inbox-to-bunny.mjs` for resumable, non-destructive MongoDB-to-Bunny migration support.
+- Schema application and importer syntax validation pass; the live MongoDB import is currently blocked by the existing Atlas server-selection timeout, and no legacy records are deleted.
+
 ### Bunny SQL Runtime Deployment Alignment (Session: September 18, 2026) — Commit `pending`
 
 - Added the pending Bunny SQL authentication, leads, moderation, Zoom, recording, and storage repository files that were present locally but not included in the deployed commit.
