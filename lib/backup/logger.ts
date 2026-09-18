@@ -6,10 +6,17 @@ import fs from 'fs';
 import path from 'path';
 
 const LOG_DIR = process.env.LOG_DIR || '.logs/backup';
+const FILE_LOGGING_ENABLED = process.env.VERCEL !== '1' && process.env.NODE_ENV !== 'production';
 
 // Ensure log directory exists
-if (!fs.existsSync(LOG_DIR)) {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
+if (FILE_LOGGING_ENABLED) {
+  try {
+    if (!fs.existsSync(LOG_DIR)) {
+      fs.mkdirSync(LOG_DIR, { recursive: true });
+    }
+  } catch (error) {
+    console.warn('[backup logger] File logging disabled:', error instanceof Error ? error.message : String(error));
+  }
 }
 
 interface LogEntry {
@@ -30,8 +37,15 @@ class Logger {
   private write(entry: LogEntry) {
     const line = JSON.stringify(entry) + '\n';
 
-    // Write to file
-    fs.appendFileSync(this.logFile, line);
+    // Vercel/serverless filesystems are read-only or ephemeral. Console logs
+    // remain available in the platform runtime log stream instead.
+    if (FILE_LOGGING_ENABLED) {
+      try {
+        fs.appendFileSync(this.logFile, line);
+      } catch (error) {
+        console.warn('[backup logger] Could not write file log:', error instanceof Error ? error.message : String(error));
+      }
+    }
 
     // Console output
     const emoji = {

@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Vercel Dashboard API Filesystem Crash Fix (Session: September 18, 2026) — Commit `pending`
+
+- Fixed `lib/backup/logger.ts` so Vercel/serverless API bundles do not call `mkdirSync('.logs/backup')` during module initialization.
+- Production logging now uses Vercel runtime logs; local development retains file logging under `.logs/backup`.
+- This resolves the HTML 500 crash observed on `/api/admin/dashboard` and `/api/admin/crm/analytics` before authentication.
+
 ### Dashboard API Serverless Module-Load Fix (Session: September 18, 2026) — Commit `pending`
 
 - Removed the legacy `BunnyStorageClient`/`node-fetch` import from `lib/bunnyDashboardRepository.ts`, which could crash `/api/admin/dashboard` and CRM analytics before authentication with an HTML 500 response.
