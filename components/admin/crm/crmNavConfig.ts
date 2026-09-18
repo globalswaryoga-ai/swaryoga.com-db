@@ -619,6 +619,7 @@ export const sectionConfigs: SectionConfig[] = [
     icon: Shield,
     items: [
       { label: 'Dashboard', href: '/admin/crm/super-admin', icon: LayoutDashboard },
+      { label: 'Database Migration', href: '/admin/crm/database-migration', icon: Database },
       { label: 'All Users', href: '/admin/crm/super-admin/users', icon: Users },
       { label: 'Payments', href: '/admin/crm/super-admin/payments', icon: CreditCard },
       { label: 'Signin Logs', href: '/admin/crm/super-admin/signins', icon: LogIn },

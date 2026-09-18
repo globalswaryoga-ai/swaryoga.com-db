@@ -10,13 +10,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
-import { connectDB } from '@/lib/db';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
-import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
+import { getBunnyCrmUserSettings, getBunnyTenant, saveBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 
 const BRIDGE_BASE_URL = getWhatsAppBridgeUrl();
 
@@ -31,10 +29,7 @@ export async function POST(req: NextRequest) {
     const userId = (decoded?.userId || decoded?.username || 'admin') as string;
     const superAdmin = isSuperAdmin(decoded);
 
-    await connectDB();
-    const CRMUserSettings = getCRMUserSettings();
-
-    let settings = await CRMUserSettings.findOne({ userId }).lean() as any;
+    let settings = await getBunnyCrmUserSettings(userId);
 
     // ── SHARED TEAM INBOX (checked FIRST) ──
     // A team member always uses the tenant OWNER's session — even if they happen
@@ -42,18 +37,20 @@ export async function POST(req: NextRequest) {
     // Returns null for owners / super-admins / unknowns → falls through to the
     // normal per-account logic below (no cross-tenant routing).
     if (!superAdmin) {
-      const ownerSessionKey = await resolveOwnerSessionKey({
-        userId,
-        tenantSlug: (decoded as any).tenantSlug,
-      });
-      if (ownerSessionKey) {
+      const tenant = await getBunnyTenant(String((decoded as any).tenantSlug || ''));
+      const ownerSessionKey = String(tenant?.ownerUserId || '').trim() || null;
+      const ownerSettings = ownerSessionKey ? await getBunnyCrmUserSettings(ownerSessionKey) : null;
+      const resolvedOwnerSessionKey = ownerSessionKey && ownerSessionKey !== userId
+        ? String(ownerSettings?.permanentTenantId || '').trim() || null
+        : null;
+      if (resolvedOwnerSessionKey) {
         const bridgeSecret = settings?.qrBridgeSecret || randomBytes(16).toString('hex');
         console.log(`[QR Auto-Provision] Team member ${userId} → shared owner session ${ownerSessionKey}`);
         return apiSuccess({
           success: true,
           bridgeUrl: BRIDGE_BASE_URL,
           bridgeSecret,
-          permanentTenantId: ownerSessionKey,
+          permanentTenantId: resolvedOwnerSessionKey,
           created: false,
           sharedTeamInbox: true,
         });
@@ -67,10 +64,7 @@ export async function POST(req: NextRequest) {
 
       if (!bridgeSecret) {
         bridgeSecret = randomBytes(16).toString('hex');
-        await CRMUserSettings.updateOne(
-          { userId },
-          { $set: { qrBridgeSecret: bridgeSecret } }
-        );
+        settings = await saveBunnyCrmUserSettings(userId, { qrBridgeSecret: bridgeSecret });
       }
 
       console.log(`[QR Auto-Provision] userId=${userId} permanentTenantId=${settings.permanentTenantId}`);
@@ -90,18 +84,11 @@ export async function POST(req: NextRequest) {
       const permanentTenantId = userId; // Use userId as their permanent session key
 
       // Upsert the settings with permanentTenantId
-      await CRMUserSettings.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            qrBridgeSecret: bridgeSecret,
-            permanentTenantId,
-            qrWhatsappEnabled: true,
-          },
-          $setOnInsert: { userId },
-        },
-        { upsert: true, new: true }
-      );
+      await saveBunnyCrmUserSettings(userId, {
+        qrBridgeSecret: bridgeSecret,
+        permanentTenantId,
+        qrWhatsappEnabled: true,
+      });
 
       console.log(`[QR Auto-Provision] Super admin ${userId} auto-provisioned with tenantId=${permanentTenantId}`);
 
