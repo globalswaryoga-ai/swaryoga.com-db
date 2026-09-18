@@ -81,6 +81,7 @@
 - [ ] Import historical QR/Meta messages and account rows after a readable legacy export/source is available.
 - [x] Restore preserved QR/Meta records from the Bunny `mongo_documents` archive without MongoDB: 85,650 QR messages, 24,373 QR chats, 5,527 QR archive manifests, and 11 Meta messages.
 - [ ] Import Meta account rows when a preserved account export becomes available; the current archive contains zero `whatsapp_accounts` documents.
+- [x] Restore Meta archive manifests into Bunny SQL: 2,646 manifest rows covering 1,165 phone conversations, so archived chats are discoverable in the inbox.
 - [x] Restore preserved Community data into Bunny SQL: 435 members, 22 videos, 10 posts, 22 watch logs, 2 experiences, and 1 question.
 - [ ] Move Community moderation mutations and remaining e-learning data/runtime paths to Bunny SQL.
 - [ ] Move QR chat/message snapshots, queue, lead ownership checks, and archive processors from MongoDB to Bunny SQL.

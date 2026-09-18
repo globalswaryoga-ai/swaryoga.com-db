@@ -14,6 +14,9 @@ export async function initBunnyMetaWhatsAppSchema() {
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_provider ON meta_messages_sql(provider,sent_at DESC)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_wa_id ON meta_messages_sql(wa_message_id)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_messages_owner ON meta_messages_sql(sent_by_user_id)', args: [] },
+    { sql: 'CREATE TABLE IF NOT EXISTS meta_archive_manifest_sql (document_id TEXT PRIMARY KEY,tenant_user_id TEXT NOT NULL,phone_number TEXT NOT NULL,date_key TEXT NOT NULL,bunny_path TEXT NOT NULL,byte_size INTEGER NOT NULL DEFAULT 0,message_count INTEGER NOT NULL DEFAULT 0,archived_at TEXT,data_json TEXT NOT NULL)', args: [] },
+    { sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_meta_archive_phone_day ON meta_archive_manifest_sql(tenant_user_id,phone_number,date_key)', args: [] },
+    { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_archive_phone ON meta_archive_manifest_sql(phone_number,date_key DESC)', args: [] },
   ]);
 }
 
@@ -58,6 +61,7 @@ export async function listBunnyMetaConversations(limit = 100) {
   await initBunnyMetaWhatsAppSchema();
   const result = await bunnyExecute({ sql: `SELECT phone_number, COUNT(*) AS message_count, MAX(COALESCE(sent_at,created_at)) AS last_at, MAX(created_at) AS updated_at FROM meta_messages_sql WHERE provider = 'meta' GROUP BY phone_number ORDER BY last_at DESC LIMIT ?`, args: [Math.min(Math.max(limit, 1), 500)] });
   const rows: Array<Record<string, any>> = [];
+  const seen = new Set<string>();
   for (const summary of result.rows) {
     const latest = await bunnyExecute({ sql: 'SELECT data_json FROM meta_messages_sql WHERE provider = \'meta\' AND phone_number = ? ORDER BY COALESCE(sent_at,created_at) DESC LIMIT 1', args: [String(summary.phone_number)] });
     const message = parse<Record<string, any>>(latest.rows[0]?.data_json, {});
@@ -73,6 +77,14 @@ export async function listBunnyMetaConversations(limit = 100) {
       hasLead: Boolean(message.leadId),
       source: 'whatsapp',
     });
+    seen.add(String(summary.phone_number));
   }
+  const archived = await bunnyExecute({ sql: 'SELECT phone_number,MAX(date_key) AS last_date,SUM(message_count) AS message_count FROM meta_archive_manifest_sql GROUP BY phone_number ORDER BY last_date DESC LIMIT ?', args: [Math.min(Math.max(limit, 1), 5000)] });
+  for (const summary of archived.rows) {
+    const phone = String(summary.phone_number);
+    if (seen.has(phone)) continue;
+    rows.push({ _id: phone, leadId: '', phoneNumber: phone, lastMessageContent: 'Archived WhatsApp history', lastMessageAt: summary.last_date, lastDirection: 'inbound', unreadCount: 0, hasLead: false, source: 'whatsapp', archivedMessageCount: Number(summary.message_count || 0) });
+  }
+  rows.sort((a, b) => String(b.lastMessageAt || '').localeCompare(String(a.lastMessageAt || '')));
   return rows;
 }

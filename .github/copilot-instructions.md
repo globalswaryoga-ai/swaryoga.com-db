@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Meta WhatsApp Archived Conversation Discovery (Session: September 18, 2026) — Commit `pending`
+
+- Restored 2,646 preserved `meta_whatsapp_archive_manifest` rows into Bunny SQL, covering 1,165 phone conversations.
+- Meta conversation discovery now merges hot Bunny messages with archived Bunny manifest conversations instead of showing only the small hot-message subset.
+- Added `scripts/restore-meta-archive-manifest-from-bunny.mjs` for repeatable, non-destructive restoration.
+
 ### Zoom Management and Workshop Recording Data Verification (Session: September 18, 2026) — Commit `pending`
 
 - Verified Bunny SQL contains 4 Zoom community mappings and 1 workshop recording delivery.
