@@ -42,8 +42,8 @@ const phases = [
     id: 'qr',
     title: 'QR WhatsApp and messaging',
     tasks: [
-      { id: 'qr-schema', title: 'QR sessions, chats, messages, queues, and receipt tables', status: 'pending' as MigrationTaskStatus },
-      { id: 'qr-repository', title: 'Bunny repositories for QR chat and message data', status: 'pending' as MigrationTaskStatus },
+      { id: 'qr-schema', title: 'QR sessions, chats, messages, queues, and receipt tables', status: 'in-progress' as MigrationTaskStatus },
+      { id: 'qr-repository', title: 'Bunny repositories for QR chat and message data', status: 'in-progress' as MigrationTaskStatus },
       { id: 'qr-webhook', title: 'QR webhook, inbox, send, and broadcast paths use Bunny SQL', status: 'pending' as MigrationTaskStatus },
       { id: 'qr-archive', title: 'QR archive manifest and retention use Bunny SQL plus Bunny Storage', status: 'pending' as MigrationTaskStatus },
       { id: 'qr-privacy', title: 'Tenant isolation, deduplication, receipts, and unread parity', status: 'pending' as MigrationTaskStatus },
