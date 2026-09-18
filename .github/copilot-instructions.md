@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Meta WhatsApp Bunny-First Read/Write Follow-up (Session: September 18, 2026) — Commit `1625b994`
+
+- Meta webhook writes and Meta inbox/message reads prefer Bunny SQL whenever Bunny records are available, while preserving MongoDB only as a temporary historical fallback.
+- The migration checklist and live dashboard now distinguish the completed Bunny-first boundary from the remaining MongoDB Meta-account and lead-association dependency.
+- Historical Meta import remains blocked by the current MongoDB Atlas server-selection timeout; no legacy data was deleted.
+
 ### Meta WhatsApp Bunny-First Runtime Data (Session: September 18, 2026) — Commit `1625b994`
 
 - Meta inbound webhook messages now write to Bunny SQL with the existing Mongo write retained only as a temporary compatibility fallback.
