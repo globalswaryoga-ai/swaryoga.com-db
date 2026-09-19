@@ -12,11 +12,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getViewerUserId } from '@/lib/crm-handlers';
-import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
+import { getBunnyLeadByPhone } from '@/lib/bunnyLeadsRepository';
+import { upsertBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import {
   normalizePhone,
   sendWhatsAppInteractiveList,
@@ -40,7 +40,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'to and kind required' }, { status: 400 });
     }
 
-    await connectDB();
     const viewerUserId = getViewerUserId(decoded);
     // Tenant's own WABA when configured; undefined → platform env credentials.
     const creds = (await getMetaCredentialsForTenant(viewerUserId)) || undefined;
@@ -71,12 +70,12 @@ export async function POST(req: NextRequest) {
     // Log to the inbox history (status webhooks update ticks by waMessageId).
     try {
       const phone = normalizePhone(String(to));
-      const Lead = getLead();
-      const lead = phone ? await Lead.findOne({ phoneNumber: phone }).select({ _id: 1 }).lean() as any : null;
-      const WhatsAppMessage = getWhatsAppMessage();
-      await WhatsAppMessage.create({
+      const lead = phone ? await getBunnyLeadByPhone(phone, viewerUserId) : null;
+      await upsertBunnyMetaMessage({
+        _id: result.waMessageId || `msg_${Date.now()}`,
+        documentId: result.waMessageId || `msg_${Date.now()}`,
         phoneNumber: phone || String(to),
-        leadId: lead?._id,
+        leadId: lead?._id ? String(lead._id) : undefined,
         direction: 'outbound',
         messageType: 'interactive',
         messageContent: preview,
@@ -85,7 +84,8 @@ export async function POST(req: NextRequest) {
         sentByUserId: viewerUserId,
         sentByLabel: decoded.name || decoded.username || viewerUserId,
         provider: 'meta',
-        sentAt: new Date(),
+        sentAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       });
     } catch (logErr) {
       console.warn('[META SEND-RICH] History log failed (message was sent):', logErr instanceof Error ? logErr.message : logErr);
