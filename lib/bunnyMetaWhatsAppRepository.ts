@@ -105,32 +105,73 @@ export async function countBunnyMetaMessages(input: { phoneNumber?: string; lead
 
 export async function listBunnyMetaConversations(limit = 100) {
   await initBunnyMetaWhatsAppSchema();
-  const result = await bunnyExecute({ sql: `SELECT phone_number, COUNT(*) AS message_count, MAX(COALESCE(sent_at,created_at)) AS last_at, MAX(created_at) AS updated_at FROM meta_messages_sql WHERE provider = 'meta' GROUP BY phone_number ORDER BY last_at DESC LIMIT ?`, args: [Math.min(Math.max(limit, 1), 500)] });
+  const safeLimit = Math.min(Math.max(limit, 1), 500);
+  
+  const result = await bunnyExecute({ 
+    sql: `SELECT phone_number, COUNT(*) AS message_count, MAX(COALESCE(sent_at,created_at)) AS last_at, MAX(created_at) AS updated_at FROM meta_messages_sql WHERE provider = 'meta' GROUP BY phone_number ORDER BY last_at DESC LIMIT ?`, 
+    args: [safeLimit] 
+  });
+  
   const rows: Array<Record<string, any>> = [];
   const seen = new Set<string>();
-  for (const summary of result.rows) {
-    const latest = await bunnyExecute({ sql: 'SELECT document_id, sent_at, created_at, data_json FROM meta_messages_sql WHERE provider = \'meta\' AND phone_number = ? ORDER BY COALESCE(sent_at,created_at) DESC LIMIT 1', args: [String(summary.phone_number)] });
-    const message = parse<Record<string, any>>(latest.rows[0]?.data_json, {});
-    const unread = await bunnyExecute({ sql: "SELECT COUNT(*) AS count FROM meta_messages_sql WHERE provider = 'meta' AND phone_number = ? AND direction = 'inbound' AND status <> 'read'", args: [String(summary.phone_number)] });
-    rows.push({
-      _id: String(summary.phone_number),
-      leadId: message.leadId || '',
-      phoneNumber: String(summary.phone_number),
-      lastMessageContent: message.messageContent || '',
-      lastMessageAt: summary.last_at || summary.updated_at,
-      lastDirection: message.direction || 'inbound',
-      unreadCount: Number(unread.rows[0]?.count || 0),
-      hasLead: Boolean(message.leadId),
-      source: 'whatsapp',
+
+  if (result.rows.length > 0) {
+    const phoneNumbers = result.rows.map(r => String(r.phone_number));
+    const placeholders = phoneNumbers.map(() => '?').join(',');
+
+    // Fetch latest messages in a single query using window function
+    const latestMessages = await bunnyExecute({
+      sql: `SELECT document_id, phone_number, sent_at, created_at, data_json FROM (
+              SELECT *, ROW_NUMBER() OVER(PARTITION BY phone_number ORDER BY COALESCE(sent_at,created_at) DESC) as rn
+              FROM meta_messages_sql
+              WHERE provider = 'meta' AND phone_number IN (${placeholders})
+            ) WHERE rn = 1`,
+      args: phoneNumbers
     });
-    seen.add(String(summary.phone_number));
+
+    const messageMap = new Map<string, Record<string, any>>();
+    for (const row of latestMessages.rows) {
+      messageMap.set(String(row.phone_number), parse<Record<string, any>>(row.data_json, {}));
+    }
+
+    // Fetch unread counts in a single query
+    const unreadCounts = await bunnyExecute({ 
+      sql: `SELECT phone_number, COUNT(*) AS count FROM meta_messages_sql WHERE provider = 'meta' AND phone_number IN (${placeholders}) AND direction = 'inbound' AND status <> 'read' GROUP BY phone_number`, 
+      args: phoneNumbers 
+    });
+    
+    const unreadMap = new Map<string, number>();
+    for (const row of unreadCounts.rows) {
+      unreadMap.set(String(row.phone_number), Number(row.count));
+    }
+
+    for (const summary of result.rows) {
+      const phone = String(summary.phone_number);
+      const message = messageMap.get(phone) || {};
+      const unreadCount = unreadMap.get(phone) || 0;
+
+      rows.push({
+        _id: phone,
+        leadId: message.leadId || '',
+        phoneNumber: phone,
+        lastMessageContent: message.messageContent || '',
+        lastMessageAt: summary.last_at || summary.updated_at,
+        lastDirection: message.direction || 'inbound',
+        unreadCount: unreadCount,
+        hasLead: Boolean(message.leadId),
+        source: 'whatsapp',
+      });
+      seen.add(phone);
+    }
   }
+
   const archived = await bunnyExecute({ sql: 'SELECT phone_number,MAX(date_key) AS last_date,SUM(message_count) AS message_count FROM meta_archive_manifest_sql GROUP BY phone_number ORDER BY last_date DESC LIMIT ?', args: [Math.min(Math.max(limit, 1), 5000)] });
   for (const summary of archived.rows) {
     const phone = String(summary.phone_number);
     if (seen.has(phone)) continue;
     rows.push({ _id: phone, leadId: '', phoneNumber: phone, lastMessageContent: 'Archived WhatsApp history', lastMessageAt: summary.last_date, lastDirection: 'inbound', unreadCount: 0, hasLead: false, source: 'whatsapp', archivedMessageCount: Number(summary.message_count || 0) });
   }
+  
   rows.sort((a, b) => String(b.lastMessageAt || '').localeCompare(String(a.lastMessageAt || '')));
   return rows;
 }
