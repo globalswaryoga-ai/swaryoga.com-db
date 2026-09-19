@@ -47,6 +47,7 @@ const {
 const pino = require('pino');
 const QRCode = require('qrcode');
 const { MongoClient } = require('mongodb');
+const { createClient } = require('@libsql/client');
 const fs = require('fs');
 const mime = require('mime-types');
 
@@ -55,6 +56,8 @@ const PORT = parseInt(process.env.PORT || '3333', 10);
 const BRIDGE_SECRET = (process.env.BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
 const WEBHOOK_URL = (process.env.WEBHOOK_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://swaryoga.com').trim().replace(/\/$/, '');
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGODB_URI_MAIN || '';
+const BUNNY_DATABASE_URL = process.env.BUNNY_DATABASE_URL || '';
+const BUNNY_DATABASE_AUTH_TOKEN = process.env.BUNNY_DATABASE_AUTH_TOKEN || '';
 const AUTH_COLLECTION = 'baileys_auth_state';
 const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 const MAX_SESSIONS = 1000;
@@ -71,15 +74,43 @@ const ENABLE_DB_CHAT_HYDRATION = process.env.WHATSAPP_BRIDGE_ENABLE_DB_HYDRATION
 // ── Logging ─────────────────────────────────────────────────────────────
 const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
 
+// ── Bunny DB Singleton ───────────────────────────────────────────────────
+let bunnyClient = null;
+function getBunnyClient() {
+  if (bunnyClient) return bunnyClient;
+  if (!BUNNY_DATABASE_URL || !BUNNY_DATABASE_AUTH_TOKEN) return null;
+  bunnyClient = createClient({
+    url: BUNNY_DATABASE_URL,
+    authToken: BUNNY_DATABASE_AUTH_TOKEN,
+  });
+  console.log('[BUNNY] Connected (singleton)');
+  return bunnyClient;
+}
+
 // ── MongoDB Singleton ───────────────────────────────────────────────────
 let mongoClient = null;
 async function getMongoClient() {
-  if (mongoClient) return mongoClient;
+  if (mongoClient) {
+    try {
+      await mongoClient.db('admin').command({ ping: 1 });
+      return mongoClient;
+    } catch (error) {
+      console.warn('[MONGO] Cached client is unusable; reconnecting:', error.message);
+      try { await mongoClient.close(); } catch {}
+      mongoClient = null;
+    }
+  }
   if (!MONGODB_URI) return null;
-  mongoClient = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 10000 });
-  await mongoClient.connect();
-  console.log('[MONGO] Connected (singleton)');
-  return mongoClient;
+  const nextClient = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 10000 });
+  try {
+    await nextClient.connect();
+    mongoClient = nextClient;
+    console.log('[MONGO] Connected (singleton)');
+    return mongoClient;
+  } catch (error) {
+    try { await nextClient.close(); } catch {}
+    throw error;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -418,6 +449,53 @@ async function prefetchGroupNames(session) {
 }
 
 async function loadChatsFromDB(session) {
+  let chatCount = 0, msgCount = 0;
+  try {
+    // 1. Try Bunny DB First
+    const bClient = getBunnyClient();
+    const connectedPhone = session.sock?.user?.id?.split(':')[0];
+    
+    if (bClient && connectedPhone) {
+      const rs = await bClient.execute({
+        sql: "SELECT data_json FROM qr_messages_sql WHERE user_id = ? AND connected_phone = ? ORDER BY timestamp ASC LIMIT 2000",
+        args: [session.ownerUserId !== 'default' ? session.ownerUserId : session.userId, connectedPhone]
+      });
+      
+      for (const row of rs.rows) {
+        if (!row.data_json) continue;
+        const doc = JSON.parse(row.data_json);
+        const phone = (doc.connectedPhone || '').replace(/\\D/g, '');
+        const jid = doc.chatJid || `${phone}@s.whatsapp.net`;
+        const isFromMe = doc.direction === 'outbound';
+        
+        if (!session.chatMap.has(jid)) chatCount++;
+        session.chatMap.set(jid, { id: jid, name: jid, isGroup: false, unreadCount: 0, lastMessageTime: new Date(doc.timestamp * 1000).toISOString() });
+        
+        const msgEntry = {
+          id: doc.messageId,
+          from: phone, fromMe: isFromMe,
+          text: doc.text || (doc.mediaMimetype ? `[Media]` : ''),
+          type: doc.type || 'text',
+          timestamp: doc.timestamp || 0,
+          status: doc.status || 0, hasMedia: !!doc.mediaUrl,
+          mediaUrl: doc.mediaUrl || null, mediaMimetype: doc.mediaMimetype || null, mediaFileName: doc.mediaFileName || null,
+        };
+        if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
+        const arr = session.messageMap.get(jid);
+        arr.push(msgEntry);
+        if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
+        msgCount++;
+      }
+      if (msgCount > 0) {
+        console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from BunnyDB`);
+        return;
+      }
+    }
+  } catch (err) {
+    console.error(`[${session.userId}] Failed to load chats from BunnyDB:`, err.message);
+  }
+
+  // 2. Fallback to MongoDB
   if (!MONGODB_URI) return;
   try {
     const client = await getMongoClient();
@@ -432,8 +510,6 @@ async function loadChatsFromDB(session) {
       sentAt: { $gte: cutoff },
     };
     // Only load messages that belong to this specific user
-    // CRITICAL: Do NOT include legacy untagged messages for non-admin users
-    // as that would leak the super admin's chat data to other users.
     if (session.ownerUserId !== 'default') {
       filter.$or = [
         { bridgeUserId: session.ownerUserId },
@@ -442,10 +518,10 @@ async function loadChatsFromDB(session) {
     }
 
     const docs = await col.find(filter).sort({ sentAt: 1 }).limit(2000).toArray();
-    let chatCount = 0, msgCount = 0;
+    chatCount = 0; msgCount = 0;
 
     for (const doc of docs) {
-      const phone = (doc.phoneNumber || '').replace(/\D/g, '');
+      const phone = (doc.phoneNumber || '').replace(/\\D/g, '');
       if (!phone || phone.length < 10) continue;
       const jid = `${phone}@s.whatsapp.net`;
       const isFromMe = doc.direction === 'outbound';
@@ -467,9 +543,9 @@ async function loadChatsFromDB(session) {
       if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
       msgCount++;
     }
-    console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from DB`);
+    console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from MongoDB`);
   } catch (err) {
-    console.error(`[${session.userId}] Failed to load chats:`, err.message);
+    console.error(`[${session.userId}] Failed to load chats from MongoDB:`, err.message);
   }
 }
 
@@ -555,6 +631,111 @@ async function fetchMediaBuffer(url) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to fetch media: ${resp.status}`);
   return Buffer.from(await resp.arrayBuffer());
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BUNNY DB AUTH STATE — per user
+// ═══════════════════════════════════════════════════════════════════════
+async function useBunnyDatabaseAuthState(sessionKey, ownerUserId = sessionKey) {
+  const client = getBunnyClient();
+  if (!client) {
+    console.log(`[${ownerUserId}][AUTH] No BunnyDB — falling back to MongoDB...`);
+    return useMongoDBAuthState(sessionKey, ownerUserId);
+  }
+
+  console.log(`[${ownerUserId}][AUTH] Using BunnyDB-backed auth state for session ${sessionKey}`);
+  
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS baileys_auth_state_sql (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT
+    )
+  `);
+
+  const keyPrefix = `${sessionKey}:`;
+  const legacyKeyPrefix = ownerUserId && ownerUserId !== sessionKey ? `${ownerUserId}:` : null;
+
+  const replacer = (k, v) => {
+    if (Buffer.isBuffer(v) || v instanceof Uint8Array || v?.type === 'Buffer') {
+      return { type: 'Buffer', data: Buffer.from(v?.data || v).toString('base64') };
+    }
+    return v;
+  };
+  
+  const reviver = (k, v) => {
+    if (v && typeof v === 'object' && v.type === 'Buffer' && typeof v.data === 'string') {
+      return Buffer.from(v.data, 'base64');
+    }
+    return v;
+  };
+
+  const readData = async (key) => {
+    let rs = await client.execute({
+      sql: 'SELECT value FROM baileys_auth_state_sql WHERE key = ?',
+      args: [`${keyPrefix}${key}`]
+    });
+    
+    if (rs.rows.length === 0 && legacyKeyPrefix) {
+      const legacyRs = await client.execute({
+        sql: 'SELECT value FROM baileys_auth_state_sql WHERE key = ?',
+        args: [`${legacyKeyPrefix}${key}`]
+      });
+      if (legacyRs.rows.length > 0) {
+        await client.execute({
+          sql: 'INSERT INTO baileys_auth_state_sql (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at',
+          args: [`${keyPrefix}${key}`, legacyRs.rows[0].value, new Date().toISOString()]
+        }).catch(() => {});
+        rs = legacyRs;
+      }
+    }
+    
+    if (rs.rows.length === 0) return null;
+    return JSON.parse(rs.rows[0].value, reviver);
+  };
+
+  const writeData = async (key, value) => {
+    await client.execute({
+      sql: 'INSERT INTO baileys_auth_state_sql (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at',
+      args: [`${keyPrefix}${key}`, JSON.stringify(value, replacer), new Date().toISOString()]
+    });
+  };
+
+  const removeData = async (key) => {
+    await client.execute({
+      sql: 'DELETE FROM baileys_auth_state_sql WHERE key = ?',
+      args: [`${keyPrefix}${key}`]
+    });
+  };
+
+  const creds = await readData('creds') || initAuthCreds();
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: async (type, ids) => {
+          const result = {};
+          for (const id of ids) {
+            const val = await readData(`${type}-${id}`);
+            if (val) result[id] = val;
+          }
+          return result;
+        },
+        set: async (data) => {
+          for (const [type, entries] of Object.entries(data)) {
+            for (const [id, value] of Object.entries(entries)) {
+              if (value) await writeData(`${type}-${id}`, value);
+              else await removeData(`${type}-${id}`);
+            }
+          }
+        }
+      }
+    },
+    saveCreds: async () => {
+      await writeData('creds', creds);
+    }
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -679,7 +860,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       session.sock = null;
     }
 
-    const { state, saveCreds } = await useMongoDBAuthState(session.sessionKey, session.ownerUserId);
+    const { state, saveCreds } = await useBunnyDatabaseAuthState(session.sessionKey, session.ownerUserId);
     const { version } = await fetchLatestBaileysVersion();
 
     console.log(`[${session.ownerUserId}] Starting Baileys v${version.join('.')} for session ${session.sessionKey}`);
