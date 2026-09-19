@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import {
   escapeRegexLiteral,
@@ -19,9 +16,6 @@ import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { logger } from '@/lib/logger';
 import { listBunnyLeads } from '@/lib/bunnyLeadsRepository';
 
-// Mark as dynamic since this route uses request.headers or request.url
-
-
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -35,13 +29,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // TENANT ISOLATION: Leads are completely isolated by tenant (CRM admin)
-    // - Super Admin: can view all leads from all tenants (with optional userId filter)
-    // - Regular Admin (Tenant): ONLY views leads they created or are assigned to
-    // - Manager: views their team's leads only
-    // This ensures each tenant's leads are completely private
-    // ═══════════════════════════════════════════════════════════════════════════════
     const superAdmin = isSuperAdmin(decoded);
     const manager = isManager(decoded);
     const visibleUserIds = getVisibleUserIds(decoded);
@@ -54,249 +41,27 @@ export async function GET(request: NextRequest) {
     const userIdParam = url.searchParams.get('userId');
     const source = url.searchParams.get('source');
     const excludeSource = url.searchParams.get('excludeSource');
-    const metaOnly24h = url.searchParams.get('metaOnly24h') === '1';  // Filter for Meta messages in 24h
-    const qrOnly = url.searchParams.get('qrOnly') === '1';            // Filter for QR bridge contacts only
-    // NOTE: Some admin screens (e.g., Broadcast) need a large dataset so client-side
-    // segmentation/filtering is accurate.
-    // We allow a higher cap when explicitly requested via selectAll=true.
-    // This still respects multi-user access control below (non-super-admins only see their own leads).
     const requestedLimit = Number(url.searchParams.get('limit') || 50) || 50;
     const selectAll = url.searchParams.get('selectAll') === 'true';
     const maxLimit = selectAll ? 10000 : 200;
     const limit = Math.min(requestedLimit, maxLimit);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
-    // Bunny SQL is the current lead archive/live read source. Preserve the
-    // existing response shape while Atlas is unavailable; write operations
-    // remain on their existing path until SQL mutation parity is verified.
-    if (!url.searchParams.get('ids') && !qrOnly && !metaOnly24h) {
-      const bunnyResult = await listBunnyLeads({
-        visibleUserIds,
-        viewerUserId,
-        status,
-        workshop,
-        label,
-        source,
-        excludeSource,
-        q,
-        userId: userIdParam,
-        skip,
-        limit,
-      });
-      return NextResponse.json({ success: true, data: bunnyResult }, { status: 200, headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' } });
-    }
-
-    await connectDB();
-    const Lead = getLead();
-
-    // ── Fetch by explicit ids (bypasses qrOnly/ownership filters for super-admins) ──
-    // Used by the broadcast pages to pull in leads pre-selected from the
-    // Enquiries page that wouldn't otherwise show up in the qrOnly/scoped lists.
-    const idsParam = url.searchParams.get('ids');
-    if (idsParam) {
-      const validIds = idsParam.split(',').map(s => s.trim()).filter(id => mongoose.Types.ObjectId.isValid(id));
-      if (validIds.length === 0) {
-        return NextResponse.json({ success: true, data: { leads: [], total: 0, limit, skip } }, { status: 200 });
-      }
-      const idFilter: any = { _id: { $in: validIds } };
-      if (visibleUserIds !== null) {
-        idFilter.$or = [{ assignedToUserId: { $in: visibleUserIds } }, { createdByUserId: { $in: visibleUserIds } }];
-      }
-      const idsLeads = await Lead.find(idFilter).lean();
-      return NextResponse.json({ success: true, data: { leads: idsLeads, total: idsLeads.length, limit, skip } }, { status: 200 });
-    }
-
-    const filter: any = {};
-
-    // Read source early — QR data is tenant-isolated SaaS, so even the super
-    // admin must be scoped to their OWN qr_whatsapp leads (no cross-tenant view).
-    // The QR pages use the unified lead pool (no source param), so they pass
-    // scope=own instead; qrOnly is also a QR context and must be own-scoped.
-    const scopeOwn = url.searchParams.get('scope') === 'own';
-    const isQrSource = source === 'qr_whatsapp';
-
-    // Multi-user access control (3-tier):
-    // - Super-admin: see ALL leads, optionally filter by specific user
-    // - Manager (MR Admin): see leads assigned to themselves OR their team members
-    // - Regular admin: ONLY see leads assigned to them
-    // Store access control conditions separately to combine with other filters
-    let accessControlConditions: any[] | null = null;
-
-    if (visibleUserIds === null) {
-      // Super admin: optionally filter by specific user, otherwise show ALL
-      if (userIdParam && String(userIdParam).trim()) {
-        const uid = String(userIdParam).trim();
-        if (uid === '__unassigned__') {
-          accessControlConditions = [{ assignedToUserId: { $in: [null, '', 'system'] } }, { assignedToUserId: { $exists: false } }];
-        } else {
-          accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
-        }
-      } else if (isQrSource || qrOnly || scopeOwn) {
-        // QR is per-tenant: scope the super admin to their OWN QR leads so other
-        // tenants' QR leads never leak into their list, broadcast, funnel, etc.
-        accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
-      } else {
-        // SaaS isolation: the super admin's default view is their OWN leads plus
-        // unowned/global leads (public website signups). Other tenants' leads
-        // (CSV imports, QR, manual) never mix in — use the userId filter to
-        // inspect a specific tenant.
-        // NOTE: website-originated leads (enquiry form, /forms/[formType],
-        // workshop-join, signup) are created with the literal string 'system'
-        // for both owner fields, not null — so 'system' must count as unowned
-        // here too, or those leads never appear in the default Leads list.
-        accessControlConditions = [
-          { assignedToUserId: viewerUserId },
-          { createdByUserId: viewerUserId },
-          {
-            $and: [
-              { $or: [{ assignedToUserId: { $in: [null, '', 'system'] } }, { assignedToUserId: { $exists: false } }] },
-              { $or: [{ createdByUserId: { $in: [null, '', 'system'] } }, { createdByUserId: { $exists: false } }] },
-            ],
-          },
-        ];
-      }
-    } else if (visibleUserIds.length > 1) {
-      // Manager: can see their team's leads
-      if (userIdParam && String(userIdParam).trim() && visibleUserIds.includes(userIdParam)) {
-        // Filter to specific team member
-        const uid = String(userIdParam).trim();
-        accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
-      } else {
-        // Show all team leads
-        accessControlConditions = [
-          { assignedToUserId: { $in: visibleUserIds } }, 
-          { createdByUserId: { $in: visibleUserIds } }
-        ];
-      }
-    } else {
-      // Regular admin: STRICT filtering - only their own assigned leads
-      accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
-    }
-
-    // status/workshop/label accept comma-separated values for multi-select filters.
-    if (status) {
-      const values = status.split(',').map(s => s.trim()).filter(Boolean);
-      if (values.length) filter.status = values.length > 1 ? { $in: values } : values[0];
-    }
-    if (workshop) {
-      const values = workshop.split(',').map(s => s.trim()).filter(Boolean);
-      if (values.length) filter.workshopName = values.length > 1 ? { $in: values } : values[0];
-    }
-    if (label) {
-      const values = label.split(',').map(s => s.trim()).filter(Boolean);
-      if (values.length) filter.labels = values.length > 1 ? { $in: values } : values[0];
-    }
-    if (source) filter.source = source;
-    if (excludeSource) {
-      const excluded = excludeSource.split(',').map(s => s.trim()).filter(Boolean);
-      if (excluded.length) filter.source = { ...(typeof filter.source === 'object' ? filter.source : {}), $nin: excluded };
-    }
+    const bunnyResult = await listBunnyLeads({
+      visibleUserIds,
+      viewerUserId,
+      status,
+      workshop,
+      label,
+      source,
+      excludeSource,
+      q,
+      userId: userIdParam,
+      skip,
+      limit,
+    });
     
-    // Build search conditions
-    let searchConditions: any[] | null = null;
-    if (q) {
-      const query = String(q).trim();
-      if (query) {
-        const safe = escapeRegexLiteral(query);
-        searchConditions = [
-          { name: { $regex: safe, $options: 'i' } },
-          { phoneNumber: { $regex: safe, $options: 'i' } },
-          { email: { $regex: safe, $options: 'i' } },
-        ];
-      }
-    }
-
-    // Combine access control and search using $and
-    // This ensures both conditions are respected
-    if (accessControlConditions && searchConditions) {
-      // Both access control AND search: must match one access control condition AND one search condition
-      filter.$and = [
-        { $or: accessControlConditions },
-        { $or: searchConditions }
-      ];
-    } else if (accessControlConditions) {
-      // Only access control
-      filter.$or = accessControlConditions;
-    } else if (searchConditions) {
-      // Only search (super admin with no user filter)
-      filter.$or = searchConditions;
-    }
-
-    // Ensure leads and filter are valid before querying
-    // Lead model is initialized above via getLead()
-
-    // ── Filter by QR bridge contacts (all-time) ──
-    if (qrOnly) {
-      const WhatsAppMessage = getWhatsAppMessage();
-      const qrLeadIds = await WhatsAppMessage.find({
-        provider: 'qr',
-        leadId: { $exists: true, $ne: null },
-      }).distinct('leadId').lean();
-
-      const qrIds = qrLeadIds.map((id: any) => String(id));
-
-      if (qrIds.length === 0) {
-        return NextResponse.json({ success: true, data: { leads: [], total: 0, limit, skip } }, { status: 200 });
-      }
-
-      if (filter.$and) {
-        filter.$and.push({ _id: { $in: qrIds } });
-      } else if (filter.$or) {
-        filter.$and = [{ $or: filter.$or }, { _id: { $in: qrIds } }];
-        delete filter.$or;
-      } else {
-        filter._id = { $in: qrIds };
-      }
-    }
-
-    // ── Filter by Meta messages in 24-hour window ──
-    if (metaOnly24h) {
-      const WhatsAppMessage = getWhatsAppMessage();
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
-      // Find leads with Meta messages in last 24 hours
-      const metaMessageLeads = await WhatsAppMessage.find({
-        provider: 'meta',
-        createdAt: { $gte: twentyFourHoursAgo },
-        leadId: { $exists: true, $ne: null }
-      })
-        .distinct('leadId')
-        .lean();
-
-      const metaLeadIds = metaMessageLeads.map(id => String(id));
-      
-      // Add to filter: must have Meta messages in last 24 hours
-      if (metaLeadIds.length === 0) {
-        // No Meta messages in 24h, return empty
-        return NextResponse.json({ success: true, data: { leads: [], total: 0, limit, skip } }, { status: 200 });
-      }
-      
-      if (filter.$and) {
-        filter.$and.push({ _id: { $in: metaLeadIds } });
-      } else if (filter.$or) {
-        // Wrap existing $or in $and
-        filter.$and = [{ $or: filter.$or }, { _id: { $in: metaLeadIds } }];
-        delete filter.$or;
-      } else {
-        filter._id = { $in: metaLeadIds };
-      }
-    }
-
-    const leads = await Lead.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await Lead.countDocuments(filter);
-
-    return NextResponse.json(
-      { success: true, data: { leads, total, limit, skip } },
-      {
-        status: 200,
-        headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
-      },
-    );
+    return NextResponse.json({ success: true, data: bunnyResult }, { status: 200, headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' } });
   } catch (error) {
     logger.error('leads', 'GET /api/admin/crm/leads failed', error);
     const message = error instanceof Error ? error.message : 'Failed to load leads';
@@ -341,7 +106,6 @@ export async function POST(request: NextRequest) {
     const requestedAssignedTo = body?.assignedToUserId ? String(body.assignedToUserId).trim() : '';
     const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
-    // Check for duplicates - simplified for BunnyDB using phone number
     const { getBunnyLeadByPhone, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
     const existingLead = await getBunnyLeadByPhone(phoneNumber, viewerUserId);
 
@@ -364,7 +128,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { leadNumber } = await allocateNextLeadNumber(viewerUserId);
+    // TODO (Phase 4): lead numbering generation relies on a MongoDB collection. For now, generate random string
+    const leadNumber = 'L' + Math.floor(Math.random() * 1000000);
 
     const lead = await saveBunnyLead({
       leadNumber,
@@ -382,7 +147,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      await addLeadToMainBroadcastList(lead);
+      // await addLeadToMainBroadcastList(lead); // Disable since broadcast relies on Mongo
     } catch (e) {}
 
     return NextResponse.json({ success: true, data: lead }, { status: 201 });
@@ -392,4 +157,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

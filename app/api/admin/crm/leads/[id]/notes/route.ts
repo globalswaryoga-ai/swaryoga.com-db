@@ -1,136 +1,178 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import {
-  verifyAdminAccess,
-  parsePagination,
-  handleCrmError,
-  formatCrmSuccess,
-  buildMetadata,
-  isValidObjectId,
-  toObjectId,
-} from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
-import { getLeadNote, getLead } from '@/lib/schemas/enterpriseSchemas';
 
-// Mark as dynamic since this route uses request.headers or request.url
-
-
-export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    verifyAdminAccess(request);
-    const { limit, skip } = parsePagination(request);
-    const { id } = await ctx.params;
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
 
-    await connectDB();
-    const Lead = getLead();
-    const LeadNote = getLeadNote();
+    const lead = await getBunnyLeadById(params.id);
+    if (!lead) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
 
-    const leadExists = await Lead.exists({ _id: toObjectId(String(id)) });
-    if (!leadExists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    if (!superAdmin && String(lead.assignedToUserId || '').trim() !== viewerUserId && String(lead.createdByUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
-    const filter = { leadId: toObjectId(String(id)) };
-    const notes = await LeadNote.find(filter).sort({ pinned: -1, createdAt: -1 }).skip(skip).limit(limit).lean();
-    const total = await LeadNote.countDocuments(filter);
-    const meta = buildMetadata(total, limit, skip);
-
-    return formatCrmSuccess({ notes, total }, meta);
+    const notes = lead.notes || [];
+    return NextResponse.json({ success: true, data: notes.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) }, { status: 200 });
   } catch (error) {
-    return handleCrmError(error, 'GET lead notes');
+    const message = error instanceof Error ? error.message : 'Failed to get notes';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const userId = verifyAdminAccess(request);
-    const { id } = await ctx.params;
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
 
     const body = await request.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    if (!body || !body.note) {
+      return NextResponse.json({ error: 'Invalid body: note is required' }, { status: 400 });
+    }
 
-    const note = String(body?.note || '').trim();
-    if (!note) return NextResponse.json({ error: 'note is required' }, { status: 400 });
+    const lead = await getBunnyLeadById(params.id);
+    if (!lead) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
 
-    await connectDB();
-    const Lead = getLead();
-    const LeadNote = getLeadNote();
+    if (!superAdmin && String(lead.assignedToUserId || '').trim() !== viewerUserId && String(lead.createdByUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
-    const leadExists = await Lead.exists({ _id: toObjectId(String(id)) });
-    if (!leadExists) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    const newNote = {
+      _id: Math.random().toString(36).substring(2, 11),
+      leadId: params.id,
+      createdByUserId: viewerUserId,
+      note: String(body.note).trim(),
+      pinned: !!body.pinned,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-    const created = await LeadNote.create({
-      leadId: toObjectId(String(id)),
-      createdByUserId: String(userId),
-      note,
-      pinned: Boolean(body?.pinned),
-    });
-
-    return formatCrmSuccess(created);
+    const notes = lead.notes || [];
+    notes.push(newNote);
+    
+    await saveBunnyLead({ ...lead, notes }, params.id);
+    return NextResponse.json({ success: true, data: newNote }, { status: 201 });
   } catch (error) {
-    return handleCrmError(error, 'POST lead notes');
+    const message = error instanceof Error ? error.message : 'Failed to add note';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const userId = verifyAdminAccess(request);
-    const { id } = await ctx.params;
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
-
-    const body = await request.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-
-    const noteId = String(body?.noteId || '').trim();
-    if (!noteId || !isValidObjectId(noteId)) return NextResponse.json({ error: 'Invalid noteId' }, { status: 400 });
-
-    const allowed: any = {};
-    if (Object.prototype.hasOwnProperty.call(body, 'note')) allowed.note = String(body.note || '').trim();
-    if (Object.prototype.hasOwnProperty.call(body, 'pinned')) allowed.pinned = Boolean(body.pinned);
-
-    await connectDB();
-    const LeadNote = getLeadNote();
-
-    const updated = await LeadNote.findOneAndUpdate(
-      { _id: toObjectId(noteId), leadId: toObjectId(String(id)), createdByUserId: String(userId) },
-      { $set: allowed },
-      { new: true }
-    ).lean();
-
-    if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return formatCrmSuccess(updated);
-  } catch (error) {
-    return handleCrmError(error, 'PUT lead notes');
-  }
-}
-
-export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  try {
-    const userId = verifyAdminAccess(request);
-    const { id } = await ctx.params;
-
-    if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
 
     const url = new URL(request.url);
     const noteId = url.searchParams.get('noteId');
-    if (!noteId || !isValidObjectId(noteId)) return NextResponse.json({ error: 'Invalid noteId' }, { status: 400 });
+    if (!noteId) return NextResponse.json({ error: 'Invalid noteId' }, { status: 400 });
 
-    await connectDB();
-    const LeadNote = getLeadNote();
+    const body = await request.json().catch(() => null);
+    if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
 
-    const res = await LeadNote.deleteOne({
-      _id: toObjectId(String(noteId)),
-      leadId: toObjectId(String(id)),
-      createdByUserId: String(userId),
-    });
+    const lead = await getBunnyLeadById(params.id);
+    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    if (!res.deletedCount) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return formatCrmSuccess({ deletedCount: res.deletedCount });
+    if (!superAdmin && String(lead.assignedToUserId || '').trim() !== viewerUserId && String(lead.createdByUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    let notes = lead.notes || [];
+    const noteIndex = notes.findIndex((n: any) => n._id === noteId);
+    if (noteIndex === -1) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+
+    if (!superAdmin && notes[noteIndex].createdByUserId !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden to edit this note' }, { status: 403 });
+    }
+
+    if (body.note !== undefined) notes[noteIndex].note = String(body.note).trim();
+    if (body.pinned !== undefined) notes[noteIndex].pinned = !!body.pinned;
+    notes[noteIndex].updatedAt = new Date().toISOString();
+
+    await saveBunnyLead({ ...lead, notes }, params.id);
+    return NextResponse.json({ success: true, data: notes[noteIndex] }, { status: 200 });
   } catch (error) {
-    return handleCrmError(error, 'DELETE lead notes');
+    const message = error instanceof Error ? error.message : 'Failed to update note';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.isAdmin && !decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
+    const url = new URL(request.url);
+    const noteId = url.searchParams.get('noteId');
+    if (!noteId) return NextResponse.json({ error: 'Invalid noteId' }, { status: 400 });
+
+    const lead = await getBunnyLeadById(params.id);
+    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+
+    if (!superAdmin && String(lead.assignedToUserId || '').trim() !== viewerUserId && String(lead.createdByUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    let notes = lead.notes || [];
+    const noteIndex = notes.findIndex((n: any) => n._id === noteId);
+    if (noteIndex === -1) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+
+    if (!superAdmin && notes[noteIndex].createdByUserId !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden to delete this note' }, { status: 403 });
+    }
+
+    const deleted = notes[noteIndex];
+    notes.splice(noteIndex, 1);
+
+    await saveBunnyLead({ ...lead, notes }, params.id);
+    return NextResponse.json({ success: true, data: deleted }, { status: 200 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete note';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
