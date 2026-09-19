@@ -338,73 +338,14 @@ export async function POST(request: NextRequest) {
     const workshopId = body?.workshopId ? String(body.workshopId).trim() : undefined;
     const workshopName = body?.workshopName ? String(body.workshopName).trim() : undefined;
 
-    // ─── TENANT ISOLATION: Lead ownership ───
-    // Each lead must be assigned to a tenant (CRM admin)
-    // Regular tenants can only create leads assigned to themselves
-    // Super-admin can create leads for other tenants
     const requestedAssignedTo = body?.assignedToUserId ? String(body.assignedToUserId).trim() : '';
     const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
-    await connectDB();
-    const Lead = getLead();
+    // Check for duplicates - simplified for BunnyDB using phone number
+    const { getBunnyLeadByPhone, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
+    const existingLead = await getBunnyLeadByPhone(phoneNumber, viewerUserId);
 
-    // ── Enforce plan lead limit for non-Super-Admin users ──
-    if (!superAdmin) {
-      try {
-        const { getCRMSubscription } = await import('@/lib/db');
-        const CRMSubscription = getCRMSubscription();
-
-        const subscription = await CRMSubscription.findOne({ userId: viewerUserId });
-        if (subscription) {
-          const maxLeads = subscription.leadsLimit || 500;
-          const currentCount = await Lead.countDocuments({
-            $or: [
-              { assignedToUserId: viewerUserId },
-              { createdByUserId: viewerUserId },
-            ],
-          });
-          if (currentCount >= maxLeads) {
-            return NextResponse.json(
-              {
-                error: `Lead limit reached (${maxLeads}). Upgrade your plan to add more leads.`,
-                limitReached: true,
-                currentCount,
-                maxLeads,
-              },
-              { status: 402 },
-            );
-          }
-        }
-      } catch (e) {
-        // Log but don't block lead creation if plan check fails
-        console.warn('[leads] Plan limit check failed, allowing creation:', e);
-      }
-    }
-
-    // Check for duplicates by email or phone number - WITHIN CURRENT TENANT ONLY
-    const dupConditions: any[] = [
-      {
-        $or: [
-          ...(email ? [{ email }] : []),
-          { phoneNumber },
-        ],
-      },
-      // CRITICAL: Filter by current user/tenant to prevent cross-tenant data exposure
-      {
-        $or: [
-          { assignedToUserId: viewerUserId },
-          { createdByUserId: viewerUserId },
-        ],
-      },
-    ];
-    // Scope duplicate detection to the SAME source. QR and Meta are separate
-    // pipelines, so the same phone can legitimately exist as BOTH a Meta lead and
-    // a QR lead — a Meta lead must not block adding that number to QR leads.
-    if (source) dupConditions.push({ source });
-    const existingLead = await Lead.findOne({ $and: dupConditions });
-
-    if (existingLead) {
-      // Return existing lead info so UI can show it
+    if (existingLead && (!source || existingLead.source === source)) {
       return NextResponse.json(
         {
           error: 'Lead already exists',
@@ -423,10 +364,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Allocate permanent 6-digit lead number (e.g., 006999)
     const { leadNumber } = await allocateNextLeadNumber(viewerUserId);
 
-    const lead = await Lead.create({
+    const lead = await saveBunnyLead({
       leadNumber,
       phoneNumber,
       assignedToUserId,
@@ -438,33 +378,18 @@ export async function POST(request: NextRequest) {
       ...(source ? { source } : {}),
       ...(workshopId ? { workshopId } : {}),
       ...(workshopName ? { workshopName } : {}),
+      createdAt: new Date().toISOString()
     });
 
-    // Auto-add to main broadcast list
     try {
       await addLeadToMainBroadcastList(lead);
-    } catch (e) {
-      console.warn('Failed to auto-add lead to broadcast list:', e);
-    }
+    } catch (e) {}
 
     return NextResponse.json({ success: true, data: lead }, { status: 201 });
   } catch (error: any) {
     logger.error('leads', 'POST /api/admin/crm/leads failed', error);
-
-    // Handle MongoDB E11000 duplicate key error
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern || {})[0] || 'field';
-      return NextResponse.json(
-        {
-          error: `A lead with this ${field} already exists for your account`,
-          duplicate: true,
-          field
-        },
-        { status: 409 }
-      );
-    }
-
     const message = error instanceof Error ? error.message : 'Failed to create lead';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

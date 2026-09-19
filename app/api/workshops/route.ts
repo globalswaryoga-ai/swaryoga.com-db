@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
-import { getWorkshop, getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
-import mongoose from 'mongoose';
+import { listCohorts, getCohort, listRecordings, listStudents } from '@/lib/workshopBunnyRepository';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/workshops
  * List workshops for public/logged-in users
- * - Returns all active workshops
- * - If logged in, includes enrollment status
  */
 export async function GET(req: NextRequest) {
   try {
@@ -19,142 +15,79 @@ export async function GET(req: NextRequest) {
     try {
       decoded = verifyToken(authHeader);
     } catch (e) {
-      // Not logged in, that's fine for public access
+      // Not logged in
     }
 
-    await connectDB();
-    const Workshop = getWorkshop();
-    const Batch = getBatch();
-    const WorkshopVideo = getWorkshopVideo();
-
     const { searchParams } = new URL(req.url);
-    const workshopSlug = searchParams.get('slug');
+    const cohortId = searchParams.get('slug') || searchParams.get('id');
 
-    // Single workshop detail
-    if (workshopSlug) {
-      const workshop = await Workshop.findOne({ slug: workshopSlug, isActive: true }).lean();
-      if (!workshop) {
+    // Single workshop (cohort) detail
+    if (cohortId) {
+      const cohort = await getCohort(cohortId);
+      if (!cohort) {
         return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
       }
 
-      // Get batches for this workshop
-      const batches = await Batch.find({ 
-        workshopId: workshop._id, 
-        isActive: true 
-      }).lean();
+      let isEnrolled = false;
+      let userStudentData = null;
 
-      // Check if user is enrolled
-      let userEnrollment: any = null;
-      let enrolledBatchId: any = null;
       if (decoded?.id) {
-        const userId = new mongoose.Types.ObjectId(decoded.id);
-        const enrolledBatch = await Batch.findOne({
-          workshopId: workshop._id,
-          enrolledUsers: userId,
-          isActive: true,
-        });
-        if (enrolledBatch) {
-          userEnrollment = {
-            batchId: enrolledBatch._id,
-            batchNumber: enrolledBatch.batchNumber,
-            batchName: enrolledBatch.name,
-          };
-          enrolledBatchId = enrolledBatch._id;
+        const students = await listStudents(cohortId, true);
+        const userStudent = students.find((s: any) => 
+          s.leadId === decoded.id || 
+          s.email === decoded.email ||
+          s.whatsappNumber === decoded.whatsappNumber
+        );
+        if (userStudent) {
+          isEnrolled = true;
+          userStudentData = userStudent;
         }
       }
 
-      // Get videos based on access
-      let videos: any[] = [];
+      // Get recordings
+      const recordings = await listRecordings(cohortId);
       
-      // Free videos are always visible
-      const freeVideos = await WorkshopVideo.find({
-        workshopId: workshop._id,
-        accessType: 'free',
-        isActive: true,
-      }).sort({ dayNumber: 1 }).lean();
-      videos.push(...freeVideos.map((v: any) => ({ ...v, canWatch: true })));
-
-      // If enrolled, show batch videos
-      if (enrolledBatchId) {
-        const enrolledVideos = await WorkshopVideo.find({
-          workshopId: workshop._id,
-          batchId: enrolledBatchId,
-          isActive: true,
-        }).sort({ dayNumber: 1 }).lean();
-        videos.push(...enrolledVideos.map((v: any) => ({ ...v, canWatch: true })));
-      }
-
-      // Show other videos as "locked" previews
-      const lockedVideos = await WorkshopVideo.find({
-        workshopId: workshop._id,
-        accessType: { $ne: 'free' },
-        ...(enrolledBatchId ? { batchId: { $ne: enrolledBatchId } } : {}),
-        isActive: true,
-      }).sort({ dayNumber: 1 }).lean();
-      videos.push(...lockedVideos.map((v: any) => ({ 
-        ...v, 
-        canWatch: false,
-        s3Key: undefined, // Don't expose S3 key for locked videos
-      })));
-
-      // Remove duplicates and sort
-      const uniqueVideos = videos.reduce((acc: any[], video: any) => {
-        if (!acc.find((v: any) => v._id.toString() === video._id.toString())) {
-          acc.push(video);
-        }
-        return acc;
-      }, []);
-      uniqueVideos.sort((a: any, b: any) => a.dayNumber - b.dayNumber);
+      const videos = recordings.map((rec: any) => ({
+        ...rec,
+        canWatch: isEnrolled || rec.accessType === 'free',
+        s3Key: undefined,
+      }));
 
       return NextResponse.json({
         success: true,
         workshop: {
-          ...workshop,
-          batchCount: batches.length,
+          ...cohort,
+          batchCount: 1,
         },
-        userEnrollment,
-        videos: uniqueVideos,
+        userEnrollment: isEnrolled ? userStudentData : null,
+        videos,
         isLoggedIn: !!decoded,
       });
     }
 
-    // List all workshops
-    const workshops = await Workshop.find({ isActive: true })
-      .sort({ createdAt: -1 })
-      .lean();
+    // List all cohorts (workshops)
+    const cohorts = await listCohorts();
 
-    // Enrich with stats and enrollment status
     const enrichedWorkshops = await Promise.all(
-      workshops.map(async (workshop: any) => {
-        const batchCount = await Batch.countDocuments({ 
-          workshopId: workshop._id, 
-          isActive: true 
-        });
-        const videoCount = await WorkshopVideo.countDocuments({ 
-          workshopId: workshop._id,
-          isActive: true 
-        });
-        const freeVideoCount = await WorkshopVideo.countDocuments({
-          workshopId: workshop._id,
-          accessType: 'free',
-          isActive: true,
-        });
-
+      cohorts.map(async (cohort) => {
+        const recordings = await listRecordings(cohort._id);
+        
         let isEnrolled = false;
         if (decoded?.id) {
-          const userId = new mongoose.Types.ObjectId(decoded.id);
-          const enrollment = await Batch.findOne({
-            workshopId: workshop._id,
-            enrolledUsers: userId,
-          });
-          isEnrolled = !!enrollment;
+          const students = await listStudents(cohort._id, true);
+          isEnrolled = students.some((s: any) => 
+            s.leadId === decoded.id || 
+            s.email === decoded.email ||
+            s.whatsappNumber === decoded.whatsappNumber
+          );
         }
 
         return {
-          ...workshop,
-          batchCount,
-          videoCount,
-          freeVideoCount,
+          ...cohort,
+          slug: cohort._id, // map id to slug for frontend compat
+          batchCount: 1,
+          videoCount: recordings.length,
+          freeVideoCount: recordings.filter((r: any) => r.accessType === 'free').length,
           isEnrolled,
         };
       })

@@ -39,3 +39,64 @@ export async function getBunnyLeadMetadata(input: { visibleUserIds: string[] | n
   for (const lead of result.leads) { const status = String(lead.status || ''); if (status in statusCounts) statusCounts[status] += 1; const workshop = String(lead.workshopName || '').trim(); if (workshop) workshopCounts[workshop] = (workshopCounts[workshop] || 0) + 1; if (Array.isArray(lead.labels)) lead.labels.forEach((label: any) => { if (String(label).trim()) labels.add(String(label).trim()); }); }
   return { total: result.total, statusCounts, workshops: Object.keys(workshopCounts).sort(), workshopCounts, labels: [...labels].sort() };
 }
+
+export async function getBunnyLeadByPhone(phoneNumber: string, tenantUserId?: string | null) {
+  const result = await bunnyExecute({
+    sql: 'SELECT data_json FROM leads_sql WHERE lead_key LIKE ?',
+    args: [`%${phoneNumber}%`]
+  });
+  
+  const leads = result.rows.map(r => parse(r.data_json));
+  
+  if (tenantUserId) {
+    return leads.find(l => l.createdByUserId === tenantUserId || l.assignedToUserId === tenantUserId) || null;
+  }
+  
+  return leads[0] || null;
+}
+
+export async function getBunnyLeadById(id: string) {
+  const result = await bunnyExecute({
+    sql: 'SELECT data_json FROM leads_sql WHERE document_id = ?',
+    args: [id]
+  });
+  if (!result.rows[0]) return null;
+  return parse(result.rows[0].data_json);
+}
+
+export async function saveBunnyLead(lead: any, documentId?: string) {
+  const now = new Date().toISOString();
+  const docId = documentId || lead._id?.$oid || lead._id || Math.random().toString(36).substring(2, 15);
+  
+  const leadToSave = {
+    ...lead,
+    _id: docId,
+    updatedAt: now,
+    createdAt: lead.createdAt || now
+  };
+  
+  // The lead_key was used for unique index in migration: 
+  // tenantUserId + '#' + phoneNumber
+  const leadKey = `${leadToSave.createdByUserId || 'system'}#${leadToSave.phoneNumber}`;
+  
+  await bunnyExecute({
+    sql: `INSERT INTO leads_sql (document_id, lead_key, owner_user_id, lead_number, data_json, created_at, updated_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(document_id) DO UPDATE SET 
+            data_json = excluded.data_json,
+            updated_at = excluded.updated_at,
+            owner_user_id = excluded.owner_user_id,
+            lead_number = excluded.lead_number`,
+    args: [
+      docId,
+      leadKey,
+      leadToSave.createdByUserId || null,
+      leadToSave.leadNumber || null,
+      JSON.stringify(leadToSave),
+      leadToSave.createdAt,
+      leadToSave.updatedAt
+    ]
+  });
+  
+  return leadToSave;
+}

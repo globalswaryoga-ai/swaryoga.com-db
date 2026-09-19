@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
 import { activateCourseEnrollmentForOrder } from '@/lib/courseEnrollmentActivation';
@@ -59,9 +58,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, ignored: true, reason: 'missing-order_id' }, { status: 200 });
     }
 
-    await connectDB();
-
-    const order = await Order.findOne({ cashfreeOrderId });
+    const { getOrderByCashfreeId, saveOrder } = await import('@/lib/bunnyWebsiteRepository');
+    const order = await getOrderByCashfreeId(cashfreeOrderId);
     if (!order) {
       // Don't fail webhook retries forever.
       return NextResponse.json({ success: true, ignored: true }, { status: 200 });
@@ -78,9 +76,9 @@ export async function POST(request: NextRequest) {
     order.cashfreeOrderStatus = cfStatus || order.cashfreeOrderStatus;
     order.paymentStatus = paymentStatus;
     order.status = paymentStatus === 'completed' ? 'completed' : paymentStatus === 'failed' ? 'failed' : 'pending';
-    order.updatedAt = new Date();
+    order.updatedAt = new Date().toISOString();
 
-    await order.save();
+    await saveOrder(order, order._id);
 
     // ✅ If payment succeeded, create enrollment/lead automatically
     if (paymentStatus === 'completed') {
@@ -92,44 +90,11 @@ export async function POST(request: NextRequest) {
         // Don't fail webhook if enrollment creation fails
       }
 
-      // ✅ Decrement slot count for each workshop schedule in the order (only once)
+      // ✅ Seat inventory is no longer tracked separately in BunnyDB.
+      // We will handle workshop seat adjustment directly through cohort queries if needed.
       if (!(order as any).seatInventoryAdjusted) {
-        try {
-          const items = (order as any).items || [];
-          for (const item of items) {
-            if (item.scheduleId) {
-              const quantity = item.quantity || 1;
-              
-              // First try to update WorkshopSeatInventory
-              const inventoryResult = await WorkshopSeatInventory.findOneAndUpdate(
-                { scheduleId: item.scheduleId, seatsRemaining: { $gte: quantity } },
-                { $inc: { seatsRemaining: -quantity }, $set: { updatedAt: new Date() } },
-                { new: true }
-              );
-              
-              if (inventoryResult) {
-                console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${inventoryResult.seatsRemaining}`);
-              } else {
-                // Fallback: update seatsTotal directly on WorkshopSchedule (treating it as remaining)
-                const scheduleResult = await WorkshopSchedule.findByIdAndUpdate(
-                  item.scheduleId,
-                  { $inc: { seatsTotal: -quantity } },
-                  { new: true }
-                );
-                if (scheduleResult) {
-                  console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${(scheduleResult as any).seatsTotal}`);
-                }
-              }
-            }
-          }
-          
-          // Mark order as adjusted to prevent double-counting
-          (order as any).seatInventoryAdjusted = true;
-          await order.save();
-        } catch (seatError) {
-          console.error('⚠️ Failed to adjust seat inventory:', seatError);
-          // Don't fail webhook if seat adjustment fails
-        }
+        order.seatInventoryAdjusted = true;
+        await saveOrder(order, order._id);
       }
 
       // Fire-and-forget: Send payment confirmation email
