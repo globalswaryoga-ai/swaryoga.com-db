@@ -17,12 +17,30 @@ export async function initBunnyMetaWhatsAppSchema() {
     { sql: 'CREATE TABLE IF NOT EXISTS meta_archive_manifest_sql (document_id TEXT PRIMARY KEY,tenant_user_id TEXT NOT NULL,phone_number TEXT NOT NULL,date_key TEXT NOT NULL,bunny_path TEXT NOT NULL,byte_size INTEGER NOT NULL DEFAULT 0,message_count INTEGER NOT NULL DEFAULT 0,archived_at TEXT,data_json TEXT NOT NULL)', args: [] },
     { sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_meta_archive_phone_day ON meta_archive_manifest_sql(tenant_user_id,phone_number,date_key)', args: [] },
     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_archive_phone ON meta_archive_manifest_sql(phone_number,date_key DESC)', args: [] },
+    { sql: 'CREATE TABLE IF NOT EXISTS meta_template_payloads_sql (template_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT)', args: [] },
   ]);
 }
+import crypto from 'node:crypto';
 
 export async function upsertBunnyMetaMessage(message: Record<string, any>) {
   await initBunnyMetaWhatsAppSchema();
   const row: Record<string, any> = { ...message };
+  
+  // Deduplication for all messages with media or substantial text
+  const payloadToHash = row.media?.url || (row.messageContent && row.messageContent.length > 50 ? row.messageContent : null);
+  
+  if (payloadToHash) {
+    const payload = { messageContent: row.messageContent, media: row.media };
+    const hash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+    await bunnyExecute({
+      sql: `INSERT OR IGNORE INTO meta_template_payloads_sql (template_hash, payload_json, created_at) VALUES (?, ?, ?)`,
+      args: [hash, JSON.stringify(payload), new Date().toISOString()]
+    });
+    delete row.messageContent;
+    delete row.media;
+    row.templateHash = hash;
+  }
+
   const documentId = stringValue(row._id || row.documentId || row.waMessageId);
   if (!documentId || !row.phoneNumber) throw new Error('Meta message identity is incomplete');
   row.documentId = documentId;
@@ -33,6 +51,8 @@ export async function upsertBunnyMetaMessage(message: Record<string, any>) {
   });
   return row;
 }
+
+const templatePayloadCache = new Map<string, any>();
 
 export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadId?: string; limit?: number; skip?: number; before?: string }) {
   await initBunnyMetaWhatsAppSchema();
@@ -45,7 +65,24 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
   const skip = Math.max(Number(input.skip || 0), 0);
   args.push(limit, skip);
   const result = await bunnyExecute({ sql: `SELECT data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')} ORDER BY COALESCE(sent_at,created_at) DESC LIMIT ? OFFSET ?`, args });
-  return result.rows.map((row) => parse(row.data_json, {}));
+  const messages = result.rows.map((row) => parse(row.data_json, {}));
+
+  for (const msg of messages) {
+    if (msg.templateHash) {
+      if (!templatePayloadCache.has(msg.templateHash)) {
+        const payloadRes = await bunnyExecute({ sql: `SELECT payload_json FROM meta_template_payloads_sql WHERE template_hash = ?`, args: [msg.templateHash] });
+        if (payloadRes.rows[0]) {
+          templatePayloadCache.set(msg.templateHash, parse(payloadRes.rows[0].payload_json, {}));
+        }
+      }
+      const cachedPayload = templatePayloadCache.get(msg.templateHash);
+      if (cachedPayload) {
+        msg.messageContent = cachedPayload.messageContent;
+        msg.media = cachedPayload.media;
+      }
+    }
+  }
+  return messages;
 }
 
 export async function countBunnyMetaMessages(input: { phoneNumber?: string; leadId?: string }) {
@@ -87,4 +124,63 @@ export async function listBunnyMetaConversations(limit = 100) {
   }
   rows.sort((a, b) => String(b.lastMessageAt || '').localeCompare(String(a.lastMessageAt || '')));
   return rows;
+}
+
+export async function getBunnyMetaMessage(messageId: string) {
+  const result = await bunnyExecute({ sql: "SELECT data_json FROM meta_messages_sql WHERE document_id = ?", args: [messageId] });
+  if (!result.rows[0]) return null;
+  const msg = parse(result.rows[0].data_json, {});
+  
+  if (msg.templateHash) {
+    if (!templatePayloadCache.has(msg.templateHash)) {
+      const payloadRes = await bunnyExecute({ sql: `SELECT payload_json FROM meta_template_payloads_sql WHERE template_hash = ?`, args: [msg.templateHash] });
+      if (payloadRes.rows[0]) {
+        templatePayloadCache.set(msg.templateHash, parse(payloadRes.rows[0].payload_json, {}));
+      }
+    }
+    const cachedPayload = templatePayloadCache.get(msg.templateHash);
+    if (cachedPayload) {
+      msg.messageContent = cachedPayload.messageContent;
+      msg.media = cachedPayload.media;
+    }
+  }
+  
+  return msg;
+}
+
+export async function updateBunnyMetaMessage(messageId: string, updates: Record<string, any>) {
+  const existing = await getBunnyMetaMessage(messageId);
+  if (!existing) return null;
+  const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() };
+  await upsertBunnyMetaMessage(merged);
+  return merged;
+}
+
+export async function updateBunnyMetaMessagesMany(filter: { phoneNumber?: string, leadId?: string, direction?: string, statusNot?: string }, updates: Record<string, any>) {
+  const clauses = ["provider = 'meta'"];
+  const args: any[] = [];
+  if (filter.phoneNumber) { clauses.push("phone_number = ?"); args.push(filter.phoneNumber); }
+  if (filter.leadId) { clauses.push("lead_id = ?"); args.push(filter.leadId); }
+  if (filter.direction) { clauses.push("direction = ?"); args.push(filter.direction); }
+  if (filter.statusNot) { clauses.push("status != ?"); args.push(filter.statusNot); }
+  
+  const result = await bunnyExecute({ sql: `SELECT document_id, data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')}`, args });
+  let modifiedCount = 0;
+  for (const row of result.rows) {
+    const existing = parse(row.data_json, {});
+    const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() };
+    await upsertBunnyMetaMessage(merged);
+    modifiedCount++;
+  }
+  return { modifiedCount };
+}
+
+export async function deleteBunnyMetaMessage(messageId: string) {
+  await bunnyExecute({ sql: "DELETE FROM meta_messages_sql WHERE document_id = ?", args: [messageId] });
+  return { deleted: true };
+}
+
+export async function getBunnyMetaAnalytics(scope: Record<string, any>, startDate: Date, endDate: Date) {
+  // This is a complex one, we'll implement it manually in the analytics route or here.
+  // For now, exporting a dummy so the route can use it or we implement logic here.
 }

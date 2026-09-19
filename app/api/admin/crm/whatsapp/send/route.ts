@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
 import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -111,31 +112,59 @@ export async function POST(request: NextRequest) {
       : '(media)';
 
     // Create message record
-    const messageRecord = await WhatsAppMessage.create({
-      leadId: lead._id,
-      phoneNumber: normalizedPhone,
-      messageContent: finalMessageContent,
-      headerText: headerText ? String(headerText) : undefined,
-      footerText: footerText ? String(footerText) : undefined,
-      senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
-      metadata: { channel: providerScope },
-      direction: 'outbound',
-      status: 'pending',
-      sentAt: new Date(),
-      provider: providerValue,
-      sentByLabel: userId,
-      sentByUserId: userId,
-      // Save media info immediately so it's visible in UI even if pending
-      ...(media?.url && {
-        media: {
-          url: media.url,
-          kind: media.kind || 'image',
-        },
-        messageType: 'media',
-      }),
-    });
+    let messageRecord: any;
+    
+    if (providerScope === 'meta') {
+      messageRecord = await upsertBunnyMetaMessage({
+        documentId: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        leadId: lead?._id ? String(lead._id) : undefined,
+        phoneNumber: normalizedPhone,
+        messageContent: finalMessageContent,
+        headerText: headerText ? String(headerText) : undefined,
+        footerText: footerText ? String(footerText) : undefined,
+        senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
+        metadata: { channel: providerScope },
+        direction: 'outbound',
+        status: 'pending',
+        sentAt: new Date().toISOString(),
+        provider: providerValue,
+        sentByLabel: userId,
+        sentByUserId: userId,
+        ...(media?.url && {
+          media: {
+            url: media.url,
+            kind: media.kind || 'image',
+          },
+          messageType: 'media',
+        }),
+      });
+    } else {
+      messageRecord = await WhatsAppMessage.create({
+        leadId: lead?._id,
+        phoneNumber: normalizedPhone,
+        messageContent: finalMessageContent,
+        headerText: headerText ? String(headerText) : undefined,
+        footerText: footerText ? String(footerText) : undefined,
+        senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
+        metadata: { channel: providerScope },
+        direction: 'outbound',
+        status: 'pending',
+        sentAt: new Date(),
+        provider: providerValue,
+        sentByLabel: userId,
+        sentByUserId: userId,
+        ...(media?.url && {
+          media: {
+            url: media.url,
+            kind: media.kind || 'image',
+          },
+          messageType: 'media',
+        }),
+      });
+    }
 
-    console.log(`[SEND:${requestId}] 💾 Message created: ${messageRecord._id}`);
+    const messageId = providerScope === 'meta' ? messageRecord.documentId : messageRecord._id;
+    console.log(`[SEND:${requestId}] 💾 Message created: ${messageId}`);
 
     try {
       let deliveryResult: any;
@@ -202,20 +231,35 @@ export async function POST(request: NextRequest) {
       }
 
       // Mark as sent
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'sent',
-        waMessageId: deliveryResult.waMessageId,
-        whatsappMessageId: deliveryResult.waMessageId,
-        provider: providerValue,
-        deliveredAt: new Date(),
-        // Save media info if sent via Meta
-        ...(media?.url && {
-          media: {
-            url: media.url,
-            kind: media.kind || 'image'
-          }
-        })
-      });
+      if (providerScope === 'meta') {
+        await updateBunnyMetaMessage(messageId, {
+          status: 'sent',
+          waMessageId: deliveryResult.waMessageId,
+          whatsappMessageId: deliveryResult.waMessageId,
+          provider: providerValue,
+          deliveredAt: new Date().toISOString(),
+          ...(media?.url && {
+            media: {
+              url: media.url,
+              kind: media.kind || 'image'
+            }
+          })
+        });
+      } else {
+        await WhatsAppMessage.findByIdAndUpdate(messageId, {
+          status: 'sent',
+          waMessageId: deliveryResult.waMessageId,
+          whatsappMessageId: deliveryResult.waMessageId,
+          provider: providerValue,
+          deliveredAt: new Date(),
+          ...(media?.url && {
+            media: {
+              url: media.url,
+              kind: media.kind || 'image'
+            }
+          })
+        });
+      }
 
       console.log(`[SEND:${requestId}] ✅ Sent successfully`);
 
@@ -223,7 +267,7 @@ export async function POST(request: NextRequest) {
         {
           success: true,
           data: {
-            messageId: messageRecord._id,
+            messageId: messageId,
             status: 'sent',
             waMessageId: deliveryResult.waMessageId,
             provider: providerScope,
@@ -236,10 +280,17 @@ export async function POST(request: NextRequest) {
       const errorMsg = deliveryErr instanceof Error ? deliveryErr.message : String(deliveryErr);
       console.log(`[SEND:${requestId}] ⚠️  Delivery error: ${errorMsg}`);
 
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'failed',
-        errorMessage: errorMsg.substring(0, 500),
-      });
+      if (providerScope === 'meta') {
+        await updateBunnyMetaMessage(messageId, {
+          status: 'failed',
+          errorMessage: errorMsg.substring(0, 500),
+        });
+      } else {
+        await WhatsAppMessage.findByIdAndUpdate(messageId, {
+          status: 'failed',
+          errorMessage: errorMsg.substring(0, 500),
+        });
+      }
 
       // Must be a non-2xx status with no truthy `data` — the frontend's
       // useCRM hook treats any 2xx response, or a body with `result.data`
@@ -252,7 +303,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: errorMsg.substring(0, 200),
-          messageId: messageRecord._id,
+          messageId: messageId,
         },
         { status: 502 }
       );
