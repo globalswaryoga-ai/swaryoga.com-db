@@ -376,6 +376,22 @@ async function handleWebhookPayload(payload: any) {
             { $or: [{ waMessageId }, { externalMessageId: waMessageId }] },
             { $set: update }
           );
+          
+          // Update BunnyDB (new source of truth for messages)
+          try {
+            const { updateBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
+            await updateBunnyMetaMessage(waMessageId, {
+              status,
+              updatedAt: now.toISOString(),
+              ...(status === 'delivered' ? { deliveredAt: now.toISOString() } : {}),
+              ...(status === 'read' ? { readAt: now.toISOString(), deliveredAt: now.toISOString() } : {}),
+              ...(status === 'failed' ? { 
+                errorMessage: Array.isArray(st?.errors) ? (st.errors[0]?.title || st.errors[0]?.message) : 'Failed'
+              } : {})
+            });
+          } catch (bunnyErr) {
+            console.error('[WEBHOOK] Failed to update BunnyDB status:', bunnyErr);
+          }
 
           // Blocked / failed lead tracking — 3-strike system
           const errorCode = st?.errors?.[0]?.code;

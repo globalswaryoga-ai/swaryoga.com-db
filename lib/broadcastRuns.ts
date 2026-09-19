@@ -558,30 +558,62 @@ export async function processDueBroadcastRuns(options?: {
         }
 
         // Route-level API stores WhatsAppMessage; we do it here to fully control tracking.
-        const msg = await WhatsAppMessage.create({
-          leadId: leadId,
-          phoneNumber: to,
-          direction: 'outbound',
-          messageType: 'template',
-          templateId: (template as any)._id,
-          templateVariables: {},
-          messageContent: String((template as any).templateContent || '').trim() || '(template)',
-          status: 'queued',
-          sentAt: now,
-          provider: 'pending',
-          ...(metaCreds?.phoneNumber ? { senderNumber: metaCreds.phoneNumber } : {}),
-          metadata: {
-            broadcast: { runId: String((run as any)._id) },
-            template: {
-              templateName: (template as any).templateName,
-              headerFormat: (template as any).headerFormat,
-              headerContent: (template as any).headerContent,
-              footerText: (template as any).footerText,
-              buttons: Array.isArray((template as any).buttons) ? (template as any).buttons : [],
-              headerMedia: (template as any).headerMedia || null,
+        // Route-level API stores WhatsAppMessage; we do it here to fully control tracking.
+        let msgId: string;
+        
+        if (runProvider === 'meta') {
+          const { upsertBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
+          const metaRecord = await upsertBunnyMetaMessage({
+            documentId: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            leadId: leadId,
+            phoneNumber: to,
+            direction: 'outbound',
+            messageType: 'template',
+            messageContent: String((template as any).templateContent || '').trim() || '(template)',
+            status: 'queued',
+            sentAt: now.toISOString(),
+            provider: 'pending',
+            ...(metaCreds?.phoneNumber ? { senderNumber: metaCreds.phoneNumber } : {}),
+            metadata: {
+              broadcast: { runId: String((run as any)._id) },
+              template: {
+                templateName: (template as any).templateName,
+                headerFormat: (template as any).headerFormat,
+                headerContent: (template as any).headerContent,
+                footerText: (template as any).footerText,
+                buttons: Array.isArray((template as any).buttons) ? (template as any).buttons : [],
+                headerMedia: (template as any).headerMedia || null,
+              },
             },
-          },
-        });
+          });
+          msgId = metaRecord.documentId;
+        } else {
+          const msg = await WhatsAppMessage.create({
+            leadId: leadId,
+            phoneNumber: to,
+            direction: 'outbound',
+            messageType: 'template',
+            templateId: (template as any)._id,
+            templateVariables: {},
+            messageContent: String((template as any).templateContent || '').trim() || '(template)',
+            status: 'queued',
+            sentAt: now,
+            provider: 'pending',
+            ...(metaCreds?.phoneNumber ? { senderNumber: metaCreds.phoneNumber } : {}),
+            metadata: {
+              broadcast: { runId: String((run as any)._id) },
+              template: {
+                templateName: (template as any).templateName,
+                headerFormat: (template as any).headerFormat,
+                headerContent: (template as any).headerContent,
+                footerText: (template as any).footerText,
+                buttons: Array.isArray((template as any).buttons) ? (template as any).buttons : [],
+                headerMedia: (template as any).headerMedia || null,
+              },
+            },
+          });
+          msgId = String(msg._id);
+        }
 
         stat.attempted++;
         result.attempted++;
@@ -591,18 +623,28 @@ export async function processDueBroadcastRuns(options?: {
         // post-timeout verification path (in the catch block) — QR bridge can
         // actually deliver despite our HTTP request timing out.
         const markMessageSent = async (apiResult: any) => {
-          await WhatsAppMessage.updateOne(
-            { _id: msg._id },
-            {
-              $set: {
-                status: 'sent',
-                waMessageId: apiResult.waMessageId,
-                provider: apiResult?.raw?.provider || 'sent',
-                updatedAt: new Date(),
-              },
-              $unset: { failureReason: 1, nextRetryAt: 1 },
-            }
-          );
+          if (runProvider === 'meta') {
+            const { updateBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
+            await updateBunnyMetaMessage(msgId, {
+              status: 'sent',
+              waMessageId: apiResult.waMessageId,
+              provider: apiResult?.raw?.provider || 'sent',
+              updatedAt: new Date().toISOString(),
+            });
+          } else {
+            await WhatsAppMessage.updateOne(
+              { _id: msgId },
+              {
+                $set: {
+                  status: 'sent',
+                  waMessageId: apiResult.waMessageId,
+                  provider: apiResult?.raw?.provider || 'sent',
+                  updatedAt: new Date(),
+                },
+                $unset: { failureReason: 1, nextRetryAt: 1 },
+              }
+            );
+          }
 
           if (!apiResult.waMessageId) {
             console.warn('[Broadcast] WARNING: Message marked as sent but waMessageId is undefined. API Result:', JSON.stringify(apiResult));
@@ -615,7 +657,7 @@ export async function processDueBroadcastRuns(options?: {
                 status: 'sent',
                 waMessageId: apiResult.waMessageId,
                 provider: apiResult?.raw?.provider || 'sent',
-                whatsappMessageId: msg._id,
+                whatsappMessageId: msgId,
                 sentAt: now,
                 updatedAt: new Date(),
               },
@@ -1067,16 +1109,25 @@ export async function processDueBroadcastRuns(options?: {
           const failureReason = `[${errorCategory}] ${errorMsg}`;
           console.log(`[Broadcast] Message failed for ${to}: ${failureReason}`);
 
-          await WhatsAppMessage.updateOne(
-            { _id: msg._id },
-            {
-              $set: {
-                status: 'failed',
-                failureReason: failureReason,
-                updatedAt: new Date(),
-              },
-            }
-          );
+          if (runProvider === 'meta') {
+            const { updateBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
+            await updateBunnyMetaMessage(msgId, {
+              status: 'failed',
+              errorMessage: failureReason,
+              updatedAt: new Date().toISOString(),
+            });
+          } else {
+            await WhatsAppMessage.updateOne(
+              { _id: msgId },
+              {
+                $set: {
+                  status: 'failed',
+                  failureReason: failureReason,
+                  updatedAt: new Date(),
+                },
+              }
+            );
+          }
 
           await BroadcastRunMessage.updateOne(
             { _id: (item as any)._id },
@@ -1085,7 +1136,7 @@ export async function processDueBroadcastRuns(options?: {
                 status: 'failed',
                 failureReason: failureReason,
                 errorCategory: errorCategory,
-                whatsappMessageId: msg._id,
+                whatsappMessageId: msgId,
                 updatedAt: new Date(),
               },
             }
