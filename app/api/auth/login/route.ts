@@ -6,8 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User, Signin } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
+import { getUserByEmail, recordUserSignin } from '@/lib/repositories/userRepository';
 import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import { createRequestContext, logRequest, logResponse, logApiError, Timer } from '@/lib/logging';
@@ -62,22 +62,12 @@ export async function POST(request: NextRequest) {
     const email = body.email?.trim().toLowerCase();
     const password = body.password?.trim();
 
-    // Connect to database
-    try {
-      await connectDB();
-    } catch (dbError) {
-      logApiError(requestContext, 'Database connection failed', 503);
-      logError('login/connectDB', dbError);
-      return apiError('DATABASE_ERROR', 'Database connection failed. Please try again later.');
-    }
+    // Database connection is managed automatically via BunnyDB wrappers
 
     // Find user (case-insensitive)
     let user;
     try {
-      // Use regex for case-insensitive match on the email
-      user = await User.findOne({ 
-        email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-      }).lean();
+      user = await getUserByEmail(email);
     } catch (findError) {
       logApiError(requestContext, 'Failed to find user', 503, { email });
       logError('login/findUser', findError, { email });
@@ -113,7 +103,7 @@ export async function POST(request: NextRequest) {
       // in, degrading every authenticated API call (e.g. paid course video
       // access) to guest access with no visible error.
       token = generateToken({
-        userId: user._id.toString(),
+        userId: user.id,
         email: user.email,
       }, '365d');
     } catch (tokenError) {
@@ -124,13 +114,12 @@ export async function POST(request: NextRequest) {
 
     // Log signin attempt (non-critical)
     try {
-      const signin = new Signin({
+      await recordUserSignin({
         email: user.email,
-        userId: user._id,
+        userId: user.id,
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
         userAgent: request.headers.get('user-agent'),
       });
-      await signin.save();
     } catch (signinError) {
       logError('login/signinLog', signinError);
       // Don't fail the login if signin logging fails
@@ -163,25 +152,20 @@ export async function POST(request: NextRequest) {
       logError('login/leadLookup', leadError);
     }
 
-    logRequest(requestContext, 'Login successful', { email, userId: user._id.toString() });
+    logRequest(requestContext, 'Login successful', { email, userId: user.id });
     logResponse(requestContext, 200, timer.elapsed(), 'Login completed');
 
     return apiSuccess({
       message: 'Login successful',
       token,
       user: {
-        id: user._id,
-        profileId: user.profileId,
+        id: user.id,
         leadNumber: leadNumber,
         name: user.name,
         email: user.email,
         phone: user.phone,
-        country: user.country,
-        state: user.state,
-        gender: user.gender,
-        age: user.age,
-        profession: user.profession,
-        profileImage: user.profileImage,
+        role: user.role,
+        isAdmin: user.isAdmin,
       },
     });
   } catch (error) {

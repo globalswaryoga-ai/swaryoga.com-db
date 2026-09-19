@@ -6,7 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User, CommunityMember } from '@/lib/db';
+import { connectDB, CommunityMember } from '@/lib/db';
+import { getUserByEmail, upsertUser } from '@/lib/repositories/userRepository';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
@@ -58,12 +59,12 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', `Missing fields: ${validation.missing?.join(', ')}`);
     }
 
-    // Connect to database
+    // Database connection for optional Mongo CRM records
     try {
       await connectDB();
     } catch (dbError) {
       logError('signup/connectDB', dbError);
-      return apiError('DATABASE_ERROR', 'Database connection failed');
+      // We don't fail here because User creation happens in BunnyDB now.
     }
 
     // Validate email format
@@ -74,10 +75,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user already exists (case-insensitive)
     try {
-      const trimmedEmail = email.trim();
-      const existingUser = await User.findOne({ 
-        email: { $regex: new RegExp(`^${trimmedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-      }).lean();
+      const existingUser = await getUserByEmail(email);
       if (existingUser) {
         return apiError('VALIDATION_ERROR', 'Email already registered');
       }
@@ -101,22 +99,17 @@ export async function POST(request: NextRequest) {
       return apiError('SERVER_ERROR', 'Password processing failed');
     }
 
-    // Create new user
+    // Create new user in BunnyDB
+    let user;
     try {
-      const user = new User({
+      user = await upsertUser({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
-        countryCode: countryCode || '+91',
-        country: country.trim(),
-        state: state.trim(),
-        gender: gender.trim(),
-        age: ageNumber,
-        profession: profession.trim(),
         password: hashedPassword,
+        role: 'user',
+        isAdmin: false,
       });
-
-      await user.save();
 
   // If we can map the user to a CRM leadNumber, return it in the signup response.
   // This supports a single human-friendly identifier (e.g. "006999") across modules.
@@ -132,8 +125,7 @@ export async function POST(request: NextRequest) {
         const Lead = getLead();
         const meta = {
           formType: 'website-signup',
-          userId: user._id.toString(),
-          profileId: (user as any)?.profileId,
+          userId: user.id,
           country: String(country || '').trim(),
           state: String(state || '').trim(),
           gender: String(gender || '').trim(),
@@ -169,8 +161,7 @@ export async function POST(request: NextRequest) {
                   ...(cleanedEmail ? { email: cleanedEmail } : {}),
                   metadata: meta,
                   // UNIFIED ID: Link Lead to User account
-                  linkedUserId: user._id,
-                  linkedProfileId: (user as any).profileId,
+                  linkedUserId: user.id,
                   isLinkedToAccount: true,
                 },
               },
@@ -196,8 +187,7 @@ export async function POST(request: NextRequest) {
               assignedToUserId: 'admincrm',
               metadata: meta,
               // UNIFIED ID: Link Lead to User account
-              linkedUserId: user._id,
-              linkedProfileId: (user as any).profileId,
+              linkedUserId: user.id,
               isLinkedToAccount: true,
             });
             // Auto-add to main broadcast list
@@ -219,7 +209,7 @@ export async function POST(request: NextRequest) {
                 email: cleanedEmail,
                 mobile: cleanedPhone,
                 countryCode: countryCode || '+91',
-                userId: leadNumber || user._id.toString(),
+                userId: leadNumber || user.id,
                 communityId: 'global',
                 communityName: 'Global Community',
                 status: 'active',
@@ -269,7 +259,7 @@ export async function POST(request: NextRequest) {
         // See app/api/auth/login/route.ts for why this must match the
         // client's 1-year session persistence (lib/sessionManager.ts).
         token = generateToken({
-          userId: user._id.toString(),
+          userId: user.id,
           email: user.email,
         }, '365d');
       } catch (tokenError) {
@@ -280,7 +270,7 @@ export async function POST(request: NextRequest) {
       // Fire-and-forget: Send signup confirmation email
       notifySignupConfirmation(
         { name: user.name, email: user.email, phone: user.phone },
-        { leadNumber: leadNumber || undefined, profileId: (user as any).profileId },
+        { leadNumber: leadNumber || undefined },
       ).catch(err => console.error('[Signup] Notification error:', err));
 
       return apiSuccess({
@@ -288,18 +278,16 @@ export async function POST(request: NextRequest) {
         token,
         ...(leadNameDuplicateWarning ? { warning: leadNameDuplicateWarning } : {}),
         user: {
-          id: user._id,
-          profileId: user.profileId,
+          id: user.id,
           leadNumber: leadNumber || undefined,
           name: user.name,
           email: user.email,
           phone: user.phone,
-          country: user.country,
-          state: user.state,
-          gender: user.gender,
-          age: user.age,
-          profession: user.profession,
-          profileImage: user.profileImage,
+          country: country,
+          state: state,
+          gender: gender,
+          age: ageNumber,
+          profession: profession,
         },
       }, 201);
     } catch (createError: any) {

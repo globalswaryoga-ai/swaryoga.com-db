@@ -4,7 +4,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { connectDB, User } from '@/lib/db';
+import { getUserByEmail, getUserByPhone } from '@/lib/repositories/userRepository';
 import { normalizePhone } from '@/lib/whatsapp';
 import { apiError, apiSuccess, logError } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
@@ -36,38 +36,26 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Email or phone is required');
     }
 
-    await connectDB();
+    let existingUser = null;
 
-    // Build search query
-    const orConditions: any[] = [];
     if (email && email.includes('@')) {
-      orConditions.push({
-        email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-      });
+      existingUser = await getUserByEmail(email);
     }
-    if (phone) {
+    
+    if (!existingUser && phone) {
       const normalized = normalizePhone(phone);
       if (normalized) {
-        orConditions.push({ phone: normalized });
+        existingUser = await getUserByPhone(normalized);
       }
     }
-
-    if (orConditions.length === 0) {
-      return apiError('VALIDATION_ERROR', 'Valid email or phone is required');
-    }
-
-    const existingUser = await User.findOne({ $or: orConditions })
-      .select('name email phone profileId createdAt')
-      .lean();
 
     if (existingUser) {
       return apiSuccess({
         exists: true,
         // Return only safe fields — no password, no sensitive data
-        profileId: (existingUser as any).profileId || '',
-        name: (existingUser as any).name || '',
+        name: existingUser.name || '',
         // Mask email: show first 2 chars + ... + domain
-        maskedEmail: maskEmail((existingUser as any).email || ''),
+        maskedEmail: maskEmail(existingUser.email || ''),
       });
     }
 
