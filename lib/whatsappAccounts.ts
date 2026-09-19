@@ -34,15 +34,9 @@ export async function getMetaCredentialsForTenant(tenantUserId: string): Promise
     const bunnyCredentials = await getBunnyMetaCredentialsForTenant(tenantUserId);
     if (bunnyCredentials) return bunnyCredentials;
   } catch (error) {
-    console.warn('[whatsappAccounts] Bunny tenant lookup failed; using legacy fallback:', error instanceof Error ? error.message : error);
+    console.warn('[whatsappAccounts] Bunny tenant lookup failed:', error instanceof Error ? error.message : error);
   }
-  await connectDB();
-  const account = await WhatsAppAccount.findOne({
-    accountType: 'meta',
-    createdByUserId: tenantUserId,
-    isActive: true,
-  }).lean();
-  return toCredentials(account);
+  return null;
 }
 
 // Resolve which tenant owns the Meta phone_number_id that received an
@@ -57,15 +51,7 @@ export async function getMetaCredentialsByPhoneNumberId(
     const bunnyAccount = await getBunnyMetaCredentialsByPhoneNumberId(phoneNumberId);
     if (bunnyAccount) return bunnyAccount;
   } catch (error) {
-    console.warn('[whatsappAccounts] Bunny phone lookup failed; using legacy fallback:', error instanceof Error ? error.message : error);
+    console.warn('[whatsappAccounts] Bunny phone lookup failed:', error instanceof Error ? error.message : error);
   }
-  await connectDB();
-  const account = await WhatsAppAccount.findOne({
-    accountType: 'meta',
-    metaPhoneNumberId: phoneNumberId,
-    isActive: true,
-  }).lean();
-  const creds = toCredentials(account);
-  if (!creds || !(account as any)?.createdByUserId) return null;
-  return { tenantUserId: String((account as any).createdByUserId), creds };
+  return null;
 }
