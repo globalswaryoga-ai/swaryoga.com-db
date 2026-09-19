@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
     const WhatsAppMessage = getWhatsAppMessage();
 
     // Find messages in MongoDB
-    const messages = await WhatsAppMessage.find()
-      .sort({ createdAt: 1 })
+    const messages = await WhatsAppMessage.find({ provider: 'meta' })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
