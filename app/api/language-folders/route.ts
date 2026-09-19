@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 /**
  * Public Language Folders API
  * GET /api/language-folders - List active folders (public, no auth required)

@@ -105,12 +105,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const workshops = workshopsData.workshops || [];
       
       dynamicPages = dynamicPages.concat(
-        workshops.map((workshop: any) => ({
-          url: `${baseUrl}/workshops/${workshop.slug || workshop._id}`,
-          lastModified: new Date(workshop.updatedAt || workshop.createdAt),
-          changeFrequency: 'weekly' as const,
-          priority: 0.7,
-        }))
+        workshops.map((workshop: any) => {
+          const dateStr = workshop.updatedAt || workshop.createdAt;
+          let validDate = new Date();
+          if (dateStr) {
+            const parsed = new Date(dateStr);
+            if (!isNaN(parsed.getTime())) {
+              validDate = parsed;
+            }
+          }
+          return {
+            url: `${baseUrl}/workshops/${workshop.slug || workshop._id}`,
+            lastModified: validDate,
+            changeFrequency: 'weekly' as const,
+            priority: 0.7,
+          };
+        })
       );
     }
 
@@ -124,12 +134,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const posts = blogData.posts || [];
       
       dynamicPages = dynamicPages.concat(
-        posts.map((post: any) => ({
-          url: `${baseUrl}/blog/${post.slug || post._id}`,
-          lastModified: new Date(post.updatedAt || post.createdAt),
-          changeFrequency: 'weekly' as const,
-          priority: 0.6,
-        }))
+        posts.map((post: any) => {
+          const dateStr = post.updatedAt || post.createdAt;
+          let validDate = new Date();
+          if (dateStr) {
+            const parsed = new Date(dateStr);
+            if (!isNaN(parsed.getTime())) {
+              validDate = parsed;
+            }
+          }
+          return {
+            url: `${baseUrl}/blog/${post.slug || post._id}`,
+            lastModified: validDate,
+            changeFrequency: 'weekly' as const,
+            priority: 0.6,
+          };
+        })
       );
     }
   } catch (error) {
