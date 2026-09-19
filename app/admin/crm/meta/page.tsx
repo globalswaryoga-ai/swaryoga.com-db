@@ -682,9 +682,10 @@ export default function MetaInboxPage() {
     if (!id) return;
     if (!silent) setLoadingMessages(true);
     try {
-      // Determine if id is an ObjectId or phoneNumber
-      const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
-      const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
+      // Determine if id is a leadId or phoneNumber
+      // A phone number is at least 10 digits long. A lead ID can be a 24-char hex or a short custom ID (e.g. 6 digits)
+      const isPhoneNumber = /^\\d{10,}$/.test(id);
+      const params: any = !isPhoneNumber ? { leadId: id } : { phoneNumber: id };
       params.provider = providerScope;
       
       const data = await crmFetch(`/api/admin/crm/messages`, { 
@@ -743,8 +744,8 @@ export default function MetaInboxPage() {
     const oldest = messagesRef.current[0];
     if (!oldest) return false;
 
-    const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
-    const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
+    const isPhoneNumber = /^\\d{10,}$/.test(id);
+    const params: any = !isPhoneNumber ? { leadId: id } : { phoneNumber: id };
     params.provider = providerScope;
     params.before = new Date((oldest as any).sentAt || (oldest as any).createdAt).toISOString();
     params.limit = 20;
