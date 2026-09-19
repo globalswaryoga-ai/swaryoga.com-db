@@ -64,7 +64,7 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
   const limit = Math.min(Math.max(Number(input.limit || 100), 1), 500);
   const skip = Math.max(Number(input.skip || 0), 0);
   args.push(limit, skip);
-  const result = await bunnyExecute({ sql: `SELECT data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')} ORDER BY COALESCE(sent_at,created_at) DESC LIMIT ? OFFSET ?`, args });
+  const result = await bunnyExecute({ sql: `SELECT document_id, sent_at, created_at, data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')} ORDER BY COALESCE(sent_at,created_at) DESC LIMIT ? OFFSET ?`, args });
   const messages = result.rows.map((row) => {
     const msg: any = parse(row.data_json, {});
     return {
@@ -109,7 +109,7 @@ export async function listBunnyMetaConversations(limit = 100) {
   const rows: Array<Record<string, any>> = [];
   const seen = new Set<string>();
   for (const summary of result.rows) {
-    const latest = await bunnyExecute({ sql: 'SELECT data_json FROM meta_messages_sql WHERE provider = \'meta\' AND phone_number = ? ORDER BY COALESCE(sent_at,created_at) DESC LIMIT 1', args: [String(summary.phone_number)] });
+    const latest = await bunnyExecute({ sql: 'SELECT document_id, sent_at, created_at, data_json FROM meta_messages_sql WHERE provider = \'meta\' AND phone_number = ? ORDER BY COALESCE(sent_at,created_at) DESC LIMIT 1', args: [String(summary.phone_number)] });
     const message = parse<Record<string, any>>(latest.rows[0]?.data_json, {});
     const unread = await bunnyExecute({ sql: "SELECT COUNT(*) AS count FROM meta_messages_sql WHERE provider = 'meta' AND phone_number = ? AND direction = 'inbound' AND status <> 'read'", args: [String(summary.phone_number)] });
     rows.push({
@@ -136,7 +136,7 @@ export async function listBunnyMetaConversations(limit = 100) {
 }
 
 export async function getBunnyMetaMessage(messageId: string) {
-  const result = await bunnyExecute({ sql: "SELECT data_json FROM meta_messages_sql WHERE document_id = ?", args: [messageId] });
+  const result = await bunnyExecute({ sql: "SELECT document_id, sent_at, created_at, data_json FROM meta_messages_sql WHERE document_id = ?", args: [messageId] });
   if (!result.rows[0]) return null;
   const rawMsg: any = parse(result.rows[0].data_json, {});
   const msg: any = {
@@ -180,7 +180,7 @@ export async function updateBunnyMetaMessagesMany(filter: { phoneNumber?: string
   if (filter.direction) { clauses.push("direction = ?"); args.push(filter.direction); }
   if (filter.statusNot) { clauses.push("status != ?"); args.push(filter.statusNot); }
   
-  const result = await bunnyExecute({ sql: `SELECT document_id, data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')}`, args });
+  const result = await bunnyExecute({ sql: `SELECT document_id, sent_at, created_at, data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')}`, args });
   let modifiedCount = 0;
   for (const row of result.rows) {
     const existing = parse(row.data_json, {});
