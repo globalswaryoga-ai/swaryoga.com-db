@@ -65,7 +65,16 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
   const skip = Math.max(Number(input.skip || 0), 0);
   args.push(limit, skip);
   const result = await bunnyExecute({ sql: `SELECT data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')} ORDER BY COALESCE(sent_at,created_at) DESC LIMIT ? OFFSET ?`, args });
-  const messages = result.rows.map((row) => parse(row.data_json, {}));
+  const messages = result.rows.map((row) => {
+    const msg = parse(row.data_json, {});
+    return {
+      ...msg,
+      _id: String(msg._id?.$oid || msg._id || row.document_id),
+      sentAt: msg.sentAt?.$date ? new Date(Number(msg.sentAt.$date.$numberLong || msg.sentAt.$date)).toISOString() : (msg.sentAt || row.sent_at),
+      createdAt: msg.createdAt?.$date ? new Date(Number(msg.createdAt.$date.$numberLong || msg.createdAt.$date)).toISOString() : (msg.createdAt || row.created_at),
+      provider: 'meta'
+    };
+  });
 
   for (const msg of messages) {
     if (msg.templateHash) {
@@ -129,7 +138,14 @@ export async function listBunnyMetaConversations(limit = 100) {
 export async function getBunnyMetaMessage(messageId: string) {
   const result = await bunnyExecute({ sql: "SELECT data_json FROM meta_messages_sql WHERE document_id = ?", args: [messageId] });
   if (!result.rows[0]) return null;
-  const msg = parse(result.rows[0].data_json, {});
+  const rawMsg = parse(result.rows[0].data_json, {});
+  const msg = {
+    ...rawMsg,
+    _id: String(rawMsg._id?.$oid || rawMsg._id || result.rows[0].document_id),
+    sentAt: rawMsg.sentAt?.$date ? new Date(Number(rawMsg.sentAt.$date.$numberLong || rawMsg.sentAt.$date)).toISOString() : (rawMsg.sentAt || result.rows[0].sent_at),
+    createdAt: rawMsg.createdAt?.$date ? new Date(Number(rawMsg.createdAt.$date.$numberLong || rawMsg.createdAt.$date)).toISOString() : (rawMsg.createdAt || result.rows[0].created_at),
+    provider: 'meta'
+  };
   
   if (msg.templateHash) {
     if (!templatePayloadCache.has(msg.templateHash)) {

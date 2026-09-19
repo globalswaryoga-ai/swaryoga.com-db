@@ -42,11 +42,11 @@ export async function getBunnyLeadMetadata(input: { visibleUserIds: string[] | n
 
 export async function getBunnyLeadByPhone(phoneNumber: string, tenantUserId?: string | null) {
   const result = await bunnyExecute({
-    sql: 'SELECT data_json FROM leads_sql WHERE lead_key LIKE ?',
+    sql: 'SELECT document_id, data_json FROM leads_sql WHERE lead_key LIKE ?',
     args: [`%${phoneNumber}%`]
   });
   
-  const leads = result.rows.map(r => parse(r.data_json));
+  const leads = result.rows.map(r => { const lead = parse(r.data_json); return { ...lead, _id: String(lead._id?.$oid || lead._id || r.document_id) }; });
   
   if (tenantUserId) {
     return leads.find(l => l.createdByUserId === tenantUserId || l.assignedToUserId === tenantUserId) || null;
@@ -57,11 +57,11 @@ export async function getBunnyLeadByPhone(phoneNumber: string, tenantUserId?: st
 
 export async function getBunnyLeadById(id: string) {
   const result = await bunnyExecute({
-    sql: 'SELECT data_json FROM leads_sql WHERE document_id = ?',
+    sql: 'SELECT document_id, data_json FROM leads_sql WHERE document_id = ?',
     args: [id]
   });
   if (!result.rows[0]) return null;
-  return parse(result.rows[0].data_json);
+  const lead = parse(result.rows[0].data_json); return { ...lead, _id: String(lead._id?.$oid || lead._id || result.rows[0].document_id) };
 }
 
 export async function saveBunnyLead(lead: any, documentId?: string) {
