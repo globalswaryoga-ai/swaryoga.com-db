@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
           templateName: metaTemplate.name,
           metaTemplateId: metaTemplate.id,
           metaTemplateName: metaTemplate.name,
+          provider: 'meta',
           category: mapMetaCategoryToLocal(metaTemplate.category),
           language: metaTemplate.language || 'en',
           templateContent: bodyComponent?.text || '',

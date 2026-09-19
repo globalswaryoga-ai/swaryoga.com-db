@@ -54,7 +54,13 @@ export async function GET(request: NextRequest) {
 
     if (category) filter.category = category;
     if (status) filter.status = status;
-    if (provider) filter.provider = provider;
+    if (provider) {
+      if (provider === 'meta') {
+        filter.provider = { $in: ['meta', null] };
+      } else {
+        filter.provider = provider;
+      }
+    }
 
     const templates = await WhatsAppTemplate.find(filter)
       .sort({ createdAt: -1 })
