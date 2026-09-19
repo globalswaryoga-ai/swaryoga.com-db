@@ -62,3 +62,53 @@ export async function recordBunnyAdminSignin(input: { email: string; userId?: st
     { sql: 'UPDATE admin_users_sql SET last_login_at = ?, updated_at = ? WHERE user_id = ?', args: [timestamp, timestamp, input.userId || ''] },
   ]);
 }
+
+export async function getAdminUsers() {
+  await initBunnyAuthSchema();
+  const result = await bunnyExecute({ sql: 'SELECT * FROM admin_users_sql WHERE is_admin = 1', args: [] });
+  return result.rows.map(mapUser);
+}
+
+export async function upsertBunnyAdmin(user: Partial<BunnyAdminUser> & { userId: string, email: string }) {
+  await initBunnyAuthSchema();
+  const id = user.id || crypto.randomUUID();
+  const now = new Date().toISOString();
+  
+  await bunnyExecute({
+    sql: `INSERT INTO admin_users_sql (
+      id, user_id, email, password_hash, is_admin, role,
+      permissions_json, permissions_v2_json, managed_user_ids_json,
+      tenant_slug, name, phone, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      email=excluded.email,
+      password_hash=excluded.password_hash,
+      is_admin=excluded.is_admin,
+      role=excluded.role,
+      permissions_json=excluded.permissions_json,
+      permissions_v2_json=excluded.permissions_v2_json,
+      managed_user_ids_json=excluded.managed_user_ids_json,
+      tenant_slug=excluded.tenant_slug,
+      name=excluded.name,
+      phone=excluded.phone,
+      updated_at=excluded.updated_at`,
+    args: [
+      id,
+      user.userId,
+      user.email.toLowerCase(),
+      user.passwordHash || '',
+      user.isAdmin ? 1 : 0,
+      user.role || 'admin',
+      JSON.stringify(user.permissions || []),
+      JSON.stringify(user.permissionsV2 || null),
+      JSON.stringify(user.managedUserIds || []),
+      user.tenantSlug || null,
+      user.name || null,
+      user.phone || null,
+      now,
+      now
+    ]
+  });
+  
+  return findBunnyAdmin(user.userId);
+}

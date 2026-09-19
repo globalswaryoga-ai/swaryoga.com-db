@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-
-import { connectDB, getUser } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import bcrypt from 'bcryptjs';
+import * as bunnyAuth from '@/lib/bunnyAuthRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,13 +19,20 @@ export async function GET(request: NextRequest) {
     // NOTE: Non-superadmin admins still need the admin list for CRM lead assignment dropdowns.
     // We return a minimal, safe set of fields below.
 
-    await connectDB();
-    const User = getUser();
+    const allAdmins = await bunnyAuth.getAdminUsers();
 
     // Fetch all admin users (minimal fields for assignment UI)
-    const adminUsers = await User.find({ isAdmin: true })
-      .select('_id userId email name role managedUserIds permissions permissionsV2 isAdmin createdAt')
-      .lean();
+    const adminUsers = allAdmins.map((u) => ({
+      _id: u.id,
+      userId: u.userId,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      managedUserIds: u.managedUserIds,
+      permissions: u.permissions,
+      permissionsV2: u.permissionsV2,
+      isAdmin: u.isAdmin,
+    }));
 
     return NextResponse.json({ success: true, data: adminUsers }, { status: 200 });
   } catch (error) {
@@ -92,16 +98,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await connectDB();
-    const User = getUser();
-
     // Normalize email to lowercase for consistency
     const normalizedEmail = email.toLowerCase().trim();
 
     // Check if userId already exists (case-insensitive)
-    const existingUserId = await User.findOne({ 
-      userId: { $regex: new RegExp(`^${userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-    });
+    const existingUserId = await bunnyAuth.findBunnyAdmin(userId);
     if (existingUserId) {
       return NextResponse.json(
         { error: `Username "${userId}" already exists (existing: "${existingUserId.userId}")` },
@@ -110,9 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if email already exists (case-insensitive)
-    const existingEmail = await User.findOne({ 
-      email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-    });
+    const existingEmail = await bunnyAuth.findBunnyAdmin(normalizedEmail);
     if (existingEmail) {
       // Super admin can convert existing non-admin user to admin
       if (!existingEmail.isAdmin && convertExisting) {
@@ -125,16 +124,11 @@ export async function POST(request: NextRequest) {
         existingEmail.permissions = finalPermissions;
         existingEmail.permissionsV2 = permissionsV2 || undefined;
         existingEmail.managedUserIds = finalManagedUserIds;
-        existingEmail.password = hashedPassword;
-        if (name) existingEmail.name = name;
         // Keep the original userId, or update if provided
         if (userId && userId !== existingEmail.userId) {
           // Check if the new userId is unique
-          const userIdCheck = await User.findOne({ 
-            userId: { $regex: new RegExp(`^${userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-            _id: { $ne: existingEmail._id }
-          });
-          if (userIdCheck) {
+          const userIdCheck = await bunnyAuth.findBunnyAdmin(userId);
+          if (userIdCheck && userIdCheck.id !== existingEmail.id) {
             return NextResponse.json(
               { error: `Username "${userId}" already exists` },
               { status: 409 }
@@ -143,13 +137,17 @@ export async function POST(request: NextRequest) {
           existingEmail.userId = userId.trim();
         }
         
-        await existingEmail.save();
+        await bunnyAuth.upsertBunnyAdmin({
+          ...existingEmail,
+          name: name || existingEmail.name,
+          passwordHash: hashedPassword,
+        });
         
         return NextResponse.json(
           {
             success: true,
             data: {
-              _id: existingEmail._id,
+              _id: existingEmail.id,
               userId: existingEmail.userId,
               email: existingEmail.email,
               name: existingEmail.name,
@@ -157,7 +155,6 @@ export async function POST(request: NextRequest) {
               permissionsV2: existingEmail.permissionsV2,
               role: existingEmail.role,
               managedUserIds: existingEmail.managedUserIds,
-              createdAt: existingEmail.createdAt,
             },
             message: 'Existing user converted to admin successfully',
             converted: true,
@@ -190,25 +187,27 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create new admin user
-    const newAdminUser = new User({
+    const newAdminUser = await bunnyAuth.upsertBunnyAdmin({
       userId: userId.trim(),
       email: normalizedEmail,
       name: name || userId, // Use provided name or default to userId
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       isAdmin: true,
       role: finalRole,
       permissions: finalPermissions,
       permissionsV2: permissionsV2 || undefined,
       managedUserIds: finalManagedUserIds,
     });
-
-    await newAdminUser.save();
+    
+    if (!newAdminUser) {
+        throw new Error("Failed to create admin user in BunnyDB");
+    }
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          _id: newAdminUser._id,
+          _id: newAdminUser.id,
           userId: newAdminUser.userId,
           email: newAdminUser.email,
           name: newAdminUser.name,
@@ -216,7 +215,6 @@ export async function POST(request: NextRequest) {
           permissionsV2: newAdminUser.permissionsV2,
           role: newAdminUser.role,
           managedUserIds: newAdminUser.managedUserIds,
-          createdAt: newAdminUser.createdAt,
         },
         message: 'Admin user created successfully',
       },
