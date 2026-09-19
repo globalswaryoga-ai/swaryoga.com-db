@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { getBunnyLeadByPhone, getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
+import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
@@ -37,11 +38,11 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = decoded?.userId || decoded?.username || 'unknown';
-    const superAdmin = userId === 'admincrm' || userId === 'admin';
+    const superAdmin = isSuperAdmin(decoded);
     const normalizedPhone = normalizePhone(String(phoneNumber));
 
     // Find lead in BunnyDB
-    let lead = leadId ? await getBunnyLeadById(leadId, superAdmin ? null : userId) : null;
+    let lead = leadId ? await getBunnyLeadById(leadId) : null;
     if (!lead) {
       lead = await getBunnyLeadByPhone(normalizedPhone, superAdmin ? null : userId);
     }

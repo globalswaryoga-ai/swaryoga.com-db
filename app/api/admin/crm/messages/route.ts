@@ -8,6 +8,7 @@ import {
   buildMetadata,
   isValidObjectId,
   normalizePhone,
+  isSuperAdmin,
 } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,9 @@ import crypto from 'node:crypto';
 export async function GET(request: NextRequest) {
   try {
     const viewerUserId = verifyAdminAccess(request);
-    const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    const superAdmin = isSuperAdmin(decoded);
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
     const orderParam = url.searchParams.get('order');
@@ -123,7 +126,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const userId = verifyAdminAccess(request);
-    const superAdmin = userId === 'admincrm' || userId === 'admin';
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    const superAdmin = isSuperAdmin(decoded);
     const body = await request.json().catch(() => null);
 
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -165,7 +170,7 @@ export async function POST(request: NextRequest) {
     if (!normalizedPhone) return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
 
     const now = new Date();
-    const decoded = verifyToken(request.headers.get('authorization')?.slice('Bearer '.length));
+    // use existing decoded from POST scope
     const adminDisplayName = decoded?.name || decoded?.username || userId;
     const adminNameTag = `\n\n*${adminDisplayName}*`;
     const messageWithAdmin = messageContent ? String(messageContent).trim() + adminNameTag : '';
