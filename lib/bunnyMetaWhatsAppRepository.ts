@@ -66,7 +66,7 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
   args.push(limit, skip);
   const result = await bunnyExecute({ sql: `SELECT data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')} ORDER BY COALESCE(sent_at,created_at) DESC LIMIT ? OFFSET ?`, args });
   const messages = result.rows.map((row) => {
-    const msg = parse(row.data_json, {});
+    const msg: any = parse(row.data_json, {});
     return {
       ...msg,
       _id: String(msg._id?.$oid || msg._id || row.document_id),
@@ -138,8 +138,8 @@ export async function listBunnyMetaConversations(limit = 100) {
 export async function getBunnyMetaMessage(messageId: string) {
   const result = await bunnyExecute({ sql: "SELECT data_json FROM meta_messages_sql WHERE document_id = ?", args: [messageId] });
   if (!result.rows[0]) return null;
-  const rawMsg = parse(result.rows[0].data_json, {});
-  const msg = {
+  const rawMsg: any = parse(result.rows[0].data_json, {});
+  const msg: any = {
     ...rawMsg,
     _id: String(rawMsg._id?.$oid || rawMsg._id || result.rows[0].document_id),
     sentAt: rawMsg.sentAt?.$date ? new Date(Number(rawMsg.sentAt.$date.$numberLong || rawMsg.sentAt.$date)).toISOString() : (rawMsg.sentAt || result.rows[0].sent_at),
