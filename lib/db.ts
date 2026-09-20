@@ -2302,8 +2302,11 @@ const enquiryFormSchema = new mongoose.Schema(
   {
     formId: { type: String, required: true, unique: true, index: true }, // short unique ID for URL
     workshopName: { type: String, required: true },
-    workshopDate: { type: String, default: '' },     // human-readable date string
+    workshopDate: { type: String, default: '' },     // human-readable start date string
+    workshopEndDate: { type: String, default: '' },
     workshopTime: { type: String, default: '' },
+    duration: { type: String, default: '' },
+    holidays: { type: String, default: '' },
     workshopMode: { type: String, enum: ['online', 'offline', 'residential', 'recorded'], default: 'online' },
     workshopId: { type: String, default: '' },        // optional slug reference
     description: { type: String, default: '' },

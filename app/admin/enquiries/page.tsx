@@ -4,8 +4,9 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, Send, QrCode, Archive, ArchiveRestore, ChevronDown, ChevronUp } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, Send, QrCode, Archive, ArchiveRestore, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
 interface Enquiry {
   id: string;
@@ -533,6 +534,44 @@ export default function EnquiriesPage() {
     }
   };
 
+  const downloadExcel = (form: EnquiryForm) => {
+    const formEnquiries = getFormEnquiries(form.formId);
+    if (formEnquiries.length === 0) {
+      alert('No submissions for this form yet.');
+      return;
+    }
+
+    const excelData = formEnquiries.map((enq) => {
+      // Base data
+      const data: Record<string, string | number> = {
+        'Submission ID': enq.id,
+        'Name': enq.name || '',
+        'Mobile': enq.mobile || '',
+        'Email': enq.email || '',
+        'Gender': enq.gender || '',
+        'City': enq.city || '',
+        'Submitted At': new Date(enq.submittedAt).toLocaleString('en-IN'),
+        'Status': enq.status || 'new',
+        'Notes': enq.notes || '',
+      };
+      
+      // Dynamic answers are stored in `dynamicAnswers` inside the DB but the EnquiriesAPI maps them... wait! 
+      // I need to check if the API returns dynamic answers. If so, they'll be in `enq.dynamicAnswers` or similar.
+      // For now, let's include basic fields. If dynamicAnswers exist on the object, I'll add them.
+      const dynamicAnswers = (enq as any).dynamicAnswers || {};
+      for (const [key, value] of Object.entries(dynamicAnswers)) {
+        data[key] = Array.isArray(value) ? value.join(', ') : String(value || '');
+      }
+
+      return data;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Submissions');
+    XLSX.writeFile(wb, `${form.workshopName.replace(/[^a-zA-Z0-9]/g, '_')}_Submissions.xlsx`);
+  };
+
   const hiddenCount = enquiries.filter((e) => (e.labels || []).includes(HIDE_LABEL)).length;
 
   const getFormEnquiries = (formId: string) =>
@@ -716,6 +755,17 @@ export default function EnquiriesPage() {
                         >
                           {isBroadcasting('qr') ? <LoaderIcon size={12} className="animate-spin" /> : <QrCode size={12} />}
                           QR
+                        </button>
+
+                        {/* Export Excel */}
+                        <button
+                          onClick={() => downloadExcel(form)}
+                          disabled={formEnquiries.length === 0}
+                          title="Export submissions to Excel"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                        >
+                          <Download size={12} />
+                          Export
                         </button>
 
                         {/* View toggle */}

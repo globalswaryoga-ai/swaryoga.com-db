@@ -15,7 +15,7 @@ export interface IPaymentConfig {
 
 export interface IFormQuestion extends Document {
   fieldKey: string;
-  formType: string;
+  formId: string;
   questionType: QuestionType;
   label: { en: string; hi?: string; mr?: string; };
   placeholder?: { en?: string; hi?: string; mr?: string; };
@@ -49,7 +49,7 @@ const PaymentConfigSchema = new Schema<IPaymentConfig>(
 const FormQuestionSchema = new Schema<IFormQuestion>(
   {
     fieldKey: { type: String, required: true, trim: true, index: true },
-    formType: { type: String, required: true, default: 'workshop', index: true },
+    formId: { type: String, required: true, index: true },
     questionType: {
       type: String,
       required: true,

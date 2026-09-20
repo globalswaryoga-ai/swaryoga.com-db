@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(decoded)) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
 
   const body = await req.json();
-  const { workshopName, workshopDate, workshopTime, workshopMode, workshopId, description, workshopImage, price, currency, groupLink, feeOptions, timeSlots } = body;
+  const { workshopName, workshopDate, workshopEndDate, duration, holidays, workshopTime, workshopMode, workshopId, description, workshopImage, price, currency, groupLink, feeOptions, timeSlots } = body;
 
   if (!workshopName?.trim()) {
     return NextResponse.json({ error: 'Workshop name is required' }, { status: 400 });
@@ -62,6 +62,9 @@ export async function POST(req: NextRequest) {
     formId,
     workshopName: workshopName.trim(),
     workshopDate: workshopDate?.trim() || '',
+    workshopEndDate: workshopEndDate?.trim() || '',
+    duration: duration?.trim() || '',
+    holidays: holidays?.trim() || '',
     workshopTime: workshopTime?.trim() || '',
     workshopMode: workshopMode || 'online',
     workshopId: workshopId?.trim() || '',

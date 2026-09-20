@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
           notes: l.notes || '',
           labels: l.labels || [],
           timeSlot: meta.timeSlot || null,
+          dynamicAnswers: meta.dynamicAnswers || {},
           // Include 'pending' (Pay Later link sent, not yet paid) too — not just
           // 'paid' — so the admin can see amount due, not just amount received.
           payment: payment
@@ -228,6 +229,7 @@ export async function POST(request: NextRequest) {
               gender: body.gender,
               city: body.city,
               submittedAt: new Date(),
+              dynamicAnswers: body.dynamicAnswers || {},
             },
           };
           await existingLead.save();
@@ -253,6 +255,7 @@ export async function POST(request: NextRequest) {
               gender: body.gender,
               city: body.city,
               submittedAt: new Date(),
+              dynamicAnswers: body.dynamicAnswers || {},
             },
           });
           await addLeadToMainBroadcastList(newLead);

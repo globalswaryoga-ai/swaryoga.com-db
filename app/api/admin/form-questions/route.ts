@@ -13,11 +13,11 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
-    const formType = searchParams.get('formType');
+    const formId = searchParams.get('formId');
 
     const filter: Record<string, any> = {};
-    if (formType) {
-      filter.formType = { $in: [formType, 'all'] };
+    if (formId) {
+      filter.formId = formId;
     }
 
     const questions = await FormQuestion.find(filter).sort({ order: 1, createdAt: 1 }).lean();
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       fieldKey,
-      formType = 'workshop',
+      formId,
       questionType,
       label,
       placeholder,
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const sanitizedKey = fieldKey.trim().replace(/[^a-zA-Z0-9_]/g, '');
 
-    const existing = await FormQuestion.findOne({ fieldKey: sanitizedKey, formType });
+    const existing = await FormQuestion.findOne({ fieldKey: sanitizedKey, formId });
     if (existing) {
       return NextResponse.json(
         { success: false, error: `A question with field key "${sanitizedKey}" already exists for this form` },
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     const newQuestion = await FormQuestion.create({
       fieldKey: sanitizedKey,
-      formType,
+      formId,
       questionType,
       label,
       placeholder,
