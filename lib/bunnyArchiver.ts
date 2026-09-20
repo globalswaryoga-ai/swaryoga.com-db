@@ -26,7 +26,7 @@ const gzip = promisify(_gzip);
 const gunzip = promisify(_gunzip);
 
 /** How many days to keep rows hot in the DB before archiving */
-const KEEP_DAYS = parseInt(process.env.ARCHIVE_KEEP_DAYS || '2', 10);
+const KEEP_DAYS = parseInt(process.env.ARCHIVE_KEEP_DAYS || '30', 10);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

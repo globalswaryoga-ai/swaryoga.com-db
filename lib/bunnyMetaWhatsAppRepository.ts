@@ -81,11 +81,13 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
   const result = await bunnyExecute({ sql: `SELECT document_id, sent_at, created_at, data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')} ORDER BY COALESCE(sent_at,created_at) DESC LIMIT ? OFFSET ?`, args });
   const messages = result.rows.map((row) => {
     const msg: any = parse(row.data_json, {});
+    const pSent = msg.sentAt?.$date ? new Date(Number(msg.sentAt.$date.$numberLong || msg.sentAt.$date)).toISOString() : (msg.sentAt || row.sent_at);
+    const pCreated = msg.createdAt?.$date ? new Date(Number(msg.createdAt.$date.$numberLong || msg.createdAt.$date)).toISOString() : (msg.createdAt || row.created_at);
     return {
       ...msg,
       _id: String(msg._id?.$oid || msg._id || row.document_id),
-      sentAt: msg.sentAt?.$date ? new Date(Number(msg.sentAt.$date.$numberLong || msg.sentAt.$date)).toISOString() : (msg.sentAt || row.sent_at),
-      createdAt: msg.createdAt?.$date ? new Date(Number(msg.createdAt.$date.$numberLong || msg.createdAt.$date)).toISOString() : (msg.createdAt || row.created_at),
+      sentAt: pSent || pCreated,
+      createdAt: pCreated || pSent || new Date().toISOString(),
       provider: 'meta'
     };
   });

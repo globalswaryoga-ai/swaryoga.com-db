@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     stats,
     recentArchives: logResult.rows,
-    keepDays: parseInt(process.env.ARCHIVE_KEEP_DAYS || '2', 10),
+    keepDays: parseInt(process.env.ARCHIVE_KEEP_DAYS || '30', 10),
   });
 }
 
