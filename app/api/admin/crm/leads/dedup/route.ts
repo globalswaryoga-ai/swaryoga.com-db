@@ -13,10 +13,20 @@ export const dynamic = 'force-dynamic';
  */
 function normalizePhoneForDedup(phone: string): string {
   let digits = String(phone || '').replace(/\D/g, '');
+  
   // Remove leading 00 (international prefix)
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  // Remove single leading 0 (trunk prefix)
-  else if (digits.startsWith('0') && digits.length > 6) digits = digits.slice(1);
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  } else if (digits.startsWith('0') && digits.length > 6) {
+    // Remove single leading 0 (trunk prefix)
+    digits = digits.slice(1);
+  }
+
+  // Common India normalization: 10 digits -> prefix 91
+  if (digits.length === 10) {
+    digits = `91${digits}`;
+  }
+  
   return digits;
 }
 
