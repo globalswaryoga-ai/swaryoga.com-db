@@ -27,6 +27,12 @@ export async function PUT(
         ...(body.required !== undefined && { required: !!body.required }),
         ...(body.order !== undefined && { order: body.order }),
         ...(body.isActive !== undefined && { isActive: !!body.isActive }),
+        // Rich content fields
+        ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
+        ...(body.qrCodeUrl !== undefined && { qrCodeUrl: body.qrCodeUrl }),
+        ...(body.linkUrl !== undefined && { linkUrl: body.linkUrl }),
+        ...(body.linkLabel !== undefined && { linkLabel: body.linkLabel }),
+        ...(body.paymentConfig !== undefined && { paymentConfig: body.paymentConfig }),
       },
       { new: true }
     );

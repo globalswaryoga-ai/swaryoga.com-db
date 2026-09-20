@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
     }
 
     const questions = await FormQuestion.find(filter).sort({ order: 1, createdAt: 1 }).lean();
-
     return NextResponse.json({ success: true, questions });
   } catch (error: any) {
     console.error('Error fetching form questions:', error);
@@ -39,13 +38,30 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { fieldKey, formType = 'workshop', questionType, label, placeholder, options, required, order, isActive } = body;
+    const {
+      fieldKey,
+      formType = 'workshop',
+      questionType,
+      label,
+      placeholder,
+      options,
+      required,
+      order,
+      isActive,
+      // New rich-content fields
+      imageUrl,
+      qrCodeUrl,
+      linkUrl,
+      linkLabel,
+      paymentConfig,
+    } = body;
 
     if (!fieldKey || !fieldKey.trim()) {
       return NextResponse.json({ success: false, error: 'Field key is required' }, { status: 400 });
     }
 
-    if (!questionType || !['dropdown', 'text', 'paragraph', 'radio', 'checkbox'].includes(questionType)) {
+    const validTypes = ['dropdown', 'text', 'paragraph', 'radio', 'checkbox', 'info', 'payment'];
+    if (!questionType || !validTypes.includes(questionType)) {
       return NextResponse.json({ success: false, error: 'Valid question type is required' }, { status: 400 });
     }
 
@@ -53,10 +69,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'English label is required' }, { status: 400 });
     }
 
-    // Sanitize fieldKey: remove spaces, special chars
     const sanitizedKey = fieldKey.trim().replace(/[^a-zA-Z0-9_]/g, '');
 
-    // Check for duplicate fieldKey within the same formType
     const existing = await FormQuestion.findOne({ fieldKey: sanitizedKey, formType });
     if (existing) {
       return NextResponse.json(
@@ -75,6 +89,11 @@ export async function POST(request: NextRequest) {
       required: !!required,
       order: typeof order === 'number' ? order : 0,
       isActive: isActive !== false,
+      imageUrl: imageUrl || '',
+      qrCodeUrl: qrCodeUrl || '',
+      linkUrl: linkUrl || '',
+      linkLabel: linkLabel || '',
+      paymentConfig: paymentConfig || null,
     });
 
     return NextResponse.json({ success: true, question: newQuestion }, { status: 201 });
