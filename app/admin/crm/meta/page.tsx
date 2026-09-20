@@ -315,29 +315,48 @@ export default function MetaInboxPage() {
     });
   }, [selected]);
 
-  // Load quick replies from localStorage on mount
+  // Load quick replies from Bunny DB
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_quick_replies');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setQuickReplies(parsed);
-          }
-        } catch {
-          // ignore parse errors
+    if (!token) return;
+    fetch('/api/admin/crm/quick-replies', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json?.data?.replies?.length) {
+          setQuickReplies(
+            json.data.replies.map((r: any) => ({ id: r.id, text: r.content, title: r.title }))
+          );
         }
-      }
-    }
-  }, []);
+      })
+      .catch(() => {});
+  }, [token]);
 
-  // Save quick replies to localStorage when changed
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('crm_quick_replies', JSON.stringify(quickReplies));
-    }
-  }, [quickReplies]);
+  const addQuickReply = async (text: string) => {
+    if (!text.trim() || !token) return;
+    try {
+      const res = await fetch('/api/admin/crm/quick-replies', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text }),
+      });
+      const json = await res.json();
+      if (json?.data?.id) {
+        setQuickReplies((prev) => [{ id: json.data.id, text }, ...prev]);
+      }
+    } catch {}
+  };
+
+  const deleteQuickReply = async (id: string) => {
+    setQuickReplies((prev) => prev.filter((p) => p.id !== id));
+    if (!token) return;
+    try {
+      await fetch(`/api/admin/crm/quick-replies?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {}
+  };
 
   // Monthly Expense Summary for header widget
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] = useState<{
@@ -1542,10 +1561,20 @@ export default function MetaInboxPage() {
         : Promise.resolve();
 
       await Promise.all([updateLeadPromise, addNotePromise, addFollowupPromise]);
-      
+
+      // Clear notes after saving so they don't get duplicated on next save
+      setSidebarData((prev: any) => ({ ...prev, notes: '', followUpDate: '' }));
       loadConversations(searchQuery);
+
+      // Show success toast
+      const toast = document.createElement('div');
+      toast.textContent = '✅ Changes saved!';
+      toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1E7F43;color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.18);animation:fadeIn .2s ease';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
     } catch (err) {
       console.error('Failed to save sidebar data:', err);
+      alert('Failed to save changes. Please try again.');
     } finally {
       setSavingSidebar(false);
     }
@@ -3637,7 +3666,7 @@ export default function MetaInboxPage() {
                               if (e.key === 'Enter' && e.ctrlKey) {
                                 e.preventDefault();
                                 if (newQuickReply.trim()) {
-                                  setQuickReplies(prev => [{ id: Date.now().toString(), text: newQuickReply }, ...prev]);
+                                  addQuickReply(newQuickReply);
                                   setNewQuickReply('');
                                 }
                               }
@@ -3647,7 +3676,7 @@ export default function MetaInboxPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-bold"
                             onClick={() => {
                               if (newQuickReply.trim()) {
-                                setQuickReplies(prev => [{ id: Date.now().toString(), text: newQuickReply }, ...prev]);
+                                addQuickReply(newQuickReply);
                                 setNewQuickReply('');
                               }
                             }}
@@ -3676,7 +3705,7 @@ export default function MetaInboxPage() {
                                   className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setQuickReplies(prev => prev.filter(p => p.id !== qr.id));
+                                    deleteQuickReply(qr.id);
                                   }}
                                   title="Delete"
                                 >
