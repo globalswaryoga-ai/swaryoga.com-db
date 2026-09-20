@@ -7,7 +7,8 @@ import {
   Plus, Trash2, Edit3, Save, X, GripVertical,
   Image as ImageIcon, QrCode, Link as LinkIcon, CreditCard,
   ArrowUp, ArrowDown, ToggleLeft, ToggleRight,
-  Upload, ExternalLink, AlertCircle, CheckCircle, ChevronLeft, Settings
+  Upload, ExternalLink, AlertCircle, CheckCircle, ChevronLeft, Settings,
+  ClipboardCopy, Share2
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -112,6 +113,9 @@ export default function GoogleFormBuilderPage() {
   const [editingQId, setEditingQId] = useState<string | null>(null);
   const [qData, setQData] = useState<Partial<Question>>({});
   const [savingQ, setSavingQ] = useState(false);
+  // Short URL handling
+  const [shortUrl, setShortUrl] = useState<string>('');
+  const [generatingShort, setGeneratingShort] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [uploadingImage, setUploadingImage] = useState<'image' | 'qr' | 'formImage' | null>(null);
@@ -306,13 +310,40 @@ export default function GoogleFormBuilderPage() {
               </button>
             )}
             {activeForm && (
-              <a
-                href={`https://swaryoga.com/enquiry?w=${activeForm.formId}`}
-                target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
-              >
-                <ExternalLink size={16} /> Preview Form
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`https://swaryoga.com/enquiry?w=${activeForm.formId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
+                >
+                  <ExternalLink size={16} /> Preview Form
+                </a>
+                <button
+                  onClick={async () => {
+                    setGeneratingShort(true);
+                    try {
+                      const res = await fetch('/api/admin/shorten-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: `https://swaryoga.com/enquiry?w=${activeForm.formId}` })
+                      });
+                      const data = await res.json();
+                      if (data.success) setShortUrl(data.shortUrl);
+                      else throw new Error(data.error || 'Failed');
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setGeneratingShort(false);
+                    }
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-md hover:bg-indigo-200 transition-colors"
+                  disabled={generatingShort}
+                >
+                  <Share2 size={14} />
+                  {generatingShort ? 'Generating...' : shortUrl ? 'Regenerate' : 'Short URL'}
+                </button>
+              </div>
             )}
           </div>
         </div>
