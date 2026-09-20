@@ -109,23 +109,25 @@ export async function POST(request: NextRequest) {
     const { getBunnyLeadByPhone, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
     const existingLead = await getBunnyLeadByPhone(phoneNumber, viewerUserId);
 
-    if (existingLead && (!source || existingLead.source === source)) {
-      return NextResponse.json(
-        {
-          error: 'Lead already exists',
-          duplicate: true,
-          existingLead: {
-            _id: existingLead._id,
-            name: existingLead.name,
-            email: existingLead.email,
-            phoneNumber: existingLead.phoneNumber,
-            status: existingLead.status,
-            workshopName: existingLead.workshopName,
-            createdAt: existingLead.createdAt,
-          },
-        },
-        { status: 409 }
-      );
+    if (existingLead) {
+      // Merge with existing lead instead of duplicating or erroring
+      const mergedLabels = Array.from(new Set([
+        ...(existingLead.labels || []),
+        ...(labels || [])
+      ]));
+
+      const updatedLead = await saveBunnyLead({
+        ...existingLead,
+        name: existingLead.name && existingLead.name !== 'Unknown User' ? existingLead.name : (name || existingLead.name),
+        email: existingLead.email || email,
+        status: status || existingLead.status,
+        labels: mergedLabels,
+        source: existingLead.source || source,
+        workshopId: existingLead.workshopId || workshopId,
+        workshopName: existingLead.workshopName || workshopName
+      }, existingLead._id);
+
+      return NextResponse.json({ success: true, data: updatedLead, merged: true }, { status: 200 });
     }
 
     // TODO (Phase 4): lead numbering generation relies on a MongoDB collection. For now, generate random string
