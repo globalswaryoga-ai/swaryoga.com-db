@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, EnquiryForm } from '@/lib/db';
-import FormQuestion from '@/lib/models/FormQuestion';
+import { getFormById, listQuestions } from '@/lib/bunny-forms-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,10 +8,9 @@ export async function GET(
   { params }: { params: { formId: string } }
 ) {
   try {
-    await connectDB();
     const { formId } = params;
 
-    const form = await EnquiryForm.findOne({ formId }).lean();
+    const form = await getFormById(formId);
     if (!form) {
       return NextResponse.json({ success: false, error: 'Form not found' }, { status: 404 });
     }
@@ -20,9 +18,8 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Form is inactive' }, { status: 400 });
     }
 
-    const questions = await FormQuestion.find({ formId, isActive: true })
-      .sort({ order: 1, createdAt: 1 })
-      .lean();
+    const allQuestions = await listQuestions(formId);
+    const questions = allQuestions.filter(q => q.isActive);
 
     return NextResponse.json({
       success: true,

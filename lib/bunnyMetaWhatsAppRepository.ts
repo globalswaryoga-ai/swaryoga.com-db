@@ -58,8 +58,22 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
   await initBunnyMetaWhatsAppSchema();
   const clauses = ["provider = 'meta'"];
   const args: (string | number)[] = [];
-  if (input.phoneNumber) { clauses.push('phone_number = ?'); args.push(input.phoneNumber); }
-  if (input.leadId) { clauses.push('lead_id = ?'); args.push(input.leadId); }
+  
+  if (input.phoneNumber) {
+    const rawDigits = stringValue(input.phoneNumber).replace(/\D/g, '');
+    const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
+    if (last10) {
+      clauses.push('(phone_number = ? OR phone_number LIKE ?)');
+      args.push(input.phoneNumber, `%${last10}`);
+    } else {
+      clauses.push('phone_number = ?');
+      args.push(input.phoneNumber);
+    }
+  } else if (input.leadId) {
+    clauses.push('lead_id = ?');
+    args.push(input.leadId);
+  }
+
   if (input.before) { clauses.push('(sent_at < ? OR (sent_at IS NULL AND created_at < ?))'); args.push(input.before, input.before); }
   const limit = Math.min(Math.max(Number(input.limit || 100), 1), 500);
   const skip = Math.max(Number(input.skip || 0), 0);
@@ -96,9 +110,24 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
 
 export async function countBunnyMetaMessages(input: { phoneNumber?: string; leadId?: string }) {
   await initBunnyMetaWhatsAppSchema();
-  const clauses = ["provider = 'meta'"]; const args: string[] = [];
-  if (input.phoneNumber) { clauses.push('phone_number = ?'); args.push(input.phoneNumber); }
-  if (input.leadId) { clauses.push('lead_id = ?'); args.push(input.leadId); }
+  const clauses = ["provider = 'meta'"]; 
+  const args: string[] = [];
+  
+  if (input.phoneNumber) {
+    const rawDigits = stringValue(input.phoneNumber).replace(/\D/g, '');
+    const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
+    if (last10) {
+      clauses.push('(phone_number = ? OR phone_number LIKE ?)');
+      args.push(input.phoneNumber, `%${last10}`);
+    } else {
+      clauses.push('phone_number = ?');
+      args.push(input.phoneNumber);
+    }
+  } else if (input.leadId) {
+    clauses.push('lead_id = ?');
+    args.push(input.leadId);
+  }
+
   const result = await bunnyExecute({ sql: `SELECT COUNT(*) AS count FROM meta_messages_sql WHERE ${clauses.join(' AND ')}`, args });
   return Number(result.rows[0]?.count || 0);
 }

@@ -55,17 +55,21 @@ export async function GET(request: NextRequest) {
     const beforeParam = url.searchParams.get('before');
 
     // Fetch messages from BunnyDB
+    const rawPhone = filterParams.phoneNumber || (filterParams.leadId && /^\d{10,}$/.test(filterParams.leadId) ? filterParams.leadId : undefined);
+    const targetPhone = rawPhone ? normalizePhone(rawPhone) : undefined;
+    const targetLeadId = targetPhone ? undefined : filterParams.leadId;
+
     let bunnyMessages = await listBunnyMetaMessages({
-      phoneNumber: filterParams.phoneNumber ? normalizePhone(filterParams.phoneNumber) : undefined,
-      leadId: filterParams.leadId,
+      phoneNumber: targetPhone,
+      leadId: targetLeadId,
       limit: limit * 2, // Fetch more to allow for filtering
-      skip: 0, // We have to do in-memory filtering if not superAdmin, so we might need more
+      skip: 0,
       before: beforeParam || undefined,
     });
 
     let bunnyTotal = await countBunnyMetaMessages({ 
-        phoneNumber: filterParams.phoneNumber ? normalizePhone(filterParams.phoneNumber) : undefined, 
-        leadId: filterParams.leadId 
+      phoneNumber: targetPhone, 
+      leadId: targetLeadId 
     });
 
     if (!superAdmin) {

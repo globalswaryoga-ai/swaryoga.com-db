@@ -1,104 +1,122 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
-import FormQuestion from '@/lib/models/FormQuestion';
-import { isAdminAuthorized } from '@/lib/adminAuth';
+import { verifyToken } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/crm-handlers';
+import {
+  listQuestions,
+  getQuestionByFieldKey,
+  createQuestion,
+  updateQuestion,
+  deleteQuestion,
+} from '@/lib/bunny-forms-db';
 
-export async function GET(request: NextRequest) {
+export const dynamic = 'force-dynamic';
+
+function getDecoded(req: NextRequest): any | null {
+  const token = (req.headers.get('authorization') || '').replace('Bearer ', '').trim();
+  if (!token) return null;
+  try { return verifyToken(token); } catch { return null; }
+}
+
+function isAuthorized(req: NextRequest): boolean {
+  // Allow in dev without token; in prod require superadmin
+  if (process.env.NODE_ENV !== 'production') return true;
+  const decoded = getDecoded(req);
+  return !!(decoded?.isAdmin);
+}
+
+/** GET — list questions (optionally filtered by ?formId=) */
+export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const isDev = process.env.NODE_ENV !== 'production';
-    if (!isDev && !isAdminAuthorized(request)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    await connectDB();
-
-    const { searchParams } = new URL(request.url);
-    const formId = searchParams.get('formId');
-
-    const filter: Record<string, any> = {};
-    if (formId) {
-      filter.formId = formId;
-    }
-
-    const questions = await FormQuestion.find(filter).sort({ order: 1, createdAt: 1 }).lean();
+    const { searchParams } = new URL(req.url);
+    const formId = searchParams.get('formId') ?? undefined;
+    const questions = await listQuestions(formId);
     return NextResponse.json({ success: true, questions });
-  } catch (error: any) {
-    console.error('Error fetching form questions:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (err: any) {
+    console.error('[GET /api/admin/form-questions]', err?.message || err);
+    return NextResponse.json({ success: false, error: err?.message }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+/** POST — create a question */
+export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const isDev = process.env.NODE_ENV !== 'production';
-    if (!isDev && !isAdminAuthorized(request)) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const body = await req.json();
+    const { fieldKey, formId, questionType, label } = body;
 
-    await connectDB();
-
-    const body = await request.json();
-    const {
-      fieldKey,
-      formId,
-      questionType,
-      label,
-      placeholder,
-      options,
-      required,
-      order,
-      isActive,
-      // New rich-content fields
-      imageUrl,
-      qrCodeUrl,
-      linkUrl,
-      linkLabel,
-      paymentConfig,
-    } = body;
-
-    if (!fieldKey || !fieldKey.trim()) {
+    if (!fieldKey?.trim()) {
       return NextResponse.json({ success: false, error: 'Field key is required' }, { status: 400 });
     }
-
     const validTypes = ['dropdown', 'text', 'paragraph', 'radio', 'checkbox', 'info', 'payment'];
     if (!questionType || !validTypes.includes(questionType)) {
       return NextResponse.json({ success: false, error: 'Valid question type is required' }, { status: 400 });
     }
-
-    if (!label || !label.en || !label.en.trim()) {
+    if (!label?.en?.trim()) {
       return NextResponse.json({ success: false, error: 'English label is required' }, { status: 400 });
     }
 
     const sanitizedKey = fieldKey.trim().replace(/[^a-zA-Z0-9_]/g, '');
 
-    const existing = await FormQuestion.findOne({ fieldKey: sanitizedKey, formId });
+    // Check duplicate field key within same form
+    const existing = await getQuestionByFieldKey(formId, sanitizedKey);
     if (existing) {
       return NextResponse.json(
-        { success: false, error: `A question with field key "${sanitizedKey}" already exists for this form` },
+        { success: false, error: `Field key "${sanitizedKey}" already exists for this form` },
         { status: 400 }
       );
     }
 
-    const newQuestion = await FormQuestion.create({
-      fieldKey: sanitizedKey,
-      formId,
-      questionType,
-      label,
-      placeholder,
-      options: options || [],
-      required: !!required,
-      order: typeof order === 'number' ? order : 0,
-      isActive: isActive !== false,
-      imageUrl: imageUrl || '',
-      qrCodeUrl: qrCodeUrl || '',
-      linkUrl: linkUrl || '',
-      linkLabel: linkLabel || '',
-      paymentConfig: paymentConfig || null,
-    });
+    const question = await createQuestion({ ...body, fieldKey: sanitizedKey });
+    return NextResponse.json({ success: true, question }, { status: 201 });
+  } catch (err: any) {
+    console.error('[POST /api/admin/form-questions]', err?.message || err);
+    return NextResponse.json({ success: false, error: err?.message }, { status: 500 });
+  }
+}
 
-    return NextResponse.json({ success: true, question: newQuestion }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating form question:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+/** PATCH — update a question by ?id= */
+export async function PATCH(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  if (!id) return NextResponse.json({ success: false, error: 'id required' }, { status: 400 });
+
+  try {
+    const body = await req.json();
+    const updated = await updateQuestion(id, body);
+    if (!updated) return NextResponse.json({ success: false, error: 'Question not found' }, { status: 404 });
+    return NextResponse.json({ success: true, question: updated });
+  } catch (err: any) {
+    console.error('[PATCH /api/admin/form-questions]', err?.message || err);
+    return NextResponse.json({ success: false, error: err?.message }, { status: 500 });
+  }
+}
+
+/** DELETE — delete a question by ?id= */
+export async function DELETE(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  if (!id) return NextResponse.json({ success: false, error: 'id required' }, { status: 400 });
+
+  try {
+    await deleteQuestion(id);
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('[DELETE /api/admin/form-questions]', err?.message || err);
+    return NextResponse.json({ success: false, error: err?.message }, { status: 500 });
   }
 }

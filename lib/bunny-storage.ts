@@ -792,12 +792,12 @@ export function isPublicKey(key: string): boolean {
   return key.startsWith('public/');
 }
 
-export function isAdminKey(key: string): boolean {
-  return key.startsWith('admin/');
-}
-
 export function isCommunityKey(key: string): boolean {
   return key.startsWith('community/');
+}
+
+export function isAdminKey(key: string): boolean {
+  return key.startsWith('admin/');
 }
 
 export function isWorkshopKey(key: string): boolean {

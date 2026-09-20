@@ -532,7 +532,7 @@ export default function MetaInboxPage() {
     const timer = setInterval(() => {
       const c = selectedRef.current;
       if (!c) return;
-      loadMessages(c.leadId || c._id || c.phoneNumber, true);
+      loadMessages(c.phoneNumber || c.leadId || c._id, true);
     }, 10000); // Poll messages every 10s when active (silent mode)
 
     return () => clearInterval(timer);
@@ -684,8 +684,8 @@ export default function MetaInboxPage() {
     try {
       // Determine if id is a leadId or phoneNumber
       // A phone number is at least 10 digits long. A lead ID can be a 24-char hex or a short custom ID (e.g. 6 digits)
-      const isPhoneNumber = /^\\d{10,}$/.test(id);
-      const params: any = !isPhoneNumber ? { leadId: id } : { phoneNumber: id };
+      const isPhoneNumber = /^\d{10,}$/.test(String(id || '').replace(/\D/g, ''));
+      const params: any = isPhoneNumber ? { phoneNumber: String(id || '').replace(/\D/g, '') } : { leadId: id };
       params.provider = providerScope;
       
       const data = await crmFetch(`/api/admin/crm/messages`, { 

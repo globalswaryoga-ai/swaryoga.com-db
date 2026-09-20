@@ -9,6 +9,7 @@ import { normalizePhone } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { listSubmissions, createSubmission } from '@/lib/bunny-forms-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,21 +136,47 @@ export async function GET(request: NextRequest) {
       console.error('[enquiries GET] Mongo read failed (will fall back to JSON only):', mongoErr);
     }
 
-    // ── Legacy JSON file: merge in any rows whose phone isn't already in Mongo ──
+    // ── BunnyDB source: form_submissions ──
+    let bunnyEnquiries: any[] = [];
+    try {
+      const bSubs = await listSubmissions(workshopId || undefined);
+      bunnyEnquiries = bSubs.map(s => ({
+        id: s.id,
+        workshopId: s.formId,
+        workshopName: s.formId,
+        name: s.name,
+        mobile: s.mobile,
+        email: s.email,
+        gender: s.gender,
+        city: s.city,
+        submittedAt: s.submittedAt,
+        dynamicAnswers: s.dynamicAnswers,
+        status: 'new',
+        payment: {
+          status: s.paymentStatus,
+          amount: s.amount,
+          currency: s.currency,
+        }
+      }));
+    } catch (bErr) {
+      console.error('[enquiries GET] BunnyDB read failed:', bErr);
+    }
+
+    // ── Legacy JSON file: merge in any rows whose phone isn't already in Mongo/Bunny ──
     const jsonEnquiries = getEnquiries();
-    const phonesInMongo = new Set(mongoEnquiries.map(e => String(e.mobile).replace(/\D/g, '')));
+    const existingIds = new Set([...mongoEnquiries, ...bunnyEnquiries].map(e => e.id));
     const extras = (jsonEnquiries as any[])
-      .filter((e: any) => !phonesInMongo.has(String(e.mobile || '').replace(/\D/g, '')))
+      .filter((e: any) => !existingIds.has(e.id))
       .filter((e: any) => !workshopId || e.workshopId === workshopId);
 
-    const merged = [...mongoEnquiries, ...extras];
+    const merged = [...bunnyEnquiries, ...mongoEnquiries, ...extras];
 
     return NextResponse.json(
       {
         message: 'Enquiries retrieved successfully',
         data: merged,
         count: merged.length,
-        sources: { mongo: mongoEnquiries.length, json: extras.length },
+        sources: { bunny: bunnyEnquiries.length, mongo: mongoEnquiries.length, json: extras.length },
       },
       { status: 200 }
     );
@@ -196,6 +223,21 @@ export async function POST(request: NextRequest) {
 
     // Save enquiries
     saveEnquiries(enquiries);
+
+    // Save to BunnyDB form_submissions
+    try {
+      await createSubmission({
+        formId: body.workshopId,
+        name: body.name,
+        mobile: body.mobile,
+        email: body.email || '',
+        gender: body.gender,
+        city: body.city,
+        dynamicAnswers: body.dynamicAnswers || {},
+      });
+    } catch (bErr) {
+      console.error('[enquiries POST] BunnyDB save failed:', bErr);
+    }
 
     // Also create/update CRM Lead so enquiries appear under Leads for unknown users
     let leadNumber: string | null = null;

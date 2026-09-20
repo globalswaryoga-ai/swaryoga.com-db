@@ -67,6 +67,9 @@
     },
     "app/api/cron/social-inbox-sync/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/admin/archive/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -149,6 +152,10 @@
     {
       "path": "/api/cron/qr-status-scheduler",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/admin/archive",
+      "schedule": "30 18 * * *"
     }
   ],
   "headers": [
