@@ -1,82 +1,115 @@
 'use client';
 
-import React from 'react';
-import { Activity, Users, Video, Clock, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Video, Save, Loader, CheckCircle, Youtube } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function ZoomAnalysisTab() {
+  const token = useAuth();
+  const [workshopName, setWorkshopName] = useState('Default Workshop');
+  const [recordings, setRecordings] = useState<Record<string, string>>({ day1: '', day2: '', day3: '', day4: '', day5: '' });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const fetchRecordings = () => {
+    if (!token) return;
+    setLoading(true);
+    fetch(`/api/admin/crm/recording-management/workshop/recordings?workshopName=${encodeURIComponent(workshopName)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success && data.data?.recordings) {
+        setRecordings(prev => ({ ...prev, ...data.data.recordings }));
+      }
+      setLoading(false);
+    })
+    .catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchRecordings();
+  }, [token, workshopName]);
+
+  const handleSave = async (day: string) => {
+    if (!token) return;
+    setSaving(day);
+    try {
+      const res = await fetch('/api/admin/crm/recording-management/workshop/recordings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          day,
+          url: recordings[day],
+          workshopName
+        })
+      });
+      if (res.ok) {
+        // Success
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTimeout(() => setSaving(null), 1000);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-gray-50/50 p-6 overflow-y-auto">
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Activity className="h-6 w-6 text-indigo-600" />
-            Zoom Analysis
+            <Video className="h-6 w-6 text-indigo-600" />
+            Workshop Recordings
           </h2>
-          <p className="text-sm text-gray-500 mt-1">Metrics and attendance tracking for recent Zoom meetings</p>
+          <p className="text-sm text-gray-500 mt-1">Map YouTube URLs to Workshop Days to prepare them for broadcast</p>
+        </div>
+        
+        <div className="flex gap-2 items-center">
+          <input 
+            type="text" 
+            value={workshopName}
+            onChange={e => setWorkshopName(e.target.value)}
+            placeholder="Workshop Name"
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm"
+          />
         </div>
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4">
-          <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600">
-            <Video className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Total Meetings</p>
-            <p className="text-2xl font-bold text-gray-900">14</p>
-            <p className="text-xs text-green-600 font-medium flex items-center gap-1 mt-1">
-              <TrendingUp className="h-3 w-3" /> +2 this week
-            </p>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4">
-          <div className="bg-blue-50 p-3 rounded-xl text-blue-600">
-            <Users className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Avg. Attendance</p>
-            <p className="text-2xl font-bold text-gray-900">45</p>
-            <p className="text-xs text-green-600 font-medium flex items-center gap-1 mt-1">
-              <TrendingUp className="h-3 w-3" /> +5% this week
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4">
-          <div className="bg-green-50 p-3 rounded-xl text-green-600">
-            <Clock className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Avg. Duration</p>
-            <p className="text-2xl font-bold text-gray-900">62m</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4">
-          <div className="bg-purple-50 p-3 rounded-xl text-purple-600">
-            <Activity className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Engagement Score</p>
-            <p className="text-2xl font-bold text-gray-900">8.4<span className="text-sm text-gray-400 font-normal">/10</span></p>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex-1 overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="font-bold text-gray-800 text-sm">Recent Meetings</h3>
-        </div>
-        
-        <div className="flex-1 p-8 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
-            <Activity className="h-8 w-8 text-gray-300" />
-          </div>
-          <h4 className="text-lg font-bold text-gray-900 mb-2">Detailed Analysis Coming Soon</h4>
-          <p className="text-sm text-gray-500 max-w-sm">We are connecting the Zoom API to pull detailed attendance reports and engagement metrics for this view.</p>
-        </div>
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex flex-col gap-6 max-w-3xl">
+        {loading ? (
+           <div className="flex items-center gap-2 text-indigo-600"><Loader className="animate-spin w-4 h-4"/> Loading...</div>
+        ) : (
+          ['day1', 'day2', 'day3', 'day4', 'day5'].map((day) => (
+            <div key={day} className="flex flex-col md:flex-row gap-4 items-start md:items-center p-4 border border-gray-100 bg-gray-50 rounded-xl">
+              <div className="w-24 font-bold text-gray-800 uppercase tracking-wider text-sm">{day}</div>
+              <div className="flex-1 w-full relative">
+                <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input 
+                  type="text" 
+                  value={recordings[day] || ''}
+                  onChange={e => setRecordings(prev => ({ ...prev, [day]: e.target.value }))}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <button 
+                onClick={() => handleSave(day)}
+                disabled={saving === day}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors w-full md:w-auto justify-center"
+              >
+                {saving === day ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                {saving === day ? 'Saved' : 'Save'}
+              </button>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

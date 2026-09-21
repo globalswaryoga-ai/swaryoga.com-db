@@ -2372,5 +2372,15 @@ export function getCourseEnrollment() {
   return getter();
 }
 
+export function getWorkshopStudent() {
+  const mod = require('./schemas/workshopStudent');
+  return mod.default || mod;
+}
+
+export function getWorkshopRecording() {
+  const mod = require('./schemas/workshopRecording');
+  return mod.default || mod;
+}
+
 // Default export for backward compatibility
 export default connectDB;

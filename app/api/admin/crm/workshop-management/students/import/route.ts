@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { verifyToken } from '@/lib/auth';
 import { upsertStudent, updateCohort } from '@/lib/workshopBunnyRepository';
+import { syncWorkshopStudentLead } from '@/lib/workshopStudentLeadSync';
 
 export const dynamic = 'force-dynamic';
 function isAdmin(request: NextRequest) { const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || ''; return Boolean(verifyToken(raw.startsWith('Bearer ') ? raw.slice(7) : raw)?.isAdmin); }
@@ -9,7 +10,8 @@ function normalize(value: unknown) { return String(value || '').toLowerCase().re
 function column(row: Record<string, unknown>, names: string[]) { const wanted = names.map(normalize); const key = Object.keys(row).find((x) => wanted.includes(normalize(x))); return key ? String(row[key] || '').trim() : ''; }
 
 export async function POST(request: NextRequest) {
-  if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const decoded = verifyToken(request.headers.get('authorization')?.slice(7) || request.cookies.get('token')?.value || '');
+  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   try {
     const form = await request.formData();
     const cohortId = String(form.get('cohortId') || '').trim();
@@ -31,8 +33,18 @@ export async function POST(request: NextRequest) {
       const phone = mapped(row, 'phone', ['phone', 'phone number', 'mobile', 'mobile number']);
       const whatsappNumber = mapped(row, 'whatsappNumber', ['whatsapp', 'whatsapp number', 'whatsapp mobile']);
       const whatsappJid = mapped(row, 'whatsappJid', ['whatsapp jid', 'jid', 'whatsapp id']);
+      
+      const age = mapped(row, 'age', ['age', 'your age']);
+      const city = mapped(row, 'city', ['city', 'location', 'town']);
+      const country = mapped(row, 'country', ['country', 'nation']);
+      const workshop = mapped(row, 'workshop', ['workshop name', 'workshop']);
+
       if (!name || (!email && !phone && !whatsappNumber && !whatsappJid)) { skipped++; errors.push(`Row ${index + 2}: name and one contact field are required`); continue; }
-      try { await upsertStudent({ cohortId, name, email, phone, whatsappNumber, whatsappJid, source: 'form', active: true, metadata: row }); imported++; }
+      try { 
+        const lead = await syncWorkshopStudentLead({ name, email, phone, whatsappNumber, age, city, country, workshopName: workshop, ownerUserId: decoded.userId });
+        await upsertStudent({ cohortId, name, email, phone, whatsappNumber, whatsappJid, leadId: lead.leadId, leadNumber: lead.leadNumber, source: 'form', active: true, metadata: { ...row, age, city, country, workshop } }); 
+        imported++; 
+      }
       catch (error) { skipped++; errors.push(`Row ${index + 2}: ${error instanceof Error ? error.message : 'could not save student'}`); }
     }
     const googleFormLink = String(form.get('googleFormLink') || '').trim();

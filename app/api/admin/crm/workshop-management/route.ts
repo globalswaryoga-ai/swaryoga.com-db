@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { getCohort, listCohorts, listStudents, listAttendance, listRecordings, saveCohort, updateCohort } from '@/lib/workshopBunnyRepository';
+import { listBunnyZoomMappings, createBunnyZoomMapping, updateBunnyZoomMapping } from '@/lib/bunnyZoomRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +19,9 @@ export async function GET(request: NextRequest) {
     try {
       const cohort = await getCohort(cohortId);
       if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-      const [students, attendance, recordings] = await Promise.all([listStudents(cohortId), listAttendance(cohortId), listRecordings(cohortId)]);
-      return NextResponse.json({ cohort, students, attendance, recordings });
+      const [students, attendance, recordings, zoomMappings] = await Promise.all([listStudents(cohortId), listAttendance(cohortId), listRecordings(cohortId), listBunnyZoomMappings()]);
+      const zoomMapping = cohort.zoomMeetingId ? zoomMappings.find(m => m.zoomMeetingId === cohort.zoomMeetingId) || null : null;
+      return NextResponse.json({ cohort, students, attendance, recordings, zoomMapping });
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load Bunny workshop' }, { status: 500 });
     }
@@ -45,7 +47,28 @@ export async function PATCH(request: NextRequest) {
   if (googleFormLink && !/^https?:\/\//i.test(googleFormLink)) {
     return NextResponse.json({ error: 'Google Forms link must start with http:// or https://' }, { status: 400 });
   }
+  
   const cohort = await updateCohort(body.cohortId, { googleFormLink: googleFormLink || null });
   if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+  
+  // Upsert Zoom Mapping if recording setup data is provided
+  if (body.zoomMeetingId && body.communityId) {
+    const existingMappings = await listBunnyZoomMappings();
+    const existing = existingMappings.find(m => m.zoomMeetingId === body.zoomMeetingId);
+    if (existing) {
+      await updateBunnyZoomMapping(existing._id, {
+        thumbnailUrl: body.thumbnailUrl || undefined,
+        youtubePlaylistName: body.youtubePlaylistName || undefined,
+      });
+    } else {
+      await createBunnyZoomMapping({
+        zoomMeetingId: body.zoomMeetingId,
+        communityId: body.communityId,
+        thumbnailUrl: body.thumbnailUrl || undefined,
+        youtubePlaylistName: body.youtubePlaylistName || undefined,
+      });
+    }
+  }
+
   return NextResponse.json({ cohort });
 }

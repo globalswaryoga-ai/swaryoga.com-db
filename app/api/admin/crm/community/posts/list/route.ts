@@ -46,43 +46,52 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total count
-    const countRes = await bunnyExecute({
-      sql: `SELECT COUNT(*) AS count FROM community_posts_sql WHERE ${clauses.join(' AND ')}`,
-      args
-    });
-    const total = Number(countRes.rows[0]?.count || 0);
+    let total = 0;
+    let postsWithMetadata: any[] = [];
+    let pageParam = page;
+    let limitParam = limit;
+    
+    try {
+      const countRes = await bunnyExecute({
+        sql: `SELECT COUNT(*) AS count FROM community_posts_sql WHERE ${clauses.join(' AND ')}`,
+        args
+      });
+      total = Number(countRes.rows[0]?.count || 0);
 
-    // Fetch posts with pagination
-    const skip = (page - 1) * limit;
-    const sortCol = sortBy === 'createdAt' ? 'created_at' : (sortBy === 'updatedAt' ? 'updated_at' : 'created_at');
-    const sortOrderSql = searchParams.get('sortOrder') === 'asc' ? 'ASC' : 'DESC';
+      // Fetch posts with pagination
+      const skip = (page - 1) * limit;
+      const sortCol = sortBy === 'createdAt' ? 'created_at' : (sortBy === 'updatedAt' ? 'updated_at' : 'created_at');
+      const sortOrderSql = searchParams.get('sortOrder') === 'asc' ? 'ASC' : 'DESC';
 
-    const postsRes = await bunnyExecute({
-      sql: `SELECT document_id, data_json FROM community_posts_sql WHERE ${clauses.join(' AND ')} ORDER BY ${sortCol} ${sortOrderSql} LIMIT ? OFFSET ?`,
-      args: [...args, limit, skip]
-    });
+      const postsRes = await bunnyExecute({
+        sql: `SELECT document_id, data_json FROM community_posts_sql WHERE ${clauses.join(' AND ')} ORDER BY ${sortCol} ${sortOrderSql} LIMIT ? OFFSET ?`,
+        args: [...args, limit, skip]
+      });
 
-    const postsWithMetadata = postsRes.rows.map((row: any) => {
-      const post = JSON.parse(String(row.data_json));
-      return {
-        _id: post._id || row.document_id,
-        communityId: post.communityId,
-        userId: post.userId,
-        content: post.content,
-        images: post.images || [],
-        videos: post.videos || [],
-        documents: post.documents || [],
-        links: post.links || [],
-        type: post.type || 'text',
-        status: post.status || 'published',
-        likes: post.likes || [],
-        comments: post.comments || [],
-        metadata: post.metadata || {},
-        createdAt: post.createdAt,
-        updatedAt: post.updatedAt,
-        scheduledFor: post.scheduledFor,
-      };
-    });
+      postsWithMetadata = postsRes.rows.map((row: any) => {
+        const post = JSON.parse(String(row.data_json));
+        return {
+          _id: post._id || row.document_id,
+          communityId: post.communityId,
+          userId: post.userId,
+          content: post.content,
+          images: post.images || [],
+          videos: post.videos || [],
+          documents: post.documents || [],
+          links: post.links || [],
+          type: post.type || 'text',
+          status: post.status || 'published',
+          likes: post.likes || [],
+          comments: post.comments || [],
+          metadata: post.metadata || {},
+          createdAt: post.createdAt,
+          updatedAt: post.updatedAt,
+          scheduledFor: post.scheduledFor,
+        };
+      });
+    } catch (dbErr) {
+      console.error('[Admin Community Posts List] DB error (likely missing table), returning empty', dbErr);
+    }
 
     return NextResponse.json({
       success: true,

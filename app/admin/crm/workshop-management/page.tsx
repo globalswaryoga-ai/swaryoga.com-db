@@ -1,6 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { 
+  Users, Video, Settings, UserPlus, Upload, RefreshCw, 
+  PlayCircle, Eye, Calendar, Plus, X, Trash2, Edit2, 
+  Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone,  GraduationCap, Download, Printer
+} from 'lucide-react';
 
 interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; }
@@ -16,28 +21,47 @@ export default function WorkshopManagementPage() {
   const [studentEditForm, setStudentEditForm] = useState({ name: '', email: '', phone: '', whatsappNumber: '', active: true });
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', aiWorkerEnabled: true, autoSendRecordings: false });
+  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', aiWorkerEnabled: true, autoSendRecordings: false });
   const [student, setStudent] = useState({ name: '', email: '', phone: '', whatsappNumber: '' });
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', classDate: '', durationMinutes: '0', classDurationMinutes: '60' });
   const [recordingForm, setRecordingForm] = useState({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  
+  // UI State
+  const [activeTab, setActiveTab] = useState<'students' | 'recordings' | 'settings' | 'analytics'>('students');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [addStudentTab, setAddStudentTab] = useState<'manual' | 'whatsapp' | 'leads' | 'import' | 'systemform'>('manual');
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [leadSearchResults, setLeadSearchResults] = useState<any[]>([]);
+  const [isSearchingLeads, setIsSearchingLeads] = useState(false);
+  
+  // Import State
   const [importingStudents, setImportingStudents] = useState(false);
   const [studentImportFile, setStudentImportFile] = useState<File | null>(null);
   const [studentImportColumns, setStudentImportColumns] = useState<string[]>([]);
   const [studentImportMapping, setStudentImportMapping] = useState({ name: '', email: '', phone: '', whatsappNumber: '', whatsappJid: '' });
   const [selectedImportFields, setSelectedImportFields] = useState<string[]>(['name', 'email', 'phone', 'whatsappNumber', 'whatsappJid']);
   const [googleFormLink, setGoogleFormLink] = useState('');
+  
+  // Actions State
   const [syncingWhatsapp, setSyncingWhatsapp] = useState(false);
   const [syncingZoomAttendance, setSyncingZoomAttendance] = useState(false);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showStudentTools, setShowStudentTools] = useState(false);
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
   const [attendanceChart, setAttendanceChart] = useState<AttendanceChartRow[]>([]);
   const [chartClassDuration, setChartClassDuration] = useState('60');
   const [savingChart, setSavingChart] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [runningWorker, setRunningWorker] = useState(false);
+
+  // New Features State
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [recordingSetup, setRecordingSetup] = useState({ zoomMeetingId: '', communityId: '', thumbnailUrl: '', youtubePlaylistName: '' });
+  const [savingRecordingSetup, setSavingRecordingSetup] = useState(false);
+  const [systemFormLink, setSystemFormLink] = useState('');
+  const [syncingSystemForm, setSyncingSystemForm] = useState(false);
+
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -53,6 +77,12 @@ export default function WorkshopManagementPage() {
         setAttendance(data.attendance || []);
         setRecordings(data.recordings || []);
         setGoogleFormLink(data.cohort?.googleFormLink || '');
+        setRecordingSetup({
+          zoomMeetingId: data.cohort?.zoomMeetingId || '',
+          communityId: data.zoomMapping?.communityId || data.cohort?.communityId || '',
+          thumbnailUrl: data.zoomMapping?.thumbnailUrl || '',
+          youtubePlaylistName: data.zoomMapping?.youtubePlaylistName || ''
+        });
         if (data.students?.length && !attendanceForm.studentId) setAttendanceForm((prev) => ({ ...prev, studentId: data.students[0]._id }));
       } else {
         setCohorts(data.cohorts || []);
@@ -62,7 +92,10 @@ export default function WorkshopManagementPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    load(); 
+    fetch('/api/admin/community/list', { headers }).then(r => r.json()).then(d => setCommunities(d.communities || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!selected?._id) return;
@@ -112,21 +145,11 @@ export default function WorkshopManagementPage() {
     if (res.ok) {
       setStudents((prev) => [...prev.filter((x) => x._id !== data.student._id), data.student].sort((a, b) => a.name.localeCompare(b.name)));
       setStudent({ name: '', email: '', phone: '', whatsappNumber: '' });
+      setShowAddStudent(false);
       setAttendanceForm((prev) => ({ ...prev, studentId: data.student._id || prev.studentId }));
     } else {
       alert(data.error || 'Could not save student');
     }
-  };
-
-  const openStudentEditor = (currentStudent: Student) => {
-    setEditingStudent(currentStudent);
-    setStudentEditForm({
-      name: currentStudent.name || '',
-      email: currentStudent.email || '',
-      phone: currentStudent.phone || '',
-      whatsappNumber: currentStudent.whatsappNumber || '',
-      active: currentStudent.active !== false,
-    });
   };
 
   const saveStudentEdit = async (event: React.FormEvent) => {
@@ -187,6 +210,7 @@ export default function WorkshopManagementPage() {
       await load(selected._id);
       setStudentImportFile(null);
       setStudentImportColumns([]);
+      setShowImport(false);
       setStudentImportMapping({ name: '', email: '', phone: '', whatsappNumber: '', whatsappJid: '' });
       setSelectedImportFields(['name', 'email', 'phone', 'whatsappNumber', 'whatsappJid']);
       const rowErrors = Array.isArray(data.errors) && data.errors.length
@@ -203,6 +227,77 @@ export default function WorkshopManagementPage() {
     setSelectedImportFields(allFields);
     await importMappedStudents(allFields);
   };
+  const saveRecordingSetup = async () => {
+    if (!selected?._id) return;
+    setSavingRecordingSetup(true);
+    try {
+      const res = await fetch('/api/admin/crm/workshop-management', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ cohortId: selected._id, ...recordingSetup }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save recording setup');
+      alert('Recording setup saved successfully!');
+      void load(selected._id);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setSavingRecordingSetup(false);
+    }
+  };
+
+  const syncSystemForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected?._id || !systemFormLink) return;
+    setSyncingSystemForm(true);
+    try {
+      const res = await fetch('/api/admin/crm/workshop-management/students/sync-system-form', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ cohortId: selected._id, formUrl: systemFormLink }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not sync system form students');
+      alert(`Successfully synced ${data.enrolled || 0} students from form!`);
+      setSystemFormLink('');
+      void load(selected._id);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setSyncingSystemForm(false);
+    }
+  };
+
+  const downloadAnalyticsCSV = () => {
+    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
+    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
+    const rows = students.map(s => {
+      const row = [
+        `"${s.name}"`, 
+        `"${s.whatsappNumber || s.phone || ''}"`, 
+        `"${s.email || ''}"`,
+        `""`,
+        `""`
+      ];
+      uniqueDates.forEach(date => {
+        const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
+        if (record && record.joined) {
+          row.push(`${Math.round(record.durationSeconds / 60)} min`);
+        } else {
+          row.push('Absent');
+        }
+      });
+      return row.join(',');
+    });
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Workshop_Report_${selected?.name || 'Cohort'}.csv`;
+    a.click();
+  };
 
   const saveGoogleFormLink = async () => {
     if (!selected) return;
@@ -218,16 +313,10 @@ export default function WorkshopManagementPage() {
     });
     const data = await res.json();
     if (!res.ok) alert(data.error || 'Could not save Google Forms link');
-    else setSelected(data.cohort);
-  };
-
-  const openGoogleForm = () => {
-    const link = googleFormLink.trim();
-    if (!link || !/^https?:\/\//i.test(link)) {
-      alert('Please save a valid Google Forms link first.');
-      return;
+    else {
+      setSelected(data.cohort);
+      alert("Settings saved successfully.");
     }
-    window.open(link, '_blank', 'noopener,noreferrer');
   };
 
   const syncWhatsappGroup = async () => {
@@ -254,6 +343,50 @@ export default function WorkshopManagementPage() {
       alert(error instanceof Error ? error.message : 'Could not sync WhatsApp group');
     } finally {
       setSyncingWhatsapp(false);
+    }
+  };
+
+  const searchLeads = async (query: string) => {
+    setLeadSearchQuery(query);
+    if (!query || query.length < 3) {
+      setLeadSearchResults([]);
+      return;
+    }
+    setIsSearchingLeads(true);
+    try {
+      const res = await fetch(`/api/admin/crm/sales/lookup?q=${encodeURIComponent(query)}`, { headers });
+      const data = await res.json();
+      if (res.ok) setLeadSearchResults(data.leads || []);
+      else setLeadSearchResults([]);
+    } catch {
+      setLeadSearchResults([]);
+    } finally {
+      setIsSearchingLeads(false);
+    }
+  };
+
+  const addLeadAsStudent = async (lead: any) => {
+    if (!selected) return;
+    const res = await fetch('/api/admin/crm/workshop-management/students', { 
+      method: 'POST', 
+      headers, 
+      body: JSON.stringify({ 
+        name: lead.name, 
+        email: lead.email, 
+        phone: lead.phoneNumber, 
+        cohortId: selected._id, 
+        source: 'crm_lead',
+        leadId: lead._id,
+        leadNumber: lead.leadNumber
+      }) 
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setStudents((prev) => [...prev.filter((x) => x._id !== data.student._id), data.student].sort((a, b) => a.name.localeCompare(b.name)));
+      setShowAddStudent(false);
+      alert(`${lead.name} enrolled successfully!`);
+    } else {
+      alert(data.error || 'Could not enroll lead');
     }
   };
 
@@ -293,20 +426,6 @@ export default function WorkshopManagementPage() {
         ? ` Zoom attendance: ${zoom.updated || 0} updated${zoom.unmatched ? `, ${zoom.unmatched} unmatched` : ''}.`
         : '';
       alert(`Workshop worker complete. Sent: ${data.result?.sent || 0}, skipped: ${data.result?.skipped || 0}, failed: ${data.result?.failed || 0}.${attendanceNote}`);
-    }
-  };
-
-  const saveAttendance = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!selected) return;
-    const durationSeconds = Math.max(0, Number(attendanceForm.durationMinutes || 0) * 60);
-    const classDurationSeconds = Math.max(1, Number(attendanceForm.classDurationMinutes || 60) * 60);
-    const res = await fetch('/api/admin/crm/workshop-management/attendance', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id, studentId: attendanceForm.studentId, classDate: attendanceForm.classDate || new Date().toISOString().slice(0, 10), durationSeconds, classDurationSeconds, source: 'manual' }) });
-    const data = await res.json();
-    if (res.ok) {
-      await load(selected._id);
-      setAttendanceForm((prev) => ({ ...prev, classDate: '', durationMinutes: '0', classDurationMinutes: prev.classDurationMinutes }));
-    } else {
-      alert(data.error || 'Could not save attendance');
     }
   };
 
@@ -364,6 +483,7 @@ export default function WorkshopManagementPage() {
     if (res.ok) {
       await load(selected._id);
       setRecordingForm({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
+      alert("Recording saved successfully");
     } else {
       alert(data.error || 'Could not save recording delivery');
     }
@@ -378,95 +498,790 @@ export default function WorkshopManagementPage() {
   ] as const;
   const allImportFieldsSelected = importFieldOptions.every(([key]) => selectedImportFields.includes(key));
 
-  return <main className="min-h-screen bg-slate-50 p-6">
-    <div className="mx-auto max-w-7xl space-y-6">
-      {loadError && <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span><b>Could not load workshop data:</b> {loadError}</span><button type="button" onClick={() => void load()} className="rounded-lg bg-red-700 px-3 py-1.5 font-semibold text-white">Retry</button></div>}
-      <header className="flex flex-col gap-4 rounded-2xl bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600 p-6 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between"><div><h1 className="text-2xl font-bold">Workshop Student Management</h1><p className="mt-1 text-sm text-indigo-100">Manage cohorts, WhatsApp groups, Zoom attendance, recordings, and student history.</p></div><button type="button" onClick={() => setShowCreateForm((open) => !open)} className="rounded-xl bg-white px-4 py-2.5 font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50">{showCreateForm ? 'Close form' : '+ Add New Workshop'}</button></header>
-      {showCreateForm && <section className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm"><div className="mb-4 flex items-center justify-between"><div><h2 className="text-lg font-semibold text-slate-900">Create workshop / batch</h2><p className="text-sm text-slate-500">Set the class schedule, holidays, links, and automation options.</p></div><button type="button" onClick={() => setShowCreateForm(false)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600">Cancel</button></div><form onSubmit={createCohort} className="grid gap-3 md:grid-cols-3">
-        {([['name','Workshop name'],['startDate','Start date'],['endDate','End date'],['classStartTime','Class start time'],['classEndTime','Class end time'],['zoomMeetingId','Zoom meeting ID'],['zoomJoinUrl','Zoom meeting link'],['whatsappGroupLink','WhatsApp group link']] as const).map(([key, label]) => <label key={key} className="text-sm font-medium text-slate-700">{label}<input required={key === 'name' || key === 'startDate'} type={key.includes('Date') ? 'date' : key.includes('Time') ? 'time' : 'text'} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-normal" /></label>)}
-
-        <div className="md:col-span-3">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <label className="text-sm font-medium text-slate-700">Holiday dates (3 to 6)</label>
-            <button type="button" onClick={addHolidayDateField} disabled={form.holidayDates.length >= 6} className="rounded-lg bg-indigo-100 px-3 py-1.5 text-sm font-semibold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">+ Add</button>
+  return (
+    <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
+      
+      {/* Global Header */}
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between flex-shrink-0 z-10 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="bg-indigo-100 p-2 rounded-xl">
+            <GraduationCap className="h-6 w-6 text-indigo-700" />
           </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Workshop Management</h1>
+            <p className="text-sm text-slate-500 font-medium">Manage cohorts, students, attendance, and recordings</p>
+          </div>
+        </div>
+        <button 
+          onClick={() => setShowCreateForm(true)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
+        >
+          <Plus size={18} /> Add Workshop
+        </button>
+      </header>
 
-          <div className="space-y-3">
-            {form.holidayDates.map((value, index) => (
-              <div key={`holiday-${index}`} className="flex items-center gap-3">
-                <input
-                  type="date"
-                  value={value}
-                  onChange={(e) => setForm((prev) => ({ ...prev, holidayDates: prev.holidayDates.map((date, dateIndex) => dateIndex === index ? e.target.value : date) }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-normal"
-                />
-                {form.holidayDates.length > 3 && (
-                  <button type="button" onClick={() => removeHolidayDateField(index)} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-sm font-semibold text-red-600">Remove</button>
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* Sidebar: Workshops List */}
+        <aside className="w-80 bg-white border-r border-slate-200 flex flex-col z-10 flex-shrink-0">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Workshops</span>
+            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{cohorts.length}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {cohorts.length === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-sm text-slate-500">No workshops created yet.</p>
+              </div>
+            ) : (
+              cohorts.map((c) => (
+                <button 
+                  key={c._id} 
+                  onClick={() => { setSelected(c); setActiveTab('students'); void load(c._id); }}
+                  className={`w-full text-left p-4 rounded-xl border transition-all ${
+                    selected?._id === c._id 
+                      ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10' 
+                      : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
+                  }`}
+                >
+                  <p className={`font-bold truncate ${selected?._id === c._id ? 'text-indigo-900' : 'text-slate-700'}`}>
+                    {c.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md flex items-center gap-1">
+                      <Calendar size={10}/> {new Date(c.startDate).toLocaleDateString()}
+                    </span>
+                    {c.zoomMeetingId && (
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md flex items-center gap-1">
+                        <Video size={10}/> Zoom Ready
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </aside>
+
+        {/* Selected Workshop Workspace */}
+        <main className="flex-1 flex flex-col bg-slate-50 overflow-hidden relative">
+          {loadError && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-200 text-red-800 px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
+              <AlertCircle size={18} />
+              <span className="text-sm font-medium">{loadError}</span>
+              <button onClick={() => void load()} className="ml-4 font-bold text-red-900 hover:underline text-sm">Retry</button>
+            </div>
+          )}
+
+          {!selected ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
+              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
+                <GraduationCap className="h-10 w-10 text-indigo-300" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-700 mb-2">Select a Workshop</h2>
+              <p className="max-w-md">Choose a workshop from the sidebar to manage students, record attendance, and send out class recordings.</p>
+            </div>
+          ) : (
+            <>
+              {/* Workspace Header & Tabs */}
+              <div className="bg-white px-8 pt-8 border-b border-slate-200 flex-shrink-0">
+                <div className="flex items-start justify-between mb-8">
+                  <div>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">{selected.name}</h2>
+                    <div className="flex items-center gap-4 mt-3 text-sm font-medium text-slate-500">
+                      <span className="flex items-center gap-1.5"><Calendar size={16} className="text-slate-400"/> {selected.classStartTime || '—'} – {selected.classEndTime || '—'}</span>
+                      <span className="text-slate-300">|</span>
+                      <span className="flex items-center gap-1.5"><Users size={16} className="text-slate-400"/> {students.length} Students Enrolled</span>
+                      {selected.zoomMeetingId && (
+                        <>
+                          <span className="text-slate-300">|</span>
+                          <span className="flex items-center gap-1.5 text-emerald-600"><Video size={16} /> Zoom Connected</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-8">
+                  {[
+                    { id: 'students', label: 'Students & Attendance', icon: Users },
+                    { id: 'recordings', label: 'Recordings', icon: Video },
+                    { id: 'settings', label: 'Workshop Settings', icon: Settings },
+                    { id: 'analytics', label: 'Attendance Analytics', icon: BarChart2 }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+                        activeTab === tab.id 
+                          ? 'border-indigo-600 text-indigo-700' 
+                          : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <tab.icon size={16} />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Workspace Content */}
+              <div className="flex-1 overflow-y-auto p-8">
+                
+                {/* === STUDENTS TAB === */}
+                {activeTab === 'students' && (
+                  <div className="space-y-6 max-w-6xl mx-auto">
+                    {/* Action Bar */}
+                    <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                      <button onClick={() => { setAddStudentTab('manual'); setShowAddStudent(true); }} className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
+                        <UserPlus size={16} /> Add Students
+                      </button>
+                      
+                      <div className="h-8 w-px bg-slate-200 mx-2 hidden md:block"></div>
+                      
+                      {selected.zoomMeetingId && (
+                        <button onClick={syncZoomAttendance} disabled={syncingZoomAttendance} className="inline-flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-sky-100 disabled:opacity-50">
+                          <RefreshCw size={16} className={syncingZoomAttendance ? 'animate-spin' : ''} />
+                          {syncingZoomAttendance ? 'Syncing Zoom...' : 'Sync Zoom Data'}
+                        </button>
+                      )}
+
+                      {selectedStudentIds.length > 0 && (
+                        <button onClick={removeSelectedStudents} className="ml-auto inline-flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-red-100">
+                          <Trash2 size={16} /> Remove ({selectedStudentIds.length})
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Table */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                      {students.length === 0 ? (
+                        <div className="text-center py-20">
+                          <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                          <h3 className="text-lg font-bold text-slate-700">No students yet</h3>
+                          <p className="text-sm text-slate-500 mt-1">Import from Google Forms or add manually to get started.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 border-b border-slate-200">
+                              <tr>
+                                <th className="p-4 w-12">
+                                  <input type="checkbox" checked={students.length > 0 && selectedStudentIds.length === students.length} onChange={(e) => setSelectedStudentIds(e.target.checked ? students.map((s) => s._id) : [])} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                </th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Student Name</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Contact</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs text-center">Attendance</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {students.map((s) => { 
+                                const rows = attendance.filter((a) => String(a.studentId) === s._id); 
+                                const joinedCount = rows.filter((a) => a.joined).length;
+                                const mins = Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60);
+                                return (
+                                  <tr key={s._id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="p-4">
+                                      <input type="checkbox" checked={selectedStudentIds.includes(s._id)} onChange={(e) => setSelectedStudentIds((prev) => e.target.checked ? [...prev, s._id] : prev.filter((id) => id !== s._id))} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                    </td>
+                                    <td className="p-4">
+                                      <button type="button" onClick={() => openStudentChart(s)} className="text-left font-bold text-indigo-700 hover:text-indigo-900 group flex items-center gap-2">
+                                        {s.name} <BarChart2 size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </button>
+                                      {s.leadNumber && <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">CRM LEAD</span>}
+                                    </td>
+                                    <td className="p-4">
+                                      {s.email && <div className="text-slate-600 flex items-center gap-1.5 mb-1"><Mail size={12}/> {s.email}</div>}
+                                      {(s.phone || s.whatsappNumber) && <div className="text-slate-600 flex items-center gap-1.5"><Phone size={12}/> {s.phone || s.whatsappNumber}</div>}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                      <div className="font-bold text-slate-800">{joinedCount} <span className="font-normal text-slate-500 text-xs">days</span></div>
+                                      <div className="text-xs text-slate-400 mt-0.5">{mins} min total</div>
+                                    </td>
+                                    <td className="p-4">
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${s.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                        {s.active ? 'Active' : 'Inactive'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ); 
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
+
+                {/* === RECORDINGS TAB === */}
+                {activeTab === 'recordings' && (
+                  <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <div className="lg:col-span-1">
+                      <form onSubmit={saveRecording} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-0">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                          <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><PlayCircle size={20}/></div>
+                          <h3 className="font-bold text-slate-800">New Delivery</h3>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Class Date</label>
+                            <input required type="date" value={recordingForm.classDate} onChange={(e) => setRecordingForm({ ...recordingForm, classDate: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white" />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">YouTube Links (Optional)</label>
+                            <input placeholder="Speaker Video ID" value={recordingForm.youtubeSpeakerId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeSpeakerId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
+                            <input placeholder="Gallery Video ID" value={recordingForm.youtubeGalleryId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeGalleryId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Bunny URLs (Optional)</label>
+                            <input placeholder="Speaker URL" value={recordingForm.bunnySpeakerUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnySpeakerUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
+                            <input placeholder="Gallery URL" value={recordingForm.bunnyGalleryUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnyGalleryUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                          </div>
+                          
+                          <button className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3 font-bold text-white shadow-sm transition-colors mt-4">
+                            Save Delivery
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                    
+                    <div className="lg:col-span-2 space-y-4">
+                      {recordings.length === 0 ? (
+                        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
+                          <Video size={32} className="mx-auto mb-4 text-slate-300" />
+                          <h4 className="font-bold text-slate-700 mb-1">No recordings yet</h4>
+                          <p className="text-sm">Use the form to log recording deliveries to students.</p>
+                        </div>
+                      ) : (
+                        recordings.map((recording) => (
+                          <div key={recording._id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex items-start gap-4 hover:border-indigo-200 transition-colors">
+                            <div className="bg-indigo-50 px-4 py-3 rounded-xl text-center min-w-[80px]">
+                              <p className="text-xs font-bold text-indigo-400 uppercase">Day</p>
+                              <p className="text-2xl font-black text-indigo-700">{recording.dayNumber || '-'}</p>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-slate-800 text-lg mb-1">{new Date(recording.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
+                              
+                              <div className="grid grid-cols-2 gap-4 mt-4">
+                                <div className="space-y-2">
+                                  <p className="text-xs font-bold text-slate-500 uppercase">Speaker View</p>
+                                  {(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>}
+                                  {recording.bunnySpeakerUrl && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnySpeakerUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>}
+                                  {!recording.youtubeSpeakerId && !recording.bunnySpeakerUrl && <span className="text-sm text-slate-400">—</span>}
+                                </div>
+                                <div className="space-y-2">
+                                  <p className="text-xs font-bold text-slate-500 uppercase">Gallery View</p>
+                                  {(recording.youtubeGalleryUrl || recording.youtubeGalleryId) && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>}
+                                  {recording.bunnyGalleryUrl && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnyGalleryUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>}
+                                  {!recording.youtubeGalleryId && !recording.bunnyGalleryUrl && <span className="text-sm text-slate-400">—</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-slate-200">
+                                <Users size={14}/> {(recording.deliveredStudentIds || []).length || 0}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* === SETTINGS TAB === */}
+                {activeTab === 'settings' && (
+                  <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {/* Google Form Settings */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                        <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600"><Link size={20}/></div>
+                        <h3 className="font-bold text-slate-800">Google Form Integration</h3>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="block text-sm font-bold text-slate-700">CRM Form URL</label>
+                        <input type="url" placeholder="https://swaryoga.com/enquiry?w=..." value={googleFormLink} onChange={(e) => setGoogleFormLink(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                        <div className="flex gap-3">
+                          <button type="button" onClick={saveGoogleFormLink} className="flex-1 rounded-xl bg-slate-800 text-white font-bold py-2.5 hover:bg-slate-900 transition-colors text-sm">Save Link</button>
+                          <button type="button" onClick={() => { if (googleFormLink) window.open(googleFormLink, '_blank'); }} className="flex-1 rounded-xl border border-slate-200 text-slate-700 font-bold py-2.5 hover:bg-slate-50 transition-colors text-sm">Open Form</button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Automations */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                        <div className="bg-violet-100 p-2 rounded-xl text-violet-600"><Settings size={20}/></div>
+                        <h3 className="font-bold text-slate-800">Automations</h3>
+                      </div>
+                      <div className="space-y-4">
+                        <button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className="w-full flex items-center justify-between p-4 rounded-xl border border-violet-200 bg-violet-50 hover:bg-violet-100 transition-colors disabled:opacity-50 text-left">
+                          <div>
+                            <p className="font-bold text-violet-900">Preview AI Worker</p>
+                            <p className="text-xs text-violet-700 mt-1">Simulate tasks without sending messages</p>
+                          </div>
+                          <Eye className="text-violet-500" />
+                        </button>
+                        <button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className="w-full flex items-center justify-between p-4 rounded-xl bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50 text-left text-white shadow-sm">
+                          <div>
+                            <p className="font-bold">Run AI Worker Now</p>
+                            <p className="text-xs text-violet-200 mt-1">Execute pending tasks and messages immediately</p>
+                          </div>
+                          <PlayCircle className="text-violet-200" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Zoom Recording Setup */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm md:col-span-2">
+                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                        <div className="bg-blue-100 p-2 rounded-xl text-blue-600"><Video size={20}/></div>
+                        <h3 className="font-bold text-slate-800">Zoom Recording Setup</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <label className="block text-sm font-bold text-slate-700">Zoom Meeting ID</label>
+                          <input type="text" placeholder="123456789" value={recordingSetup.zoomMeetingId} onChange={(e) => setRecordingSetup({...recordingSetup, zoomMeetingId: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                          
+                          <label className="block text-sm font-bold text-slate-700 mt-4">Community</label>
+                          <select value={recordingSetup.communityId} onChange={(e) => setRecordingSetup({...recordingSetup, communityId: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm">
+                            <option value="">-- Select Community --</option>
+                            {communities.map((c: any) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-4">
+                          <label className="block text-sm font-bold text-slate-700">YouTube Playlist Name (Optional)</label>
+                          <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={recordingSetup.youtubePlaylistName} onChange={(e) => setRecordingSetup({...recordingSetup, youtubePlaylistName: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+
+                          <label className="block text-sm font-bold text-slate-700 mt-4">Thumbnail URL (Optional)</label>
+                          <input type="url" placeholder="https://..." value={recordingSetup.thumbnailUrl} onChange={(e) => setRecordingSetup({...recordingSetup, thumbnailUrl: e.target.value})} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                        </div>
+                      </div>
+                      <div className="mt-6 flex justify-end">
+                        <button type="button" onClick={saveRecordingSetup} disabled={savingRecordingSetup} className="rounded-xl bg-blue-600 text-white font-bold px-6 py-2.5 hover:bg-blue-700 transition-colors text-sm disabled:opacity-50">
+                          {savingRecordingSetup ? 'Saving...' : 'Save Recording Setup'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* === ANALYTICS TAB === */}
+                {activeTab === 'analytics' && (() => {
+                  const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
+                  return (
+                    <div className="max-w-6xl mx-auto space-y-6">
+                      <style>{`
+                        @media print {
+                          @page { size: landscape; margin: 1cm; }
+                          body * { visibility: hidden; }
+                          #analytics-print-area, #analytics-print-area * { visibility: visible; }
+                          #analytics-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                          .no-print { display: none !important; }
+                        }
+                      `}</style>
+                      <div id="analytics-print-area" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-50 gap-4 no-print">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-blue-100 p-2 rounded-xl text-blue-600"><BarChart2 size={20}/></div>
+                            <div>
+                              <h3 className="font-bold text-slate-800 text-lg">Daily Attendance Analytics</h3>
+                              <p className="text-xs text-slate-500 mt-1">Overview of student attendance durations across all classes.</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">
+                              <Printer size={16} />
+                              Print Report
+                            </button>
+                            <button onClick={downloadAnalyticsCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded-xl hover:bg-slate-900 transition-colors">
+                              <Download size={16} />
+                              Download CSV
+                            </button>
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto print:overflow-visible">
+                          <table className="w-full text-left text-sm text-slate-600">
+                            <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                              <tr>
+                                <th className="px-6 py-4">Student</th>
+                                <th className="px-6 py-4">Contact</th>
+                                <th className="px-4 py-4 whitespace-nowrap">Fees</th>
+                                <th className="px-4 py-4 whitespace-nowrap">Remark</th>
+                                {uniqueDates.map(date => (
+                                  <th key={date} className="px-4 py-4 whitespace-nowrap">{new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {students.map(s => (
+                                <tr key={s._id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <p className="font-bold text-slate-800">{s.name}</p>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <p className="text-xs text-slate-500">{s.email || s.phone || s.whatsappNumber}</p>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap"></td>
+                                  <td className="px-4 py-4 whitespace-nowrap"></td>
+                                  {uniqueDates.map(date => {
+                                    const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
+                                    if (record && record.joined) {
+                                      const mins = Math.round(record.durationSeconds / 60);
+                                      return (
+                                        <td key={date} className="px-4 py-4">
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-semibold text-xs border border-emerald-100">
+                                            {mins} min
+                                          </span>
+                                        </td>
+                                      );
+                                    }
+                                    return (
+                                      <td key={date} className="px-4 py-4">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 text-rose-600 font-semibold text-xs border border-rose-100">
+                                          Absent
+                                        </span>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                              {students.length === 0 && (
+                                <tr>
+                                  <td colSpan={uniqueDates.length + 4} className="px-6 py-8 text-center text-slate-500">
+                                    No students enrolled yet.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+                
               </div>
-            ))}
+            </>
+          )}
+        </main>
+      </div>
+
+      {/* ================= MODALS ================= */}
+
+      {/* Create Workshop Modal */}
+      {showCreateForm && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800">Create New Workshop</h2>
+              <button onClick={() => setShowCreateForm(false)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <form id="create-form" onSubmit={createCohort} className="grid gap-5 sm:grid-cols-2">
+                {([['name','Workshop Name', 'text'],['startDate','Start Date', 'date'],['endDate','End Date', 'date'],['classStartTime','Start Time', 'time'],['classEndTime','End Time', 'time'],['zoomMeetingId','Zoom Meeting ID', 'text'],['zoomJoinUrl','Zoom Join Link', 'url'],['whatsappGroupLink','WA Group Link', 'url'],['googleFormLink','CRM Form URL', 'url']] as const).map(([key, label, type]) => (
+                  <div key={key} className={key === 'name' ? 'sm:col-span-2' : ''}>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">{label} {key === 'name' || key === 'startDate' ? <span className="text-red-500">*</span> : ''}</label>
+                    <input required={key === 'name' || key === 'startDate'} type={type} value={form[key as keyof typeof form] as string} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                  </div>
+                ))}
+
+                <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Holiday Dates (3 to 6)</label>
+                    <button type="button" onClick={addHolidayDateField} disabled={form.holidayDates.length >= 6} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-50">+ Add Holiday</button>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {form.holidayDates.map((value, index) => (
+                      <div key={`holiday-${index}`} className="flex items-center gap-2">
+                        <input type="date" value={value} onChange={(e) => setForm((prev) => ({ ...prev, holidayDates: prev.holidayDates.map((date, dateIndex) => dateIndex === index ? e.target.value : date) }))} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-50 focus:bg-white" />
+                        {form.holidayDates.length > 3 && (
+                          <button type="button" onClick={() => removeHolidayDateField(index)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2 flex flex-col gap-3 mt-4 pt-4 border-t border-slate-100">
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
+                    <input type="checkbox" checked={form.aiWorkerEnabled} onChange={(e) => setForm({ ...form, aiWorkerEnabled: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" /> 
+                    <span className="font-bold text-violet-900 text-sm">Enable Workshop AI Worker</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
+                    <input type="checkbox" checked={form.autoSendRecordings} onChange={(e) => setForm({ ...form, autoSendRecordings: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" /> 
+                    <span className="font-bold text-violet-900 text-sm">Automatically send recordings by WhatsApp</span>
+                  </label>
+                </div>
+              </form>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50">
+              <button form="create-form" type="submit" disabled={loading} className="w-full rounded-xl bg-indigo-600 py-3.5 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors">
+                {loading ? 'Creating...' : 'Create Workshop'}
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        <div className="flex flex-wrap gap-5 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm md:col-span-3">
-          <label className="flex items-center gap-2 font-medium text-violet-900"><input type="checkbox" checked={form.aiWorkerEnabled} onChange={(e) => setForm({ ...form, aiWorkerEnabled: e.target.checked })} /> Enable Workshop AI Worker</label>
-          <label className="flex items-center gap-2 font-medium text-violet-900"><input type="checkbox" checked={form.autoSendRecordings} onChange={(e) => setForm({ ...form, autoSendRecordings: e.target.checked })} /> Automatically send recordings by WhatsApp</label>
+      {/* Unified Add Students Modal */}
+      {showAddStudent && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[85vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <UserPlus size={20} className="text-indigo-600"/> Add Students to Workshop
+              </h2>
+              <button onClick={() => setShowAddStudent(false)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors">
+                <X size={20}/>
+              </button>
+            </div>
+            
+            <div className="flex border-b border-slate-200 bg-slate-50/50 px-4">
+              <button onClick={() => setAddStudentTab('manual')} className={`py-3 px-4 text-sm font-bold border-b-2 transition-colors ${addStudentTab === 'manual' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Manual Form</button>
+              <button onClick={() => setAddStudentTab('whatsapp')} className={`py-3 px-4 text-sm font-bold border-b-2 transition-colors ${addStudentTab === 'whatsapp' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>WhatsApp Group</button>
+              <button onClick={() => setAddStudentTab('leads')} className={`py-3 px-4 text-sm font-bold border-b-2 transition-colors ${addStudentTab === 'leads' ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>From CRM Leads</button>
+              <button onClick={() => setAddStudentTab('import')} className={`py-3 px-4 text-sm font-bold border-b-2 transition-colors ${addStudentTab === 'import' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Bulk Upload</button>
+            </div>
+
+            <div className="p-6 overflow-y-auto">
+              
+              {/* Tab: Manual Form */}
+              {addStudentTab === 'manual' && (
+                <form onSubmit={addStudent} className="space-y-4 max-w-md mx-auto">
+                  <div><label className="block text-xs font-bold text-slate-600 uppercase mb-1">Name *</label><input required placeholder="Student name" value={student.name} onChange={(e) => setStudent({ ...student, name: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" /></div>
+                  <div><label className="block text-xs font-bold text-slate-600 uppercase mb-1">Email</label><input type="email" placeholder="Email" value={student.email} onChange={(e) => setStudent({ ...student, email: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" /></div>
+                  <div><label className="block text-xs font-bold text-slate-600 uppercase mb-1">Phone</label><input type="tel" placeholder="Phone" value={student.phone} onChange={(e) => setStudent({ ...student, phone: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" /></div>
+                  <div><label className="block text-xs font-bold text-slate-600 uppercase mb-1">WhatsApp</label><input type="tel" placeholder="WhatsApp number" value={student.whatsappNumber} onChange={(e) => setStudent({ ...student, whatsappNumber: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" /></div>
+                  <button type="submit" className="w-full mt-4 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors">Add Student</button>
+                </form>
+              )}
+
+              {/* Tab: WhatsApp Group */}
+              {addStudentTab === 'whatsapp' && (
+                <div className="text-center py-6 space-y-4 max-w-md mx-auto">
+                  <div className="bg-emerald-50 rounded-full h-16 w-16 flex items-center justify-center mx-auto mb-4">
+                    <Users size={32} className="text-emerald-500" />
+                  </div>
+                  {selected?.whatsappGroupLink ? (
+                    <>
+                      <h3 className="text-lg font-bold text-slate-800">Sync from WhatsApp Group</h3>
+                      <p className="text-sm text-slate-500">Automatically pull in all members from the connected WhatsApp group. Any new members will be added as students and synced to CRM Leads.</p>
+                      <button onClick={syncWhatsappGroup} disabled={syncingWhatsapp} className="w-full mt-4 inline-flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-sm transition-colors disabled:opacity-50">
+                        <RefreshCw size={18} className={syncingWhatsapp ? 'animate-spin' : ''} />
+                        {syncingWhatsapp ? 'Syncing WA...' : 'Sync WhatsApp Group'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-bold text-slate-800">No WhatsApp Group Linked</h3>
+                      <p className="text-sm text-slate-500">Please go to Workshop Settings and add a WhatsApp Group Link to enable auto-sync.</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: CRM Leads */}
+              {addStudentTab === 'leads' && (
+                <div className="space-y-6">
+                  {/* System Form Import */}
+                  <div className="bg-violet-50 rounded-xl p-5 border border-violet-100">
+                    <label className="block text-sm font-bold text-violet-900 mb-2">Import from System Form</label>
+                    <p className="text-xs text-violet-700 mb-4">Paste the link of the form from our system to auto-sync all leads who submitted it into this workshop cohort.</p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input 
+                        type="url" 
+                        placeholder="e.g., https://swaryoga.com/workshop-join/my-form" 
+                        value={systemFormLink} 
+                        onChange={(e) => setSystemFormLink(e.target.value)} 
+                        className="flex-1 rounded-xl border border-violet-200 px-4 py-2.5 bg-white text-sm focus:ring-2 focus:ring-violet-500" 
+                      />
+                      <button onClick={syncSystemForm} disabled={!systemFormLink || syncingSystemForm} className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all disabled:opacity-50 text-sm shadow-sm whitespace-nowrap">
+                        {syncingSystemForm ? 'Syncing...' : 'Sync Form'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                    <span className="text-xs font-bold text-slate-400 uppercase">OR</span>
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                  </div>
+
+                  {/* Manual Lead Search */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Search CRM Leads</label>
+                    <input 
+                      type="text" 
+                      placeholder="Search by name, phone, or email..." 
+                      value={leadSearchQuery} 
+                      onChange={(e) => searchLeads(e.target.value)} 
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 bg-slate-50 focus:bg-white text-sm focus:ring-2 focus:ring-violet-500" 
+                    />
+                  </div>
+                  
+                  {isSearchingLeads ? (
+                    <div className="text-center py-8 text-sm text-slate-500">Searching leads...</div>
+                  ) : leadSearchResults.length > 0 ? (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      {leadSearchResults.map((lead) => (
+                        <div key={lead._id} className="flex items-center justify-between p-4 border-b border-slate-100 bg-white hover:bg-slate-50 last:border-0">
+                          <div>
+                            <p className="font-bold text-slate-800">{lead.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{lead.phoneNumber || lead.email || 'No contact info'}</p>
+                          </div>
+                          <button 
+                            onClick={() => addLeadAsStudent(lead)}
+                            className="bg-violet-50 hover:bg-violet-100 text-violet-700 font-bold px-4 py-2 rounded-lg text-xs transition-colors"
+                          >
+                            Enroll
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : leadSearchQuery.length >= 3 ? (
+                    <div className="text-center py-8 text-sm text-slate-500">No leads found matching "{leadSearchQuery}"</div>
+                  ) : (
+                    <div className="text-center py-8 text-sm text-slate-500">Type at least 3 characters to search CRM leads.</div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Bulk Upload */}
+              {addStudentTab === 'import' && (
+                <div className="space-y-6">
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5">
+                    <label className="block text-sm font-bold text-indigo-900 mb-2">1. Upload Excel or CSV File</label>
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={importStudents} disabled={importingStudents} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 transition-colors" />
+                    <p className="text-xs text-indigo-700 mt-3 font-medium flex items-center gap-1.5"><CheckCircle2 size={14}/> Fields like Age, City, Country, and Workshop will be automatically mapped to the CRM if present in the file.</p>
+                  </div>
+
+                  {studentImportColumns.length > 0 && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 animate-in fade-in slide-in-from-top-4">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4">2. Map Essential Columns</h3>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        {([['name','Name'],['email','Email'],['phone','Phone'],['whatsappNumber','WhatsApp Number'],['whatsappJid','WhatsApp JID']] as const).map(([key, label]) => (
+                          <div key={key}>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{label}</label>
+                            <select value={studentImportMapping[key as keyof typeof studentImportMapping]} onChange={(e) => setStudentImportMapping({ ...studentImportMapping, [key]: e.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500">
+                              <option value="">Auto-detect</option>
+                              {studentImportColumns.map((column) => <option key={column} value={column}>{column}</option>)}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-6 flex flex-col sm:flex-row gap-3 pt-5 border-t border-slate-200">
+                        <button type="button" onClick={() => void autoImportStudents()} disabled={importingStudents} className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 py-3 font-bold text-white shadow-sm transition-colors disabled:opacity-50">
+                          {importingStudents ? 'Importing...' : 'Auto-Import All Data'}
+                        </button>
+                        <button type="button" onClick={() => void importMappedStudents()} disabled={importingStudents || !studentImportMapping.name} className="flex-1 rounded-xl border-2 border-indigo-600 text-indigo-700 hover:bg-indigo-50 py-3 font-bold transition-colors disabled:opacity-50">
+                          {importingStudents ? 'Importing...' : 'Import Selected'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+      )}
 
-        <button disabled={loading} className="rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white md:col-span-3">{loading ? 'Saving…' : 'Save workshop'}</button>
-      </form></section>}
-      <section className="grid gap-5 lg:grid-cols-[290px_1fr]">
-        <aside className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"><div className="mb-4 flex items-center justify-between"><h2 className="font-semibold text-slate-900">Workshops</h2><span className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">{cohorts.length}</span></div>{cohorts.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">No workshops yet.<br />Click <b>+ Add New Workshop</b> to begin.</div> : cohorts.map((c) => <button key={c._id} onClick={() => { setSelected(c); void load(c._id); }} className={`mb-2 w-full rounded-xl border p-3 text-left transition ${selected?._id === c._id ? 'border-indigo-300 bg-indigo-50 text-indigo-800 shadow-sm' : 'border-transparent bg-slate-50 hover:border-indigo-200 hover:bg-indigo-50/50'}`}><b className="block truncate">{c.name}</b><span className="mt-1 block text-xs text-slate-500">Starts {new Date(c.startDate).toLocaleDateString()} · {c.zoomMeetingId ? 'Zoom ready' : 'Zoom pending'}</span></button>)}</aside>
-        <section className="min-w-0 space-y-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">{!selected ? <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500"><div><div className="mb-2 text-4xl">📚</div><p className="font-semibold text-slate-700">Select a workshop to manage students</p><p className="mt-1 text-sm">Choose a workshop from the left, or create a new one above.</p></div></div> : <>
-          <div className="mb-5"><h2 className="text-xl font-bold">{selected.name}</h2><p className="text-sm text-slate-500">{selected.classStartTime || '—'}–{selected.classEndTime || '—'} · Zoom {selected.zoomMeetingId || 'not set'} · {students.length} students</p><div className="mt-3 flex flex-wrap gap-2">{selected.whatsappGroupLink && <button type="button" onClick={() => void syncWhatsappGroup()} disabled={syncingWhatsapp} className="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingWhatsapp ? 'Syncing WhatsApp group…' : 'Sync WhatsApp group students'}</button>}{selected.zoomMeetingId && <button type="button" onClick={() => void syncZoomAttendance()} disabled={syncingZoomAttendance} className="rounded bg-sky-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{syncingZoomAttendance ? 'Syncing Zoom attendance…' : 'Sync Zoom attendance'}</button>}<button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className="rounded bg-violet-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Preview AI worker</button><button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className="rounded bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{runningWorker ? 'Running worker…' : 'Run Workshop AI Worker'}</button></div></div>
+      {/* Student Attendance Chart Modal */}
+      {detailStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 lg:p-8">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 lg:px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">{detailStudent.name}</h2>
+                <p className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-3">
+                  {detailStudent.email && <span className="flex items-center gap-1"><Mail size={14}/> {detailStudent.email}</span>}
+                  {(detailStudent.phone || detailStudent.whatsappNumber) && <span className="flex items-center gap-1"><Phone size={14}/> {detailStudent.phone || detailStudent.whatsappNumber}</span>}
+                </p>
+              </div>
+              <button onClick={() => setDetailStudent(null)} className="p-2 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"><X size={20}/></button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-slate-50/50">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="bg-indigo-100 p-2.5 rounded-xl text-indigo-600"><Calendar size={24}/></div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">14-Day Attendance Record</h3>
+                    <p className="text-xs font-medium text-slate-500">Edit or review daily attendance manually</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-2">
+                    Class Duration (Mins)
+                    <input type="number" min={1} value={chartClassDuration} onChange={(e) => setChartClassDuration(e.target.value)} className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800" />
+                  </label>
+                  <button type="button" onClick={() => void saveStudentChart()} disabled={savingChart} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2 font-bold text-white shadow-sm transition-colors disabled:opacity-50">
+                    {savingChart ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
 
-          <button type="button" onClick={() => setShowStudentTools((open) => !open)} className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left font-semibold text-emerald-800 transition hover:bg-emerald-100">{showStudentTools ? 'Close student tools' : '+ Add Students'}</button>
-
-          {showStudentTools && <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-semibold text-slate-800">Choose data to collect/import</h3>
-              <div className="flex gap-2 text-xs">
-                <button type="button" onClick={() => setSelectedImportFields(importFieldOptions.map(([key]) => key))} className="font-semibold text-indigo-700">Select all</button>
-                <button type="button" onClick={() => setSelectedImportFields(['name'])} className="font-semibold text-slate-600">Clear optional fields</button>
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Day</th>
+                      <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Date</th>
+                      <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs text-center">Status</th>
+                      <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs text-center">Duration (Mins)</th>
+                      <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {attendanceChart.map((row, index) => (
+                      <tr key={row.classDate} className={`${row.holiday ? 'bg-amber-50/30' : 'hover:bg-slate-50'} transition-colors`}>
+                        <td className="p-4">
+                          {row.holiday ? (
+                            <span className="text-amber-600 font-bold flex items-center gap-1"><AlertCircle size={14}/> Holiday</span>
+                          ) : (
+                            <span className="font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md">Day {row.dayNumber}</span>
+                          )}
+                        </td>
+                        <td className="p-4 font-medium text-slate-700">{new Date(`${row.classDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                        <td className="p-4 text-center">
+                          {row.holiday ? '—' : (
+                            <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border ${row.status === 'joined' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                              {row.status === 'joined' ? 'Present' : 'Absent'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-center">
+                          {row.holiday ? '—' : (
+                            <input type="number" min={0} value={row.durationMinutes} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, durationMinutes: e.target.value } : item))} className="w-20 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white px-2 py-1.5 text-center font-bold" />
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {row.holiday ? '—' : (
+                            <select value={row.status} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, status: e.target.value as AttendanceChartRow['status'] } : item))} className="rounded-lg border border-slate-200 bg-slate-50 focus:bg-white px-3 py-1.5 font-semibold text-slate-700">
+                              <option value="joined">Mark Present</option>
+                              <option value="absent">Mark Absent</option>
+                            </select>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3"><input type="checkbox" checked={allImportFieldsSelected} onChange={(e) => setSelectedImportFields(e.target.checked ? importFieldOptions.map(([key]) => key) : ['name'])} /> Select all fields</label>
-              {importFieldOptions.map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={selectedImportFields.includes(key)} disabled={key === 'name'} onChange={(e) => setSelectedImportFields((prev) => e.target.checked ? [...prev, key] : prev.filter((field) => field !== key))} /> {label}{key === 'name' && <span className="text-xs text-red-600">required</span>}</label>)}
-            </div>
-            <p className="mt-2 text-xs text-slate-500">Only checked fields will be imported from the Google Forms Excel file. Name is required for every student.</p>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <form onSubmit={addStudent} className="rounded-lg bg-slate-50 p-4"><h3 className="mb-3 font-semibold">Add student</h3><div className="grid gap-3 md:grid-cols-2"><input required placeholder="Student name" value={student.name} onChange={(e) => setStudent({ ...student, name: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Email" value={student.email} onChange={(e) => setStudent({ ...student, email: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="Phone" value={student.phone} onChange={(e) => setStudent({ ...student, phone: e.target.value })} className="rounded border px-3 py-2" /><input placeholder="WhatsApp number" value={student.whatsappNumber} onChange={(e) => setStudent({ ...student, whatsappNumber: e.target.value })} className="rounded border px-3 py-2" /><button className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white md:col-span-2">Add student</button></div><div className="mt-4 border-t border-slate-200 pt-4 space-y-3"><label className="block text-sm font-medium text-slate-700">Google Forms link (optional)<input type="url" placeholder="https://docs.google.com/forms/..." value={googleFormLink} onChange={(e) => setGoogleFormLink(e.target.value)} className="mt-2 block w-full rounded border bg-white px-3 py-2 text-sm font-normal" /></label><div className="grid grid-cols-2 gap-2"><button type="button" onClick={saveGoogleFormLink} className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white">Save link</button><button type="button" onClick={openGoogleForm} className="rounded bg-sky-600 px-3 py-2 font-semibold text-white">Open Google Form</button></div><label className="block text-sm font-medium text-slate-700">Import Google Forms Excel export<input type="file" accept=".xlsx,.xls,.csv" onChange={importStudents} disabled={importingStudents} className="mt-2 block w-full rounded border bg-white px-3 py-2 text-sm font-normal" /></label>{studentImportColumns.length > 0 && <div className="grid gap-2 sm:grid-cols-2"><p className="sm:col-span-2 text-sm font-semibold text-slate-700">Select columns before importing</p>{([['name','Name'],['email','Email'],['phone','Phone'],['whatsappNumber','WhatsApp number'],['whatsappJid','WhatsApp JID']] as const).map(([key, label]) => <label key={key} className="text-xs font-medium text-slate-600">{label}<select value={studentImportMapping[key]} onChange={(e) => setStudentImportMapping({ ...studentImportMapping, [key]: e.target.value })} className="mt-1 w-full rounded border bg-white px-2 py-2 text-sm"><option value="">Auto-detect</option>{studentImportColumns.map((column) => <option key={column} value={column}>{column}</option>)}</select></label>)}<button type="button" onClick={() => void autoImportStudents()} disabled={importingStudents} className="rounded bg-emerald-600 px-3 py-2 font-semibold text-white sm:col-span-2 disabled:opacity-50">{importingStudents ? 'Importing all data…' : 'Auto-import all detected data'}</button><button type="button" onClick={() => void importMappedStudents()} disabled={importingStudents || !studentImportMapping.name} className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white sm:col-span-2 disabled:opacity-50">{importingStudents ? 'Importing students…' : 'Import selected fields'}</button></div>}<p className="text-xs text-slate-500">Auto-import detects the standard fields and preserves additional Google Forms columns in student metadata. Existing students are updated instead of duplicated.</p></div></form>
-
-            <form onSubmit={saveAttendance} className="rounded-lg bg-slate-50 p-4"><h3 className="mb-3 font-semibold">Record attendance</h3><div className="grid gap-3 md:grid-cols-2"><select value={attendanceForm.studentId} onChange={(e) => setAttendanceForm({ ...attendanceForm, studentId: e.target.value })} className="rounded border px-3 py-2"><option value="">Select student</option>{students.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}</select><input type="date" value={attendanceForm.classDate} onChange={(e) => setAttendanceForm({ ...attendanceForm, classDate: e.target.value })} className="rounded border px-3 py-2" /><input type="number" min={0} placeholder="Minutes attended" value={attendanceForm.durationMinutes} onChange={(e) => setAttendanceForm({ ...attendanceForm, durationMinutes: e.target.value })} className="rounded border px-3 py-2" /><input type="number" min={1} placeholder="Class duration minutes" value={attendanceForm.classDurationMinutes} onChange={(e) => setAttendanceForm({ ...attendanceForm, classDurationMinutes: e.target.value })} className="rounded border px-3 py-2" /><button className="rounded bg-indigo-600 px-3 py-2 font-semibold text-white md:col-span-2">Save attendance</button></div></form>
-          </div></div>}
-
-          <form onSubmit={saveRecording} className="rounded-lg bg-slate-50 p-4">
-            <h3 className="mb-3 font-semibold">Recording delivery</h3>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <input type="date" value={recordingForm.classDate} onChange={(e) => setRecordingForm({ ...recordingForm, classDate: e.target.value })} className="rounded border px-3 py-2" />
-              <input placeholder="YouTube speaker video ID" value={recordingForm.youtubeSpeakerId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeSpeakerId: e.target.value })} className="rounded border px-3 py-2" />
-              <input placeholder="YouTube gallery video ID" value={recordingForm.youtubeGalleryId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeGalleryId: e.target.value })} className="rounded border px-3 py-2" />
-              <input placeholder="Bunny speaker URL" value={recordingForm.bunnySpeakerUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnySpeakerUrl: e.target.value })} className="rounded border px-3 py-2" />
-              <input placeholder="Bunny gallery URL" value={recordingForm.bunnyGalleryUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnyGalleryUrl: e.target.value })} className="rounded border px-3 py-2" />
-              <input placeholder="Delivered student IDs (comma separated)" value={recordingForm.deliveredStudentIds} onChange={(e) => setRecordingForm({ ...recordingForm, deliveredStudentIds: e.target.value })} className="rounded border px-3 py-2" />
-              <button className="rounded bg-amber-600 px-3 py-2 font-semibold text-white md:col-span-2 xl:col-span-3">Save recording delivery</button>
-            </div>
-          </form>
-
-          <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold text-slate-800">Workshop students</h3><button type="button" onClick={() => void removeSelectedStudents()} disabled={!selectedStudentIds.length} className="rounded bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Remove selected ({selectedStudentIds.length})</button></div><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b"><th className="p-2"><input type="checkbox" checked={students.length > 0 && selectedStudentIds.length === students.length} onChange={(e) => setSelectedStudentIds(e.target.checked ? students.map((s) => s._id) : [])} /></th><th className="p-2">Student / CRM Lead</th><th className="p-2">Phone</th><th className="p-2">Attendance days</th><th className="p-2">Status</th></tr></thead><tbody>{students.map((s) => { const rows = attendance.filter((a) => String(a.studentId) === s._id); return <tr key={s._id} className="border-b"><td className="p-2"><input type="checkbox" checked={selectedStudentIds.includes(s._id)} onChange={(e) => setSelectedStudentIds((prev) => e.target.checked ? [...prev, s._id] : prev.filter((id) => id !== s._id))} /></td><td className="p-2 font-medium"><button type="button" onClick={() => openStudentChart(s)} className="text-left font-semibold text-indigo-700 hover:underline">{s.name}</button><span className="block text-xs text-slate-400">{s.email || ''}</span><span className="block text-xs font-semibold text-violet-600">Lead: {s.leadNumber || 'Not linked'}</span></td><td className="p-2">{s.phone || s.whatsappNumber || '—'}</td><td className="p-2">{rows.filter((a) => a.joined).length} joined · {Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60)} min</td><td className="p-2">{s.active ? 'Active' : 'Inactive'}</td></tr>; })}</tbody></table></div>
-
-          {detailStudent && <section className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-emerald-50 p-5 shadow-sm"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-xl font-bold text-slate-900">{detailStudent.name}</h3><p className="text-sm text-slate-600">{detailStudent.email || 'No email'} · {detailStudent.phone || detailStudent.whatsappNumber || 'No phone'}</p></div><button type="button" onClick={() => setDetailStudent(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Close</button></div><div className="mb-4 flex items-center gap-3 text-sm"><label className="font-medium">Class duration minutes<input type="number" min={1} value={chartClassDuration} onChange={(e) => setChartClassDuration(e.target.value)} className="ml-2 w-24 rounded border px-2 py-1" /></label><span className="rounded-full bg-indigo-100 px-3 py-1 font-semibold text-indigo-800">14 class days</span></div><div className="overflow-x-auto rounded-lg border border-slate-200 bg-white"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-indigo-600 text-white"><tr><th className="p-3">Class</th><th className="p-3">Date</th><th className="p-3">Type</th><th className="p-3">Duration (minutes)</th><th className="p-3">Attendance</th></tr></thead><tbody>{attendanceChart.map((row, index) => <tr key={row.classDate} className={row.holiday ? 'bg-amber-50' : index % 2 ? 'bg-slate-50' : 'bg-white'}><td className="p-3 font-semibold">{row.holiday ? '—' : `Day ${row.dayNumber}`}</td><td className="p-3">{new Date(`${row.classDate}T00:00:00`).toLocaleDateString()}</td><td className="p-3">{row.holiday ? <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">Holiday</span> : 'Class'}</td><td className="p-3">{row.holiday ? '—' : <input type="number" min={0} value={row.durationMinutes} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, durationMinutes: e.target.value } : item))} className="w-28 rounded border px-2 py-1" />}</td><td className="p-3">{row.holiday ? '—' : <select value={row.status} onChange={(e) => setAttendanceChart((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, status: e.target.value as AttendanceChartRow['status'] } : item))} className="rounded border px-2 py-1"><option value="joined">Joined</option><option value="absent">Absent</option></select>}</td></tr>)}</tbody></table></div><button type="button" onClick={() => void saveStudentChart()} disabled={savingChart} className="mt-4 rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{savingChart ? 'Saving attendance…' : 'Save attendance chart'}</button></section>}
-
-          {recordings.length > 0 && <div className="rounded-lg border border-slate-200 p-4"><h3 className="mb-3 font-semibold">Recording deliveries</h3><div className="space-y-2">{recordings.map((recording) => <div key={recording._id} className="rounded border border-slate-200 p-3 text-sm">
-            <div className="mb-1 font-medium">{new Date(recording.classDate).toLocaleDateString()}</div>
-            <div className="mb-1 font-semibold text-indigo-700">Day {recording.dayNumber || '—'}</div>
-            <div className="text-slate-600">Speaker: {recording.youtubeSpeakerUrl || recording.youtubeSpeakerId ? <a className="text-indigo-600 underline" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer">YouTube (Unlisted)</a> : '—'} · {recording.bunnySpeakerUrl ? <a className="text-indigo-600 underline" href={recording.bunnySpeakerUrl} target="_blank" rel="noreferrer">Bunny</a> : '—'}</div>
-            <div className="text-slate-600">Gallery: {recording.youtubeGalleryUrl || recording.youtubeGalleryId ? <a className="text-indigo-600 underline" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer">YouTube (Unlisted)</a> : '—'} · {recording.bunnyGalleryUrl ? <a className="text-indigo-600 underline" href={recording.bunnyGalleryUrl} target="_blank" rel="noreferrer">Bunny</a> : '—'}</div>
-            <div className="mt-1 text-xs text-slate-500">Delivered students: {(recording.deliveredStudentIds || []).length || 0}</div>
-          </div>)}</div></div>}
-        </>}</section>
-      </section>
+          </div>
+        </div>
+      )}
     </div>
-  </main>;
+  );
 }

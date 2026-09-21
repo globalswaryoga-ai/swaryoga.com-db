@@ -5,13 +5,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { Search, Users, Download, Send, Loader, CheckCircle, Video, CheckSquare, Square, Phone, Calendar } from 'lucide-react';
 
 interface Student {
-  id: string;
+  _id: string;
   name: string;
   phone: string;
   source: string;
-  day1: boolean;
-  day2: boolean;
-  day3: boolean;
+  attendance: {
+    day1: boolean;
+    day2: boolean;
+    day3: boolean;
+  };
 }
 
 export default function StudentWorkshopTab() {
@@ -20,6 +22,7 @@ export default function StudentWorkshopTab() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [workshopName, setWorkshopName] = useState('Default Workshop');
   
   // Broadcast state
   const [broadcastMethod, setBroadcastMethod] = useState<'qr' | 'meta'>('qr');
@@ -27,9 +30,10 @@ export default function StudentWorkshopTab() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<{success: boolean, message: string} | null>(null);
 
-  useEffect(() => {
+  const fetchStudents = () => {
     if (!token) return;
-    fetch('/api/admin/crm/recording-management/workshop/students', {
+    setLoading(true);
+    fetch(`/api/admin/crm/recording-management/workshop/students?workshopName=${encodeURIComponent(workshopName)}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -43,7 +47,11 @@ export default function StudentWorkshopTab() {
       console.error(err);
       setLoading(false);
     });
-  }, [token]);
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, [token, workshopName]);
 
   const filteredStudents = students.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -54,7 +62,7 @@ export default function StudentWorkshopTab() {
     if (selectedIds.size === filteredStudents.length && filteredStudents.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredStudents.map(s => s.id)));
+      setSelectedIds(new Set(filteredStudents.map(s => s._id)));
     }
   };
 
@@ -82,7 +90,8 @@ export default function StudentWorkshopTab() {
         body: JSON.stringify({
           studentIds: Array.from(selectedIds),
           day: broadcastDay,
-          method: broadcastMethod
+          method: broadcastMethod,
+          workshopName: workshopName
         })
       });
       const data = await res.json();
@@ -110,7 +119,35 @@ export default function StudentWorkshopTab() {
           <p className="text-sm text-gray-500 mt-1">Manage attendees, track presence, and broadcast recordings</p>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <input 
+            type="text" 
+            value={workshopName}
+            onChange={e => setWorkshopName(e.target.value)}
+            placeholder="Workshop Name"
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm"
+          />
+          <button 
+            onClick={() => {
+              if (!token) return;
+              fetch('/api/admin/crm/recording-management/workshop/students', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  action: 'sync',
+                  workshopName: workshopName,
+                  students: [
+                    { name: 'John Doe', phone: '919876543210', source: 'whatsapp', attendance: { day1: true, day2: false, day3: false } },
+                    { name: 'Jane Smith', phone: '919876543211', source: 'zoom', attendance: { day1: true, day2: true, day3: true } }
+                  ]
+                })
+              }).then(() => fetchStudents());
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm font-bold text-indigo-700 hover:bg-indigo-100 shadow-sm transition-all"
+          >
+            <Users className="h-4 w-4" />
+            Import Mock Students
+          </button>
           <button className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all">
             <Download className="h-4 w-4" />
             Export CSV
@@ -209,10 +246,10 @@ export default function StudentWorkshopTab() {
               </thead>
               <tbody>
                 {filteredStudents.map(student => (
-                  <tr key={student.id} className={`border-b border-gray-100 hover:bg-indigo-50/30 transition-colors ${selectedIds.has(student.id) ? 'bg-indigo-50/50' : ''}`}>
+                  <tr key={student._id} className={`border-b border-gray-100 hover:bg-indigo-50/30 transition-colors ${selectedIds.has(student._id) ? 'bg-indigo-50/50' : ''}`}>
                     <td className="py-3 px-3">
-                      <button onClick={() => toggleSelection(student.id)} className={`transition-colors ${selectedIds.has(student.id) ? 'text-indigo-600' : 'text-gray-300 hover:text-gray-400'}`}>
-                        {selectedIds.has(student.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                      <button onClick={() => toggleSelection(student._id)} className={`transition-colors ${selectedIds.has(student._id) ? 'text-indigo-600' : 'text-gray-300 hover:text-gray-400'}`}>
+                        {selectedIds.has(student._id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                       </button>
                     </td>
                     <td className="py-3 px-4">
@@ -220,18 +257,18 @@ export default function StudentWorkshopTab() {
                       <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><Phone className="h-3 w-3" /> {student.phone}</p>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
+                      <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium capitalize">
                         {student.source}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {student.day1 ? <span className="inline-flex w-6 h-6 items-center justify-center bg-green-100 text-green-700 rounded-full text-xs font-bold">P</span> : <span className="inline-flex w-6 h-6 items-center justify-center bg-red-50 text-red-400 rounded-full text-xs font-bold">A</span>}
+                      {student.attendance?.day1 ? <span className="inline-flex w-6 h-6 items-center justify-center bg-green-100 text-green-700 rounded-full text-xs font-bold">P</span> : <span className="inline-flex w-6 h-6 items-center justify-center bg-red-50 text-red-400 rounded-full text-xs font-bold">A</span>}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {student.day2 ? <span className="inline-flex w-6 h-6 items-center justify-center bg-green-100 text-green-700 rounded-full text-xs font-bold">P</span> : <span className="inline-flex w-6 h-6 items-center justify-center bg-red-50 text-red-400 rounded-full text-xs font-bold">A</span>}
+                      {student.attendance?.day2 ? <span className="inline-flex w-6 h-6 items-center justify-center bg-green-100 text-green-700 rounded-full text-xs font-bold">P</span> : <span className="inline-flex w-6 h-6 items-center justify-center bg-red-50 text-red-400 rounded-full text-xs font-bold">A</span>}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {student.day3 ? <span className="inline-flex w-6 h-6 items-center justify-center bg-green-100 text-green-700 rounded-full text-xs font-bold">P</span> : <span className="inline-flex w-6 h-6 items-center justify-center bg-red-50 text-red-400 rounded-full text-xs font-bold">A</span>}
+                      {student.attendance?.day3 ? <span className="inline-flex w-6 h-6 items-center justify-center bg-green-100 text-green-700 rounded-full text-xs font-bold">P</span> : <span className="inline-flex w-6 h-6 items-center justify-center bg-red-50 text-red-400 rounded-full text-xs font-bold">A</span>}
                     </td>
                   </tr>
                 ))}

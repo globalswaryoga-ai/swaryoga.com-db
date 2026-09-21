@@ -1,7 +1,34 @@
 import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { bunnyBatch } from '@/lib/bunnyDatabase';
 
-function parse(value: unknown): any { try { return JSON.parse(String(value)); } catch { return {}; } }
+function sanitizeEJSON(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeEJSON);
+  
+  if ('$numberInt' in obj) return Number(obj.$numberInt);
+  if ('$numberLong' in obj) return Number(obj.$numberLong);
+  if ('$numberDouble' in obj) return Number(obj.$numberDouble);
+  if ('$oid' in obj) return String(obj.$oid);
+  if ('$date' in obj) {
+    if (typeof obj.$date === 'object' && '$numberLong' in obj.$date) return new Date(Number(obj.$date.$numberLong)).toISOString();
+    return new Date(obj.$date).toISOString();
+  }
+  if ('$boolean' in obj) return Boolean(obj.$boolean);
+  
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = sanitizeEJSON(value);
+  }
+  return result;
+}
+
+function parse(value: unknown): any { 
+  try { 
+    return sanitizeEJSON(JSON.parse(String(value))); 
+  } catch { 
+    return {}; 
+  } 
+}
 
 export async function initBunnyCommunitySchema() {
   await bunnyBatch([
@@ -29,8 +56,8 @@ export async function listBunnyCommunities() {
   const result = await bunnyExecute({ sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'communities' ORDER BY created_at DESC", args: [] });
   return result.rows.flatMap((row: any) => {
     try {
-      const community = JSON.parse(String(row.document_json));
-      const id = String(community.id || community._id?.$oid || community._id || '');
+      const community = sanitizeEJSON(JSON.parse(String(row.document_json)));
+      const id = String(community.id || community._id || '');
       if (!id) return [];
       return [{ id, name: community.name || 'Unnamed Community', isPublic: community.isPublic ?? false, category: community.category || 'common' }];
     } catch { return []; }

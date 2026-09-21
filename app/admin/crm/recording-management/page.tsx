@@ -7,7 +7,7 @@ import {
   Video, CheckCircle, Loader, Save, AlertCircle, ChevronRight,
   Globe, Music, Heart, Baby, Sparkles, Activity, Sun, Leaf,
   PersonStanding, Menu, X, CheckSquare, Square, ToggleLeft, ToggleRight,
-  Edit, Search, User, Phone, Eye, ChevronDown, Users,
+  Edit, Search, User, Phone, Eye, ChevronDown, Users, Trash2
 } from 'lucide-react';
 import StudentWorkshopTab from './components/StudentWorkshopTab';
 import ZoomAnalysisTab from './components/ZoomAnalysisTab';
@@ -89,6 +89,25 @@ export default function RecordingManagementPage() {
       setLoadingCommunities(false);
     }
   }, [token]);
+
+  const deleteCommunity = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this community?')) return;
+    try {
+      const res = await fetch(`/api/admin/community/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (res.ok) {
+        setAllCommunities(prev => prev.filter(c => c.id !== id));
+        if (selectedCommunity?.id === id) setSelectedCommunity(null);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete community');
+      }
+    } catch (e) {
+      alert('Error deleting community');
+    }
+  };
 
   // Fetch communities on mount
   useEffect(() => {
@@ -411,7 +430,7 @@ export default function RecordingManagementPage() {
                           key={community.id}
                           onClick={() => { setSelectedCommunity(community); setMobileSidebarOpen(false); setSearchQuery(''); }}
                           className={
-                            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all mb-0.5 ' +
+                            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all mb-0.5 group ' +
                             (isSelected ? 'bg-indigo-50 border border-indigo-200 shadow-sm' : 'hover:bg-gray-50 border border-transparent')
                           }
                         >
@@ -421,6 +440,11 @@ export default function RecordingManagementPage() {
                           <div className="flex-1 min-w-0">
                             <p className={'text-sm font-medium truncate ' + (isSelected ? 'text-indigo-900' : 'text-gray-700')}>{community.name}</p>
                           </div>
+                          <Trash2 
+                            size={14} 
+                            className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" 
+                            onClick={(e) => { e.stopPropagation(); deleteCommunity(community.id); }} 
+                          />
                           {isSelected && <ChevronRight className="h-4 w-4 text-indigo-400 flex-shrink-0" />}
                         </button>
                       );

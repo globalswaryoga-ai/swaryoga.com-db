@@ -27,20 +27,26 @@ export async function GET(req: NextRequest) {
     }
     const expsWhere = expsCond.length ? "WHERE " + expsCond.join(" AND ") : "";
     
-    const expsRes = await bunnyExecute({
-      sql: `SELECT data_json FROM community_experiences_sql ${expsWhere} ORDER BY created_at DESC`,
-      args: expsArgs
-    });
+    let allSubmissions: any[] = [];
     
-    const qsRes = await bunnyExecute({
-      sql: `SELECT data_json FROM community_questions_sql ${expsWhere} ORDER BY created_at DESC`,
-      args: expsArgs
-    });
-    
-    let allSubmissions = [
-      ...expsRes.rows.map((r: any) => JSON.parse(String(r.data_json))),
-      ...qsRes.rows.map((r: any) => JSON.parse(String(r.data_json)))
-    ];
+    try {
+      const expsRes = await bunnyExecute({
+        sql: `SELECT data_json FROM community_experiences_sql ${expsWhere} ORDER BY created_at DESC`,
+        args: expsArgs
+      });
+      
+      const qsRes = await bunnyExecute({
+        sql: `SELECT data_json FROM community_questions_sql ${expsWhere} ORDER BY created_at DESC`,
+        args: expsArgs
+      });
+      
+      allSubmissions = [
+        ...expsRes.rows.map((r: any) => JSON.parse(String(r.data_json))),
+        ...qsRes.rows.map((r: any) => JSON.parse(String(r.data_json)))
+      ];
+    } catch (dbErr) {
+      console.error('[Admin Submissions List] DB error (likely missing table), returning empty', dbErr);
+    }
     
     if (category && category !== 'all') {
       allSubmissions = allSubmissions.filter(s => s.category === category);

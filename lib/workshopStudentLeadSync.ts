@@ -13,6 +13,9 @@ export async function syncWorkshopStudentLead(input: {
   whatsappNumber?: string;
   ownerUserId?: string;
   workshopName?: string;
+  age?: string | number;
+  city?: string;
+  country?: string;
 }) {
   const Lead = getLead();
   const email = String(input.email || '').trim().toLowerCase();
@@ -32,6 +35,9 @@ export async function syncWorkshopStudentLead(input: {
     if (!lead.email && email) update.email = email;
     if (!lead.phoneNumber && phoneNumber) update.phoneNumber = phoneNumber;
     if (input.workshopName) update.workshopName = input.workshopName;
+    if (!lead.age && input.age) update.age = Number(input.age) || undefined;
+    if (!lead.city && input.city) update.city = input.city;
+    if (!lead.country && input.country) update.country = input.country;
     if (Object.keys(update).length) {
       await Lead.updateOne({ _id: lead._id }, { $set: update });
       lead = { ...lead.toObject?.() || lead, ...update };
@@ -44,6 +50,9 @@ export async function syncWorkshopStudentLead(input: {
       email: email || undefined,
       phoneNumber,
       workshopName: input.workshopName || undefined,
+      age: input.age ? Number(input.age) || undefined : undefined,
+      city: input.city || undefined,
+      country: input.country || undefined,
       source: 'workshop',
       assignedToUserId: input.ownerUserId,
       createdByUserId: input.ownerUserId,
