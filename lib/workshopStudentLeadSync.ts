@@ -1,4 +1,5 @@
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { connectDB } from '@/lib/db';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
 
@@ -17,6 +18,7 @@ export async function syncWorkshopStudentLead(input: {
   city?: string;
   country?: string;
 }) {
+  await connectDB();
   const Lead = getLead();
   const email = String(input.email || '').trim().toLowerCase();
   const rawPhone = input.phone || input.whatsappNumber || '';
