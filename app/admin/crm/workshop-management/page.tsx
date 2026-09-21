@@ -1,14 +1,4 @@
-{(recording.youtubeGalleryUrl || recording.youtubeGalleryId) && (
-                                    <div className="flex items-center gap-1">
-                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
-                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
-                                    </div>
-                                  )}{(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) && (
-                                    <div className="flex items-center gap-1">
-                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
-                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
-                                    </div>
-                                  )}'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -1000,14 +990,34 @@ export default function WorkshopManagementPage() {
                               <div className="grid grid-cols-2 gap-4 mt-4">
                                 <div className="space-y-2">
                                   <p className="text-xs font-bold text-slate-500 uppercase">Speaker View</p>
-                                  {(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>}
-                                  {recording.bunnySpeakerUrl && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnySpeakerUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>}
+                                  {(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) && (
+                                    <div className="flex items-center gap-1">
+                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
+                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                                    </div>
+                                  )}
+                                  {recording.bunnySpeakerUrl && (
+                                    <div className="flex items-center gap-1">
+                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnySpeakerUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>
+                                      <button onClick={() => { navigator.clipboard.writeText(recording.bunnySpeakerUrl!); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                                    </div>
+                                  )}
                                   {!recording.youtubeSpeakerId && !recording.bunnySpeakerUrl && <span className="text-sm text-slate-400">—</span>}
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-xs font-bold text-slate-500 uppercase">Gallery View</p>
-                                  {(recording.youtubeGalleryUrl || recording.youtubeGalleryId) && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>}
-                                  {recording.bunnyGalleryUrl && <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnyGalleryUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>}
+                                  {(recording.youtubeGalleryUrl || recording.youtubeGalleryId) && (
+                                    <div className="flex items-center gap-1">
+                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
+                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                                    </div>
+                                  )}
+                                  {recording.bunnyGalleryUrl && (
+                                    <div className="flex items-center gap-1">
+                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnyGalleryUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>
+                                      <button onClick={() => { navigator.clipboard.writeText(recording.bunnyGalleryUrl!); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                                    </div>
+                                  )}
                                   {!recording.youtubeGalleryId && !recording.bunnyGalleryUrl && <span className="text-sm text-slate-400">—</span>}
                                 </div>
                               </div>
