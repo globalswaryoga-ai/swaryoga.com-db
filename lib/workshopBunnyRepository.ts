@@ -73,6 +73,7 @@ export async function editCohort(cohortId: string, input: Record<string, any>) {
       input.aiWorkerEnabled === false ? 0 : 1,
       input.autoSendRecordings ? 1 : 0,
       input.autoSyncZoomAttendance === false ? 0 : 1,
+      input.autoRecoverZoomTrash ? 1 : 0,
       now(),
       cohortId,
     ]
