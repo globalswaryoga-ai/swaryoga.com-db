@@ -458,7 +458,7 @@ export default function GoogleFormBuilderPage() {
 
     setSavingQ(true);
     try {
-      const url = editingQId ? `/api/admin/form-questions/${editingQId}` : '/api/admin/form-questions';
+      const url = editingQId ? `/api/admin/form-questions?id=${editingQId}` : '/api/admin/form-questions';
       const method = editingQId ? 'PATCH' : 'POST';
       const res = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(qData) });
       const data = await res.json();
