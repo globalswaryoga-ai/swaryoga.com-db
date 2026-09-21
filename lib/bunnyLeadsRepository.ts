@@ -55,6 +55,23 @@ export async function getBunnyLeadByPhone(phoneNumber: string, tenantUserId?: st
   return leads[0] || null;
 }
 
+export async function getBunnyLeadByEmail(email: string) {
+  if (!email) return null;
+  const normalised = email.trim().toLowerCase();
+  const result = await bunnyExecute({
+    sql: 'SELECT document_id, data_json FROM leads_sql',
+    args: []
+  });
+  for (const row of result.rows) {
+    const lead = parse(row.data_json);
+    if (!lead) continue;
+    if (String(lead.email || '').trim().toLowerCase() === normalised) {
+      return { ...lead, _id: String(lead._id?.$oid || lead._id || row.document_id) };
+    }
+  }
+  return null;
+}
+
 export async function getBunnyLeadById(id: string) {
   const result = await bunnyExecute({
     sql: 'SELECT document_id, data_json FROM leads_sql WHERE document_id = ?',

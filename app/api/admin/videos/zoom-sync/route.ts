@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, PlaylistVideo, VideoPlaylist } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getZoomAccessToken, syncZoomToBunny, SyncProgressEvent } from '@/lib/zoom-s3-sync';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,43 @@ export async function POST(request: NextRequest) {
       await sendEvent('progress', { type: 'start', percent: 0, message: 'Connecting to Zoom...' });
 
       const accessToken = await getZoomAccessToken();
+
+      
+      // Check if auto-recover trash is enabled for this meeting's cohort
+      let autoRecoverTrash = false;
+      try {
+        const cohortRes = await bunnyExecute({ sql: 'SELECT auto_recover_zoom_trash FROM workshop_cohorts_sql WHERE zoom_meeting_id = ?', args: [cleanMeetingId] });
+        if (cohortRes.rows.length > 0 && cohortRes.rows[0].auto_recover_zoom_trash) {
+          autoRecoverTrash = true;
+        }
+      } catch (e) {
+        console.error('[zoom-sync POST] Failed to check cohort trash setting:', e);
+      }
+
+      if (autoRecoverTrash) {
+        await sendEvent('progress', { type: 'start', percent: 2, message: 'Checking Zoom trash for deleted recordings...' });
+        const trashRes = await fetch(`${ZOOM_API}/users/me/recordings?trash=true&trash_type=meeting_recordings&meeting_id=${cleanMeetingId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (trashRes.ok) {
+          const trashData = await trashRes.json();
+          // The API returns meetings array, check if our meeting is there
+          const isTrashed = trashData.meetings && trashData.meetings.length > 0;
+          if (isTrashed) {
+            await sendEvent('progress', { type: 'start', percent: 3, message: 'Found trashed recordings. Recovering...' });
+            const recoverRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings/status`, {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'recover' })
+            });
+            if (!recoverRes.ok) {
+              console.error('[zoom-sync POST] Failed to recover recordings:', await recoverRes.text());
+            } else {
+              await sendEvent('progress', { type: 'start', percent: 4, message: 'Successfully recovered recordings from trash.' });
+            }
+          }
+        }
+      }
 
       let recordingsRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings`, {
         headers: { Authorization: `Bearer ${accessToken}` },

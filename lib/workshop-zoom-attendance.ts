@@ -35,14 +35,16 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
   if (!cohort) throw new Error('Workshop not found');
   if (!cohort.zoomMeetingId) throw new Error('This workshop does not have a Zoom meeting ID');
 
+  // Strip spaces — Zoom Meeting IDs are often stored/entered as "851 5544 6286"
+  // but Zoom API only accepts "85155446286" (no spaces).
+  const zoomMeetingId = String(cohort.zoomMeetingId).replace(/\s+/g, '');
+
   const students: any[] = await listStudents(cohortId, true);
-  if (!students.length) {
-    return { cohortId, cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: 'No active students to match.' };
-  }
+  // We no longer abort if students is empty, because we auto-enroll attendees from Zoom.
 
   const from = classDate || dayKey(cohort.startDate);
   const to = classDate || dayKey(new Date());
-  const analytics = await getFullMeetingAnalytics(String(cohort.zoomMeetingId), from, to);
+  const analytics = await getFullMeetingAnalytics(zoomMeetingId, from, to);
   const sessions = analytics.sessions.filter((session) => !classDate || session.date === classDate);
   if (!sessions.length) {
     return { cohortId, cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: 'Zoom has not published a completed meeting report for this date yet.' };
@@ -81,9 +83,68 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
   for (const session of sessions) {
     const attendees = new Map<string, { student: any; duration: number; joinedAt?: string; leftAt?: string }>();
     for (const participant of session.participants as SessionParticipant[]) {
-      const student = findStudent(participant);
+      let student = findStudent(participant);
+      
+      // Auto-enroll unmatched participants as students
+      if (!student) {
+        const { upsertStudent } = await import('./workshopBunnyRepository');
+        const { getBunnyLeadByEmail, getBunnyLeadByPhone } = await import('./bunnyLeadsRepository');
+
+        // Try to find the CRM lead to enrich the student's mobile / WhatsApp number
+        let crmLead: any = null;
+        if (participant.email) {
+          crmLead = await getBunnyLeadByEmail(participant.email).catch(() => null);
+        }
+        if (!crmLead) {
+          // Try by phone number embedded in the Zoom display name (e.g. "Mohan 9876543210")
+          const phoneFromName = phoneKey(participant.name);
+          if (phoneFromName) crmLead = await getBunnyLeadByPhone(phoneFromName).catch(() => null);
+        }
+
+        const whatsappNumber = crmLead?.whatsappNumber || crmLead?.phoneNumber || null;
+
+        student = await upsertStudent({
+          cohortId,
+          name: participant.name || 'Unknown Attendee',
+          email: participant.email || crmLead?.email || null,
+          phone: whatsappNumber,
+          whatsappNumber,
+          leadId: crmLead?._id || null,
+          leadNumber: crmLead?.leadNumber || null,
+          source: 'zoom',
+        });
+        
+        if (student) {
+          students.push(student);
+          if (student.email) byEmail.set(normalise(student.email), student);
+          if (student.name) byName.set(normalise(student.name), student);
+          const phone = phoneKey(student.whatsappNumber || student.phone || student.name || student.email || '');
+          if (phone) byPhone.set(phone, student);
+        }
+      }
+
       if (!student) { unmatched++; continue; }
+
+      // Back-fill WhatsApp number from CRM lead if the existing student record has none
+      if (!student.whatsappNumber && !student.phone && student.email) {
+        try {
+          const { getBunnyLeadByEmail } = await import('./bunnyLeadsRepository');
+          const { upsertStudent } = await import('./workshopBunnyRepository');
+          const crmLead = await getBunnyLeadByEmail(student.email).catch(() => null);
+          if (crmLead?.phoneNumber || crmLead?.whatsappNumber) {
+            const wa = crmLead.whatsappNumber || crmLead.phoneNumber;
+            const enriched = await upsertStudent({ ...student, cohortId, whatsappNumber: wa, phone: wa, leadId: crmLead._id || student.leadId });
+            if (enriched) {
+              student = enriched;
+              // Update lookup maps
+              byPhone.set(phoneKey(wa), student);
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
       const key = String(student._id);
+
       const current = attendees.get(key);
       attendees.set(key, {
         student,
@@ -107,11 +168,61 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
 
 export async function syncDueWorkshopZoomAttendance() {
   const cohorts: any[] = await listCohorts();
+  // Only sync cohorts that have a Zoom Meeting ID and haven't been opted out
   const eligible = cohorts.filter((cohort) => cohort.zoomMeetingId && cohort.autoSyncZoomAttendance !== false);
   const results: SyncResult[] = [];
+
   for (const cohort of eligible) {
     try {
-      results.push(await syncWorkshopZoomAttendance(String(cohort._id)));
+      const startDate = new Date(cohort.startDate);
+      const today = new Date();
+      // Don't go beyond the cohort end date
+      const endDate = cohort.endDate ? new Date(cohort.endDate) : today;
+      const until = endDate < today ? endDate : today;
+
+      const holidaySet = new Set<string>(Array.isArray(cohort.holidayDates) ? cohort.holidayDates.map((d: string) => d.slice(0, 10)) : []);
+
+      // Enumerate every calendar day from startDate up to today (or endDate)
+      const classDates: string[] = [];
+      const cursor = new Date(startDate);
+      cursor.setHours(0, 0, 0, 0);
+      until.setHours(0, 0, 0, 0);
+      while (cursor <= until) {
+        const dateKey = cursor.toISOString().slice(0, 10);
+        if (!holidaySet.has(dateKey)) {
+          classDates.push(dateKey);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      // Sync each class date individually so we get per-day attendance records
+      let totalUpdated = 0;
+      let totalMatched = 0;
+      let totalUnmatched = 0;
+      let totalSessions = 0;
+      for (const classDate of classDates) {
+        try {
+          const r = await syncWorkshopZoomAttendance(String(cohort._id), classDate);
+          if (!r.skipped) {
+            totalUpdated += r.updated;
+            totalMatched += r.matched;
+            totalUnmatched += r.unmatched;
+            totalSessions += r.sessions;
+          }
+        } catch {
+          // Silently skip individual dates that aren't ready yet
+        }
+      }
+
+      results.push({
+        cohortId: String(cohort._id),
+        cohortName: cohort.name,
+        sessions: totalSessions,
+        matched: totalMatched,
+        unmatched: totalUnmatched,
+        updated: totalUpdated,
+        skipped: false,
+      });
     } catch (error) {
       results.push({ cohortId: String(cohort._id), cohortName: cohort.name, sessions: 0, matched: 0, unmatched: 0, updated: 0, skipped: true, message: error instanceof Error ? error.message : 'Zoom sync failed' });
     }

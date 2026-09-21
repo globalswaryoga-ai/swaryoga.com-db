@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { syncDueWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const expected = process.env.CRON_SECRET;

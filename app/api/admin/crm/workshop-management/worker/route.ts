@@ -3,6 +3,9 @@ import { verifyToken } from '@/lib/auth';
 import { getCohort, listRecordings, listStudents, markRecordingDelivered, updateCohort } from '@/lib/workshopBunnyRepository';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
+import { getZoomMeetingRecordings, deleteZoomRecording } from '@/lib/zoom-meetings';
+import { syncZoomToBunny } from '@/lib/zoom-s3-sync';
+import { upsertRecording } from '@/lib/workshopBunnyRepository';
 
 function auth(request: NextRequest) {
   const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
@@ -15,8 +18,17 @@ function phoneOf(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  const decoded: any = auth(request);
-  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  let isAdmin = false;
+  let decoded: any = null;
+  const cronSecret = request.headers.get('authorization')?.replace('Bearer ', '');
+  if (cronSecret === process.env.CRON_SECRET) {
+    isAdmin = true;
+    decoded = { isAdmin: true, isSuperAdmin: true, userId: 'cron' };
+  } else {
+    decoded = auth(request);
+    if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    isAdmin = true;
+  }
   const { cohortId, dryRun = false } = await request.json();
   if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
 
@@ -38,7 +50,67 @@ export async function POST(request: NextRequest) {
       result.zoomAttendance = { updated: 0, message: error instanceof Error ? error.message : 'Zoom attendance sync failed' };
     }
   }
-  if (!cohort.aiWorkerEnabled) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Recording worker is disabled; Zoom attendance sync was still attempted.' } });
+
+  // Auto-sync Zoom recordings
+  if (cohort.zoomMeetingId && !dryRun) {
+    try {
+      const zoomRecordingsData = await getZoomMeetingRecordings(cohort.zoomMeetingId);
+      if (zoomRecordingsData && zoomRecordingsData.recording_files && zoomRecordingsData.recording_files.length > 0) {
+        result.zoomSync = await syncZoomToBunny(zoomRecordingsData);
+        
+        if (result.zoomSync.syncedFiles && result.zoomSync.syncedFiles.length > 0) {
+          // Update DB with the new synced files
+          for (const synced of result.zoomSync.syncedFiles) {
+             const existingRecording = recordings.find(r => r.classDate === synced.recordingDate);
+             let updates: any = {
+               cohortId,
+               classDate: synced.recordingDate,
+               dayNumber: synced.dayNumber,
+               zoomMeetingId: cohort.zoomMeetingId,
+             };
+             if (existingRecording) {
+               updates = { ...existingRecording, ...updates };
+             }
+             if (synced.youtubeVideoId && synced.recordingType.includes('speaker_view')) {
+               updates.youtubeSpeakerId = synced.youtubeVideoId;
+               updates.youtubeSpeakerUrl = synced.youtubeUrl;
+             }
+             if (synced.youtubeVideoId && synced.recordingType.includes('gallery_view')) {
+               updates.youtubeGalleryId = synced.youtubeVideoId;
+               updates.youtubeGalleryUrl = synced.youtubeUrl;
+             }
+             if (synced.bunnyVideoId && synced.recordingType.includes('speaker_view')) {
+               updates.bunnySpeakerUrl = synced.bunnyEmbedUrl;
+             }
+             if (synced.bunnyVideoId && synced.recordingType.includes('gallery_view')) {
+               updates.bunnyGalleryUrl = synced.bunnyEmbedUrl;
+             }
+             
+             await upsertRecording(updates);
+          }
+          
+          // Re-fetch recordings from DB so the WhatsApp sender below uses the new ones
+          recordings.length = 0;
+          recordings.push(...((await listRecordings(cohortId)).sort((a, b) => String(a.classDate).localeCompare(String(b.classDate)))));
+          
+          // Auto-delete from Zoom if completely successful
+          if (result.zoomSync.success) {
+            try {
+              await deleteZoomRecording(cohort.zoomMeetingId, 'trash');
+              result.zoomDeleted = true;
+            } catch (delErr: any) {
+              result.zoomDeleteError = delErr.message;
+            }
+          }
+        }
+      }
+    } catch (syncErr: any) {
+      result.zoomSyncError = syncErr.message;
+    }
+  }
+
+  if (!cohort.aiWorkerEnabled) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Recording worker is disabled; Zoom attendance/recording sync was still attempted.' } });
+
   if (!cohort.autoSendRecordings) return NextResponse.json({ success: true, result: { ...result, skipped: recordings.length, message: 'Automatic recording delivery is disabled.' } });
 
   const bridge = getWhatsAppBridgeConfig();

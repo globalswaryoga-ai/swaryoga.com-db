@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
+
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getEmailSettings } from '@/lib/schemas/enterpriseSchemas';
+import { listEmailSettings, saveEmailSettings } from '@/lib/emailBunnyRepository';
 import { tenantFilter, getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
@@ -39,8 +39,7 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
-    await connectDB();
-    const EmailSettings = getEmailSettings();
+        
     const tf = tenantFilter(decoded, 'createdBy');
     const settings = await EmailSettings.find(tf).sort({ isDefault: -1, createdAt: -1 }).lean();
 
@@ -123,8 +122,7 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Invalid email address');
     }
 
-    await connectDB();
-    const EmailSettings = getEmailSettings();
+        const EmailSettings = getEmailSettings();
     const tf = tenantFilter(decoded, 'createdBy');
 
     // If setting as default, unset others
@@ -194,8 +192,7 @@ export async function PUT(request: NextRequest) {
 
     if (!id) return apiError('VALIDATION_ERROR', 'Setting ID is required');
 
-    await connectDB();
-    const EmailSettings = getEmailSettings();
+        const EmailSettings = getEmailSettings();
     const tf = tenantFilter(decoded, 'createdBy');
 
     const doc = await EmailSettings.findOne({ _id: id, ...tf });
@@ -264,8 +261,7 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
     if (!id) return apiError('VALIDATION_ERROR', 'Setting ID is required');
 
-    await connectDB();
-    const EmailSettings = getEmailSettings();
+        const EmailSettings = getEmailSettings();
     const tf = tenantFilter(decoded, 'createdBy');
 
     const doc = await EmailSettings.findOneAndDelete({ _id: id, ...tf });

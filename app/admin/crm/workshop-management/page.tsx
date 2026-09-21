@@ -1,19 +1,31 @@
-'use client';
+{(recording.youtubeGalleryUrl || recording.youtubeGalleryId) && (
+                                    <div className="flex items-center gap-1">
+                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
+                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                                    </div>
+                                  )}{(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) && (
+                                    <div className="flex items-center gap-1">
+                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
+                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                                    </div>
+                                  )}'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Users, Video, Settings, UserPlus, Upload, RefreshCw, 
   PlayCircle, Eye, Calendar, Plus, X, Trash2, Edit2, 
-  Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone,  GraduationCap, Download, Printer
+  Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy
 } from 'lucide-react';
 
-interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; }
-interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; }
+interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; }
+interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
 interface Recording { _id: string; cohortId: string; classDate: string; dayNumber?: number; youtubeSpeakerId?: string; youtubeGalleryId?: string; youtubeSpeakerUrl?: string; youtubeGalleryUrl?: string; bunnySpeakerUrl?: string; bunnyGalleryUrl?: string; deliveredStudentIds?: string[]; }
 
 export default function WorkshopManagementPage() {
+  const router = useRouter();
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [selected, setSelected] = useState<Cohort | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -21,7 +33,8 @@ export default function WorkshopManagementPage() {
   const [studentEditForm, setStudentEditForm] = useState({ name: '', email: '', phone: '', whatsappNumber: '', active: true });
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', aiWorkerEnabled: true, autoSendRecordings: false });
+  const DEFAULT_DAY_SUBJECTS = Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' }));
+  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', aiWorkerEnabled: true, autoSendRecordings: false, autoRecoverZoomTrash: false, daySubjects: DEFAULT_DAY_SUBJECTS });
   const [student, setStudent] = useState({ name: '', email: '', phone: '', whatsappNumber: '' });
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', classDate: '', durationMinutes: '0', classDurationMinutes: '60' });
   const [recordingForm, setRecordingForm] = useState({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
@@ -36,6 +49,11 @@ export default function WorkshopManagementPage() {
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
   const [leadSearchResults, setLeadSearchResults] = useState<any[]>([]);
   const [isSearchingLeads, setIsSearchingLeads] = useState(false);
+  const [quickBroadcastMode, setQuickBroadcastMode] = useState<'qr' | 'meta' | 'email' | null>(null);
+  const [quickBroadcastMsg, setQuickBroadcastMsg] = useState('');
+  const [quickBroadcastSubject, setQuickBroadcastSubject] = useState('');
+  const [quickBroadcastSending, setQuickBroadcastSending] = useState(false);
+  const [analyticsSearch, setAnalyticsSearch] = useState('');
   
   // Import State
   const [importingStudents, setImportingStudents] = useState(false);
@@ -62,6 +80,10 @@ export default function WorkshopManagementPage() {
   const [systemFormLink, setSystemFormLink] = useState('');
   const [syncingSystemForm, setSyncingSystemForm] = useState(false);
 
+  // Edit/Delete workshop state
+  const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
+  const [editCohortForm, setEditCohortForm] = useState({ name: '', startDate: '', endDate: '', classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', autoSendRecordings: false, autoSyncZoomAttendance: true, autoRecoverZoomTrash: false, daySubjects: Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' })) });
+  const [savingEditCohort, setSavingEditCohort] = useState(false);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -133,7 +155,7 @@ export default function WorkshopManagementPage() {
       setCohorts((prev) => [data.cohort, ...prev]);
       setSelected(data.cohort);
       setShowCreateForm(false);
-      setForm({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', aiWorkerEnabled: true, autoSendRecordings: false });
+      setForm({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', aiWorkerEnabled: true, autoSendRecordings: false, autoRecoverZoomTrash: false, daySubjects: DEFAULT_DAY_SUBJECTS });
       await load(data.cohort._id);
     } else alert(data.error || 'Could not create workshop');
   };
@@ -149,6 +171,86 @@ export default function WorkshopManagementPage() {
       setAttendanceForm((prev) => ({ ...prev, studentId: data.student._id || prev.studentId }));
     } else {
       alert(data.error || 'Could not save student');
+    }
+  };
+
+    const handleBroadcast = (type: 'meta' | 'qr' | 'email') => {
+    if (selectedStudentIds.length === 0) {
+      alert('Please select at least one student.');
+      return;
+    }
+    const selectedStudentsList = students.filter(s => selectedStudentIds.includes(s._id));
+    const contacts = selectedStudentsList.map(s => ({
+      phoneNumber: s.whatsappNumber || s.phone || '',
+      name: s.name,
+      email: s.email || ''
+    })).filter(c => type === 'email' ? c.email : c.phoneNumber);
+    
+    if (contacts.length === 0) {
+      alert('None of the selected students have valid contact information for this broadcast type.');
+      return;
+    }
+
+    sessionStorage.setItem('broadcast_preload_contacts', JSON.stringify(contacts));
+    if (type === 'meta') {
+      router.push('/admin/crm/broadcast');
+    } else if (type === 'qr') {
+      router.push('/admin/crm/qr-broadcast');
+    } else {
+      router.push('/admin/crm/email');
+    }
+  };
+
+  const sendQuickBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickBroadcastMode || selectedStudentIds.length === 0) return;
+    setQuickBroadcastSending(true);
+    try {
+      const selectedStudentsList = students.filter(s => selectedStudentIds.includes(s._id));
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const s of selectedStudentsList) {
+        try {
+          if (quickBroadcastMode === 'qr') {
+            const phone = (s.whatsappNumber || s.phone || '').replace(/\D/g, '');
+            if (!phone) throw new Error('No phone number');
+            await fetch('/api/admin/crm/whatsapp/qr/send', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ number: phone.length === 10 ? '91' + phone : phone, message: quickBroadcastMsg })
+            });
+            successCount++;
+          } else if (quickBroadcastMode === 'meta') {
+            const phone = (s.whatsappNumber || s.phone || '').replace(/\D/g, '');
+            if (!phone) throw new Error('No phone number');
+            await fetch('/api/admin/crm/whatsapp/send', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ to: phone.length === 10 ? '91' + phone : phone, text: quickBroadcastMsg })
+            });
+            successCount++;
+          } else if (quickBroadcastMode === 'email') {
+            if (!s.email) throw new Error('No email');
+            await fetch('/api/admin/crm/email/send', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ to: s.email, subject: quickBroadcastSubject, html: quickBroadcastMsg.replace(/\n/g, '<br/>') })
+            });
+            successCount++;
+          }
+        } catch (e) {
+          errorCount++;
+        }
+      }
+      alert(`Broadcast complete!\nSent: ${successCount}\nFailed/Skipped: ${errorCount}`);
+      setQuickBroadcastMode(null);
+      setQuickBroadcastMsg('');
+      setQuickBroadcastSubject('');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Broadcast failed');
+    } finally {
+      setQuickBroadcastSending(false);
     }
   };
 
@@ -210,7 +312,6 @@ export default function WorkshopManagementPage() {
       await load(selected._id);
       setStudentImportFile(null);
       setStudentImportColumns([]);
-      setShowImport(false);
       setStudentImportMapping({ name: '', email: '', phone: '', whatsappNumber: '', whatsappJid: '' });
       setSelectedImportFields(['name', 'email', 'phone', 'whatsappNumber', 'whatsappJid']);
       const rowErrors = Array.isArray(data.errors) && data.errors.length
@@ -270,6 +371,99 @@ export default function WorkshopManagementPage() {
   };
 
   const downloadAnalyticsCSV = () => {
+    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
+    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
+    const rows = students.map(s => {
+      const row = [
+        `"${s.name}"`, 
+        `"${s.whatsappNumber || s.phone || ''}"`, 
+        `"${s.email || ''}"`,
+        `""`,
+        `""`
+      ];
+      uniqueDates.forEach(date => {
+        const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
+        if (record && record.joined) {
+          row.push(`${Math.round(record.durationSeconds / 60)} min`);
+        } else {
+          row.push('Absent');
+        }
+      });
+      return row.join(',');
+    });
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Workshop_Report_${selected?.name || 'Cohort'}.csv`;
+    a.click();
+  };
+
+  const handleEditCohort = (c: Cohort, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingCohort(c);
+    setEditCohortForm({
+      name: c.name,
+      startDate: c.startDate ? c.startDate.slice(0, 10) : '',
+      endDate: c.endDate ? c.endDate.slice(0, 10) : '',
+      classStartTime: c.classStartTime || '',
+      classEndTime: c.classEndTime || '',
+      zoomMeetingId: c.zoomMeetingId || '',
+      zoomJoinUrl: c.zoomJoinUrl || '',
+      whatsappGroupLink: c.whatsappGroupLink || '',
+      googleFormLink: c.googleFormLink || '',
+      youtubePlaylistName: (c as any).youtubePlaylistName || '',
+      thumbnailUrl: (c as any).thumbnailUrl || '',
+      autoSendRecordings: (c as any).autoSendRecordings || false,
+      autoSyncZoomAttendance: (c as any).autoSyncZoomAttendance !== false,
+      autoRecoverZoomTrash: (c as any).autoRecoverZoomTrash || false,
+      daySubjects: (() => {
+        const saved: {day: number; subject: string}[] = Array.isArray((c as any).daySubjects) ? (c as any).daySubjects : [];
+        return Array.from({ length: 15 }, (_, i) => {
+          const found = saved.find(s => s.day === i + 1);
+          return { day: i + 1, subject: found?.subject || '' };
+        });
+      })(),
+    });
+  };
+
+  const handleSaveEditCohort = async () => {
+    if (!editingCohort) return;
+    setSavingEditCohort(true);
+    try {
+      const res = await fetch('/api/admin/crm/workshop-management', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ ...editCohortForm, cohortId: editingCohort._id, _fullEdit: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
+      setCohorts(prev => prev.map(c => c._id === editingCohort._id ? data.cohort : c));
+      if (selected?._id === editingCohort._id) setSelected(data.cohort);
+      setEditingCohort(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save changes');
+    } finally {
+      setSavingEditCohort(false);
+    }
+  };
+
+  const handleDeleteCohort = async (c: Cohort, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${c.name}" and ALL its students, attendance and recordings? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/admin/crm/workshop-management?cohortId=${c._id}`, { method: 'DELETE', headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      setCohorts(prev => prev.filter(co => co._id !== c._id));
+      if (selected?._id === c._id) { setSelected(null); setStudents([]); setAttendance([]); setRecordings([]); }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed');
+    }
+  };
+  const exportReportCsv = () => {
+
     const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
     const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
     const rows = students.map(s => {
@@ -536,18 +730,14 @@ export default function WorkshopManagementPage() {
               </div>
             ) : (
               cohorts.map((c) => (
-                <button 
-                  key={c._id} 
+                <div key={c._id} className={`group relative w-full text-left p-4 rounded-xl border transition-all cursor-pointer ${
+                  selected?._id === c._id
+                    ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10'
+                    : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
+                }`}
                   onClick={() => { setSelected(c); setActiveTab('students'); void load(c._id); }}
-                  className={`w-full text-left p-4 rounded-xl border transition-all ${
-                    selected?._id === c._id 
-                      ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10' 
-                      : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
-                  }`}
                 >
-                  <p className={`font-bold truncate ${selected?._id === c._id ? 'text-indigo-900' : 'text-slate-700'}`}>
-                    {c.name}
-                  </p>
+                  <p className={`font-bold truncate pr-14 ${selected?._id === c._id ? 'text-indigo-900' : 'text-slate-700'}`}>{c.name}</p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md flex items-center gap-1">
                       <Calendar size={10}/> {new Date(c.startDate).toLocaleDateString()}
@@ -558,7 +748,24 @@ export default function WorkshopManagementPage() {
                       </span>
                     )}
                   </div>
-                </button>
+                  {/* Edit / Delete buttons */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      title="Edit workshop"
+                      onClick={(e) => handleEditCohort(c, e)}
+                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 shadow-sm transition-colors"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                    <button
+                      title="Delete workshop"
+                      onClick={(e) => handleDeleteCohort(c, e)}
+                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-300 shadow-sm transition-colors"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
               ))
             )}
           </div>
@@ -637,6 +844,10 @@ export default function WorkshopManagementPage() {
                       <button onClick={() => { setAddStudentTab('manual'); setShowAddStudent(true); }} className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
                         <UserPlus size={16} /> Add Students
                       </button>
+
+                      <button onClick={() => setSelectedStudentIds(students.length > 0 && selectedStudentIds.length === students.length ? [] : students.map(s => s._id))} className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-slate-200">
+                        <CheckCircle2 size={16} /> {students.length > 0 && selectedStudentIds.length === students.length ? 'Deselect All' : 'Select All'}
+                      </button>
                       
                       <div className="h-8 w-px bg-slate-200 mx-2 hidden md:block"></div>
                       
@@ -648,9 +859,20 @@ export default function WorkshopManagementPage() {
                       )}
 
                       {selectedStudentIds.length > 0 && (
-                        <button onClick={removeSelectedStudents} className="ml-auto inline-flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-red-100">
-                          <Trash2 size={16} /> Remove ({selectedStudentIds.length})
-                        </button>
+                        <>
+                          <button onClick={() => handleBroadcast('qr')} className="inline-flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-emerald-100">
+                            <Phone size={16} /> QR Broadcast
+                          </button>
+                          <button onClick={() => handleBroadcast('meta')} className="inline-flex items-center gap-2 bg-teal-50 hover:bg-teal-100 text-teal-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-teal-100">
+                            <Phone size={16} /> Meta Broadcast
+                          </button>
+                          <button onClick={() => handleBroadcast('email')} className="inline-flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-blue-100">
+                            <Mail size={16} /> Email
+                          </button>
+                          <button onClick={removeSelectedStudents} className="ml-auto inline-flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-red-100">
+                            <Trash2 size={16} /> Remove ({selectedStudentIds.length})
+                          </button>
+                        </>
                       )}
                     </div>
 
@@ -670,14 +892,19 @@ export default function WorkshopManagementPage() {
                                 <th className="p-4 w-12">
                                   <input type="checkbox" checked={students.length > 0 && selectedStudentIds.length === students.length} onChange={(e) => setSelectedStudentIds(e.target.checked ? students.map((s) => s._id) : [])} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                                 </th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Student Name</th>
-                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Contact</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">#</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Code</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Name</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">WhatsApp</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Email</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">City</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Country</th>
                                 <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs text-center">Attendance</th>
                                 <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Status</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {students.map((s) => { 
+                              {students.map((s, idx) => { 
                                 const rows = attendance.filter((a) => String(a.studentId) === s._id); 
                                 const joinedCount = rows.filter((a) => a.joined).length;
                                 const mins = Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60);
@@ -686,16 +913,17 @@ export default function WorkshopManagementPage() {
                                     <td className="p-4">
                                       <input type="checkbox" checked={selectedStudentIds.includes(s._id)} onChange={(e) => setSelectedStudentIds((prev) => e.target.checked ? [...prev, s._id] : prev.filter((id) => id !== s._id))} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                                     </td>
+                                    <td className="p-4 text-slate-400 font-semibold">{idx + 1}</td>
+                                    <td className="p-4 font-mono text-slate-500 text-xs">{s.leadNumber || s.leadId?.slice(-6) || '—'}</td>
                                     <td className="p-4">
                                       <button type="button" onClick={() => openStudentChart(s)} className="text-left font-bold text-indigo-700 hover:text-indigo-900 group flex items-center gap-2">
                                         {s.name} <BarChart2 size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                       </button>
-                                      {s.leadNumber && <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">CRM LEAD</span>}
                                     </td>
-                                    <td className="p-4">
-                                      {s.email && <div className="text-slate-600 flex items-center gap-1.5 mb-1"><Mail size={12}/> {s.email}</div>}
-                                      {(s.phone || s.whatsappNumber) && <div className="text-slate-600 flex items-center gap-1.5"><Phone size={12}/> {s.phone || s.whatsappNumber}</div>}
-                                    </td>
+                                    <td className="p-4 text-slate-600 font-medium whitespace-nowrap">{s.whatsappNumber || s.phone || '—'}</td>
+                                    <td className="p-4 text-slate-500 text-xs truncate max-w-[150px]" title={s.email}>{s.email || '—'}</td>
+                                    <td className="p-4 text-slate-600">{s.metadata?.city || '—'}</td>
+                                    <td className="p-4 text-slate-600">{s.metadata?.country || '—'}</td>
                                     <td className="p-4 text-center">
                                       <div className="font-bold text-slate-800">{joinedCount} <span className="font-normal text-slate-500 text-xs">days</span></div>
                                       <div className="text-xs text-slate-400 mt-0.5">{mins} min total</div>
@@ -878,6 +1106,10 @@ export default function WorkshopManagementPage() {
                 {/* === ANALYTICS TAB === */}
                 {activeTab === 'analytics' && (() => {
                   const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
+                  const visibleStudents = analyticsSearch.trim()
+                    ? students.filter(s => s.name.toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.email || '').toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.phone || '').includes(analyticsSearch) || (s.whatsappNumber || '').includes(analyticsSearch))
+                    : students;
+
                   return (
                     <div className="max-w-6xl mx-auto space-y-6">
                       <style>{`
@@ -899,6 +1131,12 @@ export default function WorkshopManagementPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
+                            {selected.zoomMeetingId && (
+                              <button onClick={syncZoomAttendance} disabled={syncingZoomAttendance} className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50">
+                                <RefreshCw size={16} className={syncingZoomAttendance ? 'animate-spin' : ''} />
+                                {syncingZoomAttendance ? 'Syncing...' : 'Sync Zoom Data'}
+                              </button>
+                            )}
                             <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors">
                               <Printer size={16} />
                               Print Report
@@ -913,28 +1151,33 @@ export default function WorkshopManagementPage() {
                           <table className="w-full text-left text-sm text-slate-600">
                             <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                               <tr>
+                                <th className="px-4 py-4 w-12 text-center">#</th>
                                 <th className="px-6 py-4">Student</th>
-                                <th className="px-6 py-4">Contact</th>
-                                <th className="px-4 py-4 whitespace-nowrap">Fees</th>
-                                <th className="px-4 py-4 whitespace-nowrap">Remark</th>
+                                <th className="px-6 py-4">Phone / WA</th>
+                                <th className="px-6 py-4">Email</th>
                                 {uniqueDates.map(date => (
                                   <th key={date} className="px-4 py-4 whitespace-nowrap">{new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</th>
                                 ))}
+                                <th className="px-4 py-4 whitespace-nowrap text-right no-print">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {students.map(s => (
+                              {visibleStudents.map((s, idx) => (
                                 <tr key={s._id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="px-4 py-4 text-slate-400 font-semibold text-xs">{idx + 1}</td>
                                   <td className="px-6 py-4 whitespace-nowrap">
                                     <p className="font-bold text-slate-800">{s.name}</p>
                                   </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <p className="text-xs text-slate-500">{s.email || s.phone || s.whatsappNumber}</p>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <p className="text-xs text-slate-600 font-medium">{s.whatsappNumber || s.phone || <span className="text-slate-300">—</span>}</p>
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap"></td>
-                                  <td className="px-4 py-4 whitespace-nowrap"></td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <p className="text-xs text-slate-400">{s.email || <span className="text-slate-300">—</span>}</p>
+                                  </td>
                                   {uniqueDates.map(date => {
                                     const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
+                                    const recording = recordings.find(r => r.classDate === date);
+                                    const hasRecording = !!(recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl);
                                     if (record && record.joined) {
                                       const mins = Math.round(record.durationSeconds / 60);
                                       return (
@@ -947,18 +1190,66 @@ export default function WorkshopManagementPage() {
                                     }
                                     return (
                                       <td key={date} className="px-4 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 text-rose-600 font-semibold text-xs border border-rose-100">
-                                          Absent
-                                        </span>
+                                        <div className="flex flex-col gap-1">
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 text-rose-600 font-semibold text-xs border border-rose-100">
+                                            Absent
+                                          </span>
+                                          {hasRecording && (
+                                            <button
+                                              title="Send recording to this student"
+                                              onClick={() => {
+                                                const url = recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl || '';
+                                                const msg = encodeURIComponent(`Hi ${s.name}, you missed class on ${new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}. Here is the recording: ${url}`);
+                                                const phone = (s.whatsappNumber || s.phone || '').replace(/\D/g, '');
+                                                if (phone) {
+                                                  window.open(`https://wa.me/${phone.length === 10 ? '91' + phone : phone}?text=${msg}`, '_blank');
+                                                } else {
+                                                  alert('No mobile number found for this student. Please edit and add their number first.');
+                                                }
+                                              }}
+                                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 font-semibold text-xs border border-sky-100 hover:bg-sky-100 transition-colors"
+                                            >
+                                              <Send size={10} /> Send
+                                            </button>
+                                          )}
+                                        </div>
                                       </td>
                                     );
                                   })}
+                                  <td className="px-4 py-4 whitespace-nowrap no-print">
+                                    <button
+                                      onClick={() => {
+                                        setStudentEditForm({ name: s.name, email: s.email || '', phone: s.phone || '', whatsappNumber: s.whatsappNumber || '', active: s.active });
+                                        setEditingStudent(s);
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors"
+                                    >
+                                      <Edit2 size={12} /> Edit
+                                    </button>
+                                  </td>
                                 </tr>
                               ))}
+                              {visibleStudents.length === 0 && students.length > 0 && (
+                                <tr><td colSpan={5 + uniqueDates.length} className="px-6 py-8 text-center text-slate-400 text-sm">No students match your search.</td></tr>
+                              )}
                               {students.length === 0 && (
                                 <tr>
-                                  <td colSpan={uniqueDates.length + 4} className="px-6 py-8 text-center text-slate-500">
-                                    No students enrolled yet.
+                                  <td colSpan={5 + uniqueDates.length} className="px-6 py-16 text-center">
+                                    <div className="flex flex-col items-center gap-3">
+                                      <BarChart2 size={40} className="text-slate-200" />
+                                      <p className="text-slate-500 font-semibold">No attendance data yet</p>
+                                      {selected.zoomMeetingId ? (
+                                        <>
+                                          <p className="text-xs text-slate-400 max-w-sm">Click <strong>Sync Zoom</strong> above to auto-import attendance from Zoom. Data is available ~2 hours after each class ends.</p>
+                                          <button onClick={syncZoomAttendance} disabled={syncingZoomAttendance} className="mt-1 flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50">
+                                            <RefreshCw size={15} className={syncingZoomAttendance ? 'animate-spin' : ''} />
+                                            {syncingZoomAttendance ? 'Syncing...' : 'Sync Zoom Data Now'}
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <p className="text-xs text-slate-400 max-w-sm">Add a Zoom Meeting ID in <strong>Workshop Settings</strong> to enable auto-sync of attendance.</p>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               )}
@@ -1012,6 +1303,40 @@ export default function WorkshopManagementPage() {
                   </div>
                 </div>
 
+                {/* YouTube Playlist & Thumbnail */}
+                <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">Recording Details</label>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">YouTube Playlist Name</label>
+                      <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={form.youtubePlaylistName} onChange={(e) => setForm({ ...form, youtubePlaylistName: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Thumbnail URL</label>
+                      <input type="url" placeholder="https://..." value={form.thumbnailUrl} onChange={(e) => setForm({ ...form, thumbnailUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Day 1-15 Subject Schedule */}
+                <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">Day-by-Day Subject Schedule (Day 1 – 15)</label>
+                  <div className="grid sm:grid-cols-3 gap-2">
+                    {form.daySubjects.map((ds, idx) => (
+                      <div key={ds.day} className="flex items-center gap-2 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
+                        <span className="text-xs font-bold text-indigo-600 whitespace-nowrap w-10">Day {ds.day}</span>
+                        <input
+                          type="text"
+                          placeholder="Subject name"
+                          value={ds.subject}
+                          onChange={(e) => setForm(prev => ({ ...prev, daySubjects: prev.daySubjects.map((d, i) => i === idx ? { ...d, subject: e.target.value } : d) }))}
+                          className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="sm:col-span-2 flex flex-col gap-3 mt-4 pt-4 border-t border-slate-100">
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
                     <input type="checkbox" checked={form.aiWorkerEnabled} onChange={(e) => setForm({ ...form, aiWorkerEnabled: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" /> 
@@ -1027,6 +1352,155 @@ export default function WorkshopManagementPage() {
             <div className="p-4 border-t border-slate-100 bg-slate-50">
               <button form="create-form" type="submit" disabled={loading} className="w-full rounded-xl bg-indigo-600 py-3.5 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors">
                 {loading ? 'Creating...' : 'Create Workshop'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Workshop Modal */}
+            {/* Edit Student Modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <form onSubmit={saveStudentEdit} className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-lg">Edit Student</h3>
+              <button type="button" onClick={() => setEditingStudent(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Name</label>
+                <input type="text" required value={studentEditForm.name} onChange={(e) => setStudentEditForm({ ...studentEditForm, name: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Email</label>
+                <input type="email" value={studentEditForm.email} onChange={(e) => setStudentEditForm({ ...studentEditForm, email: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Phone</label>
+                <input type="tel" value={studentEditForm.phone} onChange={(e) => setStudentEditForm({ ...studentEditForm, phone: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">WhatsApp Number</label>
+                <input type="tel" value={studentEditForm.whatsappNumber} onChange={(e) => setStudentEditForm({ ...studentEditForm, whatsappNumber: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+              </div>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-white transition-colors">
+                <input type="checkbox" checked={studentEditForm.active} onChange={(e) => setStudentEditForm({ ...studentEditForm, active: e.target.checked })} className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                <span className="font-bold text-slate-700 text-sm">Active Student</span>
+              </label>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+              <button type="submit" className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+            {/* Quick Broadcast Modal */}
+      {quickBroadcastMode && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <form onSubmit={sendQuickBroadcast} className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-lg">Send {quickBroadcastMode.toUpperCase()} Broadcast</h3>
+              <button type="button" onClick={() => setQuickBroadcastMode(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-600 font-medium">
+                Sending to <strong>{selectedStudentIds.length}</strong> selected student(s).
+              </p>
+              {quickBroadcastMode === 'email' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subject</label>
+                  <input type="text" required value={quickBroadcastSubject} onChange={(e) => setQuickBroadcastSubject(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" placeholder="Email Subject" />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Message</label>
+                <textarea required rows={5} value={quickBroadcastMsg} onChange={(e) => setQuickBroadcastMsg(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm resize-none" placeholder="Type your message here..."></textarea>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <button type="button" onClick={() => setQuickBroadcastMode(null)} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+              <button type="submit" disabled={quickBroadcastSending} className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                {quickBroadcastSending ? 'Sending...' : 'Send Broadcast'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {editingCohort && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800">Edit Workshop</h2>
+              <button onClick={() => setEditingCohort(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid gap-5 sm:grid-cols-2">
+                {([['name','Workshop Name','text'],['startDate','Start Date','date'],['endDate','End Date','date'],['classStartTime','Start Time','time'],['classEndTime','End Time','time'],['zoomMeetingId','Zoom Meeting ID','text'],['zoomJoinUrl','Zoom Join Link','url'],['whatsappGroupLink','WA Group Link','url'],['googleFormLink','CRM Form URL','url']] as const).map(([key, label, type]) => (
+                  <div key={key} className={key === 'name' ? 'sm:col-span-2' : ''}>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">{label}</label>
+                    <input type={type} value={editCohortForm[key as keyof typeof editCohortForm] as string} onChange={(e) => setEditCohortForm({ ...editCohortForm, [key]: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                  </div>
+                ))}
+
+                {/* YouTube Playlist & Thumbnail */}
+                <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">Recording Details</label>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">YouTube Playlist Name</label>
+                      <input type="text" placeholder="e.g., Swar Yoga 7 days {MONTH} {YEAR}" value={editCohortForm.youtubePlaylistName} onChange={(e) => setEditCohortForm({ ...editCohortForm, youtubePlaylistName: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Thumbnail URL</label>
+                      <input type="url" placeholder="https://..." value={editCohortForm.thumbnailUrl} onChange={(e) => setEditCohortForm({ ...editCohortForm, thumbnailUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Day 1-15 Subject Schedule */}
+                <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">Day-by-Day Subject Schedule (Day 1 – 15)</label>
+                  <div className="grid sm:grid-cols-3 gap-2">
+                    {editCohortForm.daySubjects.map((ds, idx) => (
+                      <div key={ds.day} className="flex items-center gap-2 bg-slate-50 rounded-xl border border-slate-200 px-3 py-2">
+                        <span className="text-xs font-bold text-indigo-600 whitespace-nowrap w-10">Day {ds.day}</span>
+                        <input
+                          type="text"
+                          placeholder="Subject name"
+                          value={ds.subject}
+                          onChange={(e) => setEditCohortForm(prev => ({ ...prev, daySubjects: prev.daySubjects.map((d, i) => i === idx ? { ...d, subject: e.target.value } : d) }))}
+                          className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Toggles */}
+                <div className="sm:col-span-2 flex flex-col gap-3 mt-4 pt-4 border-t border-slate-100">
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
+                    <input type="checkbox" checked={editCohortForm.autoSendRecordings} onChange={(e) => setEditCohortForm({ ...editCohortForm, autoSendRecordings: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+                    <span className="font-bold text-violet-900 text-sm">Automatically send recordings by WhatsApp</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
+                    <input type="checkbox" checked={editCohortForm.autoSyncZoomAttendance} onChange={(e) => setEditCohortForm({ ...editCohortForm, autoSyncZoomAttendance: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+                    <span className="font-bold text-violet-900 text-sm">Auto Sync Zoom Attendance</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-violet-100 bg-violet-50/50 cursor-pointer hover:bg-violet-50 transition-colors">
+                    <input type="checkbox" checked={editCohortForm.autoRecoverZoomTrash} onChange={(e) => setEditCohortForm({ ...editCohortForm, autoRecoverZoomTrash: e.target.checked })} className="w-5 h-5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+                    <span className="font-bold text-violet-900 text-sm">Auto-Recover Zoom Trash (Sync Deleted)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <button onClick={() => setEditingCohort(null)} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+              <button onClick={handleSaveEditCohort} disabled={savingEditCohort} className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                {savingEditCohort ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

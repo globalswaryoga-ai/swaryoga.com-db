@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { connectDB } from '@/lib/db';
-import { getEmailTemplate } from '@/lib/schemas/enterpriseSchemas';
+
+import { listEmailTemplates, saveEmailTemplate } from '@/lib/emailBunnyRepository';
 import { hasPermission } from '@/lib/permissions';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
       return apiError('FORBIDDEN', 'You do not have permission to manage email templates');
     }
 
-    await connectDB();
-    const EmailTemplate = getEmailTemplate();
+    
+    
     const tf = tenantFilter(decoded, 'createdBy');
 
     const { searchParams } = new URL(request.url);

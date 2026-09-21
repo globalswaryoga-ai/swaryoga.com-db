@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getCohort, listCohorts, listStudents, listAttendance, listRecordings, saveCohort, updateCohort } from '@/lib/workshopBunnyRepository';
+import { getCohort, listCohorts, listStudents, listAttendance, listRecordings, saveCohort, updateCohort, editCohort, deleteCohort } from '@/lib/workshopBunnyRepository';
 import { listBunnyZoomMappings, createBunnyZoomMapping, updateBunnyZoomMapping } from '@/lib/bunnyZoomRepository';
 
 export const dynamic = 'force-dynamic';
@@ -23,11 +23,11 @@ export async function GET(request: NextRequest) {
       const zoomMapping = cohort.zoomMeetingId ? zoomMappings.find(m => m.zoomMeetingId === cohort.zoomMeetingId) || null : null;
       return NextResponse.json({ cohort, students, attendance, recordings, zoomMapping });
     } catch (error) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load Bunny workshop' }, { status: 500 });
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load workshop' }, { status: 500 });
     }
   }
   try { return NextResponse.json({ cohorts: await listCohorts() }); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load Bunny workshops' }, { status: 500 }); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load workshops' }, { status: 500 }); }
 }
 
 export async function POST(request: NextRequest) {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const body = await request.json();
   try { return NextResponse.json({ cohort: await saveCohort(body, decoded.userId) }, { status: 201 }); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not save Bunny workshop' }, { status: 500 }); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not save workshop' }, { status: 500 }); }
 }
 
 export async function PATCH(request: NextRequest) {
@@ -43,32 +43,48 @@ export async function PATCH(request: NextRequest) {
   if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const body = await request.json();
   if (!body.cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
-  const googleFormLink = String(body.googleFormLink || '').trim();
-  if (googleFormLink && !/^https?:\/\//i.test(googleFormLink)) {
-    return NextResponse.json({ error: 'Google Forms link must start with http:// or https://' }, { status: 400 });
-  }
-  
-  const cohort = await updateCohort(body.cohortId, { googleFormLink: googleFormLink || null });
-  if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
-  
-  // Upsert Zoom Mapping if recording setup data is provided
-  if (body.zoomMeetingId && body.communityId) {
-    const existingMappings = await listBunnyZoomMappings();
-    const existing = existingMappings.find(m => m.zoomMeetingId === body.zoomMeetingId);
-    if (existing) {
-      await updateBunnyZoomMapping(existing._id, {
-        thumbnailUrl: body.thumbnailUrl || undefined,
-        youtubePlaylistName: body.youtubePlaylistName || undefined,
-      });
-    } else {
-      await createBunnyZoomMapping({
-        zoomMeetingId: body.zoomMeetingId,
-        communityId: body.communityId,
-        thumbnailUrl: body.thumbnailUrl || undefined,
-        youtubePlaylistName: body.youtubePlaylistName || undefined,
-      });
-    }
-  }
 
-  return NextResponse.json({ cohort });
+  try {
+    // Full edit from the Edit Workshop modal
+    if (body._fullEdit) {
+      const cohort = await editCohort(body.cohortId, body);
+      if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+      return NextResponse.json({ cohort });
+    }
+
+    // Legacy: only googleFormLink / zoom mapping update
+    const googleFormLink = String(body.googleFormLink || '').trim();
+    if (googleFormLink && !/^https?:\/\//i.test(googleFormLink)) {
+      return NextResponse.json({ error: 'Google Forms link must start with http:// or https://' }, { status: 400 });
+    }
+    const cohort = await updateCohort(body.cohortId, { googleFormLink: googleFormLink || null });
+    if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+
+    if (body.zoomMeetingId && body.communityId) {
+      const existingMappings = await listBunnyZoomMappings();
+      const existing = existingMappings.find(m => m.zoomMeetingId === body.zoomMeetingId);
+      if (existing) {
+        await updateBunnyZoomMapping(existing._id, { thumbnailUrl: body.thumbnailUrl || undefined, youtubePlaylistName: body.youtubePlaylistName || undefined });
+      } else {
+        await createBunnyZoomMapping({ zoomMeetingId: body.zoomMeetingId, communityId: body.communityId, thumbnailUrl: body.thumbnailUrl || undefined, youtubePlaylistName: body.youtubePlaylistName || undefined });
+      }
+    }
+
+    return NextResponse.json({ cohort });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to update workshop' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const decoded = admin(request);
+  if (!decoded?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const cohortId = request.nextUrl.searchParams.get('cohortId');
+  if (!cohortId) return NextResponse.json({ error: 'cohortId is required' }, { status: 400 });
+  try {
+    await deleteCohort(cohortId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to delete workshop' }, { status: 500 });
+  }
 }

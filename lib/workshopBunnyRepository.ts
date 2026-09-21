@@ -15,15 +15,16 @@ const parse = <T>(value: unknown, fallback: T): T => {
 const bool = (value: unknown) => value === true || value === 1 || value === '1' || value === 'true';
 
 function cohort(row: any): BunnyWorkshopCohort {
-  return { ...row, _id: String(row.id), startDate: row.start_date, endDate: row.end_date, classStartTime: row.class_start_time, classEndTime: row.class_end_time, zoomMeetingId: row.zoom_meeting_id, zoomJoinUrl: row.zoom_join_url, whatsappGroupLink: row.whatsapp_group_link, googleFormLink: row.google_form_link, aiWorkerEnabled: bool(row.ai_worker_enabled), autoSyncWhatsappGroup: bool(row.auto_sync_whatsapp_group), autoSendRecordings: bool(row.auto_send_recordings), autoSyncZoomAttendance: bool(row.auto_sync_zoom_attendance), zoomAttendanceLastSyncAt: row.zoom_attendance_last_sync_at, workerLastRunAt: row.worker_last_run_at, whatsappGroupId: row.whatsapp_group_id, communityId: row.community_id, recordingPolicy: row.recording_policy, createdByUserId: row.created_by_user_id, holidayDates: parse(row.holiday_dates_json, []), metadata: parse(row.metadata_json, {}) };
+  return { ...row, _id: String(row.id), startDate: row.start_date, endDate: row.end_date, classStartTime: row.class_start_time, classEndTime: row.class_end_time, zoomMeetingId: row.zoom_meeting_id, zoomJoinUrl: row.zoom_join_url, whatsappGroupLink: row.whatsapp_group_link, googleFormLink: row.google_form_link, aiWorkerEnabled: bool(row.ai_worker_enabled), autoSyncWhatsappGroup: bool(row.auto_sync_whatsapp_group), autoSendRecordings: bool(row.auto_send_recordings), autoSyncZoomAttendance: bool(row.auto_sync_zoom_attendance), autoRecoverZoomTrash: bool(row.auto_recover_zoom_trash), zoomAttendanceLastSyncAt: row.zoom_attendance_last_sync_at, workerLastRunAt: row.worker_last_run_at, whatsappGroupId: row.whatsapp_group_id, communityId: row.community_id, recordingPolicy: row.recording_policy, createdByUserId: row.created_by_user_id, holidayDates: parse(row.holiday_dates_json, []), youtubePlaylistName: row.youtube_playlist_name || null, thumbnailUrl: row.thumbnail_url || null, daySubjects: parse(row.day_subjects_json, []), metadata: parse(row.metadata_json, {}) };
 }
 function student(row: any): BunnyWorkshopStudent { return { ...row, _id: String(row.id), cohortId: row.cohort_id, whatsappJid: row.whatsapp_jid, whatsappNumber: row.whatsapp_number, leadId: row.lead_id, leadNumber: row.lead_number, active: bool(row.active), metadata: parse(row.metadata_json, {}) }; }
 function attendance(row: any): BunnyWorkshopAttendance { return { ...row, _id: String(row.id), cohortId: row.cohort_id, studentId: row.student_id, classDate: row.class_date, joinedAt: row.joined_at, leftAt: row.left_at, joined: bool(row.joined), durationSeconds: Number(row.duration_seconds || 0), attendancePercent: Number(row.attendance_percent || 0), metadata: parse(row.metadata_json, {}) }; }
 function recording(row: any): BunnyWorkshopRecording { return { ...row, _id: String(row.id), cohortId: row.cohort_id, classDate: row.class_date, dayNumber: row.day_number, zoomMeetingId: row.zoom_meeting_id, zoomMeetingUuid: row.zoom_meeting_uuid, youtubeSpeakerId: row.youtube_speaker_id, youtubeGalleryId: row.youtube_gallery_id, youtubeSpeakerUrl: row.youtube_speaker_url, youtubeGalleryUrl: row.youtube_gallery_url, bunnySpeakerUrl: row.bunny_speaker_url, bunnyGalleryUrl: row.bunny_gallery_url, deliveredStudentIds: parse(row.delivered_student_ids_json, []), metadata: parse(row.metadata_json, {}) }; }
 
 export async function initWorkshopBunnySchema() {
+  try { await bunnyExecute('ALTER TABLE workshop_cohorts_sql ADD COLUMN auto_recover_zoom_trash INTEGER NOT NULL DEFAULT 0'); } catch(e) {}
   await bunnyBatch([
-    { sql: `CREATE TABLE IF NOT EXISTS workshop_cohorts_sql (id TEXT PRIMARY KEY,name TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT,holiday_dates_json TEXT NOT NULL DEFAULT '[]',class_start_time TEXT,class_end_time TEXT,timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',zoom_meeting_id TEXT,zoom_join_url TEXT,whatsapp_group_link TEXT,google_form_link TEXT,ai_worker_enabled INTEGER NOT NULL DEFAULT 1,auto_sync_whatsapp_group INTEGER NOT NULL DEFAULT 0,auto_send_recordings INTEGER NOT NULL DEFAULT 0,auto_sync_zoom_attendance INTEGER NOT NULL DEFAULT 1,zoom_attendance_last_sync_at TEXT,worker_last_run_at TEXT,whatsapp_group_id TEXT,community_id TEXT,recording_policy TEXT NOT NULL DEFAULT 'speaker_and_gallery',created_by_user_id TEXT,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)` , args: [] },
+    { sql: `CREATE TABLE IF NOT EXISTS workshop_cohorts_sql (id TEXT PRIMARY KEY,name TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT,holiday_dates_json TEXT NOT NULL DEFAULT '[]',class_start_time TEXT,class_end_time TEXT,timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',zoom_meeting_id TEXT,zoom_join_url TEXT,whatsapp_group_link TEXT,google_form_link TEXT,youtube_playlist_name TEXT,thumbnail_url TEXT,day_subjects_json TEXT NOT NULL DEFAULT '[]',ai_worker_enabled INTEGER NOT NULL DEFAULT 1,auto_sync_whatsapp_group INTEGER NOT NULL DEFAULT 0,auto_send_recordings INTEGER NOT NULL DEFAULT 0,auto_sync_zoom_attendance INTEGER NOT NULL DEFAULT 1,auto_recover_zoom_trash INTEGER NOT NULL DEFAULT 0,zoom_attendance_last_sync_at TEXT,worker_last_run_at TEXT,whatsapp_group_id TEXT,community_id TEXT,recording_policy TEXT NOT NULL DEFAULT 'speaker_and_gallery',created_by_user_id TEXT,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)` , args: [] },
     { sql: `CREATE TABLE IF NOT EXISTS workshop_students_sql (id TEXT PRIMARY KEY,cohort_id TEXT NOT NULL,name TEXT NOT NULL,email TEXT,phone TEXT,whatsapp_jid TEXT,whatsapp_number TEXT,lead_id TEXT,lead_number TEXT,source TEXT NOT NULL DEFAULT 'manual',active INTEGER NOT NULL DEFAULT 1,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`, args: [] },
     { sql: `CREATE UNIQUE INDEX IF NOT EXISTS uq_workshop_student_jid ON workshop_students_sql(cohort_id,whatsapp_jid)`, args: [] },
     { sql: `CREATE INDEX IF NOT EXISTS idx_workshop_student_email ON workshop_students_sql(cohort_id,email)`, args: [] },
@@ -40,8 +41,53 @@ export async function initWorkshopBunnySchema() {
 export async function listCohorts() { await initWorkshopBunnySchema(); const r = await bunnyExecute('SELECT * FROM workshop_cohorts_sql ORDER BY start_date DESC'); return r.rows.map(cohort); }
 export async function getCohort(cohortId: string) { await initWorkshopBunnySchema(); const r = await bunnyExecute({ sql: 'SELECT * FROM workshop_cohorts_sql WHERE id = ?', args: [cohortId] }); return r.rows[0] ? cohort(r.rows[0]) : null; }
 export async function findCohortByZoom(zoomMeetingId: string) { await initWorkshopBunnySchema(); const r = await bunnyExecute({ sql: 'SELECT * FROM workshop_cohorts_sql WHERE zoom_meeting_id = ? LIMIT 1', args: [zoomMeetingId] }); return r.rows[0] ? cohort(r.rows[0]) : null; }
-export async function saveCohort(input: Record<string, any>, userId?: string, cohortId = id()) { await initWorkshopBunnySchema(); const timestamp = now(); await bunnyExecute({ sql: `INSERT INTO workshop_cohorts_sql (id,name,start_date,end_date,holiday_dates_json,class_start_time,class_end_time,timezone,zoom_meeting_id,zoom_join_url,whatsapp_group_link,google_form_link,ai_worker_enabled,auto_sync_whatsapp_group,auto_send_recordings,auto_sync_zoom_attendance,whatsapp_group_id,community_id,recording_policy,created_by_user_id,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,start_date=excluded.start_date,end_date=excluded.end_date,holiday_dates_json=excluded.holiday_dates_json,class_start_time=excluded.class_start_time,class_end_time=excluded.class_end_time,timezone=excluded.timezone,zoom_meeting_id=excluded.zoom_meeting_id,zoom_join_url=excluded.zoom_join_url,whatsapp_group_link=excluded.whatsapp_group_link,google_form_link=excluded.google_form_link,ai_worker_enabled=excluded.ai_worker_enabled,auto_send_recordings=excluded.auto_send_recordings,updated_at=excluded.updated_at`, args: [cohortId,String(input.name || '').trim(),String(input.startDate),input.endDate || null,json(input.holidayDates,[]),input.classStartTime || null,input.classEndTime || null,input.timezone || 'Asia/Kolkata',input.zoomMeetingId || null,input.zoomJoinUrl || null,input.whatsappGroupLink || null,input.googleFormLink || null,input.aiWorkerEnabled === false ? 0 : 1,input.autoSyncWhatsappGroup ? 1 : 0,input.autoSendRecordings ? 1 : 0,input.autoSyncZoomAttendance === false ? 0 : 1,input.whatsappGroupId || null,input.communityId || null,'speaker_and_gallery',userId || null,'{}',timestamp,timestamp] }); return getCohort(cohortId); }
+export async function saveCohort(input: Record<string, any>, userId?: string, cohortId = id()) { await initWorkshopBunnySchema(); const timestamp = now(); await bunnyExecute({ sql: `INSERT INTO workshop_cohorts_sql (id,name,start_date,end_date,holiday_dates_json,class_start_time,class_end_time,timezone,zoom_meeting_id,zoom_join_url,whatsapp_group_link,google_form_link,youtube_playlist_name,thumbnail_url,day_subjects_json,ai_worker_enabled,auto_sync_whatsapp_group,auto_send_recordings,auto_sync_zoom_attendance,auto_recover_zoom_trash,whatsapp_group_id,community_id,recording_policy,created_by_user_id,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,start_date=excluded.start_date,end_date=excluded.end_date,holiday_dates_json=excluded.holiday_dates_json,class_start_time=excluded.class_start_time,class_end_time=excluded.class_end_time,timezone=excluded.timezone,zoom_meeting_id=excluded.zoom_meeting_id,zoom_join_url=excluded.zoom_join_url,whatsapp_group_link=excluded.whatsapp_group_link,google_form_link=excluded.google_form_link,youtube_playlist_name=excluded.youtube_playlist_name,thumbnail_url=excluded.thumbnail_url,day_subjects_json=excluded.day_subjects_json,ai_worker_enabled=excluded.ai_worker_enabled,auto_send_recordings=excluded.auto_send_recordings,auto_recover_zoom_trash=excluded.auto_recover_zoom_trash,updated_at=excluded.updated_at`, args: [cohortId,String(input.name || '').trim(),String(input.startDate),input.endDate || null,json(input.holidayDates,[]),input.classStartTime || null,input.classEndTime || null,input.timezone || 'Asia/Kolkata',input.zoomMeetingId || null,input.zoomJoinUrl || null,input.whatsappGroupLink || null,input.googleFormLink || null,input.youtubePlaylistName || null,input.thumbnailUrl || null,json(input.daySubjects,[]),input.aiWorkerEnabled === false ? 0 : 1,input.autoSyncWhatsappGroup ? 1 : 0,input.autoSendRecordings ? 1 : 0,input.autoSyncZoomAttendance === false ? 0 : 1,input.autoRecoverZoomTrash ? 1 : 0,input.whatsappGroupId || null,input.communityId || null,'speaker_and_gallery',userId || null,'{}',timestamp,timestamp] }); return getCohort(cohortId); }
 export async function updateCohort(cohortId: string, fields: Record<string, any>) { await initWorkshopBunnySchema(); const allowed: Record<string,string> = { googleFormLink: 'google_form_link', workerLastRunAt: 'worker_last_run_at', zoomAttendanceLastSyncAt: 'zoom_attendance_last_sync_at' }; const sets = Object.entries(fields).filter(([key]) => allowed[key] && fields[key] !== undefined); if (!sets.length) return getCohort(cohortId); await bunnyExecute({ sql: `UPDATE workshop_cohorts_sql SET ${sets.map(([key]) => `${allowed[key]} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, args: [...sets.map(([,value]) => value || null), now(), cohortId] }); return getCohort(cohortId); }
+
+export async function editCohort(cohortId: string, input: Record<string, any>) {
+  await initWorkshopBunnySchema();
+  await bunnyExecute({
+    sql: `UPDATE workshop_cohorts_sql SET
+      name = ?, start_date = ?, end_date = ?, holiday_dates_json = ?,
+      class_start_time = ?, class_end_time = ?,
+      zoom_meeting_id = ?, zoom_join_url = ?,
+      whatsapp_group_link = ?, google_form_link = ?,
+      youtube_playlist_name = ?, thumbnail_url = ?, day_subjects_json = ?,
+      ai_worker_enabled = ?, auto_send_recordings = ?, auto_sync_zoom_attendance = ?, auto_recover_zoom_trash = ?,
+      updated_at = ?
+    WHERE id = ?`,
+    args: [
+      String(input.name || '').trim(),
+      String(input.startDate),
+      input.endDate || null,
+      JSON.stringify(Array.isArray(input.holidayDates) ? input.holidayDates : []),
+      input.classStartTime || null,
+      input.classEndTime || null,
+      input.zoomMeetingId ? String(input.zoomMeetingId).replace(/\s+/g, '') : null,
+      input.zoomJoinUrl || null,
+      input.whatsappGroupLink || null,
+      input.googleFormLink || null,
+      input.youtubePlaylistName || null,
+      input.thumbnailUrl || null,
+      JSON.stringify(Array.isArray(input.daySubjects) ? input.daySubjects : []),
+      input.aiWorkerEnabled === false ? 0 : 1,
+      input.autoSendRecordings ? 1 : 0,
+      input.autoSyncZoomAttendance === false ? 0 : 1,
+      now(),
+      cohortId,
+    ]
+  });
+  return getCohort(cohortId);
+}
+
+export async function deleteCohort(cohortId: string) {
+  await initWorkshopBunnySchema();
+  // Delete all related records, then the cohort itself
+  await bunnyExecute({ sql: 'DELETE FROM workshop_attendance_sql WHERE cohort_id = ?', args: [cohortId] });
+  await bunnyExecute({ sql: 'DELETE FROM workshop_students_sql WHERE cohort_id = ?', args: [cohortId] });
+  await bunnyExecute({ sql: 'DELETE FROM workshop_recordings_sql WHERE cohort_id = ?', args: [cohortId] });
+  await bunnyExecute({ sql: 'DELETE FROM workshop_cohorts_sql WHERE id = ?', args: [cohortId] });
+}
 
 export async function listStudents(cohortId: string, activeOnly = false) { await initWorkshopBunnySchema(); const r = await bunnyExecute({ sql: `SELECT * FROM workshop_students_sql WHERE cohort_id = ? ${activeOnly ? 'AND active = 1' : ''} ORDER BY name`, args: [cohortId] }); return r.rows.map(student); }
 export async function getStudent(studentId: string) { await initWorkshopBunnySchema(); const r = await bunnyExecute({ sql: 'SELECT * FROM workshop_students_sql WHERE id = ?', args: [studentId] }); return r.rows[0] ? student(r.rows[0]) : null; }

@@ -160,3 +160,36 @@ export async function listZoomMeetings(): Promise<ZoomMeetingResponse[]> {
   const data = await response.json();
   return data.meetings || [];
 }
+
+/**
+ * Delete all recordings for a Zoom meeting
+ */
+export async function deleteZoomRecording(meetingId: number | string, action: 'trash' | 'delete' = 'trash'): Promise<void> {
+  const token = await getZoomAccessToken();
+  const response = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/recordings?action=${action}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok && response.status !== 204) {
+    const error = await response.text();
+    throw new Error(`Failed to delete recording: ${error}`);
+  }
+}
+
+export async function getZoomMeetingRecordings(meetingId: number | string): Promise<any> {
+  const token = await getZoomAccessToken();
+  const response = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/recordings`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    if (response.status === 404) return null; // No recordings found
+    throw new Error(`Failed to get zoom recordings: ${await response.text()}`);
+  }
+  return response.json();
+}
