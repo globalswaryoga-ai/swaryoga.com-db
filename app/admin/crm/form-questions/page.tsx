@@ -423,7 +423,7 @@ export default function GoogleFormBuilderPage() {
 
       {/* Header */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {activeForm ? (
               <button onClick={() => setActiveForm(null)} className="w-10 h-10 flex items-center justify-center bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200">
@@ -439,7 +439,7 @@ export default function GoogleFormBuilderPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             {!activeForm && (
               <button
                 onClick={async () => {
@@ -465,7 +465,7 @@ export default function GoogleFormBuilderPage() {
               </button>
             )}
             {activeForm && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <a
                   href={`https://swaryoga.com/enquiry?w=${activeForm.formId}`}
                   target="_blank"
@@ -706,7 +706,7 @@ export default function GoogleFormBuilderPage() {
                 <textarea rows={3} value={formSettingsData.description || ''} onChange={e => setFormSettingsData(f => ({ ...f, description: e.target.value }))} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">Start Date</label>
                   <input type="text" placeholder="e.g. 15 Dec 2026" value={formSettingsData.workshopDate || ''} onChange={e => setFormSettingsData(f => ({ ...f, workshopDate: e.target.value }))} className="w-full h-11 px-3 border border-slate-200 rounded-xl outline-none" />

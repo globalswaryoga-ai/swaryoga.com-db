@@ -46,8 +46,7 @@ function saveEnquiries(enquiries: any[]) {
     ensureDataDirExists();
     fs.writeFileSync(enquiriesFilePath, JSON.stringify(enquiries, null, 2));
   } catch (error) {
-    console.error('Error saving enquiries:', error);
-    throw error;
+    console.error('Error saving enquiries (likely read-only FS):', error);
   }
 }
 
