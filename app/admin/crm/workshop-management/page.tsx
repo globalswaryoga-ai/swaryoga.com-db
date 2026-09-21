@@ -1061,19 +1061,28 @@ export default function WorkshopManagementPage() {
                         <h3 className="font-bold text-slate-800">Automations</h3>
                       </div>
                       <div className="space-y-4">
-                        <button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className="w-full flex items-center justify-between p-4 rounded-xl border border-violet-200 bg-violet-50 hover:bg-violet-100 transition-colors disabled:opacity-50 text-left">
+                        <button type="button" onClick={() => void runWorkshopWorker(true)} disabled={runningWorker} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-colors text-left ${runningWorker ? "border-yellow-200 bg-yellow-50" : "border-violet-200 bg-violet-50 hover:bg-violet-100 disabled:opacity-50"}`}>
                           <div>
-                            <p className="font-bold text-violet-900">Preview AI Worker</p>
-                            <p className="text-xs text-violet-700 mt-1">Simulate tasks without sending messages</p>
+                            {runningWorker ? (
+                            <>
+                              <p className="font-bold text-yellow-900">Processing...</p>
+                              <p className="text-xs text-yellow-700 mt-1">Please wait, this may take a few minutes</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-bold text-violet-900">Preview AI Worker</p>
+                              <p className="text-xs text-violet-700 mt-1">Simulate tasks without sending messages</p>
+                            </>
+                          )}
                           </div>
-                          <Eye className="text-violet-500" />
+                          {runningWorker ? <RefreshCw className="text-yellow-600 animate-spin" /> : <Eye className="text-violet-500" />}
                         </button>
-                        <button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className="w-full flex items-center justify-between p-4 rounded-xl bg-violet-600 hover:bg-violet-700 transition-colors disabled:opacity-50 text-left text-white shadow-sm">
+                        <button type="button" onClick={() => void runWorkshopWorker(false)} disabled={runningWorker} className={`w-full flex items-center justify-between p-4 rounded-xl shadow-sm transition-colors text-left text-white ${runningWorker ? "bg-yellow-500" : "bg-violet-600 hover:bg-violet-700 disabled:opacity-50"}`}>
                           <div>
-                            <p className="font-bold">Run AI Worker Now</p>
-                            <p className="text-xs text-violet-200 mt-1">Execute pending tasks and messages immediately</p>
+                            <p className="font-bold">{runningWorker ? "Uploading & Syncing..." : "Run AI Worker Now"}</p>
+                            <p className="text-xs mt-1 text-white/80">{runningWorker ? "Processing Zoom recordings (this takes a few mins)" : "Execute pending tasks and messages immediately"}</p>
                           </div>
-                          <PlayCircle className="text-violet-200" />
+                          {runningWorker ? <RefreshCw className="text-white animate-spin" /> : <PlayCircle className="text-violet-200" />}
                         </button>
                       </div>
                     </div>
