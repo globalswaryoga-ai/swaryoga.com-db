@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { getStudent, upsertStudent, deactivateStudent } from '@/lib/workshopBunnyRepository';
-import { syncWorkshopStudentLead } from '@/lib/workshopStudentLeadSync';
+
 
 function isAdmin(request: NextRequest) {
   const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
@@ -12,9 +12,7 @@ export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const body = await request.json();
   if (!body.cohortId || !body.name) return NextResponse.json({ error: 'cohortId and name are required' }, { status: 400 });
-  const decoded: any = verifyToken((request.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
-  const lead = await syncWorkshopStudentLead({ ...body, ownerUserId: decoded?.userId });
-  const student = await upsertStudent({ ...body, ...lead, active: body.active !== false });
+  const student = await upsertStudent({ ...body, active: body.active !== false });
   return NextResponse.json({ student });
 }
 
@@ -26,7 +24,6 @@ export async function PATCH(request: NextRequest) {
   const existing: any = await getStudent(body.id);
   if (!existing) return NextResponse.json({ error: 'Student not found' }, { status: 404 });
 
-  const decoded: any = verifyToken((request.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
   const update = {
     name: String(body.name).trim(),
     email: String(body.email || '').trim() || undefined,
@@ -34,8 +31,7 @@ export async function PATCH(request: NextRequest) {
     whatsappNumber: String(body.whatsappNumber || '').trim() || undefined,
     active: body.active !== false,
   };
-  const lead = await syncWorkshopStudentLead({ ...existing, ...update, ownerUserId: decoded?.userId });
-  const student = await upsertStudent({ ...existing, ...update, ...lead, cohortId: existing.cohortId }, body.id);
+  const student = await upsertStudent({ ...existing, ...update, cohortId: existing.cohortId }, body.id);
   return NextResponse.json({ student });
 }
 
