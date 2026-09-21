@@ -126,6 +126,13 @@ export default function GoogleFormBuilderPage() {
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [submissionSearch, setSubmissionSearch] = useState('');
 
+  // Bulk Import State
+  const [showImportUI, setShowImportUI] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importColumns, setImportColumns] = useState<string[]>([]);
+  const [importMapping, setImportMapping] = useState<Record<string, string>>({});
+  const [isImporting, setIsImporting] = useState(false);
+
   const openSubmissionsModal = async (form: EnquiryForm) => {
     setSelectedFormForSubmissions(form);
     setShowSubmissionsModal(true);
@@ -229,6 +236,92 @@ export default function GoogleFormBuilderPage() {
     const answersMatch = JSON.stringify(sub.dynamicAnswers || {}).toLowerCase().includes(term);
     return nameMatch || phoneMatch || cityMatch || answersMatch;
   });
+
+  // ── Import Actions ──
+  const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !selectedFormForSubmissions) return;
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('workshopId', selectedFormForSubmissions.formId);
+      formData.append('action', 'preview');
+      formData.append('file', file);
+      
+      const res = await fetch('/api/admin/enquiries/import', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to read file');
+      
+      setImportFile(file);
+      setImportColumns(data.columns || []);
+      
+      // Auto-detect columns
+      const initialMap: Record<string, string> = {
+        name: (data.columns || []).find((c: string) => /name/i.test(c)) || '',
+        mobile: (data.columns || []).find((c: string) => /phone|mobile/i.test(c)) || '',
+        email: (data.columns || []).find((c: string) => /email|gmail/i.test(c)) || '',
+        gender: (data.columns || []).find((c: string) => /gender/i.test(c)) || '',
+        city: (data.columns || []).find((c: string) => /city|location/i.test(c)) || '',
+      };
+      
+      // Auto-map dynamic questions
+      submissionQuestions.forEach(q => {
+        const qLabel = (q.label?.en || q.fieldKey).toLowerCase();
+        initialMap[q.fieldKey] = (data.columns || []).find((c: string) => c.toLowerCase().includes(qLabel)) || '';
+      });
+      
+      setImportMapping(initialMap);
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const executeImport = async () => {
+    if (!importFile || !selectedFormForSubmissions) return;
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('workshopId', selectedFormForSubmissions.formId);
+      formData.append('workshopName', selectedFormForSubmissions.workshopName);
+      formData.append('action', 'import');
+      formData.append('file', importFile);
+      formData.append('mapping', JSON.stringify(importMapping));
+      
+      const selectedFields = ['name', 'mobile', 'email', 'gender', 'city'];
+      formData.append('selectedFields', JSON.stringify(selectedFields));
+      
+      const dynamicFields = submissionQuestions.map(q => q.fieldKey);
+      formData.append('dynamicFields', JSON.stringify(dynamicFields));
+      
+      const res = await fetch('/api/admin/enquiries/import', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.error || 'Failed to import');
+      
+      showToast(data.message);
+      
+      // Reset & Reload
+      setShowImportUI(false);
+      setImportFile(null);
+      setImportColumns([]);
+      openSubmissionsModal(selectedFormForSubmissions);
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [uploadingImage, setUploadingImage] = useState<'image' | 'qr' | 'formImage' | null>(null);
@@ -909,6 +1002,12 @@ export default function GoogleFormBuilderPage() {
 
               <div className="flex items-center gap-3">
                 <button
+                  onClick={() => setShowImportUI(!showImportUI)}
+                  className={`flex items-center gap-2 px-4 py-2 font-bold text-xs rounded-xl shadow transition-all ${showImportUI ? 'bg-slate-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}
+                >
+                  <Upload size={14} /> Import Data
+                </button>
+                <button
                   onClick={() => handleExportCSV(selectedFormForSubmissions.workshopName, filteredSubmissions, submissionQuestions)}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition-all"
                 >
@@ -928,6 +1027,93 @@ export default function GoogleFormBuilderPage() {
                 </button>
               </div>
             </div>
+
+            {/* Import Data UI */}
+            {showImportUI && (
+              <div className="bg-slate-50 border-b border-slate-200 p-6 animate-in fade-in slide-in-from-top-4">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {!importColumns.length ? (
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-center space-y-4">
+                      <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto">
+                        <Upload size={24} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-lg">Upload Excel or CSV File</h3>
+                        <p className="text-sm text-slate-500 max-w-md mx-auto mt-1">Select a file containing your exported form data to map and import directly into this form's submissions and CRM Leads.</p>
+                      </div>
+                      <div className="flex justify-center">
+                        <input 
+                          type="file" 
+                          accept=".xlsx,.xls,.csv" 
+                          onChange={handleImportFileChange} 
+                          disabled={isImporting} 
+                          className="text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 transition-colors" 
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm animate-in fade-in zoom-in-95">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                          <CheckCircle size={20} className="text-emerald-500" />
+                          Map Your Columns
+                        </h3>
+                        <button onClick={() => { setImportColumns([]); setImportFile(null); }} className="text-sm font-bold text-slate-500 hover:text-slate-700 px-3 py-1.5 bg-slate-100 rounded-lg">Cancel Upload</button>
+                      </div>
+                      
+                      <div className="grid md:grid-cols-2 gap-x-8 gap-y-4">
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2 border-b border-indigo-100 pb-2">Base Fields</h4>
+                          {['name', 'mobile', 'email', 'gender', 'city'].map((key) => (
+                            <div key={key} className="flex flex-col">
+                              <label className="text-[11px] font-bold text-slate-500 uppercase mb-1.5 capitalize">{key}</label>
+                              <select 
+                                value={importMapping[key] || ''} 
+                                onChange={(e) => setImportMapping({ ...importMapping, [key]: e.target.value })} 
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                              >
+                                <option value="">-- Ignore --</option>
+                                {importColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2 border-b border-emerald-100 pb-2">Custom Questions</h4>
+                          {submissionQuestions.length === 0 && (
+                            <p className="text-sm text-slate-400 italic">No custom questions in this form.</p>
+                          )}
+                          {submissionQuestions.map((q) => (
+                            <div key={q.fieldKey} className="flex flex-col">
+                              <label className="text-[11px] font-bold text-slate-500 uppercase mb-1.5 truncate" title={q.label.en}>{q.label.en}</label>
+                              <select 
+                                value={importMapping[q.fieldKey] || ''} 
+                                onChange={(e) => setImportMapping({ ...importMapping, [q.fieldKey]: e.target.value })} 
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+                              >
+                                <option value="">-- Ignore --</option>
+                                {importColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="mt-8 flex justify-end pt-5 border-t border-slate-100">
+                        <button 
+                          onClick={executeImport} 
+                          disabled={isImporting || !importMapping.name} 
+                          className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {isImporting ? <span className="animate-pulse">Importing...</span> : <><CheckCircle size={18} /> Run Import</>}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Filter & Stats Bar */}
             <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
