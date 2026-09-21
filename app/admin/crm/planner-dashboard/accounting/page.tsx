@@ -367,7 +367,7 @@ export default function LifePlannerAccountingPage() {
     const totalIncome = txns.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
     const totalExpenses = txns.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-    const totalInvestments = investments.filter(inv => inv.status === 'active').reduce((sum, inv) => sum + inv.amount, 0);
+    const totalInvestments = investments.filter(inv => inv?.status === 'active').reduce((sum, inv) => sum + inv?.amount, 0);
 
     return {
       totalIncome,
@@ -387,31 +387,31 @@ export default function LifePlannerAccountingPage() {
     let paid = 0;
     let overdue = 0;
 
-    investments.filter(inv => inv.status === 'active' && inv.type === 'investment_in').forEach(inv => {
-      if (!inv.amountReceivedDate) return;
+    investments.filter(inv => inv?.status === 'active' && inv?.type === 'investment_in').forEach(inv => {
+      if (!inv?.amountReceivedDate) return;
 
-      const receivedDate = new Date(inv.amountReceivedDate);
+      const receivedDate = new Date(inv?.amountReceivedDate);
       const daysSinceReceived = Math.floor((now.getTime() - receivedDate.getTime()) / (1000 * 60 * 60 * 24));
 
       let frequencyRate = 0;
       let frequencyDays = 365;
 
-      if (inv.dividendPayFrequency === 'monthly') {
-        frequencyRate = inv.monthlyRate || 0;
+      if (inv?.dividendPayFrequency === 'monthly') {
+        frequencyRate = inv?.monthlyRate || 0;
         frequencyDays = 30;
-      } else if (inv.dividendPayFrequency === 'quarterly') {
-        frequencyRate = inv.quarterlyRate || 0;
+      } else if (inv?.dividendPayFrequency === 'quarterly') {
+        frequencyRate = inv?.quarterlyRate || 0;
         frequencyDays = 90;
-      } else if (inv.dividendPayFrequency === 'semiannual') {
-        frequencyRate = inv.semiannualRate || 0;
+      } else if (inv?.dividendPayFrequency === 'semiannual') {
+        frequencyRate = inv?.semiannualRate || 0;
         frequencyDays = 180;
       } else {
-        frequencyRate = inv.yearlyRate || 0;
+        frequencyRate = inv?.yearlyRate || 0;
         frequencyDays = 365;
       }
 
-      const accruedDividend = (inv.amount * frequencyRate) / 100 * (daysSinceReceived / frequencyDays);
-      const alreadyPaid = inv.dividendPaid || 0;
+      const accruedDividend = (inv?.amount * frequencyRate) / 100 * (daysSinceReceived / frequencyDays);
+      const alreadyPaid = inv?.dividendPaid || 0;
       const pendingDividend = Math.max(0, accruedDividend - alreadyPaid);
 
       let nextPaymentDate = new Date(receivedDate);
@@ -440,10 +440,10 @@ export default function LifePlannerAccountingPage() {
     let dividendPending = 0;
     let dividendOverdue = 0;
 
-    const investmentDividends = investments.filter(inv => inv.status === 'active' && inv.type === 'investment_in').map(inv => {
-      if (!inv.amountReceivedDate) return null;
+    const investmentDividends = investments.filter(inv => inv?.status === 'active' && inv?.type === 'investment_in').map(inv => {
+      if (!inv?.amountReceivedDate) return null;
 
-      const receivedDate = new Date(inv.amountReceivedDate);
+      const receivedDate = new Date(inv?.amountReceivedDate);
       const daysSinceReceived = Math.floor((now.getTime() - receivedDate.getTime()) / (1000 * 60 * 60 * 24));
 
       // Get the rate based on dividend pay frequency
@@ -451,32 +451,32 @@ export default function LifePlannerAccountingPage() {
       let frequencyDays = 365;
       let frequencyLabel = 'yearly';
 
-      if (inv.dividendPayFrequency === 'monthly') {
-        frequencyRate = inv.monthlyRate || 0;
+      if (inv?.dividendPayFrequency === 'monthly') {
+        frequencyRate = inv?.monthlyRate || 0;
         frequencyDays = 30;
         frequencyLabel = 'monthly';
-      } else if (inv.dividendPayFrequency === 'quarterly') {
-        frequencyRate = inv.quarterlyRate || 0;
+      } else if (inv?.dividendPayFrequency === 'quarterly') {
+        frequencyRate = inv?.quarterlyRate || 0;
         frequencyDays = 90;
         frequencyLabel = 'quarterly';
-      } else if (inv.dividendPayFrequency === 'semiannual') {
-        frequencyRate = inv.semiannualRate || 0;
+      } else if (inv?.dividendPayFrequency === 'semiannual') {
+        frequencyRate = inv?.semiannualRate || 0;
         frequencyDays = 180;
         frequencyLabel = 'semiannual';
       } else {
-        frequencyRate = inv.yearlyRate || 0;
+        frequencyRate = inv?.yearlyRate || 0;
         frequencyDays = 365;
         frequencyLabel = 'yearly';
       }
 
       // Calculate accrued dividend based on frequency rate
-      const accruedDividend = (inv.amount * frequencyRate) / 100 * (daysSinceReceived / frequencyDays);
+      const accruedDividend = (inv?.amount * frequencyRate) / 100 * (daysSinceReceived / frequencyDays);
 
       // Calculate next payment date based on frequency
       let nextPaymentDate = new Date(receivedDate);
       nextPaymentDate.setDate(nextPaymentDate.getDate() + frequencyDays);
 
-      const alreadyPaid = inv.dividendPaid || 0;
+      const alreadyPaid = inv?.dividendPaid || 0;
       const pendingDividend = Math.max(0, accruedDividend - alreadyPaid);
       const isOverdue = nextPaymentDate < now && pendingDividend > 0;
 
@@ -489,11 +489,11 @@ export default function LifePlannerAccountingPage() {
       }
 
       return {
-        name: inv.name,
-        amount: inv.amount,
+        name: inv?.name,
+        amount: inv?.amount,
         dividendRate: frequencyRate,
-        frequency: inv.dividendPayFrequency,
-        receivedDate: inv.amountReceivedDate,
+        frequency: inv?.dividendPayFrequency,
+        receivedDate: inv?.amountReceivedDate,
         accruedDividend: Math.round(accruedDividend * 100) / 100,
         alreadyPaid,
         pending: Math.round(pendingDividend * 100) / 100,
@@ -698,7 +698,7 @@ export default function LifePlannerAccountingPage() {
 
       if (editingInvestment) {
         updatedInvestments = investments.map(inv =>
-          inv.id === editingInvestment.id
+          inv?.id === editingInvestment.id
             ? { ...investmentData, id: editingInvestment.id, created_at: editingInvestment.created_at }
             : inv
         );
@@ -731,7 +731,7 @@ export default function LifePlannerAccountingPage() {
   const handleDeleteInvestment = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
-        const updatedInvestments = investments.filter(inv => inv.id !== id);
+        const updatedInvestments = investments.filter(inv => inv?.id !== id);
         const success = await saveAccountingData(accounts, transactions, updatedInvestments, budgetPlan);
 
         if (success) {
@@ -942,7 +942,7 @@ export default function LifePlannerAccountingPage() {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-swar-text-secondary">Dividends to Be Paid</p>
-                    <p className="text-2xl font-bold text-orange-600">₹{calculateDashboardDividends().toBePaid.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-orange-600">₹{calculateDashboardDividends().toBePaid?.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -954,7 +954,7 @@ export default function LifePlannerAccountingPage() {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-swar-text-secondary">Dividends Paid</p>
-                    <p className="text-2xl font-bold text-swar-primary">₹{calculateDashboardDividends().paid.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-swar-primary">₹{calculateDashboardDividends().paid?.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -1001,7 +1001,7 @@ export default function LifePlannerAccountingPage() {
               const [selY, selM] = dashboardMonth.split('-').map(Number);
               const monthTxns = transactions.filter(t => {
                 const d = new Date(t.date);
-                return d.getFullYear() === selY && d.getMonth() + 1 === selM;
+                return d?.getFullYear() === selY && d?.getMonth() + 1 === selM;
               });
 
               // Get amount by type for a given row key
@@ -1029,8 +1029,8 @@ export default function LifePlannerAccountingPage() {
               const monthOptions: string[] = [];
               for (let i = 0; i < 24; i++) {
                 const d = new Date();
-                d.setMonth(d.getMonth() - i);
-                monthOptions.push(d.toISOString().slice(0, 7));
+                d?.setMonth(d?.getMonth() - i);
+                monthOptions.push(d?.toISOString().slice(0, 7));
               }
 
               // Totals for selected month
@@ -1084,7 +1084,7 @@ export default function LifePlannerAccountingPage() {
                     {/* Loan Received — borrowed, NOT income */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
                       <p className="text-xs text-blue-700 font-semibold">🏦 Loan Received</p>
-                      <p className="text-xl font-bold text-blue-800">₹{loanReceived.toLocaleString()}</p>
+                      <p className="text-xl font-bold text-blue-800">₹{loanReceived?.toLocaleString()}</p>
                       <p className="text-xs text-blue-600 mt-0.5">Borrowed (not income)</p>
                     </div>
                     {/* Total Expenses */}
@@ -1388,12 +1388,12 @@ export default function LifePlannerAccountingPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                       <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                         <p className="text-sm text-swar-text-secondary">Total Dividend</p>
-                        <p className="text-2xl font-bold text-blue-600">₹{divStats.totalDividend.toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-blue-600">₹{divStats.totalDividend?.toLocaleString()}</p>
                       </div>
 
                       <div className="bg-swar-primary-light p-4 rounded-lg border border-swar-primary">
                         <p className="text-sm text-swar-text-secondary">Dividend Paid</p>
-                        <p className="text-2xl font-bold text-swar-primary">₹{divStats.dividendPaid.toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-swar-primary">₹{divStats.dividendPaid?.toLocaleString()}</p>
                       </div>
 
                       <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
@@ -1403,7 +1403,7 @@ export default function LifePlannerAccountingPage() {
 
                       <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                         <p className="text-sm text-swar-text-secondary">To Be Paid</p>
-                        <p className="text-2xl font-bold text-orange-600">₹{divStats.dividendToBePaid.toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-orange-600">₹{divStats.dividendToBePaid?.toLocaleString()}</p>
                       </div>
 
                       <div className="bg-red-50 p-4 rounded-lg border border-red-200">
@@ -1435,20 +1435,20 @@ export default function LifePlannerAccountingPage() {
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                               {divStats.investmentDividends.map((inv, idx) => {
-                                const investment = investments.find(i => i.name === inv.name && i.status === 'active' && i.type === 'investment_in');
+                                const investment = investments.find(i => i.name === inv?.name && i.status === 'active' && i.type === 'investment_in');
                                 return (
                                   <tr key={idx}>
-                                    <td className="px-4 py-3 text-sm font-medium text-swar-text">{inv.name}</td>
-                                    <td className="px-4 py-3 text-sm text-swar-text">₹{inv.amount.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-sm text-swar-text">{inv.dividendRate}%</td>
-                                    <td className="px-4 py-3 text-sm text-swar-text capitalize">{inv.frequency}</td>
-                                    <td className="px-4 py-3 text-sm font-semibold text-blue-600">₹{inv.accruedDividend.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-sm font-semibold text-swar-primary">₹{inv.alreadyPaid.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-sm font-semibold text-yellow-600">₹{inv.pending.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-sm text-swar-text">{new Date(inv.nextPaymentDate).toLocaleDateString()}</td>
+                                    <td className="px-4 py-3 text-sm font-medium text-swar-text">{inv?.name}</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text">₹{inv?.amount.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text">{inv?.dividendRate}%</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text capitalize">{inv?.frequency}</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-blue-600">₹{inv?.accruedDividend?.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-swar-primary">₹{inv?.alreadyPaid?.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm font-semibold text-yellow-600">₹{inv?.pending.toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm text-swar-text">{new Date(inv?.nextPaymentDate).toLocaleDateString()}</td>
                                     <td className="px-4 py-3 text-sm">
-                                      <span className={`px-2 py-1 rounded text-xs font-semibold ${inv.isOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                        {inv.isOverdue ? 'OVERDUE' : 'PENDING'}
+                                      <span className={`px-2 py-1 rounded text-xs font-semibold ${inv?.isOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                        {inv?.isOverdue ? 'OVERDUE' : 'PENDING'}
                                       </span>
                                     </td>
                                     <td className="px-4 py-3 text-sm text-center">
@@ -1781,7 +1781,7 @@ export default function LifePlannerAccountingPage() {
                       <select
                         value={transactionForm.investmentId}
                         onChange={(e) => {
-                          const selected = investments.find(inv => inv.id === e.target.value);
+                          const selected = investments.find(inv => inv?.id === e.target.value);
                           setTransactionForm({
                             ...transactionForm,
                             investmentId: e.target.value,
@@ -1791,9 +1791,9 @@ export default function LifePlannerAccountingPage() {
                         className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">Select person/investment</option>
-                        {investments.filter(inv => inv.status === 'active' && inv.type === 'investment_in').map((investment) => {
+                        {investments.filter(inv => inv?.status === 'active' && inv?.type === 'investment_in').map((investment) => {
                           const divStats = calculateDividends();
-                          const invDiv = divStats.investmentDividends.find(d => d.name === investment.name);
+                          const invDiv = divStats.investmentDividends.find(d => d?.name === investment.name);
                           const maxAmount = invDiv?.pending || 0;
                           return (
                             <option key={investment.id} value={investment.id}>
@@ -1804,7 +1804,7 @@ export default function LifePlannerAccountingPage() {
                       </select>
                       {transactionForm.investmentId && (() => {
                         const divStats = calculateDividends();
-                        const invDiv = divStats.investmentDividends.find(d => d.name === transactionForm.investmentName);
+                        const invDiv = divStats.investmentDividends.find(d => d?.name === transactionForm.investmentName);
                         const maxAmount = invDiv?.pending || 0;
                         const isExceeding = transactionForm.amount > maxAmount;
                         return isExceeding ? (
@@ -2354,7 +2354,7 @@ export default function LifePlannerAccountingPage() {
                                 alert('Please enter a valid paid amount');
                                 return;
                               }
-                              const investmentToUpdate = investments.find(inv => inv.id === selectedInvestmentView!.id);
+                              const investmentToUpdate = investments.find(inv => inv?.id === selectedInvestmentView!.id);
                               if (!investmentToUpdate) {
                                 alert('Investment not found');
                                 return;
@@ -2395,7 +2395,7 @@ export default function LifePlannerAccountingPage() {
 
                               const newDividendPaid = (investmentToUpdate.dividendPaid || 0) + (isEditing ? 0 : paymentForm.paidAmount);
                               const updatedInvestment = { ...investmentToUpdate, dividendPaid: newDividendPaid };
-                              const updatedInvestments = investments.map(inv => inv.id === selectedInvestmentView!.id ? updatedInvestment : inv);
+                              const updatedInvestments = investments.map(inv => inv?.id === selectedInvestmentView!.id ? updatedInvestment : inv);
 
                               saveAccountingData(accounts, updatedTransactions, updatedInvestments, budgetPlan).then(success => {
                                 if (success) {
@@ -2406,7 +2406,7 @@ export default function LifePlannerAccountingPage() {
                                   }
                                   setEditingDividendIndex(null);
                                   const action = isEditing ? 'updated' : 'recorded';
-                                  alert(`Total payment of ₹${totalPaid.toLocaleString(undefined, {maximumFractionDigits: 2})} ${action}${paymentForm.paidPenalty > 0 ? ` (with ₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}${paymentForm.giftAmount > 0 ? ` + ₹${paymentForm.giftAmount.toLocaleString(undefined, {maximumFractionDigits: 2})} gift` : ''} for ${paymentForm.paidDate}`);
+                                  alert(`Total payment of ₹${totalPaid?.toLocaleString(undefined, {maximumFractionDigits: 2})} ${action}${paymentForm.paidPenalty > 0 ? ` (with ₹${paymentForm.paidPenalty.toLocaleString(undefined, {maximumFractionDigits: 2})} penalty)` : ''}${paymentForm.giftAmount > 0 ? ` + ₹${paymentForm.giftAmount.toLocaleString(undefined, {maximumFractionDigits: 2})} gift` : ''} for ${paymentForm.paidDate}`);
                                 } else {
                                   alert(`Failed to ${isEditing ? 'update' : 'record'} payment`);
                                 }

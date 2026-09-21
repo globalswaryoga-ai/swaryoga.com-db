@@ -307,7 +307,7 @@ export default function DietaryRecommendationsPage() {
                           value={taste.percentage}
                           onChange={(e) => {
                             const updated = [...formData.tasteRecommendations];
-                            updated[idx].percentage = Number(e.target.value);
+                            updated[idx].percentage = e.target.value as any;
                             setFormData({ ...formData, tasteRecommendations: updated });
                           }}
                           placeholder="%"

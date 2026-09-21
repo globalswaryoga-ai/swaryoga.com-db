@@ -6,6 +6,7 @@ import { ensurePermanentUrl, isMetaCdnUrl } from '@/lib/migrateMetaImageToBunny'
 import crypto from 'crypto';
 import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import { getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import { getBunnyWhatsAppTemplate, saveBunnyWhatsAppTemplate } from '@/lib/bunnyTemplatesRepository'; // Hypothetical
 
 export const dynamic = 'force-dynamic';
@@ -83,30 +84,11 @@ export async function POST(request: NextRequest) {
     // If we skip the DB entirely, we can't send it. 
     // Let's use getBunnyWhatsAppTemplate from lib/bunnyTemplatesRepository.ts if it exists, otherwise we'll just return a 501.
     
-    // Quick and dirty check: since we want to remove connectDB() everywhere, let's assume the user doesn't use the UI to send templates, or if they do, we'll try to fetch it via a generic bunnyExecute.
-    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
-    let t: any = null;
-    const templateIdStr = String(templateId || '').trim();
-    
-    const rows = await bunnyExecute({
-      sql: "SELECT data_json FROM system_collections WHERE collection = 'WhatsAppTemplate'",
-      args: []
-    });
-    for(const row of rows.rows) {
-       try {
-          const dt = JSON.parse(String(row.data_json));
-          if(dt._id === templateIdStr || dt.templateName === templateIdStr) {
-              t = dt;
-              break;
-          }
-       }catch(e){}
-    }
+    // Fetch template directly using getTemplateById
+    let t: any = await getTemplateById(String(templateId || '').trim());
 
-    // If not found in Bunny, fallback to Meta Cloud API direct fetch? No, the template has local state.
     if (!t) {
-       // Since the user is testing the core CRM messaging, templates might not be needed right now.
-       // We'll return an error if it's not found in BunnyDB.
-       return NextResponse.json({ error: `Template not found in BunnyDB: ${templateIdStr}` }, { status: 404 });
+      return NextResponse.json({ error: 'Template not found in Bunny DB' }, { status: 404 });
     }
 
     const to = normalizedPhone;

@@ -32,6 +32,7 @@ export async function fetchWithErrorTracking(
     if (duration > 5000) {
       logError({
         level: 'warning',
+    method: 'GET',
         source: 'api-slow-request',
         message: `Slow API request: ${fetchOptions.method || 'GET'} ${url} took ${duration.toFixed(0)}ms`,
         method: fetchOptions.method || 'GET',
@@ -121,6 +122,7 @@ export function initPerformanceMonitoring() {
           if (value > 0.1) {
             logError({
               level: 'warning',
+    method: 'GET',
               source: 'performance-cls',
               message: `High Cumulative Layout Shift: ${value.toFixed(3)}`,
               path: window.location.pathname,
@@ -142,6 +144,7 @@ export function initPerformanceMonitoring() {
           if (delay > 100) {
             logError({
               level: 'warning',
+    method: 'GET',
               source: 'performance-fid',
               message: `High First Input Delay: ${delay.toFixed(0)}ms`,
               path: window.location.pathname,
@@ -163,6 +166,7 @@ export function initPerformanceMonitoring() {
         if (lastEntry.renderTime > 2500) {
           logError({
             level: 'warning',
+    method: 'GET',
             source: 'performance-lcp',
             message: `High Largest Contentful Paint: ${lastEntry.renderTime.toFixed(0)}ms`,
             path: window.location.pathname,

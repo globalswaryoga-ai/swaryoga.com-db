@@ -582,7 +582,7 @@ export default function GoogleFormBuilderPage() {
                         className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-emerald-200/60"
                       >
                         <Eye size={15} />
-                        <span>View Data & Downloads ({f.submissionCount || 0})</span>
+                        <span>View Data & Downloads ({(f as any).submissionCount || 0})</span>
                       </button>
                     </div>
                   </div>

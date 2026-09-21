@@ -1530,7 +1530,7 @@ export default function SalesPage() {
                         className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                       >
                         <option value="all">All</option>
-                        {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                        {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
                       </select>
                       <select
                         value={fromYear}
@@ -1538,7 +1538,7 @@ export default function SalesPage() {
                         onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: monthStartDateInputValue(Number(e.target.value), fromMonth) }))}
                         className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
                       >
-                        {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
+                        {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
                     </div>
                     {/* Exact-day override — the month/year selects above only snap to month boundaries */}
@@ -1570,7 +1570,7 @@ export default function SalesPage() {
                         className="w-full bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
                       >
                         <option value="all">All</option>
-                        {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                        {MONTH_NAMES.map((m, i) => <option key={m} value={String(i)}>{m}</option>)}
                       </select>
                       <select
                         value={toYear}
@@ -1578,7 +1578,7 @@ export default function SalesPage() {
                         onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: monthEndDateInputValue(Number(e.target.value), toMonth) }))}
                         className="bg-black border border-white/30 rounded-lg px-3 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:opacity-40"
                       >
-                        {dateRangeYearOptions().map((y) => <option key={y} value={y}>{y}</option>)}
+                        {dateRangeYearOptions().map((y) => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
                     </div>
                     {/* Exact-day override — the month/year selects above only snap to month boundaries */}

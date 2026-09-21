@@ -7,14 +7,14 @@ import { getSadhanaSchedulerStatus } from '@/lib/sadhanaSchedulerServiceV2';
 let schedulerLogs: any[] = [];
 const MAX_LOGS = 100;
 
-export function addSchedulerLog(log: any) {
+function addSchedulerLog(log: any) {
   schedulerLogs.unshift(log);
   if (schedulerLogs.length > MAX_LOGS) {
     schedulerLogs.pop();
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
     // Check scheduler status
     const status = getSadhanaSchedulerStatus();

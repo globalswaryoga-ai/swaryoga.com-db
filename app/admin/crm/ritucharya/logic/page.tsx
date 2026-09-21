@@ -83,7 +83,7 @@ export default function RitucharyaLogicPage() {
   };
 
   const handleSave = async () => {
-    if (!formData.characterEn.trim()) {
+    if (!(formData.characterEn || '').trim()) {
       alert('Please enter character description (English)');
       return;
     }
@@ -436,7 +436,7 @@ export default function RitucharyaLogicPage() {
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Character (English)</label>
                 <textarea
-                  value={formData.characterEn}
+                  value={(formData.characterEn || '')}
                   onChange={(e) => setFormData({ ...formData, characterEn: e.target.value })}
                   placeholder="e.g., Hot, dry season with intense sun..."
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"

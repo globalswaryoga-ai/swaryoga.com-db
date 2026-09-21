@@ -1171,7 +1171,7 @@ export default function MetaInboxPage() {
     if (conv.unreadCount && conv.unreadCount > 0) {
       // Optimistically set unread count to 0 in local state
       setConversations(prev => prev.map(c => 
-        c.leadId === conv.leadId ? { ...c, unreadCount: 0 } : c
+        c.phoneNumber === conv.phoneNumber ? { ...c, unreadCount: 0 } : c
       ));
       // Also update the selected conversation
       setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
@@ -1371,9 +1371,9 @@ export default function MetaInboxPage() {
     setBulkActionLoading(true);
     
     // Optimistically update local state immediately
-    const toMarkIds = new Set(toMark.map(c => c.leadId));
+    const toMarkIds = new Set(toMark.map(c => c.phoneNumber));
     setConversations(prev => prev.map(c => 
-      toMarkIds.has(c.leadId) ? { ...c, unreadCount: 0 } : c
+      toMarkIds.has(c.phoneNumber) ? { ...c, unreadCount: 0 } : c
     ));
     
     try {
@@ -2846,7 +2846,7 @@ export default function MetaInboxPage() {
                     // Optimistically update local state
                     if (selected?.unreadCount && selected.unreadCount > 0) {
                       setConversations(prev => prev.map(c => 
-                        c.leadId === selected.leadId ? { ...c, unreadCount: 0 } : c
+                        c.phoneNumber === selected.phoneNumber ? { ...c, unreadCount: 0 } : c
                       ));
                       setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
                     }

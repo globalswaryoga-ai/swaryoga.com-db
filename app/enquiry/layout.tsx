@@ -5,12 +5,10 @@ type Props = {
   children: React.ReactNode;
 };
 
-export async function generateMetadata({
-  searchParams,
-}: {
-  searchParams: Promise<{ w?: string; workshopId?: string }> | { w?: string; workshopId?: string };
+export async function generateMetadata(props: {
+  searchParams: Promise<{ w?: string; workshopId?: string }>;
 }): Promise<Metadata> {
-  const params = await searchParams;
+  const params = await props.searchParams;
   const formId = params?.w || params?.workshopId || '';
 
   let title = 'Swar Yoga Enquiry Form';
@@ -57,6 +55,9 @@ export async function generateMetadata({
   };
 }
 
-export default function EnquiryLayout({ children }: Props) {
-  return <>{children}</>;
+export default async function EnquiryLayout(props: Props & {
+  searchParams: Promise<{ w?: string; workshopId?: string }>;
+}) {
+  const searchParams = await props.searchParams;
+  return <>{props.children}</>;
 }
