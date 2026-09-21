@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityMember, User } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import crypto from 'node:crypto';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +15,6 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    await connectDB();
 
     const body = await request.json().catch(() => null);
     const communityId = typeof body?.communityId === 'string' ? body.communityId.trim() : '';
@@ -35,8 +34,12 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if already a member by mobile
-      const existing = await CommunityMember.findOne({ communityId, mobile: manualMember.mobile });
-      if (existing) {
+      const existingRes = await bunnyExecute({
+        sql: "SELECT document_id FROM community_members_sql WHERE community_id = ? AND json_extract(data_json, '$.mobile') = ? LIMIT 1",
+        args: [communityId, manualMember.mobile]
+      });
+      
+      if (existingRes.rows.length > 0) {
         return NextResponse.json({ error: 'A member with this mobile number already exists in this community' }, { status: 400 });
       }
 
@@ -48,22 +51,30 @@ export async function POST(request: NextRequest) {
         communityId,
         communityName: communityId, // Will be updated if we find a better name
         status: 'active',
-        joinedAt: new Date(),
+        joinedAt: new Date().toISOString(),
         approved: true,
-        approvedAt: new Date(),
+        approvedAt: new Date().toISOString(),
         approvedBy: decoded.username || 'admin',
       };
     } else if (userId) {
       // Search & Add Mode (from existing User table or profile ID)
-      const user = (await User.findOne({ $or: [{ profileId: userId }, { email: userId }] }).lean()) as any;
+      const userRes = await bunnyExecute({
+        sql: 'SELECT * FROM users WHERE userId = ? OR email = ? LIMIT 1',
+        args: [userId, userId]
+      });
+      const user = userRes.rows[0] as any;
       
       if (!user) {
         return NextResponse.json({ error: 'User not found in system' }, { status: 404 });
       }
 
       // Check if already a member
-      const existing = await CommunityMember.findOne({ communityId, userId: user.profileId });
-      if (existing) {
+      const existingRes = await bunnyExecute({
+        sql: "SELECT document_id FROM community_members_sql WHERE community_id = ? AND user_id = ? LIMIT 1",
+        args: [communityId, user.userId || user.id]
+      });
+
+      if (existingRes.rows.length > 0) {
         return NextResponse.json({ error: 'User is already a member of this community' }, { status: 400 });
       }
 
@@ -71,13 +82,13 @@ export async function POST(request: NextRequest) {
         name: user.name || 'Anonymous',
         mobile: user.phone || '',
         email: user.email,
-        userId: user.profileId,
+        userId: user.userId || user.id,
         communityId,
         communityName: communityId,
         status: 'active',
-        joinedAt: new Date(),
+        joinedAt: new Date().toISOString(),
         approved: true,
-        approvedAt: new Date(),
+        approvedAt: new Date().toISOString(),
         approvedBy: (decoded as any).username || 'admin',
       };
     } else {
@@ -85,12 +96,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the member
-    const newMember = await CommunityMember.create(memberData);
+    const docId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+    await bunnyExecute({
+      sql: 'INSERT INTO community_members_sql (document_id, community_id, user_id, status, approved, joined_at, data_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      args: [
+        docId, 
+        memberData.communityId, 
+        memberData.userId, 
+        memberData.status, 
+        memberData.approved ? 1 : 0, 
+        nowIso, 
+        JSON.stringify(memberData), 
+        nowIso, 
+        nowIso
+      ]
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Member added successfully',
-      data: newMember
+      data: { ...memberData, _id: docId }
     });
 
   } catch (error) {

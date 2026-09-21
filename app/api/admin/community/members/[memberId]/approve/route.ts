@@ -1,7 +1,4 @@
-import { connectDB, Community } from '@/lib/db';
-
-
-import { CommunityMember } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
@@ -25,27 +22,29 @@ export async function PUT(
       );
     }
 
-    await connectDB();
-
     const { memberId } = params;
 
-    // Validate MongoDB ID format
-    if (!memberId.match(/^[0-9a-fA-F]{24}$/)) {
+    if (!memberId) {
       return NextResponse.json(
-        { error: 'Invalid member ID format' },
+        { error: 'Member ID is required' },
         { status: 400 }
       );
     }
 
     // Find member
-    const member = await CommunityMember.findById(memberId);
+    const memberResult = await bunnyExecute({
+      sql: 'SELECT data_json FROM community_members_sql WHERE document_id = ?',
+      args: [memberId]
+    });
 
-    if (!member) {
+    if (memberResult.rows.length === 0) {
       return NextResponse.json(
         { error: 'Member not found' },
         { status: 404 }
       );
     }
+
+    const member = JSON.parse(String(memberResult.rows[0].data_json));
 
     // Check if member is already approved
     if (member.approved) {
@@ -61,14 +60,21 @@ export async function PUT(
 
     // Update member approval status
     member.approved = true;
-    member.approvedAt = new Date();
+    member.approvedAt = new Date().toISOString();
     member.approvedBy = decoded.userId || decoded.username || 'admin';
 
-    await member.save();
+    await bunnyExecute({
+      sql: 'UPDATE community_members_sql SET approved = 1, updated_at = ?, data_json = ? WHERE document_id = ?',
+      args: [new Date().toISOString(), JSON.stringify(member), memberId]
+    });
 
     // NEW: Also add to linked WhatsApp QR group if exists
     try {
-      const community = await Community.findOne({ id: member.communityId });
+      const commResult = await bunnyExecute({
+        sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'communities' AND JSON_EXTRACT(document_json, '$.id') = ?",
+        args: [member.communityId]
+      });
+      const community = commResult.rows.length > 0 ? JSON.parse(String(commResult.rows[0].document_json)) : null;
       if (community?.whatsappGroupId && member.mobile) {
         const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
         const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;

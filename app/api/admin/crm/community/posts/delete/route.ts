@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityPost } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +8,6 @@ export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     // Verify admin token
     const authHeader = request.headers.get('Authorization') || '';
     const token = authHeader.replace('Bearer ', '');
@@ -27,15 +24,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'postId is required' }, { status: 400 });
     }
 
-    // Validate ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(postId)) {
-      return NextResponse.json({ error: 'Invalid postId' }, { status: 400 });
-    }
-
     // Delete the post
-    const result = await CommunityPost.findByIdAndDelete(postId);
+    const result = await bunnyExecute({
+      sql: 'DELETE FROM community_posts_sql WHERE document_id = ?',
+      args: [postId]
+    });
 
-    if (!result) {
+    if (!result.rowsAffected || result.rowsAffected === 0) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 

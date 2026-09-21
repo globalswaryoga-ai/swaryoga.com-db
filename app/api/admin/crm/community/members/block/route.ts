@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityMember } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { verifyCommunityTenant, getAccessibleCommunityIds } from '@/lib/crm-handlers';
 
@@ -31,8 +31,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Either memberId or userId is required' }, { status: 400 });
     }
 
-    await connectDB();
-
     // Community-level tenant isolation
     if (communityId) {
       if (!(await verifyCommunityTenant(decoded, communityId))) {
@@ -40,41 +38,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let filter: any = {};
+    let clauses: string[] = [];
+    let args: any[] = [];
     if (memberId) {
-      filter._id = memberId;
+      clauses.push("document_id = ?"); args.push(memberId);
     } else if (userId && communityId) {
-      filter = { userId, communityId };
+      clauses.push("user_id = ?"); args.push(userId);
+      clauses.push("community_id = ?"); args.push(communityId);
     } else if (userId) {
+      clauses.push("user_id = ?"); args.push(userId);
       // Block from accessible communities only
       const accessibleIds = await getAccessibleCommunityIds(decoded);
-      if (accessibleIds) filter = { userId, communityId: { $in: accessibleIds } };
-      else filter = { userId };
+      if (accessibleIds && accessibleIds.length > 0) {
+        clauses.push(`community_id IN (${accessibleIds.map(() => '?').join(',')})`);
+        args.push(...accessibleIds);
+      }
     }
 
-    const result = await CommunityMember.updateMany(
-      { ...filter },
-      {
-        $set: {
-          status: 'banned',
-          'chatPermissions.canSend': false,
-          'metadata.bannedAt': new Date(),
-          'metadata.bannedBy': decoded.userId || decoded.username || 'admin',
-          'metadata.banReason': reason,
-          updatedAt: new Date()
-        }
-      }
-    );
+    const nowIso = new Date().toISOString();
+    const adminUser = decoded.userId || decoded.username || 'admin';
+    const result = await bunnyExecute({
+      sql: `UPDATE community_members_sql 
+            SET status = 'banned', 
+                updated_at = ?,
+                data_json = json_set(data_json, '$.status', 'banned', '$.chatPermissions.canSend', false, '$.metadata.bannedAt', ?, '$.metadata.bannedBy', ?, '$.metadata.banReason', ?, '$.updatedAt', ?) 
+            WHERE ${clauses.join(' AND ')}`,
+      args: [nowIso, nowIso, adminUser, reason, nowIso, ...args]
+    });
 
-    if (result.matchedCount === 0) {
+    const modifiedCount = result.rowsAffected || 0;
+
+    if (modifiedCount === 0) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully blocked ${result.modifiedCount} member(s)`,
+      message: `Successfully blocked ${modifiedCount} member(s)`,
       data: {
-        blockedCount: result.modifiedCount,
+        blockedCount: modifiedCount,
         reason
       }
     });
@@ -107,8 +109,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Either memberId or userId is required' }, { status: 400 });
     }
 
-    await connectDB();
-
     // Community-level tenant isolation
     if (communityId) {
       if (!(await verifyCommunityTenant(decoded, communityId))) {
@@ -116,44 +116,44 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    let filter: any = {};
+    let clauses: string[] = [];
+    let args: any[] = [];
     if (memberId) {
-      filter._id = memberId;
+      clauses.push("document_id = ?"); args.push(memberId);
     } else if (userId && communityId) {
-      filter = { userId, communityId };
+      clauses.push("user_id = ?"); args.push(userId);
+      clauses.push("community_id = ?"); args.push(communityId);
     } else if (userId) {
+      clauses.push("user_id = ?"); args.push(userId);
       const accessibleIds = await getAccessibleCommunityIds(decoded);
-      if (accessibleIds) filter = { userId, communityId: { $in: accessibleIds } };
-      else filter = { userId };
+      if (accessibleIds && accessibleIds.length > 0) {
+        clauses.push(`community_id IN (${accessibleIds.map(() => '?').join(',')})`);
+        args.push(...accessibleIds);
+      }
     }
 
-    const result = await CommunityMember.updateMany(
-      { ...filter },
-      {
-        $set: {
-          status: 'active',
-          'chatPermissions.canSend': true,
-          'metadata.unbannedAt': new Date(),
-          'metadata.unbannedBy': decoded.userId || decoded.username || 'admin',
-          updatedAt: new Date()
-        },
-        $unset: {
-          'metadata.bannedAt': '',
-          'metadata.bannedBy': '',
-          'metadata.banReason': ''
-        }
-      }
-    );
+    const nowIso = new Date().toISOString();
+    const adminUser = decoded.userId || decoded.username || 'admin';
+    const result = await bunnyExecute({
+      sql: `UPDATE community_members_sql 
+            SET status = 'active', 
+                updated_at = ?,
+                data_json = json_remove(json_set(data_json, '$.status', 'active', '$.chatPermissions.canSend', true, '$.metadata.unbannedAt', ?, '$.metadata.unbannedBy', ?, '$.updatedAt', ?), '$.metadata.bannedAt', '$.metadata.bannedBy', '$.metadata.banReason') 
+            WHERE ${clauses.join(' AND ')}`,
+      args: [nowIso, nowIso, adminUser, nowIso, ...args]
+    });
 
-    if (result.matchedCount === 0) {
+    const modifiedCount = result.rowsAffected || 0;
+
+    if (modifiedCount === 0) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully unblocked ${result.modifiedCount} member(s)`,
+      message: `Successfully unblocked ${modifiedCount} member(s)`,
       data: {
-        unblockedCount: result.modifiedCount
+        unblockedCount: modifiedCount
       }
     });
   } catch (error) {
@@ -179,8 +179,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const communityId = searchParams.get('communityId') || '';
 
-    await connectDB();
-
     // Community-level tenant isolation
     if (communityId) {
       if (!(await verifyCommunityTenant(decoded, communityId))) {
@@ -188,18 +186,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let filter: any = { status: 'banned' };
+    let clauses: string[] = ["status = 'banned'"];
+    let args: any[] = [];
     if (communityId) {
-      filter.communityId = communityId;
+      clauses.push("community_id = ?"); args.push(communityId);
     } else {
       const accessibleIds = await getAccessibleCommunityIds(decoded);
-      if (accessibleIds) filter.communityId = { $in: accessibleIds };
+      if (accessibleIds && accessibleIds.length > 0) {
+        clauses.push(`community_id IN (${accessibleIds.map(() => '?').join(',')})`);
+        args.push(...accessibleIds);
+      }
     }
 
-    const blockedMembers = await CommunityMember.find({ ...filter })
-      .sort({ 'metadata.bannedAt': -1 })
-      .limit(100)
-      .lean();
+    const result = await bunnyExecute({
+      sql: `SELECT data_json FROM community_members_sql WHERE ${clauses.join(' AND ')} ORDER BY updated_at DESC LIMIT 100`,
+      args
+    });
+
+    const blockedMembers = result.rows.map((r: any) => JSON.parse(String(r.data_json)));
 
     return NextResponse.json({
       success: true,

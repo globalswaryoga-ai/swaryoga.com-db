@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityPost } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -30,12 +30,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'postId is required' }, { status: 400 });
     }
 
-    await connectDB();
+    const postRes = await bunnyExecute({
+      sql: 'SELECT data_json FROM community_posts_sql WHERE document_id = ?',
+      args: [postId]
+    });
 
-    const post = await CommunityPost.findOne({ _id: postId });
-    if (!post) {
+    if (postRes.rows.length === 0) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
+
+    const post = JSON.parse(String(postRes.rows[0].data_json));
 
     const comments = Array.isArray(post.comments) ? post.comments : [];
     
@@ -51,10 +55,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Either commentIndex or (userId + text) required' }, { status: 400 });
     }
 
-    await CommunityPost.updateOne(
-      { _id: postId },
-      { $set: { comments: updatedComments } }
-    );
+    post.comments = updatedComments;
+    post.updatedAt = new Date().toISOString();
+
+    await bunnyExecute({
+      sql: 'UPDATE community_posts_sql SET data_json = ?, updated_at = ? WHERE document_id = ?',
+      args: [JSON.stringify(post), post.updatedAt, postId]
+    });
 
     return NextResponse.json({
       success: true,

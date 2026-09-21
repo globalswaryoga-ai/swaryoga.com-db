@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityPost } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +12,6 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const authHeader = request.headers.get('Authorization') || '';
     const token = authHeader.replace('Bearer ', '');
     const decoded = verifyToken(token);
@@ -26,20 +23,30 @@ export async function POST(request: NextRequest) {
 
     const { postId } = await request.json();
 
-    if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+    if (!postId) {
       return NextResponse.json({ error: 'Valid postId is required' }, { status: 400 });
     }
 
-    const post = await CommunityPost.findOne({ _id: postId });
-    if (!post) {
+    const postRes = await bunnyExecute({
+      sql: 'SELECT data_json FROM community_posts_sql WHERE document_id = ?',
+      args: [postId]
+    });
+
+    if (postRes.rows.length === 0) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
+
+    const post = JSON.parse(String(postRes.rows[0].data_json));
 
     // Toggle isPublic
     const newValue = !post.isPublic;
     post.isPublic = newValue;
-    post.updatedAt = new Date();
-    await post.save();
+    post.updatedAt = new Date().toISOString();
+    
+    await bunnyExecute({
+      sql: 'UPDATE community_posts_sql SET data_json = ?, updated_at = ? WHERE document_id = ?',
+      args: [JSON.stringify(post), post.updatedAt, postId]
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityPost, MediaPost, SocialMediaPost, Community } from '@/lib/db';
+import { connectDB, MediaPost, SocialMediaPost } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import crypto from 'node:crypto';
 import { verifyToken } from '@/lib/auth';
-import { CommunityMember } from '@/lib/db';
 import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } from '@/lib/communityChatPolicy';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
 import { normalizePhone } from '@/lib/whatsapp';
@@ -240,7 +241,11 @@ export async function POST(request: NextRequest) {
     const primaryCommunityId = communityIds.includes('global') ? 'global' : communityIds[0];
     
     // 1. Save to Internal Community DB - SINGLE POST ONLY
-    const dbPost = await CommunityPost.create({
+    const docId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+    
+    const dbPostObj = {
+      _id: docId,
       communityId: primaryCommunityId,
       userId,
       content: message,
@@ -262,15 +267,25 @@ export async function POST(request: NextRequest) {
         targetCommunityIds: communityIds, // Store all target communities for reference
         categoryMetadata,
       },
-      createdAt: now,
-      updatedAt: now,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    await bunnyExecute({
+      sql: 'INSERT INTO community_posts_sql (document_id, community_id, user_id, data_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      args: [docId, primaryCommunityId, userId, JSON.stringify(dbPostObj), nowIso, nowIso]
     });
-    postResults.push(dbPost);
+
+    postResults.push(dbPostObj);
 
     // 2. Send to WhatsApp QR Groups (for ALL selected communities that have WhatsApp groups)
     for (const communityId of communityIds) {
       try {
-        const comm = await Community.findOne({ id: communityId });
+        const commRes = await bunnyExecute({
+          sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'communities' AND json_extract(document_json, '$.id') = ?",
+          args: [communityId]
+        });
+        const comm = commRes.rows.length > 0 ? JSON.parse(String(commRes.rows[0].document_json)) : null;
         if (comm?.whatsappGroupId) {
           console.log(`[Campaign] Sending to WhatsApp Group: ${comm.whatsappGroupId}`);
           
@@ -297,10 +312,11 @@ export async function POST(request: NextRequest) {
     if (broadcastToMembers) {
       try {
         // Get all unique member phone numbers from selected communities
-        const allMembers = await CommunityMember.find({
-          communityId: { $in: communityIds },
-          status: 'active',
-        }).select('mobile name');
+        const memRes = await bunnyExecute({
+          sql: `SELECT data_json FROM community_members_sql WHERE status = 'active' AND community_id IN (${communityIds.map(()=>'?').join(',')})`,
+          args: communityIds
+        });
+        const allMembers = memRes.rows.map((r: any) => JSON.parse(String(r.data_json)));
 
         // Deduplicate by phone number
         const phoneMap = new Map<string, string>();
@@ -379,7 +395,7 @@ export async function POST(request: NextRequest) {
         let telegramMessage = convertToTelegramHTML(message);
         
         // Add post URL for engagement
-        const postId = dbPost._id?.toString();
+        const postId = docId;
         if (postId) {
           telegramMessage += `\n\n👍 <a href="https://swaryoga.com/community/post/${postId}">Like & Comment on this post</a>`;
         }
@@ -405,7 +421,7 @@ export async function POST(request: NextRequest) {
       message: `Post created successfully${broadcastToMembers ? ` and broadcast to ${broadcastStats.sent} members` : ''}${broadcastToTelegram ? ` and sent to ${telegramStats.sent} Telegram chats` : ''}`,
       data: {
         postCount: 1,
-        postId: dbPost._id?.toString(),
+        postId: docId,
         communityIds,
         broadcast: broadcastToMembers ? broadcastStats : undefined,
         telegram: broadcastToTelegram ? telegramStats : undefined,
