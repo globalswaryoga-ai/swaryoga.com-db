@@ -9,8 +9,6 @@ import {
   PersonStanding, Menu, X, CheckSquare, Square, ToggleLeft, ToggleRight,
   Edit, Search, User, Phone, Eye, ChevronDown, Users,
 } from 'lucide-react';
-import StudentWorkshopTab from './components/StudentWorkshopTab';
-import ZoomAnalysisTab from './components/ZoomAnalysisTab';
 
 // Icon map for mapping icon names to actual Lucide icons
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -39,8 +37,6 @@ interface Playlist {
 export default function RecordingManagementPage() {
   const router = useRouter();
   const token = useAuth();
-  
-  const [activeTab, setActiveTab] = useState<'recordings' | 'zoom-analysis' | 'student-workshop'>('recordings');
 
   // State for dynamic communities
   const [allCommunities, setAllCommunities] = useState<any[]>([]);
@@ -349,33 +345,8 @@ export default function RecordingManagementPage() {
           </div>
         </header>
 
-        {/* Tabs */}
-        <div className="bg-white border-b border-gray-200 px-4 lg:px-6 flex gap-6 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('recordings')}
-            className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'recordings' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Recordings Access
-          </button>
-          <button
-            onClick={() => setActiveTab('zoom-analysis')}
-            className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'zoom-analysis' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            Zoom Analysis
-          </button>
-          <button
-            onClick={() => setActiveTab('student-workshop')}
-            className={`py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'student-workshop' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-          >
-            <Sparkles className="h-4 w-4" />
-            Student Workshop
-          </button>
-        </div>
-
         {/* Main Content */}
         <div className="flex-1 flex overflow-hidden">
-          {activeTab === 'recordings' && (
-            <>
           {/* Community Sidebar (Left) */}
           <button
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
@@ -686,20 +657,6 @@ export default function RecordingManagementPage() {
             </>
             )}
           </main>
-            </>
-          )}
-
-          {activeTab === 'student-workshop' && (
-            <div className="flex-1 w-full bg-white h-full overflow-hidden">
-              <StudentWorkshopTab />
-            </div>
-          )}
-
-          {activeTab === 'zoom-analysis' && (
-            <div className="flex-1 w-full bg-white h-full overflow-hidden">
-              <ZoomAnalysisTab />
-            </div>
-          )}
         </div>
       </div>
 
