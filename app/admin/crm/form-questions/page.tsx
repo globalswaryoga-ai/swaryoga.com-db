@@ -133,6 +133,8 @@ export default function GoogleFormBuilderPage() {
   const [importColumns, setImportColumns] = useState<string[]>([]);
   const [importMapping, setImportMapping] = useState<Record<string, string>>({});
   const [isImporting, setIsImporting] = useState(false);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [importSourceType, setImportSourceType] = useState<'file' | 'googlesheet'>('file');
 
   const openSubmissionsModal = async (form: EnquiryForm) => {
     setSelectedFormForSubmissions(form);
@@ -285,14 +287,36 @@ export default function GoogleFormBuilderPage() {
   };
 
   const executeImport = async () => {
-    if (!importFile || !selectedFormForSubmissions) return;
     setIsImporting(true);
     try {
+      if (!selectedFormForSubmissions) throw new Error("No form selected");
+      
+      let finalFile: File | null = null;
+
+      if (importSourceType === 'file' && importFile) {
+        finalFile = importFile;
+      } else if (importSourceType === 'googlesheet') {
+        const fetchRes = await fetch('/api/admin/enquiries/import/google-sheets?action=import', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ url: googleSheetUrl })
+        });
+        const sheetData = await fetchRes.json();
+        if (!sheetData.success) throw new Error(sheetData.error || 'Failed to fetch Google Sheet data');
+        
+        // Convert JSON array back to a CSV Blob to upload
+        const worksheet = XLSX.utils.json_to_sheet(sheetData.data);
+        const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+        finalFile = new File([csvOutput], 'google-sheet-import.csv', { type: 'text/csv' });
+      } else {
+        throw new Error('Please select a file or enter a Google Sheet URL');
+      }
+
       const formData = new FormData();
       formData.append('workshopId', selectedFormForSubmissions.formId);
       formData.append('workshopName', selectedFormForSubmissions.workshopName);
       formData.append('action', 'import');
-      formData.append('file', importFile);
+      formData.append('file', finalFile);
       formData.append('mapping', JSON.stringify(importMapping));
       
       const selectedFields = ['name', 'mobile', 'email', 'gender', 'city'];
@@ -315,6 +339,7 @@ export default function GoogleFormBuilderPage() {
       // Reset & Reload
       setShowImportUI(false);
       setImportFile(null);
+      setGoogleSheetUrl('');
       setImportColumns([]);
       openSubmissionsModal(selectedFormForSubmissions);
     } catch (e: any) {
@@ -1055,22 +1080,46 @@ export default function GoogleFormBuilderPage() {
               <div className="bg-slate-50 border-b border-slate-200 p-6 animate-in fade-in slide-in-from-top-4">
                 <div className="max-w-4xl mx-auto space-y-6">
                   {!importColumns.length ? (
-                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-center space-y-4">
-                      <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto">
-                        <Upload size={24} />
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+                      <div className="text-center">
+                        <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Upload size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-lg">Import Data</h3>
+                        <p className="text-sm text-slate-500 max-w-md mx-auto mt-1">Select a file or enter a Google Sheet URL to map and import directly into this form's submissions and CRM Leads.</p>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-800 text-lg">Upload Excel or CSV File</h3>
-                        <p className="text-sm text-slate-500 max-w-md mx-auto mt-1">Select a file containing your exported form data to map and import directly into this form's submissions and CRM Leads.</p>
-                      </div>
-                      <div className="flex justify-center">
-                        <input 
-                          type="file" 
-                          accept=".xlsx,.xls,.csv" 
-                          onChange={handleImportFileChange} 
-                          disabled={isImporting} 
-                          className="text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 transition-colors" 
-                        />
+
+                      <div className="grid md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                        {/* File Upload Option */}
+                        <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed text-center">
+                          <h4 className="font-bold text-slate-700 text-sm">Option 1: Upload File</h4>
+                          <input 
+                            type="file" 
+                            accept=".xlsx,.xls,.csv" 
+                            onChange={handleImportFileChange} 
+                            disabled={isImporting} 
+                            className="text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 transition-colors mx-auto block" 
+                          />
+                        </div>
+
+                        {/* Google Sheets Option */}
+                        <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed text-center">
+                          <h4 className="font-bold text-slate-700 text-sm">Option 2: Google Sheet URL</h4>
+                          <input 
+                            type="text"
+                            placeholder="https://docs.google.com/spreadsheets/d/..."
+                            value={googleSheetUrl}
+                            onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-indigo-500"
+                          />
+                          <button 
+                            onClick={handleFetchGoogleSheetColumns}
+                            disabled={isImporting || !googleSheetUrl}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors w-full disabled:opacity-50"
+                          >
+                            {isImporting && importSourceType === 'googlesheet' ? 'Fetching...' : 'Fetch Columns'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1078,9 +1127,9 @@ export default function GoogleFormBuilderPage() {
                       <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                           <CheckCircle size={20} className="text-emerald-500" />
-                          Map Your Columns
+                          Map Your Columns ({importSourceType === 'file' ? 'File Upload' : 'Google Sheet'})
                         </h3>
-                        <button onClick={() => { setImportColumns([]); setImportFile(null); }} className="text-sm font-bold text-slate-500 hover:text-slate-700 px-3 py-1.5 bg-slate-100 rounded-lg">Cancel Upload</button>
+                        <button onClick={() => { setImportColumns([]); setImportFile(null); setGoogleSheetUrl(''); }} className="text-sm font-bold text-slate-500 hover:text-slate-700 px-3 py-1.5 bg-slate-100 rounded-lg">Cancel Upload</button>
                       </div>
                       
                       <div className="grid md:grid-cols-2 gap-x-8 gap-y-4">
