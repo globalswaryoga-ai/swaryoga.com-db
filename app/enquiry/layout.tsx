@@ -21,7 +21,8 @@ export async function generateMetadata(props: {
       if (form) {
         if (form.workshopName) title = `${form.workshopName} | Swar Yoga`;
         if (form.description) description = form.description.slice(0, 160);
-        if (form.workshopImage) imageUrl = form.workshopImage;
+        if (form.urlImage) imageUrl = form.urlImage;
+        else if (form.workshopImage) imageUrl = form.workshopImage;
       }
     } catch (e) {
       console.error('[generateMetadata] Error fetching form for OG image:', e);

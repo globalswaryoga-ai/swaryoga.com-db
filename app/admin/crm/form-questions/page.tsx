@@ -58,6 +58,7 @@ interface EnquiryForm {
   workshopTime: string;
   description: string;
   workshopImage?: string;
+  urlImage?: string;
   isActive: boolean;
 }
 
@@ -324,10 +325,11 @@ export default function GoogleFormBuilderPage() {
   };
 
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-  const [uploadingImage, setUploadingImage] = useState<'image' | 'qr' | 'formImage' | null>(null);
+  const [uploadingImage, setUploadingImage] = useState<'image' | 'qr' | 'formImage' | 'urlImage' | null>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLInputElement>(null);
   const formImageRef = useRef<HTMLInputElement>(null);
+  const urlImageRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -375,6 +377,7 @@ export default function GoogleFormBuilderPage() {
           if (type === 'image') setQData(f => ({ ...f, imageUrl: data.data.publicUrl }));
           else if (type === 'qr') setQData(f => ({ ...f, qrCodeUrl: data.data.publicUrl }));
           else if (type === 'formImage') setFormSettingsData(f => ({ ...f, workshopImage: data.data.publicUrl }));
+          else if (type === 'urlImage') setFormSettingsData(f => ({ ...f, urlImage: data.data.publicUrl }));
           showToast('Image uploaded!');
         } else {
           showToast('Upload failed', 'error');
@@ -823,21 +826,40 @@ export default function GoogleFormBuilderPage() {
                 <input type="text" placeholder="e.g. Every Sunday" value={formSettingsData.holidays || ''} onChange={e => setFormSettingsData(f => ({ ...f, holidays: e.target.value }))} className="w-full h-11 px-3 border border-slate-200 rounded-xl outline-none" />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-2">Header Image</label>
-                {formSettingsData.workshopImage ? (
-                  <div className="relative">
-                    <img src={formSettingsData.workshopImage} alt="Header" className="w-full h-32 object-cover rounded-xl border border-slate-200" />
-                    <button onClick={() => setFormSettingsData(f => ({ ...f, workshopImage: '' }))} className="absolute top-2 right-2 w-8 h-8 bg-white text-red-500 rounded-full shadow flex items-center justify-center"><X size={14}/></button>
-                  </div>
-                ) : (
-                  <div>
-                    <input ref={formImageRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'formImage')} />
-                    <button type="button" onClick={() => formImageRef.current?.click()} className="w-full h-12 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-medium hover:border-indigo-300 hover:text-indigo-600 transition-colors">
-                      {uploadingImage === 'formImage' ? 'Uploading...' : 'Upload Header Image'}
-                    </button>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2">Header Image (Form Banner)</label>
+                  {formSettingsData.workshopImage ? (
+                    <div className="relative">
+                      <img src={formSettingsData.workshopImage} alt="Header" className="w-full h-32 object-cover rounded-xl border border-slate-200" />
+                      <button onClick={() => setFormSettingsData(f => ({ ...f, workshopImage: '' }))} className="absolute top-2 right-2 w-8 h-8 bg-white text-red-500 rounded-full shadow flex items-center justify-center"><X size={14}/></button>
+                    </div>
+                  ) : (
+                    <div>
+                      <input ref={formImageRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'formImage')} />
+                      <button type="button" onClick={() => formImageRef.current?.click()} className="w-full h-32 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-medium hover:border-indigo-300 hover:text-indigo-600 transition-colors flex flex-col items-center justify-center gap-2">
+                        {uploadingImage === 'formImage' ? <Loader className="animate-spin" size={20} /> : <><Image size={24} /> Upload Banner Image</>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2">URL Preview Image (WhatsApp/FB)</label>
+                  {formSettingsData.urlImage ? (
+                    <div className="relative">
+                      <img src={formSettingsData.urlImage} alt="URL Preview" className="w-full h-32 object-cover rounded-xl border border-slate-200" />
+                      <button onClick={() => setFormSettingsData(f => ({ ...f, urlImage: '' }))} className="absolute top-2 right-2 w-8 h-8 bg-white text-red-500 rounded-full shadow flex items-center justify-center"><X size={14}/></button>
+                    </div>
+                  ) : (
+                    <div>
+                      <input ref={urlImageRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'urlImage')} />
+                      <button type="button" onClick={() => urlImageRef.current?.click()} className="w-full h-32 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-medium hover:border-indigo-300 hover:text-indigo-600 transition-colors flex flex-col items-center justify-center gap-2">
+                        {uploadingImage === 'urlImage' ? <Loader className="animate-spin" size={20} /> : <><Share2 size={24} /> Upload Link Image</>}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

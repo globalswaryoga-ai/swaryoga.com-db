@@ -92,6 +92,12 @@ export async function ensureFormTables() {
     },
   ]);
 
+  try {
+    await bunnyExecute('ALTER TABLE enquiry_forms ADD COLUMN url_image TEXT DEFAULT ""');
+  } catch (e) {
+    // Column might already exist
+  }
+
   tablesReady = true;
 }
 
@@ -110,6 +116,7 @@ function rowToForm(row: Record<string, any>) {
     workshopId:       row.workshop_id       ?? '',
     description:      row.description       ?? '',
     workshopImage:    row.workshop_image    ?? '',
+    urlImage:         row.url_image         ?? '',
     price:            Number(row.price      ?? 0),
     currency:         row.currency          ?? 'INR',
     feeOptions:       safeJson(row.fee_options, []),
@@ -198,9 +205,9 @@ export async function createForm(body: any) {
   await bunnyExecute({
     sql: `INSERT INTO enquiry_forms
       (form_id, workshop_name, workshop_date, workshop_end_date, workshop_time,
-       duration, holidays, workshop_mode, workshop_id, description, workshop_image,
+       duration, holidays, workshop_mode, workshop_id, description, workshop_image, url_image,
        price, currency, fee_options, group_link, time_slots, is_active)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
     args: [
       formId,
       body.workshopName?.trim()  ?? '',
@@ -213,6 +220,7 @@ export async function createForm(body: any) {
       body.workshopId?.trim()    ?? '',
       body.description?.trim()   ?? '',
       body.workshopImage?.trim() ?? '',
+      body.urlImage?.trim()      ?? '',
       legacyPrice,
       (body.currency?.trim() ?? 'INR').toUpperCase(),
       JSON.stringify(sanitizedFeeOptions),
@@ -270,6 +278,7 @@ export async function updateForm(formId: string, body: any) {
       workshop_id       = ?,
       description       = ?,
       workshop_image    = ?,
+      url_image         = ?,
       price             = ?,
       currency          = ?,
       fee_options       = ?,
@@ -289,6 +298,7 @@ export async function updateForm(formId: string, body: any) {
       body.workshopId     ?? current.workshopId,
       body.description    ?? current.description,
       body.workshopImage  ?? current.workshopImage,
+      body.urlImage       ?? current.urlImage,
       legacyPrice,
       body.currency       ?? current.currency,
       JSON.stringify(sanitizedFeeOptions),
