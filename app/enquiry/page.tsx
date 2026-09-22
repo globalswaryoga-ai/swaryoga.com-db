@@ -7,7 +7,7 @@ import { CheckCircle, Loader, ExternalLink, CreditCard } from 'lucide-react';
 interface DynamicQuestion {
   _id: string;
   fieldKey: string;
-  questionType: 'text' | 'paragraph' | 'dropdown' | 'radio' | 'checkbox' | 'info' | 'payment';
+  questionType: 'text' | 'paragraph' | 'dropdown' | 'radio' | 'checkbox' | 'info' | 'payment' | 'image' | 'document';
   label: { en: string };
   placeholder?: { en?: string };
   options?: Array<{ value: string; label: { en: string } }>;
@@ -15,12 +15,14 @@ interface DynamicQuestion {
   qrCodeUrl?: string;
   linkUrl?: string;
   linkLabel?: string;
-  paymentConfig?: {
-    gateway: 'razorpay' | 'custom';
-    paymentUrl?: string;
+  paymentConfig?: Array<{
     amount?: number;
     currency?: string;
-    buttonLabel?: string;
+    buttonText?: string;
+  }> | {
+    amount?: number;
+    currency?: string;
+    buttonText?: string;
   };
   required: boolean;
 }
@@ -95,6 +97,42 @@ function EnquiryForm() {
     });
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // 5MB Validation
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      e.target.value = '';
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        const res = await fetch('/api/admin/crm/upload/s3/base64', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64, fileName: file.name, category: 'form-uploads' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setAnswer(key, data.data.publicUrl);
+        } else {
+          setError('Failed to upload file');
+        }
+        setSubmitting(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError('Error reading file');
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gender) { setError('Please select your gender.'); return; }
@@ -111,6 +149,19 @@ function EnquiryForm() {
     setSubmitting(true);
     setError('');
 
+    // Calculate Total Amount
+    let totalAmount = 0;
+    let currency = 'INR';
+    dynamicQuestions.forEach(q => {
+      if (q.questionType === 'payment' && q.paymentConfig) {
+        const configs = Array.isArray(q.paymentConfig) ? q.paymentConfig : [q.paymentConfig];
+        if (configs.length > 0) {
+          totalAmount += Number(configs[0].amount || 0);
+          currency = configs[0].currency || 'INR';
+        }
+      }
+    });
+
     try {
       const res = await fetch('/api/admin/enquiries', {
         method: 'POST',
@@ -123,11 +174,34 @@ function EnquiryForm() {
           workshopId: formDetails.formId,
           workshopName: formDetails.workshopName,
           dynamicAnswers,
+          amount: totalAmount,
+          currency,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Submission failed');
-      setSubmitted(true);
+      
+      if (data.paymentSessionId) {
+        // Load Cashfree SDK dynamically and trigger payment
+        const script = document.createElement('script');
+        script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        script.async = true;
+        script.onload = () => {
+          let cf = (window as any).Cashfree;
+          if (typeof cf === 'function' && typeof cf.checkout !== 'function') {
+            cf = cf({ mode: 'production' });
+          }
+          if (cf && typeof cf.checkout === 'function') {
+            cf.checkout({
+              paymentSessionId: data.paymentSessionId,
+              redirectTarget: '_self'
+            });
+          }
+        };
+        document.body.appendChild(script);
+      } else {
+        setSubmitted(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -327,10 +401,28 @@ function EnquiryForm() {
                 </div>
               )}
 
+              {(q.questionType === 'image' || q.questionType === 'document') && (
+                <div className="space-y-2 mt-2">
+                  <input
+                    type="file"
+                    accept={q.questionType === 'image' ? "image/*" : ".pdf,.doc,.docx"}
+                    onChange={(e) => handleFileUpload(e, q.fieldKey)}
+                    required={q.required && !dynamicAnswers[q.fieldKey]}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#2d6a4f]/10 file:text-[#2d6a4f] hover:file:bg-[#2d6a4f]/20"
+                  />
+                  {dynamicAnswers[q.fieldKey] && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <CheckCircle className="text-green-600" size={16} />
+                      <a href={dynamicAnswers[q.fieldKey] as string} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">View Uploaded {q.questionType === 'image' ? 'Image' : 'Document'}</a>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {q.questionType === 'payment' && q.paymentConfig && (
-                <a href={q.paymentConfig.paymentUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full h-12 bg-white border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-xl font-bold hover:bg-[#2d6a4f] hover:text-white transition-colors mt-2">
-                  <CreditCard size={18} /> {q.paymentConfig.buttonLabel || 'Pay Now'} {q.paymentConfig.amount ? ` (₹${q.paymentConfig.amount})` : ''}
-                </a>
+                <div className="flex items-center justify-center gap-2 w-full h-12 bg-white border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-xl font-bold mt-2 cursor-default">
+                  <CreditCard size={18} /> {Array.isArray(q.paymentConfig) ? q.paymentConfig[0]?.buttonText : q.paymentConfig.buttonText || 'Pay Now'} {Array.isArray(q.paymentConfig) ? (q.paymentConfig[0]?.amount ? ` (₹${q.paymentConfig[0].amount})` : '') : (q.paymentConfig.amount ? ` (₹${q.paymentConfig.amount})` : '')}
+                </div>
               )}
             </div>
           ))}

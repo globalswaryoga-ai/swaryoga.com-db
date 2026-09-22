@@ -201,31 +201,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get existing enquiries
-    const enquiries = getEnquiries();
-
-    // Create new enquiry
-    const newEnquiry = {
-      id: `ENQ-${Date.now()}`,
-      workshopId: body.workshopId,
-      workshopName: body.workshopName,
-      name: body.name,
-      mobile: body.mobile,
-      gender: body.gender,
-      city: body.city,
-      submittedAt: body.submittedAt || new Date().toISOString(),
-      status: 'new', // new, contacted, registered
-    };
-
-    // Add to enquiries
-    enquiries.push(newEnquiry);
-
-    // Save enquiries
-    saveEnquiries(enquiries);
+    // Removed JSON file usage entirely
+    const newEnquiryId = `ENQ-${Date.now()}`;
+    const timestamp = body.submittedAt || new Date().toISOString();
 
     // Save to BunnyDB form_submissions
+    let submissionId = newEnquiryId;
+    let paymentSessionId = undefined;
+    let cashfreeOrderId = undefined;
+    
     try {
-      await createSubmission({
+      submissionId = await createSubmission({
         formId: body.workshopId,
         name: body.name,
         mobile: body.mobile,
@@ -233,9 +219,53 @@ export async function POST(request: NextRequest) {
         gender: body.gender,
         city: body.city,
         dynamicAnswers: body.dynamicAnswers || {},
+        paymentStatus: 'pending',
+        amount: body.amount || 0,
+        currency: body.currency || 'INR',
       });
+      
+      // Auto-add to workshop cohorts as student
+      const { upsertStudent } = await import('@/lib/workshopBunnyRepository');
+      await upsertStudent({
+        cohortId: body.workshopId,
+        name: body.name,
+        phone: body.mobile,
+        email: body.email || '',
+        source: 'enquiry_form',
+      });
+      
+      // Cashfree integration
+      if (body.amount > 0) {
+        const { cashfreeCreateOrder, getCashfreeReturnUrl, getCashfreeWebhookUrl } = await import('@/lib/payments/cashfree');
+        cashfreeOrderId = `FORM-${submissionId}-${Date.now()}`;
+        
+        const cfUrl = new URL(request.url);
+        const baseUrl = `${cfUrl.protocol}//${cfUrl.host}`;
+        
+        const cf = await cashfreeCreateOrder({
+          order_id: cashfreeOrderId,
+          order_amount: Number(body.amount),
+          order_currency: body.currency || 'INR',
+          customer_details: {
+            customer_id: `cust_${submissionId}`,
+            customer_name: body.name.trim(),
+            customer_email: body.email || 'guest@example.com',
+            customer_phone: String(body.mobile).replace(/[^0-9]/g, '').slice(-10),
+          },
+          order_note: body.workshopName || 'Form Payment',
+          order_meta: {
+            return_url: `${baseUrl}/api/payments/cashfree/return?order_id={order_id}`,
+            notify_url: `${baseUrl}/api/payments/cashfree/webhook`,
+          },
+        });
+        
+        paymentSessionId = cf.payment_session_id;
+        
+        // Save the cashfreeOrderId to the submission metadata/DB if needed
+        // For now, it will be in the Orders collection or handled by webhook
+      }
     } catch (bErr) {
-      console.error('[enquiries POST] BunnyDB save failed:', bErr);
+      console.error('[enquiries POST] BunnyDB/Cashfree failed:', bErr);
     }
 
     // Also create/update CRM Lead so enquiries appear under Leads for unknown users
@@ -312,7 +342,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: 'Enquiry submitted successfully',
-        data: { ...newEnquiry, leadNumber },
+        data: { id: submissionId, leadNumber },
+        paymentSessionId,
       },
       { status: 201 }
     );

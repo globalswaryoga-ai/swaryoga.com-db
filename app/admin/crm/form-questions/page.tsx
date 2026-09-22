@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type QuestionType = 'text' | 'paragraph' | 'dropdown' | 'radio' | 'checkbox' | 'info' | 'payment';
+type QuestionType = 'text' | 'paragraph' | 'dropdown' | 'radio' | 'checkbox' | 'info' | 'payment' | 'image' | 'document';
 
 interface Option {
   value: string;
@@ -70,6 +70,8 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: string }[] = [
   { value: 'checkbox', label: 'Multiple Choice', icon: '☑️' },
   { value: 'info', label: 'Info / Display Block', icon: 'ℹ️' },
   { value: 'payment', label: 'Payment Button', icon: '💳' },
+  { value: 'image', label: 'Image Upload (Max 5MB)', icon: '🖼️' },
+  { value: 'document', label: 'Document Upload (Max 5MB)', icon: '📄' },
 ];
 
 const HAS_OPTIONS: QuestionType[] = ['dropdown', 'radio', 'checkbox'];
