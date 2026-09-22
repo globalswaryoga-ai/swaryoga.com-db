@@ -8,7 +8,7 @@ import {
   Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy, MessageCircle, QrCode, ExternalLink
 } from 'lucide-react';
 
-interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
+interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
@@ -166,6 +166,7 @@ export default function WorkshopManagementPage() {
       if (!res.ok) throw new Error(data.error || `Workshop API returned ${res.status}`);
       setLoadError('');
       if (cohortId) {
+        if (data.cohort) setSelected(data.cohort);
         setStudents(data.students || []);
         setSelectedStudentIds([]);
         setAttendance(data.attendance || []);
@@ -174,8 +175,8 @@ export default function WorkshopManagementPage() {
         setRecordingSetup({
           zoomMeetingId: data.cohort?.zoomMeetingId || '',
           communityId: data.zoomMapping?.communityId || data.cohort?.communityId || '',
-          thumbnailUrl: data.zoomMapping?.thumbnailUrl || '',
-          youtubePlaylistName: data.zoomMapping?.youtubePlaylistName || ''
+          thumbnailUrl: data.zoomMapping?.thumbnailUrl || data.cohort?.thumbnailUrl || '',
+          youtubePlaylistName: data.zoomMapping?.youtubePlaylistName || data.cohort?.youtubePlaylistName || ''
         });
         if (data.students?.length && !attendanceForm.studentId) setAttendanceForm((prev) => ({ ...prev, studentId: data.students[0]._id }));
       } else {
@@ -420,7 +421,8 @@ export default function WorkshopManagementPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save recording setup');
       alert('Recording setup saved successfully!');
-      void load(selected._id);
+      if (data.cohort) setSelected(data.cohort);
+      await load(selected._id);
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -1050,7 +1052,17 @@ export default function WorkshopManagementPage() {
                     ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10'
                     : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
                 }`}
-                  onClick={() => { setSelected(c); setActiveTab('students'); void load(c._id); }}
+                  onClick={() => {
+                    setSelected(c);
+                    setRecordingSetup({
+                      zoomMeetingId: c.zoomMeetingId || '',
+                      communityId: c.communityId || '',
+                      thumbnailUrl: c.thumbnailUrl || '',
+                      youtubePlaylistName: c.youtubePlaylistName || ''
+                    });
+                    setActiveTab('students');
+                    void load(c._id);
+                  }}
                 >
                   <p className={`font-bold truncate pr-14 ${selected?._id === c._id ? 'text-indigo-900' : 'text-slate-700'}`}>{c.name}</p>
                   <div className="flex items-center gap-2 mt-2">
