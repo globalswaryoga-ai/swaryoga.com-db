@@ -471,6 +471,7 @@ export default function MetaInboxPage() {
     // Auto-refresh every 30 seconds. Don't recreate the interval on every keystroke.
     const timer = setInterval(() => {
       loadConversations(searchQuery, true);
+      fetchMonthlyExpenses();
     }, 30000);
 
     return () => clearInterval(timer);
@@ -504,34 +505,33 @@ export default function MetaInboxPage() {
   }, [token]);
 
   // Load monthly expense summary for header widget
-  useEffect(() => {
+  const fetchMonthlyExpenses = useCallback(async () => {
     if (!token) return;
-    
-    const fetchMonthlyExpenses = async () => {
-      try {
-        const res = await fetch('/api/admin/crm/analytics/whatsapp?view=overview', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.data?.overview) {
-            const { expenses, messages } = data.data.overview;
-            setMonthlyExpenseSummary({
-              total: expenses?.total || 0,
-              marketing: expenses?.marketing || 0,
-              utility: expenses?.utility || 0,
-              whatsapp_api: expenses?.whatsapp_api || 0,
-              messagesSent: messages?.sent || 0,
-            });
-          }
+    try {
+      const res = await fetch('/api/admin/crm/analytics/whatsapp?view=overview', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data?.overview) {
+          const { expenses, messages } = data.data.overview;
+          setMonthlyExpenseSummary({
+            total: expenses?.total || 0,
+            marketing: expenses?.marketing || 0,
+            utility: expenses?.utility || 0,
+            whatsapp_api: expenses?.whatsapp_api || 0,
+            messagesSent: messages?.sent || 0,
+          });
         }
-      } catch (e) {
-        console.warn('Failed to load monthly expenses:', e);
       }
-    };
-    
-    fetchMonthlyExpenses();
+    } catch (e) {
+      console.warn('Failed to load monthly expenses:', e);
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchMonthlyExpenses();
+  }, [fetchMonthlyExpenses]);
 
   // Search-triggered reload (debounced)
   useEffect(() => {
@@ -2061,7 +2061,11 @@ export default function MetaInboxPage() {
             >
               <div className="text-center">
                 <div className="text-[8px] font-bold text-rose-400 uppercase">Month</div>
-                <div className="text-[12px] font-black text-rose-700 leading-tight">₹{monthlyExpenseSummary.total.toLocaleString()}</div>
+                <div className="text-[12px] font-black text-rose-700 leading-tight">
+                  ₹{monthlyExpenseSummary.total > 0 && monthlyExpenseSummary.total < 10
+                    ? monthlyExpenseSummary.total.toFixed(2)
+                    : Math.round(monthlyExpenseSummary.total).toLocaleString()}
+                </div>
               </div>
               <div className="h-5 w-px bg-rose-200/60"></div>
               <div className="flex flex-col text-[8px] leading-tight">
@@ -2071,7 +2075,11 @@ export default function MetaInboxPage() {
                 </div>
                 <div className="flex gap-1">
                   <span className="text-slate-400">Mktg:</span>
-                  <span className="font-bold text-rose-500">₹{monthlyExpenseSummary.marketing.toLocaleString()}</span>
+                  <span className="font-bold text-rose-500">
+                    ₹{monthlyExpenseSummary.marketing > 0 && monthlyExpenseSummary.marketing < 10
+                      ? monthlyExpenseSummary.marketing.toFixed(2)
+                      : Math.round(monthlyExpenseSummary.marketing).toLocaleString()}
+                  </span>
                 </div>
               </div>
             </div>
@@ -3830,6 +3838,7 @@ export default function MetaInboxPage() {
                                 if (data.success) {
                                   // Refresh messages to show the sent template
                                   loadMessages(selected.phoneNumber || selected.leadId || selected._id);
+                                  fetchMonthlyExpenses();
                                   closeActionModal();
                                 } else {
                                   console.error('[Meta Inbox] Template send failed:', data);

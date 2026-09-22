@@ -7,7 +7,6 @@ import crypto from 'crypto';
 import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { getTemplateById } from '@/lib/bunnyTemplatesRepository';
-import { getBunnyWhatsAppTemplate, saveBunnyWhatsAppTemplate } from '@/lib/bunnyTemplatesRepository'; // Hypothetical
 
 export const dynamic = 'force-dynamic';
 
@@ -91,6 +90,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Template not found in Bunny DB' }, { status: 404 });
     }
 
+    const templateCategory = String(t.category || 'MARKETING').toUpperCase();
+    const cost = templateCategory === 'UTILITY'
+      ? parseFloat(process.env.META_UTILITY_COST_INR || '0.15')
+      : templateCategory === 'AUTHENTICATION'
+        ? parseFloat(process.env.META_AUTH_COST_INR || '0.15')
+        : parseFloat(process.env.META_MARKETING_COST_INR || process.env.META_TEMPLATE_COST_INR || '0.78');
+
     const to = normalizedPhone;
     const cloudInput = buildCloudTemplateSendInput(t, to);
 
@@ -103,6 +109,14 @@ export async function POST(request: NextRequest) {
       phoneNumber: to,
       messageType: 'template',
       templateId: t._id,
+      templateName: t.templateName || t.name,
+      templateCategory: templateCategory,
+      cost: cost,
+      metadata: {
+        cost: cost,
+        category: templateCategory,
+        channel: 'meta',
+      },
       messageContent: String(t.templateContent || '').trim() || '(template)',
       direction: 'outbound',
       status: 'queued',
@@ -120,6 +134,8 @@ export async function POST(request: NextRequest) {
       await updateBunnyMetaMessage(messageRecordId, {
         status: 'sent',
         waMessageId: waMessageId || 'meta-sent',
+        cost: cost,
+        templateCategory: templateCategory,
       });
 
       return NextResponse.json({
@@ -128,6 +144,8 @@ export async function POST(request: NextRequest) {
           messageId: messageRecordId,
           status: 'sent',
           waMessageId,
+          cost,
+          templateCategory,
         },
       }, { status: 200 });
 
