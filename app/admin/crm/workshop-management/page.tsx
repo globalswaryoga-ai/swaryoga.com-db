@@ -418,6 +418,7 @@ export default function WorkshopManagementPage() {
   };
 
   const downloadAnalyticsCSV = () => {
+    if (!selected) return;
     const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).sort();
     const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
     const rows = students.map(s => {
@@ -511,7 +512,7 @@ export default function WorkshopManagementPage() {
     }
   };
   const exportReportCsv = () => {
-
+    if (!selected) return;
     const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).sort();
     const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
     const rows = students.map(s => {
@@ -722,6 +723,31 @@ export default function WorkshopManagementPage() {
     const trimmed = String(idOrUrl).trim();
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
     return `https://youtu.be/${trimmed}`;
+  };
+
+  const openStudentInbox = (s: Student, channel: 'qr' | 'meta' | 'email') => {
+    const rawPhone = (s.whatsappNumber || s.phone || '').replace(/\D/g, '');
+    const cleanPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+
+    if (channel === 'qr') {
+      if (!cleanPhone) {
+        alert(`No phone number saved for ${s.name}. Please edit student details first to add a phone number.`);
+        return;
+      }
+      window.open(`/admin/crm/qr?tab=inbox&phone=${encodeURIComponent(cleanPhone)}&name=${encodeURIComponent(s.name)}`, '_blank');
+    } else if (channel === 'meta') {
+      if (!cleanPhone) {
+        alert(`No phone number saved for ${s.name}. Please edit student details first to add a phone number.`);
+        return;
+      }
+      window.open(`/admin/crm/meta?phone=${encodeURIComponent(cleanPhone)}&name=${encodeURIComponent(s.name)}`, '_blank');
+    } else if (channel === 'email') {
+      if (!s.email) {
+        alert(`No email address saved for ${s.name}. Please edit student details first to add an email.`);
+        return;
+      }
+      window.open(`/admin/crm/email?to=${encodeURIComponent(s.email)}&name=${encodeURIComponent(s.name)}`, '_blank');
+    }
   };
 
   const syncRecordingsNow = async () => {
@@ -1027,6 +1053,7 @@ export default function WorkshopManagementPage() {
                                 <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Country</th>
                                 <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs text-center">Attendance</th>
                                 <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Status</th>
+                                <th className="p-4 font-bold text-slate-600 uppercase tracking-wider text-xs">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -1058,6 +1085,41 @@ export default function WorkshopManagementPage() {
                                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${s.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                                         {s.active ? 'Active' : 'Inactive'}
                                       </span>
+                                    </td>
+                                    <td className="p-4 whitespace-nowrap">
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          onClick={() => {
+                                            setStudentEditForm({ name: s.name, email: s.email || '', phone: s.phone || '', whatsappNumber: s.whatsappNumber || '', active: s.active });
+                                            setEditingStudent(s);
+                                          }}
+                                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
+                                          title="Edit student details"
+                                        >
+                                          <Edit2 size={12} /> Edit
+                                        </button>
+                                        <button 
+                                          onClick={() => openStudentInbox(s, 'qr')} 
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-100 transition-colors cursor-pointer" 
+                                          title="Auto connect to WhatsApp QR Inbox"
+                                        >
+                                          <QrCode size={12} /> QR
+                                        </button>
+                                        <button 
+                                          onClick={() => openStudentInbox(s, 'meta')} 
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-100 transition-colors cursor-pointer" 
+                                          title="Auto connect to WhatsApp Meta Inbox"
+                                        >
+                                          <MessageCircle size={12} /> Meta
+                                        </button>
+                                        <button 
+                                          onClick={() => openStudentInbox(s, 'email')} 
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold border border-violet-100 transition-colors cursor-pointer" 
+                                          title="Auto connect to Email Inbox"
+                                        >
+                                          <Mail size={12} /> Email
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ); 
@@ -1607,21 +1669,42 @@ export default function WorkshopManagementPage() {
                                           setStudentEditForm({ name: s.name, email: s.email || '', phone: s.phone || '', whatsappNumber: s.whatsappNumber || '', active: s.active });
                                           setEditingStudent(s);
                                         }}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors"
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
+                                        title="Edit student details"
                                       >
                                         <Edit2 size={12} /> Edit
                                       </button>
                                       
-                                      <button onClick={() => { setMessageModal({ student: s, channel: 'qr' }); setMessageText(''); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-100 transition-colors" title="Send message via WhatsApp QR Bridge">
+                                      <button 
+                                        onClick={() => openStudentInbox(s, 'qr')} 
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-100 transition-colors cursor-pointer" 
+                                        title="Auto connect to WhatsApp QR Inbox"
+                                      >
                                         <QrCode size={12} /> QR
                                       </button>
                                       
-                                      <button onClick={() => { setMessageModal({ student: s, channel: 'meta' }); setMessageText(''); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-100 transition-colors" title="Send message via WhatsApp Cloud API">
+                                      <button 
+                                        onClick={() => openStudentInbox(s, 'meta')} 
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-100 transition-colors cursor-pointer" 
+                                        title="Auto connect to WhatsApp Meta Inbox"
+                                      >
                                         <MessageCircle size={12} /> Meta
                                       </button>
                                       
-                                      <button onClick={() => { setMessageModal({ student: s, channel: 'email' }); setMessageText(''); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold border border-violet-100 transition-colors" title="Send message via Email">
+                                      <button 
+                                        onClick={() => openStudentInbox(s, 'email')} 
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold border border-violet-100 transition-colors cursor-pointer" 
+                                        title="Auto connect to Email Inbox"
+                                      >
                                         <Mail size={12} /> Email
+                                      </button>
+
+                                      <button 
+                                        onClick={() => { setMessageModal({ student: s, channel: 'qr' }); setMessageText(''); }} 
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer" 
+                                        title="Quick message modal"
+                                      >
+                                        <Send size={12} />
                                       </button>
                                     </div>
                                   </td>
@@ -2180,7 +2263,20 @@ export default function WorkshopManagementPage() {
                  messageModal.channel === 'meta' ? <><MessageCircle size={18} className="text-blue-600"/> WhatsApp (Meta)</> : 
                  <><Mail size={18} className="text-violet-600"/> Email</>}
               </h3>
-              <button type="button" onClick={() => setMessageModal(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    openStudentInbox(messageModal.student, messageModal.channel);
+                    setMessageModal(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-indigo-700 text-xs font-bold border border-indigo-200 transition-colors shadow-xs cursor-pointer"
+                  title="Open full conversation in Inbox"
+                >
+                  Open in {messageModal.channel === 'qr' ? 'QR Inbox' : messageModal.channel === 'meta' ? 'Meta Inbox' : 'Email Inbox'} ↗
+                </button>
+                <button type="button" onClick={() => setMessageModal(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"><X size={20}/></button>
+              </div>
             </div>
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
