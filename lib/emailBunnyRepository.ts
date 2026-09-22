@@ -333,7 +333,7 @@ export async function getEmailSettings(id: string) {
 
 export async function saveEmailSettings(input: any) {
   await initEmailBunnySchema();
-  const settingsId = input._id || id();
+  const settingsId = input._id || input.id || id();
   const ts = now();
   
   if (input.isDefault) {
