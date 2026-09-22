@@ -458,11 +458,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ message: 'Enquiry ID is required' }, { status: 400 });
     }
 
-    const hasName = typeof body.name === 'string' && body.name.trim() !== '';
-    const hasMobile = typeof body.mobile === 'string' && body.mobile.trim() !== '';
-    if (!body.status && !hasName && !hasMobile && !body.notes) {
-      return NextResponse.json({ message: 'Nothing to update (status, name, mobile or notes required)' }, { status: 400 });
-    }
+    // We allow any field to be updated now.
 
     // ── Primary: update the MongoDB Lead this enquiry was sourced from ──
     try {
@@ -477,12 +473,31 @@ export async function PATCH(request: NextRequest) {
 
       if (lead) {
         if (body.status) lead.status = ENQUIRY_TO_LEAD_STATUS[body.status] || body.status;
-        if (hasName) lead.name = body.name.trim();
-        if (hasMobile) {
-          const cleaned = normalizePhone(body.mobile) || String(body.mobile).trim();
-          lead.phoneNumber = cleaned;
+        if (body.name !== undefined) lead.name = String(body.name).trim();
+        if (body.mobile !== undefined) lead.phoneNumber = normalizePhone(body.mobile) || String(body.mobile).trim();
+        if (body.notes !== undefined) lead.notes = body.notes;
+        
+        if (body.email !== undefined) lead.email = String(body.email).trim();
+        
+        // Handle metadata updates
+        if (!lead.metadata) lead.metadata = {};
+        if (body.gender !== undefined) lead.metadata.gender = body.gender;
+        if (body.city !== undefined) lead.metadata.city = body.city;
+        
+        // Dynamic answers (everything else not explicitly checked)
+        const standardKeys = ['status', 'name', 'mobile', 'notes', 'email', 'gender', 'city', 'id'];
+        const dynamicUpdates = Object.keys(body).filter(k => !standardKeys.includes(k));
+        
+        if (dynamicUpdates.length > 0) {
+          if (!lead.metadata.dynamicAnswers) lead.metadata.dynamicAnswers = {};
+          dynamicUpdates.forEach(k => {
+            lead.metadata.dynamicAnswers[k] = body[k];
+          });
         }
-        if (body.notes) lead.notes = body.notes;
+        
+        // Mark metadata modified
+        lead.markModified('metadata');
+        
         await lead.save();
         return NextResponse.json(
           { message: 'Enquiry updated successfully', data: { id: enquiryId, name: lead.name, mobile: lead.phoneNumber, status: body.status } },

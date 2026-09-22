@@ -8,7 +8,7 @@ import {
   Image as ImageIcon, QrCode, Link as LinkIcon, CreditCard,
   ArrowUp, ArrowDown, ToggleLeft, ToggleRight,
   Upload, ExternalLink, AlertCircle, CheckCircle, ChevronLeft, Settings,
-  ClipboardCopy, Share2, Eye, Download, Search, Table, FileSpreadsheet, Users
+  ClipboardCopy, Share2, Eye, Download, Search, Table, FileSpreadsheet, Users, Loader
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -241,6 +241,31 @@ export default function GoogleFormBuilderPage() {
     const answersMatch = JSON.stringify(sub.dynamicAnswers || {}).toLowerCase().includes(term);
     return nameMatch || phoneMatch || cityMatch || answersMatch;
   });
+
+  const handleCellEdit = async (enquiryId: string, fieldKey: string, newValue: string) => {
+    try {
+      const res = await fetch(`/api/admin/enquiries?id=${enquiryId}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ [fieldKey]: newValue }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      
+      setSubmissions(prev => prev.map(sub => {
+        if (sub.id === enquiryId || sub._id === enquiryId || sub.leadNumber === enquiryId) {
+          if (!['name', 'mobile', 'email', 'gender', 'city'].includes(fieldKey)) {
+            return { ...sub, dynamicAnswers: { ...(sub.dynamicAnswers || {}), [fieldKey]: newValue } };
+          } else {
+            return { ...sub, [fieldKey]: newValue };
+          }
+        }
+        return sub;
+      }));
+      showToast('Updated successfully');
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    }
+  };
 
   // ── Import Actions ──
   const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -922,7 +947,7 @@ export default function GoogleFormBuilderPage() {
                     <div>
                       <input ref={formImageRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'formImage')} />
                       <button type="button" onClick={() => formImageRef.current?.click()} className="w-full h-32 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-medium hover:border-indigo-300 hover:text-indigo-600 transition-colors flex flex-col items-center justify-center gap-2">
-                        {uploadingImage === 'formImage' ? <Loader className="animate-spin" size={20} /> : <><Image size={24} /> Upload Banner Image</>}
+                        {uploadingImage === 'formImage' ? <Loader className="animate-spin" size={20} /> : <><ImageIcon size={24} /> Upload Banner Image</>}
                       </button>
                     </div>
                   )}
@@ -1299,17 +1324,17 @@ export default function GoogleFormBuilderPage() {
                             <td className="p-3.5 border-r border-slate-100 whitespace-nowrap text-slate-500 font-medium">
                               {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '-'}
                             </td>
-                            <td className="p-3.5 border-r border-slate-100 font-bold text-slate-900 whitespace-nowrap">{sub.name || '-'}</td>
-                            <td className="p-3.5 border-r border-slate-100 font-mono text-slate-700 whitespace-nowrap font-medium">{sub.mobile || '-'}</td>
-                            <td className="p-3.5 border-r border-slate-100 text-slate-600 whitespace-nowrap">{sub.email || '-'}</td>
-                            <td className="p-3.5 border-r border-slate-100 capitalize whitespace-nowrap">{sub.gender || '-'}</td>
-                            <td className="p-3.5 border-r border-slate-100 whitespace-nowrap">{sub.city || '-'}</td>
+                            <td className="p-3.5 border-r border-slate-100 font-bold text-slate-900 whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.name || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'name', val); }}>{sub.name || ''}</td>
+                            <td className="p-3.5 border-r border-slate-100 font-mono text-slate-700 whitespace-nowrap font-medium cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.mobile || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'mobile', val); }}>{sub.mobile || ''}</td>
+                            <td className="p-3.5 border-r border-slate-100 text-slate-600 whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.email || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'email', val); }}>{sub.email || ''}</td>
+                            <td className="p-3.5 border-r border-slate-100 capitalize whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.gender || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'gender', val); }}>{sub.gender || ''}</td>
+                            <td className="p-3.5 border-r border-slate-100 whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.city || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'city', val); }}>{sub.city || ''}</td>
                             {submissionQuestions.map(q => {
                               const val = sub.dynamicAnswers ? sub.dynamicAnswers[q.fieldKey] : sub[q.fieldKey];
-                              const displayVal = Array.isArray(val) ? val.join(', ') : (val ?? '-');
+                              const displayVal = Array.isArray(val) ? val.join(', ') : (val ?? '');
                               return (
-                                <td key={q._id} className="p-3.5 border-r border-slate-100 min-w-[160px] text-slate-700">
-                                  {displayVal || '-'}
+                                <td key={q._id} className="p-3.5 border-r border-slate-100 min-w-[160px] text-slate-700 cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const newVal = e.currentTarget.textContent || ''; if (newVal !== displayVal) handleCellEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey, newVal); }}>
+                                  {displayVal}
                                 </td>
                               );
                             })}
