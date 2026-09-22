@@ -1580,24 +1580,16 @@ export default function WorkshopManagementPage() {
                                 </div>
 
                                 {(recording.metadata?.zoomSpeakerUrl || recording.metadata?.zoomShareUrl) && (
-                                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                                    <div className="flex items-center gap-2">
-                                      <span>Zoom Cloud Backup:</span>
-                                      <a 
-                                        href={recording.metadata?.zoomSpeakerUrl || recording.metadata?.zoomShareUrl} 
-                                        target="_blank" 
-                                        rel="noreferrer"
-                                        className="text-blue-600 hover:underline inline-flex items-center gap-0.5"
-                                      >
-                                        Open in Zoom <ExternalLink size={10}/>
-                                      </a>
-                                    </div>
-                                    {recording.metadata?.zoomPassword && (
-                                      <div className="flex items-center gap-1 text-slate-500">
-                                        <span>Passcode:</span>
-                                        <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold select-all">{recording.metadata.zoomPassword}</code>
-                                      </div>
-                                    )}
+                                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-2 text-[11px] text-slate-400">
+                                    <span>Zoom Cloud Backup:</span>
+                                    <a 
+                                      href={recording.metadata?.zoomSpeakerUrl || recording.metadata?.zoomShareUrl} 
+                                      target="_blank" 
+                                      rel="noreferrer"
+                                      className="text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                                    >
+                                      Open in Zoom <ExternalLink size={10}/>
+                                    </a>
                                   </div>
                                 )}
                               </div>
