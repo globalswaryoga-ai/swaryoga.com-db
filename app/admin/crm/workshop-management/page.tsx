@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Users, Video, Settings, UserPlus, Upload, RefreshCw, 
@@ -120,6 +120,9 @@ export default function WorkshopManagementPage() {
   const [savingZoomConfig, setSavingZoomConfig] = useState(false);
   const [editingRecordingUrls, setEditingRecordingUrls] = useState<{ id: string; classDate: string; dayNumber?: number; youtubeSpeakerUrl: string; youtubeGalleryUrl: string; bunnySpeakerUrl: string; } | null>(null);
   const [savingRecordingUrls, setSavingRecordingUrls] = useState(false);
+  const [autoSaveUrls, setAutoSaveUrls] = useState(true);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-calculate end date for Create form
   useEffect(() => {
@@ -831,6 +834,8 @@ export default function WorkshopManagementPage() {
   };
 
   const openEditUrlsModal = (recording: Recording) => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setAutoSaveStatus('idle');
     setEditingRecordingUrls({
       id: recording._id,
       classDate: recording.classDate,
@@ -841,32 +846,84 @@ export default function WorkshopManagementPage() {
     });
   };
 
-  const saveRecordingUrlsModal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingRecordingUrls || !selected) return;
-    setSavingRecordingUrls(true);
+  const performAutoSaveUrls = async (urls: {
+    id: string;
+    classDate: string;
+    dayNumber?: number;
+    youtubeSpeakerUrl: string;
+    youtubeGalleryUrl: string;
+    bunnySpeakerUrl: string;
+  }) => {
+    setAutoSaveStatus('saving');
     try {
-      const ytSpeaker = editingRecordingUrls.youtubeSpeakerUrl.trim();
-      const ytGallery = editingRecordingUrls.youtubeGalleryUrl.trim();
-      const bunnySpeaker = editingRecordingUrls.bunnySpeakerUrl.trim();
+      const ytSpeaker = urls.youtubeSpeakerUrl.trim();
+      const ytGallery = urls.youtubeGalleryUrl.trim();
+      const bunnySpeaker = urls.bunnySpeakerUrl.trim();
 
       const res = await fetch('/api/admin/crm/workshop-management/recordings', {
         method: 'PATCH',
         headers,
         body: JSON.stringify({
-          id: editingRecordingUrls.id,
+          id: urls.id,
           youtubeSpeakerUrl: ytSpeaker ? getYoutubeUrl(ytSpeaker) : null,
           youtubeSpeakerId: ytSpeaker ? (normalizeYt(ytSpeaker) || null) : null,
           youtubeGalleryUrl: ytGallery ? getYoutubeUrl(ytGallery) : null,
           youtubeGalleryId: ytGallery ? (normalizeYt(ytGallery) || null) : null,
           bunnySpeakerUrl: bunnySpeaker || null,
-        })
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save URLs');
-      await load(selected._id);
+      if (!res.ok) throw new Error(data.error || 'Failed to auto-save URLs');
+
+      setRecordings((prev) =>
+        prev.map((r) => {
+          if (r._id !== urls.id) return r;
+          return {
+            ...r,
+            youtubeSpeakerUrl: ytSpeaker ? getYoutubeUrl(ytSpeaker) : undefined,
+            youtubeSpeakerId: ytSpeaker ? (normalizeYt(ytSpeaker) || undefined) : undefined,
+            youtubeGalleryUrl: ytGallery ? getYoutubeUrl(ytGallery) : undefined,
+            youtubeGalleryId: ytGallery ? (normalizeYt(ytGallery) || undefined) : undefined,
+            bunnySpeakerUrl: bunnySpeaker || undefined,
+          };
+        })
+      );
+      setAutoSaveStatus('saved');
+    } catch (err: any) {
+      setAutoSaveStatus('error');
+    }
+  };
+
+  const handleUrlsInputChange = (field: 'youtubeSpeakerUrl' | 'youtubeGalleryUrl' | 'bunnySpeakerUrl', val: string) => {
+    if (!editingRecordingUrls) return;
+    const updated = { ...editingRecordingUrls, [field]: val };
+    setEditingRecordingUrls(updated);
+    if (!autoSaveUrls) return;
+    setAutoSaveStatus('saving');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      void performAutoSaveUrls(updated);
+    }, 600);
+  };
+
+  const handleUrlsInputBlur = () => {
+    if (!editingRecordingUrls || !autoSaveUrls) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    void performAutoSaveUrls(editingRecordingUrls);
+  };
+
+  const saveRecordingUrlsModal = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingRecordingUrls || !selected) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setSavingRecordingUrls(true);
+    try {
+      await performAutoSaveUrls(editingRecordingUrls);
+      if (selected) await load(selected._id);
       setEditingRecordingUrls(null);
-      alert('Recording URLs updated successfully!');
     } catch (err: any) {
       alert(err.message || 'Failed to save URLs');
     } finally {
@@ -2513,84 +2570,197 @@ export default function WorkshopManagementPage() {
       {/* Edit Recording URLs Modal */}
       {editingRecordingUrls && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-150">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-150 border border-slate-100">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-indigo-50/30">
               <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Day {editingRecordingUrls.dayNumber || '–'} Recording URLs
-                </h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-slate-900">
+                    Day {editingRecordingUrls.dayNumber || '–'} Recording URLs
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setAutoSaveUrls(!autoSaveUrls)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                      autoSaveUrls
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
+                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    }`}
+                    title="Toggle auto-saving of pasted or typed recording URLs"
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${autoSaveUrls ? 'bg-emerald-600 animate-pulse' : 'bg-slate-400'}`} />
+                    Auto-Save: {autoSaveUrls ? 'ON' : 'OFF'}
+                  </button>
+                </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {new Date(editingRecordingUrls.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
               <button 
                 type="button" 
-                onClick={() => setEditingRecordingUrls(null)} 
-                className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                onClick={() => {
+                  if (autoSaveTimerRef.current) {
+                    clearTimeout(autoSaveTimerRef.current);
+                    if (editingRecordingUrls && autoSaveUrls) void performAutoSaveUrls(editingRecordingUrls);
+                  }
+                  setEditingRecordingUrls(null);
+                }} 
+                className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer border border-slate-200"
               >
                 <X size={18}/>
               </button>
             </div>
             <form onSubmit={saveRecordingUrlsModal} className="p-6 space-y-4">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-slate-600">
-                Provide YouTube URL/ID for Speaker & Gallery views, and Bunny URL for Speaker view.
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                <span>Provide YouTube &amp; Bunny URLs. Links auto-save immediately as you paste or type.</span>
+                <div className="flex-shrink-0 ml-2">
+                  {autoSaveStatus === 'saving' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 animate-pulse">
+                      <RefreshCw size={11} className="animate-spin" /> Auto-saving...
+                    </span>
+                  )}
+                  {autoSaveStatus === 'saved' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 animate-in fade-in">
+                      <CheckCircle2 size={12} /> Auto-Saved ✓
+                    </span>
+                  )}
+                  {autoSaveStatus === 'error' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600">
+                      <AlertCircle size={12} /> Save error
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <PlayCircle size={14} className="text-red-600"/> YouTube Speaker View URL / Video ID
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <PlayCircle size={14} className="text-red-600"/> YouTube Speaker View URL / Video ID
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) handleUrlsInputChange('youtubeSpeakerUrl', text.trim());
+                      } catch (e) {}
+                    }}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-red-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Paste from clipboard"
+                  >
+                    Paste
+                  </button>
+                </div>
                 <input 
                   type="text" 
                   placeholder="https://youtu.be/... or video ID (with or without screen share)" 
                   value={editingRecordingUrls.youtubeSpeakerUrl} 
-                  onChange={(e) => setEditingRecordingUrls({ ...editingRecordingUrls, youtubeSpeakerUrl: e.target.value })} 
+                  onChange={(e) => handleUrlsInputChange('youtubeSpeakerUrl', e.target.value)} 
+                  onBlur={handleUrlsInputBlur}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500" 
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <PlayCircle size={14} className="text-red-600"/> YouTube Gallery View URL / Video ID
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <PlayCircle size={14} className="text-red-600"/> YouTube Gallery View URL / Video ID
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) handleUrlsInputChange('youtubeGalleryUrl', text.trim());
+                      } catch (e) {}
+                    }}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-red-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Paste from clipboard"
+                  >
+                    Paste
+                  </button>
+                </div>
                 <input 
                   type="text" 
                   placeholder="https://youtu.be/... or video ID" 
                   value={editingRecordingUrls.youtubeGalleryUrl} 
-                  onChange={(e) => setEditingRecordingUrls({ ...editingRecordingUrls, youtubeGalleryUrl: e.target.value })} 
+                  onChange={(e) => handleUrlsInputChange('youtubeGalleryUrl', e.target.value)} 
+                  onBlur={handleUrlsInputBlur}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500" 
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <PlayCircle size={14} className="text-orange-600"/> Bunny Speaker View URL
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <PlayCircle size={14} className="text-orange-600"/> Bunny Speaker View URL
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) handleUrlsInputChange('bunnySpeakerUrl', text.trim());
+                      } catch (e) {}
+                    }}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-orange-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Paste from clipboard"
+                  >
+                    Paste
+                  </button>
+                </div>
                 <input 
                   type="text" 
                   placeholder="https://swaryogacrm.b-cdn.net/... or embed link" 
                   value={editingRecordingUrls.bunnySpeakerUrl} 
-                  onChange={(e) => setEditingRecordingUrls({ ...editingRecordingUrls, bunnySpeakerUrl: e.target.value })} 
+                  onChange={(e) => handleUrlsInputChange('bunnySpeakerUrl', e.target.value)} 
+                  onBlur={handleUrlsInputBlur}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500" 
                 />
                 <p className="text-[11px] text-slate-500 mt-1">Note: Bunny CDN is configured only for Speaker View.</p>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setEditingRecordingUrls(null)} 
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={savingRecordingUrls}
-                  className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                >
-                  {savingRecordingUrls ? 'Saving...' : 'Save URLs'}
-                </button>
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                <div className="text-xs text-slate-400">
+                  {autoSaveUrls ? (
+                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                      <CheckCircle2 size={12}/> Auto-save enabled
+                    </span>
+                  ) : (
+                    <span>Click Save URLs to update</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (autoSaveTimerRef.current) {
+                        clearTimeout(autoSaveTimerRef.current);
+                        if (editingRecordingUrls && autoSaveUrls) void performAutoSaveUrls(editingRecordingUrls);
+                      }
+                      setEditingRecordingUrls(null);
+                    }} 
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={savingRecordingUrls || autoSaveStatus === 'saving'}
+                    className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                  >
+                    {savingRecordingUrls ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" /> Saving...
+                      </>
+                    ) : autoSaveStatus === 'saved' ? (
+                      <>
+                        <CheckCircle2 size={13} /> Saved ✓
+                      </>
+                    ) : (
+                      'Save URLs'
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
