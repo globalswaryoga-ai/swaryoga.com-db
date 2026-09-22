@@ -107,86 +107,29 @@ export async function GET(request: NextRequest) {
     const subscribers = parseInt(channel.statistics?.subscriberCount || '0', 10);
     const videoCount = parseInt(channel.statistics?.videoCount || '0', 10);
 
-    // Connect to database and save account
-    let existingAccount: any = null;
-    try {
-      await connectDB();
-      existingAccount = await SocialMediaAccount.findOne({
-        platform: 'youtube',
-        accountId: channelId,
-      });
-    } catch (mErr: any) {
-      console.warn('[YouTube OAuth] Mongo connect failed, continuing with Bunny DB:', mErr.message);
-    }
-
     const encryptedAccessToken = encryptCredential(access_token);
-    const encryptedRefreshToken = refresh_token 
-      ? encryptCredential(refresh_token) 
-      : (existingAccount?.refreshToken || '');
     const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000);
 
-    try {
-      if (existingAccount) {
-        // Update existing account in Mongo
-        await SocialMediaAccount.updateOne(
-          { _id: existingAccount._id },
-          {
-            $set: {
-              accessToken: encryptedAccessToken,
-              ...(encryptedRefreshToken ? { refreshToken: encryptedRefreshToken } : {}),
-              tokenExpiresAt,
-              isConnected: true,
-              connectedAt: new Date(),
-              accountName: channelName,
-              accountHandle: channelHandle,
-              metadata: {
-                followers: subscribers,
-                postsCount: videoCount,
-                lastSyncedAt: new Date(),
-              },
-              grantedScopes: ['youtube.upload', 'youtube.readonly'],
-              updatedAt: new Date(),
-            },
-          }
-        );
-      } else {
-        // Create new account in Mongo
-        const newAccount = new SocialMediaAccount({
-          platform: 'youtube',
-          accountName: channelName,
-          accountHandle: channelHandle,
-          accountId: channelId,
-          accessToken: encryptedAccessToken,
-          refreshToken: encryptedRefreshToken,
-          tokenExpiresAt,
-          isConnected: true,
-          connectedAt: new Date(),
-          metadata: {
-            followers: subscribers,
-            postsCount: videoCount,
-            lastSyncedAt: new Date(),
-          },
-          grantedScopes: ['youtube.upload', 'youtube.readonly'],
-        });
-
-        await newAccount.save();
-      }
-    } catch (mongoSaveErr: any) {
-      console.warn('[YouTube OAuth] Could not save to Mongo:', mongoSaveErr.message);
-    }
-
-    // Save/Update in Bunny Database
+    // ── PRIMARY SAVE: Bunny Database ──
+    // Save to Bunny DB first (works regardless of MongoDB availability)
+    let encryptedRefreshToken = refresh_token ? encryptCredential(refresh_token) : '';
     try {
       const { bunnyExecute } = await import('@/lib/bunnyDatabase');
       const existingDocRes = await bunnyExecute({
-        sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
       });
       let matchedRow: any = null;
+      let matchedId: string | null = null;
       for (const row of existingDocRes.rows) {
         try {
           const parsed = JSON.parse(String(row.document_json || '{}'));
           if (parsed.platform === 'youtube') {
             matchedRow = parsed;
+            matchedId = String(row.id);
+            // Preserve old refresh token if new one not provided
+            if (!encryptedRefreshToken && matchedRow.refreshToken) {
+              encryptedRefreshToken = matchedRow.refreshToken;
+            }
             break;
           }
         } catch {}
@@ -214,10 +157,10 @@ export async function GET(request: NextRequest) {
         updatedAt: new Date().toISOString(),
       };
 
-      if (matchedRow) {
+      if (matchedId) {
         await bunnyExecute({
-          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND document_json LIKE '%\"platform\":\"youtube\"%'",
-          args: [JSON.stringify(updatedDoc)]
+          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+          args: [JSON.stringify(updatedDoc), matchedId]
         });
       } else {
         await bunnyExecute({
@@ -225,12 +168,57 @@ export async function GET(request: NextRequest) {
           args: [crypto.randomUUID(), JSON.stringify(updatedDoc)]
         });
       }
-      console.log('[YouTube OAuth] Saved YouTube account to Bunny Database successfully');
+      console.log('[YouTube OAuth] Saved YouTube account to Bunny Database (primary storage).');
     } catch (bunnySaveErr: any) {
       console.error('[YouTube OAuth] Failed to save to Bunny Database:', bunnySaveErr.message);
     }
 
+    // ── SECONDARY SAVE: MongoDB (best-effort) ──
+    try {
+      await connectDB();
+      const existingMongo = await SocialMediaAccount.findOne({ platform: 'youtube', accountId: channelId });
+      const finalRefresh = encryptedRefreshToken || existingMongo?.refreshToken || '';
+      if (existingMongo) {
+        await SocialMediaAccount.updateOne(
+          { _id: existingMongo._id },
+          {
+            $set: {
+              accessToken: encryptedAccessToken,
+              ...(finalRefresh ? { refreshToken: finalRefresh } : {}),
+              tokenExpiresAt,
+              isConnected: true,
+              connectedAt: new Date(),
+              accountName: channelName,
+              accountHandle: channelHandle,
+              metadata: { followers: subscribers, postsCount: videoCount, lastSyncedAt: new Date() },
+              grantedScopes: ['youtube.upload', 'youtube.readonly'],
+              updatedAt: new Date(),
+            },
+          }
+        );
+      } else {
+        const newAccount = new SocialMediaAccount({
+          platform: 'youtube',
+          accountName: channelName,
+          accountHandle: channelHandle,
+          accountId: channelId,
+          accessToken: encryptedAccessToken,
+          refreshToken: finalRefresh,
+          tokenExpiresAt,
+          isConnected: true,
+          connectedAt: new Date(),
+          metadata: { followers: subscribers, postsCount: videoCount, lastSyncedAt: new Date() },
+          grantedScopes: ['youtube.upload', 'youtube.readonly'],
+        });
+        await newAccount.save();
+      }
+      console.log('[YouTube OAuth] Also mirrored to MongoDB.');
+    } catch (mongoSaveErr: any) {
+      console.warn('[YouTube OAuth] Could not mirror to MongoDB (non-critical):', mongoSaveErr.message);
+    }
+
     console.log(`[YouTube OAuth] Successfully connected channel: ${channelName} (${channelId})`);
+
 
     // Redirect back to setup page with success
     return NextResponse.redirect(

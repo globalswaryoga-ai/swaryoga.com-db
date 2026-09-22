@@ -16,21 +16,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    // Connect to database
-    await connectDB();
-    const scope = await resolveSocialMediaScope(decoded);
+    let mongoAccounts: any[] = [];
+    let scope: any = { scopeType: 'super_admin', scopeKey: 'super_admin', scopeLabel: 'Super Admin' };
 
-    // Fetch all connected social media accounts
-    const accounts = await SocialMediaAccount.find({
-      isConnected: true,
-      ...buildSocialMediaScopeFilter(scope),
-    })
-      .select('-accessToken -refreshToken') // Don't return encrypted tokens to client
-      .lean();
+    // Try MongoDB first
+    try {
+      await connectDB();
+      scope = await resolveSocialMediaScope(decoded);
+      mongoAccounts = await SocialMediaAccount.find({
+        isConnected: true,
+        ...buildSocialMediaScopeFilter(scope),
+      })
+        .select('-accessToken -refreshToken')
+        .lean();
+    } catch (mongoErr: any) {
+      console.warn('[SocialMedia] MongoDB unavailable, falling back to Bunny DB:', mongoErr.message);
+    }
+
+    // Bunny DB fallback / merge: always check Bunny DB for OAuth-saved accounts (e.g. YouTube)
+    let bunnyAccounts: any[] = [];
+    try {
+      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const res = await bunnyExecute({
+        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
+      });
+      for (const row of res.rows) {
+        try {
+          const parsed = JSON.parse(String(row.document_json || '{}'));
+          if (parsed.isConnected) {
+            // Avoid returning encrypted tokens to client
+            const { accessToken: _at, refreshToken: _rt, ...safe } = parsed;
+            if (!safe._id) safe._id = String(row.id);
+            bunnyAccounts.push(safe);
+          }
+        } catch {}
+      }
+    } catch (bunnyErr: any) {
+      console.warn('[SocialMedia] Bunny DB fallback error:', bunnyErr.message);
+    }
+
+    // Merge: keep Mongo accounts, then add any Bunny accounts not already present by platform+accountId
+    const mongoPlatformKeys = new Set(mongoAccounts.map((a: any) => `${a.platform}:${a.accountId || a.accountHandle}`));
+    const uniqueBunny = bunnyAccounts.filter((a) => !mongoPlatformKeys.has(`${a.platform}:${(a.accountId || a.accountHandle)}`));
+    const combined = [...mongoAccounts, ...uniqueBunny];
 
     return NextResponse.json({
       success: true,
-      data: accounts,
+      data: combined,
       scope: {
         type: scope.scopeType,
         key: scope.scopeKey,
