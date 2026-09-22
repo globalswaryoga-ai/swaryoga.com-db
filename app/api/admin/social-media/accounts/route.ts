@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     // Verify authentication
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
+    const authHeader = request.headers.get('authorization');
+    const decoded = verifyToken(authHeader || undefined);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
@@ -81,8 +81,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
+    const authHeader = request.headers.get('authorization');
+    const decoded = verifyToken(authHeader || undefined);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
