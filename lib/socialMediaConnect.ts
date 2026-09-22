@@ -47,7 +47,7 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
   const encryptedAccessToken = encryptCredential(input.accessToken);
   const encryptedRefreshToken = input.refreshToken ? encryptCredential(input.refreshToken) : '';
 
-  const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+  const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
   
   // Find existing
   const res = await bunnyExecute({
@@ -59,7 +59,7 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
 
   for (const row of res.rows) {
     try {
-      const parsed = JSON.parse(String(row.document_json || '{}'));
+      const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
       if (
         parsed.platform === input.platform &&
         parsed.accountId === input.accountId &&

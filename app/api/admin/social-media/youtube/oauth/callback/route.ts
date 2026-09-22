@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
     // Save to Bunny DB first (works regardless of MongoDB availability)
     let encryptedRefreshToken = refresh_token ? encryptCredential(refresh_token) : '';
     try {
-      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
       const existingDocRes = await bunnyExecute({
         sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
       });
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
       let matchedId: string | null = null;
       for (const row of existingDocRes.rows) {
         try {
-          const parsed = JSON.parse(String(row.document_json || '{}'));
+          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
           if (parsed.platform === 'youtube') {
             matchedRow = parsed;
             matchedId = String(row.id);

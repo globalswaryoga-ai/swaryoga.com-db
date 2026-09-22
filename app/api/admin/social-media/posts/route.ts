@@ -21,13 +21,13 @@ export async function GET(request: NextRequest) {
 
     let posts: any[] = [];
     try {
-      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
       const res = await bunnyExecute({
         sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaposts'"
       });
       for (const row of res.rows) {
         try {
-          const parsed = JSON.parse(String(row.document_json || '{}'));
+          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
           if (['published', 'scheduled', 'draft', 'failed'].includes(parsed.status)) {
             if (!parsed._id) parsed._id = String(row.id);
             posts.push(parsed);
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
 
     // Verify all accounts exist and are connected
     const accountsRes = await bunnyExecute({
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     const connectedAccounts = [];
     for (const row of accountsRes.rows) {
       try {
-        const parsed = JSON.parse(String(row.document_json || '{}'));
+        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
         if (parsed.isConnected && platforms.includes(parsed.platform)) {
           if (!parsed._id) parsed._id = String(row.id);
           connectedAccounts.push(parsed);

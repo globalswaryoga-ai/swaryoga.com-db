@@ -18,13 +18,13 @@ export async function GET(request: NextRequest) {
     const scope = await resolveSocialMediaScope(decoded);
     let accounts: any[] = [];
     try {
-      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
       const res = await bunnyExecute({
         sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
       });
       for (const row of res.rows) {
         try {
-          const parsed = JSON.parse(String(row.document_json || '{}'));
+          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
           if (parsed.isConnected && (scope.scopeType === 'super_admin' || (parsed.scopeType === 'tenant' && parsed.scopeKey === scope.scopeKey))) {
             const { accessToken: _at, refreshToken: _rt, ...safe } = parsed;
             if (!safe._id) safe._id = String(row.id);
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if account already exists
-    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
     const res = await bunnyExecute({
       sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
     let existingAccount: any = null;
     for (const row of res.rows) {
       try {
-        const parsed = JSON.parse(String(row.document_json || '{}'));
+        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
         if (
           parsed.platform === platform &&
           parsed.accountId === resolvedAccountId &&

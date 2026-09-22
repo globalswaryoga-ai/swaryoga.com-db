@@ -64,3 +64,31 @@ export function isBunnyDatabaseConfigured(): boolean {
       process.env.BUNNY_DATABASE_AUTH_TOKEN?.trim(),
   );
 }
+
+export function cleanMongoJson(obj: any): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(cleanMongoJson);
+  }
+
+  if (obj.$oid !== undefined) return obj.$oid;
+  if (obj.$numberInt !== undefined) return Number(obj.$numberInt);
+  if (obj.$numberLong !== undefined) return Number(obj.$numberLong);
+  if (obj.$numberDouble !== undefined) return Number(obj.$numberDouble);
+  if (obj.$numberDecimal !== undefined) return Number(obj.$numberDecimal);
+  if (obj.$date !== undefined) {
+    if (typeof obj.$date === 'object' && obj.$date.$numberLong) {
+      return new Date(Number(obj.$date.$numberLong)).toISOString();
+    }
+    return obj.$date;
+  }
+
+  const cleaned: any = {};
+  for (const key in obj) {
+    cleaned[key] = cleanMongoJson(obj[key]);
+  }
+  return cleaned;
+}

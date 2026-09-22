@@ -728,7 +728,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Invalid post id' }, { status: 400 });
     }
 
-    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
 
     const postRes = await bunnyExecute({
       sql: "SELECT document_json FROM mongo_documents WHERE document_id = ? AND collection_name = 'socialmediaposts'",
@@ -739,7 +739,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const postDoc = JSON.parse(String(postRes.rows[0].document_json || '{}'));
+    const postDoc = cleanMongoJson(JSON.parse(String(postRes.rows[0].document_json || '{}')));
     postDoc._id = postId;
 
     const platforms: string[] = Array.isArray(postDoc.platforms) ? postDoc.platforms.map(String) : [];
@@ -756,7 +756,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const accounts = [];
     for (const row of accountsRes.rows) {
       try {
-        const parsed = JSON.parse(String(row.document_json || '{}'));
+        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
         if (parsed.isConnected && platforms.includes(parsed.platform) && accountObjectIds.includes(String(row.id))) {
           if (!parsed._id) parsed._id = String(row.id);
           accounts.push(parsed);

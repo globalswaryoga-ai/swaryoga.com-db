@@ -20,7 +20,7 @@ export async function DELETE(
     const scope = await resolveSocialMediaScope(decoded);
     const { id } = params;
 
-    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
     const existingRes = await bunnyExecute({
       sql: "SELECT document_json FROM mongo_documents WHERE document_id = ? AND collection_name = 'socialmediaaccounts'",
       args: [id]
@@ -30,7 +30,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const account = JSON.parse(String(existingRes.rows[0].document_json || '{}'));
+    const account = cleanMongoJson(JSON.parse(String(existingRes.rows[0].document_json || '{}')));
     
     // Verify scope
     if (scope.scopeType !== 'super_admin' && (account.scopeType !== 'tenant' || account.scopeKey !== scope.scopeKey)) {
@@ -53,7 +53,7 @@ export async function DELETE(
       });
       for (const row of allRes.rows) {
         try {
-          const parsed = JSON.parse(String(row.document_json || '{}'));
+          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
           if (
             parsed.platform === 'instagram' &&
             parsed.metadata?.autoConnectedVia === 'facebook' &&

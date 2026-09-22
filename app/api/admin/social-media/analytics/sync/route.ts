@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { decryptCredential } from '@/lib/encryption';
 import crypto from 'crypto';
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
     const accounts: any[] = [];
     for (const row of res.rows) {
       try {
-        const parsed = JSON.parse(String(row.document_json || '{}'));
+        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
         if (parsed.isConnected) {
           if (!parsed._id) parsed._id = String(row.id);
           accounts.push(parsed);
@@ -391,7 +391,7 @@ export async function POST(request: NextRequest) {
     const sanitizedAccounts: any[] = [];
     for (const row of accountsRes.rows) {
       try {
-        const parsed = JSON.parse(String(row.document_json || '{}'));
+        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
         if (parsed.isConnected) {
           if (!parsed._id) parsed._id = String(row.id);
           delete parsed.accessToken;
