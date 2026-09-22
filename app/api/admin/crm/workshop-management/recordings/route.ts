@@ -29,8 +29,8 @@ export async function PATCH(request: NextRequest) {
   
   const { bunnyExecute } = await import('@/lib/bunnyDatabase');
   
-  const sets = [];
-  const args = [];
+  const sets: string[] = [];
+  const args: any[] = [];
   if (body.dayNumber !== undefined) {
     sets.push('day_number = ?');
     args.push(body.dayNumber ? Number(body.dayNumber) : null);
@@ -38,10 +38,36 @@ export async function PATCH(request: NextRequest) {
   
   if (body.subject !== undefined) {
     const existing = await bunnyExecute({ sql: 'SELECT metadata_json FROM workshop_recordings_sql WHERE id = ?', args: [body.id] });
-    const metadata = JSON.parse(existing.rows[0]?.metadata_json || '{}');
+    const row0 = existing.rows[0] as any;
+    const metadata = JSON.parse(String(row0?.metadata_json || '{}'));
     metadata.subject = body.subject;
     sets.push('metadata_json = ?');
     args.push(JSON.stringify(metadata));
+  }
+
+  if (body.youtubeSpeakerUrl !== undefined) {
+    sets.push('youtube_speaker_url = ?');
+    args.push(body.youtubeSpeakerUrl ? String(body.youtubeSpeakerUrl).trim() : null);
+  }
+  if (body.youtubeSpeakerId !== undefined) {
+    sets.push('youtube_speaker_id = ?');
+    args.push(body.youtubeSpeakerId ? String(body.youtubeSpeakerId).trim() : null);
+  }
+  if (body.youtubeGalleryUrl !== undefined) {
+    sets.push('youtube_gallery_url = ?');
+    args.push(body.youtubeGalleryUrl ? String(body.youtubeGalleryUrl).trim() : null);
+  }
+  if (body.youtubeGalleryId !== undefined) {
+    sets.push('youtube_gallery_id = ?');
+    args.push(body.youtubeGalleryId ? String(body.youtubeGalleryId).trim() : null);
+  }
+  if (body.bunnySpeakerUrl !== undefined) {
+    sets.push('bunny_speaker_url = ?');
+    args.push(body.bunnySpeakerUrl ? String(body.bunnySpeakerUrl).trim() : null);
+  }
+  if (body.bunnyGalleryUrl !== undefined) {
+    sets.push('bunny_gallery_url = ?');
+    args.push(body.bunnyGalleryUrl ? String(body.bunnyGalleryUrl).trim() : null);
   }
   
   if (sets.length === 0) return NextResponse.json({ success: true });

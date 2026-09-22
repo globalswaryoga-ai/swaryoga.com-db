@@ -31,15 +31,18 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
+import { createClient } from '@libsql/client';
 
-// Load env from .env.zoom-uploader at the repo root (best-effort, no dotenv dep).
-try {
-  const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env.zoom-uploader');
-  for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
-    const m = line.match(/^([A-Z_0-9]+)=(.*)$/);
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^"|"$/g, '');
-  }
-} catch { /* no env file — rely on process env */ }
+// Load env from .env.zoom-uploader, .env.local, or .env at repo root
+for (const envName of ['.env.zoom-uploader', '.env.local', '.env']) {
+  try {
+    const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', envName);
+    for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
+      const m = line.match(/^([A-Z_0-9]+)=(.*)$/);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^"|"$/g, '');
+    }
+  } catch { /* ignore missing env file */ }
+}
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const LOOKBACK = Number(process.env.RECORDING_LOOKBACK_DAYS || 2);
@@ -336,6 +339,78 @@ function bunnyCdnUrl(dest) {
   return `https://${host}/${encodeURI(dest)}`;
 }
 
+// Sync YouTube & Bunny URLs directly to workshop_recordings_sql in Bunny Database
+async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResults, ytUrls, bunnyResults) {
+  const dbUrl = process.env.BUNNY_DATABASE_URL?.trim();
+  const dbToken = process.env.BUNNY_DATABASE_AUTH_TOKEN?.trim();
+  if (!dbUrl || !dbToken) {
+    log('  Workshop sync: Bunny Database URL or Auth Token not set, skipping workshop_recordings_sql update');
+    return;
+  }
+  try {
+    const client = createClient({ url: dbUrl, authToken: dbToken });
+    const cohortRes = await client.execute({
+      sql: 'SELECT id, start_date FROM workshop_cohorts_sql WHERE zoom_meeting_id = ? LIMIT 1',
+      args: [zoomMeetingId]
+    });
+    if (!cohortRes.rows || cohortRes.rows.length === 0) {
+      log(`  Workshop sync: No cohort found matching zoomMeetingId ${zoomMeetingId}`);
+      client.close();
+      return;
+    }
+    const cohort = cohortRes.rows[0];
+    const cohortId = String(cohort.id);
+    let dayNumber = 1;
+    if (cohort.start_date) {
+      const start = new Date(String(cohort.start_date).slice(0, 10)).getTime();
+      const cur = new Date(dateLabel).getTime();
+      const diff = Math.round((cur - start) / 86400000);
+      dayNumber = diff >= 0 ? diff + 1 : 1;
+    }
+
+    const ytSpeakerId = ytResults?.speaker || null;
+    const ytSpeakerUrl = ytUrls?.speaker || (ytSpeakerId ? `https://youtu.be/${ytSpeakerId}` : null);
+    const ytGalleryId = ytResults?.gallery || null;
+    const ytGalleryUrl = ytUrls?.gallery || (ytGalleryId ? `https://youtu.be/${ytGalleryId}` : null);
+    const bunnySpeakerUrl = bunnyResults?.speaker ? bunnyCdnUrl(bunnyResults.speaker) : null;
+
+    const existingRec = await client.execute({
+      sql: 'SELECT id, day_number FROM workshop_recordings_sql WHERE cohort_id = ? AND class_date = ?',
+      args: [cohortId, dateLabel]
+    });
+
+    const recId = existingRec.rows[0]?.id ? String(existingRec.rows[0].id) : crypto.randomUUID();
+    const finalDayNumber = existingRec.rows[0]?.day_number || dayNumber;
+
+    await client.execute({
+      sql: `INSERT INTO workshop_recordings_sql (
+        id, cohort_id, class_date, day_number, zoom_meeting_id, zoom_meeting_uuid,
+        youtube_speaker_id, youtube_gallery_id, youtube_speaker_url, youtube_gallery_url,
+        bunny_speaker_url, bunny_gallery_url, delivered_student_ids_json, metadata_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '[]', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        day_number = COALESCE(workshop_recordings_sql.day_number, excluded.day_number),
+        zoom_meeting_id = excluded.zoom_meeting_id,
+        zoom_meeting_uuid = excluded.zoom_meeting_uuid,
+        youtube_speaker_id = COALESCE(excluded.youtube_speaker_id, workshop_recordings_sql.youtube_speaker_id),
+        youtube_gallery_id = COALESCE(excluded.youtube_gallery_id, workshop_recordings_sql.youtube_gallery_id),
+        youtube_speaker_url = COALESCE(excluded.youtube_speaker_url, workshop_recordings_sql.youtube_speaker_url),
+        youtube_gallery_url = COALESCE(excluded.youtube_gallery_url, workshop_recordings_sql.youtube_gallery_url),
+        bunny_speaker_url = COALESCE(excluded.bunny_speaker_url, workshop_recordings_sql.bunny_speaker_url),
+        updated_at = CURRENT_TIMESTAMP`,
+      args: [
+        recId, cohortId, dateLabel, finalDayNumber, zoomMeetingId, zoomUuid,
+        ytSpeakerId, ytGalleryId, ytSpeakerUrl, ytGalleryUrl,
+        bunnySpeakerUrl
+      ]
+    });
+    client.close();
+    log(`  Workshop sync OK: updated workshop_recordings_sql for cohort ${cohortId} date ${dateLabel}`);
+  } catch (err) {
+    log('  Workshop sync FAIL:', err.message);
+  }
+}
+
 (async () => {
   log('uploader start (lookback', LOOKBACK, 'days)');
   const zt = await zoomToken();
@@ -397,6 +472,7 @@ function bunnyCdnUrl(dest) {
     const result = { _id: m.uuid, topic: m.topic, startTime: m.start_time, youtube: {}, youtubeUrls: {}, bunny: {}, uploadedAt: new Date() };
     log(`→ ${m.topic} (${dateLabel}) speaker=${speaker?.recording_type || 'none'} gallery=${gallery?.recording_type || 'none'}`);
 
+    // YouTube: 1 speaker view (with or without screen sharing) and same one gallery view
     for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
       if (!f) continue;
       try {
@@ -414,7 +490,9 @@ function bunnyCdnUrl(dest) {
         }
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
-    for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
+
+    // Bunny: ONLY speaker view (with or without screen sharing)
+    for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker']]) {
       if (!f) continue;
       try {
         const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.topic} (${key}).mp4`);
@@ -424,14 +502,12 @@ function bunnyCdnUrl(dest) {
         const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
         await autoAddToConfiguredCommunity(
           bunnyCdnUrl(bunnyPath), m.topic, dateLabel, String(m.id),
-          mongoose.connection.db, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
+          mongoose.connection.db, thumb, 'speaker_view'
         );
       } catch (e) { log(`  Bunny FAIL ${view}:`, e.message); }
     }
-    // Add newly uploaded videos to the workshop's YouTube playlist (unlisted),
-    // creating the playlist on demand. The mapping's youtubePlaylistName can use
-    // {MONTH} / {YEAR} placeholders (e.g. "Swar Yoga 7 days {MONTH} {YEAR} Eveining Hindi")
-    // so each month's recordings land in their own auto-created playlist.
+
+    // Add newly uploaded videos to the workshop's YouTube playlist (unlisted)
     if (result.youtube.speaker || result.youtube.gallery) {
       try {
         const mapping = await getZoomMapping(String(m.id), Accounts);
@@ -448,22 +524,23 @@ function bunnyCdnUrl(dest) {
         }
       } catch (e) { log('  Playlist FAIL:', e.message); }
     }
-    // Mark done only after every available selected view is uploaded to both
-    // YouTube and Bunny. This also prevents Zoom cleanup when Bunny storage
-    // is temporarily unavailable.
-    // If Zoom was still processing one view, the meeting was skipped above and
-    // will be picked up on a later run.
+
+    // Mark done: YouTube speaker + gallery (if present) and Bunny speaker (if present)
     const expectedYoutubeKeys = [speaker && 'speaker', gallery && 'gallery'].filter(Boolean);
     const allYoutubeUploaded = expectedYoutubeKeys.length > 0 && expectedYoutubeKeys.every((key) => result.youtube[key]);
-    const allBunnyStored = expectedYoutubeKeys.every((key) => result.bunny[key]);
+    const allBunnyStored = !speaker || !!result.bunny.speaker;
+
     if (allYoutubeUploaded && allBunnyStored) {
-      // After a successful upload, move the cloud recording to Zoom trash
-      // (frees cloud storage; recoverable ~30 days). Disable with DELETE_AFTER_UPLOAD=off.
+      // Move the cloud recording to Zoom trash
       if ((process.env.DELETE_AFTER_UPLOAD || 'trash') !== 'off') {
         try { await trashRecording(m.uuid, zt); result.trashed = true; log('  Zoom recording → trash ✓'); }
         catch (e) { log('  Zoom trash FAIL:', e.message); }
       }
       await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, youtubeUrls: result.youtubeUrls, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
+
+      // Automatically add both YouTube URLs (Speaker + Gallery) and Bunny Speaker URL to workshop_recordings_sql
+      await syncToWorkshopDatabase(String(m.id), m.uuid, dateLabel, result.youtube, result.youtubeUrls, result.bunny);
+
       processed++;
     }
   }

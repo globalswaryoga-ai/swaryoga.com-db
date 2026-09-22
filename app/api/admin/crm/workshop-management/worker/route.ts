@@ -93,20 +93,30 @@ export async function POST(request: NextRequest) {
                }
              }
              
-             if (synced.youtubeVideoId && synced.recordingType.includes('speaker_view')) {
+             const isSpeaker = [
+               'speaker_view',
+               'active_speaker',
+               'shared_screen_with_speaker_view',
+               'shared_screen_with_active_speaker'
+             ].includes(synced.recordingType);
+
+             const isGallery = [
+               'gallery_view',
+               'shared_screen_with_gallery_view'
+             ].includes(synced.recordingType);
+             
+             if (synced.youtubeVideoId && isSpeaker) {
                updates.youtubeSpeakerId = synced.youtubeVideoId;
                updates.youtubeSpeakerUrl = synced.youtubeUrl;
              }
-             if (synced.youtubeVideoId && synced.recordingType.includes('gallery_view')) {
+             if (synced.youtubeVideoId && isGallery) {
                updates.youtubeGalleryId = synced.youtubeVideoId;
                updates.youtubeGalleryUrl = synced.youtubeUrl;
              }
-             if (synced.bunnyVideoId && synced.recordingType.includes('speaker_view')) {
+             if (synced.bunnyVideoId && isSpeaker) {
                updates.bunnySpeakerUrl = synced.bunnyEmbedUrl;
              }
-             if (synced.bunnyVideoId && synced.recordingType.includes('gallery_view')) {
-               updates.bunnyGalleryUrl = synced.bunnyEmbedUrl;
-             }
+             // On Bunny: ONLY speaker view (with or without screen sharing) - no gallery on bunny
              
              updatesByDate.set(date, updates);
           }

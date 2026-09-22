@@ -255,9 +255,22 @@ export async function syncZoomToBunny(
           percent: Math.round(fileBasePercent + fileStepPercent * 0.5),
         });
 
+        const isSpeakerView = [
+          'speaker_view',
+          'active_speaker',
+          'shared_screen_with_speaker_view',
+          'shared_screen_with_active_speaker'
+        ].includes(recording.recording_type);
+
+        const isGalleryView = [
+          'gallery_view',
+          'shared_screen_with_gallery_view'
+        ].includes(recording.recording_type);
+
         let bunnyResult;
-        if (recording.recording_type === 'speaker_view' || recording.recording_type === 'shared_screen_with_speaker_view') {
-          console.log(`[Zoom→Bunny] Uploading to Bunny Stream: ${bunnyTitle} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
+        // On Bunny: ONLY speaker view (with or without screen sharing)
+        if (isSpeakerView) {
+          console.log(`[Zoom→Bunny] Uploading to Bunny Stream (Speaker View): ${bunnyTitle} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
           bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle);
           if (!bunnyResult.success) {
             throw new Error(`Bunny upload failed: ${bunnyResult.error}`);
@@ -265,16 +278,19 @@ export async function syncZoomToBunny(
         }
 
         let ytResult;
-        try {
-           console.log(`[Zoom→YouTube] Uploading to YouTube: ${bunnyTitle}...`);
-           const ytToken = await getYouTubeAccessToken();
-           ytResult = await uploadToYouTube(ytToken, buffer, {
-             title: bunnyTitle,
-             privacyStatus: 'unlisted'
-           });
-           console.log(`[Zoom→YouTube] Uploaded to YouTube successfully: ${ytResult.url}`);
-        } catch (ytErr: any) {
-           console.error('[Zoom→YouTube] Error uploading:', ytErr);
+        // On YouTube: 1 speaker view (with or without screen sharing) and 1 gallery view
+        if (isSpeakerView || isGalleryView) {
+          try {
+             console.log(`[Zoom→YouTube] Uploading to YouTube (${isSpeakerView ? 'Speaker' : 'Gallery'} View): ${bunnyTitle}...`);
+             const ytToken = await getYouTubeAccessToken();
+             ytResult = await uploadToYouTube(ytToken, buffer, {
+               title: bunnyTitle,
+               privacyStatus: 'unlisted'
+             });
+             console.log(`[Zoom→YouTube] Uploaded to YouTube successfully: ${ytResult.url}`);
+          } catch (ytErr: any) {
+             console.error('[Zoom→YouTube] Error uploading:', ytErr);
+          }
         }
 
         result.syncedFiles.push({
