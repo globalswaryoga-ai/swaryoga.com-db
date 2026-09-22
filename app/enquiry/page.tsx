@@ -387,17 +387,17 @@ function EnquiryForm() {
           )}
 
           {/* Standard Fields */}
-          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 0 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+          <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
           </div>
 
-          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 1 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+          <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
           </div>
 
-          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 2 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+          <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
             <div className="grid grid-cols-3 gap-3">
               {['Male', 'Female', 'Other'].map(g => (
@@ -408,28 +408,28 @@ function EnquiryForm() {
             </div>
           </div>
 
-          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 3 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+          <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
-            <select value={country} onChange={e => setCountry(e.target.value)} required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
+            <select value={country} onChange={e => setCountry(e.target.value)} required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
               {Object.keys(COUNTRY_PHONE_CODES).map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
 
-          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 4 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+          <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
             <div className="flex gap-2">
               <div className={`flex items-center justify-center min-w-[3.5rem] px-2 border-b-2 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0 ${activeIdx === 4 ? 'border-red-400' : 'border-gray-200'}`}>
                 {COUNTRY_PHONE_CODES[country]?.code || '+91'}
               </div>
-              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Enter number" required className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Enter number" required className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
             </div>
           </div>
 
           {/* Dynamic Questions */}
           {dynamicQuestions.map((q, idx) => (
-            <div key={q._id} className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === (5 + idx) ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+            <div key={q._id}>
               {q.imageUrl && <img src={q.imageUrl} alt="" className="w-full max-h-56 object-cover rounded-xl border border-gray-100 mb-4" />}
               
               {q.questionType !== 'info' && (
@@ -451,15 +451,15 @@ function EnquiryForm() {
               )}
 
               {q.questionType === 'text' && (
-                <input value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+                <input value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
               )}
 
               {q.questionType === 'paragraph' && (
-                <textarea value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} rows={4} className={`w-full px-4 py-3 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors resize-none ${activeIdx === (5 + idx) ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+                <textarea value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} rows={4} className={`w-full px-4 py-3 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors resize-none ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
               )}
 
               {q.questionType === 'dropdown' && (
-                <select value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
+                <select value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
                   <option value="">Choose…</option>
                   {(q.options || []).map(o => <option key={o.value} value={o.value}>{o.label.en}</option>)}
                 </select>

@@ -507,13 +507,52 @@ export default function GoogleFormBuilderPage() {
   };
 
   const handleDeleteQ = async (id: string) => {
-    if (!confirm('Delete this question?')) return;
-    const res = await fetch(`/api/admin/form-questions?id=${id}`, { method: 'DELETE', headers: authHeaders() });
-    const data = await res.json();
-    if (data.success) {
-      setQuestions(qs => qs.filter(q => q._id !== id));
-      showToast('Deleted!');
-    } else showToast('Delete failed', 'error');
+    if (!confirm('Are you sure you want to delete this question?')) return;
+    try {
+      const res = await fetch(`/api/admin/form-questions?id=${id}`, { method: 'DELETE', headers: authHeaders() });
+      if (!res.ok) throw new Error('Failed to delete question');
+      setQuestions(q => q.filter(x => x._id !== id));
+      showToast('Question deleted');
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    }
+  };
+
+  const handleMoveQuestion = async (id: string, direction: 'up' | 'down') => {
+    const sorted = [...questions].sort((a, b) => a.order - b.order);
+    const index = sorted.findIndex(q => q._id === id);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === sorted.length - 1) return;
+
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    const currentQ = sorted[index];
+    const swapQ = sorted[swapIndex];
+
+    const tempOrder = currentQ.order;
+    currentQ.order = swapQ.order;
+    swapQ.order = tempOrder;
+
+    // Optimistic UI update
+    setQuestions([...sorted]);
+
+    try {
+      // Update backend for both
+      await fetch('/api/admin/form-questions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ id: currentQ._id, formId: activeForm?.formId, order: currentQ.order })
+      });
+      await fetch('/api/admin/form-questions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ id: swapQ._id, formId: activeForm?.formId, order: swapQ.order })
+      });
+      showToast('Order updated');
+    } catch (e: any) {
+      showToast('Failed to update order', 'error');
+      loadQuestions(activeForm!.formId); // Revert on failure
+    }
   };
 
   const addOption = () => {
@@ -762,8 +801,8 @@ export default function GoogleFormBuilderPage() {
             <div className="space-y-4">
               {loadingQuestions ? (
                 <div className="text-center py-10">Loading questions...</div>
-              ) : questions.sort((a,b)=>a.order-b.order).map((q) => (
-                <div key={q._id} className="bg-white rounded-2xl border border-slate-200 p-6 flex items-start gap-4 hover:shadow-md transition-shadow group">
+              ) : questions.sort((a,b)=>a.order-b.order).map((q, idx, sortedArr) => (
+                <div key={q._id} className="bg-white rounded-2xl border border-slate-200 p-6 flex items-start gap-4 hover:shadow-md transition-shadow group relative">
                   <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 mt-1 cursor-grab">
                     <GripVertical size={16} />
                   </div>
@@ -771,7 +810,25 @@ export default function GoogleFormBuilderPage() {
                     <h3 className="font-bold text-slate-800 text-base mb-1">{q.label.en} {q.required && <span className="text-red-500">*</span>}</h3>
                     <p className="text-sm text-slate-500 capitalize">{q.questionType} Question · <code className="bg-slate-100 px-1 rounded">{q.fieldKey}</code></p>
                   </div>
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity absolute right-6 top-6">
+                    <div className="flex flex-col gap-1 mr-2">
+                      <button 
+                        onClick={() => handleMoveQuestion(q._id, 'up')} 
+                        disabled={idx === 0}
+                        className="w-8 h-4 flex items-center justify-center rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                        title="Move Up"
+                      >
+                        <ArrowUp size={12} />
+                      </button>
+                      <button 
+                        onClick={() => handleMoveQuestion(q._id, 'down')} 
+                        disabled={idx === sortedArr.length - 1}
+                        className="w-8 h-4 flex items-center justify-center rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                        title="Move Down"
+                      >
+                        <ArrowDown size={12} />
+                      </button>
+                    </div>
                     <button onClick={() => { setQData(q); setEditingQId(q._id); setShowQBuilder(true); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
                       <Edit3 size={16} />
                     </button>

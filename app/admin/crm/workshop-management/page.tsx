@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Users, Video, Settings, UserPlus, Upload, RefreshCw, 
   PlayCircle, Eye, Calendar, Plus, X, Trash2, Edit2, 
-  Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy
+  Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy, MessageCircle, QrCode
 } from 'lucide-react';
 
 interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; }
@@ -21,6 +21,11 @@ export default function WorkshopManagementPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [studentEditForm, setStudentEditForm] = useState({ name: '', email: '', phone: '', whatsappNumber: '', active: true });
+  
+  // Message Sending State
+  const [messageModal, setMessageModal] = useState<{ student: Student, channel: 'qr' | 'meta' | 'email' } | null>(null);
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const DEFAULT_DAY_SUBJECTS = Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' }));
@@ -391,7 +396,7 @@ export default function WorkshopManagementPage() {
   };
 
   const downloadAnalyticsCSV = () => {
-    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
+    const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).sort();
     const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
     const rows = students.map(s => {
       const row = [
@@ -485,7 +490,7 @@ export default function WorkshopManagementPage() {
   };
   const exportReportCsv = () => {
 
-    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
+    const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).sort();
     const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
     const rows = students.map(s => {
       const row = [
@@ -1219,7 +1224,7 @@ export default function WorkshopManagementPage() {
                 
                 {/* === ANALYTICS TAB === */}
                 {activeTab === 'analytics' && (() => {
-                  const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate))).sort();
+                  const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).filter(d => d).sort();
                   const visibleStudents = analyticsSearch.trim()
                     ? students.filter(s => s.name.toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.email || '').toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.phone || '').includes(analyticsSearch) || (s.whatsappNumber || '').includes(analyticsSearch))
                     : students;
@@ -1292,6 +1297,18 @@ export default function WorkshopManagementPage() {
                                     const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
                                     const recording = recordings.find(r => r.classDate === date);
                                     const hasRecording = !!(recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl);
+                                    const isHoliday = selected?.holidayDates?.includes(date);
+
+                                    if (isHoliday) {
+                                      return (
+                                        <td key={date} className="px-4 py-4">
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 font-semibold text-xs border border-amber-100">
+                                            Holiday
+                                          </span>
+                                        </td>
+                                      );
+                                    }
+
                                     if (record && record.joined) {
                                       const mins = Math.round(record.durationSeconds / 60);
                                       return (
@@ -1331,15 +1348,29 @@ export default function WorkshopManagementPage() {
                                     );
                                   })}
                                   <td className="px-4 py-4 whitespace-nowrap no-print">
-                                    <button
-                                      onClick={() => {
-                                        setStudentEditForm({ name: s.name, email: s.email || '', phone: s.phone || '', whatsappNumber: s.whatsappNumber || '', active: s.active });
-                                        setEditingStudent(s);
-                                      }}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors"
-                                    >
-                                      <Edit2 size={12} /> Edit
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        onClick={() => {
+                                          setStudentEditForm({ name: s.name, email: s.email || '', phone: s.phone || '', whatsappNumber: s.whatsappNumber || '', active: s.active });
+                                          setEditingStudent(s);
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition-colors"
+                                      >
+                                        <Edit2 size={12} /> Edit
+                                      </button>
+                                      
+                                      <button onClick={() => { setMessageModal({ student: s, channel: 'qr' }); setMessageText(''); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-100 transition-colors" title="Send message via WhatsApp QR Bridge">
+                                        <QrCode size={12} /> QR
+                                      </button>
+                                      
+                                      <button onClick={() => { setMessageModal({ student: s, channel: 'meta' }); setMessageText(''); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-100 transition-colors" title="Send message via WhatsApp Cloud API">
+                                        <MessageCircle size={12} /> Meta
+                                      </button>
+                                      
+                                      <button onClick={() => { setMessageModal({ student: s, channel: 'email' }); setMessageText(''); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-semibold border border-violet-100 transition-colors" title="Send message via Email">
+                                        <Mail size={12} /> Email
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               ))}
@@ -1880,6 +1911,95 @@ export default function WorkshopManagementPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Message Modal */}
+      {messageModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                {messageModal.channel === 'qr' ? <><QrCode size={18} className="text-emerald-600"/> WhatsApp (QR)</> : 
+                 messageModal.channel === 'meta' ? <><MessageCircle size={18} className="text-blue-600"/> WhatsApp (Meta)</> : 
+                 <><Mail size={18} className="text-violet-600"/> Email</>}
+              </h3>
+              <button type="button" onClick={() => setMessageModal(null)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={20}/></button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                Sending to <strong>{messageModal.student.name}</strong> <br/>
+                <span className="text-xs text-slate-500">Contact: {messageModal.channel === 'email' ? (messageModal.student.email || 'No email saved') : (messageModal.student.whatsappNumber || messageModal.student.phone || 'No phone saved')}</span>
+              </p>
+              
+              <div className="flex gap-2 mb-3">
+                <button 
+                  onClick={() => {
+                    const rec = recordings[0];
+                    if (rec) {
+                      const url = rec.youtubeSpeakerUrl || rec.youtubeGalleryUrl || rec.bunnySpeakerUrl || rec.bunnyGalleryUrl || '';
+                      if (url) {
+                        setMessageText(`Hi ${messageModal.student.name}, here is the latest class recording:\n${url}`);
+                      } else {
+                        alert('Latest recording does not have a URL yet.');
+                      }
+                    } else {
+                      alert('No recordings found for this workshop.');
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-50 text-sky-700 border border-sky-100 hover:bg-sky-100 transition-colors"
+                >
+                  <PlayCircle size={12} className="inline mr-1" /> Insert Latest Recording
+                </button>
+                <button 
+                  onClick={() => setMessageText(`Hi ${messageModal.student.name}, `)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <textarea 
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                rows={6}
+                className="w-full rounded-xl border border-slate-200 p-4 bg-white text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                placeholder="Type your message here..."
+              />
+              
+              <div className="mt-6 flex gap-3">
+                <button type="button" onClick={() => setMessageModal(null)} className="flex-1 rounded-xl border border-slate-200 py-3 font-bold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+                <button 
+                  onClick={async () => {
+                    setSendingMessage(true);
+                    try {
+                      const res = await fetch('/api/admin/crm/workshop-management/students/message', {
+                        method: 'POST', headers,
+                        body: JSON.stringify({ 
+                          studentId: messageModal.student._id, 
+                          channel: messageModal.channel, 
+                          message: messageText 
+                        })
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || 'Failed to send message');
+                      alert('Message sent successfully!');
+                      setMessageModal(null);
+                      setMessageText('');
+                    } catch(err: any) {
+                      alert(err.message);
+                    } finally {
+                      setSendingMessage(false);
+                    }
+                  }} 
+                  disabled={!messageText || sendingMessage} 
+                  className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  {sendingMessage ? 'Sending...' : 'Send Message'}
+                </button>
               </div>
             </div>
           </div>
