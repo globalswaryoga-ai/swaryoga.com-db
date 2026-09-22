@@ -3052,6 +3052,11 @@ export default function MetaInboxPage() {
                                 content.startsWith('🖼')) {
                               return null;
                             }
+                            
+                            if (content === '[unsupported message]') {
+                              return <span className={`italic opacity-60 text-[13px] ${msg.direction === 'inbound' ? 'text-white/80' : 'text-slate-500'}`}>📎 Unsupported message type</span>;
+                            }
+                            
                             // Extract [admincrm] or similar tags
                             const tagMatch = content.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
                             const mainBody = tagMatch ? content.replace(tagMatch[0], '').trim() : content;
