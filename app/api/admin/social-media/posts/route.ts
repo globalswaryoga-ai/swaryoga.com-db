@@ -20,20 +20,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
 
-    await connectDB();
+    let posts: any[] = [];
+    try {
+      await connectDB();
+      posts = await SocialMediaPost.find({
+        status: { $in: ['published', 'scheduled', 'draft', 'failed'] },
+      })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean();
+    } catch (dbErr: any) {
+      console.warn('[social-media/posts] MongoDB unavailable, returning empty list:', dbErr.message);
+      // Return empty list rather than 500 so the UI doesn't error-loop
+    }
 
-    // Fetch recent posts (published and scheduled)
-    const posts = await SocialMediaPost.find({
-      status: { $in: ['published', 'scheduled', 'draft', 'failed'] },
-    })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
-
-    return NextResponse.json({
-      success: true,
-      data: posts,
-    });
+    return NextResponse.json({ success: true, data: posts });
   } catch (error) {
     console.error('Error fetching posts:', error);
     return NextResponse.json(
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
 
 export async function POST(request: NextRequest) {
   try {
