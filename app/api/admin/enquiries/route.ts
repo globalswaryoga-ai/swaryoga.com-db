@@ -194,9 +194,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Validation
-    if (!body.name || !body.mobile || !body.gender || !body.city || !body.workshopId) {
+    if (!body.name || !body.mobile || !body.gender || !body.country || !body.workshopId) {
       return NextResponse.json(
-        { message: 'Missing required fields: name, mobile, gender, city, workshopId' },
+        { message: 'Missing required fields: name, mobile, gender, country, workshopId' },
         { status: 400 }
       );
     }
@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
         mobile: body.mobile,
         email: body.email || '',
         gender: body.gender,
-        city: body.city,
+        city: body.country || body.city || '', // Map country to city column for backwards compat
         dynamicAnswers: body.dynamicAnswers || {},
         paymentStatus: 'pending',
         amount: body.amount || 0,
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
               workshopId: body.workshopId,
               workshopName: body.workshopName,
               gender: body.gender,
-              city: body.city,
+              city: body.country || body.city || '',
               submittedAt: new Date(),
               dynamicAnswers: body.dynamicAnswers || {},
             },

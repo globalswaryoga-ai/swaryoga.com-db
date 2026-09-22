@@ -2,7 +2,8 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle, Loader, ExternalLink, CreditCard } from 'lucide-react';
+import { CheckCircle, Loader, ExternalLink, CreditCard, Check } from 'lucide-react';
+import { COUNTRY_PHONE_CODES } from '@/lib/countryPhoneCodes';
 
 interface DynamicQuestion {
   _id: string;
@@ -51,7 +52,7 @@ function EnquiryForm() {
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState('');
-  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('India');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -151,7 +152,7 @@ function EnquiryForm() {
         setMobile(data.data.mobile || '');
         setEmail(data.data.email || '');
         if (data.data.gender) setGender(data.data.gender.toLowerCase());
-        setCity(data.data.city || '');
+        setCountry(data.data.city || 'India'); // city column stores country
         setDynamicAnswers(data.data.dynamicAnswers || {});
       } else {
         setSearchError('No past submission found with this detail.');
@@ -162,6 +163,29 @@ function EnquiryForm() {
       setSearching(false);
     }
   };
+
+  const getActiveFieldIndex = () => {
+    if (!name.trim()) return 0;
+    if (!email.trim() || !email.includes('@')) return 1;
+    if (!gender) return 2;
+    if (!country) return 3;
+    if (!mobile.trim() || mobile.length < 10) return 4;
+    
+    for (let i = 0; i < dynamicQuestions.length; i++) {
+      const q = dynamicQuestions[i];
+      if (q.required) {
+        const ans = dynamicAnswers[q.fieldKey];
+        if (q.questionType === 'checkbox') {
+          if (!ans || (ans as string[]).length === 0) return 5 + i;
+        } else {
+          if (!ans || String(ans).trim() === '') return 5 + i;
+        }
+      }
+    }
+    return -1;
+  };
+  
+  const activeIdx = getActiveFieldIndex();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,10 +222,10 @@ function EnquiryForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          mobile: '+91' + mobile,
+          mobile: (COUNTRY_PHONE_CODES[country]?.code || '+91') + mobile,
           email,
           gender,
-          city,
+          country,
           workshopId: formDetails.formId,
           workshopName: formDetails.workshopName,
           dynamicAnswers,
@@ -279,7 +303,7 @@ function EnquiryForm() {
               <p className="text-xl font-mono font-bold text-[#2d6a4f]">{submittedLeadNumber}</p>
             </div>
           )}
-          <p className="text-gray-500 text-sm">Our team will contact you on WhatsApp shortly.</p>
+          <p className="text-gray-500 text-sm">You will get an email with all these details shortly.</p>
         </div>
       </div>
     );
@@ -363,43 +387,49 @@ function EnquiryForm() {
           )}
 
           {/* Standard Fields */}
-          <div>
+          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 0 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className="w-full h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors" />
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
-            <div className="flex gap-2">
-              <div className="flex items-center justify-center w-14 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0">+91</div>
-              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" required pattern="\d{10}" className="flex-1 h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors" />
-            </div>
-          </div>
-
-          <div>
+          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 1 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className="w-full h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors" />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
           </div>
 
-          <div>
+          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 2 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
             <div className="grid grid-cols-3 gap-3">
               {['Male', 'Female', 'Other'].map(g => (
-                <button key={g} type="button" onClick={() => setGender(g.toLowerCase())} className={`h-11 rounded-lg text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+                <button key={g} type="button" onClick={() => setGender(g.toLowerCase())} className={`h-11 rounded-lg text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === 2 ? 'bg-white text-gray-600 border-red-200 hover:border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300')}`}>
                   {g}
                 </button>
               ))}
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">City *</label>
-            <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="Your answer" required className="w-full h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors" />
+          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 3 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
+            <select value={country} onChange={e => setCountry(e.target.value)} required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
+              {Object.keys(COUNTRY_PHONE_CODES).map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === 4 ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
+            <div className="flex gap-2">
+              <div className={`flex items-center justify-center min-w-[3.5rem] px-2 border-b-2 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0 ${activeIdx === 4 ? 'border-red-400' : 'border-gray-200'}`}>
+                {COUNTRY_PHONE_CODES[country]?.code || '+91'}
+              </div>
+              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Enter number" required className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+            </div>
           </div>
 
           {/* Dynamic Questions */}
           {dynamicQuestions.map((q, idx) => (
-            <div key={q._id} className="pt-2">
+            <div key={q._id} className={`p-4 -mx-4 rounded-xl transition-all duration-300 ${activeIdx === (5 + idx) ? 'border-2 border-red-400 bg-red-50/20 shadow-[0_0_15px_rgba(248,113,113,0.2)]' : ''}`}>
               {q.imageUrl && <img src={q.imageUrl} alt="" className="w-full max-h-56 object-cover rounded-xl border border-gray-100 mb-4" />}
               
               {q.questionType !== 'info' && (
@@ -421,15 +451,15 @@ function EnquiryForm() {
               )}
 
               {q.questionType === 'text' && (
-                <input value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} className="w-full h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors" />
+                <input value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
               )}
 
               {q.questionType === 'paragraph' && (
-                <textarea value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} rows={4} className="w-full px-4 py-3 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors resize-none" />
+                <textarea value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} rows={4} className={`w-full px-4 py-3 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors resize-none ${activeIdx === (5 + idx) ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
               )}
 
               {q.questionType === 'dropdown' && (
-                <select value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} required={q.required} className="w-full h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors">
+                <select value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
                   <option value="">Choose…</option>
                   {(q.options || []).map(o => <option key={o.value} value={o.value}>{o.label.en}</option>)}
                 </select>
@@ -439,7 +469,7 @@ function EnquiryForm() {
                 <div className="space-y-3 mt-1">
                   {(q.options || []).map(o => (
                     <label key={o.value} className="flex items-center gap-3 cursor-pointer group">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${dynamicAnswers[q.fieldKey] === o.value ? 'border-[#2d6a4f]' : 'border-gray-300 group-hover:border-gray-400'}`}>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${dynamicAnswers[q.fieldKey] === o.value ? 'border-[#2d6a4f]' : (activeIdx === (5 + idx) ? 'border-red-400 group-hover:border-red-500' : 'border-gray-300 group-hover:border-gray-400')}`}>
                         {dynamicAnswers[q.fieldKey] === o.value && <div className="w-2.5 h-2.5 bg-[#2d6a4f] rounded-full" />}
                       </div>
                       <input type="radio" name={q.fieldKey} value={o.value} checked={(dynamicAnswers[q.fieldKey] as string) === o.value} onChange={() => setAnswer(q.fieldKey, o.value)} required={q.required} className="hidden" />
@@ -455,8 +485,8 @@ function EnquiryForm() {
                     const isChecked = ((dynamicAnswers[q.fieldKey] as string[]) || []).includes(o.value);
                     return (
                       <label key={o.value} className="flex items-center gap-3 cursor-pointer group">
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isChecked ? 'bg-[#2d6a4f] border-[#2d6a4f]' : 'border-gray-300 group-hover:border-gray-400'}`}>
-                          {isChecked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${isChecked ? 'bg-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === (5 + idx) ? 'border-red-400 group-hover:border-red-500' : 'border-gray-300 group-hover:border-gray-400')}`}>
+                          {isChecked && <Check size={14} className="text-white" strokeWidth={3} />}
                         </div>
                         <input type="checkbox" checked={isChecked} onChange={() => toggleCheckbox(q.fieldKey, o.value)} className="hidden" />
                         <span className="text-sm text-gray-700">{o.label.en}</span>
