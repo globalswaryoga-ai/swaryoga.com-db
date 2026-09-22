@@ -19,7 +19,33 @@ export async function GET(
     }
 
     const allQuestions = await listQuestions(formId);
-    const questions = allQuestions.filter(q => q.isActive);
+    const questions = allQuestions
+      .filter(q => q.isActive)
+      .map(q => {
+        // Normalize label: may be a plain string from older/imported data
+        const label =
+          q.label && typeof q.label === 'object'
+            ? q.label
+            : { en: String(q.label || ''), hi: '', mr: '' };
+
+        // Normalize options: may be plain strings ["Male","Female"] or proper objects
+        const options = (Array.isArray(q.options) ? q.options : []).map((o: any) => {
+          if (typeof o === 'string') {
+            return { value: o, label: { en: o } };
+          }
+          if (o && typeof o === 'object') {
+            // Already has value/label — ensure label is { en }
+            const lbl =
+              o.label && typeof o.label === 'object'
+                ? o.label
+                : { en: String(o.label ?? o.value ?? ''), hi: '', mr: '' };
+            return { value: o.value ?? o.label?.en ?? String(o), label: lbl };
+          }
+          return { value: String(o), label: { en: String(o) } };
+        });
+
+        return { ...q, label, options };
+      });
 
     return NextResponse.json({
       success: true,
