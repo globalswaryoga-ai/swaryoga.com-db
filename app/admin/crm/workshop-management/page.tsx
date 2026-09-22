@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Users, Video, Settings, UserPlus, Upload, RefreshCw, 
@@ -35,10 +35,25 @@ interface Recording {
   };
 }
 
+function toDateKey(value: unknown): string | null {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = value instanceof Date ? value : new Date(String(value || ''));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
 export default function WorkshopManagementPage() {
   const router = useRouter();
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [selected, setSelected] = useState<Cohort | null>(null);
+
+  const cohortHolidaySet = useMemo(() => {
+    return new Set(
+      (selected?.holidayDates || [])
+        .map(d => toDateKey(d) || (typeof d === 'string' ? d.slice(0, 10) : ''))
+        .filter((d): d is string => Boolean(d))
+    );
+  }, [selected?.holidayDates]);
+
   const [students, setStudents] = useState<Student[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [studentEditForm, setStudentEditForm] = useState({ name: '', email: '', phone: '', whatsappNumber: '', active: true });
@@ -431,8 +446,10 @@ export default function WorkshopManagementPage() {
 
   const downloadAnalyticsCSV = () => {
     if (!selected) return;
-    const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).sort();
-    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
+    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate)))
+      .filter(d => Boolean(d) && !cohortHolidaySet.has(toDateKey(d) || String(d).slice(0, 10)))
+      .sort();
+    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
     const rows = students.map(s => {
       const row = [
         `"${s.name}"`, 
@@ -525,8 +542,10 @@ export default function WorkshopManagementPage() {
   };
   const exportReportCsv = () => {
     if (!selected) return;
-    const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).sort();
-    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
+    const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate)))
+      .filter(d => Boolean(d) && !cohortHolidaySet.has(toDateKey(d) || String(d).slice(0, 10)))
+      .sort();
+    const headers = ['Name', 'Mobile', 'Email', 'Fees', 'Remark', ...uniqueDates.map(d => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))];
     const rows = students.map(s => {
       const row = [
         `"${s.name}"`, 
@@ -684,12 +703,6 @@ export default function WorkshopManagementPage() {
     }
   };
 
-  const toDateKey = (value: unknown): string | null => {
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-    const date = value instanceof Date ? value : new Date(String(value || ''));
-    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
-  };
-
   const openStudentChart = (currentStudent: Student) => {
     if (!selected) return;
     const startDateKey = toDateKey(selected.startDate);
@@ -697,7 +710,6 @@ export default function WorkshopManagementPage() {
       alert('This workshop has an invalid start date. Please correct the workshop schedule first.');
       return;
     }
-    const holidaySet = new Set((selected.holidayDates || []).map(toDateKey).filter((date): date is string => Boolean(date)));
     const existing = new Map(
       attendance
         .filter((row) => row.studentId === currentStudent._id)
@@ -709,7 +721,7 @@ export default function WorkshopManagementPage() {
     let dayNumber = 0;
     while (rows.length < 14) {
       const date = cursor.toISOString().slice(0, 10);
-      const holiday = holidaySet.has(date) || cursor.getDay() === 0;
+      const holiday = cohortHolidaySet.has(date) || cursor.getDay() === 0;
       if (!holiday) dayNumber++;
       const saved = existing.get(date);
       rows.push({ classDate: date, dayNumber: holiday ? dayNumber : dayNumber, holiday, durationMinutes: saved ? String(Math.round((saved.durationSeconds || 0) / 60)) : '0', status: holiday ? 'holiday' : saved?.joined ? 'joined' : 'absent' });
@@ -1182,7 +1194,7 @@ export default function WorkshopManagementPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {students.map((s, idx) => { 
-                                const rows = attendance.filter((a) => String(a.studentId) === s._id); 
+                                const rows = attendance.filter((a) => String(a.studentId) === s._id && !cohortHolidaySet.has(toDateKey(a.classDate) || a.classDate)); 
                                 const joinedCount = rows.filter((a) => a.joined).length;
                                 const mins = Math.round(rows.reduce((n, a) => n + (a.durationSeconds || 0), 0) / 60);
                                 return (
@@ -1692,7 +1704,9 @@ export default function WorkshopManagementPage() {
                 
                 {/* === ANALYTICS TAB === */}
                 {activeTab === 'analytics' && (() => {
-                  const uniqueDates = Array.from(new Set([...attendance.map(a => a.classDate), ...(selected.holidayDates || [])])).filter(d => d).sort();
+                  const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate)))
+                    .filter(d => Boolean(d) && !cohortHolidaySet.has(toDateKey(d) || String(d).slice(0, 10)))
+                    .sort();
                   const visibleStudents = analyticsSearch.trim()
                     ? students.filter(s => s.name.toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.email || '').toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.phone || '').includes(analyticsSearch) || (s.whatsappNumber || '').includes(analyticsSearch))
                     : students;
@@ -1714,7 +1728,14 @@ export default function WorkshopManagementPage() {
                             <div className="bg-blue-100 p-2 rounded-xl text-blue-600"><BarChart2 size={20}/></div>
                             <div>
                               <h3 className="font-bold text-slate-800 text-lg">Daily Attendance Analytics</h3>
-                              <p className="text-xs text-slate-500 mt-1">Overview of student attendance durations across all classes.</p>
+                              <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                                <span>Overview of student attendance durations across all classes.</span>
+                                {cohortHolidaySet.size > 0 && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                    {cohortHolidaySet.size} Holiday{cohortHolidaySet.size > 1 ? 's' : ''} Hidden from Report
+                                  </span>
+                                )}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
@@ -1743,7 +1764,7 @@ export default function WorkshopManagementPage() {
                                 <th className="px-6 py-4">Phone / WA</th>
                                 <th className="px-6 py-4">Email</th>
                                 {uniqueDates.map(date => (
-                                  <th key={date} className="px-4 py-4 whitespace-nowrap">{new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</th>
+                                  <th key={date} className="px-4 py-4 whitespace-nowrap">{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</th>
                                 ))}
                                 <th className="px-4 py-4 whitespace-nowrap text-right no-print">Actions</th>
                               </tr>
@@ -1765,17 +1786,6 @@ export default function WorkshopManagementPage() {
                                     const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
                                     const recording = recordings.find(r => r.classDate === date);
                                     const hasRecording = !!(recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl || recording?.metadata?.zoomSpeakerUrl || recording?.metadata?.zoomShareUrl);
-                                    const isHoliday = selected?.holidayDates?.includes(date);
-
-                                    if (isHoliday) {
-                                      return (
-                                        <td key={date} className="px-4 py-4">
-                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 font-semibold text-xs border border-amber-100">
-                                            Holiday
-                                          </span>
-                                        </td>
-                                      );
-                                    }
 
                                     if (record && record.joined) {
                                       const mins = Math.round(record.durationSeconds / 60);
