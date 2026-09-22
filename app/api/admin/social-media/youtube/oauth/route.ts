@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
 
     // Get OAuth credentials
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = `${request.nextUrl.origin}/api/admin/social-media/youtube/oauth/callback`;
+    const host = request.headers.get("host") || request.nextUrl.host;
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const redirectUri = `${protocol}://${host}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId) {
       return NextResponse.json(
