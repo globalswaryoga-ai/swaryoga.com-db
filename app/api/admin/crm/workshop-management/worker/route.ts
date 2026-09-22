@@ -171,13 +171,14 @@ export async function POST(request: NextRequest) {
 
       const phone = phoneOf(student.whatsappNumber || student.phone);
       
-      const links = [recording.youtubeSpeakerUrl, recording.youtubeGalleryUrl, recording.bunnySpeakerUrl, recording.bunnyGalleryUrl].filter(Boolean);
+      const zoomLink = recording.metadata?.zoomSpeakerUrl || recording.metadata?.zoomShareUrl;
+      const links = [recording.youtubeSpeakerUrl, recording.youtubeGalleryUrl, recording.bunnySpeakerUrl, recording.bunnyGalleryUrl, zoomLink].filter(Boolean);
       if (!links.length) { result.skipped++; continue; }
       
       if (!phone) { 
          // If no phone, maybe we still send email if absent!
          if (isAbsent && student.email && transporter && !dryRun) {
-           const videoUrl = recording.youtubeGalleryUrl || recording.bunnyGalleryUrl || recording.youtubeSpeakerUrl || recording.bunnySpeakerUrl;
+           const videoUrl = recording.youtubeGalleryUrl || recording.bunnyGalleryUrl || recording.youtubeSpeakerUrl || recording.bunnySpeakerUrl || zoomLink;
            if (videoUrl) {
               try {
                  await transporter.sendMail({
@@ -212,9 +213,9 @@ export async function POST(request: NextRequest) {
         deliveredByStudent.set(String(recording._id), list);
         
         // WhatsApp sent successfully. Now check if absent to also send email
-        if (isAbsent && student.email && transporter) {
-           const videoUrl = recording.youtubeGalleryUrl || recording.bunnyGalleryUrl || recording.youtubeSpeakerUrl || recording.bunnySpeakerUrl;
-           if (videoUrl) {
+         if (isAbsent && student.email && transporter) {
+            const videoUrl = recording.youtubeGalleryUrl || recording.bunnyGalleryUrl || recording.youtubeSpeakerUrl || recording.bunnySpeakerUrl || zoomLink;
+            if (videoUrl) {
               try {
                  await transporter.sendMail({
                     from: `"${emailConfig.fromName || 'Swar Yoga'}" <${emailConfig.fromEmail || emailConfig.smtpUser}>`,

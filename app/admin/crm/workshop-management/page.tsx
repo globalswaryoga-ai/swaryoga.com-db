@@ -8,11 +8,32 @@ import {
   Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy, MessageCircle, QrCode
 } from 'lucide-react';
 
-interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; }
+interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
-interface Recording { _id: string; cohortId: string; classDate: string; dayNumber?: number; youtubeSpeakerId?: string; youtubeGalleryId?: string; youtubeSpeakerUrl?: string; youtubeGalleryUrl?: string; bunnySpeakerUrl?: string; bunnyGalleryUrl?: string; deliveredStudentIds?: string[]; }
+interface Recording { 
+  _id: string; 
+  cohortId: string; 
+  classDate: string; 
+  dayNumber?: number; 
+  youtubeSpeakerId?: string; 
+  youtubeGalleryId?: string; 
+  youtubeSpeakerUrl?: string; 
+  youtubeGalleryUrl?: string; 
+  bunnySpeakerUrl?: string; 
+  bunnyGalleryUrl?: string; 
+  deliveredStudentIds?: string[];
+  metadata?: {
+    subject?: string;
+    zoomSpeakerUrl?: string;
+    zoomGalleryUrl?: string;
+    zoomShareUrl?: string;
+    zoomPassword?: string;
+    lastZoomSyncAt?: string;
+    [key: string]: any;
+  };
+}
 
 export default function WorkshopManagementPage() {
   const router = useRouter();
@@ -28,6 +49,7 @@ export default function WorkshopManagementPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [syncingRecordings, setSyncingRecordings] = useState(false);
   const DEFAULT_DAY_SUBJECTS = Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' }));
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: ['', '', ''], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', aiWorkerEnabled: true, autoSendRecordings: false, autoRecoverZoomTrash: false, daySubjects: DEFAULT_DAY_SUBJECTS });
   const [student, setStudent] = useState({ name: '', email: '', phone: '', whatsappNumber: '' });
@@ -695,10 +717,59 @@ export default function WorkshopManagementPage() {
     alert(`Saved ${data.saved || 0} class attendance records.`);
   };
 
+  const getYoutubeUrl = (idOrUrl?: string) => {
+    if (!idOrUrl) return '';
+    const trimmed = String(idOrUrl).trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    return `https://youtu.be/${trimmed}`;
+  };
+
+  const syncRecordingsNow = async () => {
+    if (!selected) return;
+    try {
+      setSyncingRecordings(true);
+      const res = await fetch('/api/admin/crm/workshop-management/recordings/sync', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ cohortId: selected._id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(data.message || `Successfully synced ${data.count || 0} recording dates!`);
+        await load(selected._id);
+      } else {
+        alert(data.error || data.message || 'Failed to sync recordings from Zoom');
+      }
+    } catch (err: any) {
+      alert(`Sync failed: ${err.message}`);
+    } finally {
+      setSyncingRecordings(false);
+    }
+  };
+
   const saveRecording = async (e: React.FormEvent) => {
     e.preventDefault(); if (!selected) return;
     const studentIds = recordingForm.deliveredStudentIds.split(',').map((x) => x.trim()).filter(Boolean);
-    const res = await fetch('/api/admin/crm/workshop-management/recordings', { method: 'POST', headers, body: JSON.stringify({ cohortId: selected._id, classDate: recordingForm.classDate || new Date().toISOString().slice(0, 10), youtubeSpeakerId: recordingForm.youtubeSpeakerId || undefined, youtubeGalleryId: recordingForm.youtubeGalleryId || undefined, bunnySpeakerUrl: recordingForm.bunnySpeakerUrl || undefined, bunnyGalleryUrl: recordingForm.bunnyGalleryUrl || undefined, deliveredStudentIds: studentIds }) });
+    const normalizeYt = (val?: string) => {
+      if (!val) return undefined;
+      const t = val.trim();
+      if (!t) return undefined;
+      const match = t.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*)/);
+      return match && match[1].length === 11 ? match[1] : t;
+    };
+    const res = await fetch('/api/admin/crm/workshop-management/recordings', { 
+      method: 'POST', 
+      headers, 
+      body: JSON.stringify({ 
+        cohortId: selected._id, 
+        classDate: recordingForm.classDate || new Date().toISOString().slice(0, 10), 
+        youtubeSpeakerId: normalizeYt(recordingForm.youtubeSpeakerId), 
+        youtubeGalleryId: normalizeYt(recordingForm.youtubeGalleryId), 
+        bunnySpeakerUrl: recordingForm.bunnySpeakerUrl?.trim() || undefined, 
+        bunnyGalleryUrl: recordingForm.bunnyGalleryUrl?.trim() || undefined, 
+        deliveredStudentIds: studentIds 
+      }) 
+    });
     const data = await res.json();
     if (res.ok) {
       await load(selected._id);
@@ -1001,135 +1072,317 @@ export default function WorkshopManagementPage() {
 
                 {/* === RECORDINGS TAB === */}
                 {activeTab === 'recordings' && (
-                  <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    <div className="lg:col-span-1">
-                      <form onSubmit={saveRecording} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-0">
-                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-                          <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><PlayCircle size={20}/></div>
-                          <h3 className="font-bold text-slate-800">New Delivery</h3>
+                  <div className="max-w-5xl mx-auto space-y-6">
+                    {/* Zoom Cloud Recordings Sync Banner */}
+                    <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-start sm:items-center gap-3.5">
+                        <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-sm flex-shrink-0">
+                          <Video size={22} />
                         </div>
-                        
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Class Date</label>
-                            <input required type="date" value={recordingForm.classDate} onChange={(e) => setRecordingForm({ ...recordingForm, classDate: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white" />
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-slate-900 text-base">Zoom Cloud Recordings Sync</h3>
+                            <span className="text-[11px] font-semibold bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200">
+                              Auto-syncs every 2 hours
+                            </span>
                           </div>
-                          
-                          <div>
-                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">YouTube Links (Optional)</label>
-                            <input placeholder="Speaker Video ID" value={recordingForm.youtubeSpeakerId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeSpeakerId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
-                            <input placeholder="Gallery Video ID" value={recordingForm.youtubeGalleryId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeGalleryId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Bunny URLs (Optional)</label>
-                            <input placeholder="Speaker URL" value={recordingForm.bunnySpeakerUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnySpeakerUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
-                            <input placeholder="Gallery URL" value={recordingForm.bunnyGalleryUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnyGalleryUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
-                          </div>
-                          
-                          <button className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3 font-bold text-white shadow-sm transition-colors mt-4">
-                            Save Delivery
-                          </button>
+                          <p className="text-xs text-slate-600 mt-1">
+                            {selected.zoomMeetingId ? (
+                              <>
+                                Linked Zoom Meeting ID: <span className="font-mono font-bold text-blue-900">{selected.zoomMeetingId}</span>. Auto-worker runs every 2h. Click button to sync right now.
+                              </>
+                            ) : (
+                              <span className="text-amber-700 font-medium">
+                                No Zoom Meeting ID configured for this cohort. Add it in Workshop Settings to enable sync.
+                              </span>
+                            )}
+                          </p>
                         </div>
-                      </form>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={syncRecordingsNow}
+                        disabled={syncingRecordings || !selected.zoomMeetingId}
+                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 cursor-pointer"
+                      >
+                        <RefreshCw size={16} className={syncingRecordings ? 'animate-spin' : ''} />
+                        {syncingRecordings ? 'Syncing...' : 'Sync Zoom Recordings'}
+                      </button>
                     </div>
-                    
-                    <div className="lg:col-span-2 space-y-4">
-                      {recordings.length === 0 ? (
-                        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
-                          <Video size={32} className="mx-auto mb-4 text-slate-300" />
-                          <h4 className="font-bold text-slate-700 mb-1">No recordings yet</h4>
-                          <p className="text-sm">Use the form to log recording deliveries to students.</p>
-                        </div>
-                      ) : (
-                        recordings.map((recording) => (
-                          <div key={recording._id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex items-start gap-4 hover:border-indigo-200 transition-colors">
-                            <div className="bg-indigo-50 px-4 py-3 rounded-xl text-center min-w-[80px] flex flex-col justify-center">
-                              <p className="text-xs font-bold text-indigo-400 uppercase mb-1">Day</p>
-                              <input 
-                                type="text" 
-                                className="w-12 text-center text-2xl font-black text-indigo-700 bg-transparent border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none transition-colors mx-auto"
-                                defaultValue={recording.dayNumber || ''}
-                                placeholder="-"
-                                onBlur={async (e) => {
-                                  const val = e.target.value;
-                                  if (val && val === String(recording.dayNumber)) return;
-                                  try {
-                                    await fetch('/api/admin/crm/workshop-management/recordings', {
-                                      method: 'PATCH',
-                                      headers,
-                                      body: JSON.stringify({ id: recording._id, dayNumber: val || null })
-                                    });
-                                    if (selected) await load(selected._id);
-                                  } catch (err) {}
-                                }}
-                              />
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      <div className="lg:col-span-1">
+                        <form onSubmit={saveRecording} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-0">
+                          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                            <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><PlayCircle size={20}/></div>
+                            <h3 className="font-bold text-slate-800">New Delivery</h3>
+                          </div>
+                          
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Class Date</label>
+                              <input required type="date" value={recordingForm.classDate} onChange={(e) => setRecordingForm({ ...recordingForm, classDate: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white" />
                             </div>
-                            <div className="flex-1">
-                              <h4 className="font-bold text-slate-800 text-lg mb-1">{new Date(recording.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
-                              <input 
-                                type="text"
-                                className="w-full text-sm font-medium text-slate-600 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none transition-colors pb-1"
-                                placeholder="Enter subject name..."
-                                defaultValue={recording.metadata?.subject || (selected.daySubjects?.find((d: any) => d.day === recording.dayNumber)?.subject) || ''}
-                                onBlur={async (e) => {
-                                  const val = e.target.value;
-                                  if (val === (recording.metadata?.subject || '')) return;
-                                  try {
-                                    await fetch('/api/admin/crm/workshop-management/recordings', {
-                                      method: 'PATCH',
-                                      headers,
-                                      body: JSON.stringify({ id: recording._id, subject: val })
-                                    });
-                                    if (selected) await load(selected._id);
-                                  } catch (err) {}
-                                }}
-                              />
-                              
-                              <div className="grid grid-cols-2 gap-4 mt-4">
-                                <div className="space-y-2">
-                                  <p className="text-xs font-bold text-slate-500 uppercase">Speaker View</p>
-                                  {(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) && (
-                                    <div className="flex items-center gap-1">
-                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
-                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeSpeakerUrl || `https://youtu.be/${recording.youtubeSpeakerId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                            
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">YouTube Links (Optional)</label>
+                              <input placeholder="Speaker Video ID or URL" value={recordingForm.youtubeSpeakerId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeSpeakerId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
+                              <input placeholder="Gallery Video ID or URL" value={recordingForm.youtubeGalleryId} onChange={(e) => setRecordingForm({ ...recordingForm, youtubeGalleryId: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Bunny URLs (Optional)</label>
+                              <input placeholder="Speaker URL" value={recordingForm.bunnySpeakerUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnySpeakerUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white mb-2 text-sm" />
+                              <input placeholder="Gallery URL" value={recordingForm.bunnyGalleryUrl} onChange={(e) => setRecordingForm({ ...recordingForm, bunnyGalleryUrl: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
+                            </div>
+                            
+                            <button className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3 font-bold text-white shadow-sm transition-colors mt-4 cursor-pointer">
+                              Save Delivery
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                      
+                      <div className="lg:col-span-2 space-y-4">
+                        {recordings.length === 0 ? (
+                          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
+                            <Video size={32} className="mx-auto mb-4 text-slate-300" />
+                            <h4 className="font-bold text-slate-700 mb-1">No recordings yet</h4>
+                            <p className="text-sm">Click &quot;Sync Zoom Recordings&quot; above to import cloud recordings or use the form to manually log deliveries.</p>
+                          </div>
+                        ) : (
+                          recordings.map((recording) => (
+                            <div key={recording._id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex items-start gap-4 hover:border-indigo-200 transition-colors">
+                              <div className="bg-indigo-50 px-4 py-3 rounded-xl text-center min-w-[80px] flex flex-col justify-center">
+                                <p className="text-xs font-bold text-indigo-400 uppercase mb-1">Day</p>
+                                <input 
+                                  type="text" 
+                                  className="w-12 text-center text-2xl font-black text-indigo-700 bg-transparent border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none transition-colors mx-auto"
+                                  defaultValue={recording.dayNumber || ''}
+                                  placeholder="-"
+                                  onBlur={async (e) => {
+                                    const val = e.target.value;
+                                    if (val && val === String(recording.dayNumber)) return;
+                                    try {
+                                      await fetch('/api/admin/crm/workshop-management/recordings', {
+                                        method: 'PATCH',
+                                        headers,
+                                        body: JSON.stringify({ id: recording._id, dayNumber: val || null })
+                                      });
+                                      if (selected) await load(selected._id);
+                                    } catch (err) {}
+                                  }}
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="font-bold text-slate-800 text-lg mb-1">{new Date(recording.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
+                                <input 
+                                  type="text"
+                                  className="w-full text-sm font-medium text-slate-600 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none transition-colors pb-1"
+                                  placeholder="Enter subject name..."
+                                  defaultValue={recording.metadata?.subject || (selected.daySubjects?.find((d: any) => d.day === recording.dayNumber)?.subject) || ''}
+                                  onBlur={async (e) => {
+                                    const val = e.target.value;
+                                    if (val === (recording.metadata?.subject || '')) return;
+                                    try {
+                                      await fetch('/api/admin/crm/workshop-management/recordings', {
+                                        method: 'PATCH',
+                                        headers,
+                                        body: JSON.stringify({ id: recording._id, subject: val })
+                                      });
+                                      if (selected) await load(selected._id);
+                                    } catch (err) {}
+                                  }}
+                                />
+                                
+                                <div className="grid grid-cols-2 gap-4 mt-4">
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-bold text-slate-500 uppercase">Speaker View</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {(recording.metadata?.zoomSpeakerUrl || (!recording.metadata?.zoomGalleryUrl && recording.metadata?.zoomShareUrl)) && (
+                                        <div className="flex items-center gap-1">
+                                          <a 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-xs" 
+                                            href={recording.metadata?.zoomSpeakerUrl || recording.metadata?.zoomShareUrl} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                            title="Open Zoom Recording"
+                                          >
+                                            <Video size={13}/> Zoom
+                                          </a>
+                                          <button 
+                                            type="button"
+                                            onClick={() => { 
+                                              navigator.clipboard.writeText(recording.metadata?.zoomSpeakerUrl || recording.metadata?.zoomShareUrl || ''); 
+                                              alert('Zoom link copied!'); 
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" 
+                                            title="Copy Zoom URL"
+                                          >
+                                            <Copy size={13}/>
+                                          </button>
+                                        </div>
+                                      )}
+                                      {(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId) && (
+                                        <div className="flex items-center gap-1">
+                                          <a 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors shadow-xs" 
+                                            href={getYoutubeUrl(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId)} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                          >
+                                            <PlayCircle size={13}/> YouTube
+                                          </a>
+                                          <button 
+                                            type="button"
+                                            onClick={() => { 
+                                              navigator.clipboard.writeText(getYoutubeUrl(recording.youtubeSpeakerUrl || recording.youtubeSpeakerId)); 
+                                              alert('YouTube link copied!'); 
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" 
+                                            title="Copy URL"
+                                          >
+                                            <Copy size={13}/>
+                                          </button>
+                                        </div>
+                                      )}
+                                      {recording.bunnySpeakerUrl && (
+                                        <div className="flex items-center gap-1">
+                                          <a 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors shadow-xs" 
+                                            href={recording.bunnySpeakerUrl} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                          >
+                                            <PlayCircle size={13}/> Bunny
+                                          </a>
+                                          <button 
+                                            type="button"
+                                            onClick={() => { 
+                                              navigator.clipboard.writeText(recording.bunnySpeakerUrl!); 
+                                              alert('Bunny link copied!'); 
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" 
+                                            title="Copy URL"
+                                          >
+                                            <Copy size={13}/>
+                                          </button>
+                                        </div>
+                                      )}
+                                      {!recording.metadata?.zoomSpeakerUrl && !recording.metadata?.zoomShareUrl && !recording.youtubeSpeakerId && !recording.bunnySpeakerUrl && (
+                                        <span className="text-xs text-slate-400">—</span>
+                                      )}
                                     </div>
-                                  )}
-                                  {recording.bunnySpeakerUrl && (
-                                    <div className="flex items-center gap-1">
-                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnySpeakerUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>
-                                      <button onClick={() => { navigator.clipboard.writeText(recording.bunnySpeakerUrl!); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-bold text-slate-500 uppercase">Gallery View</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {(recording.metadata?.zoomGalleryUrl || recording.metadata?.zoomShareUrl) && (
+                                        <div className="flex items-center gap-1">
+                                          <a 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-xs" 
+                                            href={recording.metadata?.zoomGalleryUrl || recording.metadata?.zoomShareUrl} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                            title="Open Zoom Recording"
+                                          >
+                                            <Video size={13}/> Zoom
+                                          </a>
+                                          <button 
+                                            type="button"
+                                            onClick={() => { 
+                                              navigator.clipboard.writeText(recording.metadata?.zoomGalleryUrl || recording.metadata?.zoomShareUrl || ''); 
+                                              alert('Zoom link copied!'); 
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" 
+                                            title="Copy Zoom URL"
+                                          >
+                                            <Copy size={13}/>
+                                          </button>
+                                        </div>
+                                      )}
+                                      {(recording.youtubeGalleryUrl || recording.youtubeGalleryId) && (
+                                        <div className="flex items-center gap-1">
+                                          <a 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors shadow-xs" 
+                                            href={getYoutubeUrl(recording.youtubeGalleryUrl || recording.youtubeGalleryId)} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                          >
+                                            <PlayCircle size={13}/> YouTube
+                                          </a>
+                                          <button 
+                                            type="button"
+                                            onClick={() => { 
+                                              navigator.clipboard.writeText(getYoutubeUrl(recording.youtubeGalleryUrl || recording.youtubeGalleryId)); 
+                                              alert('YouTube link copied!'); 
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" 
+                                            title="Copy URL"
+                                          >
+                                            <Copy size={13}/>
+                                          </button>
+                                        </div>
+                                      )}
+                                      {recording.bunnyGalleryUrl && (
+                                        <div className="flex items-center gap-1">
+                                          <a 
+                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors shadow-xs" 
+                                            href={recording.bunnyGalleryUrl} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                          >
+                                            <PlayCircle size={13}/> Bunny
+                                          </a>
+                                          <button 
+                                            type="button"
+                                            onClick={() => { 
+                                              navigator.clipboard.writeText(recording.bunnyGalleryUrl!); 
+                                              alert('Bunny link copied!'); 
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" 
+                                            title="Copy URL"
+                                          >
+                                            <Copy size={13}/>
+                                          </button>
+                                        </div>
+                                      )}
+                                      {!recording.metadata?.zoomGalleryUrl && !recording.metadata?.zoomShareUrl && !recording.youtubeGalleryId && !recording.bunnyGalleryUrl && (
+                                        <span className="text-xs text-slate-400">—</span>
+                                      )}
                                     </div>
-                                  )}
-                                  {!recording.youtubeSpeakerId && !recording.bunnySpeakerUrl && <span className="text-sm text-slate-400">—</span>}
+                                  </div>
                                 </div>
-                                <div className="space-y-2">
-                                  <p className="text-xs font-bold text-slate-500 uppercase">Gallery View</p>
-                                  {(recording.youtubeGalleryUrl || recording.youtubeGalleryId) && (
-                                    <div className="flex items-center gap-1">
-                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 transition-colors" href={recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`} target="_blank" rel="noreferrer"><PlayCircle size={14}/> YouTube</a>
-                                      <button onClick={() => { navigator.clipboard.writeText(recording.youtubeGalleryUrl || `https://youtu.be/${recording.youtubeGalleryId}`); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
-                                    </div>
-                                  )}
-                                  {recording.bunnyGalleryUrl && (
-                                    <div className="flex items-center gap-1">
-                                      <a className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-colors" href={recording.bunnyGalleryUrl} target="_blank" rel="noreferrer"><PlayCircle size={14}/> Bunny</a>
-                                      <button onClick={() => { navigator.clipboard.writeText(recording.bunnyGalleryUrl!); alert('Copied!'); }} className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors" title="Copy URL"><Copy size={14}/></button>
-                                    </div>
-                                  )}
-                                  {!recording.youtubeGalleryId && !recording.bunnyGalleryUrl && <span className="text-sm text-slate-400">—</span>}
-                                </div>
+
+                                {recording.metadata?.zoomPassword && (
+                                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
+                                    <span className="font-semibold text-slate-600">Zoom Passcode:</span>
+                                    <code className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono font-bold select-all max-w-[220px] truncate" title={recording.metadata.zoomPassword}>
+                                      {recording.metadata.zoomPassword}
+                                    </code>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(recording.metadata?.zoomPassword || '');
+                                        alert('Passcode copied!');
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-slate-700 transition-colors"
+                                      title="Copy Passcode"
+                                    >
+                                      <Copy size={12} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-slate-200">
+                                  <Users size={14}/> {(recording.deliveredStudentIds || []).length || 0}
+                                </span>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-slate-200">
-                                <Users size={14}/> {(recording.deliveredStudentIds || []).length || 0}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1296,7 +1549,7 @@ export default function WorkshopManagementPage() {
                                   {uniqueDates.map(date => {
                                     const record = attendance.find(a => String(a.studentId) === String(s._id) && a.classDate === date);
                                     const recording = recordings.find(r => r.classDate === date);
-                                    const hasRecording = !!(recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl);
+                                    const hasRecording = !!(recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl || recording?.metadata?.zoomSpeakerUrl || recording?.metadata?.zoomShareUrl);
                                     const isHoliday = selected?.holidayDates?.includes(date);
 
                                     if (isHoliday) {
@@ -1329,7 +1582,7 @@ export default function WorkshopManagementPage() {
                                             <button
                                               title="Send recording to this student"
                                               onClick={() => {
-                                                const url = recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl || '';
+                                                const url = recording?.youtubeSpeakerUrl || recording?.youtubeGalleryUrl || recording?.bunnySpeakerUrl || recording?.bunnyGalleryUrl || recording?.metadata?.zoomSpeakerUrl || recording?.metadata?.zoomShareUrl || '';
                                                 const msg = encodeURIComponent(`Hi ${s.name}, you missed class on ${new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}. Here is the recording: ${url}`);
                                                 const phone = (s.whatsappNumber || s.phone || '').replace(/\D/g, '');
                                                 if (phone) {

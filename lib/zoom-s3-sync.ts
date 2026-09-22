@@ -11,9 +11,11 @@ import { getYouTubeAccessToken } from './youtube-auth';
 
 // Zoom recording types we want to sync
 const ALLOWED_RECORDING_TYPES = [
-  'speaker_view',      // Speaker view recording
-  'gallery_view',      // Gallery view (includes screen share overlay)
+  'speaker_view',                    // Speaker view recording
+  'active_speaker',                  // Active speaker recording from Zoom API
+  'gallery_view',                    // Gallery view (includes screen share overlay)
   'shared_screen_with_speaker_view', // Screen share with speaker
+  'shared_screen_with_active_speaker', // Screen share with active speaker
   'shared_screen_with_gallery_view', // Screen share with gallery
 ];
 
@@ -102,6 +104,7 @@ export async function getZoomAccessToken(): Promise<string> {
         Authorization: `Basic ${credentials}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
+      cache: 'no-store',
     }
   );
 
