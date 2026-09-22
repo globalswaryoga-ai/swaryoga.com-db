@@ -38,8 +38,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (!code) {
+      const allParams = Array.from(searchParams.entries()).map(([k, v]) => `${k}=${v}`).join("&");
       return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=missing_code', request.url)
+        new URL(`/admin/social-media-setup?platform=youtube&error=missing_code&debug=${encodeURIComponent(allParams)}`, request.url)
       );
     }
 
