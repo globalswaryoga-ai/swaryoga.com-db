@@ -72,7 +72,36 @@ export default function WorkshopManagementPage() {
 
   // Edit/Delete workshop state
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
-  const [editCohortForm, setEditCohortForm] = useState({ name: '', startDate: '', endDate: '', classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', autoSendRecordings: false, autoSyncZoomAttendance: true, autoRecoverZoomTrash: false, daySubjects: Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' })) });
+  const [editCohortForm, setEditCohortForm] = useState({ name: '', startDate: '', endDate: '', holidayDates: [] as string[], classStartTime: '', classEndTime: '', zoomMeetingId: '', zoomJoinUrl: '', whatsappGroupLink: '', googleFormLink: '', youtubePlaylistName: '', thumbnailUrl: '', autoSendRecordings: false, autoSyncZoomAttendance: true, autoRecoverZoomTrash: false, daySubjects: Array.from({ length: 15 }, (_, i) => ({ day: i + 1, subject: '' })) });
+
+  // Auto-calculate end date for Create form
+  useEffect(() => {
+    if (form.startDate) {
+      const start = new Date(form.startDate);
+      if (!isNaN(start.getTime())) {
+        const validHolidays = form.holidayDates.filter(d => d).length;
+        // 14 day class: start date + 13 days + number of holidays
+        const daysToAdd = 13 + validHolidays;
+        const end = new Date(start);
+        end.setDate(end.getDate() + daysToAdd);
+        setForm(prev => ({ ...prev, endDate: end.toISOString().split('T')[0] }));
+      }
+    }
+  }, [form.startDate, form.holidayDates]);
+
+  // Auto-calculate end date for Edit form
+  useEffect(() => {
+    if (editCohortForm.startDate) {
+      const start = new Date(editCohortForm.startDate);
+      if (!isNaN(start.getTime())) {
+        const validHolidays = (editCohortForm.holidayDates || []).filter(d => d).length;
+        const daysToAdd = 13 + validHolidays;
+        const end = new Date(start);
+        end.setDate(end.getDate() + daysToAdd);
+        setEditCohortForm(prev => ({ ...prev, endDate: end.toISOString().split('T')[0] }));
+      }
+    }
+  }, [editCohortForm.startDate, editCohortForm.holidayDates]);
   const [savingEditCohort, setSavingEditCohort] = useState(false);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -398,6 +427,7 @@ export default function WorkshopManagementPage() {
       name: c.name,
       startDate: c.startDate ? c.startDate.slice(0, 10) : '',
       endDate: c.endDate ? c.endDate.slice(0, 10) : '',
+      holidayDates: c.holidayDates || [],
       classStartTime: c.classStartTime || '',
       classEndTime: c.classEndTime || '',
       zoomMeetingId: c.zoomMeetingId || '',
@@ -1529,6 +1559,21 @@ export default function WorkshopManagementPage() {
                     <input type={type} value={editCohortForm[key as keyof typeof editCohortForm] as string} onChange={(e) => setEditCohortForm({ ...editCohortForm, [key]: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50 focus:bg-white text-sm" />
                   </div>
                 ))}
+
+                <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Holiday Dates (3 to 6)</label>
+                    <button type="button" onClick={() => setEditCohortForm(prev => ({ ...prev, holidayDates: [...prev.holidayDates, ''] }))} disabled={editCohortForm.holidayDates.length >= 6} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-50">+ Add Holiday</button>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {editCohortForm.holidayDates.map((value, index) => (
+                      <div key={`edit-holiday-${index}`} className="flex items-center gap-2">
+                        <input type="date" value={value} onChange={(e) => setEditCohortForm((prev) => ({ ...prev, holidayDates: prev.holidayDates.map((date, dateIndex) => dateIndex === index ? e.target.value : date) }))} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-50 focus:bg-white" />
+                        <button type="button" onClick={() => setEditCohortForm(prev => ({ ...prev, holidayDates: prev.holidayDates.filter((_, i) => i !== index) }))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 {/* YouTube Playlist & Thumbnail */}
                 <div className="sm:col-span-2 mt-4 pt-4 border-t border-slate-100">
