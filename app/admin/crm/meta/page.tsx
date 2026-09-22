@@ -652,7 +652,15 @@ export default function MetaInboxPage() {
         silent, // Pass silent flag to crmFetch
       });
       if (data?.conversations) {
-        setConversations(data.conversations);
+        const currentSelectedPhone = selectedRef.current?.phoneNumber;
+        const mapped = currentSelectedPhone
+          ? (data.conversations as ConversationRow[]).map(c => 
+              (c.phoneNumber === currentSelectedPhone || (c.phoneNumber && currentSelectedPhone && c.phoneNumber.replace(/\D/g, '').endsWith(currentSelectedPhone.replace(/\D/g, '').slice(-10))))
+                ? { ...c, unreadCount: 0 }
+                : c
+            )
+          : data.conversations;
+        setConversations(mapped);
         if (typeof data.total === 'number') setConversationsTotal(data.total);
 
         // Auto-select conversation from ?phone= query param
@@ -703,8 +711,9 @@ export default function MetaInboxPage() {
     try {
       // Determine if id is a leadId or phoneNumber
       // A phone number is at least 10 digits long. A lead ID can be a 24-char hex or a short custom ID (e.g. 6 digits)
-      const isPhoneNumber = /^\d{10,}$/.test(String(id || '').replace(/\D/g, ''));
-      const params: any = isPhoneNumber ? { phoneNumber: String(id || '').replace(/\D/g, '') } : { leadId: id };
+      const digitsOnly = String(id || '').replace(/\D/g, '');
+      const isPhoneNumber = digitsOnly.length >= 10;
+      const params: any = isPhoneNumber ? { phoneNumber: digitsOnly } : { leadId: id };
       params.provider = providerScope;
       
       const data = await crmFetch(`/api/admin/crm/messages`, { 
@@ -758,13 +767,13 @@ export default function MetaInboxPage() {
   const fetchOlderPage = async (): Promise<boolean> => {
     const c = selectedRef.current;
     if (!c) return false;
-    const id = c.leadId || c._id || c.phoneNumber;
+    const phone = c.phoneNumber ? c.phoneNumber.replace(/\D/g, '') : '';
+    const id = phone.length >= 10 ? phone : (c.leadId || c._id);
     if (!id) return false;
     const oldest = messagesRef.current[0];
     if (!oldest) return false;
 
-    const isPhoneNumber = /^\\d{10,}$/.test(id);
-    const params: any = !isPhoneNumber ? { leadId: id } : { phoneNumber: id };
+    const params: any = phone.length >= 10 ? { phoneNumber: phone } : { leadId: id };
     params.provider = providerScope;
     params.before = new Date((oldest as any).sentAt || (oldest as any).createdAt).toISOString();
     params.limit = 20;
@@ -1142,9 +1151,10 @@ export default function MetaInboxPage() {
 
   const handleSelectConversation = (conv: ConversationRow) => {
     setSelected(conv);
+    selectedRef.current = conv;
     setMessageLimit(5);
     setHasMoreHistory(true);
-    loadMessages(conv.leadId || conv._id || conv.phoneNumber);
+    loadMessages(conv.phoneNumber || conv.leadId || conv._id);
     
     // Map legacy status values to new funnel stages
     const legacyStatusMap: Record<string, string> = {
@@ -1168,14 +1178,13 @@ export default function MetaInboxPage() {
     }
 
     // Mark as read - optimistically update local state immediately
-    if (conv.unreadCount && conv.unreadCount > 0) {
-      // Optimistically set unread count to 0 in local state
+    if (conv.phoneNumber) {
       setConversations(prev => prev.map(c => 
-        c.phoneNumber === conv.phoneNumber ? { ...c, unreadCount: 0 } : c
+        (c.phoneNumber === conv.phoneNumber || (c.phoneNumber && conv.phoneNumber && c.phoneNumber.replace(/\D/g, '').endsWith(conv.phoneNumber.replace(/\D/g, '').slice(-10))))
+          ? { ...c, unreadCount: 0 } 
+          : c
       ));
-      // Also update the selected conversation
       setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
-      // Then sync with server (without re-fetching conversations)
       markThreadAsRead(conv.leadId, conv.phoneNumber, true);
     }
   };
@@ -1297,7 +1306,7 @@ export default function MetaInboxPage() {
 
       // Refresh messages and conversations
       await Promise.all([
-        loadMessages(leadId || phoneNumber),
+        loadMessages(phoneNumber || leadId),
         loadConversations(searchQuery)
       ]);
     } catch (err) {
@@ -2839,18 +2848,20 @@ export default function MetaInboxPage() {
                     </div>
                   ) : null}
                 </div>
-                <button 
-                  className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors" 
+                <button
+                  className="p-1.5 text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC] rounded-md transition-colors"
                   title="Mark as Read"
                   onClick={() => {
                     // Optimistically update local state
-                    if (selected?.unreadCount && selected.unreadCount > 0) {
+                    if (selected?.phoneNumber) {
                       setConversations(prev => prev.map(c => 
-                        c.phoneNumber === selected.phoneNumber ? { ...c, unreadCount: 0 } : c
+                        (c.phoneNumber === selected.phoneNumber || (c.phoneNumber && selected.phoneNumber && c.phoneNumber.replace(/\D/g, '').endsWith(selected.phoneNumber.replace(/\D/g, '').slice(-10))))
+                          ? { ...c, unreadCount: 0 }
+                          : c
                       ));
                       setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
+                      markThreadAsRead(selected.leadId, selected.phoneNumber, false);
                     }
-                    markThreadAsRead(selected.leadId, selected.phoneNumber, true);
                   }}
                 >
                   <i className="ph ph-check text-sm"></i>
@@ -3818,7 +3829,7 @@ export default function MetaInboxPage() {
                                 console.log('[Meta Inbox] Send template response:', data);
                                 if (data.success) {
                                   // Refresh messages to show the sent template
-                                  loadMessages(selected.leadId || selected._id || selected.phoneNumber);
+                                  loadMessages(selected.phoneNumber || selected.leadId || selected._id);
                                   closeActionModal();
                                 } else {
                                   console.error('[Meta Inbox] Template send failed:', data);

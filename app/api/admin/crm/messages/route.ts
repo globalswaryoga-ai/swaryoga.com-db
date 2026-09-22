@@ -138,17 +138,14 @@ export async function POST(request: NextRequest) {
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
     if (body.action === 'markThreadAsRead') {
-      const { phoneNumber } = body;
-      if (phoneNumber) {
-        const normalizedPhone = normalizePhone(String(phoneNumber));
-        if (normalizedPhone) {
-          await updateBunnyMetaMessagesMany(
-            { phoneNumber: normalizedPhone, statusNot: 'read' },
-            { status: 'read', readAt: new Date().toISOString() }
-          );
-        }
-      }
-      return NextResponse.json({ success: true, action: 'markThreadAsRead' }, { status: 200 });
+      const { phoneNumber, leadId } = body;
+      if (!leadId && !phoneNumber) return NextResponse.json({ error: 'Missing leadId/phoneNumber' }, { status: 400 });
+      const normalizedPhone = phoneNumber ? (normalizePhone(String(phoneNumber)) || String(phoneNumber)) : undefined;
+      const result = await updateBunnyMetaMessagesMany(
+        { phoneNumber: normalizedPhone || (phoneNumber ? String(phoneNumber) : undefined), leadId: leadId ? String(leadId) : undefined, direction: 'inbound', statusNot: 'read' },
+        { isRead: true, status: 'read', readAt: new Date().toISOString() }
+      );
+      return NextResponse.json({ success: true, action: 'markThreadAsRead', ...result }, { status: 200 });
     }
 
     const { leadId, phoneNumber, messageContent, messageType, mediaUrl, mediaType: providedMediaType } = body;
@@ -244,11 +241,12 @@ export async function PUT(request: NextRequest) {
 
     if (normalizedAction === 'markThreadAsRead') {
       if (!leadId && !phoneNumber) return NextResponse.json({ error: 'Missing leadId/phoneNumber' }, { status: 400 });
-      await updateBunnyMetaMessagesMany(
-        { phoneNumber, leadId, direction: 'inbound', statusNot: 'read' },
+      const normalizedPhone = phoneNumber ? (normalizePhone(String(phoneNumber)) || String(phoneNumber)) : undefined;
+      const result = await updateBunnyMetaMessagesMany(
+        { phoneNumber: normalizedPhone || (phoneNumber ? String(phoneNumber) : undefined), leadId: leadId ? String(leadId) : undefined, direction: 'inbound', statusNot: 'read' },
         { isRead: true, status: 'read', readAt: new Date().toISOString() }
       );
-      return formatCrmSuccess({ modifiedCount: 1 });
+      return formatCrmSuccess(result);
     }
 
     if (!messageId) return NextResponse.json({ error: 'Missing: messageId' }, { status: 400 });

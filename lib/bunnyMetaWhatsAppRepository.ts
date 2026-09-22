@@ -3,8 +3,30 @@ import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
 function parse<T = Record<string, any>>(value: unknown, fallback: T): T {
   try { return value ? JSON.parse(String(value)) as T : fallback; } catch { return fallback; }
 }
-function stringValue(value: unknown): string { return String(value ?? ''); }
-function iso(value: unknown): string | null { return value ? new Date(value as any).toISOString() : null; }
+function stringValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object' && value !== null) {
+    const v: any = value;
+    if (v.$oid) return String(v.$oid);
+  }
+  return String(value ?? '');
+}
+
+function iso(value: unknown): string | null {
+  if (!value) return null;
+  try {
+    if (typeof value === 'object' && value !== null) {
+      const v: any = value;
+      if (v.$date) {
+        const ms = Number(v.$date.$numberLong || v.$date);
+        if (!isNaN(ms)) return new Date(ms).toISOString();
+      }
+    }
+    const d = new Date(value as any);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  } catch {}
+  return null;
+}
 
 export async function initBunnyMetaWhatsAppSchema() {
   await bunnyBatch([
@@ -245,21 +267,51 @@ export async function updateBunnyMetaMessage(messageId: string, updates: Record<
 }
 
 export async function updateBunnyMetaMessagesMany(filter: { phoneNumber?: string, leadId?: string, direction?: string, statusNot?: string }, updates: Record<string, any>) {
+  await initBunnyMetaWhatsAppSchema();
   const clauses = ["provider = 'meta'"];
   const args: any[] = [];
-  if (filter.phoneNumber) { clauses.push("phone_number = ?"); args.push(filter.phoneNumber); }
-  if (filter.leadId) { clauses.push("lead_id = ?"); args.push(filter.leadId); }
-  if (filter.direction) { clauses.push("direction = ?"); args.push(filter.direction); }
-  if (filter.statusNot) { clauses.push("status != ?"); args.push(filter.statusNot); }
+  if (filter.phoneNumber) {
+    const rawDigits = stringValue(filter.phoneNumber).replace(/\D/g, '');
+    const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
+    if (last10) {
+      clauses.push('(phone_number = ? OR phone_number LIKE ?)');
+      args.push(filter.phoneNumber, `%${last10}`);
+    } else {
+      clauses.push('phone_number = ?');
+      args.push(filter.phoneNumber);
+    }
+  } else if (filter.leadId) {
+    clauses.push('lead_id = ?');
+    args.push(filter.leadId);
+  }
+
+  if (filter.direction) {
+    clauses.push('direction = ?');
+    args.push(filter.direction);
+  }
+
+  if (filter.statusNot) {
+    clauses.push('(status IS NULL OR status != ?)');
+    args.push(filter.statusNot);
+  }
   
   const result = await bunnyExecute({ sql: `SELECT document_id, sent_at, created_at, data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')}`, args });
   let modifiedCount = 0;
+  const nowIso = new Date().toISOString();
   for (const row of result.rows) {
     const existing = parse(row.data_json, {});
-    const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() };
+    const merged = { ...existing, ...updates, updatedAt: nowIso };
     await upsertBunnyMetaMessage(merged);
     modifiedCount++;
   }
+
+  if (updates.status && clauses.length > 1) {
+    await bunnyExecute({
+      sql: `UPDATE meta_messages_sql SET status = ?, updated_at = ? WHERE ${clauses.join(' AND ')}`,
+      args: [updates.status, nowIso, ...args]
+    }).catch(err => console.error('[updateBunnyMetaMessagesMany] Direct SQL update error:', err));
+  }
+
   return { modifiedCount };
 }
 
