@@ -78,7 +78,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
-  const [city, setCity] = useState('');
+  const [gender, setGender] = useState('');
   const [country, setCountry] = useState('India');
   const [countryCode, setCountryCode] = useState('91');
   // A few dial codes are shared by more than one country (e.g. +1 for both
@@ -187,10 +187,16 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
     setLoading(true);
     setError('');
     try {
+      if (!gender) {
+        setError('Please select your gender');
+        setLoading(false);
+        return;
+      }
+      
       const res = await fetch(`/api/workshop-join/${formData.formId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+' + countryCode + mobile, email, city, country }),
+        body: JSON.stringify({ name, mobile: '+' + countryCode + mobile, email, gender, country }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Submission failed');
@@ -432,7 +438,7 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] flex items-center justify-center px-4 py-10">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl overflow-hidden">
 
         {/* Workshop Image Banner */}
         {formData.workshopImage ? (
@@ -491,43 +497,54 @@ export default function JoinFormClient({ formData, paid = false, payFailed = fal
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Enter your full name" required
-              className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
+              className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email *</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required
+              className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
+            <div className="grid grid-cols-3 gap-3">
+              {['Male', 'Female', 'Other'].map(g => (
+                <button 
+                  key={g} 
+                  type="button" 
+                  onClick={() => setGender(g.toLowerCase())} 
+                  className={`h-12 rounded-xl text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            {submitted && !gender && <p className="text-red-500 text-xs mt-1">Please select your gender.</p>}
+          </div>
+          
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
+            <select value={countrySelectValue} onChange={e => chooseCountry(e.target.value)} required
+              className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]">
+              {COUNTRY_CODES.map(c => (
+                <option key={`${c.code}-${c.name}`} value={`${c.code}|${c.name}`}>+{c.code} {c.name}</option>
+              ))}
+              {!COUNTRY_CODES.some(c => c.code === countryCode && c.name === country) && (
+                <option value={countrySelectValue}>+{countryCode}</option>
+              )}
+            </select>
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
             <div className="flex gap-2">
-              <select value={countrySelectValue} onChange={e => chooseCountry(e.target.value)}
-                className="w-32 h-11 px-2 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 bg-gray-50 shrink-0 truncate outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]">
-                {COUNTRY_CODES.map(c => (
-                  <option key={`${c.code}-${c.name}`} value={`${c.code}|${c.name}`}>+{c.code} {c.name}</option>
-                ))}
-                {!COUNTRY_CODES.some(c => c.code === countryCode && c.name === country) && (
-                  <option value={countrySelectValue}>+{countryCode}</option>
-                )}
-              </select>
+              <div className="flex items-center justify-center min-w-[3.5rem] px-2 border border-gray-200 bg-gray-50 rounded-xl text-sm font-semibold text-gray-600 shrink-0">
+                +{countryCode}
+              </div>
               <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))}
                 placeholder="9876543210" required pattern="\d{6,15}" title="Enter your mobile number, digits only"
-                className="flex-1 h-11 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com"
-              className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">City *</label>
-              <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="Your city" required
-                className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
-              <input type="text" value={country} onChange={e => setCountry(e.target.value)} placeholder="Country" required
-                className="w-full h-11 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
+                className="flex-1 h-12 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]" />
             </div>
           </div>
 
