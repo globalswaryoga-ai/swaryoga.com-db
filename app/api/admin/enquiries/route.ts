@@ -338,11 +338,36 @@ export async function POST(request: NextRequest) {
       // Non-fatal: enquiry should still succeed even if CRM write fails
       console.error('❌ CRM lead creation from admin enquiry failed:', leadError);
     }
+    
+    // Send email with unique reference code
+    const uniqueId = leadNumber || submissionId;
+    if (body.email && body.email.trim() !== '') {
+      try {
+        const { sendEmail, wrapInEmailTemplate } = await import('@/lib/email');
+        const emailContent = `
+          <div style="font-family: sans-serif; padding: 20px;">
+            <h2>Thank You for Reaching Out!</h2>
+            <p>Hi ${body.name || 'there'},</p>
+            <p>Your form submission for <strong>${body.workshopName || 'Swar Yoga'}</strong> has been received successfully.</p>
+            <p>Your unique reference code is: <strong style="font-size: 1.2em; color: #2d6a4f;">${uniqueId}</strong></p>
+            <p>If you have any further questions or if you want to update your submission later, you can use this reference code or your email/mobile number.</p>
+            <p>Warm regards,<br/>The Swar Yoga Team</p>
+          </div>
+        `;
+        await sendEmail({
+          to: body.email,
+          subject: 'Form Submission Confirmation - Swar Yoga',
+          html: wrapInEmailTemplate(emailContent, 'Submission Confirmation')
+        });
+      } catch (emailErr) {
+        console.error('❌ Failed to send confirmation email:', emailErr);
+      }
+    }
 
     return NextResponse.json(
       {
         message: 'Enquiry submitted successfully',
-        data: { id: submissionId, leadNumber },
+        data: { id: submissionId, leadNumber: uniqueId },
         paymentSessionId,
       },
       { status: 201 }

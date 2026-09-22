@@ -49,12 +49,18 @@ function EnquiryForm() {
   
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
   const [gender, setGender] = useState('');
   const [city, setCity] = useState('');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   const [loadingForm, setLoadingForm] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedLeadNumber, setSubmittedLeadNumber] = useState('');
   const [error, setError] = useState('');
 
   // Load specific form details and questions
@@ -133,6 +139,30 @@ function EnquiryForm() {
     }
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setSearchError('');
+    try {
+      const res = await fetch(`/api/enquiries/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        setName(data.data.name || '');
+        setMobile(data.data.mobile || '');
+        setEmail(data.data.email || '');
+        if (data.data.gender) setGender(data.data.gender.toLowerCase());
+        setCity(data.data.city || '');
+        setDynamicAnswers(data.data.dynamicAnswers || {});
+      } else {
+        setSearchError('No past submission found with this detail.');
+      }
+    } catch (err) {
+      setSearchError('Failed to search.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gender) { setError('Please select your gender.'); return; }
@@ -169,6 +199,7 @@ function EnquiryForm() {
         body: JSON.stringify({
           name,
           mobile: '+91' + mobile,
+          email,
           gender,
           city,
           workshopId: formDetails.formId,
@@ -180,6 +211,10 @@ function EnquiryForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Submission failed');
+      
+      if (data.data && data.data.leadNumber) {
+        setSubmittedLeadNumber(data.data.leadNumber);
+      }
       
       if (data.paymentSessionId) {
         // Load Cashfree SDK dynamically and trigger payment
@@ -238,6 +273,12 @@ function EnquiryForm() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-3">Thank You, {name.split(' ')[0]}!</h1>
           <p className="text-gray-600 mb-2">Form submitted for <strong>{formDetails?.workshopName}</strong>.</p>
+          {submittedLeadNumber && (
+            <div className="bg-gray-100 p-4 rounded-xl mt-4 mb-4 border border-gray-200">
+              <p className="text-sm text-gray-500 mb-1">Your unique reference code is:</p>
+              <p className="text-xl font-mono font-bold text-[#2d6a4f]">{submittedLeadNumber}</p>
+            </div>
+          )}
           <p className="text-gray-500 text-sm">Our team will contact you on WhatsApp shortly.</p>
         </div>
       </div>
@@ -259,6 +300,31 @@ function EnquiryForm() {
         )}
 
         <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/50">
+          <div className="mb-6 bg-white p-4 rounded-xl border border-blue-100 shadow-sm flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">I have filled this already</p>
+              <p className="text-xs text-gray-500 mb-2">Enter your email, mobile number, or reference code to autofill.</p>
+            </div>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={searchQuery} 
+                onChange={e => setSearchQuery(e.target.value)} 
+                placeholder="Email, mobile, or reference code" 
+                className="flex-1 h-10 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:border-[#2d6a4f]"
+              />
+              <button 
+                type="button" 
+                onClick={handleSearch} 
+                disabled={searching || !searchQuery.trim()}
+                className="px-4 h-10 bg-[#2d6a4f] text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                {searching ? '...' : 'Search'}
+              </button>
+            </div>
+            {searchError && <p className="text-xs text-red-500">{searchError}</p>}
+          </div>
+
           {formDetails?.workshopImage && (
             <h1 className="text-3xl font-bold text-gray-900 mb-2">{formDetails?.workshopName}</h1>
           )}
@@ -308,6 +374,11 @@ function EnquiryForm() {
               <div className="flex items-center justify-center w-14 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0">+91</div>
               <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" required pattern="\d{10}" className="flex-1 h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors" />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className="w-full h-12 px-4 border-b-2 border-gray-200 bg-gray-50 rounded-t-xl text-sm outline-none focus:border-[#2d6a4f] focus:bg-white transition-colors" />
           </div>
 
           <div>
