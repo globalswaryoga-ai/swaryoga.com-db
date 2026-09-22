@@ -52,13 +52,31 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ cohort });
     }
 
-    // Legacy: only googleFormLink / zoom mapping update
-    const googleFormLink = String(body.googleFormLink || '').trim();
-    if (googleFormLink && !/^https?:\/\//i.test(googleFormLink)) {
-      return NextResponse.json({ error: 'Google Forms link must start with http:// or https://' }, { status: 400 });
+    // Quick partial updates
+    const updates: any = {};
+    if (body.googleFormLink !== undefined) {
+      const googleFormLink = String(body.googleFormLink || '').trim();
+      if (googleFormLink && !/^https?:\/\//i.test(googleFormLink)) {
+        return NextResponse.json({ error: 'Google Forms link must start with http:// or https://' }, { status: 400 });
+      }
+      updates.googleFormLink = googleFormLink || null;
     }
-    const cohort = await updateCohort(body.cohortId, { googleFormLink: googleFormLink || null });
-    if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+    if (body.zoomMeetingId !== undefined) {
+      updates.zoomMeetingId = body.zoomMeetingId ? String(body.zoomMeetingId).trim() : null;
+    }
+    if (body.youtubePlaylistName !== undefined) {
+      updates.youtubePlaylistName = body.youtubePlaylistName ? String(body.youtubePlaylistName).trim() : null;
+    }
+    
+    if (Object.keys(updates).length === 0 && !body.communityId) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    let cohort = null;
+    if (Object.keys(updates).length > 0) {
+      cohort = await updateCohort(body.cohortId, updates);
+      if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });
+    }
 
     if (body.zoomMeetingId && body.communityId) {
       const existingMappings = await listBunnyZoomMappings();

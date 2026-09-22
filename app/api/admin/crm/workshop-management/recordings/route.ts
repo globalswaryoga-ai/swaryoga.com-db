@@ -21,3 +21,38 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ recording });
 }
+
+export async function PATCH(request: NextRequest) {
+  if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const body = await request.json();
+  if (!body.id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  
+  const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+  
+  const sets = [];
+  const args = [];
+  if (body.dayNumber !== undefined) {
+    sets.push('day_number = ?');
+    args.push(body.dayNumber ? Number(body.dayNumber) : null);
+  }
+  
+  if (body.subject !== undefined) {
+    const existing = await bunnyExecute({ sql: 'SELECT metadata_json FROM workshop_recordings_sql WHERE id = ?', args: [body.id] });
+    const metadata = JSON.parse(existing.rows[0]?.metadata_json || '{}');
+    metadata.subject = body.subject;
+    sets.push('metadata_json = ?');
+    args.push(JSON.stringify(metadata));
+  }
+  
+  if (sets.length === 0) return NextResponse.json({ success: true });
+  
+  args.push(new Date().toISOString());
+  args.push(body.id);
+  
+  await bunnyExecute({
+    sql: `UPDATE workshop_recordings_sql SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`,
+    args
+  });
+  
+  return NextResponse.json({ success: true });
+}

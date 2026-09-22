@@ -39,6 +39,7 @@ export async function DELETE(request: NextRequest) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   const id = request.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
-  await deactivateStudent(id);
+  const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+  await bunnyExecute({ sql: 'DELETE FROM workshop_students_sql WHERE id = ?', args: [id] });
   return NextResponse.json({ success: true });
 }

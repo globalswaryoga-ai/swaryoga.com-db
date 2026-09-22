@@ -148,6 +148,33 @@ export default function StudentWorkshopTab() {
             <Users className="h-4 w-4" />
             Import Mock Students
           </button>
+          <button 
+            onClick={async () => {
+              if (!token) return;
+              if (!confirm('This will merge duplicate students (by phone, email, or exact name match) and sum their attendance durations. Proceed?')) return;
+              setLoading(true);
+              try {
+                const res = await fetch('/api/admin/crm/workshops/dedup-students', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({}) // runs for all cohorts
+                });
+                const data = await res.json();
+                if (data.success) {
+                  alert(`Successfully merged ${data.data.mergedGroups} duplicate groups and deleted ${data.data.deletedStudents} duplicate students.`);
+                } else {
+                  alert('Error: ' + data.error);
+                }
+              } catch (e: any) {
+                alert('Failed to dedup: ' + e.message);
+              }
+              fetchStudents();
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-bold text-amber-700 hover:bg-amber-100 shadow-sm transition-all"
+          >
+            <Users className="h-4 w-4" />
+            Dedup Students
+          </button>
           <button className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm transition-all">
             <Download className="h-4 w-4" />
             Export CSV

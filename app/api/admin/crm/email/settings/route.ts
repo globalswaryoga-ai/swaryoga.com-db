@@ -2,85 +2,65 @@ import { NextRequest } from 'next/server';
 
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { listEmailSettings, saveEmailSettings } from '@/lib/emailBunnyRepository';
+import { listEmailSettings, saveEmailSettings, deleteEmailSettings, getEmailSettings } from '@/lib/emailBunnyRepository';
 import { tenantFilter, getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
-
 const MASKED = '••••••••';
 
-/** Return a real password: skip masked/empty values, fall back to env var */
 function realPass(formVal?: string, dbVal?: string): string {
   if (formVal && formVal !== MASKED) return formVal.trim();
   if (dbVal && dbVal !== MASKED) return dbVal.trim();
   return process.env.SMTP_PASS || '';
 }
 
-/**
- * Verify SMTP credentials are properly configured.
- * Note: Vercel serverless blocks outbound SMTP (ports 25/465/587),
- * so we validate config completeness instead of a live connection test.
- * Actual sending works via lib/email.ts which handles retries.
- */
 function verifySmtpConfig(opts: {
   host: string; port: number; user: string; pass: string;
 }): boolean {
   return !!(opts.host && opts.port && opts.user && opts.pass && opts.pass.length >= 4);
 }
 
-/**
- * GET /api/admin/crm/email/settings
- * List all sender email configurations
- */
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
-        
     const tf = tenantFilter(decoded, 'createdBy');
-    const settings = await EmailSettings.find(tf).sort({ isDefault: -1, createdAt: -1 }).lean();
+    let settings = await listEmailSettings();
+    
+    if (tf.createdBy) {
+      settings = settings.filter(s => s.createdBy === tf.createdBy);
+    }
 
-    // Auto-heal: if env SMTP is configured and matches a sender, ensure it's marked verified
     const envSmtpUser = process.env.SMTP_USER;
     const envSmtpConfigured = !!(process.env.SMTP_HOST && envSmtpUser && process.env.SMTP_PASS);
 
-    // If no settings exist but env SMTP is configured, auto-create the record
-    // ONLY for super admin — new users should NOT inherit the server's shared SMTP.
     if (settings.length === 0 && envSmtpConfigured && isSuperAdmin(decoded)) {
-      const doc = await EmailSettings.create({
+      const doc = await saveEmailSettings({
         senderEmail: envSmtpUser!.toLowerCase(),
         senderName: 'Swar Yoga',
-        connectionType: 'smtp',
         smtpHost: process.env.SMTP_HOST,
         smtpPort: parseInt(process.env.SMTP_PORT || '465'),
         smtpUser: envSmtpUser,
         smtpPass: process.env.SMTP_PASS,
-        smtpSecure: true,
         isDefault: true,
-        isVerified: true,
-        lastVerifiedAt: new Date(),
-        createdBy: 'auto-config',
-        createdByUserId: getViewerUserId(decoded),
-        updatedBy: 'auto-config',
+        isActive: true,
+        isVerified: true
       });
-      const masked = { ...doc.toObject(), smtpPass: '••••••••', resendApiKey: '' };
+      const masked = { ...doc, smtpPass: '••••••••', resendApiKey: '' };
       return apiSuccess({ settings: [masked] });
     }
 
-    // For non-super-admin with no settings: return empty (show "Email Not Connected")
     if (settings.length === 0) {
       return apiSuccess({ settings: [] });
     }
 
-    // Auto-heal existing records: if SMTP env matches a sender stuck as unverified, fix it
     const healed = await Promise.all(settings.map(async (s: any) => {
       if (!s.isVerified && envSmtpConfigured && s.senderEmail === envSmtpUser?.toLowerCase()) {
-        await EmailSettings.updateOne({ _id: s._id, ...tf }, { $set: { isVerified: true, lastVerifiedAt: new Date() } });
         s.isVerified = true;
-        s.lastVerifiedAt = new Date();
+        await saveEmailSettings(s);
       }
       return {
         ...s,
@@ -96,10 +76,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/admin/crm/email/settings
- * Add a new sender email
- */
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -122,16 +98,14 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Invalid email address');
     }
 
-        const EmailSettings = getEmailSettings();
     const tf = tenantFilter(decoded, 'createdBy');
-
-    // If setting as default, unset others
-    if (isDefault) {
-      await EmailSettings.updateMany(tf, { isDefault: false });
+    const allSettings = await listEmailSettings();
+    let existing = allSettings.find(s => s.senderEmail.toLowerCase() === senderEmail.trim().toLowerCase());
+    
+    if (existing && tf.createdBy && existing.createdBy !== tf.createdBy) {
+      return apiError('VALIDATION_ERROR', 'Sender email already used by another tenant');
     }
 
-    // Resolve real credentials (never store masked values)
-    const existing = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase(), ...tf });
     const host = smtpHost?.trim() || process.env.SMTP_HOST || 'smtp.hostinger.com';
     const port = smtpPort || parseInt(process.env.SMTP_PORT || '465');
     const user = smtpUser?.trim() || process.env.SMTP_USER || senderEmail.trim();
@@ -142,30 +116,23 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'SMTP username and password are required');
     }
 
-    // Verify SMTP config is complete
     const isVerified = verifySmtpConfig({ host, port, user, pass });
 
     const updateData = {
+      id: existing?._id,
+      senderEmail: senderEmail.trim().toLowerCase(),
       senderName: senderName?.trim() || 'Swar Yoga',
-      connectionType: 'smtp',
       smtpHost: host,
       smtpPort: port,
       smtpUser: user,
       smtpPass: pass,
-      smtpSecure: secure,
       isDefault: isDefault || false,
+      isActive: true,
       isVerified,
-      lastVerifiedAt: isVerified ? new Date() : undefined,
-      updatedBy: decoded.userId || 'unknown',
+      createdBy: existing?.createdBy || decoded.userId || 'unknown'
     };
 
-    // Upsert: update if exists, create if not
-    const doc = await EmailSettings.findOneAndUpdate(
-      { senderEmail: senderEmail.trim().toLowerCase(), ...tf },
-      { $set: updateData, $setOnInsert: { senderEmail: senderEmail.trim().toLowerCase(), createdBy: decoded.userId || 'unknown', createdByUserId: getViewerUserId(decoded) } },
-      { upsert: true, new: true },
-    );
-
+    const doc = await saveEmailSettings(updateData);
     return apiSuccess({ setting: doc, verified: isVerified }, 201);
   } catch (err: any) {
     console.error('[email-settings POST]', err);
@@ -173,10 +140,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * PUT /api/admin/crm/email/settings
- * Update a sender email setting
- */
 export async function PUT(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -192,65 +155,57 @@ export async function PUT(request: NextRequest) {
 
     if (!id) return apiError('VALIDATION_ERROR', 'Setting ID is required');
 
-        const EmailSettings = getEmailSettings();
     const tf = tenantFilter(decoded, 'createdBy');
-
-    const doc = await EmailSettings.findOne({ _id: id, ...tf });
+    let doc = await getEmailSettings(id);
     if (!doc) return apiError('NOT_FOUND', 'Email setting not found');
+    
+    if (tf.createdBy && doc.createdBy !== tf.createdBy) {
+      return apiError('NOT_FOUND', 'Email setting not found');
+    }
+
+    const allSettings = await listEmailSettings();
 
     if (senderEmail?.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(senderEmail.trim())) {
         return apiError('VALIDATION_ERROR', 'Invalid email address');
       }
-      const dup = await EmailSettings.findOne({ senderEmail: senderEmail.trim().toLowerCase(), _id: { $ne: id }, ...tf });
+      const dup = allSettings.find(s => s.senderEmail.toLowerCase() === senderEmail.trim().toLowerCase() && s._id !== id);
       if (dup) return apiError('VALIDATION_ERROR', 'This sender email already exists');
       doc.senderEmail = senderEmail.trim().toLowerCase();
     }
 
     if (senderName !== undefined) doc.senderName = senderName.trim();
-    doc.connectionType = 'smtp';
     if (smtpHost !== undefined) doc.smtpHost = smtpHost.trim();
     if (smtpPort !== undefined) doc.smtpPort = smtpPort;
     if (smtpUser !== undefined) doc.smtpUser = smtpUser.trim();
-    if (smtpSecure !== undefined) doc.smtpSecure = smtpSecure;
-    if (isDefault) {
-      await EmailSettings.updateMany({ _id: { $ne: id }, ...tf }, { isDefault: false });
-      doc.isDefault = true;
-    }
-    doc.updatedBy = decoded.userId || 'unknown';
+    if (isDefault) doc.isDefault = true;
 
-    // Resolve real password (never use masked value)
     const pass = realPass(smtpPass, doc.smtpPass);
     if (pass && pass !== MASKED) doc.smtpPass = pass;
 
-    // Re-verify SMTP
     const host = doc.smtpHost || process.env.SMTP_HOST || 'smtp.hostinger.com';
     const port = doc.smtpPort || parseInt(process.env.SMTP_PORT || '465');
     const user = doc.smtpUser || process.env.SMTP_USER || '';
-    const secure = doc.smtpSecure !== undefined ? doc.smtpSecure : true;
 
     let isVerifiedNow = false;
     if (user && pass) {
       isVerifiedNow = verifySmtpConfig({ host, port, user, pass });
     }
-
     doc.isVerified = isVerifiedNow;
-    if (isVerifiedNow) doc.lastVerifiedAt = new Date();
 
-    await doc.save();
+    const saved = await saveEmailSettings({
+       id: doc._id,
+       ...doc
+    });
 
-    return apiSuccess({ setting: doc, verified: isVerifiedNow });
+    return apiSuccess({ setting: saved, verified: isVerifiedNow });
   } catch (err: any) {
     console.error('[email-settings PUT]', err);
     return apiError('SERVER_ERROR', err.message);
   }
 }
 
-/**
- * DELETE /api/admin/crm/email/settings
- * Remove a sender email setting
- */
 export async function DELETE(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -261,12 +216,15 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
     if (!id) return apiError('VALIDATION_ERROR', 'Setting ID is required');
 
-        const EmailSettings = getEmailSettings();
     const tf = tenantFilter(decoded, 'createdBy');
-
-    const doc = await EmailSettings.findOneAndDelete({ _id: id, ...tf });
+    let doc = await getEmailSettings(id);
     if (!doc) return apiError('NOT_FOUND', 'Email setting not found');
+    
+    if (tf.createdBy && doc.createdBy !== tf.createdBy) {
+      return apiError('NOT_FOUND', 'Email setting not found');
+    }
 
+    await deleteEmailSettings(id);
     return apiSuccess({ message: 'Sender email deleted' });
   } catch (err: any) {
     console.error('[email-settings DELETE]', err);

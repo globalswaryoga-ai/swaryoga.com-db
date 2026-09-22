@@ -12,6 +12,18 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser, ParsedMail } from 'mailparser';
 
+function isSpamOrPromo(subject: string, fromAddress: string, bodyText: string): boolean {
+  const s = subject.toLowerCase();
+  const f = fromAddress.toLowerCase();
+  const b = bodyText.toLowerCase();
+  
+  if (s.includes('undelivered mail') || s.includes('returned to sender') || s.includes('delivery status notification')) return true;
+  if (f.includes('mailer-daemon') || f.includes('postmaster') || f.includes('no-reply') || f.includes('noreply')) return true;
+  if (b.includes('unsubscribe') && (s.includes('newsletter') || s.includes('offer') || s.includes('promo'))) return true;
+  
+  return false;
+}
+
 export interface InboxEmail {
   uid: number;
   messageId: string;
@@ -183,16 +195,23 @@ export async function fetchEmails(options: {
 
           const fromAddr = envelope?.from?.[0];
           const toAddrs = envelope?.to?.map((t: any) => t.address || '') || [];
+          const subject = envelope?.subject || '(No Subject)';
+          const fromAddress = fromAddr?.address || '';
+
+          if (isSpamOrPromo(subject, fromAddress, snippet)) {
+            // Skip promotional or spam emails
+            continue;
+          }
 
           emails.push({
             uid: msg.uid,
             messageId: envelope?.messageId || '',
             from: {
-              name: fromAddr?.name || fromAddr?.address || 'Unknown',
-              address: fromAddr?.address || '',
+              name: fromAddr?.name || fromAddress || 'Unknown',
+              address: fromAddress,
             },
             to: toAddrs,
-            subject: envelope?.subject || '(No Subject)',
+            subject,
             date: envelope?.date ? new Date(envelope.date).toISOString() : new Date().toISOString(),
             snippet,
             body,

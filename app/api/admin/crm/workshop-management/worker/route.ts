@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getCohort, listRecordings, listStudents, markRecordingDelivered, updateCohort } from '@/lib/workshopBunnyRepository';
+import { getCohort, listRecordings, listStudents, markRecordingDelivered, updateCohort, listAttendance } from '@/lib/workshopBunnyRepository';
+import { connectDB } from '@/lib/db';
+import { getServiceConnection } from '@/lib/schemas/enterpriseSchemas';
+import nodemailer from 'nodemailer';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
 import { getZoomMeetingRecordings, deleteZoomRecording } from '@/lib/zoom-meetings';
@@ -115,15 +118,61 @@ export async function POST(request: NextRequest) {
 
   const bridge = getWhatsAppBridgeConfig();
   const sessionKey = cohort.createdByUserId || decoded.userId;
+  const attendanceData = await listAttendance(cohortId);
+  
+  await connectDB();
+  const ServiceConnection = getServiceConnection();
+  const conn = await ServiceConnection.findOne({ ownerId: sessionKey }).lean() as any;
+  const emailConfig = conn?.email;
+
+  let transporter: nodemailer.Transporter | null = null;
+  if (emailConfig?.connected && emailConfig?.provider === 'smtp') {
+     transporter = nodemailer.createTransport({
+        host: emailConfig.smtpHost,
+        port: Number(emailConfig.smtpPort) || 587,
+        secure: Number(emailConfig.smtpPort) === 465,
+        auth: { user: emailConfig.smtpUser, pass: emailConfig.smtpPass },
+        tls: { rejectUnauthorized: false }
+     });
+  }
+
   const deliveredByStudent = new Map<string, any[]>();
   for (const recording of recordings) {
     const delivered = new Set((recording.deliveredStudentIds || []).map((id: any) => String(id)));
     for (const student of students) {
       if (delivered.has(String(student._id))) { result.skipped++; continue; }
+      
+      const dateStr = String(recording.classDate).slice(0, 10);
+      const studentAttendance = attendanceData.find((a: any) => String(a.studentId) === String(student._id) && String(a.classDate).slice(0, 10) === dateStr);
+      const isAbsent = !studentAttendance || !studentAttendance.joined;
+
       const phone = phoneOf(student.whatsappNumber || student.phone);
-      if (!phone) { result.skipped++; continue; }
+      
       const links = [recording.youtubeSpeakerUrl, recording.youtubeGalleryUrl, recording.bunnySpeakerUrl, recording.bunnyGalleryUrl].filter(Boolean);
       if (!links.length) { result.skipped++; continue; }
+      
+      if (!phone) { 
+         // If no phone, maybe we still send email if absent!
+         if (isAbsent && student.email && transporter && !dryRun) {
+           const videoUrl = recording.youtubeGalleryUrl || recording.bunnyGalleryUrl || recording.youtubeSpeakerUrl || recording.bunnySpeakerUrl;
+           if (videoUrl) {
+              try {
+                 await transporter.sendMail({
+                    from: `"${emailConfig.fromName || 'Swar Yoga'}" <${emailConfig.fromEmail || emailConfig.smtpUser}>`,
+                    to: student.email,
+                    subject: `Missed Class Recording: ${cohort.name} - Day ${recording.dayNumber || ''}`,
+                    html: `<p>Hi ${student.name},</p><p>We noticed you couldn't make it to today's live class for <b>${cohort.name}</b> (Day ${recording.dayNumber || ''}).</p><p>Don't worry, you can catch up by watching the recording here:</p><p><a href="${videoUrl}">${videoUrl}</a></p><p>Best regards,<br>${emailConfig.fromName || 'Swar Yoga'}</p>`
+                 });
+                 result.sentEmails = (result.sentEmails || 0) + 1;
+              } catch (err: any) {
+                 result.failedEmails = (result.failedEmails || 0) + 1;
+              }
+           }
+         }
+         result.skipped++; 
+         continue; 
+      }
+      
       const message = `Workshop ${cohort.name} — Day ${recording.dayNumber || ''}\n\nYour class recording is ready:\n${links.join('\n')}`;
       if (dryRun) { result.sent++; continue; }
       try {
@@ -138,6 +187,24 @@ export async function POST(request: NextRequest) {
         const list = deliveredByStudent.get(String(recording._id)) || [];
         list.push(student._id);
         deliveredByStudent.set(String(recording._id), list);
+        
+        // WhatsApp sent successfully. Now check if absent to also send email
+        if (isAbsent && student.email && transporter) {
+           const videoUrl = recording.youtubeGalleryUrl || recording.bunnyGalleryUrl || recording.youtubeSpeakerUrl || recording.bunnySpeakerUrl;
+           if (videoUrl) {
+              try {
+                 await transporter.sendMail({
+                    from: `"${emailConfig.fromName || 'Swar Yoga'}" <${emailConfig.fromEmail || emailConfig.smtpUser}>`,
+                    to: student.email,
+                    subject: `Missed Class Recording: ${cohort.name} - Day ${recording.dayNumber || ''}`,
+                    html: `<p>Hi ${student.name},</p><p>We noticed you couldn't make it to today's live class for <b>${cohort.name}</b> (Day ${recording.dayNumber || ''}).</p><p>Don't worry, you can catch up by watching the recording here:</p><p><a href="${videoUrl}">${videoUrl}</a></p><p>Best regards,<br>${emailConfig.fromName || 'Swar Yoga'}</p>`
+                 });
+                 result.sentEmails = (result.sentEmails || 0) + 1;
+              } catch (err: any) {
+                 result.failedEmails = (result.failedEmails || 0) + 1;
+              }
+           }
+        }
       } catch (error) {
         result.failed++;
         result.errors.push(`${student.name}: ${error instanceof Error ? error.message : 'send failed'}`);

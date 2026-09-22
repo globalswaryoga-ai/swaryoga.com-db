@@ -80,83 +80,95 @@ export async function syncWorkshopZoomAttendance(cohortId: string, classDate?: s
   let unmatched = 0;
   let updated = 0;
 
+  // Group sessions by date to prevent overwriting attendance for multiple sessions on the same day
+  const sessionsByDate = new Map<string, any[]>();
   for (const session of sessions) {
+    if (!sessionsByDate.has(session.date)) sessionsByDate.set(session.date, []);
+    sessionsByDate.get(session.date)!.push(session);
+  }
+
+  for (const [classDateKey, dailySessions] of sessionsByDate.entries()) {
     const attendees = new Map<string, { student: any; duration: number; joinedAt?: string; leftAt?: string }>();
-    for (const participant of session.participants as SessionParticipant[]) {
-      let student = findStudent(participant);
-      
-      // Auto-enroll unmatched participants as students
-      if (!student) {
-        const { upsertStudent } = await import('./workshopBunnyRepository');
-        const { getBunnyLeadByEmail, getBunnyLeadByPhone } = await import('./bunnyLeadsRepository');
+    let totalClassDuration = 0;
 
-        // Try to find the CRM lead to enrich the student's mobile / WhatsApp number
-        let crmLead: any = null;
-        if (participant.email) {
-          crmLead = await getBunnyLeadByEmail(participant.email).catch(() => null);
-        }
-        if (!crmLead) {
-          // Try by phone number embedded in the Zoom display name (e.g. "Mohan 9876543210")
-          const phoneFromName = phoneKey(participant.name);
-          if (phoneFromName) crmLead = await getBunnyLeadByPhone(phoneFromName).catch(() => null);
-        }
+    for (const session of dailySessions) {
+      totalClassDuration += Math.max(1, Number(session.duration || 60) * 60);
 
-        const whatsappNumber = crmLead?.whatsappNumber || crmLead?.phoneNumber || null;
-
-        student = await upsertStudent({
-          cohortId,
-          name: participant.name || 'Unknown Attendee',
-          email: participant.email || crmLead?.email || null,
-          phone: whatsappNumber,
-          whatsappNumber,
-          leadId: crmLead?._id || null,
-          leadNumber: crmLead?.leadNumber || null,
-          source: 'zoom',
-        });
+      for (const participant of session.participants as SessionParticipant[]) {
+        let student = findStudent(participant);
         
-        if (student) {
-          students.push(student);
-          if (student.email) byEmail.set(normalise(student.email), student);
-          if (student.name) byName.set(normalise(student.name), student);
-          const phone = phoneKey(student.whatsappNumber || student.phone || student.name || student.email || '');
-          if (phone) byPhone.set(phone, student);
-        }
-      }
-
-      if (!student) { unmatched++; continue; }
-
-      // Back-fill WhatsApp number from CRM lead if the existing student record has none
-      if (!student.whatsappNumber && !student.phone && student.email) {
-        try {
-          const { getBunnyLeadByEmail } = await import('./bunnyLeadsRepository');
+        // Auto-enroll unmatched participants as students
+        if (!student) {
           const { upsertStudent } = await import('./workshopBunnyRepository');
-          const crmLead = await getBunnyLeadByEmail(student.email).catch(() => null);
-          if (crmLead?.phoneNumber || crmLead?.whatsappNumber) {
-            const wa = crmLead.whatsappNumber || crmLead.phoneNumber;
-            const enriched = await upsertStudent({ ...student, cohortId, whatsappNumber: wa, phone: wa, leadId: crmLead._id || student.leadId });
-            if (enriched) {
-              student = enriched;
-              // Update lookup maps
-              byPhone.set(phoneKey(wa), student);
-            }
+          const { getBunnyLeadByEmail, getBunnyLeadByPhone } = await import('./bunnyLeadsRepository');
+
+          // Try to find the CRM lead to enrich the student's mobile / WhatsApp number
+          let crmLead: any = null;
+          if (participant.email) {
+            crmLead = await getBunnyLeadByEmail(participant.email).catch(() => null);
           }
-        } catch { /* non-fatal */ }
+          if (!crmLead) {
+            // Try by phone number embedded in the Zoom display name (e.g. "Mohan 9876543210")
+            const phoneFromName = phoneKey(participant.name);
+            if (phoneFromName) crmLead = await getBunnyLeadByPhone(phoneFromName).catch(() => null);
+          }
+
+          const whatsappNumber = crmLead?.whatsappNumber || crmLead?.phoneNumber || null;
+
+          student = await upsertStudent({
+            cohortId,
+            name: participant.name || 'Unknown Attendee',
+            email: participant.email || crmLead?.email || null,
+            phone: whatsappNumber,
+            whatsappNumber,
+            leadId: crmLead?._id || null,
+            leadNumber: crmLead?.leadNumber || null,
+            source: 'zoom',
+          });
+          
+          if (student) {
+            students.push(student);
+            if (student.email) byEmail.set(normalise(student.email), student);
+            if (student.name) byName.set(normalise(student.name), student);
+            const phone = phoneKey(student.whatsappNumber || student.phone || student.name || student.email || '');
+            if (phone) byPhone.set(phone, student);
+          }
+        }
+
+        if (!student) { unmatched++; continue; }
+
+        // Back-fill WhatsApp number from CRM lead if the existing student record has none
+        if (!student.whatsappNumber && !student.phone && student.email) {
+          try {
+            const { getBunnyLeadByEmail } = await import('./bunnyLeadsRepository');
+            const { upsertStudent } = await import('./workshopBunnyRepository');
+            const crmLead = await getBunnyLeadByEmail(student.email).catch(() => null);
+            if (crmLead?.phoneNumber || crmLead?.whatsappNumber) {
+              const wa = crmLead.whatsappNumber || crmLead.phoneNumber;
+              const enriched = await upsertStudent({ ...student, cohortId, whatsappNumber: wa, phone: wa, leadId: crmLead._id || student.leadId });
+              if (enriched) {
+                student = enriched;
+                // Update lookup maps
+                byPhone.set(phoneKey(wa), student);
+              }
+            }
+          } catch { /* non-fatal */ }
+        }
+
+        const key = String(student._id);
+
+        const current = attendees.get(key);
+        attendees.set(key, {
+          student,
+          duration: (current?.duration || 0) + Math.max(0, Number(participant.durationSeconds || 0)),
+          joinedAt: !current?.joinedAt || new Date(participant.joinTime) < new Date(current.joinedAt) ? participant.joinTime : current.joinedAt,
+          leftAt: !current?.leftAt || new Date(participant.leaveTime) > new Date(current.leftAt) ? participant.leaveTime : current.leftAt,
+        });
       }
-
-      const key = String(student._id);
-
-      const current = attendees.get(key);
-      attendees.set(key, {
-        student,
-        duration: (current?.duration || 0) + Math.max(0, Number(participant.durationSeconds || 0)),
-        joinedAt: !current?.joinedAt || new Date(participant.joinTime) < new Date(current.joinedAt) ? participant.joinTime : current.joinedAt,
-        leftAt: !current?.leftAt || new Date(participant.leaveTime) > new Date(current.leftAt) ? participant.leaveTime : current.leftAt,
-      });
     }
 
     for (const attendee of attendees.values()) {
-      const classDurationSeconds = Math.max(1, Number(session.duration || 60) * 60);
-      await upsertAttendance({ cohortId, studentId: attendee.student._id, classDate: session.date, joined: attendee.duration > 0, joinedAt: attendee.joinedAt, leftAt: attendee.leftAt, durationSeconds: attendee.duration, attendancePercent: Math.min(100, Math.round(attendee.duration / classDurationSeconds * 100)), source: 'zoom' });
+      await upsertAttendance({ cohortId, studentId: attendee.student._id, classDate: classDateKey, joined: attendee.duration > 0, joinedAt: attendee.joinedAt, leftAt: attendee.leftAt, durationSeconds: attendee.duration, attendancePercent: Math.min(100, Math.round(attendee.duration / totalClassDuration * 100)), source: 'zoom' });
       matched++;
       updated++;
     }

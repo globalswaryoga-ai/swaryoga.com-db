@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check permission only for admin users (basic plan users have default access)
-    if (decoded?.isAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
+    if (decoded?.isAdmin && !decoded?.isSuperAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
       return apiError('FORBIDDEN', 'You do not have permission to view email campaigns');
     }
 

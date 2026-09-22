@@ -105,7 +105,7 @@
     },
     {
       "path": "/api/cron/workshop-zoom-attendance",
-      "schedule": "0 */2 * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/crm-site/capacity",
@@ -165,7 +165,7 @@
     },
     {
       "path": "/api/cron/workshop-recording-sync",
-      "schedule": "0 */3 * * *"
+      "schedule": "0 */6 * * *"
     }
   ],
   "headers": [

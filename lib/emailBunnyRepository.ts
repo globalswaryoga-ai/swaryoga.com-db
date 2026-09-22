@@ -87,6 +87,18 @@ export async function initEmailBunnySchema() {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`, args: []
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS email_followup_sequences_sql (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        steps_json TEXT NOT NULL DEFAULT '[]',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_by TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`, args: []
     }
   ]);
   schemaInitialized = true;
@@ -347,4 +359,65 @@ export async function deleteEmailSettings(id: string) {
   await initEmailBunnySchema();
   await bunnyExecute({ sql: 'DELETE FROM email_settings_sql WHERE id = ?', args: [id] });
   return true;
+}
+
+// ------------------------------------------------------------------
+// FOLLOW-UP SEQUENCES
+// ------------------------------------------------------------------
+function mapFollowUpSequence(row: any) {
+  return {
+    _id: row.id,
+    name: row.name,
+    trigger: row.trigger,
+    steps: parse(row.steps_json, []),
+    active: bool(row.active),
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+export async function listFollowUpSequences() {
+  await initEmailBunnySchema();
+  const res = await bunnyExecute('SELECT * FROM email_followup_sequences_sql ORDER BY created_at DESC');
+  return res.rows.map(mapFollowUpSequence);
+}
+
+export async function getFollowUpSequence(id: string) {
+  await initEmailBunnySchema();
+  const res = await bunnyExecute({
+    sql: 'SELECT * FROM email_followup_sequences_sql WHERE id = ? LIMIT 1',
+    args: [id]
+  });
+  return res.rows[0] ? mapFollowUpSequence(res.rows[0]) : null;
+}
+
+export async function saveFollowUpSequence(input: any) {
+  await initEmailBunnySchema();
+  const seqId = input.id || input._id || id();
+  await bunnyExecute({
+    sql: `INSERT INTO email_followup_sequences_sql (id, name, trigger, steps_json, active, created_by, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+          name=excluded.name, trigger=excluded.trigger, steps_json=excluded.steps_json, active=excluded.active, updated_at=excluded.updated_at`,
+    args: [
+      seqId,
+      input.name,
+      input.trigger,
+      json(input.steps, []),
+      input.active === false ? 0 : 1,
+      input.createdBy || null,
+      now(),
+      now()
+    ]
+  });
+  return getFollowUpSequence(seqId);
+}
+
+export async function deleteFollowUpSequence(id: string) {
+  await initEmailBunnySchema();
+  await bunnyExecute({
+    sql: 'DELETE FROM email_followup_sequences_sql WHERE id = ?',
+    args: [id]
+  });
 }

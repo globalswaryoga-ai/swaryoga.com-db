@@ -36,14 +36,12 @@ export async function GET(request: NextRequest) {
     if (!isImapConfigured()) {
       return apiSuccess({
         configured: false,
-        message: 'Gmail IMAP not configured. Set GMAIL_IMAP_USER and GMAIL_IMAP_PASS in environment variables.',
+        message: 'IMAP not configured. Set GMAIL_IMAP_USER and GMAIL_IMAP_PASS in environment variables.',
         setupSteps: [
-          '1. Go to https://myaccount.google.com/security',
-          '2. Enable 2-Step Verification',
-          '3. Go to https://myaccount.google.com/apppasswords',
-          '4. Generate an App Password for "Mail"',
-          '5. Add GMAIL_IMAP_USER=your@gmail.com to .env.local',
-          '6. Add GMAIL_IMAP_PASS=<16-char-app-password> to .env.local',
+          'Add GMAIL_IMAP_HOST=imap.hostinger.com (or your provider) to .env.local',
+          'Add GMAIL_IMAP_PORT=993 to .env.local',
+          'Add GMAIL_IMAP_USER=your@email.com to .env.local',
+          'Add GMAIL_IMAP_PASS=<your-password> to .env.local',
         ],
       });
     }
@@ -101,11 +99,12 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/admin/crm/email/inbox
- * Actions: mark read/unread, delete
+ * Actions: mark read/unread, delete, bulkDelete
  *
  * Body:
- *  - action: 'markRead' | 'markUnread' | 'delete'
- *  - uid: number
+ *  - action: 'markRead' | 'markUnread' | 'delete' | 'bulkDelete'
+ *  - uid?: number
+ *  - uids?: number[]
  *  - folder?: string (default: INBOX)
  */
 export async function POST(request: NextRequest) {
@@ -115,28 +114,38 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
     if (!isImapConfigured()) {
-      return apiError('BAD_REQUEST', 400, 'Gmail IMAP not configured');
+      return apiError('BAD_REQUEST', 400, 'IMAP not configured');
     }
 
     const body = await request.json();
-    const { action, uid, folder = 'INBOX' } = body;
+    const { action, uid, uids, folder = 'INBOX' } = body;
 
-    if (!action || !uid) {
-      return apiError('VALIDATION_ERROR', 400, 'Missing action or uid');
+    if (!action) {
+      return apiError('VALIDATION_ERROR', 400, 'Missing action');
     }
 
     switch (action) {
       case 'markRead':
+        if (!uid) return apiError('VALIDATION_ERROR', 400, 'Missing uid');
         await markEmailRead(uid, true, folder);
         return apiSuccess({ message: 'Email marked as read' });
 
       case 'markUnread':
+        if (!uid) return apiError('VALIDATION_ERROR', 400, 'Missing uid');
         await markEmailRead(uid, false, folder);
         return apiSuccess({ message: 'Email marked as unread' });
 
       case 'delete':
+        if (!uid) return apiError('VALIDATION_ERROR', 400, 'Missing uid');
         await deleteEmail(uid, folder);
         return apiSuccess({ message: 'Email deleted' });
+
+      case 'bulkDelete':
+        if (!uids || !Array.isArray(uids)) return apiError('VALIDATION_ERROR', 400, 'Missing uids array');
+        for (const id of uids) {
+          await deleteEmail(id, folder);
+        }
+        return apiSuccess({ message: `${uids.length} emails deleted` });
 
       default:
         return apiError('VALIDATION_ERROR', 400, `Unknown action: ${action}`);

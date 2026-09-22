@@ -259,6 +259,7 @@ export default function WorkshopManagementPage() {
   const removeSelectedStudents = async () => {
     if (!selectedStudentIds.length || !window.confirm(`Remove ${selectedStudentIds.length} student(s) from this workshop? Their CRM Lead records and attendance history will remain.`)) return;
     await Promise.all(selectedStudentIds.map((id) => fetch(`/api/admin/crm/workshop-management/students?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers })));
+    setSelectedStudentIds([]);
     if (selected) await load(selected._id);
   };
 
@@ -848,6 +849,35 @@ export default function WorkshopManagementPage() {
                         </button>
                       )}
 
+                      <button 
+                        onClick={async () => {
+                          if (!token) return;
+                          if (!confirm('This will merge duplicate students (by phone, email, or exact name match) and sum their attendance durations. Proceed?')) return;
+                          setLoading(true);
+                          try {
+                            const res = await fetch('/api/admin/crm/workshops/dedup-students', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ cohortId: selected._id })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              alert(`Successfully merged ${data.data.mergedGroups} duplicate groups and deleted ${data.data.deletedStudents} duplicate students.`);
+                            } else {
+                              alert('Error: ' + data.error);
+                            }
+                          } catch (e: any) {
+                            alert('Failed to dedup: ' + e.message);
+                          }
+                          await load(selected._id);
+                          setLoading(false);
+                        }}
+                        className="inline-flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-amber-100"
+                      >
+                        <Users size={16} />
+                        Dedup Students
+                      </button>
+
                       {selectedStudentIds.length > 0 && (
                         <>
                           <button onClick={() => handleBroadcast('qr')} className="inline-flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors border border-emerald-100">
@@ -980,12 +1010,47 @@ export default function WorkshopManagementPage() {
                       ) : (
                         recordings.map((recording) => (
                           <div key={recording._id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex items-start gap-4 hover:border-indigo-200 transition-colors">
-                            <div className="bg-indigo-50 px-4 py-3 rounded-xl text-center min-w-[80px]">
-                              <p className="text-xs font-bold text-indigo-400 uppercase">Day</p>
-                              <p className="text-2xl font-black text-indigo-700">{recording.dayNumber || '-'}</p>
+                            <div className="bg-indigo-50 px-4 py-3 rounded-xl text-center min-w-[80px] flex flex-col justify-center">
+                              <p className="text-xs font-bold text-indigo-400 uppercase mb-1">Day</p>
+                              <input 
+                                type="text" 
+                                className="w-12 text-center text-2xl font-black text-indigo-700 bg-transparent border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none transition-colors mx-auto"
+                                defaultValue={recording.dayNumber || ''}
+                                placeholder="-"
+                                onBlur={async (e) => {
+                                  const val = e.target.value;
+                                  if (val && val === String(recording.dayNumber)) return;
+                                  try {
+                                    await fetch('/api/admin/crm/workshop-management/recordings', {
+                                      method: 'PATCH',
+                                      headers,
+                                      body: JSON.stringify({ id: recording._id, dayNumber: val || null })
+                                    });
+                                    if (selected) await load(selected._id);
+                                  } catch (err) {}
+                                }}
+                              />
                             </div>
                             <div className="flex-1">
                               <h4 className="font-bold text-slate-800 text-lg mb-1">{new Date(recording.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
+                              <input 
+                                type="text"
+                                className="w-full text-sm font-medium text-slate-600 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none transition-colors pb-1"
+                                placeholder="Enter subject name..."
+                                defaultValue={recording.metadata?.subject || (selected.daySubjects?.find((d: any) => d.day === recording.dayNumber)?.subject) || ''}
+                                onBlur={async (e) => {
+                                  const val = e.target.value;
+                                  if (val === (recording.metadata?.subject || '')) return;
+                                  try {
+                                    await fetch('/api/admin/crm/workshop-management/recordings', {
+                                      method: 'PATCH',
+                                      headers,
+                                      body: JSON.stringify({ id: recording._id, subject: val })
+                                    });
+                                    if (selected) await load(selected._id);
+                                  } catch (err) {}
+                                }}
+                              />
                               
                               <div className="grid grid-cols-2 gap-4 mt-4">
                                 <div className="space-y-2">
