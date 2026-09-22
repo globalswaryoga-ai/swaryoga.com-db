@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { NextRequest } from 'next/server';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import {
   verifyAdminAccess,
   handleCrmError,
@@ -7,7 +7,6 @@ import {
 } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
-import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 // Required: This route uses request.headers which cannot be statically rendered
 
@@ -17,40 +16,41 @@ import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    const WhatsAppMessage = getWhatsAppMessage();
-    const Lead = getLead(); // Ensure Lead is registered for population
-
     const viewerUserId = verifyAdminAccess(request);
     const superAdmin = viewerUserId === 'admincrm';
-
-    // Query unread inbound messages
-    // For super admin: all unread inbound messages
-    // For other admins: only messages for leads assigned to them
-    const filter: any = {
-      direction: 'inbound',
-      isRead: { $ne: true }, // Not explicitly marked as read
-    };
 
     let unreadCount = 0;
 
     if (superAdmin) {
-      unreadCount = await WhatsAppMessage.countDocuments(filter);
+      // Super admin: count all unread inbound messages
+      const sql = `
+        SELECT count(*) as count
+        FROM mongo_documents
+        WHERE collection_name = 'crm_whatsapp_messages'
+          AND json_extract(document_json, '$.direction') = 'inbound'
+          AND (json_extract(document_json, '$.isRead') IS NULL OR json_extract(document_json, '$.isRead') = 0 OR json_extract(document_json, '$.isRead') = 'false' OR json_extract(document_json, '$.isRead') = false)
+      `;
+      const result = await bunnyExecute(sql);
+      unreadCount = Number(result.rows[0]?.count || 0);
     } else {
-      // First, find leads that belong to this user (assigned or created)
-      const userLeadIds = await Lead.find(
-        { $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] },
-        { _id: 1 }
-      ).lean();
-
-      if (userLeadIds.length > 0) {
-        // Only count messages for this user's leads — no cross-user leakage
-        unreadCount = await WhatsAppMessage.countDocuments({
-          ...filter,
-          leadId: { $in: userLeadIds.map((l: any) => l._id) },
-        });
-      }
-      // If user has no leads, unreadCount stays 0
+      // Other admins: count messages for leads assigned to or created by them
+      const sql = `
+        SELECT count(*) as count
+        FROM mongo_documents
+        WHERE collection_name = 'crm_whatsapp_messages'
+          AND json_extract(document_json, '$.direction') = 'inbound'
+          AND (json_extract(document_json, '$.isRead') IS NULL OR json_extract(document_json, '$.isRead') = 0 OR json_extract(document_json, '$.isRead') = 'false' OR json_extract(document_json, '$.isRead') = false)
+          AND json_extract(document_json, '$.leadId') IN (
+            SELECT id FROM mongo_documents 
+            WHERE collection_name = 'crm_leads'
+              AND (json_extract(document_json, '$.assignedToUserId') = ? OR json_extract(document_json, '$.createdByUserId') = ?)
+          )
+      `;
+      const result = await bunnyExecute({
+        sql,
+        args: [viewerUserId, viewerUserId],
+      });
+      unreadCount = Number(result.rows[0]?.count || 0);
     }
 
     return formatCrmSuccess(

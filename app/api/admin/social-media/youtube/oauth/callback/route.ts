@@ -29,32 +29,37 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const state = searchParams.get('state'); // Contains adminToken for auth
 
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
+    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
+    const host = rawHost.split(':')[0]; // Strip any port
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const baseUrl = `${protocol}://${host}`;
+
     // Handle OAuth errors
     if (error) {
       console.error('[YouTube OAuth] Error from Google:', error);
       return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(error)}`, request.url)
+        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(error)}`, baseUrl)
       );
     }
 
     if (!code) {
       const allParams = Array.from(searchParams.entries()).map(([k, v]) => `${k}=${v}`).join("&");
       return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=missing_code&debug=${encodeURIComponent(allParams)}`, request.url)
+        new URL(`/admin/social-media-setup?platform=youtube&error=missing_code&debug=${encodeURIComponent(allParams)}`, baseUrl)
       );
     }
 
     // Get OAuth credentials from environment
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const host = request.headers.get("host") || request.nextUrl.host;
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const redirectUri = `${protocol}://${host}/api/admin/social-media/youtube/oauth/callback`;
+    const redirectUri = `${baseUrl}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId || !clientSecret) {
       console.error('[YouTube OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
       return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=missing_credentials', request.url)
+        new URL('/admin/social-media-setup?platform=youtube&error=missing_credentials', baseUrl)
       );
     }
 
@@ -78,7 +83,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error('[YouTube OAuth] Token exchange failed:', tokenData);
       return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`, request.url)
+        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`, baseUrl)
       );
     }
 
@@ -99,7 +104,7 @@ export async function GET(request: NextRequest) {
     if (!channelResponse.ok || !channelData.items?.length) {
       console.error('[YouTube OAuth] Failed to fetch channel:', channelData);
       return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=no_channel_found', request.url)
+        new URL('/admin/social-media-setup?platform=youtube&error=no_channel_found', baseUrl)
       );
     }
 
@@ -225,12 +230,12 @@ export async function GET(request: NextRequest) {
 
     // Redirect back to setup page with success
     return NextResponse.redirect(
-      new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, request.url)
+      new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, baseUrl)
     );
   } catch (error) {
     console.error('[YouTube OAuth] Error:', error);
     return NextResponse.redirect(
-      new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent('internal_error')}`, request.url)
+      new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent('internal_error')}`, baseUrl)
     );
   }
 }

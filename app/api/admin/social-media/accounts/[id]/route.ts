@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import mongoose from 'mongoose';
-import { buildSocialMediaScopeFilter, resolveSocialMediaScope } from '@/lib/socialMediaScope';
+import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,57 +17,60 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
-
     const { id } = params;
 
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
-    }
-
-    // Mark account as disconnected instead of deleting
-    const existing = await SocialMediaAccount.findOne({
-      _id: id,
-      ...buildSocialMediaScopeFilter(scope),
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const existingRes = await bunnyExecute({
+      sql: "SELECT document_json FROM mongo_documents WHERE id = ? AND collection_name = 'socialmediaaccounts'",
+      args: [id]
     });
 
-    if (!existing) {
+    if (existingRes.rows.length === 0) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const result = await SocialMediaAccount.findByIdAndUpdate(
-      existing._id,
-      {
-        isConnected: false,
-        disconnectedAt: new Date(),
-      },
-      { new: true }
-    );
-
-    if (!result) {
+    const account = JSON.parse(String(existingRes.rows[0].document_json || '{}'));
+    
+    // Verify scope
+    if (scope.scopeType !== 'super_admin' && (account.scopeType !== 'tenant' || account.scopeKey !== scope.scopeKey)) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    if (result.platform === 'facebook') {
-      await SocialMediaAccount.updateMany(
-        {
-          ...buildSocialMediaScopeFilter(scope),
-          platform: 'instagram',
-          accountId: { $ne: null },
-          'metadata.autoConnectedVia': 'facebook',
-          'metadata.linkedPageId': result.accountId,
-          isConnected: true,
-        },
-        {
-          $set: {
-            isConnected: false,
-            disconnectedAt: new Date(),
-            updatedAt: new Date(),
-          },
-        }
-      );
+    account.isConnected = false;
+    account.disconnectedAt = new Date().toISOString();
+    account.updatedAt = new Date().toISOString();
+
+    await bunnyExecute({
+      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      args: [JSON.stringify(account), id]
+    });
+
+    if (account.platform === 'facebook' && account.accountId) {
+      // Disconnect auto-connected instagram accounts
+      const allRes = await bunnyExecute({
+        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      });
+      for (const row of allRes.rows) {
+        try {
+          const parsed = JSON.parse(String(row.document_json || '{}'));
+          if (
+            parsed.platform === 'instagram' &&
+            parsed.metadata?.autoConnectedVia === 'facebook' &&
+            parsed.metadata?.linkedPageId === account.accountId &&
+            parsed.isConnected === true &&
+            (scope.scopeType === 'super_admin' ? (parsed.scopeType === 'super_admin' || !parsed.scopeType) : (parsed.scopeType === 'tenant' && parsed.scopeKey === scope.scopeKey))
+          ) {
+            parsed.isConnected = false;
+            parsed.disconnectedAt = new Date().toISOString();
+            parsed.updatedAt = new Date().toISOString();
+            await bunnyExecute({
+              sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              args: [JSON.stringify(parsed), String(row.id)]
+            });
+          }
+        } catch {}
+      }
     }
 
     return NextResponse.json({

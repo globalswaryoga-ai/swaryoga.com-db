@@ -1,10 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, SocialMediaAccount } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 import { decryptCredential } from '@/lib/encryption';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
+
+async function updateBunnyAccount(id: string, followers: number, now: Date) {
+  const sql = `
+    UPDATE mongo_documents 
+    SET document_json = json_set(
+      document_json, 
+      '$.metadata.followers', ?, 
+      '$.metadata.lastSyncedAt', ?, 
+      '$.updatedAt', ?
+    )
+    WHERE id = ? AND collection_name = 'socialmediaaccounts'
+  `;
+  await bunnyExecute({
+    sql,
+    args: [followers, now.toISOString(), now.toISOString(), id]
+  });
+}
 
 
 function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
@@ -135,9 +152,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    await connectDB();
-
-    const accounts = await SocialMediaAccount.find({ isConnected: true }).lean();
+    const res = await bunnyExecute("SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'");
+    const accounts: any[] = [];
+    for (const row of res.rows) {
+      try {
+        const parsed = JSON.parse(String(row.document_json || '{}'));
+        if (parsed.isConnected) {
+          if (!parsed._id) parsed._id = String(row.id);
+          accounts.push(parsed);
+        }
+      } catch {}
+    }
     const now = new Date();
 
     const results: SyncResultItem[] = [];
@@ -197,16 +222,7 @@ export async function POST(request: NextRequest) {
             throw new Error('Graph API did not return fan_count. Check token permissions: pages_read_engagement,pages_read_user_content required.');
           }
 
-          await SocialMediaAccount.updateOne(
-            { _id: acc._id },
-            {
-              $set: {
-                'metadata.followers': followers,
-                'metadata.lastSyncedAt': now,
-                updatedAt: now,
-              },
-            }
-          );
+          await updateBunnyAccount(acc._id, followers, now);
 
           results.push({ accountMongoId, platform, accountId, ok: true, followers });
           continue;
@@ -235,16 +251,7 @@ export async function POST(request: NextRequest) {
             throw new Error('Graph API did not return followers_count. Ensure: 1) Account is Business type, 2) Token has instagram_basic,instagram_manage_insights scopes, 3) Account is connected to this app.');
           }
 
-          await SocialMediaAccount.updateOne(
-            { _id: acc._id },
-            {
-              $set: {
-                'metadata.followers': followers,
-                'metadata.lastSyncedAt': now,
-                updatedAt: now,
-              },
-            }
-          );
+          await updateBunnyAccount(acc._id, followers, now);
 
           results.push({ accountMongoId, platform, accountId, ok: true, followers });
           continue;
@@ -281,16 +288,7 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          await SocialMediaAccount.updateOne(
-            { _id: acc._id },
-            {
-              $set: {
-                'metadata.followers': followers,
-                'metadata.lastSyncedAt': now,
-                updatedAt: now,
-              },
-            }
-          );
+          await updateBunnyAccount(acc._id, followers, now);
 
           results.push({ accountMongoId, platform, accountId, ok: true, followers });
           continue;
@@ -326,16 +324,7 @@ export async function POST(request: NextRequest) {
             throw new Error('X/Twitter API did not return followers_count. Ensure account is public.');
           }
 
-          await SocialMediaAccount.updateOne(
-            { _id: acc._id },
-            {
-              $set: {
-                'metadata.followers': followers,
-                'metadata.lastSyncedAt': now,
-                updatedAt: now,
-              },
-            }
-          );
+          await updateBunnyAccount(acc._id, followers, now);
 
           results.push({ accountMongoId, platform, accountId, ok: true, followers });
           continue;
@@ -377,16 +366,7 @@ export async function POST(request: NextRequest) {
             throw new Error('LinkedIn API did not return followersCount. Ensure token has correct permissions.');
           }
 
-          await SocialMediaAccount.updateOne(
-            { _id: acc._id },
-            {
-              $set: {
-                'metadata.followers': followers,
-                'metadata.lastSyncedAt': now,
-                updatedAt: now,
-              },
-            }
-          );
+          await updateBunnyAccount(acc._id, followers, now);
 
           results.push({ accountMongoId, platform, accountId, ok: true, followers });
           continue;
@@ -407,9 +387,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const sanitizedAccounts = await SocialMediaAccount.find({ isConnected: true })
-      .select('-accessToken -refreshToken')
-      .lean();
+    const accountsRes = await bunnyExecute("SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'");
+    const sanitizedAccounts: any[] = [];
+    for (const row of accountsRes.rows) {
+      try {
+        const parsed = JSON.parse(String(row.document_json || '{}'));
+        if (parsed.isConnected) {
+          if (!parsed._id) parsed._id = String(row.id);
+          delete parsed.accessToken;
+          delete parsed.refreshToken;
+          sanitizedAccounts.push(parsed);
+        }
+      } catch {}
+    }
 
     return NextResponse.json({
       success: true,

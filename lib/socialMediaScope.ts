@@ -36,31 +36,40 @@ export async function resolveSocialMediaScope(decoded: TokenPayload | null | und
     };
   }
 
-  if (!mongoose.connection?.db) {
-    return {
-      scopeType: 'super_admin',
-      scopeKey: 'super_admin',
-      scopeLabel: 'Super Admin shared settings',
-      ownerUserId: ownerUserId || 'admincrm',
-    };
-  }
+  if (ownerUserId || ownerEmail) {
+    try {
+      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const res = await bunnyExecute({
+        sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'admin_users'"
+      });
+      let currentUser = null;
+      for (const row of res.rows) {
+        try {
+          const parsed = JSON.parse(String(row.document_json || '{}'));
+          if (
+            (ownerUserId && parsed.userId === ownerUserId) ||
+            (ownerEmail && parsed.email === ownerEmail)
+          ) {
+            currentUser = parsed;
+            break;
+          }
+        } catch {}
+      }
 
-  const crmDb = mongoose.connection.useDb(CRM_DB_NAME);
-  const lookupFilters: Record<string, string>[] = [];
-  if (ownerUserId) lookupFilters.push({ userId: ownerUserId });
-  if (ownerEmail) lookupFilters.push({ email: ownerEmail });
-
-  if (lookupFilters.length > 0) {
-    const currentUser = await crmDb.collection('admin_users').findOne({ $or: lookupFilters });
-    const tenantSlug = String(currentUser?.tenantSlug || '').trim().toLowerCase();
-    if (tenantSlug) {
-      return {
-        scopeType: 'tenant',
-        scopeKey: tenantSlug,
-        scopeLabel: `Tenant settings (${tenantSlug})`,
-        ownerUserId: ownerUserId || String(currentUser?.userId || '').trim(),
-        tenantSlug,
-      };
+      if (currentUser) {
+        const tenantSlug = String(currentUser.tenantSlug || '').trim().toLowerCase();
+        if (tenantSlug) {
+          return {
+            scopeType: 'tenant',
+            scopeKey: tenantSlug,
+            scopeLabel: `Tenant settings (${tenantSlug})`,
+            ownerUserId: ownerUserId || String(currentUser.userId || '').trim(),
+            tenantSlug,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[SocialMediaScope] Bunny DB lookup failed:', err);
     }
   }
 

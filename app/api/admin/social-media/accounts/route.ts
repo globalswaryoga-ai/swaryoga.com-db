@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { encryptCredential } from '@/lib/encryption';
-import { buildSocialMediaScopeFilter, resolveSocialMediaScope } from '@/lib/socialMediaScope';
+import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
 import { fetchFacebookConnectionInfo, upsertConnectedAccount } from '@/lib/socialMediaConnect';
 
 export const dynamic = 'force-dynamic';
@@ -16,25 +15,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    let mongoAccounts: any[] = [];
-    let scope: any = { scopeType: 'super_admin', scopeKey: 'super_admin', scopeLabel: 'Super Admin' };
-
-    // Try MongoDB first
-    try {
-      await connectDB();
-      scope = await resolveSocialMediaScope(decoded);
-      mongoAccounts = await SocialMediaAccount.find({
-        isConnected: true,
-        ...buildSocialMediaScopeFilter(scope),
-      })
-        .select('-accessToken -refreshToken')
-        .lean();
-    } catch (mongoErr: any) {
-      console.warn('[SocialMedia] MongoDB unavailable, falling back to Bunny DB:', mongoErr.message);
-    }
-
-    // Bunny DB fallback / merge: always check Bunny DB for OAuth-saved accounts (e.g. YouTube)
-    let bunnyAccounts: any[] = [];
+    const scope = await resolveSocialMediaScope(decoded);
+    let accounts: any[] = [];
     try {
       const { bunnyExecute } = await import('@/lib/bunnyDatabase');
       const res = await bunnyExecute({
@@ -43,26 +25,20 @@ export async function GET(request: NextRequest) {
       for (const row of res.rows) {
         try {
           const parsed = JSON.parse(String(row.document_json || '{}'));
-          if (parsed.isConnected) {
-            // Avoid returning encrypted tokens to client
+          if (parsed.isConnected && (scope.scopeType === 'super_admin' || (parsed.scopeType === 'tenant' && parsed.scopeKey === scope.scopeKey))) {
             const { accessToken: _at, refreshToken: _rt, ...safe } = parsed;
             if (!safe._id) safe._id = String(row.id);
-            bunnyAccounts.push(safe);
+            accounts.push(safe);
           }
         } catch {}
       }
     } catch (bunnyErr: any) {
-      console.warn('[SocialMedia] Bunny DB fallback error:', bunnyErr.message);
+      console.error('[SocialMedia] Bunny DB error:', bunnyErr.message);
     }
-
-    // Merge: keep Mongo accounts, then add any Bunny accounts not already present by platform+accountId
-    const mongoPlatformKeys = new Set(mongoAccounts.map((a: any) => `${a.platform}:${a.accountId || a.accountHandle}`));
-    const uniqueBunny = bunnyAccounts.filter((a) => !mongoPlatformKeys.has(`${a.platform}:${(a.accountId || a.accountHandle)}`));
-    const combined = [...mongoAccounts, ...uniqueBunny];
 
     return NextResponse.json({
       success: true,
-      data: combined,
+      data: accounts,
       scope: {
         type: scope.scopeType,
         key: scope.scopeKey,
@@ -100,7 +76,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
     const scope = await resolveSocialMediaScope(decoded);
 
     if (platform === 'facebook') {
@@ -184,11 +159,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if account already exists
-    const existingAccount = await SocialMediaAccount.findOne({
-      ...buildSocialMediaScopeFilter(scope),
-      platform,
-      accountId: resolvedAccountId,
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+    const res = await bunnyExecute({
+      sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
+    
+    let existingAccount: any = null;
+    for (const row of res.rows) {
+      try {
+        const parsed = JSON.parse(String(row.document_json || '{}'));
+        if (
+          parsed.platform === platform &&
+          parsed.accountId === resolvedAccountId &&
+          (scope.scopeType === 'super_admin' ? (parsed.scopeType === 'super_admin' || !parsed.scopeType) : (parsed.scopeType === 'tenant' && parsed.scopeKey === scope.scopeKey))
+        ) {
+          existingAccount = parsed;
+          break;
+        }
+      } catch {}
+    }
 
     if (existingAccount) {
       return NextResponse.json(
@@ -201,8 +190,12 @@ export async function POST(request: NextRequest) {
     const encryptedAccessToken = encryptCredential(accessToken);
     const encryptedRefreshToken = refreshToken ? encryptCredential(refreshToken) : '';
 
+    const crypto = await import('crypto');
+    const newId = crypto.randomUUID();
+
     // Create new social media account
-    const newAccount = new SocialMediaAccount({
+    const newAccount = {
+      _id: newId,
       scopeType: scope.scopeType,
       scopeKey: scope.scopeKey,
       ownerUserId: scope.ownerUserId,
@@ -216,10 +209,15 @@ export async function POST(request: NextRequest) {
       refreshToken: encryptedRefreshToken,
       metadata: metadata || {},
       isConnected: true,
-      connectedAt: new Date(),
-    });
+      connectedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-    await newAccount.save();
+    await bunnyExecute({
+      sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+      args: [newId, JSON.stringify(newAccount)]
+    });
 
     return NextResponse.json(
       {

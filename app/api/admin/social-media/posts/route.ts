@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, SocialMediaPost, SocialMediaAccount } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
@@ -22,16 +21,23 @@ export async function GET(request: NextRequest) {
 
     let posts: any[] = [];
     try {
-      await connectDB();
-      posts = await SocialMediaPost.find({
-        status: { $in: ['published', 'scheduled', 'draft', 'failed'] },
-      })
-        .sort({ createdAt: -1 })
-        .limit(50)
-        .lean();
+      const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+      const res = await bunnyExecute({
+        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaposts'"
+      });
+      for (const row of res.rows) {
+        try {
+          const parsed = JSON.parse(String(row.document_json || '{}'));
+          if (['published', 'scheduled', 'draft', 'failed'].includes(parsed.status)) {
+            if (!parsed._id) parsed._id = String(row.id);
+            posts.push(parsed);
+          }
+        } catch {}
+      }
+      posts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      posts = posts.slice(0, 50);
     } catch (dbErr: any) {
-      console.warn('[social-media/posts] MongoDB unavailable, returning empty list:', dbErr.message);
-      // Return empty list rather than 500 so the UI doesn't error-loop
+      console.warn('[social-media/posts] Bunny DB unavailable, returning empty list:', dbErr.message);
     }
 
     return NextResponse.json({ success: true, data: posts });
@@ -70,37 +76,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
 
     // Verify all accounts exist and are connected
-    const accounts = await SocialMediaAccount.find({
-      platform: { $in: platforms },
-      isConnected: true,
+    const accountsRes = await bunnyExecute({
+      sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
+    const connectedAccounts = [];
+    for (const row of accountsRes.rows) {
+      try {
+        const parsed = JSON.parse(String(row.document_json || '{}'));
+        if (parsed.isConnected && platforms.includes(parsed.platform)) {
+          if (!parsed._id) parsed._id = String(row.id);
+          connectedAccounts.push(parsed);
+        }
+      } catch {}
+    }
 
-    if (accounts.length === 0) {
+    if (connectedAccounts.length === 0) {
       return NextResponse.json(
         { error: 'No connected accounts found for selected platforms' },
         { status: 400 }
       );
     }
 
+    const crypto = await import('crypto');
+    const newId = crypto.randomUUID();
+
     // Create new post
-    const newPost = new SocialMediaPost({
+    const newPost = {
+      _id: newId,
       content,
       platforms,
       postType: ['feed', 'story', 'reel'].includes(postType) ? postType : 'feed',
-      accountIds: accountIds || accounts.map(a => a._id),
+      accountIds: accountIds || connectedAccounts.map(a => a._id),
       status: status || (scheduledFor ? 'scheduled' : 'draft'),
-      scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
-      createdAt: new Date(),
-    });
+      scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
+      createdAt: new Date().toISOString(),
+    };
 
-    await newPost.save();
+    await bunnyExecute({
+      sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaposts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+      args: [newId, JSON.stringify(newPost)]
+    });
 
     // Mirror into MediaPost so it shows on frontend /media (draft/scheduled for now).
     await upsertMediaPostFromSocialPost({
-      socialPost: newPost.toObject(),
+      socialPost: newPost as any,
       status: (newPost.status === 'scheduled' ? 'scheduled' : 'draft') as any,
       author: decoded.username || decoded.userId || 'Admin',
     });

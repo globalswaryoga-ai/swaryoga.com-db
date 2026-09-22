@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
 
     // Get OAuth credentials
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const host = request.headers.get("host") || request.nextUrl.host;
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
+    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
+    const host = rawHost.split(':')[0]; // Strip any port
     const protocol = host.includes("localhost") ? "http" : "https";
     const redirectUri = `${protocol}://${host}/api/admin/social-media/youtube/oauth/callback`;
 
@@ -52,7 +55,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('scope', scopes.join(' '));
     authUrl.searchParams.set('access_type', 'offline'); // Get refresh token
     authUrl.searchParams.set('prompt', 'consent'); // Force consent to get refresh token
-    authUrl.searchParams.set('state', token || ''); // Pass token for verification
+    authUrl.searchParams.set('state', 'swaryoga_admin_auth'); // Short state string
 
     // Return the URL for the frontend to redirect to
     return NextResponse.json({

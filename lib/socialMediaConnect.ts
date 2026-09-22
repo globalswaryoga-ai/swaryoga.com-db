@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import { SocialMediaAccount } from '@/lib/db';
 import { encryptCredential } from '@/lib/encryption';
 import { buildSocialMediaScopeFilter, type SocialMediaScope } from '@/lib/socialMediaScope';
 import {
@@ -48,13 +47,32 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
   const encryptedAccessToken = encryptCredential(input.accessToken);
   const encryptedRefreshToken = input.refreshToken ? encryptCredential(input.refreshToken) : '';
 
-  const existingAccount = await SocialMediaAccount.findOne({
-    ...buildSocialMediaScopeFilter(input.scope),
-    platform: input.platform,
-    accountId: input.accountId,
+  const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+  
+  // Find existing
+  const res = await bunnyExecute({
+    sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
   });
 
-  if (existingAccount) {
+  let existingAccount: any = null;
+  let existingId: string | null = null;
+
+  for (const row of res.rows) {
+    try {
+      const parsed = JSON.parse(String(row.document_json || '{}'));
+      if (
+        parsed.platform === input.platform &&
+        parsed.accountId === input.accountId &&
+        (input.scope.scopeType === 'super_admin' ? (parsed.scopeType === 'super_admin' || !parsed.scopeType) : (parsed.scopeType === 'tenant' && parsed.scopeKey === input.scope.scopeKey))
+      ) {
+        existingAccount = parsed;
+        existingId = String(row.id);
+        break;
+      }
+    } catch {}
+  }
+
+  if (existingAccount && existingId) {
     existingAccount.accountName = input.accountName;
     existingAccount.accountHandle = input.accountHandle;
     existingAccount.accountEmail = input.accountEmail || existingAccount.accountEmail || '';
@@ -69,14 +87,21 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
     existingAccount.ownerUserId = input.scope.ownerUserId;
     existingAccount.tenantSlug = input.scope.tenantSlug;
     existingAccount.isConnected = true;
-    existingAccount.connectedAt = existingAccount.connectedAt || new Date();
-    existingAccount.disconnectedAt = undefined;
-    existingAccount.updatedAt = new Date();
-    await existingAccount.save();
-    return { account: existingAccount, created: false };
+    existingAccount.connectedAt = existingAccount.connectedAt || new Date().toISOString();
+    delete existingAccount.disconnectedAt;
+    existingAccount.updatedAt = new Date().toISOString();
+
+    await bunnyExecute({
+      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      args: [JSON.stringify(existingAccount), existingId]
+    });
+    
+    return { account: { ...existingAccount, _id: existingId }, created: false };
   }
 
-  const newAccount = new SocialMediaAccount({
+  const newId = crypto.randomUUID();
+  const newAccount = {
+    _id: newId,
     scopeType: input.scope.scopeType,
     scopeKey: input.scope.scopeKey,
     ownerUserId: input.scope.ownerUserId,
@@ -90,10 +115,16 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
     refreshToken: encryptedRefreshToken,
     metadata: input.metadata || {},
     isConnected: true,
-    connectedAt: new Date(),
+    connectedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await bunnyExecute({
+    sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    args: [newId, JSON.stringify(newAccount)]
   });
 
-  await newAccount.save();
   return { account: newAccount, created: true };
 }
 

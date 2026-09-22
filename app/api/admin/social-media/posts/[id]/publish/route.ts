@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB, SocialMediaAccount, SocialMediaPost } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { decryptCredential } from '@/lib/encryption';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
@@ -725,16 +724,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const postId = params?.id;
-    if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+    if (!postId || (postId.length !== 24 && postId.length !== 36)) {
       return NextResponse.json({ error: 'Invalid post id' }, { status: 400 });
     }
 
-    await connectDB();
+    const { bunnyExecute } = await import('@/lib/bunnyDatabase');
 
-    const postDoc = (await SocialMediaPost.findById(postId).lean()) as any | null;
-    if (!postDoc) {
+    const postRes = await bunnyExecute({
+      sql: "SELECT document_json FROM mongo_documents WHERE id = ? AND collection_name = 'socialmediaposts'",
+      args: [postId]
+    });
+
+    if (postRes.rows.length === 0) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
+
+    const postDoc = JSON.parse(String(postRes.rows[0].document_json || '{}'));
+    postDoc._id = postId;
 
     const platforms: string[] = Array.isArray(postDoc.platforms) ? postDoc.platforms.map(String) : [];
     if (platforms.length === 0) {
@@ -742,11 +748,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const accountObjectIds = Array.isArray(postDoc.accountIds) ? postDoc.accountIds : [];
-    const accounts = await SocialMediaAccount.find({
-      _id: { $in: accountObjectIds },
-      isConnected: true,
-      platform: { $in: platforms },
-    }).lean();
+    
+    const accountsRes = await bunnyExecute({
+      sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+    });
+    
+    const accounts = [];
+    for (const row of accountsRes.rows) {
+      try {
+        const parsed = JSON.parse(String(row.document_json || '{}'));
+        if (parsed.isConnected && platforms.includes(parsed.platform) && accountObjectIds.includes(String(row.id))) {
+          if (!parsed._id) parsed._id = String(row.id);
+          accounts.push(parsed);
+        }
+      } catch {}
+    }
 
     const results: PublishResult[] = [];
     const now = new Date();
@@ -877,25 +893,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const okAll = results.every((r) => r.ok);
     const okAny = results.some((r) => r.ok);
 
-    await SocialMediaPost.updateOne(
-      { _id: postId },
-      {
-        $set: {
-          status: okAll ? 'published' : 'failed',
-          publishedAt: okAny ? now : null,
-          updatedAt: now,
-          failureReason: okAll ? '' : JSON.stringify(results),
-          ...(Object.keys(platformPostIds).length
-            ? {
-                platformPostIds: {
-                  ...(postDoc.platformPostIds || {}),
-                  ...platformPostIds,
-                },
-              }
-            : {}),
-        },
-      }
-    );
+    postDoc.status = okAll ? 'published' : 'failed';
+    postDoc.publishedAt = okAny ? now.toISOString() : null;
+    postDoc.updatedAt = now.toISOString();
+    postDoc.failureReason = okAll ? '' : JSON.stringify(results);
+    if (Object.keys(platformPostIds).length) {
+      postDoc.platformPostIds = {
+        ...(postDoc.platformPostIds || {}),
+        ...platformPostIds,
+      };
+    }
+
+    await bunnyExecute({
+      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      args: [JSON.stringify(postDoc), postId]
+    });
 
     // Mirror into MediaPost (published only if we managed to publish to at least one platform).
     // If everything failed, mark draft so it doesn't appear publicly.
