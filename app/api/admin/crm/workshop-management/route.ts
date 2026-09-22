@@ -72,7 +72,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    let cohort = null;
+    let cohort: any = null;
     if (Object.keys(updates).length > 0) {
       cohort = await updateCohort(body.cohortId, updates);
       if (!cohort) return NextResponse.json({ error: 'Workshop not found' }, { status: 404 });

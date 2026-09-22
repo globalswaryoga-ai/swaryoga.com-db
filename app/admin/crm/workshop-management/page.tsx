@@ -8,7 +8,7 @@ import {
   Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy, MessageCircle, QrCode, ExternalLink
 } from 'lucide-react';
 
-interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; }
+interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
 interface Attendance { studentId: string; classDate: string; joined: boolean; durationSeconds: number; attendancePercent: number; }
 interface AttendanceChartRow { classDate: string; dayNumber: number; holiday: boolean; durationMinutes: string; status: 'joined' | 'absent' | 'holiday'; }
@@ -123,6 +123,9 @@ export default function WorkshopManagementPage() {
   const [autoSaveUrls, setAutoSaveUrls] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [editingDateModal, setEditingDateModal] = useState<{ classDate: string; dayNumber: number | null; isHoliday: boolean; } | null>(null);
+  const [savingDateModal, setSavingDateModal] = useState(false);
+  const [showHolidayPicker, setShowHolidayPicker] = useState(false);
 
   // Auto-calculate end date for Create form
   useEffect(() => {
@@ -928,6 +931,40 @@ export default function WorkshopManagementPage() {
       alert(err.message || 'Failed to save URLs');
     } finally {
       setSavingRecordingUrls(false);
+    }
+  };
+
+  const openEditDateModal = (dateStr: string, currentDayNum?: number | null) => {
+    const isHoliday = cohortHolidaySet.has(dateStr);
+    setEditingDateModal({
+      classDate: dateStr,
+      dayNumber: currentDayNum || null,
+      isHoliday,
+    });
+  };
+
+  const saveDateEdit = async (dayNum: number | null, isHoliday: boolean) => {
+    if (!editingDateModal || !selected) return;
+    setSavingDateModal(true);
+    try {
+      const res = await fetch('/api/admin/crm/workshop-management/class-date', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          cohortId: selected._id,
+          classDate: editingDateModal.classDate,
+          dayNumber: dayNum,
+          isHoliday,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update date');
+      await load(selected._id);
+      setEditingDateModal(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update date');
+    } finally {
+      setSavingDateModal(false);
     }
   };
 
@@ -1780,8 +1817,43 @@ export default function WorkshopManagementPage() {
                               <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
                                 <span>Overview of student attendance durations across all classes.</span>
                                 {cohortHolidaySet.size > 0 && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                    {cohortHolidaySet.size} Holiday{cohortHolidaySet.size > 1 ? 's' : ''} Hidden from Report
+                                  <span className="relative inline-block">
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowHolidayPicker(!showHolidayPicker)}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition-colors cursor-pointer"
+                                      title="Click to view or edit hidden holiday dates"
+                                    >
+                                      <span>🏖️ {cohortHolidaySet.size} Holiday{cohortHolidaySet.size > 1 ? 's' : ''} Hidden</span>
+                                      <span className="text-[9px]">▼</span>
+                                    </button>
+                                    {showHolidayPicker && (
+                                      <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-3 z-30 animate-in fade-in zoom-in-95 text-left">
+                                        <div className="text-xs font-bold text-slate-700 mb-2 pb-1 border-b border-slate-100 flex items-center justify-between">
+                                          <span>Configured Holidays</span>
+                                          <button type="button" onClick={() => setShowHolidayPicker(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+                                        </div>
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                          {Array.from(cohortHolidaySet).sort().map(hDate => (
+                                            <div key={hDate} className="flex items-center justify-between bg-slate-50 p-2 rounded-xl text-xs">
+                                              <span className="font-semibold text-slate-700">
+                                                {new Date(`${hDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setShowHolidayPicker(false);
+                                                  openEditDateModal(hDate, null);
+                                                }}
+                                                className="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:border-indigo-300 text-indigo-600 hover:text-indigo-800 font-bold text-[10px] cursor-pointer shadow-2xs"
+                                              >
+                                                Edit
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
                                   </span>
                                 )}
                               </p>
@@ -1812,9 +1884,36 @@ export default function WorkshopManagementPage() {
                                 <th className="px-6 py-4">Student</th>
                                 <th className="px-6 py-4">Phone / WA</th>
                                 <th className="px-6 py-4">Email</th>
-                                {uniqueDates.map(date => (
-                                  <th key={date} className="px-4 py-4 whitespace-nowrap">{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</th>
-                                ))}
+                                {uniqueDates.map(date => {
+                                  const recording = recordings.find(r => r.classDate === date);
+                                  const dayNum = recording?.dayNumber || selected?.metadata?.dateDayMap?.[date] || null;
+                                  const dateObj = new Date(`${date}T00:00:00`);
+                                  const monthShort = dateObj.toLocaleDateString(undefined, { month: 'short' });
+                                  const dayOfMonth = dateObj.toLocaleDateString(undefined, { day: 'numeric' });
+                                  const weekday = dateObj.toLocaleDateString(undefined, { weekday: 'short' });
+
+                                  return (
+                                    <th key={date} className="px-3 py-3 whitespace-nowrap text-center group border-r border-slate-100 last:border-r-0">
+                                      <div className="flex flex-col items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditDateModal(date, dayNum)}
+                                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-900 border border-indigo-200 font-black text-xs transition-colors cursor-pointer shadow-2xs"
+                                          title={`Click to edit Day Number or mark as Holiday for ${date}`}
+                                        >
+                                          <span>{dayNum ? `Day ${dayNum}` : 'Set Day'}</span>
+                                          <Edit2 size={10} className="text-indigo-400 group-hover:text-indigo-700" />
+                                        </button>
+                                        <div className="text-[11px] font-bold text-slate-700 tracking-tight">
+                                          {monthShort} {dayOfMonth}
+                                        </div>
+                                        <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                                          {weekday}
+                                        </div>
+                                      </div>
+                                    </th>
+                                  );
+                                })}
                                 <th className="px-4 py-4 whitespace-nowrap text-right no-print">Actions</th>
                               </tr>
                             </thead>
@@ -2763,6 +2862,172 @@ export default function WorkshopManagementPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Date & Day Number Modal */}
+      {editingDateModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-150 border border-slate-100">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-950 px-6 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white border border-white/20">
+                  <Calendar size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base leading-tight">Edit Class Date & Day</h3>
+                  <p className="text-xs text-indigo-200 mt-0.5">
+                    {new Date(`${editingDateModal.classDate}T00:00:00`).toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingDateModal(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Holiday Toggle Section */}
+              <div className={`p-4 rounded-2xl border transition-colors ${
+                editingDateModal.isHoliday
+                  ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/30'
+                  : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+              }`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <label 
+                      htmlFor="holidayToggleCheckbox" 
+                      className="font-bold text-sm text-slate-800 flex items-center gap-2 cursor-pointer"
+                    >
+                      <span>🏖️ Mark as Holiday</span>
+                      {editingDateModal.isHoliday && (
+                        <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                          Holiday
+                        </span>
+                      )}
+                    </label>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      {editingDateModal.isHoliday
+                        ? 'This date is marked as a holiday. It is hidden from the attendance analytics table and report.'
+                        : 'Marking as a holiday will hide this date from the attendance table and CSV exports.'}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="holidayToggleCheckbox"
+                    checked={editingDateModal.isHoliday}
+                    onChange={(e) => {
+                      const isHol = e.target.checked;
+                      setEditingDateModal(prev => prev ? {
+                        ...prev,
+                        isHoliday: isHol,
+                        dayNumber: isHol ? null : prev.dayNumber,
+                      } : null);
+                    }}
+                    className="w-5 h-5 mt-0.5 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Day Number (1 to 15) Section */}
+              <div className={editingDateModal.isHoliday ? 'opacity-40 pointer-events-none' : ''}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Select Day Number (1 - 15)
+                  </label>
+                  {editingDateModal.dayNumber && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingDateModal(prev => prev ? { ...prev, dayNumber: null } : null)}
+                      className="text-[11px] font-semibold text-rose-500 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* 1 to 15 quick grid buttons */}
+                <div className="grid grid-cols-5 gap-1.5">
+                  {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => {
+                    const isSelected = editingDateModal.dayNumber === d;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          setEditingDateModal(prev => prev ? { ...prev, dayNumber: d, isHoliday: false } : null);
+                        }}
+                        className={`py-2 px-1 text-center rounded-xl font-bold text-xs transition-all cursor-pointer border ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-200'
+                            : 'bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border-slate-200'
+                        }`}
+                      >
+                        Day {d}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom day number input for flexibility */}
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Custom Day:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    placeholder="e.g. 16"
+                    value={editingDateModal.dayNumber ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                      setEditingDateModal(prev => prev ? { ...prev, dayNumber: val, isHoliday: false } : null);
+                    }}
+                    className="w-20 px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 text-center font-bold"
+                  />
+                  {editingDateModal.dayNumber && (
+                    <span className="text-xs font-extrabold text-indigo-600">
+                      → Day {editingDateModal.dayNumber} selected
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDateModal(null)}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingDateModal}
+                  onClick={() => saveDateEdit(editingDateModal.dayNumber, editingDateModal.isHoliday)}
+                  className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                >
+                  {savingDateModal ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    'Save Date Settings'
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
