@@ -6,7 +6,7 @@ import { getServiceConnection } from '@/lib/schemas/enterpriseSchemas';
 import nodemailer from 'nodemailer';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
-import { getZoomMeetingRecordings, deleteZoomRecording } from '@/lib/zoom-meetings';
+import { getZoomMeetingRecordings, deleteZoomRecording, recoverZoomRecording } from '@/lib/zoom-meetings';
 import { syncZoomToBunny } from '@/lib/zoom-s3-sync';
 import { upsertRecording } from '@/lib/workshopBunnyRepository';
 
@@ -57,7 +57,19 @@ export async function POST(request: NextRequest) {
   // Auto-sync Zoom recordings
   if (cohort.zoomMeetingId && !dryRun) {
     try {
-      const zoomRecordingsData = await getZoomMeetingRecordings(cohort.zoomMeetingId);
+      let zoomRecordingsData = await getZoomMeetingRecordings(cohort.zoomMeetingId);
+      
+      // If no recordings and autoRecoverZoomTrash is enabled, try to recover from trash and refetch
+      if ((!zoomRecordingsData || !zoomRecordingsData.recording_files || zoomRecordingsData.recording_files.length === 0) && cohort.autoRecoverZoomTrash) {
+        try {
+          await recoverZoomRecording(cohort.zoomMeetingId);
+          // Fetch again after recovery
+          zoomRecordingsData = await getZoomMeetingRecordings(cohort.zoomMeetingId);
+        } catch (e: any) {
+          console.error("[Zoom Sync] Recovery failed or trash was empty:", e.message);
+        }
+      }
+
       if (zoomRecordingsData && zoomRecordingsData.recording_files && zoomRecordingsData.recording_files.length > 0) {
         result.zoomSync = await syncZoomToBunny(zoomRecordingsData);
         

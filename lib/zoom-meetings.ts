@@ -179,6 +179,23 @@ export async function deleteZoomRecording(meetingId: number | string, action: 't
   }
 }
 
+export async function recoverZoomRecording(meetingId: number | string): Promise<void> {
+  const token = await getZoomAccessToken();
+  const response = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/recordings/status`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ action: 'recover' })
+  });
+
+  if (!response.ok && response.status !== 204) {
+    const error = await response.text();
+    throw new Error(`Failed to recover recording: ${error}`);
+  }
+}
+
 export async function getZoomMeetingRecordings(meetingId: number | string): Promise<any> {
   const token = await getZoomAccessToken();
   const response = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/recordings`, {
