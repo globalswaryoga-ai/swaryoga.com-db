@@ -51,7 +51,7 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
   
   // Find existing
   const res = await bunnyExecute({
-    sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+    sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
   });
 
   let existingAccount: any = null;
@@ -92,7 +92,7 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
     existingAccount.updatedAt = new Date().toISOString();
 
     await bunnyExecute({
-      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
       args: [JSON.stringify(existingAccount), existingId]
     });
     
@@ -121,7 +121,7 @@ export async function upsertConnectedAccount(input: UpsertSocialAccountInput) {
   };
 
   await bunnyExecute({
-    sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    sql: "INSERT INTO mongo_documents (document_id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     args: [newId, JSON.stringify(newAccount)]
   });
 

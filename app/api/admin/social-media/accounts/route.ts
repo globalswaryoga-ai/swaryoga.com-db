@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     try {
       const { bunnyExecute } = await import('@/lib/bunnyDatabase');
       const res = await bunnyExecute({
-        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
+        sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
       });
       for (const row of res.rows) {
         try {
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     // Check if account already exists
     const { bunnyExecute } = await import('@/lib/bunnyDatabase');
     const res = await bunnyExecute({
-      sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
     
     let existingAccount: any = null;
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
     };
 
     await bunnyExecute({
-      sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+      sql: "INSERT INTO mongo_documents (document_id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
       args: [newId, JSON.stringify(newAccount)]
     });
 

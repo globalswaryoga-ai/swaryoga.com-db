@@ -15,7 +15,7 @@ async function updateBunnyAccount(id: string, followers: number, now: Date) {
       '$.metadata.lastSyncedAt', ?, 
       '$.updatedAt', ?
     )
-    WHERE id = ? AND collection_name = 'socialmediaaccounts'
+    WHERE document_id = ? AND collection_name = 'socialmediaaccounts'
   `;
   await bunnyExecute({
     sql,
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const res = await bunnyExecute("SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'");
+    const res = await bunnyExecute("SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'");
     const accounts: any[] = [];
     for (const row of res.rows) {
       try {
@@ -387,7 +387,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const accountsRes = await bunnyExecute("SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'");
+    const accountsRes = await bunnyExecute("SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'");
     const sanitizedAccounts: any[] = [];
     for (const row of accountsRes.rows) {
       try {

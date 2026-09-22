@@ -22,7 +22,7 @@ export async function DELETE(
 
     const { bunnyExecute } = await import('@/lib/bunnyDatabase');
     const existingRes = await bunnyExecute({
-      sql: "SELECT document_json FROM mongo_documents WHERE id = ? AND collection_name = 'socialmediaaccounts'",
+      sql: "SELECT document_json FROM mongo_documents WHERE document_id = ? AND collection_name = 'socialmediaaccounts'",
       args: [id]
     });
 
@@ -42,14 +42,14 @@ export async function DELETE(
     account.updatedAt = new Date().toISOString();
 
     await bunnyExecute({
-      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
       args: [JSON.stringify(account), id]
     });
 
     if (account.platform === 'facebook' && account.accountId) {
       // Disconnect auto-connected instagram accounts
       const allRes = await bunnyExecute({
-        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+        sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
       });
       for (const row of allRes.rows) {
         try {
@@ -65,7 +65,7 @@ export async function DELETE(
             parsed.disconnectedAt = new Date().toISOString();
             parsed.updatedAt = new Date().toISOString();
             await bunnyExecute({
-              sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+              sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
               args: [JSON.stringify(parsed), String(row.id)]
             });
           }

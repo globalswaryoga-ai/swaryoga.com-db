@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
           AND json_extract(document_json, '$.direction') = 'inbound'
           AND (json_extract(document_json, '$.isRead') IS NULL OR json_extract(document_json, '$.isRead') = 0 OR json_extract(document_json, '$.isRead') = 'false' OR json_extract(document_json, '$.isRead') = false)
           AND json_extract(document_json, '$.leadId') IN (
-            SELECT id FROM mongo_documents 
+            SELECT document_id FROM mongo_documents 
             WHERE collection_name = 'crm_leads'
               AND (json_extract(document_json, '$.assignedToUserId') = ? OR json_extract(document_json, '$.createdByUserId') = ?)
           )

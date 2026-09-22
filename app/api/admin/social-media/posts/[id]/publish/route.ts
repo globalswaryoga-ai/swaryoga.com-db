@@ -731,7 +731,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const { bunnyExecute } = await import('@/lib/bunnyDatabase');
 
     const postRes = await bunnyExecute({
-      sql: "SELECT document_json FROM mongo_documents WHERE id = ? AND collection_name = 'socialmediaposts'",
+      sql: "SELECT document_json FROM mongo_documents WHERE document_id = ? AND collection_name = 'socialmediaposts'",
       args: [postId]
     });
 
@@ -750,7 +750,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const accountObjectIds = Array.isArray(postDoc.accountIds) ? postDoc.accountIds : [];
     
     const accountsRes = await bunnyExecute({
-      sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
     
     const accounts = [];
@@ -905,7 +905,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     await bunnyExecute({
-      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
       args: [JSON.stringify(postDoc), postId]
     });
 

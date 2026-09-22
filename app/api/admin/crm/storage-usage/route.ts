@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       // Super admin sees whole database stats directly from Bunny DB
       const sql = `
         SELECT collection_name as name, 
-               count(id) as count, 
+               count(document_id) as count, 
                sum(length(document_json)) as size 
         FROM mongo_documents 
         GROUP BY collection_name
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       // Regular user: count only their own documents per collection using Bunny DB json_extract
       for (const colName of tenantCollections) {
         const sql = `
-          SELECT count(id) as count, sum(length(document_json)) as size 
+          SELECT count(document_id) as count, sum(length(document_json)) as size 
           FROM mongo_documents 
           WHERE collection_name = ?
             AND json_extract(document_json, '$.ownerId') = ?
