@@ -63,17 +63,24 @@ export async function POST(request: NextRequest) {
         
         if (result.zoomSync.syncedFiles && result.zoomSync.syncedFiles.length > 0) {
           // Update DB with the new synced files
+          const updatesByDate = new Map<string, any>();
+          
           for (const synced of result.zoomSync.syncedFiles) {
-             const existingRecording = recordings.find(r => r.classDate === synced.recordingDate);
-             let updates: any = {
-               cohortId,
-               classDate: synced.recordingDate,
-               dayNumber: synced.dayNumber,
-               zoomMeetingId: cohort.zoomMeetingId,
-             };
-             if (existingRecording) {
-               updates = { ...existingRecording, ...updates };
+             const date = synced.recordingDate;
+             let updates = updatesByDate.get(date);
+             if (!updates) {
+               const existingRecording = recordings.find(r => r.classDate === date);
+               updates = {
+                 cohortId,
+                 classDate: date,
+                 dayNumber: synced.dayNumber,
+                 zoomMeetingId: cohort.zoomMeetingId,
+               };
+               if (existingRecording) {
+                 updates = { ...existingRecording, ...updates };
+               }
              }
+             
              if (synced.youtubeVideoId && synced.recordingType.includes('speaker_view')) {
                updates.youtubeSpeakerId = synced.youtubeVideoId;
                updates.youtubeSpeakerUrl = synced.youtubeUrl;
@@ -89,6 +96,10 @@ export async function POST(request: NextRequest) {
                updates.bunnyGalleryUrl = synced.bunnyEmbedUrl;
              }
              
+             updatesByDate.set(date, updates);
+          }
+          
+          for (const updates of updatesByDate.values()) {
              await upsertRecording(updates);
           }
           
