@@ -242,6 +242,19 @@ export default function GoogleFormBuilderPage() {
     return nameMatch || phoneMatch || cityMatch || answersMatch;
   });
 
+  const [editingCell, setEditingCell] = useState<{ id: string; fieldKey: string } | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+
+  const startEdit = (id: string, fieldKey: string, initialValue: string) => {
+    setEditingCell({ id, fieldKey });
+    setEditValue(initialValue);
+  };
+
+  const commitEdit = (id: string, fieldKey: string) => {
+    if (editingCell) setEditingCell(null);
+    handleCellEdit(id, fieldKey, editValue);
+  };
+
   const handleCellEdit = async (enquiryId: string, fieldKey: string, newValue: string) => {
     try {
       const res = await fetch(`/api/admin/enquiries?id=${enquiryId}`, {
@@ -1324,17 +1337,39 @@ export default function GoogleFormBuilderPage() {
                             <td className="p-3.5 border-r border-slate-100 whitespace-nowrap text-slate-500 font-medium">
                               {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '-'}
                             </td>
-                            <td className="p-3.5 border-r border-slate-100 font-bold text-slate-900 whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.name || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'name', val); }}>{sub.name || ''}</td>
-                            <td className="p-3.5 border-r border-slate-100 font-mono text-slate-700 whitespace-nowrap font-medium cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.mobile || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'mobile', val); }}>{sub.mobile || ''}</td>
-                            <td className="p-3.5 border-r border-slate-100 text-slate-600 whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.email || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'email', val); }}>{sub.email || ''}</td>
-                            <td className="p-3.5 border-r border-slate-100 capitalize whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.gender || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'gender', val); }}>{sub.gender || ''}</td>
-                            <td className="p-3.5 border-r border-slate-100 whitespace-nowrap cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const val = e.currentTarget.textContent || ''; if (val !== (sub.city || '')) handleCellEdit(sub.leadNumber || sub._id || sub.id, 'city', val); }}>{sub.city || ''}</td>
+                            <td className="p-3.5 border-r border-slate-100 font-bold text-slate-900 whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'name', sub.name || '')}>
+                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'name' ? (
+                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'name')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'name')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
+                              ) : (sub.name || '')}
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 font-mono text-slate-700 whitespace-nowrap font-medium cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'mobile', sub.mobile || '')}>
+                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'mobile' ? (
+                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'mobile')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'mobile')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
+                              ) : (sub.mobile || '')}
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 text-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'email', sub.email || '')}>
+                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'email' ? (
+                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'email')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'email')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
+                              ) : (sub.email || '')}
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 capitalize whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'gender', sub.gender || '')}>
+                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'gender' ? (
+                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'gender')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'gender')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
+                              ) : (sub.gender || '')}
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 whitespace-nowrap cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, 'city', sub.city || '')}>
+                              {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === 'city' ? (
+                                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, 'city')} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, 'city')} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
+                              ) : (sub.city || '')}
+                            </td>
                             {submissionQuestions.map(q => {
                               const val = sub.dynamicAnswers ? sub.dynamicAnswers[q.fieldKey] : sub[q.fieldKey];
                               const displayVal = Array.isArray(val) ? val.join(', ') : (val ?? '');
                               return (
-                                <td key={q._id} className="p-3.5 border-r border-slate-100 min-w-[160px] text-slate-700 cursor-text" contentEditable suppressContentEditableWarning onBlur={(e) => { const newVal = e.currentTarget.textContent || ''; if (newVal !== displayVal) handleCellEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey, newVal); }}>
-                                  {displayVal}
+                                <td key={q._id} className="p-3.5 border-r border-slate-100 min-w-[160px] text-slate-700 cursor-pointer hover:bg-slate-50" onDoubleClick={() => startEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey, displayVal)}>
+                                  {editingCell?.id === (sub.leadNumber || sub._id || sub.id) && editingCell?.fieldKey === q.fieldKey ? (
+                                    <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={() => commitEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey)} onKeyDown={e => e.key === 'Enter' && commitEdit(sub.leadNumber || sub._id || sub.id, q.fieldKey)} className="w-full bg-transparent border-b border-indigo-500 outline-none" />
+                                  ) : displayVal}
                                 </td>
                               );
                             })}
