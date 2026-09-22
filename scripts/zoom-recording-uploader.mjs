@@ -33,13 +33,14 @@ import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import { createClient } from '@libsql/client';
 
+import dotenv from 'dotenv';
+
 // Load env from .env.zoom-uploader, .env.local, or .env at repo root
 for (const envName of ['.env.zoom-uploader', '.env.local', '.env']) {
   try {
     const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', envName);
-    for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
-      const m = line.match(/^([A-Z_0-9]+)=(.*)$/);
-      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^"|"$/g, '');
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
     }
   } catch { /* ignore missing env file */ }
 }
@@ -426,12 +427,71 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
   if (TARGET_MEETING_ID) log('target meeting filter:', TARGET_MEETING_ID, 'matched', selectedMeetings.length);
   log('found', selectedMeetings.length, 'recorded meeting(s) in window');
 
-  await mongoose.connect(process.env.MONGODB_URI_MAIN, { dbName: process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB' });
-  const Accounts = mongoose.connection.db.collection('socialmediaaccounts');
-  const ytDoc = await Accounts.findOne({ platform: 'youtube' });
-  if (!ytDoc?.refreshToken) { log('No YouTube account connected — aborting.'); await mongoose.disconnect(); return; }
-  const yt = await getYouTubeAccessToken(ytDoc);
-  // Idempotency without a new collection (Atlas is at its 500-collection cap):
+  let Accounts = null;
+  let ytDoc = null;
+  let mongoConnected = false;
+
+  try {
+    if (process.env.MONGODB_URI_MAIN) {
+      await mongoose.connect(process.env.MONGODB_URI_MAIN, { 
+        dbName: process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB',
+        serverSelectionTimeoutMS: 5000 
+      });
+      mongoConnected = true;
+      Accounts = mongoose.connection.db.collection('socialmediaaccounts');
+      ytDoc = await Accounts.findOne({ platform: 'youtube' });
+    }
+  } catch (mErr) {
+    log('MongoDB connection failed, trying Bunny Database fallback:', mErr.message);
+  }
+
+  // Fallback to Bunny Database
+  const dbUrl = process.env.BUNNY_DATABASE_URL?.trim();
+  const dbToken = process.env.BUNNY_DATABASE_AUTH_TOKEN?.trim();
+  let bunnyClient = null;
+  if (dbUrl && dbToken) {
+    bunnyClient = createClient({ url: dbUrl, authToken: dbToken });
+  }
+
+  if (!ytDoc && bunnyClient) {
+    try {
+      const rows = await bunnyClient.execute({
+        sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      });
+      for (const r of rows.rows) {
+        try {
+          const p = JSON.parse(String(r.document_json || '{}'));
+          if (p.platform === 'youtube') {
+            ytDoc = p;
+            log('Loaded YouTube account configuration from Bunny Database');
+            break;
+          }
+        } catch {}
+      }
+    } catch (bErr) {
+      log('Bunny Database lookup error:', bErr.message);
+    }
+  }
+
+  if (!ytDoc?.refreshToken) { 
+    log('No YouTube account with refresh token connected — aborting.'); 
+    if (mongoConnected) await mongoose.disconnect(); 
+    if (bunnyClient) bunnyClient.close();
+    return; 
+  }
+
+  let yt;
+  try {
+    yt = await getYouTubeAccessToken(ytDoc);
+  } catch (ytTokenErr) {
+    log('CRITICAL: YouTube access token error:', ytTokenErr.message);
+    log('TIP: If invalid_grant, please reconnect YouTube in Admin -> Social Media Setup and verify Google Cloud OAuth consent status.');
+    if (mongoConnected) await mongoose.disconnect();
+    if (bunnyClient) bunnyClient.close();
+    return;
+  }
+
+  // Idempotency without a new collection:
   // track done meetings as an array on the YouTube account doc's metadata.
   const done = new Set((ytDoc.metadata?.uploadedMeetings || []).map((u) => u.uuid));
 
@@ -536,7 +596,27 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
         try { await trashRecording(m.uuid, zt); result.trashed = true; log('  Zoom recording → trash ✓'); }
         catch (e) { log('  Zoom trash FAIL:', e.message); }
       }
-      await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, youtubeUrls: result.youtubeUrls, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
+      if (Accounts && ytDoc._id) {
+        try {
+          await Accounts.updateOne({ _id: ytDoc._id }, { $push: { 'metadata.uploadedMeetings': { uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, youtubeUrls: result.youtubeUrls, bunny: result.bunny, trashed: !!result.trashed, at: new Date() } } });
+        } catch (e) {
+          log('  Mongo uploadedMeetings push warning:', e.message);
+        }
+      }
+
+      if (bunnyClient && ytDoc) {
+        try {
+          const uploadedMeetings = ytDoc.metadata?.uploadedMeetings || [];
+          uploadedMeetings.push({ uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, youtubeUrls: result.youtubeUrls, bunny: result.bunny, trashed: !!result.trashed, at: new Date() });
+          ytDoc.metadata = { ...(ytDoc.metadata || {}), uploadedMeetings };
+          await bunnyClient.execute({
+            sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND document_json LIKE '%\"platform\":\"youtube\"%'",
+            args: [JSON.stringify(ytDoc)]
+          });
+        } catch (e) {
+          log('  Bunny uploadedMeetings update warning:', e.message);
+        }
+      }
 
       // Automatically add both YouTube URLs (Speaker + Gallery) and Bunny Speaker URL to workshop_recordings_sql
       await syncToWorkshopDatabase(String(m.id), m.uuid, dateLabel, result.youtube, result.youtubeUrls, result.bunny);
@@ -544,6 +624,7 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
       processed++;
     }
   }
-  await mongoose.disconnect();
+  if (mongoConnected) await mongoose.disconnect();
+  if (bunnyClient) bunnyClient.close();
   log('uploader done. newly uploaded meetings:', processed);
 })().catch((e) => { log('FATAL', e.message); process.exit(1); });
