@@ -16,7 +16,8 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 export async function GET(request: NextRequest) {
   try {
     // Verify admin authentication
-    const token = request.headers.get('authorization')?.slice('Bearer '.length) ||
+    const authHeader = request.headers.get('authorization');
+    const token = (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : authHeader) ||
                   request.nextUrl.searchParams.get('token');
     
     const decoded = verifyToken(token || undefined);
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Get OAuth credentials
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = `${process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/admin/social-media/youtube/oauth/callback`;
+    const redirectUri = `${request.nextUrl.origin}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId) {
       return NextResponse.json(

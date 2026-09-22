@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Get OAuth credentials from environment
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = `${process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/admin/social-media/youtube/oauth/callback`;
+    const redirectUri = `${request.nextUrl.origin}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId || !clientSecret) {
       console.error('[YouTube OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
