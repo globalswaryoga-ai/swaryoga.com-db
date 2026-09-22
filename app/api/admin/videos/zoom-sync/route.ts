@@ -88,18 +88,8 @@ export async function POST(request: NextRequest) {
       const accessToken = await getZoomAccessToken();
 
       
-      // Check if auto-recover trash is enabled for this meeting's cohort
-      let autoRecoverTrash = false;
-      try {
-        const cohortRes = await bunnyExecute({ sql: 'SELECT auto_recover_zoom_trash FROM workshop_cohorts_sql WHERE zoom_meeting_id = ?', args: [cleanMeetingId] });
-        if (cohortRes.rows.length > 0 && cohortRes.rows[0].auto_recover_zoom_trash) {
-          autoRecoverTrash = true;
-        }
-      } catch (e) {
-        console.error('[zoom-sync POST] Failed to check cohort trash setting:', e);
-      }
-
-      if (autoRecoverTrash) {
+      // Always recover trash automatically
+      if (true) {
         await sendEvent('progress', { type: 'start', percent: 2, message: 'Checking Zoom trash for deleted recordings...' });
         const trashRes = await fetch(`${ZOOM_API}/users/me/recordings?trash=true&trash_type=meeting_recordings&meeting_id=${cleanMeetingId}`, {
           headers: { Authorization: `Bearer ${accessToken}` }
@@ -256,6 +246,23 @@ export async function POST(request: NextRequest) {
           errors: syncResult.errors,
         },
       });
+
+      // Auto‑delete recordings from Zoom after successful upload to free storage
+      try {
+        await sendEvent('progress', { type: 'start', percent: 101, message: 'Deleting recordings from Zoom...' });
+        const delRes = await fetch(`${ZOOM_API}/meetings/${cleanMeetingId}/recordings`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!delRes.ok) {
+          console.error('[Zoom Sync] Failed to delete recordings after upload:', await delRes.text());
+          await sendEvent('progress', { type: 'info', percent: 101, message: 'Failed to delete recordings from Zoom.' });
+        } else {
+          await sendEvent('progress', { type: 'info', percent: 101, message: 'Zoom recordings deleted after successful upload.' });
+        }
+      } catch (e) {
+        console.error('[Zoom Sync] Error deleting recordings:', e);
+      }
     } catch (error: any) {
       console.error('[Zoom Sync API] Error:', error);
       await sendEvent('error', { message: error.message });
