@@ -311,6 +311,11 @@ function SocialMediaSetupContent() {
       const response = await fetch('/api/admin/social-media/accounts', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (response.status === 401) {
+        localStorage.removeItem('adminToken');
+        setToken('');
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setConnectedAccounts(Array.isArray(data?.data) ? data.data : Array.isArray(data?.accounts) ? data.accounts : []);
