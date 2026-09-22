@@ -8,7 +8,7 @@ import {
   Image as ImageIcon, QrCode, Link as LinkIcon, CreditCard,
   ArrowUp, ArrowDown, ToggleLeft, ToggleRight,
   Upload, ExternalLink, AlertCircle, CheckCircle, ChevronLeft, Settings,
-  ClipboardCopy, Share2, Eye, Download, Search, Table, FileSpreadsheet, Users, Loader
+  ClipboardCopy, Share2, Eye, Download, Search, Table, FileSpreadsheet, Users, Loader, Calendar, Clock, Timer
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -927,19 +927,31 @@ export default function GoogleFormBuilderPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">Start Date</label>
-                  <input type="text" placeholder="e.g. 15 Dec 2026" value={formSettingsData.workshopDate || ''} onChange={e => setFormSettingsData(f => ({ ...f, workshopDate: e.target.value }))} className="w-full h-11 px-3 border border-slate-200 rounded-xl outline-none" />
+                  <div className="relative">
+                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input type="text" placeholder="e.g. 15 Dec 2026" value={formSettingsData.workshopDate || ''} onChange={e => setFormSettingsData(f => ({ ...f, workshopDate: e.target.value }))} className="w-full h-11 px-3 pr-9 border border-slate-200 rounded-xl outline-none" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">End Date</label>
-                  <input type="text" placeholder="e.g. 20 Dec 2026" value={formSettingsData.workshopEndDate || ''} onChange={e => setFormSettingsData(f => ({ ...f, workshopEndDate: e.target.value }))} className="w-full h-11 px-3 border border-slate-200 rounded-xl outline-none" />
+                  <div className="relative">
+                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input type="text" placeholder="e.g. 20 Dec 2026" value={formSettingsData.workshopEndDate || ''} onChange={e => setFormSettingsData(f => ({ ...f, workshopEndDate: e.target.value }))} className="w-full h-11 px-3 pr-9 border border-slate-200 rounded-xl outline-none" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">Time</label>
-                  <input type="text" placeholder="e.g. 6:00 AM - 7:30 AM" value={formSettingsData.workshopTime || ''} onChange={e => setFormSettingsData(f => ({ ...f, workshopTime: e.target.value }))} className="w-full h-11 px-3 border border-slate-200 rounded-xl outline-none" />
+                  <div className="relative">
+                    <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input type="text" placeholder="e.g. 6:00 AM - 7:30 AM" value={formSettingsData.workshopTime || ''} onChange={e => setFormSettingsData(f => ({ ...f, workshopTime: e.target.value }))} className="w-full h-11 px-3 pr-9 border border-slate-200 rounded-xl outline-none" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">Duration</label>
-                  <input type="text" placeholder="e.g. 1 Hour 30 Mins" value={formSettingsData.duration || ''} onChange={e => setFormSettingsData(f => ({ ...f, duration: e.target.value }))} className="w-full h-11 px-3 border border-slate-200 rounded-xl outline-none" />
+                  <div className="relative">
+                    <Timer className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input type="text" placeholder="e.g. 1 Hour 30 Mins" value={formSettingsData.duration || ''} onChange={e => setFormSettingsData(f => ({ ...f, duration: e.target.value }))} className="w-full h-11 px-3 pr-9 border border-slate-200 rounded-xl outline-none" />
+                  </div>
                 </div>
               </div>
 
