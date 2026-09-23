@@ -73,7 +73,8 @@ export default function QRWhatsAppHealthPage() {
               <li>Respect WhatsApp rate limits – maximum 1 message per second per number.</li>
               <li>Vary message templates; avoid sending identical text repeatedly.</li>
               <li>Always include an easy opt‑out phrase, e.g., “Reply STOP to unsubscribe”.</li>
-              <li>Stagger sending windows; avoid a large spike at the exact same minute.</n<li>Monitor delivery & read receipts; pause if failure rate climbs above ~5%.</li>
+              <li>Stagger sending windows; avoid a large spike at the exact same minute.</li>
+              <li>Monitor delivery & read receipts; pause if failure rate climbs above ~5%.</li>
             </ul>
           </div>
         </section>
