@@ -1254,13 +1254,13 @@ export default function NewRegistrationPage() {
                             <h3 className="font-bold text-slate-800">
                               Linked Leads {leadsData.length > 0 && <span className="text-sm font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full ml-2">{leadsData.length} leads</span>}
                             </h3>
-                            {linkedFormId === 'google-form-sync' && (
+                            {linkedFormId && (
                               <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-                                <span className="text-xs font-bold text-slate-500">AI-4 AUTO FETCH</span>
+                                <span className="text-xs font-bold text-slate-500">AI-4</span>
                                 <button 
                                   onClick={() => {
                                     setIsAi4Active(!isAi4Active);
-                                    if (!isAi4Active) toast.success(`AI-4 Auto Fetch activated! Downloading every ${ai4Interval} seconds.`);
+                                    if (!isAi4Active) toast.success(`🤖 AI-4 activated! Following your instructions on every fetch.`);
                                   }}
                                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAi4Active ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                 >
@@ -1269,7 +1269,7 @@ export default function NewRegistrationPage() {
                                 <button 
                                   onClick={() => setIsAi4RulesOpen(true)}
                                   className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition-colors ml-1"
-                                  title="AI-4 Settings & Rules"
+                                  title="AI-4 Instructions & Rules"
                                 >
                                   <Edit2 size={14} />
                                 </button>
@@ -2151,19 +2151,22 @@ export default function NewRegistrationPage() {
         </div>
       )}
       
-      {/* AI-4 Rules Modal */}
+      {/* AI-4 Instructions Modal */}
       {isAi4RulesOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="text-xl font-bold text-slate-800">AI-4 Rules & Settings</h3>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsAi4RulesOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">🤖 AI-4 Instructions</h3>
+                <p className="text-sm text-slate-500 mt-1">Tell AI-4 what to do when processing leads</p>
+              </div>
               <button onClick={() => setIsAi4RulesOpen(false)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
                 <X size={20} className="text-slate-500" />
               </button>
             </div>
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Time for Rework (Interval)</label>
+                <label className="text-sm font-bold text-slate-700">⏱ Auto-Fetch Interval</label>
                 <div className="flex items-center gap-2">
                   <input 
                     type="number" 
@@ -2172,28 +2175,43 @@ export default function NewRegistrationPage() {
                     className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                     min={1}
                   />
-                  <span className="text-sm text-slate-500">seconds (demo speed)</span>
+                  <span className="text-sm text-slate-500">seconds between each fetch</span>
                 </div>
               </div>
+
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Format & Validation Rules</label>
+                <label className="text-sm font-bold text-slate-700">📋 Instructions for AI-4</label>
+                <p className="text-xs text-slate-400">Write your rules here. AI-4 will follow these instructions when processing incoming leads.</p>
                 <textarea 
                   value={ai4FormatRules}
                   onChange={(e) => setAi4FormatRules(e.target.value)}
-                  placeholder="e.g. Ignore leads without phone numbers, capitalize names..."
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px]"
+                  placeholder={"Example instructions:\n• Ignore leads without phone numbers\n• Capitalize all names\n• Mark leads from India as priority\n• Auto-reject if age < 18\n• Add tag 'VIP' if profession is Doctor\n• Send WhatsApp welcome message to new leads"}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[180px] font-mono"
                 />
               </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <strong>💡 Tip:</strong> Be specific! Write each rule on a new line. AI-4 will apply these rules every time it fetches or processes leads.
+              </div>
             </div>
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
               <button 
                 onClick={() => {
-                  toast.success('AI-4 Rules saved successfully!');
+                  setAi4FormatRules('');
+                  toast.success('Instructions cleared');
+                }}
+                className="text-sm text-slate-500 hover:text-red-600 transition-colors"
+              >
+                Clear All
+              </button>
+              <button 
+                onClick={() => {
+                  toast.success('✅ AI-4 Instructions saved!');
                   setIsAi4RulesOpen(false);
                 }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
               >
-                Save Rules
+                Save Instructions
               </button>
             </div>
           </div>

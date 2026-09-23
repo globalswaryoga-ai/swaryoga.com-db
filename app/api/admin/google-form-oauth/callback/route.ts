@@ -13,12 +13,24 @@ export async function GET(request: NextRequest) {
     const code = searchParams.get('code');
     const error = searchParams.get('error');
 
+    const state = searchParams.get('state');
+    let stateOrigin = null;
+    try {
+      if (state && state !== 'swaryoga_admin_forms') {
+        const stateObj = JSON.parse(state);
+        stateOrigin = stateObj.origin;
+      }
+    } catch (e) {}
+
     const forwardedHost = request.headers.get("x-forwarded-host");
     const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
     const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
     const host = rawHost.split(':')[0];
     const protocol = host.includes("localhost") ? "http" : "https";
     const baseUrl = `${protocol}://${rawHost}`;
+    
+    // Crucial: Use exact same redirectUri that was sent during initiation
+    const redirectUri = stateOrigin ? `${stateOrigin}/api/admin/google-form-oauth/callback` : `${baseUrl}/api/admin/google-form-oauth/callback`;
 
     if (error) {
       console.error('[Google Forms OAuth] User denied or error:', error);
@@ -35,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = `${baseUrl}/api/admin/google-form-oauth/callback`;
+
 
     if (!clientId || !clientSecret) {
       console.error('[Google Forms OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');

@@ -46,7 +46,12 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('scope', scopes.join(' '));
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-    authUrl.searchParams.set('state', 'swaryoga_admin_forms');
+    authUrl.searchParams.set(
+      'state',
+      clientOrigin
+        ? JSON.stringify({ origin: clientOrigin, csrf: 'swaryoga_admin_forms' })
+        : 'swaryoga_admin_forms'
+    );
 
     return NextResponse.json({
       success: true,
