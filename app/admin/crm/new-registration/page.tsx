@@ -624,17 +624,17 @@ export default function NewRegistrationPage() {
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop.id}`;
-        localStorage.setItem(\'crm_lead_ids\' + suffix, JSON.stringify(crmLeadIds));
-        localStorage.setItem(\'crm_approved_ids\' + suffix, JSON.stringify(approvedLeadIds));
-        localStorage.setItem(\'crm_pending_ids\' + suffix, JSON.stringify(pendingLeadIds));
-        localStorage.setItem(\'crm_registered_ids\' + suffix, JSON.stringify(registeredLeadIds));
-        localStorage.setItem(\'crm_rejected_ids\' + suffix, JSON.stringify(rejectedLeadIds));
-        localStorage.setItem(\'crm_student_kota_ids\' + suffix, JSON.stringify(studentKotaLeadIds));
-        localStorage.setItem(\'crm_closed_ids\' + suffix, JSON.stringify(closedLeadIds));
-        localStorage.setItem(\'crm_sent_congrats_ids\' + suffix, JSON.stringify(sentCongratsLeadIds));
-        localStorage.setItem(\'crm_approval_insights\' + suffix, JSON.stringify(approvalAiInsights));
-        localStorage.setItem(\'crm_pending_insights\' + suffix, JSON.stringify(pendingAiInsights));
-        localStorage.setItem(\'crm_registered_insights\' + suffix, JSON.stringify(registeredAiInsights));
+        localStorage.setItem('crm_lead_ids' + suffix, JSON.stringify(crmLeadIds));
+        localStorage.setItem('crm_approved_ids' + suffix, JSON.stringify(approvedLeadIds));
+        localStorage.setItem('crm_pending_ids' + suffix, JSON.stringify(pendingLeadIds));
+        localStorage.setItem('crm_registered_ids' + suffix, JSON.stringify(registeredLeadIds));
+        localStorage.setItem('crm_rejected_ids' + suffix, JSON.stringify(rejectedLeadIds));
+        localStorage.setItem('crm_student_kota_ids' + suffix, JSON.stringify(studentKotaLeadIds));
+        localStorage.setItem('crm_closed_ids' + suffix, JSON.stringify(closedLeadIds));
+        localStorage.setItem('crm_sent_congrats_ids' + suffix, JSON.stringify(sentCongratsLeadIds));
+        localStorage.setItem('crm_approval_insights' + suffix, JSON.stringify(approvalAiInsights));
+        localStorage.setItem('crm_pending_insights' + suffix, JSON.stringify(pendingAiInsights));
+        localStorage.setItem('crm_registered_insights' + suffix, JSON.stringify(registeredAiInsights));
       }
     }
   }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded]);
