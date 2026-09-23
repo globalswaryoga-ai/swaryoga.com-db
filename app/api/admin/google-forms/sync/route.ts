@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { bunnyQuery } from '@/lib/bunnyDatabase';
-import { decryptCredential } from '@/lib/auth';
+import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
+import { decryptCredential, encryptCredential } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,29 +20,64 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Please provide the Google Form Edit URL (e.g. docs.google.com/forms/d/1XYZ/edit), not the public viewform URL.' }, { status: 400 });
     }
 
-    const accountRes = await bunnyQuery({
+    const accountRes = await bunnyExecute({
       sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' AND JSON_EXTRACT(document_json, '$.platform') = 'google_forms' LIMIT 1"
     });
     
-    if (!accountRes || accountRes.length === 0) {
+    if (!accountRes || !accountRes.rows || accountRes.rows.length === 0) {
       return NextResponse.json({ error: 'Google Account not connected', needsAuth: true }, { status: 401 });
     }
     
-    const account = JSON.parse(accountRes[0].document_json);
+    const account = cleanMongoJson(JSON.parse(String(accountRes.rows[0].document_json || '{}')));
     if (!account || !account.accessToken) {
       return NextResponse.json({ error: 'Google Account not connected properly', needsAuth: true }, { status: 401 });
     }
 
-    const accessToken = decryptCredential(account.accessToken);
+    let accessToken = decryptCredential(account.accessToken);
 
     // Fetch form structure to map Question IDs to Titles
-    const formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
+    let formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     
+    if (formRes.status === 401 && account.refreshToken) {
+      try {
+        const refreshToken = decryptCredential(account.refreshToken);
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: process.env.GOOGLE_CLIENT_ID || '',
+            client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token',
+          }),
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenRes.ok && tokenData.access_token) {
+          accessToken = tokenData.access_token;
+          formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+          const { bunnyExecute } = await import('@/lib/bunnyDatabase');
+          const updatedDoc = {
+            ...account,
+            accessToken: encryptCredential(accessToken),
+            tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await bunnyExecute({
+            sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND JSON_EXTRACT(document_json, '$.platform') = 'google_forms'",
+            args: [JSON.stringify(updatedDoc)]
+          });
+        }
+      } catch (refreshErr) {
+        console.error('[Google Forms Sync] Token refresh failed:', refreshErr);
+      }
+    }
+
     if (!formRes.ok) {
       if (formRes.status === 401) {
-        // Need to refresh token in a real production app. For this demo, just ask to re-auth.
         return NextResponse.json({ error: 'Token expired', needsAuth: true }, { status: 401 });
       }
       return NextResponse.json({ error: 'Failed to fetch form structure. Ensure you have edit access to this form.' }, { status: formRes.status });
