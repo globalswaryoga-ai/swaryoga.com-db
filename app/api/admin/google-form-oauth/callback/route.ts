@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { connectDB, SocialMediaAccount } from '@/lib/db';
+// All DB operations use bunnyDatabase (no MongoDB)
 import { encryptCredential } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
