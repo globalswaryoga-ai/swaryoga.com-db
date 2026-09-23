@@ -163,7 +163,7 @@ export default function GoogleFormBuilderPage() {
   const handleExportCSV = (formName: string, items: any[], qList: Question[]) => {
     if (!items.length) return showToast('No data to export', 'error');
 
-    const headers = ['#', 'Date', 'Full Name', 'Phone', 'Email', 'Gender', 'City'];
+    const headers = ['#', 'Date', 'Email', 'Country'];
     qList.forEach(q => headers.push(q.label?.en || q.fieldKey));
 
     const rows = items.map((sub, idx) => {

@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+  "dev:3002": "next dev -p 3002",
     "dev:no-check": "PORT=3000 next dev --port 3000",
     "dev:reset": "node scripts/dev-reset-3000.mjs",
     "health-check": "node scripts/health-check.js",

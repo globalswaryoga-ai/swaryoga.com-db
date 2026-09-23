@@ -82,6 +82,7 @@ export async function ensureFormTables() {
         payment_status  TEXT DEFAULT 'pending',
         amount          REAL DEFAULT 0,
         currency        TEXT DEFAULT 'INR',
+        form_data       TEXT DEFAULT '',
         created_at      TEXT DEFAULT (datetime('now'))
       )`,
       args: [],
@@ -94,6 +95,12 @@ export async function ensureFormTables() {
 
   try {
     await bunnyExecute('ALTER TABLE enquiry_forms ADD COLUMN url_image TEXT DEFAULT ""');
+  } catch (e) {
+    // Column might already exist
+  }
+
+  try {
+    await bunnyExecute('ALTER TABLE form_submissions ADD COLUMN form_data TEXT DEFAULT ""');
   } catch (e) {
     // Column might already exist
   }
@@ -455,6 +462,7 @@ function rowToSubmission(row: Record<string, any>) {
     paymentStatus: row.payment_status ?? 'pending',
     amount:        Number(row.amount ?? 0),
     currency:      row.currency ?? 'INR',
+    formData:      row.form_data ?? '',
     submittedAt:   row.created_at,
   };
 }
@@ -463,7 +471,7 @@ export async function createSubmission(data: any) {
   await ensureFormTables();
   const id = 'sub_' + nanoid(10);
   await bunnyExecute({
-    sql: `INSERT INTO form_submissions (id, form_id, name, mobile, email, gender, city, answers, payment_status, amount, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO form_submissions (id, form_id, name, mobile, email, gender, city, answers, payment_status, amount, currency, form_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
       data.formId,
@@ -476,6 +484,7 @@ export async function createSubmission(data: any) {
       data.paymentStatus || 'pending',
       data.amount || 0,
       data.currency || 'INR',
+      data.formData || '',
     ],
   });
   

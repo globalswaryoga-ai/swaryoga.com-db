@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 import { 
   Users, Video, Settings, UserPlus, Upload, RefreshCw, 
   PlayCircle, Eye, Calendar, Plus, X, Trash2, Edit2, 
-  Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy, MessageCircle, QrCode, ExternalLink
+  Save, BarChart2, CheckCircle2, AlertCircle, Link, Mail, Phone, GraduationCap, Download, Printer, Send, Search, FileSpreadsheet, Copy, MessageCircle, QrCode, ExternalLink,
+  Info, LayoutDashboard, Folder, Link as LinkIcon, KeyRound
 } from 'lucide-react';
+import { useToast } from '@/components/admin/crm/ui/Toast';
+import RegistrationNewBatch from '@/components/admin/crm/RegistrationNewBatch';
 
 interface Cohort { _id: string; name: string; startDate: string; endDate?: string; holidayDates?: string[]; classStartTime?: string; classEndTime?: string; zoomMeetingId?: string; zoomJoinUrl?: string; whatsappGroupLink?: string; googleFormLink?: string; youtubePlaylistName?: string; thumbnailUrl?: string; communityId?: string; aiWorkerEnabled?: boolean; autoSendRecordings?: boolean; autoRecoverZoomTrash?: boolean; daySubjects?: Array<{ day: number; subject: string }>; metadata?: { dateDayMap?: Record<string, number>; [key: string]: any }; }
 interface Student { _id: string; name: string; email?: string; phone?: string; whatsappNumber?: string; leadId?: string; leadNumber?: string; active: boolean; metadata?: { city?: string; country?: string; [key: string]: any }; }
@@ -71,9 +74,11 @@ export default function WorkshopManagementPage() {
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', classDate: '', durationMinutes: '0', classDurationMinutes: '60' });
   const [recordingForm, setRecordingForm] = useState({ classDate: '', youtubeSpeakerId: '', youtubeGalleryId: '', bunnySpeakerUrl: '', bunnyGalleryUrl: '', deliveredStudentIds: '' });
   const [loading, setLoading] = useState(false);
+  const [newBatchLoading, setNewBatchLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   
   // UI State
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'students' | 'recordings' | 'settings' | 'analytics'>('students');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
@@ -695,6 +700,26 @@ export default function WorkshopManagementPage() {
     }
   };
 
+  // Handle registration of a new batch (AI onboarding workflow)
+  const handleNewBatchRegistration = async () => {
+    setNewBatchLoading(true);
+    // toast is accessed from top-level hook
+    try {
+      // Placeholder API calls – replace with real endpoints later
+      await fetch('/api/admin/onboarding/approve', { method: 'POST', headers, body: JSON.stringify({}) });
+      await fetch('/api/admin/onboarding/welcome-message', { method: 'POST', headers, body: JSON.stringify({}) });
+      await fetch('/api/admin/zoom/schedule', { method: 'POST', headers, body: JSON.stringify({}) });
+      await fetch('/api/admin/whatsapp/add-to-group', { method: 'POST', headers, body: JSON.stringify({}) });
+      await fetch('/api/admin/onboarding/send-kit', { method: 'POST', headers, body: JSON.stringify({}) });
+      toast.success('New batch registration completed successfully!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to register new batch');
+    } finally {
+      setNewBatchLoading(false);
+    }
+  };
+
   const runWorkshopWorker = async (dryRun = false) => {
     if (!selected) return;
     setRunningWorker(true);
@@ -1023,12 +1048,14 @@ export default function WorkshopManagementPage() {
             <p className="text-sm text-slate-500 font-medium">Manage cohorts, students, attendance, and recordings</p>
           </div>
         </div>
-        <button 
-          onClick={() => setShowCreateForm(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
-        >
-          <Plus size={18} /> Add Workshop
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowCreateForm(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2"
+          >
+            <Plus size={18} /> Add Workshop
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
