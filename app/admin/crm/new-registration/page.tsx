@@ -40,6 +40,7 @@ export default function NewRegistrationPage() {
   const [pendingLeadIds, setPendingLeadIds] = useState<string[]>([]);
   const [registeredLeadIds, setRegisteredLeadIds] = useState<string[]>([]);
   const [rejectedLeadIds, setRejectedLeadIds] = useState<string[]>([]);
+  const [studentKotaLeadIds, setStudentKotaLeadIds] = useState<string[]>([]);
   const [closedLeadIds, setClosedLeadIds] = useState<string[]>([]);
   const [crmLeadIds, setCrmLeadIds] = useState<string[]>([]);
   const [sentCongratsLeadIds, setSentCongratsLeadIds] = useState<string[]>([]);
@@ -618,20 +619,25 @@ export default function NewRegistrationPage() {
     if (isLoaded) {
       localStorage.setItem('crm_workshops', JSON.stringify(workshops));
       localStorage.setItem('crm_ai_worker_active', String(isAiWorkerActive));
-      localStorage.setItem('crm_lead_ids', JSON.stringify(crmLeadIds));
-      localStorage.setItem('crm_approved_ids', JSON.stringify(approvedLeadIds));
-      localStorage.setItem('crm_pending_ids', JSON.stringify(pendingLeadIds));
-      localStorage.setItem('crm_registered_ids', JSON.stringify(registeredLeadIds));
-      localStorage.setItem('crm_rejected_ids', JSON.stringify(rejectedLeadIds));
-      localStorage.setItem('crm_closed_ids', JSON.stringify(closedLeadIds));
-      localStorage.setItem('crm_sent_congrats_ids', JSON.stringify(sentCongratsLeadIds));
       localStorage.setItem('crm_approved_ai_active', String(isApprovedAiWorkerActive));
       localStorage.setItem('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
-      localStorage.setItem('crm_approval_insights', JSON.stringify(approvalAiInsights));
-      localStorage.setItem('crm_pending_insights', JSON.stringify(pendingAiInsights));
-      localStorage.setItem('crm_registered_insights', JSON.stringify(registeredAiInsights));
+
+      if (selectedWorkshop) {
+        const suffix = `_${selectedWorkshop.id}`;
+        localStorage.setItem(\'crm_lead_ids\' + suffix, JSON.stringify(crmLeadIds));
+        localStorage.setItem(\'crm_approved_ids\' + suffix, JSON.stringify(approvedLeadIds));
+        localStorage.setItem(\'crm_pending_ids\' + suffix, JSON.stringify(pendingLeadIds));
+        localStorage.setItem(\'crm_registered_ids\' + suffix, JSON.stringify(registeredLeadIds));
+        localStorage.setItem(\'crm_rejected_ids\' + suffix, JSON.stringify(rejectedLeadIds));
+        localStorage.setItem(\'crm_student_kota_ids\' + suffix, JSON.stringify(studentKotaLeadIds));
+        localStorage.setItem(\'crm_closed_ids\' + suffix, JSON.stringify(closedLeadIds));
+        localStorage.setItem(\'crm_sent_congrats_ids\' + suffix, JSON.stringify(sentCongratsLeadIds));
+        localStorage.setItem(\'crm_approval_insights\' + suffix, JSON.stringify(approvalAiInsights));
+        localStorage.setItem(\'crm_pending_insights\' + suffix, JSON.stringify(pendingAiInsights));
+        localStorage.setItem(\'crm_registered_insights\' + suffix, JSON.stringify(registeredAiInsights));
+      }
     }
-  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, registeredLeadIds, rejectedLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded]);
+  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded]);
 
   useEffect(() => {
     if (selectedWorkshop?.formId) {
@@ -715,6 +721,7 @@ export default function NewRegistrationPage() {
     { id: 'approved', label: 'Approved Forms' },
     { id: 'pending', label: 'Pending Forms' },
     { id: 'registered', label: 'Registered Forms' },
+    { id: 'student_kota', label: 'Student Kota' },
   ] as const;
 
   const canAccessTab = (tabId: string) => {
@@ -752,6 +759,17 @@ export default function NewRegistrationPage() {
         <Mail size={14}/> Email
       </button>
       <div className="w-px h-6 bg-slate-200 mx-1"></div>
+      <button 
+        onClick={() => {
+          if(selectedRowIds.length === 0) { toast.error("Select leads first"); return; }
+          setStudentKotaLeadIds(prev => [...new Set([...prev, ...selectedRowIds])]);
+          setSelectedRowIds([]);
+          toast.success("Moved to Student Kota!");
+        }}
+        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
+      >
+        <Users size={14}/> Move to Student Kota
+      </button>
       <button onClick={() => handleBulkAction('Delete')} className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors">
         <Trash2 size={14}/> Delete {selectedRowIds.length > 0 ? `(${selectedRowIds.length})` : ''}
       </button>
@@ -1568,6 +1586,7 @@ export default function NewRegistrationPage() {
                       if (leadSubTab === 'approved') return approvedLeadIds.includes(lead.id);
                       if (leadSubTab === 'pending') return pendingLeadIds.includes(lead.id);
                       if (leadSubTab === 'registered') return registeredLeadIds.includes(lead.id);
+                      if (leadSubTab === 'student_kota') return studentKotaLeadIds.includes(lead.id);
                       return false;
                     });
                     
@@ -1655,6 +1674,8 @@ export default function NewRegistrationPage() {
                                 if (isRejected) baseBgClass = 'bg-red-50/60 hover:bg-red-100/60';
                                 else baseBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/60';
                               } else if (leadSubTab === 'registered') {
+                                return registeredLeadIds.includes(l.id);
+                              } else if (leadSubTab === 'student_kota') {
                                 if (isClosed) baseBgClass = 'bg-emerald-50/60 hover:bg-emerald-100/60';
                                 else if (registeredAiInsights[lead.id]) baseBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/60';
                               }
