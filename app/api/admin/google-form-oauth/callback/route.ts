@@ -45,15 +45,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      console.error('[Google Forms OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
-      return NextResponse.redirect(
-        new URL('/admin/crm/new-registration?error=missing_credentials', baseUrl)
-      );
-    }
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
 
     // Exchange code for tokens
     const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {

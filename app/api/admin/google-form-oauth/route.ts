@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const envRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    const envRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();
     const clientOrigin = request.nextUrl.searchParams.get('origin');
     const baseUrl = (clientOrigin && clientOrigin !== 'null' && clientOrigin !== 'undefined') ? clientOrigin.replace(/\/$/, '') : (getRequestBaseUrl(request) || 'https://swaryoga.com');
     const computedRedirectUri = `${baseUrl}/api/admin/google-form-oauth/callback`;
