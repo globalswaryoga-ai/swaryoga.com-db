@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-// All DB operations use bunnyDatabase (no MongoDB)
-import { encryptCredential } from '@/lib/auth';
+import { encryptCredential, decryptCredential } from '@/lib/auth';
 import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
+import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
     const error = searchParams.get('error');
-
     const state = searchParams.get('state');
+
     let stateOrigin = null;
     try {
       if (state && state !== 'swaryoga_admin_forms') {
@@ -22,27 +22,24 @@ export async function GET(request: NextRequest) {
         const stateObj = JSON.parse(decoded);
         stateOrigin = stateObj.origin;
       }
-    } catch (e) {}
+    } catch {}
 
     const envRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
     const requestBaseUrl = getRequestBaseUrl(request);
-    const baseUrl = (stateOrigin && stateOrigin !== 'null' && stateOrigin !== 'undefined') ? stateOrigin.replace(/\/$/, '') : requestBaseUrl;
-    
-    // Crucial: Use exact same redirectUri that was sent during initiation
+    const baseUrl = (stateOrigin && stateOrigin !== 'null' && stateOrigin !== 'undefined')
+      ? stateOrigin.replace(/\/$/, '')
+      : requestBaseUrl;
+
     const computedRedirectUri = `${baseUrl}/api/admin/google-form-oauth/callback`;
     const redirectUri = envRedirectUri || computedRedirectUri;
 
     if (error) {
-      console.error('[Google Forms OAuth] User denied or error:', error);
-      return NextResponse.redirect(
-        new URL(`/admin/crm/new-registration?error=${encodeURIComponent(error)}`, baseUrl)
-      );
+      console.error('[Google OAuth Callback] Error:', error);
+      return NextResponse.redirect(new URL(`/admin/crm/new-registration?error=${encodeURIComponent(error)}`, baseUrl));
     }
 
     if (!code) {
-      return NextResponse.redirect(
-        new URL(`/admin/crm/new-registration?error=missing_code`, baseUrl)
-      );
+      return NextResponse.redirect(new URL(`/admin/crm/new-registration?error=missing_code`, baseUrl));
     }
 
     const clientId = '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com';
@@ -51,9 +48,7 @@ export async function GET(request: NextRequest) {
     // Exchange code for tokens
     const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
         client_id: clientId,
@@ -66,83 +61,86 @@ export async function GET(request: NextRequest) {
     const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok || !tokenData.access_token) {
-      console.error('[Google Forms OAuth] Token exchange failed:', tokenData);
+      console.error('[Google OAuth Callback] Token exchange failed:', tokenData);
       const errMsg = `${tokenData.error || 'token_exchange_failed'} - ${tokenData.error_description || ''}`;
-      return NextResponse.redirect(
-        new URL(`/admin/crm/new-registration?error=${encodeURIComponent(errMsg)}`, baseUrl)
-      );
+      return NextResponse.redirect(new URL(`/admin/crm/new-registration?error=${encodeURIComponent(errMsg)}`, baseUrl));
     }
 
     const { access_token, refresh_token, expires_in } = tokenData;
 
-    // Use a fixed account ID for the CRM's Google Forms integration
-    const accountId = 'global_google_forms_account';
-    const accountName = 'Google Forms Admin';
-
-    const encryptedAccessToken = encryptCredential(access_token);
-    const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000);
-
-    // Save to Bunny DB
-    let encryptedRefreshToken = refresh_token ? encryptCredential(refresh_token) : '';
+    // Ensure table exists
     try {
-      const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
-      const existingDocRes = await bunnyExecute({
+      await bunnyExecute({
+        sql: `CREATE TABLE IF NOT EXISTS mongo_documents (
+          id TEXT PRIMARY KEY,
+          collection_name TEXT NOT NULL,
+          document_json TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )`
+      });
+    } catch (tableErr) {
+      console.error('[Google OAuth Callback] Table create error:', tableErr);
+    }
+
+    try {
+      // Find existing google_forms account
+      const existingRes = await bunnyExecute({
         sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
       });
-      let matchedRow: any = null;
+
       let matchedId: string | null = null;
-      for (const row of existingDocRes.rows) {
-        try {
-          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-          if (parsed.platform === 'google_forms') {
-            matchedRow = parsed;
-            matchedId = String(row.id);
-            if (!encryptedRefreshToken && matchedRow.refreshToken) {
-              encryptedRefreshToken = matchedRow.refreshToken;
+      let existingRefreshToken = '';
+
+      if (existingRes?.rows) {
+        for (const row of existingRes.rows) {
+          try {
+            const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
+            if (parsed?.platform === 'google_forms') {
+              matchedId = String(row.id);
+              if (!refresh_token && parsed.refreshToken) {
+                existingRefreshToken = parsed.refreshToken; // keep old refresh token
+              }
+              break;
             }
-            break;
-          }
-        } catch {}
+          } catch {}
+        }
       }
 
-      const finalRefresh = encryptedRefreshToken || matchedRow?.refreshToken || '';
+      const encryptedAccess = encryptCredential(access_token);
+      const encryptedRefresh = refresh_token ? encryptCredential(refresh_token) : existingRefreshToken;
+      const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000);
+
       const updatedDoc = {
-        ...(matchedRow || {}),
         platform: 'google_forms',
-        accountName,
-        accountId,
-        accessToken: encryptedAccessToken,
-        refreshToken: finalRefresh,
+        accessToken: encryptedAccess,
+        refreshToken: encryptedRefresh,
         tokenExpiresAt: tokenExpiresAt.toISOString(),
         isConnected: true,
-        connectedAt: new Date().toISOString(),
-        grantedScopes: ['forms.responses.readonly', 'forms.body.readonly'],
         updatedAt: new Date().toISOString(),
+        connectedAt: new Date().toISOString(),
       };
 
       if (matchedId) {
         await bunnyExecute({
-          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE id = ?",
           args: [JSON.stringify(updatedDoc), matchedId]
         });
+        console.log('[Google OAuth Callback] Updated token in Bunny DB');
       } else {
         await bunnyExecute({
-          sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+          sql: "INSERT INTO mongo_documents (id, collection_name, document_json) VALUES (?, 'socialmediaaccounts', ?)",
           args: [crypto.randomUUID(), JSON.stringify(updatedDoc)]
         });
+        console.log('[Google OAuth Callback] Inserted new token in Bunny DB');
       }
-    } catch (bunnySaveErr: any) {
-      console.error('[Google Forms OAuth] Failed to save to Bunny Database:', bunnySaveErr.message);
+    } catch (dbErr: any) {
+      console.error('[Google OAuth Callback] Bunny DB save failed:', dbErr.message);
     }
 
-
-    return NextResponse.redirect(
-      new URL(`/admin/crm/new-registration?success=google_forms_connected`, baseUrl)
-    );
+    return NextResponse.redirect(new URL(`/admin/crm/new-registration?success=google_forms_connected`, baseUrl));
   } catch (error) {
-    console.error('[Google Forms OAuth] Error:', error);
-    return NextResponse.redirect(
-      new URL(`/admin/crm/new-registration?error=${encodeURIComponent('internal_error')}`, baseUrl)
-    );
+    console.error('[Google OAuth Callback] Unexpected error:', error);
+    return NextResponse.redirect(new URL(`/admin/crm/new-registration?error=internal_error`, process.env.NEXT_PUBLIC_BASE_URL || 'https://swaryoga.com'));
   }
 }
