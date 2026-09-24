@@ -1,9 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB, getCommunity } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { fetchFromStorage, uploadToPath } from '@/lib/bunny-storage';
 
 export const dynamic = 'force-dynamic';
+
+const MAPPINGS_FILE_KEY = 'config/zoom-mappings.json';
+
+// Helper to get mappings from Bunny Storage
+async function getMappings() {
+  try {
+    const { buffer } = await fetchFromStorage(MAPPINGS_FILE_KEY);
+    return JSON.parse(buffer.toString('utf-8'));
+  } catch (error) {
+    // File doesn't exist yet, return empty array
+    return [];
+  }
+}
+
+// Helper to save mappings to Bunny Storage
+async function saveMappings(mappings: any[]) {
+  const buffer = Buffer.from(JSON.stringify(mappings, null, 2), 'utf-8');
+  await uploadToPath(buffer, MAPPINGS_FILE_KEY, 'application/json');
+}
 
 /**
  * GET /api/admin/community/zoom-settings
@@ -18,16 +36,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    await connectDB();
-
-    // Store mappings in socialmediaaccounts.metadata.zoomMappings to avoid
-    // hitting MongoDB Atlas 500-collection limit. Read all mappings from there.
-    const Accounts = mongoose.connection.db.collection('socialmediaaccounts');
-    const ytAccount = await Accounts.findOne(
-      { platform: 'youtube' },
-      { projection: { 'metadata.zoomMappings': 1 } }
-    );
-    const mappings = ytAccount?.metadata?.zoomMappings || [];
+    const mappings = await getMappings();
 
     return NextResponse.json({
       success: true,
@@ -55,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { zoomMeetingId, communityId, zoomTopic, thumbnailUrl } = body;
+    const { zoomMeetingId, communityId, zoomTopic, thumbnailUrl, googleFormUrl, crmFormId } = body;
 
     if (!zoomMeetingId || !communityId) {
       return NextResponse.json(
@@ -64,33 +73,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-    const Community = getCommunity();
-    const Accounts = mongoose.connection.db.collection('socialmediaaccounts');
+    const mappings = await getMappings();
 
-    // Verify community exists. communityId may be a slug ('global', 'swar-aahar-shastra')
-    // or a Mongo ObjectId — resolve by either.
-    let community: any = await Community.findOne({ id: communityId }).lean();
-    if (!community && /^[0-9a-fA-F]{24}$/.test(communityId)) {
-      community = await Community.findById(communityId).lean();
-    }
-    if (!community) {
-      return NextResponse.json(
-        { error: 'Community not found' },
-        { status: 404 }
-      );
-    }
-
-    // Store in socialmediaaccounts.metadata.zoomMappings (avoids 500-collection limit).
-    const ytAccount = await Accounts.findOne({ platform: 'youtube' });
-    if (!ytAccount) {
-      return NextResponse.json(
-        { error: 'YouTube account not configured' },
-        { status: 400 }
-      );
-    }
-
-    const mappings = ytAccount.metadata?.zoomMappings || [];
     if (mappings.some((m: any) => m.zoomMeetingId === zoomMeetingId)) {
       return NextResponse.json(
         { error: `Zoom meeting ${zoomMeetingId} already mapped` },
@@ -98,25 +82,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create mapping document
+    // Create mapping document (generate a random ID string)
     const mapping = {
-      _id: new mongoose.Types.ObjectId(),
+      _id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
       zoomMeetingId,
       communityId,
-      communityName: community.name,
+      communityName: communityId, // Since we bypass Mongo, we just store the ID directly
       zoomTopic: zoomTopic || undefined,
       thumbnailUrl: thumbnailUrl || undefined,
       youtubePlaylistName: body.youtubePlaylistName || undefined,
+      googleFormUrl: googleFormUrl || undefined,
+      crmFormId: crmFormId || undefined,
       createdAt: new Date(),
     };
 
-    // Add to mappings array
-    await Accounts.updateOne(
-      { platform: 'youtube' },
-      {
-        $push: { 'metadata.zoomMappings': mapping },
-      }
-    );
+    mappings.push(mapping);
+    await saveMappings(mappings);
 
     return NextResponse.json({
       success: true,
@@ -131,7 +112,7 @@ export async function POST(request: NextRequest) {
 /**
  * PATCH /api/admin/community/zoom-settings
  * Update fields on an existing Zoom → Community mapping (e.g. youtubePlaylistName).
- * Body: { id, zoomTopic?, thumbnailUrl?, youtubePlaylistName? }
+ * Body: { id, zoomTopic?, thumbnailUrl?, youtubePlaylistName?, googleFormUrl?, crmFormId? }
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -143,31 +124,30 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, zoomTopic, thumbnailUrl, youtubePlaylistName } = body;
+    const { id, zoomTopic, thumbnailUrl, youtubePlaylistName, googleFormUrl, crmFormId } = body;
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    await connectDB();
-    const Accounts = mongoose.connection.db.collection('socialmediaaccounts');
+    const mappings = await getMappings();
+    const index = mappings.findIndex((m: any) => m._id === id);
 
-    const set: Record<string, any> = {};
-    if (zoomTopic !== undefined) set['metadata.zoomMappings.$.zoomTopic'] = zoomTopic;
-    if (thumbnailUrl !== undefined) set['metadata.zoomMappings.$.thumbnailUrl'] = thumbnailUrl;
-    if (youtubePlaylistName !== undefined) set['metadata.zoomMappings.$.youtubePlaylistName'] = youtubePlaylistName;
+    if (index === -1) {
+      return NextResponse.json({ error: 'Mapping not found' }, { status: 404 });
+    }
 
-    if (Object.keys(set).length === 0) {
+    let hasUpdates = false;
+    if (zoomTopic !== undefined) { mappings[index].zoomTopic = zoomTopic; hasUpdates = true; }
+    if (thumbnailUrl !== undefined) { mappings[index].thumbnailUrl = thumbnailUrl; hasUpdates = true; }
+    if (youtubePlaylistName !== undefined) { mappings[index].youtubePlaylistName = youtubePlaylistName; hasUpdates = true; }
+    if (googleFormUrl !== undefined) { mappings[index].googleFormUrl = googleFormUrl; hasUpdates = true; }
+    if (crmFormId !== undefined) { mappings[index].crmFormId = crmFormId; hasUpdates = true; }
+
+    if (!hasUpdates) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    const result = await Accounts.updateOne(
-      { platform: 'youtube', 'metadata.zoomMappings._id': new mongoose.Types.ObjectId(id) },
-      { $set: set }
-    );
-
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ error: 'Mapping not found' }, { status: 404 });
-    }
+    await saveMappings(mappings);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -194,18 +174,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id parameter required' }, { status: 400 });
     }
 
-    await connectDB();
-    const Accounts = mongoose.connection.db.collection('socialmediaaccounts');
+    const mappings = await getMappings();
+    const initialLength = mappings.length;
+    
+    const filteredMappings = mappings.filter((m: any) => m._id !== id);
 
-    // Delete from socialmediaaccounts.metadata.zoomMappings array
-    const result = await Accounts.updateOne(
-      { platform: 'youtube' },
-      { $pull: { 'metadata.zoomMappings': { _id: new mongoose.Types.ObjectId(id) } } }
-    );
-
-    if (result.modifiedCount === 0) {
+    if (filteredMappings.length === initialLength) {
       return NextResponse.json({ error: 'Mapping not found' }, { status: 404 });
     }
+
+    await saveMappings(filteredMappings);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

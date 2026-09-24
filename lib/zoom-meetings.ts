@@ -160,3 +160,34 @@ export async function listZoomMeetings(): Promise<ZoomMeetingResponse[]> {
   const data = await response.json();
   return data.meetings || [];
 }
+
+/**
+ * Add a registrant to a Zoom meeting
+ */
+export async function addZoomMeetingRegistrant(
+  meetingId: number | string,
+  registrantDetails: {
+    first_name: string;
+    last_name?: string;
+    email: string;
+    phone?: string;
+  }
+): Promise<any> {
+  const accessToken = await getZoomAccessToken();
+
+  const response = await fetch(`https://api.zoom.us/v2/meetings/${meetingId}/registrants`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(registrantDetails),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to add meeting registrant: ${error}`);
+  }
+
+  return response.json();
+}

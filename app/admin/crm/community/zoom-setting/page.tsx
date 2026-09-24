@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Pencil, Save, X, ListVideo } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Pencil, Save, X, ListVideo, Globe, FormInput } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -13,6 +13,8 @@ interface Mapping {
   zoomTopic?: string;
   thumbnailUrl?: string;
   youtubePlaylistName?: string;
+  googleFormUrl?: string;
+  crmFormId?: string;
 }
 
 interface Community {
@@ -36,6 +38,8 @@ export default function ZoomSettingsPage() {
   const [zoomTopic, setZoomTopic] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [youtubePlaylistName, setYoutubePlaylistName] = useState('');
+  const [googleFormUrl, setGoogleFormUrl] = useState('');
+  const [crmFormId, setCrmFormId] = useState('');
 
   // Inline edit of an existing mapping's YouTube playlist name
   const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
@@ -95,6 +99,8 @@ export default function ZoomSettingsPage() {
           zoomTopic: zoomTopic || undefined,
           thumbnailUrl: thumbnailUrl || undefined,
           youtubePlaylistName: youtubePlaylistName || undefined,
+          googleFormUrl: googleFormUrl || undefined,
+          crmFormId: crmFormId || undefined,
         }),
       });
 
@@ -111,6 +117,8 @@ export default function ZoomSettingsPage() {
       setZoomTopic('');
       setThumbnailUrl('');
       setYoutubePlaylistName('');
+      setGoogleFormUrl('');
+      setCrmFormId('');
 
       setTimeout(() => setSuccess(null), 3000);
     } catch (e: any) {
@@ -329,6 +337,53 @@ export default function ZoomSettingsPage() {
               </p>
             </div>
 
+            {/* Form Integration Section */}
+            <div className="border-t border-gray-200 pt-6 mt-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <FormInput className="w-5 h-5 text-indigo-500" />
+                2nd Section: Add Form
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Google Form / Sheet URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={googleFormUrl}
+                    onChange={(e) => setGoogleFormUrl(e.target.value)}
+                    placeholder="https://docs.google.com/forms/d/..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Connect external Google Form data to the CRM.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select CRM Form (Optional)
+                  </label>
+                  <select
+                    value={crmFormId}
+                    onChange={(e) => setCrmFormId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">-- Select CRM Form --</option>
+                    <option value="signup">Signup Form</option>
+                    <option value="lead">Lead Form</option>
+                    <option value="workshop">Workshop Registration Form</option>
+                    <option value="sales">Course Enrollment Form</option>
+                    <option value="inquiry">General Inquiry Form</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Select a built-in CRM form for this batch.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={submitting || loading}
@@ -402,6 +457,16 @@ export default function ZoomSettingsPage() {
                     <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-sm font-medium rounded">
                       {mapping.communityName || getCommunityName(mapping.communityId)}
                     </span>
+                    {mapping.googleFormUrl && (
+                      <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-sm font-medium rounded flex items-center gap-1" title={mapping.googleFormUrl}>
+                        <Globe className="w-3 h-3" /> Google Form
+                      </span>
+                    )}
+                    {mapping.crmFormId && (
+                      <span className="px-3 py-1 bg-amber-100 text-amber-800 text-sm font-medium rounded flex items-center gap-1">
+                        <FormInput className="w-3 h-3" /> CRM Form ({mapping.crmFormId})
+                      </span>
+                    )}
                   </div>
 
                   {/* YouTube playlist mapping (inline edit) */}
