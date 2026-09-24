@@ -1098,78 +1098,72 @@ export default function NewRegistrationPage() {
                             )}
                           </select>
                         ) : (
-                          <div className="flex flex-col gap-3">
-                            <div className="flex items-center gap-3">
-                              <input 
-                                type="url" 
-                                placeholder="https://docs.google.com/forms/d/18NZAYl.../edit" 
-                                className="flex-1 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono text-slate-800"
-                                value={googleFormUrl}
-                                onChange={(e) => setGoogleFormUrl(e.target.value)}
-                              />
-                              <button 
-                                onClick={() => {
-                                  if (!googleFormUrl) {
-                                    toast.error('Please enter a Google URL');
-                                    return;
-                                  }
-                                  
-                                  let finalUrl = googleFormUrl;
-                                  if (finalUrl.includes('docs.google.com/spreadsheets') && finalUrl.includes('/edit')) {
-                                    const gidMatch = finalUrl.match(/[#?]gid=(\d+)/);
-                                    if (gidMatch) {
-                                      finalUrl = finalUrl.replace(/\/edit.*$/, `/export?format=csv&gid=${gidMatch[1]}`);
-                                    } else {
-                                      finalUrl = finalUrl.replace(/\/edit.*$/, '/export?format=csv');
+                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                            <div className="flex items-center justify-between flex-wrap gap-4">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active Google Form
+                                  </span>
+                                  <span className="text-xs text-slate-500 font-medium">Access: Public & CRM Admins</span>
+                                </div>
+                                <h3 className="font-bold text-slate-900 text-base">Swar Yoga English Registration Form</h3>
+                                <p className="text-xs text-slate-500 font-mono break-all">{googleFormUrl}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <a 
+                                  href={googleFormUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold px-3 py-2.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                                >
+                                  <span>Open Form</span> ↗
+                                </a>
+                                <button 
+                                  onClick={async () => {
+                                    try {
+                                      const origin = window.location.origin;
+                                      const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
+                                      const data = await res.json();
+                                      if (data.authUrl) {
+                                        window.location.href = data.authUrl;
+                                      } else if (data.error) {
+                                        toast.error(data.error);
+                                      }
+                                    } catch (e) {
+                                      toast.error('Failed to initiate Google Login');
                                     }
-                                    setGoogleFormUrl(finalUrl);
-                                    toast.success('Converted to CSV & Saved!');
-                                  } else if (finalUrl.includes('docs.google.com/forms')) {
-                                    if (finalUrl.includes('/d/e/')) {
-                                      toast.error('❌ Please paste the Google Form EDIT link (e.g. /d/1XYZ/edit), NOT the public viewform link!');
-                                      return;
-                                    }
-                                    toast.success('Form URL saved! Click "Link Form & Fetch Data" below');
-                                  } else {
-                                    toast.success('URL saved successfully!');
-                                  }
-
-                                  if (selectedWorkshop) {
-                                    const updated = { ...selectedWorkshop, googleFormUrl: finalUrl };
-                                    setSelectedWorkshop(updated);
-                                    setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
-                                  }
-                                }}
-                                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-5 py-3 rounded-lg text-sm whitespace-nowrap transition-colors shadow-sm"
-                              >
-                                Save Form
-                              </button>
-                              
-                              <button 
-                                onClick={async () => {
-                                  try {
-                                    const origin = window.location.origin;
-                                    const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
-                                    const data = await res.json();
-                                    if (data.authUrl) {
-                                      window.location.href = data.authUrl;
-                                    } else if (data.error) {
-                                      toast.error(data.error);
-                                    }
-                                  } catch (e) {
-                                    toast.error('Failed to initiate Google Login');
-                                  }
-                                }}
-                                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-5 py-3 rounded-lg text-sm transition-all shadow-sm whitespace-nowrap"
-                              >
-                                Sign in with Google
-                              </button>
+                                  }}
+                                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2.5 rounded-lg text-xs transition-all shadow-sm flex items-center gap-2"
+                                >
+                                  <span>Sign in with Google</span>
+                                </button>
+                              </div>
                             </div>
-                            
-                            <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                              <span>Pre-filled with default form. Click <strong>Sign in with Google</strong> once to connect, then click <strong>Link Form & Fetch Data</strong> below!</span>
-                            </p>
+
+                            <details className="text-xs text-slate-500 pt-2 border-t border-slate-200">
+                              <summary className="cursor-pointer hover:text-slate-800 font-medium">Change Form URL or Settings</summary>
+                              <div className="flex items-center gap-2 mt-3">
+                                <input 
+                                  type="url" 
+                                  value={googleFormUrl} 
+                                  onChange={(e) => setGoogleFormUrl(e.target.value)}
+                                  className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                                <button 
+                                  onClick={() => {
+                                    if (selectedWorkshop) {
+                                      const updated = { ...selectedWorkshop, googleFormUrl };
+                                      setSelectedWorkshop(updated);
+                                    }
+                                    toast.success('Form URL updated!');
+                                  }}
+                                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-2 rounded-lg text-xs"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </details>
                           </div>
                         )}
                         

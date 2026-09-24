@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
             updatedAt: new Date().toISOString(),
           };
           await bunnyExecute({
-            sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND JSON_EXTRACT(document_json, '$.platform') = 'google_forms'",
+            sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts'",
             args: [JSON.stringify(updatedDoc)]
           });
         }
