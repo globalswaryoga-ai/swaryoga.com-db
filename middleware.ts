@@ -233,7 +233,7 @@ export function middleware(request: NextRequest) {
   const windowMs = 60 * 1000;
 
   // ── LAYER 1: Suspicious request blocking ──
-  if (isSuspiciousRequest(path, search)) {
+  if (!path.startsWith('/api/admin/google-form-oauth') && isSuspiciousRequest(path, search)) {
     return new NextResponse(
       JSON.stringify({ error: 'Blocked', code: 'SUSPICIOUS_REQUEST' }),
       { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }

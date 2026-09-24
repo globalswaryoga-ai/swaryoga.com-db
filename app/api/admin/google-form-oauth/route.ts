@@ -45,12 +45,11 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('scope', scopes.join(' '));
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-    authUrl.searchParams.set(
-      'state',
-      clientOrigin
-        ? JSON.stringify({ origin: clientOrigin, csrf: 'swaryoga_admin_forms' })
-        : 'swaryoga_admin_forms'
-    );
+    const stateVal = clientOrigin
+      ? Buffer.from(JSON.stringify({ origin: clientOrigin, csrf: 'swaryoga_admin_forms' })).toString('base64url')
+      : 'swaryoga_admin_forms';
+
+    authUrl.searchParams.set('state', stateVal);
 
     return NextResponse.json({
       success: true,

@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
     let stateOrigin = null;
     try {
       if (state && state !== 'swaryoga_admin_forms') {
-        const stateObj = JSON.parse(state);
+        const decoded = state.startsWith('{') ? state : Buffer.from(state, 'base64url').toString('utf-8');
+        const stateObj = JSON.parse(decoded);
         stateOrigin = stateObj.origin;
       }
     } catch (e) {}
