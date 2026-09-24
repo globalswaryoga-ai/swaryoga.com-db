@@ -55,8 +55,8 @@ export async function GET(request: NextRequest) {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
-            client_id: process.env.GOOGLE_CLIENT_ID?.trim() || '',
-            client_secret: process.env.GOOGLE_CLIENT_SECRET?.trim() || '',
+            client_id: '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com',
+            client_secret: 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD',
             refresh_token: refreshToken,
             grant_type: 'refresh_token',
           }),

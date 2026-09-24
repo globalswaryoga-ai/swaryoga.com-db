@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    const clientId = '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com';
     const envRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();
     const clientOrigin = request.nextUrl.searchParams.get('origin');
     const baseUrl = (clientOrigin && clientOrigin !== 'null' && clientOrigin !== 'undefined') ? clientOrigin.replace(/\/$/, '') : (getRequestBaseUrl(request) || 'https://swaryoga.com');
