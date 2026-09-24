@@ -630,6 +630,37 @@ export default function NewRegistrationPage() {
     return () => clearInterval(interval);
   }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter, workshops]);
 
+  // AI-4: Auto-reconnect Google every 2 minutes to keep token fresh and reload forms
+  useEffect(() => {
+    if (!isAi4Active) return;
+
+    const refreshGoogleForms = async () => {
+      try {
+        const res = await fetch('/api/admin/google-forms/list', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        const data = await res.json();
+        if (res.ok && data.forms && data.forms.length > 0) {
+          setGoogleFormsList(data.forms);
+          setNeedsGoogleAuth(false);
+          console.log(`[AI-4] Google reconnect: ${data.forms.length} forms refreshed`);
+        } else if (data.needsAuth) {
+          setNeedsGoogleAuth(true);
+          console.warn('[AI-4] Google token expired, needs reconnect');
+        }
+      } catch (err) {
+        console.error('[AI-4] Google refresh error:', err);
+      }
+    };
+
+    // Refresh immediately when AI-4 is turned on
+    refreshGoogleForms();
+
+    // Then refresh every 2 minutes
+    const googleRefreshInterval = setInterval(refreshGoogleForms, 2 * 60 * 1000);
+    return () => clearInterval(googleRefreshInterval);
+  }, [isAi4Active, token]);
+
   useEffect(() => {
     const defaultBatch = {
       id: 'w_english_swar_yoga',
