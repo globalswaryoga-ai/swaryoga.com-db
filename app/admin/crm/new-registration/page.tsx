@@ -45,7 +45,7 @@ export default function NewRegistrationPage() {
   const [crmLeadIds, setCrmLeadIds] = useState<string[]>([]);
   const [sentCongratsLeadIds, setSentCongratsLeadIds] = useState<string[]>([]);
   const [tab2SortOrder, setTab2SortOrder] = useState<'asc' | 'desc'>('desc');
-  const [googleFormUrl, setGoogleFormUrl] = useState('');
+  const [googleFormUrl, setGoogleFormUrl] = useState('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [isApprovedAiWorkerActive, setIsApprovedAiWorkerActive] = useState(false);
   const [isRegisteredAiWorkerActive, setIsRegisteredAiWorkerActive] = useState(false);
   const [isAi4Active, setIsAi4Active] = useState(false);
@@ -1098,12 +1098,12 @@ export default function NewRegistrationPage() {
                             )}
                           </select>
                         ) : (
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-3">
                             <div className="flex items-center gap-3">
                               <input 
                                 type="url" 
-                                placeholder="https://docs.google.com/forms/d/e/..." 
-                                className="flex-1 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                                placeholder="https://docs.google.com/forms/d/18NZAYl.../edit" 
+                                className="flex-1 border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono text-slate-800"
                                 value={googleFormUrl}
                                 onChange={(e) => setGoogleFormUrl(e.target.value)}
                               />
@@ -1115,7 +1115,6 @@ export default function NewRegistrationPage() {
                                   }
                                   
                                   let finalUrl = googleFormUrl;
-                                  // Auto-convert spreadsheet links to CSV export
                                   if (finalUrl.includes('docs.google.com/spreadsheets') && finalUrl.includes('/edit')) {
                                     const gidMatch = finalUrl.match(/[#?]gid=(\d+)/);
                                     if (gidMatch) {
@@ -1130,7 +1129,7 @@ export default function NewRegistrationPage() {
                                       toast.error('❌ Please paste the Google Form EDIT link (e.g. /d/1XYZ/edit), NOT the public viewform link!');
                                       return;
                                     }
-                                    toast.success('Form URL saved! Scroll down and click "Link Form & Fetch Data"');
+                                    toast.success('Form URL saved! Click "Link Form & Fetch Data" below');
                                   } else {
                                     toast.success('URL saved successfully!');
                                   }
@@ -1141,22 +1140,11 @@ export default function NewRegistrationPage() {
                                     setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
                                   }
                                 }}
-                                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-3 rounded-lg text-sm whitespace-nowrap transition-colors"
+                                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-5 py-3 rounded-lg text-sm whitespace-nowrap transition-colors shadow-sm"
                               >
                                 Save Form
                               </button>
-                            </div>
-                          </div>
-                        )}
-                        
-                        <p className="text-xs text-slate-400 mt-1">Select a form to automatically fetch available fields.</p>
-                        {formSource === 'google' && (
-                          <div className="mt-3 flex flex-col gap-3">
-                            <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center justify-between">
-                              <div>
-                                <h4 className="font-bold text-orange-800">Option 1: Direct Integration (Recommended)</h4>
-                                <p className="text-sm text-orange-700 mt-1">Paste your Google Form <strong>Edit</strong> link above. To allow the CRM to securely pull the responses, you must connect your Google Account.</p>
-                              </div>
+                              
                               <button 
                                 onClick={async () => {
                                   try {
@@ -1172,16 +1160,16 @@ export default function NewRegistrationPage() {
                                     toast.error('Failed to initiate Google Login');
                                   }
                                 }}
-                                className="bg-white border border-orange-300 hover:bg-orange-100 text-orange-800 font-bold px-4 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap ml-4"
+                                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-5 py-3 rounded-lg text-sm transition-all shadow-sm whitespace-nowrap"
                               >
                                 Sign in with Google
                               </button>
                             </div>
                             
-                            <div className="p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-100 flex flex-col gap-2">
-                              <p><strong>Option 2 (CSV Export):</strong> Publish your Google Sheet as a CSV and paste the link here. It will auto-convert.</p>
-                              <p><strong>Option 3 (Real-time Webhook):</strong> Paste your standard Google Form viewform link here, and <button onClick={() => setIsWebhookModalOpen(true)} className="underline font-bold hover:text-blue-900">set up a Webhook script</button> to push data instantly.</p>
-                            </div>
+                            <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                              <span>Pre-filled with default form. Click <strong>Sign in with Google</strong> once to connect, then click <strong>Link Form & Fetch Data</strong> below!</span>
+                            </p>
                           </div>
                         )}
                         
