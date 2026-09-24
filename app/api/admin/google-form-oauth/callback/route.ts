@@ -67,8 +67,9 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error('[Google Forms OAuth] Token exchange failed:', tokenData);
+      const errMsg = `${tokenData.error || 'token_exchange_failed'} - ${tokenData.error_description || ''}`;
       return NextResponse.redirect(
-        new URL(`/admin/crm/new-registration?error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`, baseUrl)
+        new URL(`/admin/crm/new-registration?error=${encodeURIComponent(errMsg)}`, baseUrl)
       );
     }
 
