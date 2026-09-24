@@ -46,11 +46,15 @@ const SUSPICIOUS_PATH_PATTERNS = [
 ];
 
 function isSuspiciousRequest(pathname: string, search: string): boolean {
+  if (pathname.includes('google-form-oauth') || pathname.includes('google-connect') || pathname.includes('oauth')) {
+    return false;
+  }
   const full = pathname + search;
   try {
-    return SUSPICIOUS_PATH_PATTERNS.some(p => p.test(decodeURIComponent(full).replace(/\+/g, ' ')));
+    const decoded = decodeURIComponent(full).replace(/\+/g, ' ');
+    return SUSPICIOUS_PATH_PATTERNS.some(p => p.test(decoded));
   } catch {
-    return true;
+    return SUSPICIOUS_PATH_PATTERNS.some(p => p.test(full));
   }
 }
 
