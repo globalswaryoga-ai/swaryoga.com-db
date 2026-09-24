@@ -46,6 +46,8 @@ export default function NewRegistrationPage() {
   const [sentCongratsLeadIds, setSentCongratsLeadIds] = useState<string[]>([]);
   const [tab2SortOrder, setTab2SortOrder] = useState<'asc' | 'desc'>('desc');
   const [leadsFilter, setLeadsFilter] = useState('');
+  const [leadsSubFilter, setLeadsSubFilter] = useState('');
+  const [leadsSubSubFilter, setLeadsSubSubFilter] = useState('');
   const [googleFormUrl, setGoogleFormUrl] = useState('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [isApprovedAiWorkerActive, setIsApprovedAiWorkerActive] = useState(false);
   const [isRegisteredAiWorkerActive, setIsRegisteredAiWorkerActive] = useState(false);
@@ -587,14 +589,22 @@ export default function NewRegistrationPage() {
             
             if (newLeads.length > 0) {
                let leadsToMove = newLeads;
-               if (leadsFilter) {
-                 const lowerFilter = leadsFilter.toLowerCase();
+               if (leadsFilter || leadsSubFilter || leadsSubSubFilter) {
                  leadsToMove = newLeads.filter((lead: any) => {
-                   const valuesToSearch = [
-                     lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                     ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
-                   ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                   return valuesToSearch.some((v: any) => v.includes(lowerFilter));
+                   const f1 = !leadsFilter || (() => {
+                     const vals = [
+                       lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
+                     ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+                     return vals.some((v: any) => v.includes(leadsFilter.toLowerCase()));
+                   })();
+                   const f2 = !leadsSubFilter || (
+                     lead.gender?.toLowerCase().includes(leadsSubFilter.toLowerCase()) ||
+                     lead.country?.toLowerCase().includes(leadsSubFilter.toLowerCase())
+                     );
+                   const f3 = !leadsSubSubFilter || [lead.name, lead.email, lead.mobile, lead.phoneNumber]
+                     .filter(Boolean).some((v: any) => String(v).toLowerCase().includes(leadsSubSubFilter.toLowerCase()));
+                   return f1 && f2 && f3;
                  });
                }
 
@@ -628,7 +638,7 @@ export default function NewRegistrationPage() {
     }, (ai4Interval || 600) * 1000); 
     
     return () => clearInterval(interval);
-  }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter, workshops]);
+  }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter, leadsSubFilter, leadsSubSubFilter, workshops]);
 
   // AI-4: Auto-reconnect Google every 2 minutes to keep token fresh and reload forms
   useEffect(() => {
@@ -1547,31 +1557,110 @@ export default function NewRegistrationPage() {
                             </div>
                           )}
                           </div>
-                        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center gap-3">
-                          <input 
-                            type="text" 
-                            placeholder="Filter by Workshop Name, Batch, Date, Time, Gender, Name..." 
-                            value={leadsFilter}
-                            onChange={e => setLeadsFilter(e.target.value)}
-                            className="w-full max-w-md border border-slate-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                          />
-                          {leadsFilter && (
-                            <span className="text-xs text-slate-500">{leadsData.filter(lead => JSON.stringify(lead).toLowerCase().includes(leadsFilter.toLowerCase())).length} results found</span>
-                          )}
+                        <div className="px-6 py-3 bg-white border-b border-slate-200 space-y-2">
+                          {/* Filter Row */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Level 1 — Main: Workshop / Form */}
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1">Main Filter</span>
+                              <select
+                                value={leadsFilter}
+                                onChange={e => { setLeadsFilter(e.target.value); setLeadsSubFilter(''); setLeadsSubSubFilter(''); }}
+                                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white min-w-[160px]"
+                              >
+                                <option value="">All Forms / Workshops</option>
+                                {/* Unique workshop/form names from dynamic answers */}
+                                {Array.from(new Set(leadsData.flatMap(l => l.dynamicAnswers ? Object.values(l.dynamicAnswers as Record<string,string>) : []).filter(Boolean))).slice(0,20).map((v: any) => (
+                                  <option key={v} value={v}>{v}</option>
+                                ))}
+                                {/* Also add batch options from dynamicAnswers keys that look like batch */}
+                                {Array.from(new Set(leadsData.map(l => l.city).filter(Boolean))).map((v: any) => (
+                                  <option key={`city-${v}`} value={v}>{v}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="text-slate-300 text-lg">›</div>
+
+                            {/* Level 2 — Sub: Gender / Country */}
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1">Sub Filter</span>
+                              <select
+                                value={leadsSubFilter}
+                                onChange={e => { setLeadsSubFilter(e.target.value); setLeadsSubSubFilter(''); }}
+                                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white min-w-[140px]"
+                              >
+                                <option value="">All Gender / Country</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other Gender</option>
+                                <option disabled>──────────</option>
+                                {Array.from(new Set(leadsData.map(l => l.country).filter(Boolean))).map((v: any) => (
+                                  <option key={v} value={v}>{v}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="text-slate-300 text-lg">›</div>
+
+                            {/* Level 3 — Sub-Sub: Free text search */}
+                            <div className="flex flex-col gap-0.5 flex-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1">Search (Name / Email / Phone)</span>
+                              <input
+                                type="text"
+                                placeholder="Type name, email, phone..."
+                                value={leadsSubSubFilter}
+                                onChange={e => setLeadsSubSubFilter(e.target.value)}
+                                className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                              />
+                            </div>
+
+                            {/* Clear all */}
+                            {(leadsFilter || leadsSubFilter || leadsSubSubFilter) && (
+                              <button
+                                onClick={() => { setLeadsFilter(''); setLeadsSubFilter(''); setLeadsSubSubFilter(''); }}
+                                className="mt-4 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                              >
+                                ✕ Clear
+                              </button>
+                            )}
+
+                            {/* Result count */}
+                            {(leadsFilter || leadsSubFilter || leadsSubSubFilter) && (
+                              <span className="mt-4 text-xs text-slate-500 whitespace-nowrap">
+                                {leadsData.filter(lead => {
+                                  const f1 = !leadsFilter || JSON.stringify(lead).toLowerCase().includes(leadsFilter.toLowerCase());
+                                  const f2 = !leadsSubFilter || (lead.gender?.toLowerCase().includes(leadsSubFilter.toLowerCase()) || lead.country?.toLowerCase().includes(leadsSubFilter.toLowerCase()));
+                                  const f3 = !leadsSubSubFilter || [lead.name, lead.email, lead.mobile, lead.phoneNumber].filter(Boolean).some((v: any) => String(v).toLowerCase().includes(leadsSubSubFilter.toLowerCase()));
+                                  return f1 && f2 && f3;
+                                }).length} results
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="overflow-x-auto min-h-[300px] bg-white">
                           {(() => {
                             let tab2Leads = leadsData.map((lead, index) => ({ ...lead, originalIndex: index }));
                             
-                            if (leadsFilter) {
-                              const lowerFilter = leadsFilter.toLowerCase();
+                            if (leadsFilter || leadsSubFilter || leadsSubSubFilter) {
                               tab2Leads = tab2Leads.filter(lead => {
-                                // Search through all values including dynamic answers
-                                const valuesToSearch = [
-                                  lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                                  ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
-                                ].filter(Boolean).map(v => String(v).toLowerCase());
-                                return valuesToSearch.some(v => v.includes(lowerFilter));
+                                // Level 1 — Main: searches all fields (workshop, batch, city, dynamic answers)
+                                const f1 = !leadsFilter || (() => {
+                                  const vals = [
+                                    lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                                    ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
+                                  ].filter(Boolean).map(v => String(v).toLowerCase());
+                                  return vals.some(v => v.includes(leadsFilter.toLowerCase()));
+                                })();
+                                // Level 2 — Sub: gender or country
+                                const f2 = !leadsSubFilter || (
+                                  lead.gender?.toLowerCase().includes(leadsSubFilter.toLowerCase()) ||
+                                  lead.country?.toLowerCase().includes(leadsSubFilter.toLowerCase())
+                                );
+                                // Level 3 — Sub-Sub: name / email / phone
+                                const f3 = !leadsSubSubFilter || [lead.name, lead.email, lead.mobile, lead.phoneNumber]
+                                  .filter(Boolean).some((v: any) => String(v).toLowerCase().includes(leadsSubSubFilter.toLowerCase()));
+                                return f1 && f2 && f3;
                               });
                             }
                             
