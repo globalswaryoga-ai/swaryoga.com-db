@@ -612,6 +612,22 @@ export default function NewRegistrationPage() {
       console.error('Error loading crm states', e);
     }
     
+    try {
+      if (typeof window !== 'undefined') {
+        const searchParams = new URLSearchParams(window.location.search);
+        if (searchParams.get('success') === 'google_forms_connected') {
+          toast.success('🎉 Google Account connected successfully! Now paste your Google Form link and click "Link Form & Fetch Data".');
+          setFormSource('google');
+          setActiveTab('forms');
+          setIsFormSetupCollapsed(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (searchParams.get('error')) {
+          toast.error(`Google Login: ${searchParams.get('error')}`);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    } catch (e) {}
+
     setIsLoaded(true);
   }, []);
 
