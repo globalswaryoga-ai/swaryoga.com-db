@@ -45,6 +45,7 @@ export default function NewRegistrationPage() {
   const [crmLeadIds, setCrmLeadIds] = useState<string[]>([]);
   const [sentCongratsLeadIds, setSentCongratsLeadIds] = useState<string[]>([]);
   const [tab2SortOrder, setTab2SortOrder] = useState<'asc' | 'desc'>('desc');
+  const [leadsFilter, setLeadsFilter] = useState('');
   const [googleFormUrl, setGoogleFormUrl] = useState('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [isApprovedAiWorkerActive, setIsApprovedAiWorkerActive] = useState(false);
   const [isRegisteredAiWorkerActive, setIsRegisteredAiWorkerActive] = useState(false);
@@ -55,6 +56,10 @@ export default function NewRegistrationPage() {
   const [ai4FormatRules, setAi4FormatRules] = useState('');
   const [needsGoogleAuth, setNeedsGoogleAuth] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState('');
+  const [googleFormsList, setGoogleFormsList] = useState<any[]>([]);
+  const [isLoadingGoogleForms, setIsLoadingGoogleForms] = useState(false);
+  const [googleFormQuestionMap, setGoogleFormQuestionMap] = useState<Record<string, string>>({});
+  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
   const [approvalAiInsights, setApprovalAiInsights] = useState<Record<string, string>>({});
   const [pendingAiInsights, setPendingAiInsights] = useState<Record<string, string>>({});
   const [registeredAiInsights, setRegisteredAiInsights] = useState<Record<string, string>>({});
@@ -393,6 +398,7 @@ export default function NewRegistrationPage() {
     async function loadForms() {
       if (!token) return;
       setIsLoadingForms(true);
+      setIsLoadingGoogleForms(true);
       try {
         const res = await fetch('/api/admin/enquiry-forms', {
           headers: { Authorization: `Bearer ${token}` }
@@ -403,10 +409,17 @@ export default function NewRegistrationPage() {
             setFetchedForms(json.data || []);
           }
         }
+        
+        const gRes = await fetch('/api/admin/google-forms/list');
+        if (gRes.ok) {
+          const gJson = await gRes.json();
+          if (gJson.forms) setGoogleFormsList(gJson.forms);
+        }
       } catch (err) {
         console.error('Error fetching forms:', err);
       } finally {
         setIsLoadingForms(false);
+        setIsLoadingGoogleForms(false);
       }
     }
     loadForms();
@@ -441,7 +454,26 @@ export default function NewRegistrationPage() {
             
             if (syncRes.ok) {
               const json = await syncRes.json();
-              fetchedLeads = json.data || [];
+              let mappedLeads = json.data || [];
+              const ws = workshops.find((w: any) => w.formId === linkedFormId);
+              if (ws?.googleFormMapping && mappedLeads.length > 0) {
+                mappedLeads = mappedLeads.map((lead: any) => {
+                  const raw = lead._rawRecord || {};
+                  return {
+                    ...lead,
+                    name: raw[ws.googleFormMapping['Name']] || lead.name,
+                    email: raw[ws.googleFormMapping['Email']] || lead.email,
+                    mobile: raw[ws.googleFormMapping['Mobile']] || lead.mobile,
+                    phoneNumber: raw[ws.googleFormMapping['Mobile']] || lead.phoneNumber,
+                    city: raw[ws.googleFormMapping['City']] || lead.city,
+                    country: raw[ws.googleFormMapping['Country']] || lead.country,
+                    gender: raw[ws.googleFormMapping['Gender']] || lead.gender,
+                  };
+                });
+              }
+              fetchedLeads = mappedLeads;
+              if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
+              if (ws?.googleFormMapping) setFieldMapping(ws.googleFormMapping);
             } else if (syncRes.status === 401) {
               setNeedsGoogleAuth(true);
             } else {
@@ -1151,71 +1183,80 @@ export default function NewRegistrationPage() {
                           </div>
                         ) : (
                           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                            <div className="flex items-center justify-between flex-wrap gap-4">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active Google Form
-                                  </span>
-                                  <span className="text-xs text-slate-500 font-medium">Access: Public & CRM Admins</span>
-                                </div>
-                                <h3 className="font-bold text-slate-900 text-base">Swar Yoga English Registration Form</h3>
-                                <p className="text-xs text-slate-500 font-mono break-all">{googleFormUrl}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <a 
-                                  href={googleFormUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold px-3 py-2.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
-                                >
-                                  <span>Open Form</span> ↗
-                                </a>
-                                <button 
-                                  onClick={async () => {
-                                    try {
-                                      const origin = window.location.origin;
-                                      const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
-                                      const data = await res.json();
-                                      if (data.authUrl) {
-                                        window.location.href = data.authUrl;
-                                      } else if (data.error) {
-                                        toast.error(data.error);
-                                      }
-                                    } catch (e) {
-                                      toast.error('Failed to initiate Google Login');
+                            <label className="text-sm font-bold text-slate-700">Select Google Form</label>
+                            <div className="flex items-center gap-2">
+                              <select 
+                                className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                                value={googleFormUrl}
+                                onChange={(e) => setGoogleFormUrl(e.target.value)}
+                              >
+                                <option value="">Select a form from your Google Drive...</option>
+                                {isLoadingGoogleForms ? (
+                                  <option disabled>Loading Google forms...</option>
+                                ) : (
+                                  googleFormsList.map((f: any) => (
+                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                  ))
+                                )}
+                              </select>
+                              <button 
+                                onClick={async () => {
+                                  try {
+                                    const origin = window.location.origin;
+                                    const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
+                                    const data = await res.json();
+                                    if (data.authUrl) {
+                                      window.location.href = data.authUrl;
+                                    } else if (data.error) {
+                                      toast.error(data.error);
                                     }
-                                  }}
-                                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2.5 rounded-lg text-xs transition-all shadow-sm flex items-center gap-2"
-                                >
-                                  <span>Sign in with Google</span>
-                                </button>
-                              </div>
+                                  } catch (e) {
+                                    toast.error('Failed to initiate Google Login');
+                                  }
+                                }}
+                                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-2 whitespace-nowrap"
+                                title="Reconnect if forms are missing"
+                              >
+                                <span>Reconnect Google</span>
+                              </button>
                             </div>
-
+                            
                             <details className="text-xs text-slate-500 pt-2 border-t border-slate-200">
-                              <summary className="cursor-pointer hover:text-slate-800 font-medium">Change Form URL or Settings</summary>
+                              <summary className="cursor-pointer hover:text-slate-800 font-medium">Or enter Form ID manually</summary>
                               <div className="flex items-center gap-2 mt-3">
                                 <input 
-                                  type="url" 
+                                  type="text" 
                                   value={googleFormUrl} 
                                   onChange={(e) => setGoogleFormUrl(e.target.value)}
+                                  placeholder="Google Form ID"
                                   className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 bg-white outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-                                <button 
-                                  onClick={() => {
-                                    if (selectedWorkshop) {
-                                      const updated = { ...selectedWorkshop, googleFormUrl };
-                                      setSelectedWorkshop(updated);
-                                    }
-                                    toast.success('Form URL updated!');
-                                  }}
-                                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-2 rounded-lg text-xs"
-                                >
-                                  Save
-                                </button>
                               </div>
                             </details>
+                            
+                            {/* Mapping UI will be rendered below when a form is selected and its fields are fetched */}
+                            {Object.keys(googleFormQuestionMap).length > 0 && formSource === 'google' && (
+                              <div className="mt-6 pt-4 border-t border-slate-200">
+                                <h4 className="font-bold text-slate-800 mb-3 text-sm">Map Google Form Fields to CRM</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                  {['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].map(crmField => (
+                                    <div key={crmField} className="space-y-1">
+                                      <label className="text-xs font-bold text-slate-500 uppercase">{crmField}</label>
+                                      <select
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
+                                        value={fieldMapping[crmField] || ''}
+                                        onChange={(e) => setFieldMapping({...fieldMapping, [crmField]: e.target.value})}
+                                      >
+                                        <option value="">-- Ignore --</option>
+                                        {Object.entries(googleFormQuestionMap).map(([qId, qTitle]) => (
+                                          <option key={qId} value={qTitle}>{qTitle}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         
@@ -1298,7 +1339,11 @@ export default function NewRegistrationPage() {
                           }
                           
                           if (selectedWorkshop) {
-                            const updated = { ...selectedWorkshop, formId: formSource === 'google' ? googleFormUrl : selectedFormId };
+                            const updated = { 
+                              ...selectedWorkshop, 
+                              formId: formSource === 'google' ? googleFormUrl : selectedFormId,
+                              googleFormMapping: formSource === 'google' ? fieldMapping : undefined
+                            };
                             setSelectedWorkshop(updated);
                             setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
                           }
@@ -1356,10 +1401,34 @@ export default function NewRegistrationPage() {
                               </button>
                             </div>
                           )}
+                        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center gap-3">
+                          <input 
+                            type="text" 
+                            placeholder="Filter by Workshop Name, Batch, Date, Time, Gender, Name..." 
+                            value={leadsFilter}
+                            onChange={e => setLeadsFilter(e.target.value)}
+                            className="w-full max-w-md border border-slate-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                          />
+                          {leadsFilter && (
+                            <span className="text-xs text-slate-500">{leadsData.filter(lead => JSON.stringify(lead).toLowerCase().includes(leadsFilter.toLowerCase())).length} results found</span>
+                          )}
                         </div>
                         <div className="overflow-x-auto min-h-[300px] bg-white">
                           {(() => {
                             let tab2Leads = leadsData.map((lead, index) => ({ ...lead, originalIndex: index }));
+                            
+                            if (leadsFilter) {
+                              const lowerFilter = leadsFilter.toLowerCase();
+                              tab2Leads = tab2Leads.filter(lead => {
+                                // Search through all values including dynamic answers
+                                const valuesToSearch = [
+                                  lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                                  ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
+                                ].filter(Boolean).map(v => String(v).toLowerCase());
+                                return valuesToSearch.some(v => v.includes(lowerFilter));
+                              });
+                            }
+                            
                             tab2Leads.sort((a, b) => {
                               const aProcessed = crmLeadIds.includes(a.id);
                               const bProcessed = crmLeadIds.includes(b.id);

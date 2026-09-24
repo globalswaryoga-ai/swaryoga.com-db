@@ -167,11 +167,16 @@ export async function GET(request: NextRequest) {
         city: city || '',
         gender: gender || '',
         createdAt: resp.createTime || new Date().toISOString(),
-        dynamicAnswers
+        dynamicAnswers,
+        _rawRecord: record // send raw record for custom mapping
       };
     });
 
-    return NextResponse.json({ data: leads });
+    return NextResponse.json({ 
+      data: leads,
+      questionMap,
+      rawResponses: responses
+    });
   } catch (error) {
     console.error('Google Forms API Error:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });

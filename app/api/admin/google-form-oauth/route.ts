@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const scopes = [
       'https://www.googleapis.com/auth/forms.responses.readonly',
       'https://www.googleapis.com/auth/forms.body.readonly',
+      'https://www.googleapis.com/auth/drive.readonly'
     ];
 
     const authUrl = new URL(GOOGLE_AUTH_URL);
