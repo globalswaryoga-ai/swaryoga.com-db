@@ -561,7 +561,7 @@ export default function NewRegistrationPage() {
                const json = await syncRes.json();
                let mappedLeads = json.data || [];
                if (mapping && mappedLeads.length > 0) {
-                 mappedLeads = mappedLeads.map((lead: any) => {
+                 mappedLeads = mappedLeads.map(lead => {
                    const raw = lead._rawRecord || {};
                    return {
                      ...lead,
@@ -592,25 +592,25 @@ export default function NewRegistrationPage() {
 
         if (fetchedLeads.length > 0) {
           setLeadsData(prevLeads => {
-            const existingIds = new Set(prevLeads.map((l: any) => l.id));
-            const newLeads = fetchedLeads.filter((l: any) => !existingIds.has(l.id));
+            const existingIds = new Set(prevLeads.map(l => l.id));
+            const newLeads = fetchedLeads.filter(l => !existingIds.has(l.id));
             
             if (newLeads.length > 0) {
                let leadsToMove = newLeads;
                if (leadsFilter) {
                  const lowerFilter = leadsFilter.toLowerCase();
-                 leadsToMove = newLeads.filter((lead: any) => {
+                 leadsToMove = newLeads.filter(lead => {
                    const valuesToSearch = [
                      lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
                      ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
                    ].filter(Boolean).map(v => String(v).toLowerCase());
-                   return valuesToSearch.some((v: any) => v.includes(lowerFilter));
+                   return valuesToSearch.some(v => v.includes(lowerFilter));
                  });
                }
 
                if (leadsToMove.length > 0) {
                  setCrmLeadIds((prevCrm) => {
-                   const idsToMove = leadsToMove.map((l: any) => l.id);
+                   const idsToMove = leadsToMove.map(l => l.id);
                    const newCrmIds = [...new Set([...prevCrm, ...idsToMove])];
                    toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
                    return newCrmIds;
@@ -619,8 +619,8 @@ export default function NewRegistrationPage() {
                  toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, but none matched your filter.`);
                }
 
-               setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: w.leads! + newLeads.length } : w));
-               setSelectedWorkshop((prev: any) => prev && prev.formId === linkedFormId ? { ...prev, leads: prev.leads! + newLeads.length } : prev);
+               setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: (w.leads || 0) + newLeads.length } : w));
+               setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: (prev.leads || 0) + newLeads.length } : prev);
                
                return [...prevLeads, ...newLeads];
             }
