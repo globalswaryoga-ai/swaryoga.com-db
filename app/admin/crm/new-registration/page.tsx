@@ -410,7 +410,9 @@ export default function NewRegistrationPage() {
           }
         }
         
-        const gRes = await fetch('/api/admin/google-forms/list');
+        const gRes = await fetch('/api/admin/google-forms/list', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         const gJson = await gRes.json();
         if (gRes.ok) {
           if (gJson.forms) {
@@ -499,29 +501,7 @@ export default function NewRegistrationPage() {
             }
           }
           
-          if (fetchedLeads.length === 0) {
-            // Generate mock leads for Google Form simulation
-            await new Promise(r => setTimeout(r, 1000));
-            fetchedLeads = Array.from({ length: 15 }).map((_, i) => ({
-              id: `google-mock-${Date.now()}-${i}`,
-              name: `Google Lead ${i + 1}`,
-              email: `google.lead${i + 1}@example.com`,
-              mobile: `+123456789${i.toString().padStart(2, '0')}`,
-              phoneNumber: `+123456789${i.toString().padStart(2, '0')}`,
-              country: ['USA', 'India', 'UK', 'Australia'][i % 4],
-              city: ['New York', 'Mumbai', 'London', 'Sydney'][i % 4],
-              gender: i % 2 === 0 ? 'Female' : 'Male',
-              createdAt: new Date(Date.now() - Math.random() * 10000000).toISOString(),
-              dynamicAnswers: {
-                'Age': String(25 + (i % 40)),
-                'Profession': ['Job', 'Business', 'Jobless', 'Self-employed'][i % 4],
-                'Commitment to 14 days': 'Yes',
-                'Video on requirement': 'Yes',
-                'Special offer': 'Yes',
-                'Education': 'Degree'
-              }
-            }));
-          }
+          // No mock fallback — if API returned no data, show empty state
           
           setLeadsData(fetchedLeads);
           setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
