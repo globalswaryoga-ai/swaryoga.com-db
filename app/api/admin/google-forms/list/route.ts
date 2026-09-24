@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       if (newToken && accountRowId) {
         const updatedDoc = { ...account, accessToken: encryptCredential(newToken), tokenExpiresAt: new Date(Date.now() + 3600000).toISOString(), updatedAt: new Date().toISOString() };
         await bunnyExecute({
-          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE id = ?",
+          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE collection_name = 'socialmediaaccounts' AND document_id = ?",
           args: [JSON.stringify(updatedDoc), accountRowId]
         });
         accessToken = newToken;
