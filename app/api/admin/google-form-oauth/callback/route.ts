@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 // All DB operations use bunnyDatabase (no MongoDB)
 import { encryptCredential } from '@/lib/auth';
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,15 +23,13 @@ export async function GET(request: NextRequest) {
       }
     } catch (e) {}
 
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
-    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
-    const host = rawHost.split(':')[0];
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const baseUrl = `${protocol}://${rawHost}`;
+    const envRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+    const requestBaseUrl = getRequestBaseUrl(request);
+    const baseUrl = (stateOrigin && stateOrigin !== 'null' && stateOrigin !== 'undefined') ? stateOrigin.replace(/\/$/, '') : requestBaseUrl;
     
     // Crucial: Use exact same redirectUri that was sent during initiation
-    const redirectUri = stateOrigin ? `${stateOrigin}/api/admin/google-form-oauth/callback` : `${baseUrl}/api/admin/google-form-oauth/callback`;
+    const computedRedirectUri = `${baseUrl}/api/admin/google-form-oauth/callback`;
+    const redirectUri = envRedirectUri || computedRedirectUri;
 
     if (error) {
       console.error('[Google Forms OAuth] User denied or error:', error);

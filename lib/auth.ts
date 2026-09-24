@@ -1,5 +1,6 @@
 // JWT Authentication Utilities
 import jwt from 'jsonwebtoken';
+export { encryptCredential, decryptCredential, maskCredential } from './encryption';
 
 const JWT_SECRET = (process.env.JWT_SECRET || 'your-secret-key-change-in-production').trim();
 
@@ -75,3 +76,4 @@ export const verifyToken = (token?: string): TokenPayload | null => {
     return null;
   }
 };
+

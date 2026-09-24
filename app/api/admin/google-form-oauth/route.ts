@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,13 +19,11 @@ export async function GET(request: NextRequest) {
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
+    const envRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
     const clientOrigin = request.nextUrl.searchParams.get('origin');
-    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
-    const host = rawHost.split(':')[0];
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const redirectUri = clientOrigin ? `${clientOrigin}/api/admin/google-form-oauth/callback` : `${protocol}://${rawHost}/api/admin/google-form-oauth/callback`;
+    const baseUrl = (clientOrigin && clientOrigin !== 'null' && clientOrigin !== 'undefined') ? clientOrigin.replace(/\/$/, '') : getRequestBaseUrl(request);
+    const computedRedirectUri = `${baseUrl}/api/admin/google-form-oauth/callback`;
+    const redirectUri = envRedirectUri || computedRedirectUri;
 
     if (!clientId) {
       return NextResponse.json(
