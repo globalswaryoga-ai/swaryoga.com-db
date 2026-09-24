@@ -21,16 +21,24 @@ export async function GET(request: NextRequest) {
     }
 
     const accountRes = await bunnyExecute({
-      sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts' AND JSON_EXTRACT(document_json, '$.platform') = 'google_forms' LIMIT 1"
+      sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
     
-    if (!accountRes || !accountRes.rows || accountRes.rows.length === 0) {
-      return NextResponse.json({ error: 'Google Account not connected', needsAuth: true }, { status: 401 });
+    let account: any = null;
+    if (accountRes && accountRes.rows) {
+      for (const row of accountRes.rows) {
+        try {
+          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
+          if (parsed && parsed.platform === 'google_forms' && parsed.accessToken) {
+            account = parsed;
+            break;
+          }
+        } catch {}
+      }
     }
     
-    const account = cleanMongoJson(JSON.parse(String(accountRes.rows[0].document_json || '{}')));
     if (!account || !account.accessToken) {
-      return NextResponse.json({ error: 'Google Account not connected properly', needsAuth: true }, { status: 401 });
+      return NextResponse.json({ error: 'Google Account not connected', needsAuth: true }, { status: 401 });
     }
 
     let accessToken = decryptCredential(account.accessToken);
