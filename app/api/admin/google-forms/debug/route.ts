@@ -20,11 +20,13 @@ export async function GET(request: NextRequest) {
     try {
       await bunnyExecute({
         sql: `CREATE TABLE IF NOT EXISTS mongo_documents (
-          id TEXT PRIMARY KEY,
+          source_database TEXT NOT NULL DEFAULT 'swarsakshiDB',
           collection_name TEXT NOT NULL,
+          document_id TEXT NOT NULL,
           document_json TEXT NOT NULL,
           created_at TEXT DEFAULT (datetime('now')),
-          updated_at TEXT DEFAULT (datetime('now'))
+          updated_at TEXT DEFAULT (datetime('now')),
+          PRIMARY KEY (collection_name, document_id)
         )`
       });
     } catch (tableErr: any) {
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     // Step 3: Read all socialmediaaccounts
     const accountRes = await bunnyExecute({
-      sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
     });
 
     const rows: any[] = [];

@@ -72,11 +72,13 @@ export async function GET(request: NextRequest) {
     try {
       await bunnyExecute({
         sql: `CREATE TABLE IF NOT EXISTS mongo_documents (
-          id TEXT PRIMARY KEY,
+          source_database TEXT NOT NULL DEFAULT 'swarsakshiDB',
           collection_name TEXT NOT NULL,
+          document_id TEXT NOT NULL,
           document_json TEXT NOT NULL,
           created_at TEXT DEFAULT (datetime('now')),
-          updated_at TEXT DEFAULT (datetime('now'))
+          updated_at TEXT DEFAULT (datetime('now')),
+          PRIMARY KEY (collection_name, document_id)
         )`
       });
     } catch (tableErr) {
@@ -86,7 +88,7 @@ export async function GET(request: NextRequest) {
     try {
       // Find existing google_forms account
       const existingRes = await bunnyExecute({
-        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+        sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
       });
 
       let matchedId: string | null = null;
@@ -123,13 +125,13 @@ export async function GET(request: NextRequest) {
 
       if (matchedId) {
         await bunnyExecute({
-          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE id = ?",
+          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = datetime('now') WHERE collection_name = 'socialmediaaccounts' AND document_id = ?",
           args: [JSON.stringify(updatedDoc), matchedId]
         });
         console.log('[Google OAuth Callback] Updated token in Bunny DB');
       } else {
         await bunnyExecute({
-          sql: "INSERT INTO mongo_documents (id, collection_name, document_json) VALUES (?, 'socialmediaaccounts', ?)",
+          sql: "INSERT INTO mongo_documents (source_database, collection_name, document_id, document_json) VALUES ('swarsakshiDB', 'socialmediaaccounts', ?, ?)",
           args: [crypto.randomUUID(), JSON.stringify(updatedDoc)]
         });
         console.log('[Google OAuth Callback] Inserted new token in Bunny DB');
