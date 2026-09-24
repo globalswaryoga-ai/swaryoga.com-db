@@ -601,14 +601,37 @@ export default function NewRegistrationPage() {
       const savedSent = localStorage.getItem('crm_sent_congrats_ids');
       if (savedSent) setSentCongratsLeadIds(JSON.parse(savedSent));
       
-      const savedInsights = localStorage.getItem('crm_approval_insights');
-      if (savedInsights) setApprovalAiInsights(JSON.parse(savedInsights));
-      
-      const savedPendingInsights = localStorage.getItem('crm_pending_insights');
-      if (savedPendingInsights) setPendingAiInsights(JSON.parse(savedPendingInsights));
-      
-      const savedRegInsights = localStorage.getItem('crm_registered_insights');
-      if (savedRegInsights) setRegisteredAiInsights(JSON.parse(savedRegInsights));
+      const loadFromApi = async () => {
+        try {
+          const res = await fetch('/api/admin/crm/new-registration/state');
+          if (res.ok) {
+            const data = await res.json();
+            if (data) {
+              if (data.crm_workshops) setWorkshops(JSON.parse(data.crm_workshops));
+              if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
+              if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
+              if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
+              // We also save to localStorage so the rest of the app doesn't break
+              for (const [k, v] of Object.entries(data)) {
+                if (typeof v === 'string') localStorage.setItem(k, v);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('API load failed, falling back to local', e);
+        }
+      };
+
+      loadFromApi().then(() => {
+        const savedInsights = localStorage.getItem('crm_approval_insights');
+        if (savedInsights) setApprovalAiInsights(JSON.parse(savedInsights));
+        
+        const savedPendingInsights = localStorage.getItem('crm_pending_insights');
+        if (savedPendingInsights) setPendingAiInsights(JSON.parse(savedPendingInsights));
+        
+        const savedRegInsights = localStorage.getItem('crm_registered_insights');
+        if (savedRegInsights) setRegisteredAiInsights(JSON.parse(savedRegInsights));
+      });
     } catch (e) {
       console.error('Error loading crm states', e);
     }
@@ -637,25 +660,50 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('crm_workshops', JSON.stringify(workshops));
-      localStorage.setItem('crm_ai_worker_active', String(isAiWorkerActive));
-      localStorage.setItem('crm_approved_ai_active', String(isApprovedAiWorkerActive));
-      localStorage.setItem('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
+      const stateObj: Record<string, string> = {};
+      
+      const setAndCollect = (k: string, v: string) => {
+        localStorage.setItem(k, v);
+        stateObj[k] = v;
+      };
+
+      setAndCollect('crm_workshops', JSON.stringify(workshops));
+      setAndCollect('crm_ai_worker_active', String(isAiWorkerActive));
+      setAndCollect('crm_approved_ai_active', String(isApprovedAiWorkerActive));
+      setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop.id}`;
-        localStorage.setItem('crm_lead_ids' + suffix, JSON.stringify(crmLeadIds));
-        localStorage.setItem('crm_approved_ids' + suffix, JSON.stringify(approvedLeadIds));
-        localStorage.setItem('crm_pending_ids' + suffix, JSON.stringify(pendingLeadIds));
-        localStorage.setItem('crm_registered_ids' + suffix, JSON.stringify(registeredLeadIds));
-        localStorage.setItem('crm_rejected_ids' + suffix, JSON.stringify(rejectedLeadIds));
-        localStorage.setItem('crm_student_kota_ids' + suffix, JSON.stringify(studentKotaLeadIds));
-        localStorage.setItem('crm_closed_ids' + suffix, JSON.stringify(closedLeadIds));
-        localStorage.setItem('crm_sent_congrats_ids' + suffix, JSON.stringify(sentCongratsLeadIds));
-        localStorage.setItem('crm_approval_insights' + suffix, JSON.stringify(approvalAiInsights));
-        localStorage.setItem('crm_pending_insights' + suffix, JSON.stringify(pendingAiInsights));
-        localStorage.setItem('crm_registered_insights' + suffix, JSON.stringify(registeredAiInsights));
+        setAndCollect('crm_lead_ids' + suffix, JSON.stringify(crmLeadIds));
+        setAndCollect('crm_approved_ids' + suffix, JSON.stringify(approvedLeadIds));
+        setAndCollect('crm_pending_ids' + suffix, JSON.stringify(pendingLeadIds));
+        setAndCollect('crm_registered_ids' + suffix, JSON.stringify(registeredLeadIds));
+        setAndCollect('crm_rejected_ids' + suffix, JSON.stringify(rejectedLeadIds));
+        setAndCollect('crm_student_kota_ids' + suffix, JSON.stringify(studentKotaLeadIds));
+        setAndCollect('crm_closed_ids' + suffix, JSON.stringify(closedLeadIds));
+        setAndCollect('crm_sent_congrats_ids' + suffix, JSON.stringify(sentCongratsLeadIds));
+        setAndCollect('crm_approval_insights' + suffix, JSON.stringify(approvalAiInsights));
+        setAndCollect('crm_pending_insights' + suffix, JSON.stringify(pendingAiInsights));
+        setAndCollect('crm_registered_insights' + suffix, JSON.stringify(registeredAiInsights));
       }
+
+      const timeoutId = setTimeout(() => {
+        // Collect any other crm_ keys from localStorage that weren't just set
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('crm_') && !stateObj[key]) {
+            stateObj[key] = localStorage.getItem(key) || '';
+          }
+        }
+        
+        fetch('/api/admin/crm/new-registration/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(stateObj)
+        }).catch(e => console.error('Failed to sync state to Bunny', e));
+      }, 3000);
+
+      return () => clearTimeout(timeoutId);
     }
   }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded]);
 
