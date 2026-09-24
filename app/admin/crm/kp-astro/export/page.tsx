@@ -73,8 +73,8 @@ export default function KpExportPage() {
   const fullFontSupport = languageHasFullFontSupportClient(language);
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
-      <PageHeader
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+      <PageHeader theme="light"
         title={<span className="flex items-center gap-2"><FileText className="h-6 w-6 text-indigo-500" />Export Prediction (A4 PDF)</span>}
         subtitle="Downloads the latest generated prediction for the selected record and language"
       />

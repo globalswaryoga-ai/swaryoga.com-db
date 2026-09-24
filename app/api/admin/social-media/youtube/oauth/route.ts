@@ -16,7 +16,8 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 export async function GET(request: NextRequest) {
   try {
     // Verify admin authentication
-    const token = request.headers.get('authorization')?.slice('Bearer '.length) ||
+    const authHeader = request.headers.get('authorization');
+    const token = (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : authHeader) ||
                   request.nextUrl.searchParams.get('token');
     
     const decoded = verifyToken(token || undefined);
@@ -26,7 +27,12 @@ export async function GET(request: NextRequest) {
 
     // Get OAuth credentials
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = `${process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/admin/social-media/youtube/oauth/callback`;
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
+    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
+    const host = rawHost.split(':')[0]; // Strip any port
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const redirectUri = `${protocol}://${host}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId) {
       return NextResponse.json(
@@ -49,7 +55,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('scope', scopes.join(' '));
     authUrl.searchParams.set('access_type', 'offline'); // Get refresh token
     authUrl.searchParams.set('prompt', 'consent'); // Force consent to get refresh token
-    authUrl.searchParams.set('state', token || ''); // Pass token for verification
+    authUrl.searchParams.set('state', 'swaryoga_admin_auth'); // Short state string
 
     // Return the URL for the frontend to redirect to
     return NextResponse.json({

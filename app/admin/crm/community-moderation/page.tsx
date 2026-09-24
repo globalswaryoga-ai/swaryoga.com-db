@@ -38,6 +38,16 @@ const tabs: { id: TabType; label: string; icon: string }[] = [
   { id: 'transformations', label: 'Transformations', icon: '🦋' },
 ];
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export default function CommunityModerationPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('experiences');
@@ -77,10 +87,10 @@ export default function CommunityModerationPage() {
 
     try {
       const [exp, q, t, trans] = await Promise.all([
-        fetch('/api/community/experiences?status=pending', { headers }).then(r => r.json()),
-        fetch('/api/community/questions?status=pending', { headers }).then(r => r.json()),
-        fetch('/api/community/tips?status=pending', { headers }).then(r => r.json()),
-        fetch('/api/community/transformations?status=pending', { headers }).then(r => r.json()),
+        fetchWithTimeout('/api/community/experiences?status=pending', { headers }).then(r => r.json()),
+        fetchWithTimeout('/api/community/questions?status=pending', { headers }).then(r => r.json()),
+        fetchWithTimeout('/api/community/tips?status=pending', { headers }).then(r => r.json()),
+        fetchWithTimeout('/api/community/transformations?status=pending', { headers }).then(r => r.json()),
       ]);
 
       setPendingCounts({
@@ -99,7 +109,7 @@ export default function CommunityModerationPage() {
     const token = localStorage.getItem('token');
     
     try {
-      const res = await fetch(`/api/community/${activeTab}?status=pending`, {
+      const res = await fetchWithTimeout(`/api/community/${activeTab}?status=pending`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await res.json();

@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const body = await request.json().catch(() => ({} as any));
     const updates: Record<string, any> = {};
-    for (const key of ['personName', 'gender', 'birthTime', 'birthPlace', 'ascendant', 'houses', 'planets', 'mahadashas', 'doshas', 'chartStyle', 'bhavAnalysis', 'dashaPeriods', 'rulingPlanets', 'lifeStageNotes']) {
+    for (const key of ['personName', 'gender', 'birthTime', 'birthPlace', 'ascendant', 'fortuna', 'houses', 'planets', 'mahadashas', 'doshas', 'chartStyle', 'bhavAnalysis', 'dashaPeriods', 'rulingPlanets', 'lifeStageNotes']) {
       if (body?.[key] !== undefined) updates[key] = body[key];
     }
     if (body?.dob !== undefined) updates.dob = body.dob ? new Date(body.dob) : undefined;

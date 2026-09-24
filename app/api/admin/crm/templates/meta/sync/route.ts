@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { findMetaTemplate, createTemplate, updateTemplate, getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import {
   fetchTemplatesFromMeta,
   getTemplateStatusFromMeta,
@@ -31,8 +32,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const importNew = url.searchParams.get('import') === 'true';
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
+    // Removed MongoDB
 
     // Fetch all templates from Meta
     const result = await fetchTemplatesFromMeta(200);
@@ -54,14 +54,7 @@ export async function GET(request: NextRequest) {
 
     for (const metaTemplate of metaTemplates) {
       // Find existing local template by metaTemplateId or name
-      const existing = await WhatsAppTemplate.findOne({
-        $or: [
-          { metaTemplateId: metaTemplate.id },
-          { metaTemplateName: metaTemplate.name },
-          { templateName: metaTemplate.name },
-        ],
-        ...tf,
-      });
+      const existing = await findMetaTemplate(metaTemplate.id, metaTemplate.name);
 
       if (existing) {
         // Update ONLY status fields - preserve local content (headerUrl, etc.)
@@ -85,7 +78,7 @@ export async function GET(request: NextRequest) {
           mediaUpdate.headerMedia = { kind: headerFmt === 'VIDEO' ? 'video' : 'image', url: permanentUrl };
           mediaUpdate.headerFormat = headerFmt;
         }
-        await WhatsAppTemplate.findOneAndUpdate({ _id: existing._id, ...tf }, { $set: mediaUpdate });
+        await updateTemplate(existing._id, mediaUpdate);
 
         syncResults.push({
           name: metaTemplate.name,
@@ -110,10 +103,11 @@ export async function GET(request: NextRequest) {
           ? { kind: importHeaderFmt === 'VIDEO' ? 'video' : 'image', url: importMediaUrl }
           : undefined;
 
-        const newTemplate = await WhatsAppTemplate.create({
+        const newTemplate = await createTemplate({
           templateName: metaTemplate.name,
           metaTemplateId: metaTemplate.id,
           metaTemplateName: metaTemplate.name,
+          provider: 'meta',
           category: mapMetaCategoryToLocal(metaTemplate.category),
           language: metaTemplate.language || 'en',
           templateContent: bodyComponent?.text || '',
@@ -129,7 +123,7 @@ export async function GET(request: NextRequest) {
           lastMetaSyncAt: new Date(),
           importedFromMeta: true,
           importedAt: new Date(),
-          createdBy: new mongoose.Types.ObjectId(), // System import
+          createdBy: 'system_import', // System import
           createdByUserId: getViewerUserId(decoded),
         });
 
@@ -184,14 +178,12 @@ export async function POST(request: NextRequest) {
 
     const { templateId } = body;
 
-    if (!mongoose.Types.ObjectId.isValid(templateId)) {
+    if (!templateId) {
       return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
     }
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
-
-    const template = await WhatsAppTemplate.findOne({ _id: templateId, ...tf }).lean();
+    // Removed MongoDB POST
+    const template = await getTemplateById(templateId);
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
@@ -211,20 +203,14 @@ export async function POST(request: NextRequest) {
     const metaTemplate = result.template!;
     const localStatus = mapMetaStatusToLocal(metaTemplate.status);
 
-    const updated = await WhatsAppTemplate.findOneAndUpdate(
-      { _id: templateId, ...tf },
-      {
-        $set: {
-          metaTemplateId: metaTemplate.id,
-          status: localStatus,
-          metaStatus: metaTemplate.status,
-          metaRejectionReason: metaTemplate.rejected_reason || null,
-          metaQualityScore: metaTemplate.quality_score?.score || null,
-          lastMetaSyncAt: new Date(),
-        },
-      },
-      { new: true }
-    );
+    const updated = await updateTemplate(templateId, {
+      metaTemplateId: metaTemplate.id,
+      status: localStatus,
+      metaStatus: metaTemplate.status,
+      metaRejectionReason: metaTemplate.rejected_reason || null,
+      metaQualityScore: metaTemplate.quality_score?.score || null,
+      lastMetaSyncAt: new Date(),
+    });
 
     return NextResponse.json({
       success: true,

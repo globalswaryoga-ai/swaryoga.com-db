@@ -55,11 +55,13 @@ export async function POST(request: NextRequest) {
       await existingUser.save();
     }
 
-    // Generate JWT token with email (required for life planner API)
+    // Generate JWT token with email (required for life planner API).
+    // Matches the client's 1-year session persistence (lib/sessionManager.ts) —
+    // see app/api/auth/login/route.ts for why this must not use the 7-day default.
     const jwtToken = generateToken({
       userId: existingUser._id.toString(),
       email: existingUser.email,
-    });
+    }, '365d');
 
     // Auto-create CRM lead (fire-and-forget)
     autoCreateOrLinkLead({

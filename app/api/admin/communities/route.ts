@@ -8,15 +8,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
-
-import { connectDB, Community, CommunityMembership } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import {
-  initializeSystemCommunities, 
-  COMMUNITY_TYPES 
-} from '@/lib/community-manager';
+import { COMMUNITY_TYPES } from '@/lib/community-manager';
+import { 
+  listBunnyCommunities,
+  listBunnyCommunityMembers,
+  initializeSystemCommunities
+} from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,18 +27,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Communities management is main website data - superadmin only for admin access
     if (decoded.isAdmin && !isSuperAdmin(decoded)) {
       return NextResponse.json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
     }
-
-    await connectDB();
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const includeArchived = searchParams.get('includeArchived') === 'true';
 
-    // Build query
     const query: Record<string, unknown> = {};
     
     if (type && Object.values(COMMUNITY_TYPES).includes(type as typeof COMMUNITY_TYPES[keyof typeof COMMUNITY_TYPES])) {
@@ -50,34 +45,30 @@ export async function GET(request: NextRequest) {
       query.isArchived = false;
     }
 
-    // Admin can see all, regular users see only their communities
     if (!decoded.isAdmin) {
-      const memberships = await CommunityMembership.find({
-        userId: decoded.userId,
-        status: 'active',
-      });
-      const communityIds = memberships.map(m => m.communityId);
-      query._id = { $in: communityIds };
+      const membershipsResult = await listBunnyCommunityMembers({ status: 'active', limit: 10000 });
+      const memberships = membershipsResult.members.filter((m: any) => m.userId === decoded.userId);
+      const communityIds = memberships.map((m: any) => m.communityId);
       
-      // Also include global community
-      const globalCommunity = await Community.findOne({ type: COMMUNITY_TYPES.GLOBAL });
-      if (globalCommunity) {
-        query._id = { $in: [...communityIds, globalCommunity._id] };
-      }
+      const allCommunities = await listBunnyCommunities({ type: COMMUNITY_TYPES.GLOBAL });
+      const globalCommunity = allCommunities[0];
+      
+      const ids = [...communityIds];
+      if (globalCommunity) ids.push(globalCommunity._id);
+      
+      query._id = { $in: ids };
     }
 
-    const communities = await Community.find(query)
-      .sort({ type: 1, createdAt: -1 })
-      .lean();
+    const communities = await listBunnyCommunities(query);
 
-    // Add member counts
     const enrichedCommunities = await Promise.all(
       communities.map(async (community: any) => {
-        const memberCount = await CommunityMembership.countDocuments({
-          communityId: community._id.toString(),
+        const result = await listBunnyCommunityMembers({
+          communityId: community._id,
           status: 'active',
+          limit: 10000
         });
-        return { ...community, memberCount };
+        return { ...community, memberCount: result.total };
       })
     );
 
@@ -101,12 +92,9 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Admins can create communities for their CRM workflows
 
-    await connectDB();
     const body = await request.json();
     
-    // Check if this is a request to initialize system communities
     if (body.initializeSystem) {
       const { global, oldSadhak } = await initializeSystemCommunities();
       return NextResponse.json({
@@ -119,50 +107,39 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create a new custom community
     const { name, description, type, isPublic, icon, color, joinLink, whatsappGroupId } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Community name is required' }, { status: 400 });
     }
 
-    // Check for duplicate name
-    const existing = await Community.findOne({ 
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
-      isArchived: false 
-    });
+    const { getBunnyCommunityByName, createBunnyCommunity } = await import('@/lib/bunnyCommunityRepository');
+
+    const existing = await getBunnyCommunityByName(name.trim());
     if (existing) {
       return NextResponse.json({ error: 'A community with this name already exists' }, { status: 400 });
     }
 
-    // Generate a URL-friendly ID from the name
     const id = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-    const community = new Community({
+    const communityData = {
       id,
       name: name.trim(),
       description: description?.trim() || '',
       type: type || 'workshop_active',
       joinLink: joinLink?.trim() || '',
       whatsappGroupId: whatsappGroupId?.trim() || '',
-      // Custom fields for UI (stored in description JSON or separate fields)
       isArchived: false,
       members: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    };
 
-    await community.save();
+    const community = await createBunnyCommunity(communityData);
 
     return NextResponse.json({
       success: true,
       message: 'Community created successfully',
       community: {
-        _id: community._id,
-        id: community.id,
-        name: community.name,
-        description: community.description,
-        type: community.type,
+        ...community,
         memberCount: 0,
       },
     });
@@ -183,9 +160,7 @@ export async function PUT(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Admins can edit communities for their CRM workflows
 
-    await connectDB();
     const body = await request.json();
     const { communityId, name, description, type, joinLink, whatsappGroupId } = body;
 
@@ -193,37 +168,33 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Community ID is required' }, { status: 400 });
     }
 
-    const community = await Community.findById(communityId);
+    const { getBunnyCommunity, getBunnyCommunityByName, updateBunnyCommunity } = await import('@/lib/bunnyCommunityRepository');
+
+    const community = await getBunnyCommunity(communityId);
     if (!community) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    // Check for duplicate name if name is being changed
     if (name && name.trim() !== community.name) {
-      const existing = await Community.findOne({ 
-        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
-        _id: { $ne: communityId },
-        isArchived: false 
-      });
-      if (existing) {
+      const existing = await getBunnyCommunityByName(name.trim());
+      if (existing && existing.id !== communityId) {
         return NextResponse.json({ error: 'A community with this name already exists' }, { status: 400 });
       }
     }
 
-    // Update fields
-    if (name) community.name = name.trim();
-    if (description !== undefined) community.description = description.trim();
-    if (type) community.type = type;
-    if (joinLink !== undefined) community.joinLink = joinLink.trim();
-    if (whatsappGroupId !== undefined) community.whatsappGroupId = whatsappGroupId.trim();
-    community.updatedAt = new Date();
+    const updates: any = {};
+    if (name) updates.name = name.trim();
+    if (description !== undefined) updates.description = description.trim();
+    if (type) updates.type = type;
+    if (joinLink !== undefined) updates.joinLink = joinLink.trim();
+    if (whatsappGroupId !== undefined) updates.whatsappGroupId = whatsappGroupId.trim();
 
-    await community.save();
+    const updatedCommunity = await updateBunnyCommunity(communityId, updates);
 
     return NextResponse.json({
       success: true,
       message: 'Community updated successfully',
-      community,
+      community: updatedCommunity,
     });
   } catch (error) {
     console.error('Error updating community:', error);
@@ -241,9 +212,7 @@ export async function DELETE(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-    // Admins can archive communities for their CRM workflows
 
-    await connectDB();
     const { searchParams } = new URL(request.url);
     const communityId = searchParams.get('communityId');
 
@@ -251,21 +220,21 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Community ID is required' }, { status: 400 });
     }
 
-    const community = await Community.findById(communityId);
+    const { getBunnyCommunity, updateBunnyCommunity } = await import('@/lib/bunnyCommunityRepository');
+
+    const community = await getBunnyCommunity(communityId);
     if (!community) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    // Don't allow deleting system communities
     if (community.type === 'global') {
       return NextResponse.json({ error: 'Cannot delete the global community' }, { status: 400 });
     }
 
-    // Archive instead of delete (soft delete)
-    community.isArchived = true;
-    community.archivedAt = new Date();
-    community.updatedAt = new Date();
-    await community.save();
+    await updateBunnyCommunity(communityId, {
+      isArchived: true,
+      archivedAt: new Date().toISOString()
+    });
 
     return NextResponse.json({
       success: true,

@@ -10,10 +10,12 @@ import KundaliChart from '@/components/admin/crm/kpAstro/KundaliChart';
 import DashaDrillDown, { type DashaRow } from '@/components/admin/crm/kpAstro/DashaDrillDown';
 import BhavEditor, { type BhavAnalysisRow, normalizeBhavAnalysis } from '@/components/admin/crm/kpAstro/BhavEditor';
 import { autoFillBhavRows } from '@/components/admin/crm/kpAstro/bhavAutoFill';
+import { useMatterRules } from '@/components/admin/crm/kpAstro/useMatterRules';
 import ABCDSignificatorsPanel from '@/components/admin/crm/kpAstro/ABCDSignificatorsPanel';
 import ChartDetailsPanel from '@/components/admin/crm/kpAstro/ChartDetailsPanel';
 import EventTimingPanel from '@/components/admin/crm/kpAstro/EventTimingPanel';
-import { housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { KpLanguageProvider, KpLanguageToggle } from '@/components/admin/crm/kpAstro/KpLanguageContext';
+import { housesOwnedBy, housesOccupiedBy, type SignificatorHouse, type SignificatorPlanet, type FortunaPoint } from '@/lib/kpAstro/significators';
 
 interface ChartListItem { _id: string; personName: string; gender?: string; updatedAt: string; }
 
@@ -21,6 +23,7 @@ interface ChartDetail {
   _id: string;
   personName: string;
   ascendant?: { sign?: string; degree?: string };
+  fortuna?: FortunaPoint;
   houses?: SignificatorHouse[];
   planets?: Array<SignificatorPlanet & { retrograde?: boolean; combust?: boolean }>;
   chartStyle?: 'north' | 'south';
@@ -64,6 +67,7 @@ export default function KpAstrologerWorkspacePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const chartId = searchParams.get('chartId') || '';
+  const { rules: matterRules, refresh: refreshMatterRules } = useMatterRules(token);
 
   const [chartList, setChartList] = useState<ChartListItem[]>([]);
   const [chart, setChart] = useState<ChartDetail | null>(null);
@@ -109,7 +113,7 @@ export default function KpAstrologerWorkspacePage() {
       setChartStyle(json.data.chartStyle === 'south' ? 'south' : 'north');
       const normalized = normalizeBhavAnalysis(json.data.bhavAnalysis);
       const loadedDashaPeriods = Array.isArray(json.data.dashaPeriods) ? json.data.dashaPeriods : [];
-      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || [], dashaChainText(loadedDashaPeriods)));
+      setBhavRows(autoFillBhavRows(normalized, json.data.houses || [], json.data.planets || [], dashaChainText(loadedDashaPeriods), matterRules));
       setDashaPeriods(loadedDashaPeriods);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart');
@@ -142,12 +146,13 @@ export default function KpAstrologerWorkspacePage() {
 
   const handleAutoFillNeedful = () => {
     if (!chart) return;
-    setBhavRows((prev) => autoFillBhavRows(prev, chart.houses || [], chart.planets || [], dashaChainText(dashaPeriods)));
+    setBhavRows((prev) => autoFillBhavRows(prev, chart.houses || [], chart.planets || [], dashaChainText(dashaPeriods), matterRules));
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-[1500px] mx-auto space-y-6">
-      <PageHeader
+    <KpLanguageProvider>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      <PageHeader theme="light"
         title={
           <span className="flex items-center gap-2">
             <Sparkles className="h-6 w-6 text-indigo-500" />
@@ -164,16 +169,16 @@ export default function KpAstrologerWorkspacePage() {
         }
       />
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm font-semibold text-zinc-700">
+        <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
           <ClipboardList className="h-4 w-4 text-indigo-500" />
           Chart
         </label>
         <select
           value={chartId}
           onChange={(e) => router.push(e.target.value ? `/admin/crm/kp-astro/workspace?chartId=${e.target.value}` : '/admin/crm/kp-astro/workspace')}
-          className="min-h-[42px] rounded-xl border border-zinc-300 px-3 py-2 text-sm flex-1 min-w-[220px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="min-h-[42px] rounded-xl border border-gray-300 px-3 py-2 text-sm flex-1 min-w-[220px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
         >
           <option value="">— select a birth chart —</option>
           {chartList.map((c) => <option key={c._id} value={c._id}>{c.personName}</option>)}
@@ -228,10 +233,19 @@ export default function KpAstrologerWorkspacePage() {
                       </button>
                     ))}
                   </div>
-                  <select value={chartStyle} onChange={(e) => setChartStyle(e.target.value as 'north' | 'south')} className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
-                    <option value="north">North Indian</option>
-                    <option value="south">South Indian</option>
-                  </select>
+                  <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+                    {(['north', 'south'] as const).map((style) => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setChartStyle(style)}
+                        className={`px-2 py-1 text-xs font-medium rounded-md ${chartStyle === style ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        {style === 'north' ? 'North' : 'South'}
+                      </button>
+                    ))}
+                  </div>
+                  <KpLanguageToggle />
                 </div>
               </div>
               <div className="flex justify-center">
@@ -257,13 +271,12 @@ export default function KpAstrologerWorkspacePage() {
           </div>
 
           <div className="space-y-3">
-            <div className="sticky top-0 z-10 rounded-2xl border border-zinc-800 bg-black/95 px-3 py-3 shadow-lg backdrop-blur">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 sticky top-0 bg-gray-50/80 backdrop-blur py-1 z-10">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="font-semibold text-white">
+                <h2 className="font-semibold text-gray-900">
                   {workView === 'analysis' ? '12 Bhav Analysis' : workView === 'abcd' ? 'ABCD Significators' : 'Houses & Planets'}
                 </h2>
-                <div className="inline-flex rounded-xl border border-zinc-700 bg-zinc-950 p-1 shadow-sm">
+                <div className="inline-flex rounded-xl border border-gray-300 bg-white p-1 shadow-sm">
                   {([
                     ['analysis', '12 Bhav'],
                     ['abcd', 'ABCD Sig.'],
@@ -273,7 +286,7 @@ export default function KpAstrologerWorkspacePage() {
                       key={mode}
                       type="button"
                       onClick={() => setWorkView(mode)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-yellow-400 text-black shadow-sm' : 'text-zinc-300 hover:bg-zinc-900 hover:text-white'}`}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${workView === mode ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                     >
                       {label}
                     </button>
@@ -281,11 +294,11 @@ export default function KpAstrologerWorkspacePage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {savedAt && <span className="text-xs text-emerald-400">Saved {savedAt.toLocaleTimeString()}</span>}
+                {savedAt && <span className="text-xs text-emerald-600">Saved {savedAt.toLocaleTimeString()}</span>}
                 <button
                   type="button"
                   onClick={handleAutoFillNeedful}
-                  className="flex min-h-[38px] items-center gap-2 rounded-xl border border-yellow-500/50 bg-zinc-950 px-3 py-2 text-sm font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black"
+                  className="flex min-h-[38px] items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
                 >
                   <Wand2 className="h-4 w-4" />
                   Auto Fill
@@ -294,7 +307,6 @@ export default function KpAstrologerWorkspacePage() {
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Save
                 </button>
-              </div>
               </div>
             </div>
             {(currentMaha || currentAntar) && (
@@ -328,11 +340,11 @@ export default function KpAstrologerWorkspacePage() {
               </div>
             )}
             {workView === 'analysis' ? (
-              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} />
+              <BhavEditor rows={bhavRows} onChange={setBhavRows} houses={chart.houses || []} planets={chart.planets || []} matterRules={matterRules} onMatterRulesChanged={refreshMatterRules} />
             ) : workView === 'abcd' ? (
               <ABCDSignificatorsPanel houses={chart.houses || []} planets={chart.planets || []} bhavRows={bhavRows} />
             ) : (
-              <ChartDetailsPanel houses={chart.houses || []} planets={chart.planets || []} />
+              <ChartDetailsPanel houses={chart.houses || []} planets={chart.planets || []} fortuna={chart.fortuna} />
             )}
             {token && <EventTimingPanel chartId={chartId} token={token} />}
           </div>
@@ -346,5 +358,6 @@ export default function KpAstrologerWorkspacePage() {
         </div>
       )}
     </div>
+    </KpLanguageProvider>
   );
 }

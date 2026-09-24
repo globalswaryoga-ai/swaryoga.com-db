@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-
-import { connectDB, CommunityMember } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -24,11 +23,9 @@ export async function PUT(request: NextRequest, { params }: { params: { memberId
       return NextResponse.json({ error: 'Unauthorized. Admin access required.' }, { status: 401 });
     }
 
-    await connectDB();
-
     const { memberId } = params;
-    if (!memberId.match(/^[0-9a-fA-F]{24}$/)) {
-      return NextResponse.json({ error: 'Invalid member ID format' }, { status: 400 });
+    if (!memberId) {
+      return NextResponse.json({ error: 'Member ID is required' }, { status: 400 });
     }
 
     const body = (await request.json().catch(() => null)) as Body | null;
@@ -36,23 +33,33 @@ export async function PUT(request: NextRequest, { params }: { params: { memberId
       return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
     }
 
-    const member = await CommunityMember.findById(memberId);
-    if (!member) {
+    const memberResult = await bunnyExecute({
+      sql: 'SELECT data_json FROM community_members_sql WHERE document_id = ?',
+      args: [memberId]
+    });
+
+    if (memberResult.rows.length === 0) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
-    if (typeof body.chatEnabled === 'boolean') (member as any).chatEnabled = body.chatEnabled;
+    const member = JSON.parse(String(memberResult.rows[0].data_json));
 
-    const nextPerms: any = { ...(member as any).chatPermissions };
+    if (typeof body.chatEnabled === 'boolean') member.chatEnabled = body.chatEnabled;
+
+    const nextPerms: any = { ...member.chatPermissions };
     const keys: Array<keyof Body> = ['canSend', 'allowText', 'allowLinks', 'allowImages', 'allowVideos', 'allowDocuments'];
     for (const k of keys) {
       const v = body[k];
       if (typeof v === 'boolean') nextPerms[k] = v;
     }
 
-    (member as any).chatPermissions = nextPerms;
-    (member as any).updatedAt = new Date();
-    await member.save();
+    member.chatPermissions = nextPerms;
+    member.updatedAt = new Date().toISOString();
+
+    await bunnyExecute({
+      sql: 'UPDATE community_members_sql SET data_json = ?, updated_at = ? WHERE document_id = ?',
+      args: [JSON.stringify(member), member.updatedAt, memberId]
+    });
 
     return NextResponse.json(
       {

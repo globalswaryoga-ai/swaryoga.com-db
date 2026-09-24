@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import mongoose from 'mongoose';
+import { listBunnyModerationItems, countBunnyModerationPending } from '@/lib/bunnyModerationRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,12 @@ function getTransformation() {
  */
 export async function GET(request: NextRequest) {
   try {
+    const bunnyUrl = new URL(request.url);
+    const requestedStatus = bunnyUrl.searchParams.get('status') || 'approved';
+    const bunnyLimit = parseInt(bunnyUrl.searchParams.get('limit') || '50');
+    const bunnyItems = await listBunnyModerationItems('community_transformations', requestedStatus, bunnyLimit);
+    const bunnyPendingCount = await countBunnyModerationPending('community_transformations');
+    if (requestedStatus === 'pending' || requestedStatus === 'approved' || requestedStatus === 'all') return NextResponse.json({ success: true, transformations: bunnyItems, pendingCount: bunnyPendingCount, stats: { totalCount: bunnyItems.length, withPhotos: bunnyItems.filter((item: any) => item.beforePhoto && item.afterPhoto).length } });
     await connectDB();
     const Transformation = getTransformation();
     

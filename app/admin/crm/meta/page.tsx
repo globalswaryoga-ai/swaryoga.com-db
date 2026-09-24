@@ -101,6 +101,45 @@ type LeadFormValues = {
   assignedToUserId?: string;
 };
 
+// Lead Stage filter values shown in the inbox filter bar. "negotiation" is
+// relabelled "Connected" here — it means the lead is interested and ready to pay.
+type LeadStageFilter = 'all' | 'new_lead' | 'interested' | 'negotiation';
+
+const LEAD_STAGE_LEGACY_MAP: Record<string, string> = {
+  'lead': 'new_lead', 'hot': 'interested', 'prospect': 'contacted', 'customer': 'enrolled',
+};
+
+const LEAD_STAGE_COLOR_MAP: Record<string, string> = {
+  'new_lead': 'text-blue-700 bg-blue-50 border border-blue-100',
+  'contacted': 'text-sky-700 bg-sky-50 border border-sky-100',
+  'interested': 'text-cyan-700 bg-cyan-50 border border-cyan-100',
+  'demo_trial': 'text-purple-700 bg-purple-50 border border-purple-100',
+  'negotiation': 'text-amber-700 bg-amber-50 border border-amber-100',
+  'enrolled': 'text-emerald-700 bg-emerald-50 border border-emerald-100',
+  'completed': 'text-rose-700 bg-rose-50 border border-rose-100',
+  'inactive': 'text-slate-500 bg-slate-100 border border-slate-200',
+  'repeater': 'text-orange-700 bg-orange-50 border border-orange-100',
+  'old_sadhak': 'text-teal-700 bg-teal-50 border border-teal-100',
+  'only_for_post': 'text-indigo-700 bg-indigo-50 border border-indigo-100',
+};
+
+const LEAD_STAGE_LABEL_MAP: Record<string, string> = {
+  'new_lead': 'New Lead', 'contacted': 'Contacted', 'interested': 'Interested',
+  'demo_trial': 'Demo/Trial', 'negotiation': 'Connected', 'enrolled': 'Enrolled',
+  'completed': 'Completed', 'inactive': 'Inactive', 'repeater': 'Repeater',
+  'old_sadhak': 'Old Sadhak', 'only_for_post': 'Only for Post',
+};
+
+function mapLeadStage(rawStatus?: string | null): { key: string; label: string; colorClass: string } {
+  const raw = (rawStatus || 'new_lead').toLowerCase();
+  const key = LEAD_STAGE_LEGACY_MAP[raw] || raw;
+  return {
+    key,
+    label: LEAD_STAGE_LABEL_MAP[key] || key.replace(/_/g, ' '),
+    colorClass: LEAD_STAGE_COLOR_MAP[key] || 'text-blue-700 bg-blue-50 border border-blue-100',
+  };
+}
+
 /**
  * Convert S3 URLs to proxied URLs for authenticated access
  * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
@@ -147,8 +186,11 @@ export default function MetaInboxPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messageLimit, setMessageLimit] = useState(5);
+  const [loadingFullHistory, setLoadingFullHistory] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatStatusFilter, setChatStatusFilter] = useState<ChatStatus | 'all'>('all'); // Chat status filter
+  const [leadStageFilter, setLeadStageFilter] = useState<LeadStageFilter>('all'); // Lead stage filter (New/Interested/Connected)
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'last_week'>('all'); // Date filter
   const [archivedPhones, setArchivedPhones] = useState<Set<string>>(new Set()); // Archived conversations
   const [showArchived, setShowArchived] = useState(false); // Toggle archived view
@@ -273,29 +315,48 @@ export default function MetaInboxPage() {
     });
   }, [selected]);
 
-  // Load quick replies from localStorage on mount
+  // Load quick replies from Bunny DB
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_quick_replies');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setQuickReplies(parsed);
-          }
-        } catch {
-          // ignore parse errors
+    if (!token) return;
+    fetch('/api/admin/crm/quick-replies', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json?.data?.replies?.length) {
+          setQuickReplies(
+            json.data.replies.map((r: any) => ({ id: r.id, text: r.content, title: r.title }))
+          );
         }
-      }
-    }
-  }, []);
+      })
+      .catch(() => {});
+  }, [token]);
 
-  // Save quick replies to localStorage when changed
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('crm_quick_replies', JSON.stringify(quickReplies));
-    }
-  }, [quickReplies]);
+  const addQuickReply = async (text: string) => {
+    if (!text.trim() || !token) return;
+    try {
+      const res = await fetch('/api/admin/crm/quick-replies', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text }),
+      });
+      const json = await res.json();
+      if (json?.data?.id) {
+        setQuickReplies((prev) => [{ id: json.data.id, text }, ...prev]);
+      }
+    } catch {}
+  };
+
+  const deleteQuickReply = async (id: string) => {
+    setQuickReplies((prev) => prev.filter((p) => p.id !== id));
+    if (!token) return;
+    try {
+      await fetch(`/api/admin/crm/quick-replies?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {}
+  };
 
   // Monthly Expense Summary for header widget
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] = useState<{
@@ -335,9 +396,16 @@ export default function MetaInboxPage() {
   const selectedRef = useRef<ConversationRow | null>(null);
   const pendingPhoneRef = useRef<string | null>(null);
   const pendingNameRef = useRef<string | null>(null);
+  // Mirrors `messages` for use inside loadAllOldMessages' tight loop, where
+  // reading the closed-over `messages` state directly would be stale between
+  // iterations (see loadAllOldMessages below).
+  const messagesRef = useRef<Message[]>([]);
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // Right Sidebar state
   const [sidebarData, setSidebarData] = useState({
@@ -403,6 +471,7 @@ export default function MetaInboxPage() {
     // Auto-refresh every 30 seconds. Don't recreate the interval on every keystroke.
     const timer = setInterval(() => {
       loadConversations(searchQuery, true);
+      fetchMonthlyExpenses();
     }, 30000);
 
     return () => clearInterval(timer);
@@ -436,34 +505,33 @@ export default function MetaInboxPage() {
   }, [token]);
 
   // Load monthly expense summary for header widget
-  useEffect(() => {
+  const fetchMonthlyExpenses = useCallback(async () => {
     if (!token) return;
-    
-    const fetchMonthlyExpenses = async () => {
-      try {
-        const res = await fetch('/api/admin/crm/analytics/whatsapp?view=overview', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.data?.overview) {
-            const { expenses, messages } = data.data.overview;
-            setMonthlyExpenseSummary({
-              total: expenses?.total || 0,
-              marketing: expenses?.marketing || 0,
-              utility: expenses?.utility || 0,
-              whatsapp_api: expenses?.whatsapp_api || 0,
-              messagesSent: messages?.sent || 0,
-            });
-          }
+    try {
+      const res = await fetch('/api/admin/crm/analytics/whatsapp?view=overview', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data?.overview) {
+          const { expenses, messages } = data.data.overview;
+          setMonthlyExpenseSummary({
+            total: expenses?.total || 0,
+            marketing: expenses?.marketing || 0,
+            utility: expenses?.utility || 0,
+            whatsapp_api: expenses?.whatsapp_api || 0,
+            messagesSent: messages?.sent || 0,
+          });
         }
-      } catch (e) {
-        console.warn('Failed to load monthly expenses:', e);
       }
-    };
-    
-    fetchMonthlyExpenses();
+    } catch (e) {
+      console.warn('Failed to load monthly expenses:', e);
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchMonthlyExpenses();
+  }, [fetchMonthlyExpenses]);
 
   // Search-triggered reload (debounced)
   useEffect(() => {
@@ -483,7 +551,7 @@ export default function MetaInboxPage() {
     const timer = setInterval(() => {
       const c = selectedRef.current;
       if (!c) return;
-      loadMessages(c.leadId || c._id || c.phoneNumber, true);
+      loadMessages(c.phoneNumber || c.leadId || c._id, true);
     }, 10000); // Poll messages every 10s when active (silent mode)
 
     return () => clearInterval(timer);
@@ -584,7 +652,15 @@ export default function MetaInboxPage() {
         silent, // Pass silent flag to crmFetch
       });
       if (data?.conversations) {
-        setConversations(data.conversations);
+        const currentSelectedPhone = selectedRef.current?.phoneNumber;
+        const mapped = currentSelectedPhone
+          ? (data.conversations as ConversationRow[]).map(c => 
+              (c.phoneNumber === currentSelectedPhone || (c.phoneNumber && currentSelectedPhone && c.phoneNumber.replace(/\D/g, '').endsWith(currentSelectedPhone.replace(/\D/g, '').slice(-10))))
+                ? { ...c, unreadCount: 0 }
+                : c
+            )
+          : data.conversations;
+        setConversations(mapped);
         if (typeof data.total === 'number') setConversationsTotal(data.total);
 
         // Auto-select conversation from ?phone= query param
@@ -633,9 +709,11 @@ export default function MetaInboxPage() {
     if (!id) return;
     if (!silent) setLoadingMessages(true);
     try {
-      // Determine if id is an ObjectId or phoneNumber
-      const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
-      const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
+      // Determine if id is a leadId or phoneNumber
+      // A phone number is at least 10 digits long. A lead ID can be a 24-char hex or a short custom ID (e.g. 6 digits)
+      const digitsOnly = String(id || '').replace(/\D/g, '');
+      const isPhoneNumber = digitsOnly.length >= 10;
+      const params: any = isPhoneNumber ? { phoneNumber: digitsOnly } : { leadId: id };
       params.provider = providerScope;
       
       const data = await crmFetch(`/api/admin/crm/messages`, { 
@@ -644,21 +722,101 @@ export default function MetaInboxPage() {
       });
       if (data?.messages) {
         // Reverse needed so oldest is at top (standard chat view)
-        const newMsgs = [...data.messages].reverse();
-        
-        // Only trigger scroll to bottom if new messages arrived
-        const hasNew = newMsgs.length !== messages.length || 
-                     (newMsgs.length > 0 && newMsgs[newMsgs.length-1]._id !== messages[messages.length-1]?._id);
-        
-        setMessages(newMsgs);
-        if (hasNew) {
-          setTimeout(() => scrollToBottom(), 100);
+        const fresh = [...data.messages].reverse();
+
+        if (silent) {
+          // The 10s poll only ever asks for the server's most-recent window.
+          // Overwriting state with just that would silently discard any
+          // older history the user had already paged back through via
+          // "Show Old Chat" — so merge instead: keep everything we'd loaded that's older than this
+          // fresh window, and refresh the recent window itself (picks up
+          // new messages + status ticks on recent ones).
+          setMessages((prev) => {
+            const earliestFreshTs = fresh.length ? new Date((fresh[0] as any).sentAt || (fresh[0] as any).createdAt).getTime() : Infinity;
+            const freshIds = new Set(fresh.map((m: any) => m._id));
+            const olderKept = prev.filter((m: any) =>
+              !freshIds.has(m._id) && new Date(m.sentAt || m.createdAt).getTime() < earliestFreshTs
+            );
+            return [...olderKept, ...fresh];
+          });
+          const prevLast = messagesRef.current[messagesRef.current.length - 1];
+          const hasNew = fresh.length > 0 && fresh[fresh.length - 1]._id !== prevLast?._id;
+          if (hasNew) setTimeout(() => scrollToBottom(), 100);
+        } else {
+          const hasNew = fresh.length !== messages.length ||
+            (fresh.length > 0 && fresh[fresh.length - 1]._id !== messages[messages.length - 1]?._id);
+          setMessages(fresh);
+          if (hasNew) setTimeout(() => scrollToBottom(), 100);
         }
       }
     } catch (err) {
       console.error('Failed to load messages:', err);
     } finally {
       if (!silent) setLoadingMessages(false);
+    }
+  };
+
+  // Fetches ONE page of messages strictly older than the oldest one
+  // currently loaded — merges hot Mongo data with the Bunny archive
+  // server-side (see /api/admin/crm/messages) once Mongo's ~1 day hot
+  // window is exhausted, so this can reach back to the full 1-year
+  // retention boundary. Reads selected/messages via refs (not closed-over
+  // state) so it's safe to call repeatedly in the loadAllOldMessages loop
+  // below without waiting for a re-render between calls.
+  // Returns true if a full page came back (there is likely more history).
+  const fetchOlderPage = async (): Promise<boolean> => {
+    const c = selectedRef.current;
+    if (!c) return false;
+    const phone = c.phoneNumber ? c.phoneNumber.replace(/\D/g, '') : '';
+    const id = phone.length >= 10 ? phone : (c.leadId || c._id);
+    if (!id) return false;
+    const oldest = messagesRef.current[0];
+    if (!oldest) return false;
+
+    const params: any = phone.length >= 10 ? { phoneNumber: phone } : { leadId: id };
+    params.provider = providerScope;
+    params.before = new Date((oldest as any).sentAt || (oldest as any).createdAt).toISOString();
+    params.limit = 20;
+
+    const data = await crmFetch(`/api/admin/crm/messages`, { params, silent: true });
+    const older = Array.isArray(data?.messages) ? [...data.messages].reverse() : [];
+    if (older.length === 0) {
+      setHasMoreHistory(false);
+      return false;
+    }
+    setMessages((prev) => [...older, ...prev]);
+    setMessageLimit((prev) => prev + older.length);
+    const more = older.length >= 20;
+    if (!more) setHasMoreHistory(false);
+    return more;
+  };
+
+  // "Show Old Chat" — the single history control. First reveals any messages
+  // already fetched but hidden behind messageLimit, then keeps fetching
+  // further back (up to the ~1 year retention boundary — see RETENTION_DAYS
+  // in lib/metaWhatsappArchive.ts) until nothing older is left.
+  const loadAllOldMessages = async () => {
+    if (!selected || loadingFullHistory) return;
+    setLoadingFullHistory(true);
+    try {
+      // Reveal what's already loaded but collapsed behind the reveal window.
+      if (messagesRef.current.length > messageLimit) {
+        setMessageLimit(messagesRef.current.length);
+      }
+      let more = hasMoreHistory;
+      let guard = 0;
+      const MAX_PAGES = 100; // 100 * 20 = up to 2000 messages — generous safety cap
+      while (more && guard < MAX_PAGES) {
+        more = await fetchOlderPage();
+        guard++;
+      }
+      // Each fetchOlderPage() call already grows messageLimit by exactly
+      // the number of messages it merged in, so the whole loaded history
+      // is revealed by the time this loop ends — no extra step needed.
+    } catch (err) {
+      console.error('Failed to load full chat history:', err);
+    } finally {
+      setLoadingFullHistory(false);
     }
   };
 
@@ -993,8 +1151,10 @@ export default function MetaInboxPage() {
 
   const handleSelectConversation = (conv: ConversationRow) => {
     setSelected(conv);
+    selectedRef.current = conv;
     setMessageLimit(5);
-    loadMessages(conv.leadId || conv._id || conv.phoneNumber);
+    setHasMoreHistory(true);
+    loadMessages(conv.phoneNumber || conv.leadId || conv._id);
     
     // Map legacy status values to new funnel stages
     const legacyStatusMap: Record<string, string> = {
@@ -1018,14 +1178,13 @@ export default function MetaInboxPage() {
     }
 
     // Mark as read - optimistically update local state immediately
-    if (conv.unreadCount && conv.unreadCount > 0) {
-      // Optimistically set unread count to 0 in local state
+    if (conv.phoneNumber) {
       setConversations(prev => prev.map(c => 
-        c.leadId === conv.leadId ? { ...c, unreadCount: 0 } : c
+        (c.phoneNumber === conv.phoneNumber || (c.phoneNumber && conv.phoneNumber && c.phoneNumber.replace(/\D/g, '').endsWith(conv.phoneNumber.replace(/\D/g, '').slice(-10))))
+          ? { ...c, unreadCount: 0 } 
+          : c
       ));
-      // Also update the selected conversation
       setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
-      // Then sync with server (without re-fetching conversations)
       markThreadAsRead(conv.leadId, conv.phoneNumber, true);
     }
   };
@@ -1147,12 +1306,13 @@ export default function MetaInboxPage() {
 
       // Refresh messages and conversations
       await Promise.all([
-        loadMessages(leadId || phoneNumber),
+        loadMessages(phoneNumber || leadId),
         loadConversations(searchQuery)
       ]);
     } catch (err) {
       console.error('Failed to send message:', err);
-      alert('Failed to send message');
+      const reason = err instanceof Error ? err.message : 'Failed to send message';
+      alert(`Message not delivered: ${reason}`);
     } finally {
       setSending(false);
     }
@@ -1220,9 +1380,9 @@ export default function MetaInboxPage() {
     setBulkActionLoading(true);
     
     // Optimistically update local state immediately
-    const toMarkIds = new Set(toMark.map(c => c.leadId));
+    const toMarkIds = new Set(toMark.map(c => c.phoneNumber));
     setConversations(prev => prev.map(c => 
-      toMarkIds.has(c.leadId) ? { ...c, unreadCount: 0 } : c
+      toMarkIds.has(c.phoneNumber) ? { ...c, unreadCount: 0 } : c
     ));
     
     try {
@@ -1327,6 +1487,39 @@ export default function MetaInboxPage() {
     }
   };
 
+  // Export the checked rows as a CSV file (checked rows only, not the whole filtered list).
+  const handleDownloadSelected = () => {
+    const rows = filteredConversations.filter((c) => bulkSelected[c._id]);
+    if (rows.length === 0) return;
+
+    const headers = ['Lead ID', 'Name', 'Phone', 'Lead Stage', 'Chat Status', 'Assigned To'];
+    const csvRows = rows.map((c) => {
+      const stage = mapLeadStage(c.status).label;
+      const chatStatus = getChatStatusInfo(c.lastMessageAt, c.chatStatus, c.lastInboundAt, c.lastDirection).label;
+      const assignedName = adminUsers.find((u) => u.userId === c.assignedToUserId)?.name || 'Unassigned';
+      return [
+        c.leadNumber ? String(c.leadNumber).padStart(6, '0') : '',
+        c.name || '',
+        c.phoneNumber || '',
+        stage,
+        chatStatus,
+        assignedName,
+      ];
+    });
+
+    const escapeCsv = (val: string) => `"${String(val).replace(/"/g, '""')}"`;
+    const csvContent = [headers, ...csvRows].map((r) => r.map(escapeCsv).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leads-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleBlockSingle = async (leadId: string, block: boolean, reason?: string) => {
     try {
       await crmFetch('/api/admin/crm/leads/bulk-update', {
@@ -1377,10 +1570,20 @@ export default function MetaInboxPage() {
         : Promise.resolve();
 
       await Promise.all([updateLeadPromise, addNotePromise, addFollowupPromise]);
-      
+
+      // Clear notes after saving so they don't get duplicated on next save
+      setSidebarData((prev: any) => ({ ...prev, notes: '', followUpDate: '' }));
       loadConversations(searchQuery);
+
+      // Show success toast
+      const toast = document.createElement('div');
+      toast.textContent = '✅ Changes saved!';
+      toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1E7F43;color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.18);animation:fadeIn .2s ease';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
     } catch (err) {
       console.error('Failed to save sidebar data:', err);
+      alert('Failed to save changes. Please try again.');
     } finally {
       setSavingSidebar(false);
     }
@@ -1518,6 +1721,11 @@ export default function MetaInboxPage() {
       });
     }
 
+    // Filter by lead stage (New / Interested / Connected)
+    if (leadStageFilter !== 'all') {
+      result = result.filter(c => mapLeadStage(c.status).key === leadStageFilter);
+    }
+
     // Filter by date
     if (dateFilter !== 'all') {
       const now = new Date();
@@ -1534,7 +1742,7 @@ export default function MetaInboxPage() {
         return true;
       });
     }
-    
+
     // Sort: unread first (blue dot), then by most recent
     result = [...result].sort((a, b) => {
       const aUnread = (a.unreadCount || 0) > 0 ? 1 : 0;
@@ -1544,9 +1752,9 @@ export default function MetaInboxPage() {
       const dateB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
       return dateB - dateA;
     });
-    
+
     return result;
-  }, [conversations, searchQuery, chatStatusFilter, dateFilter, archivedPhones, showArchived, showBlocked]);
+  }, [conversations, searchQuery, chatStatusFilter, leadStageFilter, dateFilter, archivedPhones, showArchived, showBlocked]);
 
   // Group filtered conversations by date sections
   const groupedConversations = useMemo(() => {
@@ -1676,11 +1884,15 @@ export default function MetaInboxPage() {
         })
       });
       const data = await res.json();
-      if (data.success && data.result) {
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error || `Fix failed (${res.status})`);
+      }
+      if (data.result) {
         setComposerText(data.result);
       }
     } catch (err) {
       console.error('AI Fix failed:', err);
+      alert(err instanceof Error ? err.message : 'AI Fix failed — please try again.');
     } finally {
       setIsFixing(false);
     }
@@ -1705,11 +1917,15 @@ export default function MetaInboxPage() {
         })
       });
       const data = await res.json();
-      if (data.success && data.result) {
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error || `AI reply failed (${res.status})`);
+      }
+      if (data.result) {
         setComposerText(data.result);
       }
     } catch (err) {
       console.error('AI Reply failed:', err);
+      alert(err instanceof Error ? err.message : 'AI reply failed — please try again.');
     } finally {
       setIsReplying(false);
     }
@@ -1845,7 +2061,11 @@ export default function MetaInboxPage() {
             >
               <div className="text-center">
                 <div className="text-[8px] font-bold text-rose-400 uppercase">Month</div>
-                <div className="text-[12px] font-black text-rose-700 leading-tight">₹{monthlyExpenseSummary.total.toLocaleString()}</div>
+                <div className="text-[12px] font-black text-rose-700 leading-tight">
+                  ₹{monthlyExpenseSummary.total > 0 && monthlyExpenseSummary.total < 10
+                    ? monthlyExpenseSummary.total.toFixed(2)
+                    : Math.round(monthlyExpenseSummary.total).toLocaleString()}
+                </div>
               </div>
               <div className="h-5 w-px bg-rose-200/60"></div>
               <div className="flex flex-col text-[8px] leading-tight">
@@ -1855,7 +2075,11 @@ export default function MetaInboxPage() {
                 </div>
                 <div className="flex gap-1">
                   <span className="text-slate-400">Mktg:</span>
-                  <span className="font-bold text-rose-500">₹{monthlyExpenseSummary.marketing.toLocaleString()}</span>
+                  <span className="font-bold text-rose-500">
+                    ₹{monthlyExpenseSummary.marketing > 0 && monthlyExpenseSummary.marketing < 10
+                      ? monthlyExpenseSummary.marketing.toFixed(2)
+                      : Math.round(monthlyExpenseSummary.marketing).toLocaleString()}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1934,6 +2158,18 @@ export default function MetaInboxPage() {
               <option value="closed">✓ Closed</option>
             </select>
 
+            {/* Lead Stage Dropdown */}
+            <select
+              value={leadStageFilter}
+              onChange={(e) => setLeadStageFilter(e.target.value as LeadStageFilter)}
+              className="text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1E7F43] focus:border-[#1E7F43] cursor-pointer"
+            >
+              <option value="all">All Stages</option>
+              <option value="new_lead">New</option>
+              <option value="interested">Interested</option>
+              <option value="negotiation">Connected</option>
+            </select>
+
             {/* Date Dropdown */}
             <select
               value={showArchived ? 'archived' : showBlocked ? 'blocked' : dateFilter}
@@ -1987,6 +2223,7 @@ export default function MetaInboxPage() {
                       bulkClear();
                     }
                     else if (v === 'block') { showBlocked ? handleBulkUnblock() : handleBulkBlock(); }
+                    else if (v === 'download') handleDownloadSelected();
                   }}
                   disabled={bulkActionLoading}
                 >
@@ -1996,6 +2233,7 @@ export default function MetaInboxPage() {
                   <option value="labels">🏷 Labels</option>
                   <option value="archive">{showArchived ? '↩ Unarchive' : '📦 Archive'}</option>
                   <option value="block">{showBlocked ? '🔓 Unblock' : '🚫 Block'}</option>
+                  <option value="download">⬇ Download list</option>
                 </select>
                 <i className="ph ph-caret-down text-[7px] text-[#1E7F43] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
               </div>
@@ -2443,34 +2681,10 @@ export default function MetaInboxPage() {
 
                       {/* Lead Stage */}
                       {(() => {
-                        // Map legacy status values to new funnel names
-                        const statusMap: Record<string, string> = {
-                          'lead': 'new_lead', 'hot': 'interested', 'prospect': 'contacted', 'customer': 'enrolled',
-                        };
-                        const raw = (conv.status || 'new_lead').toLowerCase();
-                        const mapped = statusMap[raw] || raw;
-                        const colorMap: Record<string, string> = {
-                          'new_lead': 'text-blue-700 bg-blue-50 border border-blue-100',
-                          'contacted': 'text-sky-700 bg-sky-50 border border-sky-100',
-                          'interested': 'text-cyan-700 bg-cyan-50 border border-cyan-100',
-                          'demo_trial': 'text-purple-700 bg-purple-50 border border-purple-100',
-                          'negotiation': 'text-amber-700 bg-amber-50 border border-amber-100',
-                          'enrolled': 'text-emerald-700 bg-emerald-50 border border-emerald-100',
-                          'completed': 'text-rose-700 bg-rose-50 border border-rose-100',
-                          'inactive': 'text-slate-500 bg-slate-100 border border-slate-200',
-                          'repeater': 'text-orange-700 bg-orange-50 border border-orange-100',
-                          'old_sadhak': 'text-teal-700 bg-teal-50 border border-teal-100',
-                          'only_for_post': 'text-indigo-700 bg-indigo-50 border border-indigo-100',
-                        };
-                        const labelMap: Record<string, string> = {
-                          'new_lead': 'New Lead', 'contacted': 'Contacted', 'interested': 'Interested',
-                          'demo_trial': 'Demo/Trial', 'negotiation': 'Negotiation', 'enrolled': 'Enrolled',
-                          'completed': 'Completed', 'inactive': 'Inactive', 'repeater': 'Repeater',
-                          'old_sadhak': 'Old Sadhak', 'only_for_post': 'Only for Post',
-                        };
+                        const stage = mapLeadStage(conv.status);
                         return (
-                          <span className={`text-[9px] font-[800] px-1.5 py-0.5 rounded uppercase ${colorMap[mapped] || 'text-blue-700 bg-blue-50 border border-blue-100'}`}>
-                            {labelMap[mapped] || mapped.replace(/_/g, ' ')}
+                          <span className={`text-[9px] font-[800] px-1.5 py-0.5 rounded uppercase ${stage.colorClass}`}>
+                            {stage.label}
                           </span>
                         );
                       })()}
@@ -2642,18 +2856,20 @@ export default function MetaInboxPage() {
                     </div>
                   ) : null}
                 </div>
-                <button 
-                  className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors" 
+                <button
+                  className="p-1.5 text-slate-500 hover:text-[#1E7F43] hover:bg-[#E6F4EC] rounded-md transition-colors"
                   title="Mark as Read"
                   onClick={() => {
                     // Optimistically update local state
-                    if (selected?.unreadCount && selected.unreadCount > 0) {
+                    if (selected?.phoneNumber) {
                       setConversations(prev => prev.map(c => 
-                        c.leadId === selected.leadId ? { ...c, unreadCount: 0 } : c
+                        (c.phoneNumber === selected.phoneNumber || (c.phoneNumber && selected.phoneNumber && c.phoneNumber.replace(/\D/g, '').endsWith(selected.phoneNumber.replace(/\D/g, '').slice(-10))))
+                          ? { ...c, unreadCount: 0 }
+                          : c
                       ));
                       setSelected(prev => prev ? { ...prev, unreadCount: 0 } : null);
+                      markThreadAsRead(selected.leadId, selected.phoneNumber, false);
                     }
-                    markThreadAsRead(selected.leadId, selected.phoneNumber, true);
                   }}
                 >
                   <i className="ph ph-check text-sm"></i>
@@ -2726,16 +2942,16 @@ export default function MetaInboxPage() {
                   </div>
                 ) : (
                   <>
-                    {messages.length > messageLimit && (
+                    {(messages.length > messageLimit || hasMoreHistory) && (
                       <div className="flex justify-center pb-4">
-                        <button 
-                           onClick={() => setMessageLimit(prev => prev + 20)}
-                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-[#1E7F43] hover:text-white transition-all duration-300 hover:scale-105"
-                           style={{ background: 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))', border: '1px solid rgba(30,127,67,0.15)', boxShadow: '0 2px 8px rgba(30,127,67,0.08)' }}
-                           onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, #1E7F43, #28964F)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(30,127,67,0.3)'; }}
-                           onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(230,244,236,0.8), rgba(255,255,255,0.9))'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(30,127,67,0.08)'; }}
+                        <button
+                           disabled={loadingFullHistory}
+                           onClick={loadAllOldMessages}
+                           title="Load the full available chat history (up to 1 year) for this conversation"
+                           className="px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest text-white transition-all duration-300 hover:scale-105 disabled:opacity-60"
+                           style={{ background: 'linear-gradient(135deg, #1E7F43, #28964F)', boxShadow: '0 2px 8px rgba(30,127,67,0.25)' }}
                         >
-                           View Earlier Conversations
+                           {loadingFullHistory ? 'Loading full history…' : 'Show Old Chat'}
                         </button>
                       </div>
                     )}
@@ -2836,6 +3052,11 @@ export default function MetaInboxPage() {
                                 content.startsWith('🖼')) {
                               return null;
                             }
+                            
+                            if (content === '[unsupported message]') {
+                              return <span className={`italic opacity-60 text-[13px] ${msg.direction === 'inbound' ? 'text-white/80' : 'text-slate-500'}`}>📎 Unsupported message type</span>;
+                            }
+                            
                             // Extract [admincrm] or similar tags
                             const tagMatch = content.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
                             const mainBody = tagMatch ? content.replace(tagMatch[0], '').trim() : content;
@@ -3469,7 +3690,7 @@ export default function MetaInboxPage() {
                               if (e.key === 'Enter' && e.ctrlKey) {
                                 e.preventDefault();
                                 if (newQuickReply.trim()) {
-                                  setQuickReplies(prev => [{ id: Date.now().toString(), text: newQuickReply }, ...prev]);
+                                  addQuickReply(newQuickReply);
                                   setNewQuickReply('');
                                 }
                               }
@@ -3479,7 +3700,7 @@ export default function MetaInboxPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm font-bold"
                             onClick={() => {
                               if (newQuickReply.trim()) {
-                                setQuickReplies(prev => [{ id: Date.now().toString(), text: newQuickReply }, ...prev]);
+                                addQuickReply(newQuickReply);
                                 setNewQuickReply('');
                               }
                             }}
@@ -3508,7 +3729,7 @@ export default function MetaInboxPage() {
                                   className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setQuickReplies(prev => prev.filter(p => p.id !== qr.id));
+                                    deleteQuickReply(qr.id);
                                   }}
                                   title="Delete"
                                 >
@@ -3621,7 +3842,8 @@ export default function MetaInboxPage() {
                                 console.log('[Meta Inbox] Send template response:', data);
                                 if (data.success) {
                                   // Refresh messages to show the sent template
-                                  loadMessages(selected.leadId || selected._id || selected.phoneNumber);
+                                  loadMessages(selected.phoneNumber || selected.leadId || selected._id);
+                                  fetchMonthlyExpenses();
                                   closeActionModal();
                                 } else {
                                   console.error('[Meta Inbox] Template send failed:', data);

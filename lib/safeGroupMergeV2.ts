@@ -6,8 +6,8 @@
  * Solution: Variable gaps (no repeats) + compliance checking + failure monitoring
  *
  * Strategy:
- * - Hour 1: Add 60 participants (60-90 second random gaps, first 2 at 10s)
- * - Hour 2: Remove 60 participants (same safe gap pattern)
+ * - First 2 operations: 30 second warm-up
+ * - Rest: random 3-7 minute gaps, no repeats (human-like, non-robotic)
  * - Randomize processing order (group order, participant order)
  * - Stop if 20%+ operations fail (prevent cascading bans)
  * - Check compliance before each operation
@@ -32,6 +32,8 @@ interface MergeGroupV2Item {
   // Current operation
   currentParticipantIndex: number;
   currentParticipantId?: string;
+  // Transient-failure retries used on the current participant (reset on advance)
+  currentRetryCount?: number;
 
   // Safety & timing
   lastOperationTime: Date;
@@ -43,7 +45,7 @@ interface MergeGroupV2Item {
   errorLog: Array<{ participantId: string; error: string; timestamp: Date }>;
 
   // Status
-  status: 'pending' | 'in-progress' | 'completed' | 'failed' | 'blocked';
+  status: 'pending' | 'in-progress' | 'paused' | 'completed' | 'failed' | 'blocked' | 'cancelled';
 
   // Timestamps
   createdAt: Date;
@@ -59,10 +61,10 @@ interface MergeOperationGaps {
 }
 
 /**
- * Calculate variable gaps for group operations (~15/hour, matches QR send pace)
+ * Calculate variable gaps for group operations (~9/hour, matches QR send pace)
  * Pattern:
  * - Operations 1-2: 30 second warm-up
- * - Operations 3+: Random 120-360 second gaps (2–6 min, ~15/hr)
+ * - Operations 3+: Random 180-420 second gaps (3–7 min, ~9/hr)
  * - No repeated gaps (ensures human-like, non-robotic behavior)
  */
 export function calculateGroupOperationGaps(totalOperations: number): MergeOperationGaps {
@@ -76,10 +78,10 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
       // First 2 operations: 30 second warm-up
       gap = 30000;
     } else {
-      // Rest: Random 120-360 second gaps (2–6 min, ~15/hr — matches message pace)
+      // Rest: Random 180-420 second gaps (3–7 min, ~9/hr — non-robotic)
       let attempts = 0;
       do {
-        gap = Math.random() * (360000 - 120000) + 120000;
+        gap = Math.random() * (420000 - 180000) + 180000;
         attempts++;
       } while (gap === lastGap && attempts < 10);
     }
@@ -95,7 +97,7 @@ export function calculateGroupOperationGaps(totalOperations: number): MergeOpera
     gaps,
     totalMs,
     totalMinutes,
-    strategy: `First 2: 30s | Rest: 2–6 min random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
+    strategy: `First 2: 30s | Rest: 3–7 min random (no repeats) | Total: ~${totalMinutes}min for ${totalOperations} operations`,
   };
 }
 
@@ -170,6 +172,7 @@ export function createMergeGroupV2Entry(
     skippedOperations: 0,
 
     currentParticipantIndex: 0,
+    currentRetryCount: 0,
 
     lastOperationTime: now,
     nextOperationTime: new Date(now.getTime() + gaps[0]),
@@ -198,9 +201,9 @@ export function getNextGroupOperationGap(operationIndex: number, lastGap?: numbe
   let attempts = 0;
 
   do {
-    // 120–360s random (mean 240s = 4 min) → ~15 operations/hour, matching the
-    // QR message-send pace. No repeated gaps keeps it human/non-robotic.
-    gap = Math.random() * (360000 - 120000) + 120000;
+    // 180–420s random (mean 300s = 5 min) → ~9 operations/hour, non-robotic.
+    // No repeated gaps keeps it human/non-robotic.
+    gap = Math.random() * (420000 - 180000) + 180000;
     attempts++;
   } while (lastGap && gap === lastGap && attempts < 10);
 

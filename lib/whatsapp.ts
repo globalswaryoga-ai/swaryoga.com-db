@@ -15,6 +15,7 @@ import {
   isCircuitOpen,
   resetCircuit,
   withRetry,
+  metaCircuitKey,
   type ProviderType
 } from './whatsappProtection';
 import type { WhatsAppCredentials } from './whatsappAccounts';
@@ -23,6 +24,7 @@ import type { WhatsAppCredentials } from './whatsappAccounts';
 export { resetCircuit, isCircuitOpen } from './whatsappProtection';
 
 const OLD_CDN_HOST = 'swaryogadb.b-cdn.net';
+const OLD_CDN_HOSTS = [OLD_CDN_HOST, 'swaryoga.b-cdn.net'];
 const NEW_CDN_HOST = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
 
 /**
@@ -34,8 +36,9 @@ export async function getPublicMediaUrl(url: string): Promise<string> {
   if (!url) return url;
   
   // Fix old suspended Bunny CDN URLs → rewrite to new CDN host
-  if (url.includes(OLD_CDN_HOST)) {
-    const fixed = url.replace(OLD_CDN_HOST, NEW_CDN_HOST);
+  const oldHost = OLD_CDN_HOSTS.find(host => url.includes(host));
+  if (oldHost) {
+    const fixed = url.replace(oldHost, NEW_CDN_HOST);
     console.log(`[WHATSAPP] 🔄 Rewrote old Bunny CDN URL: ${fixed.substring(0, 80)}`);
     return fixed;
   }
@@ -358,11 +361,12 @@ export function buildGraphMessagesUrl(phoneNumberId: string, appSecretProof?: st
 export async function sendWhatsAppText(toRaw: string, body: string, creds?: WhatsAppCredentials): Promise<WhatsAppSendTextResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
-  console.log(`[sendWhatsAppText] to=${to}, envConfigured=${!!env}, circuitOpen=${isCircuitOpen('meta')}`);
+  console.log(`[sendWhatsAppText] to=${to}, envConfigured=${!!env}, circuitOpen=${isCircuitOpen(circuitKey)}`);
 
   // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
-  if (env && !isCircuitOpen('meta')) {
+  if (env && !isCircuitOpen(circuitKey)) {
     try {
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
@@ -411,20 +415,171 @@ export async function sendWhatsAppText(toRaw: string, body: string, creds?: What
         throw new Error(errorMsg);
       }, { maxRetries: 2 });
       
-      recordSuccess('meta');
+      recordSuccess(circuitKey);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordFailure('meta', msg);
+      recordFailure(circuitKey, msg);
       // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
       throw new Error(`WhatsApp sending failed via Meta Cloud API: ${msg}`);
     }
-  } else if (isCircuitOpen('meta')) {
+  } else if (isCircuitOpen(circuitKey)) {
     console.warn('[WHATSAPP] Meta circuit breaker OPEN');
     throw new Error('WhatsApp sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
   }
 
   throw new Error('WhatsApp sending failed: Meta Cloud API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
+}
+
+/**
+ * Shared Meta Cloud send wrapper: env/creds resolution, circuit breaker,
+ * retry, appsecret proof, and message-id extraction — used by the
+ * list/location/contact senders below (same behavior as sendWhatsAppText).
+ */
+async function sendMetaPayload(
+  label: string,
+  toRaw: string,
+  buildPayload: (to: string) => Record<string, unknown>,
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  const env = creds || getWhatsAppEnv();
+  const to = normalizePhone(toRaw);
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
+
+  if (!env) {
+    throw new Error('WhatsApp sending failed: Meta Cloud API is not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
+  }
+  if (isCircuitOpen(circuitKey)) {
+    throw new Error('WhatsApp sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
+  }
+
+  try {
+    const result = await withRetry(async () => {
+      const { accessToken, phoneNumberId, appSecret } = env;
+      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+      const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ messaging_product: 'whatsapp', to, ...buildPayload(to) }),
+        cache: 'no-store',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const waMessageId =
+          Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+        if (!waMessageId) {
+          throw new Error(`Meta API returned success but no message ID. Response: ${JSON.stringify(data)}`);
+        }
+        console.log(`[${label}] ✅ Success: ${waMessageId}`);
+        return { waMessageId, raw: { ...data, provider: 'meta' } };
+      }
+      console.error(`[${label}] ❌ Meta API error (${res.status}):`, JSON.stringify(data));
+      throw new Error(data?.error?.message || data?.error?.error_data?.details || 'Meta API error');
+    }, { maxRetries: 2 });
+
+    recordSuccess(circuitKey);
+    return result;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    recordFailure(circuitKey, msg);
+    throw new Error(`WhatsApp sending failed via Meta Cloud API: ${msg}`);
+  }
+}
+
+export interface WhatsAppListSection {
+  title: string;
+  rows: Array<{ id: string; title: string; description?: string }>;
+}
+
+/**
+ * Send an interactive LIST message (menu of up to 10 rows across sections) —
+ * richer than reply buttons (max 3) for class schedules, service menus, etc.
+ * https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-list-messages
+ */
+export async function sendWhatsAppInteractiveList(
+  toRaw: string,
+  opts: {
+    bodyText: string;
+    buttonText: string; // the button that opens the list, max 20 chars
+    sections: WhatsAppListSection[];
+    headerText?: string;
+    footerText?: string;
+  },
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  const totalRows = opts.sections.reduce((n, s) => n + (s.rows?.length || 0), 0);
+  if (!totalRows || totalRows > 10) {
+    throw new Error(`Interactive list needs 1–10 rows total (got ${totalRows})`);
+  }
+  return sendMetaPayload('sendWhatsAppInteractiveList', toRaw, () => ({
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      ...(opts.headerText ? { header: { type: 'text', text: opts.headerText.slice(0, 60) } } : {}),
+      body: { text: opts.bodyText.slice(0, 4096) },
+      ...(opts.footerText ? { footer: { text: opts.footerText.slice(0, 60) } } : {}),
+      action: {
+        button: opts.buttonText.slice(0, 20),
+        sections: opts.sections.map((s) => ({
+          title: s.title.slice(0, 24),
+          rows: s.rows.map((r) => ({
+            id: String(r.id).slice(0, 200),
+            title: r.title.slice(0, 24),
+            ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+          })),
+        })),
+      },
+    },
+  }), creds);
+}
+
+/** Send a map-pin location message. */
+export async function sendWhatsAppLocation(
+  toRaw: string,
+  opts: { latitude: number; longitude: number; name?: string; address?: string },
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  if (!isFinite(opts.latitude) || !isFinite(opts.longitude)) {
+    throw new Error('Valid latitude and longitude required');
+  }
+  return sendMetaPayload('sendWhatsAppLocation', toRaw, () => ({
+    type: 'location',
+    location: {
+      latitude: opts.latitude,
+      longitude: opts.longitude,
+      ...(opts.name ? { name: String(opts.name).slice(0, 100) } : {}),
+      ...(opts.address ? { address: String(opts.address).slice(0, 200) } : {}),
+    },
+  }), creds);
+}
+
+/** Send a tappable contact card. */
+export async function sendWhatsAppContactCard(
+  toRaw: string,
+  opts: { name: string; phone: string; organization?: string },
+  creds?: WhatsAppCredentials
+): Promise<WhatsAppSendTextResult> {
+  const phoneDigits = String(opts.phone || '').replace(/\D/g, '');
+  if (!opts.name || phoneDigits.length < 7) {
+    throw new Error('Contact name and a valid phone required');
+  }
+  return sendMetaPayload('sendWhatsAppContactCard', toRaw, () => ({
+    type: 'contacts',
+    contacts: [
+      {
+        name: { formatted_name: String(opts.name).slice(0, 100), first_name: String(opts.name).split(' ')[0] },
+        ...(opts.organization ? { org: { company: String(opts.organization).slice(0, 100) } } : {}),
+        phones: [{ phone: `+${phoneDigits}`, type: 'CELL', wa_id: phoneDigits }],
+      },
+    ],
+  }), creds);
 }
 
 /**
@@ -462,6 +617,7 @@ export async function sendWhatsAppInteractiveButtons(
 ): Promise<WhatsAppSendTextResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
   // WhatsApp reply buttons: max 3 buttons, title max 20 chars
   // Smart truncation: cut at word boundary to avoid mid-word cuts
@@ -543,11 +699,11 @@ export async function sendWhatsAppInteractiveButtons(
       throw new Error(data?.error?.message || 'Meta Interactive API error');
     }, { maxRetries: 2 });
 
-    recordSuccess('meta');
+    recordSuccess(circuitKey);
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    recordFailure('meta', msg);
+    recordFailure(circuitKey, msg);
     console.warn('[sendWhatsAppInteractiveButtons] Meta failed, falling back to text:', msg);
     // Fallback to numbered text
     const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
@@ -599,12 +755,13 @@ export async function sendWhatsAppMedia(
 ): Promise<WhatsAppSendMediaResult> {
   const env = creds || getWhatsAppEnv();
   const to = normalizePhone(toRaw);
-  
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
+
   // Convert S3 URLs to publicly accessible signed URLs
   const publicMediaUrl = await getPublicMediaUrl(mediaUrl);
 
   // Meta Cloud API ONLY — no QR bridge fallback (separate pipelines)
-  if (env && !isCircuitOpen('meta')) {
+  if (env && !isCircuitOpen(circuitKey)) {
     try {
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
@@ -666,15 +823,15 @@ export async function sendWhatsAppMedia(
         throw new Error(errorMsg);
       }, { maxRetries: 2 });
 
-      recordSuccess('meta');
+      recordSuccess(circuitKey);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordFailure('meta', msg);
+      recordFailure(circuitKey, msg);
       // IMPORTANT: Do NOT fall back to QR bridge. Meta and QR are separate pipelines.
       throw new Error(`WhatsApp media sending failed via Meta Cloud API: ${msg}`);
     }
-  } else if (isCircuitOpen('meta')) {
+  } else if (isCircuitOpen(circuitKey)) {
     console.warn('[WHATSAPP] Meta circuit breaker OPEN');
     throw new Error('WhatsApp media sending failed: Meta API circuit breaker is open (too many recent failures). Try again later.');
   }
@@ -782,6 +939,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
   const to = normalizePhone(input.to);
   const templateName = String(input.templateName || '').trim();
   if (!templateName) throw new Error('templateName is required');
+  const circuitKey = metaCircuitKey(env?.phoneNumberId);
 
   // Check if Meta API is configured
   if (!env) {
@@ -794,7 +952,7 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
   }
 
   // Try Meta Cloud API first (with circuit breaker)
-  if (!isCircuitOpen('meta')) {
+  if (!isCircuitOpen(circuitKey)) {
     try {
       const result = await withRetry(async () => {
         const { accessToken, phoneNumberId, appSecret } = env;
@@ -868,11 +1026,11 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput, cre
         return { waMessageId, raw: { ...data, provider: 'meta' } };
       }, { maxRetries: 2 });
 
-      recordSuccess('meta');
+      recordSuccess(circuitKey);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordFailure('meta', msg);
+      recordFailure(circuitKey, msg);
       throw new Error(`WhatsApp template sending failed via Meta API: ${msg}`);
     }
   }

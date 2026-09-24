@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogOut, UserCheck, Bell, ScrollText, Sparkles, UsersRound } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, UserCheck, Bell, ScrollText, Sparkles, UsersRound, FileQuestion } from 'lucide-react';
 
 type AdminUserPayload = {
   userId?: string;
@@ -218,6 +218,15 @@ export default function AdminRoot() {
               cta="→ Manage Members"
               gradientClass="bg-gradient-to-br from-emerald-600 to-teal-800"
               icon={<UsersRound size={40} className="text-white" />}
+            />
+            <Card
+              href="/admin/form-questions"
+              enabled={true}
+              title="Form Questions"
+              description="Build dynamic form questions, set required/optional status, add options, and reorder fields."
+              cta="→ Manage Questions"
+              gradientClass="bg-gradient-to-br from-indigo-600 to-violet-800"
+              icon={<FileQuestion size={40} className="text-white" />}
             />
           </div>
         )}

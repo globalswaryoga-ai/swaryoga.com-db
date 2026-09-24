@@ -1,8 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Wifi, Loader2, Save, Funnel, Plus, Pencil, Tag, Settings, RefreshCw, Unplug, LogOut, Shield, Users, Check, X, Lock, Eye, EyeOff, Copy, ClipboardCheck, Key, HardDrive, Download, CloudUpload, AlertTriangle } from 'lucide-react';
 import type { FunnelStage, LabelPreset } from '../types';
+import BackupPanel from './BackupPanel';
+import QuickLinksPanel from './QuickLinksPanel';
 
 type QRAccessUser = {
   userId: string;
@@ -13,6 +16,7 @@ type QRAccessUser = {
   hasOwnBridge: boolean;
   bridgeUrl: string;
   bridgeSecret: string;
+  extensionEnabled: boolean;
 };
 
 export interface SettingsTabProps {
@@ -59,6 +63,111 @@ export function SettingsTab({
   const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
   const [copiedSecret, setCopiedSecret] = useState<string | null>(null);
   const [showBridgeSecret, setShowBridgeSecret] = useState(false);
+
+  // ── Chat Storage Usage (informational only, no quota/enforcement) ──
+  const [storageUsage, setStorageUsage] = useState<{
+    bunnyBytes: number; bunnyMessageCount: number; lastArchivedAt: string | null; retentionDays: number;
+  } | null>(null);
+
+  // ── Google Drive Backup ──
+  const searchParams = useSearchParams();
+  const [driveStatus, setDriveStatus] = useState<{
+    connected: boolean; googleEmail?: string; needsReconnect?: boolean; lastSyncedAt?: string | null; lastError?: string;
+  } | null>(null);
+  const [driveConnecting, setDriveConnecting] = useState(false);
+  const [driveBackingUp, setDriveBackingUp] = useState(false);
+  const [driveDisconnecting, setDriveDisconnecting] = useState(false);
+  const [driveBanner, setDriveBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const refreshDriveStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/qr-drive-status', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) setDriveStatus(await res.json());
+    } catch {
+      // non-fatal
+    }
+  }, [token]);
+
+  useEffect(() => {
+    refreshDriveStatus();
+  }, [refreshDriveStatus]);
+
+  // Show a banner after returning from the Google Drive OAuth redirect
+  useEffect(() => {
+    const driveConnect = searchParams?.get('driveConnect');
+    if (driveConnect) {
+      if (driveConnect === 'success') {
+        const email = searchParams.get('email');
+        setDriveBanner({ type: 'success', message: email ? `Connected to Google Drive as ${email}.` : 'Connected to Google Drive.' });
+        refreshDriveStatus();
+      } else if (driveConnect === 'error') {
+        const reason = searchParams.get('reason') || 'unknown_error';
+        setDriveBanner({ type: 'error', message: `Couldn't connect Google Drive: ${reason.replace(/_/g, ' ')}` });
+      }
+    }
+  }, [searchParams, refreshDriveStatus]);
+
+  const connectDrive = useCallback(async () => {
+    if (!token) return;
+    setDriveConnecting(true);
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/qr-drive-connect', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data?.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setDriveBanner({ type: 'error', message: data?.error || 'Failed to start Google Drive connection' });
+      }
+    } catch (e: any) {
+      setDriveBanner({ type: 'error', message: e?.message || 'Failed to start Google Drive connection' });
+    } finally {
+      setDriveConnecting(false);
+    }
+  }, [token]);
+
+  const disconnectDrive = useCallback(async () => {
+    if (!token) return;
+    setDriveDisconnecting(true);
+    try {
+      await fetch('/api/admin/crm/whatsapp/qr-drive-connect/disconnect', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      setDriveStatus({ connected: false });
+      setDriveBanner(null);
+    } finally {
+      setDriveDisconnecting(false);
+    }
+  }, [token]);
+
+  const backupNowToDrive = useCallback(async () => {
+    if (!token) return;
+    setDriveBackingUp(true);
+    setDriveBanner(null);
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/qr-drive-backup', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDriveBanner({ type: 'success', message: `Backed up ${data.totalMessages?.toLocaleString() || 0} messages across ${data.chatsCount || 0} chats to Drive.` });
+        refreshDriveStatus();
+      } else {
+        setDriveBanner({ type: 'error', message: data?.error || 'Backup failed' });
+        if (res.status === 409) refreshDriveStatus();
+      }
+    } catch (e: any) {
+      setDriveBanner({ type: 'error', message: e?.message || 'Backup failed' });
+    } finally {
+      setDriveBackingUp(false);
+    }
+  }, [token, refreshDriveStatus]);
 
   // Toggle bridge secret visibility for a user
   const toggleSecretVisibility = (userId: string) => {
@@ -128,8 +237,25 @@ export function SettingsTab({
     return () => { cancelled = true; };
   }, [isSuperAdmin, token]);
 
+  // Load chat storage usage (informational display, no enforcement)
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch('/api/admin/crm/whatsapp/qr-storage-usage', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (!cancelled && data) setStorageUsage(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token]);
+
   // Toggle QR access for a user
-  const toggleUserAccess = useCallback(async (targetUserId: string, enabled: boolean) => {
+  const toggleUserAccess = useCallback(async (
+    targetUserId: string,
+    enabled: boolean,
+    field: 'qrWhatsappEnabled' | 'extensionEnabled' = 'qrWhatsappEnabled'
+  ) => {
     if (togglingUser || !token) return;
     setTogglingUser(targetUserId);
     setAccessError(null);
@@ -141,7 +267,7 @@ export function SettingsTab({
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ targetUserId, qrWhatsappEnabled: enabled }),
+        body: JSON.stringify({ targetUserId, [field]: enabled }),
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -152,7 +278,7 @@ export function SettingsTab({
         throw new Error(serverMessage || `Failed: ${response.status}`);
       }
       setQrAccessUsers(prev =>
-        prev.map(u => u.userId === targetUserId ? { ...u, qrWhatsappEnabled: enabled } : u)
+        prev.map(u => u.userId === targetUserId ? { ...u, [field]: enabled } : u)
       );
     } catch (e: any) {
       setAccessError(e?.message || 'Failed to update access');
@@ -162,6 +288,9 @@ export function SettingsTab({
   }, [token, togglingUser]);
   return (
     <div className="max-w-4xl mx-auto mt-6 px-6 pb-8 space-y-6">
+
+      {/* ── Quick Links Panel ── */}
+      <QuickLinksPanel />
 
       {/* ── Bridge Configuration ── */}
       <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
@@ -229,6 +358,157 @@ export function SettingsTab({
               Your messages are isolated server-side by your account session — no data is shared between accounts
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* ── Chat Storage Usage ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+            <HardDrive className="w-4 h-4 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Chat Storage</h3>
+            <p className="text-xs text-gray-500">Your WhatsApp chat history, archived to secure cloud storage</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          {storageUsage ? (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Archived chat history</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {(storageUsage.bunnyBytes / (1024 * 1024)).toFixed(storageUsage.bunnyBytes > 1024 * 1024 * 1024 ? 2 : 1)}
+                  {storageUsage.bunnyBytes > 1024 * 1024 * 1024 ? ' GB' : ' MB'}
+                  {' '}({storageUsage.bunnyMessageCount.toLocaleString()} messages)
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                Messages older than a day move here automatically each night; kept for {storageUsage.retentionDays} days ({Math.round(storageUsage.retentionDays / 30)} months), then removed.
+                {storageUsage.lastArchivedAt && ` Last updated ${new Date(storageUsage.lastArchivedAt).toLocaleString()}.`}
+              </p>
+              <a
+                href={`/api/admin/crm/whatsapp/qr-chat-export?token=${encodeURIComponent(token || '')}`}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+              >
+                <Download className="w-3.5 h-3.5" /> Download my chat history
+              </a>
+            </>
+          ) : (
+            <p className="text-xs text-gray-400">Loading storage usage…</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Google Drive Backup ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+            <CloudUpload className="w-4 h-4 text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Google Drive Backup</h3>
+            <p className="text-xs text-gray-500">Mirror your WhatsApp chat history to your own Google Drive</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          {driveBanner && (
+            <div className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-xs ${
+              driveBanner.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {driveBanner.type === 'success' ? <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+              <span>{driveBanner.message}</span>
+            </div>
+          )}
+
+          {!driveStatus ? (
+            <p className="text-xs text-gray-400">Loading…</p>
+          ) : !driveStatus.connected ? (
+            <>
+              <p className="text-xs text-gray-500">
+                Connect your Google Drive so a copy of your archived chat history lands there too — accessible independently of this app, any time.
+              </p>
+              <button
+                type="button"
+                onClick={connectDrive}
+                disabled={driveConnecting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition"
+              >
+                {driveConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                Connect Google Drive
+              </button>
+              <p className="text-[10px] text-gray-400">
+                Google may show an "unverified app" warning during connect — that's expected until this integration completes Google's app review; choose Advanced → Go to app to continue.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs text-gray-700">Connected as <strong>{driveStatus.googleEmail || 'your Google account'}</strong></span>
+                </div>
+              </div>
+              {driveStatus.needsReconnect && (
+                <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>Your Drive connection expired (Google requires reconnecting periodically for this app). Reconnect to resume backups.</span>
+                </div>
+              )}
+              <p className="text-[10px] text-gray-400">
+                {driveStatus.lastSyncedAt ? `Last backed up ${new Date(driveStatus.lastSyncedAt).toLocaleString()}. ` : ''}
+                Backs up automatically every night alongside the regular archive.
+              </p>
+              <div className="flex items-center gap-2">
+                {driveStatus.needsReconnect ? (
+                  <button
+                    type="button"
+                    onClick={connectDrive}
+                    disabled={driveConnecting}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition"
+                  >
+                    {driveConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Reconnect
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={backupNowToDrive}
+                    disabled={driveBackingUp}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition"
+                  >
+                    {driveBackingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                    Backup Now
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={disconnectDrive}
+                  disabled={driveDisconnecting}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 hover:bg-gray-50 disabled:opacity-60 text-gray-600 text-xs font-medium rounded-lg transition"
+                >
+                  {driveDisconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unplug className="w-3.5 h-3.5" />}
+                  Disconnect
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── WhatsApp Chat Backup ── */}
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
+            <CloudUpload className="w-4 h-4 text-cyan-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Chat Backup & Recovery</h3>
+            <p className="text-xs text-gray-500">Automatic backup of all chats, contacts, and messages with 1-3 year retention</p>
+          </div>
+        </div>
+        <div className="p-6">
+          <BackupPanel token={token} />
         </div>
       </div>
 
@@ -390,21 +670,21 @@ export function SettingsTab({
         </div>
       </div>
 
-      {/* ── PC Extension ── */}
+      {/* ── Browser Extension ── */}
       <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
         <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-            <span className="text-sm">📥</span>
+          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+            <span className="text-sm">🧩</span>
           </div>
           <div>
-            <h3 className="text-sm font-bold text-gray-900">PC Extension</h3>
-            <p className="text-xs text-gray-500">Download the desktop extension for advanced features</p>
+            <h3 className="text-sm font-bold text-gray-900">Browser Extension</h3>
+            <p className="text-xs text-gray-500">CRM sidebar + AI Fix/Reply on your own personal WhatsApp Web</p>
           </div>
         </div>
         <div className="p-6 flex items-center gap-4">
           <button
             onClick={() => setShowExtensionModal(true)}
-            className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-2 transition"
+            className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-2 transition"
           >
             📥 Download Extension
           </button>
@@ -425,8 +705,8 @@ export function SettingsTab({
               <Shield className="w-4 h-4 text-red-600" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900">QR WhatsApp Access Control</h3>
-              <p className="text-xs text-gray-500">Manage which users can access QR WhatsApp (privacy compartment)</p>
+              <h3 className="text-sm font-bold text-gray-900">QR WhatsApp &amp; Browser Extension Access</h3>
+              <p className="text-xs text-gray-500">Manage which users can access the shared QR bridge and/or the browser extension</p>
             </div>
           </div>
           <div className="p-6 space-y-4">
@@ -458,9 +738,10 @@ export function SettingsTab({
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-500">
                   <div className="col-span-2">User</div>
                   <div className="col-span-2">Role</div>
-                  <div className="col-span-2">Bridge</div>
-                  <div className="col-span-4">Bridge Secret</div>
+                  <div className="col-span-1">Bridge</div>
+                  <div className="col-span-3">Bridge Secret</div>
                   <div className="col-span-2 text-center">QR Access</div>
+                  <div className="col-span-2 text-center">Extension</div>
                 </div>
                 {/* User rows */}
                 {qrAccessUsers
@@ -482,7 +763,7 @@ export function SettingsTab({
                             {isSelf ? '👑 Super Admin' : user.role || 'admin'}
                           </span>
                         </div>
-                        <div className="col-span-2">
+                        <div className="col-span-1">
                           {user.hasOwnBridge ? (
                             <span className="inline-flex items-center gap-1 text-xs text-green-700">
                               <Check className="w-3 h-3" /> Own
@@ -493,7 +774,7 @@ export function SettingsTab({
                             </span>
                           )}
                         </div>
-                        <div className="col-span-4">
+                        <div className="col-span-3">
                           {user.bridgeSecret ? (
                             <div className="flex items-center gap-1">
                               <Key className="w-3 h-3 text-amber-500 flex-shrink-0" />
@@ -545,6 +826,28 @@ export function SettingsTab({
                               ) : (
                                 <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
                                   user.qrWhatsappEnabled ? 'translate-x-4.5' : 'translate-x-1'
+                                }`} />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                        <div className="col-span-2 flex justify-center">
+                          {isSelf ? (
+                            <span className="text-[10px] text-purple-500 font-medium">Always On</span>
+                          ) : (
+                            <button
+                              onClick={() => toggleUserAccess(user.userId, !user.extensionEnabled, 'extensionEnabled')}
+                              disabled={togglingUser === user.userId}
+                              title="Browser extension access"
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                user.extensionEnabled ? 'bg-emerald-500' : 'bg-gray-300'
+                              } ${togglingUser === user.userId ? 'opacity-50' : ''}`}
+                            >
+                              {togglingUser === user.userId ? (
+                                <Loader2 className="w-3 h-3 animate-spin text-white absolute left-1/2 -translate-x-1/2" />
+                              ) : (
+                                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                  user.extensionEnabled ? 'translate-x-4.5' : 'translate-x-1'
                                 }`} />
                               )}
                             </button>

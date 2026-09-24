@@ -1,10 +1,8 @@
 import { NextRequest } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
-import { getTenantModel } from '@/lib/tenant/tenantSchemas';
 import { computeTrialState } from '@/lib/tenant/trial';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,28 +22,15 @@ export async function GET(req: NextRequest) {
       return apiError('Unauthorized', 401);
     }
 
-    await connectDB();
-    const crmDb = mongoose.connection.useDb(
-      process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm',
-    );
-
-    // Resolve the tenant identity from the login record.
-    const uid = decoded.userId;
-    const user = await crmDb.collection('admin_users').findOne(
-      { $or: [{ userId: uid }, { email: uid }] },
-      { projection: { tenantSlug: 1, email: 1, userId: 1 } },
-    );
-
-    const slug = String(user?.tenantSlug || '').trim();
-    const email = String(user?.email || uid || '').trim().toLowerCase();
-
-    const Tenant = getTenantModel();
-    // Prefer the tenant slug; fall back to owner email / id for older records.
-    const tenant: any = await Tenant.findOne(
-      slug
-        ? { slug }
-        : { $or: [{ ownerEmail: email }, { ownerUserId: user?.userId || uid }] },
-    ).lean();
+    const uid = String(decoded.userId || '');
+    const userResult = await bunnyExecute({ sql: 'SELECT tenant_slug,email,user_id FROM admin_users_sql WHERE lower(user_id)=lower(?) OR lower(email)=lower(?) LIMIT 1', args: [uid, uid] });
+    const user: any = userResult.rows[0] || {};
+    const slug = String(user.tenant_slug || (decoded as any).tenantSlug || '').trim();
+    const tenantResult = slug
+      ? await bunnyExecute({ sql: 'SELECT data_json FROM crm_tenants_sql WHERE tenant_slug = ? LIMIT 1', args: [slug] })
+      : await bunnyExecute({ sql: 'SELECT data_json FROM crm_tenants_sql WHERE json_extract(data_json, \'$.ownerUserId\') = ? OR lower(json_extract(data_json, \'$.ownerEmail\')) = lower(?) LIMIT 1', args: [uid, String(user.email || uid)] });
+    let tenant: any = null;
+    if (tenantResult.rows[0]) { try { tenant = JSON.parse(String(tenantResult.rows[0].data_json)); } catch {} }
 
     if (!tenant) {
       return apiSuccess({ found: false, slug: '', plan: '', status: '', moduleKeys: [], trial: computeTrialState(null) });

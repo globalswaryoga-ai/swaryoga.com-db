@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner } from '@/components/admin/crm';
+import SocialComposer from '@/components/admin/crm/SocialComposer';
+import SocialBulkSendModal from '@/components/admin/crm/SocialBulkSendModal';
 
 /* ─── Types ─── */
 interface Conversation {
   _id: string;
-  name: string;
+  participantName?: string;
   participantId?: string;
+  participantUsername?: string;
+  participantProfilePic?: string;
   pageId?: string;
   pageScopedId?: string;
   phoneNumber?: string;
@@ -94,6 +98,32 @@ export default function MessengerInboxPage() {
   const [connecting, setConnecting] = useState(false);
   const [pageOptions, setPageOptions] = useState<{ pageId: string; name: string; picture?: string | null; hasInstagram?: boolean }[] | null>(null);
   const [pendingUserToken, setPendingUserToken] = useState('');
+
+  // Send failures are shown separately from connection failures — a rejected
+  // send does not mean the Page connection is broken.
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // Bulk selection for sending one template/message to many conversations.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const quickReplies = [
+    { label: 'Thank you! 🙏', text: 'Thank you for your interest! We\'ll get back to you soon.' },
+    { label: 'Enrolled ✅', text: 'Great! You\'re successfully enrolled. Check your email for course details.' },
+    { label: 'Thanks for feedback', text: 'Thank you for the feedback! We appreciate your input.' },
+    { label: 'Welcome 👋', text: 'Welcome to Swar Yoga! We\'re excited to have you here.' },
+    { label: 'Need info? 📚', text: 'Sure! What information would you like to know about our programs?' },
+    { label: 'Bye! 👋', text: 'Thank you! See you soon. Namaste 🙏' },
+  ];
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const tabRoutes: Record<string, string> = {
@@ -172,7 +202,7 @@ export default function MessengerInboxPage() {
         FB.login(
           (response: any) => resolve(response),
           {
-            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management',
+            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_manage_messages,instagram_content_publish,business_management',
             ...(process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID
               ? { config_id: process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID }
               : {}),
@@ -246,11 +276,11 @@ export default function MessengerInboxPage() {
     });
   }, []);
 
-  const loadMessengerMessages = useCallback(async (conversationId: string) => {
+  const loadMessengerMessages = useCallback(async (conversationId: string, silent = false) => {
     const adminToken = getStoredAdminToken();
     if (!adminToken || !conversationId) return;
 
-    setLoadingMessages(true);
+    if (!silent) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/admin/crm/social-inbox/messages?platform=messenger&conversationId=${encodeURIComponent(conversationId)}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
@@ -265,18 +295,22 @@ export default function MessengerInboxPage() {
       setMessages(loadedMessages);
       if (conversation) {
         setSelected(conversation);
-        syncSidebarFromConversation(conversation);
+        // Skip on silent (background) refreshes — overwriting these while an
+        // admin is mid-edit in the sidebar looks like the fields "vibrating".
+        if (!silent) syncSidebarFromConversation(conversation);
         setConversations((prev) => prev.map((item) => (item._id === conversation._id ? { ...item, ...conversation, unreadCount: 0 } : item)));
       }
     } catch (error) {
-      setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger messages');
-      setMessages([]);
+      if (!silent) {
+        setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger messages');
+        setMessages([]);
+      }
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   }, [getStoredAdminToken, syncSidebarFromConversation]);
 
-  const loadMessengerConversations = useCallback(async () => {
+  const loadMessengerConversations = useCallback(async (silent = false) => {
     const adminToken = getStoredAdminToken();
     if (!adminToken) return;
 
@@ -295,10 +329,11 @@ export default function MessengerInboxPage() {
         const refreshedSelected = rows.find((item: Conversation) => item._id === selected._id) || null;
         if (refreshedSelected) {
           setSelected(refreshedSelected);
-          syncSidebarFromConversation(refreshedSelected);
+          if (!silent) syncSidebarFromConversation(refreshedSelected);
         }
       }
     } catch (error) {
+      if (silent) return;
       setConnectionError(error instanceof Error ? error.message : 'Failed to load Messenger conversations');
       setConversations([]);
     }
@@ -448,6 +483,18 @@ export default function MessengerInboxPage() {
     if (!composerText.trim() || !selected) return;
     const messageText = composerText.trim();
     setComposerText('');
+
+    // Show the message immediately instead of waiting on the round trip —
+    // otherwise a slow send looks like nothing happened.
+    const optimisticMessage: Message = {
+      _id: `temp-${Date.now()}`,
+      direction: 'outbound',
+      messageContent: messageText,
+      sentAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+
     try {
       const adminToken = getStoredAdminToken();
       const res = await fetch('/api/admin/crm/social-inbox/messages', {
@@ -466,17 +513,26 @@ export default function MessengerInboxPage() {
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to send Messenger message');
       }
-      await loadMessengerMessages(selected._id);
-      await loadMessengerConversations();
+      // Refresh to get the real message — silent so the panel doesn't blank
+      // out while it re-fetches.
+      await loadMessengerMessages(selected._id, true);
+      await loadMessengerConversations(true);
     } catch (error) {
       setComposerText(messageText);
-      setConnectionError(error instanceof Error ? error.message : 'Failed to send Messenger message');
+      setMessages((prev) => prev.filter((m) => m._id !== optimisticMessage._id));
+      setSendError(error instanceof Error ? error.message : 'Failed to send Messenger message');
     }
   };
 
-  const filteredConversations = conversations.filter(c =>
-    !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.phoneNumber || '').includes(searchQuery)
-  );
+  const filteredConversations = conversations.filter(c => {
+    const query = searchQuery.trim().toLowerCase();
+    return !query
+      || (c.participantName || '').toLowerCase().includes(query)
+      || (c.participantUsername || '').toLowerCase().includes(query)
+      || (c.participantId || '').toLowerCase().includes(query)
+      || (c.phoneNumber || '').toLowerCase().includes(query)
+      || (c.notes || '').toLowerCase().includes(query);
+  });
 
   const connectionBadgeLabel = facebookAccount
     ? `Connected · ${facebookAccount.accountName}`
@@ -562,6 +618,15 @@ export default function MessengerInboxPage() {
             <i className="ph-bold ph-funnel text-xs"></i>
             <span className="hidden lg:inline uppercase tracking-wider">Funnel</span>
           </button>
+          <button
+            onClick={() => router.push('/admin/social-media')}
+            title="Post a new photo, video or reel to Facebook/Instagram"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-bold text-[10px] text-white transition-all duration-200 hover:shadow-lg hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)' }}
+          >
+            <i className="ph-bold ph-plus-circle text-xs"></i>
+            <span className="uppercase tracking-wider">New Post</span>
+          </button>
         </div>
       </header>
 
@@ -577,11 +642,48 @@ export default function MessengerInboxPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search conversations..."
+                placeholder="Search by name or user ID..."
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/80 backdrop-blur-sm shadow-sm border border-indigo-100 text-xs font-medium focus:ring-2 focus:ring-indigo-300/30 focus:border-indigo-400 outline-none transition-all"
               />
             </div>
           </div>
+
+          {/* Bulk selection bar */}
+          {filteredConversations.length > 0 && (
+            <div className="px-3 pb-2 flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 cursor-pointer accent-[#0078FF]"
+                  checked={filteredConversations.length > 0 && filteredConversations.every((c) => selectedIds.has(c._id))}
+                  onChange={(e) =>
+                    setSelectedIds(e.target.checked ? new Set(filteredConversations.map((c) => c._id)) : new Set())
+                  }
+                />
+                Select all
+              </label>
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-[11px] text-slate-400">{selectedIds.size} selected</span>
+                  <button
+                    onClick={() => setBulkOpen(true)}
+                    className="ml-auto px-2.5 py-1 rounded-lg text-[11px] font-bold text-white transition-all active:scale-95 flex items-center gap-1"
+                    style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)' }}
+                  >
+                    <i className="ph-bold ph-paper-plane-right text-xs"></i>
+                    Send template
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 hover:bg-slate-100"
+                    title="Clear selection"
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Conversation List */}
           <div className="flex-1 overflow-y-auto">
@@ -589,6 +691,36 @@ export default function MessengerInboxPage() {
               <div className="mx-3 mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
                 <div className="font-bold">Facebook connection check failed</div>
                 <div className="mt-0.5">{connectionError}</div>
+              </div>
+            ) : null}
+
+            {sendError ? (
+              <div className="mx-3 mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-bold">
+                      {/human agent/i.test(sendError)
+                        ? 'Reply window expired (auto-extend needs approval)'
+                        : /(#10)|outside of allowed window/i.test(sendError)
+                          ? "Outside Meta's reply window"
+                          : /not the thread owner/i.test(sendError)
+                            ? 'Waiting for their first message'
+                            : 'Message not sent'}
+                    </div>
+                    <div className="mt-0.5 leading-snug">
+                      {/human agent/i.test(sendError)
+                        ? 'We automatically tried extending the reply window to 7 days, but that needs Meta to approve our "Human Agent" access first (pending App Review). Once approved this will work automatically — no action needed here.'
+                        : /(#10)|outside of allowed window/i.test(sendError)
+                          ? 'We tried sending — Meta blocked it because this chat is too old. It will unblock the moment they message you again.'
+                          : /not the thread owner/i.test(sendError)
+                            ? "Meta hasn't linked this chat to our app yet — this happens on conversations imported from history that this contact hasn't messaged since we connected. Ask them to send any new message here; once it arrives, replying will work immediately."
+                            : sendError}
+                    </div>
+                  </div>
+                  <button onClick={() => setSendError(null)} className="p-1 rounded hover:bg-amber-100 shrink-0" title="Dismiss">
+                    <i className="ph ph-x"></i>
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -607,7 +739,7 @@ export default function MessengerInboxPage() {
                     ? `Connected to ${facebookAccount.accountName}. Messenger chats will appear here as soon as people message the connected Page and the Meta inbox webhook is subscribed.`
                     : connectionRestricted
                       ? 'Only the Super Admin can connect the shared Facebook Page from Social Media Setup.'
-                      : 'Connect your Facebook Page first, then Messenger conversations can start landing here.'}
+                      : 'Connect your Facebook Page to receive Messenger chats here and to publish videos/posts to Facebook and Instagram from Social Media.'}
                 </p>
                 {!connectionRestricted && (
                   <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
@@ -642,12 +774,28 @@ export default function MessengerInboxPage() {
                       : 'bg-white border border-indigo-100/50 rounded-lg mx-1 my-0.5 hover:border-indigo-300/30 hover:shadow-sm hover:translate-x-[2px]'
                   }`}
                 >
-                  <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: 'linear-gradient(135deg, #0078FF, #00A3FF)' }}>
-                    {conv.name?.[0]?.toUpperCase() || 'U'}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(conv._id)}
+                    onChange={(e) => { e.stopPropagation(); toggleSelected(conv._id); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-2.5 h-4 w-4 shrink-0 cursor-pointer accent-[#0078FF]"
+                    title="Select for bulk send"
+                  />
+                  {conv.participantProfilePic ? (
+                    <img
+                      src={conv.participantProfilePic}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover shrink-0 bg-slate-100"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                    />
+                  ) : null}
+                  <div className={`h-9 w-9 rounded-full items-center justify-center text-white font-bold text-sm shrink-0 ${conv.participantProfilePic ? 'hidden' : 'flex'}`} style={{ background: 'linear-gradient(135deg, #0078FF, #00A3FF)' }}>
+                    {conv.participantName?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.name || 'Unknown'}</span>
+                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.participantName || 'Unknown'}</span>
                       <span className="text-[10px] text-slate-400 shrink-0">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : ''}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 truncate mt-0.5">{conv.lastMessage || 'No messages'}</p>
@@ -668,7 +816,7 @@ export default function MessengerInboxPage() {
                   <i className="ph ph-user text-sm"></i>
                 </div>
                 <div>
-                  <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
+                  <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.participantName || 'Unknown'}</div>
                   <div className="text-[10px] font-semibold text-slate-400 mt-0.5">{selected.participantId || selected.pageId || 'Messenger'}</div>
                 </div>
                 <div className="ml-auto">
@@ -727,27 +875,32 @@ export default function MessengerInboxPage() {
               </div>
 
               {/* Composer */}
-              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,244,255,0.9) 100%)', borderTop: '1px solid rgba(0,120,255,0.1)' }}>
-                <div className="flex items-end gap-2 max-w-6xl mx-auto">
-                  <div className="flex-1 rounded-lg bg-white/80 backdrop-blur-sm transition-all relative" style={{ border: '1px solid rgba(0,120,255,0.15)', boxShadow: '0 2px 8px rgba(0,120,255,0.06)' }}>
-                    <textarea
-                      value={composerText}
-                      onChange={(e) => setComposerText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                      placeholder="Type a message..."
-                      rows={1}
-                      className="w-full px-3 py-2 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] resize-none bg-transparent outline-none"
-                    />
-                  </div>
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!composerText.trim()}
-                    className="text-white h-8 px-4 rounded-lg font-bold text-xs transition-all active:scale-95 disabled:opacity-40 flex items-center gap-1.5 self-end hover:shadow-lg hover:scale-105"
-                    style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)', boxShadow: '0 2px 8px rgba(0,120,255,0.3)' }}
-                  >
-                    <i className="ph-bold ph-paper-plane-right text-sm"></i>
-                    <span className="hidden xl:inline">Send</span>
-                  </button>
+              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md flex items-end gap-2" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(240,244,255,0.9) 100%)', borderTop: '1px solid rgba(0,120,255,0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => router.push('/admin/social-media')}
+                  title="Post a new photo, video or reel"
+                  className="shrink-0 h-11 w-11 rounded-xl flex items-center justify-center text-white shadow-md hover:scale-105 transition-transform"
+                  style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)' }}
+                >
+                  <i className="ph-fill ph-image-square text-lg"></i>
+                </button>
+                <div className="flex-1">
+                  <SocialComposer
+                    value={composerText}
+                    onChange={setComposerText}
+                    onSend={handleSendMessage}
+                    token={token}
+                    replyContext={[...messages].reverse().find((m) => m.direction === 'inbound')?.messageContent || ''}
+                    quickReplies={quickReplies}
+                    accent={{
+                      color: '#0078FF',
+                      soft: 'rgba(0,120,255,0.08)',
+                      border: 'rgba(0,120,255,0.15)',
+                      sendBg: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)',
+                      sendShadow: '0 2px 8px rgba(0,120,255,0.3)',
+                    }}
+                  />
                 </div>
               </div>
             </>
@@ -816,11 +969,20 @@ export default function MessengerInboxPage() {
             {/* Avatar */}
             <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(0,120,255,0.1)' }}>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0" style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 50%, #0078FF 100%)', boxShadow: '0 4px 12px rgba(0,120,255,0.3)' }}>
-                  {selected.name?.[0]?.toUpperCase() || 'U'}
+                {selected.participantProfilePic ? (
+                  <img
+                    src={selected.participantProfilePic}
+                    alt=""
+                    className="w-12 h-12 rounded-2xl object-cover shrink-0 bg-slate-100"
+                    style={{ boxShadow: '0 4px 12px rgba(0,120,255,0.3)' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                  />
+                ) : null}
+                <div className={`w-12 h-12 rounded-2xl items-center justify-center text-white font-extrabold text-xl shrink-0 ${selected.participantProfilePic ? 'hidden' : 'flex'}`} style={{ background: 'linear-gradient(135deg, #0078FF 0%, #00A3FF 50%, #0078FF 100%)', boxShadow: '0 4px 12px rgba(0,120,255,0.3)' }}>
+                  {selected.participantName?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.name || 'Unknown'}</h3>
+                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.participantName || 'Unknown'}</h3>
                   <p className="text-xs text-slate-500">Messenger</p>
                 </div>
               </div>
@@ -915,6 +1077,17 @@ export default function MessengerInboxPage() {
           </div>
         </div>
       )}
+
+      <SocialBulkSendModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        platform="messenger"
+        conversationIds={Array.from(selectedIds)}
+        token={token}
+        accentColor="#0078FF"
+        accentGradient="linear-gradient(135deg, #0078FF 0%, #00A3FF 100%)"
+        onSent={() => { setSelectedIds(new Set()); loadMessengerConversations(); }}
+      />
 
       {/* Phosphor Icons CDN + Font */}
       <style jsx global>{`

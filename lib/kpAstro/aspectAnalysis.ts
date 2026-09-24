@@ -41,7 +41,7 @@ function buildOrbByPlanet(): Record<string, number> {
   return result;
 }
 
-const ORB_BY_PLANET = buildOrbByPlanet();
+export const ORB_BY_PLANET = buildOrbByPlanet();
 
 export function longitudeOf(planet: AspectPlanet): number {
   const signIndex = planet.sign ? ZODIAC_SIGNS.indexOf(planet.sign) : -1;

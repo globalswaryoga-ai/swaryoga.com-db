@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastRunMessage, Lead, SalesReport, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId, isSuperAdmin, getVisibleUserIds } from '@/lib/crm-handlers';
+import { getBunnyAnalyticsOverview } from '@/lib/bunnyDashboardRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,21 +40,37 @@ export async function GET(request: NextRequest) {
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
 
-    try {
-      await connectDB();
-    } catch (dbErr: any) {
-      console.error('❌ Database connection error in Analytics:', dbErr);
-      return NextResponse.json(
-        { error: 'Database connection failed', details: dbErr.message },
-        { status: 503 }
-      );
-    }
-
     const dateRange: any = {};
     if (startDate) dateRange.$gte = new Date(startDate);
     if (endDate) dateRange.$lte = new Date(endDate);
 
     const hasDateRange = Object.keys(dateRange).length > 0;
+
+    // The overview is available from Bunny SQL while MongoDB is being retired.
+    // Keep this fast path before connectDB so Atlas outages do not break the CRM dashboard.
+    if (view === 'overview') {
+      const overview = await getBunnyAnalyticsOverview({
+        visibleUserIds,
+        viewerUserId,
+        superAdmin,
+        startDate,
+        endDate,
+      });
+      return NextResponse.json({ success: true, data: { overview } });
+    }
+
+    // Legacy detailed analytics views still use Mongo-backed models below.
+    // Keep the Bunny overview available during Atlas outages, but report the
+    // unsupported legacy view explicitly rather than failing during connectDB.
+    try {
+      await connectDB();
+    } catch (dbErr: any) {
+      console.error('❌ Database connection error in Analytics:', dbErr);
+      return NextResponse.json(
+        { error: 'This analytics view is still being migrated to Bunny SQL', details: dbErr.message },
+        { status: 503 }
+      );
+    }
 
     // Build user filter based on 3-tier access control
     let userLeadFilter: any = {};

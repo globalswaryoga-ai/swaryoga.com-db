@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, Shield, Crown, Tag, Funnel, Download, CheckSquare, Square, Trash2 } from 'lucide-react';
+import { X, Phone, Video, MessageSquare, Hash, Info, Calendar, Users, Pencil, LogOut, Loader2, Save, Link2, Copy, RotateCcw, Lock, ChevronUp, ChevronDown, UserMinus, UserPlus, Shield, Crown, Tag, Funnel, Download, CheckSquare, Square, Trash2 } from 'lucide-react';
 import type { ChatItem, MessageItem, FunnelStage, LabelPreset, GroupInfo } from '../types';
 import { formatPhoneNumber, getAvatarColor, getInitials } from '../utils';
+import { TeamInboxSection } from './TeamInboxSection';
 
 export interface DetailsPanelProps {
   selectedChat: string;
@@ -31,11 +32,13 @@ export interface DetailsPanelProps {
   groupSettingsLoading: string | null;
   updateGroupSetting: (setting: string) => void;
   updateGroupParticipant: (participantJid: string, action: 'promote' | 'demote' | 'remove') => void;
+  addGroupParticipants?: (phones: string[]) => Promise<void>;
   bulkRemoveParticipants?: (participantJids: string[]) => Promise<void>;
   handleRenameGroup: (newName: string) => void;
   handleLeaveGroup: () => void;
   setDetailsPanel: (v: boolean) => void;
   setLightboxImage: (v: string | null) => void;
+  token?: string | null;
 }
 
 export function DetailsPanel({
@@ -46,9 +49,11 @@ export function DetailsPanel({
   savingDesc, updateGroupDesc,
   groupInviteLink, loadingInvite, fetchGroupInvite, revokeGroupInvite,
   groupSettingsLoading, updateGroupSetting, updateGroupParticipant,
+  addGroupParticipants,
   bulkRemoveParticipants,
   handleRenameGroup, handleLeaveGroup,
   setDetailsPanel, setLightboxImage,
+  token,
 }: DetailsPanelProps) {
   const selectedChatInfo = chats.find(c => c.id === selectedChat);
   const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
@@ -105,14 +110,44 @@ export function DetailsPanel({
             </div>
           </>
         )}
-        <h4 className="mt-3 text-base font-semibold text-gray-900 text-center">
-          {isGroupChat ? chatName : formatPhoneNumber(chatName)}
-        </h4>
+        <div className="mt-3 flex items-center gap-1.5">
+          <h4 className="text-base font-semibold text-gray-900 text-center">
+            {isGroupChat ? chatName : formatPhoneNumber(chatName)}
+          </h4>
+          {isGroupChat && (
+            <button
+              onClick={() => {
+                const newName = prompt('New group name:', groupInfo?.subject || chatName || '');
+                if (newName && newName.trim()) handleRenameGroup(newName);
+              }}
+              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-indigo-600 flex-shrink-0"
+              title="Rename group"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
         {!isGroupChat && (
           <p className="text-xs text-gray-500 mt-0.5">+{phone}</p>
         )}
         {isGroupChat && groupInfo && (
-          <p className="text-xs text-gray-500 mt-0.5">{groupInfo.size || groupInfo.participants?.length || 0} members visible</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-xs text-gray-500">{groupInfo.size || groupInfo.participants?.length || 0} members visible</p>
+            {addGroupParticipants && (
+              <button
+                onClick={async () => {
+                  const raw = prompt('Add members — phone number(s), comma or newline separated:');
+                  if (!raw || !raw.trim()) return;
+                  const phones = raw.split(/[,;\n]+/).map(p => p.trim()).filter(Boolean);
+                  if (phones.length > 0) await addGroupParticipants(phones);
+                }}
+                className="text-[11px] text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-0.5"
+                title="Add members to this group"
+              >
+                <UserPlus className="w-3 h-3" /> Add
+              </button>
+            )}
+          </div>
         )}
         <span className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium ${isConnected ? 'text-green-600' : 'text-gray-400'}`}>
           <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
@@ -125,22 +160,22 @@ export function DetailsPanel({
         <button
           onClick={() => window.open(`tel:+${phone}`, '_blank')}
           className="flex flex-col items-center gap-1 group"
-          title="Voice Call"
+          title="Phone call"
         >
           <div className="w-10 h-10 rounded-full bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition">
             <Phone className="w-5 h-5 text-green-600" />
           </div>
-          <span className="text-[10px] text-gray-500">Audio</span>
+          <span className="text-[10px] text-gray-500">Phone</span>
         </button>
         <button
-          onClick={() => window.open(`https://wa.me/${phone}?video=true`, '_blank')}
+          onClick={() => alert('Native WhatsApp video calls must be started from WhatsApp itself. Use the video-class button in the chat header to send a Zoom, Meet, or Jitsi class invitation through QR WhatsApp.')}
           className="flex flex-col items-center gap-1 group"
-          title="Video Call"
+          title="Video class information"
         >
           <div className="w-10 h-10 rounded-full bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition">
             <Video className="w-5 h-5 text-indigo-600" />
           </div>
-          <span className="text-[10px] text-gray-500">Video</span>
+          <span className="text-[10px] text-gray-500">Class link</span>
         </button>
         <button
           onClick={() => window.open(`https://wa.me/${phone}`, '_blank')}
@@ -153,6 +188,9 @@ export function DetailsPanel({
           <span className="text-[10px] text-gray-500">Chat</span>
         </button>
       </div>
+
+      {/* Team Inbox: assignment, claim, internal notes */}
+      {token && <TeamInboxSection chatJid={selectedChat} token={token} />}
 
       {/* Contact About / Bio */}
       {!isGroupChat && contactAbout && (
@@ -387,6 +425,7 @@ export function DetailsPanel({
             chats={chats}
             selectedChat={selectedChat}
             updateGroupParticipant={updateGroupParticipant}
+            addGroupParticipants={addGroupParticipants}
             bulkRemoveParticipants={bulkRemoveParticipants}
           />
         </div>
@@ -396,17 +435,21 @@ export function DetailsPanel({
 }
 
 /* ── Bulk Member Manager (internal sub-component) ── */
-function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, updateGroupParticipant, bulkRemoveParticipants }: {
+function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, updateGroupParticipant, addGroupParticipants, bulkRemoveParticipants }: {
   groupInfo: GroupInfo | null;
   loadingGroupInfo: boolean;
   chats: ChatItem[];
   selectedChat: string;
   updateGroupParticipant: (jid: string, action: 'promote' | 'demote' | 'remove') => void;
+  addGroupParticipants?: (phones: string[]) => Promise<void>;
   bulkRemoveParticipants?: (jids: string[]) => Promise<void>;
 }) {
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkRemoving, setBulkRemoving] = useState(false);
+  const [showAddInput, setShowAddInput] = useState(false);
+  const [addInput, setAddInput] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const removableParticipants = (groupInfo?.participants || []).filter(p => p.admin !== 'superadmin');
   const allSelected = removableParticipants.length > 0 && removableParticipants.every(p => selectedJids.has(p.id));
@@ -425,6 +468,19 @@ function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, u
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const handleAddMembers = async () => {
+    const phones = addInput.split(/[,;\n]+/).map(p => p.trim()).filter(Boolean);
+    if (phones.length === 0 || !addGroupParticipants) return;
+    setAdding(true);
+    try {
+      await addGroupParticipants(phones);
+      setAddInput('');
+      setShowAddInput(false);
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleBulkRemove = async () => {
@@ -449,6 +505,15 @@ function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, u
           Members ({groupInfo?.size || groupInfo?.participants?.length || 0} visible)
         </h5>
         <div className="flex items-center gap-1">
+          {addGroupParticipants && (
+            <button
+              onClick={() => { setShowAddInput(!showAddInput); setAddInput(''); }}
+              className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md font-medium transition border ${showAddInput ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'}`}
+              title={showAddInput ? 'Cancel' : 'Add members to this group'}
+            >
+              {showAddInput ? <><X className="w-3 h-3" /> Cancel</> : <><UserPlus className="w-3 h-3" /> Add</>}
+            </button>
+          )}
           {groupInfo && groupInfo.participants.length > 0 && (
             <>
               <button
@@ -491,6 +556,31 @@ function BulkMemberManager({ groupInfo, loadingGroupInfo, chats, selectedChat, u
           )}
         </div>
       </div>
+      {/* Add members input */}
+      {showAddInput && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 space-y-2">
+          <textarea
+            value={addInput}
+            onChange={e => setAddInput(e.target.value)}
+            placeholder="Phone numbers with country code, e.g. +91 98765 43210, +61 431 290 148 (comma, semicolon or new line separated)"
+            className="w-full text-xs px-2 py-1.5 rounded border border-indigo-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
+            rows={2}
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-indigo-600">
+              {addInput.split(/[,;\n]+/).map(p => p.trim()).filter(Boolean).length} number(s) — added slowly to avoid WhatsApp bans
+            </span>
+            <button
+              onClick={handleAddMembers}
+              disabled={adding || addInput.trim().length === 0}
+              className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 font-medium transition"
+            >
+              {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+              {adding ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+        </div>
+      )}
       {/* Bulk action bar */}
       {bulkMode && selectedJids.size > 0 && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-3 py-2">

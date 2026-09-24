@@ -194,23 +194,13 @@ export async function sendSessionHeartbeat(
       };
     }
 
-    console.warn(
-      `[Connection Manager] ⚠️ Auto-signout detected during operation. Attempting reconnect...`
-    );
-
-    // Attempt reconnect
-    const reconnectResult = await reconnectSession(userId, sessionKey, bridgeUrl, bridgeSecret, 1);
-
-    if (reconnectResult.reconnected) {
-      console.log(`[Connection Manager] ✅ Successfully reconnected`);
-      return {
-        alive: true,
-        reconnectNeeded: false,
-        message: '✅ Reconnected successfully',
-      };
-    }
-
-    console.error(`[Connection Manager] ❌ Reconnect failed`);
+    // Session down: do NOT auto-reconnect here. This runs from cron ticks, so
+    // an automatic reconnect fires repeatedly, tears down any in-flight QR
+    // pairing (fighting the user's manual reconnect), and the resulting
+    // rapid socket churn looks bot-like to WhatsApp — ban risk. Jobs pause
+    // and auto-resume once the session is back; reconnecting is manual
+    // (Reconnect button) or bridge-side from saved credentials.
+    console.warn(`[Connection Manager] ⚠️ Session down: ${health.message} — awaiting manual reconnect`);
     return {
       alive: false,
       reconnectNeeded: true,

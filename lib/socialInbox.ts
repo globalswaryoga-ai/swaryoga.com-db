@@ -16,8 +16,39 @@ const META_INBOX_APP_SECRET = process.env.META_APP_SECRET || process.env.WHATSAP
 const META_APP_ID = process.env.META_APP_ID || process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
 const GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_API_VERSION}`;
 
+// ── Instagram Login API ─────────────────────────────────────────────────────
+// Instagram supports two entirely separate integrations:
+//
+//  • Facebook Login  — DMs are read through the linked Page
+//    (graph.facebook.com/{page-id}/conversations?platform=instagram). This
+//    requires Advanced Access for instagram_manage_messages; without it Meta
+//    returns an empty list and "(#3) Application does not have the capability".
+//
+//  • Instagram Login — the account authorises the app directly and DMs are read
+//    from graph.instagram.com/me/conversations with an IGAA… token. It uses its
+//    own app-scoped account id (NOT the IG Business Account id) and works with
+//    Standard Access, so no App Review is needed.
+//
+// Accounts carry metadata.apiType to say which one they use.
+const INSTAGRAM_API_VERSION = process.env.INSTAGRAM_API_VERSION || 'v23.0';
+const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${INSTAGRAM_API_VERSION}`;
+const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET || '';
+
+export type SocialApiType = 'facebook_login' | 'instagram_login';
+
 function appsecretProof(token: string): string {
   return META_INBOX_APP_SECRET ? crypto.createHmac('sha256', META_INBOX_APP_SECRET).update(token).digest('hex') : '';
+}
+
+/** appsecret_proof for graph.instagram.com — signed with the Instagram app secret. */
+function instagramAppsecretProof(token: string): string {
+  return INSTAGRAM_APP_SECRET ? crypto.createHmac('sha256', INSTAGRAM_APP_SECRET).update(token).digest('hex') : '';
+}
+
+/** Append auth params for whichever API the account belongs to. */
+function authQuery(token: string, apiType: SocialApiType): string {
+  const proof = apiType === 'instagram_login' ? instagramAppsecretProof(token) : appsecretProof(token);
+  return `access_token=${encodeURIComponent(token)}${proof ? `&appsecret_proof=${proof}` : ''}`;
 }
 
 export type SocialInboxPlatform = 'messenger' | 'instagram';
@@ -30,6 +61,17 @@ export type ResolvedSocialInboxAccount = {
   accountHandle: string;
   accessToken: string;
   accountDocId: string;
+  // The node id to use for outbound Graph API calls (conversations/messages).
+  // For Messenger this is the same as accountId (the Page id). For Instagram,
+  // Meta requires these classic Page-linked calls to target the linked Page id,
+  // not the Instagram Business Account id itself — calling with the IG id
+  // fails with "(#3) Application does not have the capability to make this API call."
+  // Unused for instagram_login accounts, which always address /me.
+  graphNodeId: string;
+  /** Which Instagram integration this account authenticates through. */
+  apiType: SocialApiType;
+  /** IG Business account id — Instagram Login uses it inside participants/from. */
+  igBusinessId?: string;
 };
 
 export type SocialInboxParsedEvent = {
@@ -71,6 +113,44 @@ export function buildSocialInboxScopeFilter(scope: Pick<SocialMediaScope, 'scope
   };
 }
 
+/**
+ * Resolve which Graph node id outbound calls must target.
+ *
+ * Messenger uses the Page id directly. Instagram (classic Page-linked
+ * integration) must ALSO target the linked Page id — calling with the
+ * Instagram Business Account id fails with "(#3) Application does not have
+ * the capability to make this API call".
+ *
+ * metadata.linkedPageId is the fast path, but it is not reliable: the
+ * analytics sync overwrites the metadata object and silently drops it, which
+ * would otherwise break Instagram sending/import until the next reconnect.
+ * So fall back to looking up the Facebook Page connected under the same scope.
+ */
+function readApiType(account: any): SocialApiType {
+  return cleanString(account?.metadata?.apiType) === 'instagram_login' ? 'instagram_login' : 'facebook_login';
+}
+
+async function resolveGraphNodeId(account: any, platform: SocialInboxPlatform): Promise<string> {
+  const ownId = String(account.accountId);
+  if (platform !== 'instagram') return ownId;
+  // Instagram Login talks to /me on graph.instagram.com — no Page involved.
+  if (readApiType(account) === 'instagram_login') return ownId;
+
+  const fromMetadata = cleanString(account.metadata?.linkedPageId);
+  if (fromMetadata) return fromMetadata;
+
+  const page = await SocialMediaAccount.findOne({
+    isConnected: true,
+    platform: 'facebook',
+    scopeType: account.scopeType,
+    scopeKey: account.scopeKey,
+  })
+    .sort({ connectedAt: -1, updatedAt: -1 })
+    .lean<any>();
+
+  return cleanString(page?.accountId) || ownId;
+}
+
 export async function resolveSocialInboxAccount(decoded: TokenPayload | null | undefined, platform: SocialInboxPlatform): Promise<ResolvedSocialInboxAccount | null> {
   await connectDB();
   const scope = await resolveSocialMediaScope(decoded);
@@ -103,6 +183,9 @@ export async function resolveSocialInboxAccount(decoded: TokenPayload | null | u
     accountHandle: String(account.accountHandle || ''),
     accessToken,
     accountDocId: String(account._id),
+    graphNodeId: await resolveGraphNodeId(account, platform),
+    apiType: readApiType(account),
+    igBusinessId: cleanString(account.metadata?.igBusinessId) || undefined,
   };
 }
 
@@ -142,18 +225,80 @@ export async function resolveSocialInboxAccountByAccountId(platform: SocialInbox
     accountHandle: String(account.accountHandle || ''),
     accessToken: decryptCredential(String(account.accessToken)),
     accountDocId: String(account._id),
+    graphNodeId: await resolveGraphNodeId(account, platform),
+    apiType: readApiType(account),
+    igBusinessId: cleanString(account.metadata?.igBusinessId) || undefined,
     ownerUserId: cleanString(account.ownerUserId || ''),
   };
 }
 
+/**
+ * List every connected Messenger/Instagram account across all tenants, resolved
+ * to the same shape ingestMetaSocialEvent/importFacebookConversationHistory use.
+ * Backs a polling-based sync (see /api/cron/social-inbox-sync) that pulls
+ * conversations directly via the Graph API — a reliable fallback independent
+ * of whether Meta's webhook push actually fires, since webhook delivery has
+ * proven unreliable for real (non-tester) accounts even with a fully correct
+ * subscription + Live mode + permissions setup.
+ */
+export async function getAllConnectedSocialInboxAccounts(): Promise<(ResolvedSocialInboxAccount & { ownerUserId?: string })[]> {
+  await connectDB();
+  const accounts = await SocialMediaAccount.find({
+    isConnected: true,
+    platform: { $in: ['facebook', 'instagram'] },
+  }).lean<any[]>();
+
+  const resolved: (ResolvedSocialInboxAccount & { ownerUserId?: string })[] = [];
+  for (const account of accounts) {
+    if (!account?.accountId || !account?.accessToken) continue;
+    const platform: SocialInboxPlatform = account.platform === 'instagram' ? 'instagram' : 'messenger';
+    const scopeType = account.scopeType === 'tenant' ? 'tenant' : 'super_admin';
+    const scopeKey = cleanString(account.scopeKey) || 'super_admin';
+    let accessToken: string;
+    try {
+      accessToken = decryptCredential(String(account.accessToken));
+    } catch {
+      continue;
+    }
+
+    resolved.push({
+      platform,
+      scope: {
+        scopeType,
+        scopeKey,
+        scopeLabel: scopeType === 'tenant' ? `Tenant settings (${cleanString(account.tenantSlug || scopeKey)})` : 'Super Admin shared settings',
+        ownerUserId: cleanString(account.ownerUserId || 'admincrm'),
+        tenantSlug: cleanString(account.tenantSlug || '') || undefined,
+      },
+      accountId: String(account.accountId),
+      accountName: String(account.accountName || account.accountHandle || account.accountId),
+      accountHandle: String(account.accountHandle || ''),
+      accessToken,
+      accountDocId: String(account._id),
+      graphNodeId: await resolveGraphNodeId(account, platform),
+      apiType: readApiType(account),
+      igBusinessId: cleanString(account.metadata?.igBusinessId) || undefined,
+      ownerUserId: cleanString(account.ownerUserId || ''),
+    });
+  }
+  return resolved;
+}
+
 export function verifyMetaInboxSignature(rawBody: string, signatureHeader: string | null): boolean {
-  // Allow through if no secret configured (will verify when secret is added)
-  if (!META_INBOX_APP_SECRET) return true;
+  // Messenger and Instagram webhooks come from two entirely separate Meta apps
+  // (see docs/INSTAGRAM_DM_SETUP.md §1) and Meta signs each payload with that
+  // app's own secret. Accept the request if it matches either one — checking
+  // only META_APP_SECRET rejected every genuine Instagram delivery with a 401,
+  // which Meta gives up retrying, silently killing live Instagram webhook events.
+  const secrets = [META_INBOX_APP_SECRET, INSTAGRAM_APP_SECRET].filter(Boolean);
+  if (secrets.length === 0) return true; // Allow through if no secret configured yet
   const header = cleanString(signatureHeader);
   if (!header) return true; // Allow if no signature header (temporary for setup)
   const provided = header.includes('=') ? header.split('=').slice(1).join('=') : header;
-  const expected = crypto.createHmac('sha256', META_INBOX_APP_SECRET).update(rawBody, 'utf8').digest('hex');
-  return provided === expected;
+  return secrets.some((secret) => {
+    const expected = crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+    return provided === expected;
+  });
 }
 
 export function getMetaInboxVerifyToken(): string {
@@ -354,8 +499,6 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
           sentAt: event.sentAt || now,
           isRead: event.direction === 'outbound',
           metadata: event.rawEvent || {},
-          createdAt: now,
-          updatedAt: now,
         },
       },
       { upsert: true }
@@ -388,44 +531,95 @@ export async function ingestMetaSocialEvent(event: SocialInboxParsedEvent) {
 export async function sendMetaSocialMessage(args: {
   platform: SocialInboxPlatform;
   accountId: string;
+  // The node id to POST to — the linked Page id for Instagram (classic
+  // Page-linked integration rejects the IG Business Account id here with
+  // "Application does not have the capability to make this API call").
+  // Falls back to accountId for callers that haven't been updated.
+  graphNodeId?: string;
+  /** Which integration this account uses; instagram_login posts to /me on graph.instagram.com. */
+  apiType?: SocialApiType;
   accessToken: string;
   recipientId: string;
-  message: string;
+  /** Text body. Omit when sending an attachment-only message. */
+  message?: string;
+  /**
+   * Optional media to send instead of text. Messenger/Instagram cannot combine
+   * text and an attachment in a single message, so callers that need both must
+   * call this twice (attachment first, then text).
+   */
+  attachment?: { type: 'image' | 'video' | 'audio' | 'file'; url: string };
 }) {
-  // Calculate appsecret_proof for security
-  const appSecret = META_INBOX_APP_SECRET;
-  const appsecretProof = appSecret
-    ? crypto.createHmac('sha256', appSecret).update(args.accessToken).digest('hex')
-    : '';
+  const text = cleanString(args.message);
+  if (!text && !args.attachment?.url) {
+    throw new Error('sendMetaSocialMessage requires either message text or an attachment');
+  }
 
-  const baseUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(args.accountId)}/messages`;
-  const url = appsecretProof ? `${baseUrl}?appsecret_proof=${appsecretProof}` : baseUrl;
+  const apiType: SocialApiType = args.apiType || 'facebook_login';
+  const isIgLogin = apiType === 'instagram_login';
 
-  const payload: Record<string, any> = {
-    recipient: { id: args.recipientId },
-    message: { text: args.message },
-    access_token: args.accessToken,
+  // Instagram Login sends from /me on graph.instagram.com; the classic path
+  // posts to the Page (or linked Page for Instagram) on graph.facebook.com.
+  const baseUrl = isIgLogin
+    ? `${INSTAGRAM_GRAPH_BASE}/me/messages`
+    : `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(args.graphNodeId || args.accountId)}/messages`;
+  const proof = isIgLogin ? instagramAppsecretProof(args.accessToken) : appsecretProof(args.accessToken);
+  const url = proof ? `${baseUrl}?appsecret_proof=${proof}` : baseUrl;
+
+  const messageBody = args.attachment?.url
+    ? { attachment: { type: args.attachment.type, payload: { url: args.attachment.url, is_reusable: true } } }
+    : { text };
+
+  const post = async (extra: Record<string, any>) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: args.recipientId },
+        message: messageBody,
+        access_token: args.accessToken,
+        ...extra,
+      }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    return { ok: response.ok, status: response.status, data };
   };
 
-  if (args.platform === 'messenger') {
-    payload.messaging_type = 'RESPONSE';
+  // Standard reply — valid inside Meta's 24-hour customer-service window.
+  let result = await post(args.platform === 'messenger' && !isIgLogin ? { messaging_type: 'RESPONSE' } : {});
+
+  // Outside that window Meta returns error code 10. A human agent answering a
+  // customer enquiry may still reply for up to 7 days using the HUMAN_AGENT
+  // tag, so retry once with it. This needs the "Human Agent" permission — if
+  // it isn't granted the retry fails too and we surface the original error.
+  const isOutsideWindow =
+    !result.ok &&
+    (result.data?.error?.code === 10 ||
+      /outside of allowed window/i.test(String(result.data?.error?.message || '')));
+
+  if (isOutsideWindow) {
+    const retry = await post({ messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' });
+    if (retry.ok) {
+      result = retry;
+    } else {
+      const retryMsg = String(retry.data?.error?.message || '');
+      // Permission missing → explain the real fix rather than repeating Meta's
+      // generic policy text.
+      if (/tag|permission|capabilit/i.test(retryMsg)) {
+        throw new Error(
+          "This chat is outside Meta's 24-hour reply window. Replying up to 7 days needs the "
+            + '"Human Agent" permission, which must be approved in Meta App Review.',
+        );
+      }
+      throw new Error(result.data?.error?.message || `Meta social inbox send failed (${result.status})`);
+    }
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Meta social inbox send failed (${response.status})`);
+  if (!result.ok) {
+    throw new Error(result.data?.error?.message || `Meta social inbox send failed (${result.status})`);
   }
 
+  const data = result.data;
   const messageId = cleanString(data?.message_id || data?.recipient_id || data?.messages?.[0]?.id);
   return {
     messageId,
@@ -439,6 +633,14 @@ export async function createOutboundSocialMessage(args: {
   account: ResolvedSocialInboxAccount;
   conversationId: string;
   message: string;
+  /**
+   * Optional image/media sent alongside the text. Messenger and Instagram do
+   * not allow text + attachment in one message, so the attachment goes first
+   * as its own message and the text follows — mirroring how the native apps
+   * render a template's header image above its body.
+   */
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'file';
 }) {
   const Conversation = getSocialInboxConversation();
   const Message = getSocialInboxMessage();
@@ -453,40 +655,69 @@ export async function createOutboundSocialMessage(args: {
     throw new Error('Conversation not found');
   }
 
-  const sendResult = await sendMetaSocialMessage({
+  const recipientId = String(conversation.participantId);
+  const sendBase = {
     platform: args.platform,
     accountId: args.account.accountId,
+    graphNodeId: args.account.graphNodeId,
+    apiType: args.account.apiType,
     accessToken: args.account.accessToken,
-    recipientId: String(conversation.participantId),
-    message: args.message,
-  });
-
-  const createdMessage = await Message.create({
+    recipientId,
+  };
+  const messageBase = {
     conversationId: conversation._id,
     conversationKey: conversation.conversationKey,
     platform: args.platform,
     accountScopeType: args.scope.scopeType,
     accountScopeKey: args.scope.scopeKey,
     accountId: args.account.accountId,
-    externalMessageId: sendResult.messageId || undefined,
     senderId: args.account.accountId,
-    recipientId: String(conversation.participantId),
-    direction: 'outbound',
-    messageContent: args.message,
-    messageType: 'text',
+    recipientId,
+    direction: 'outbound' as const,
     sentAt: now,
     isRead: true,
-    metadata: sendResult.raw || {},
-  });
+  };
 
+  const mediaUrl = cleanString(args.mediaUrl);
+  if (mediaUrl) {
+    const mediaResult = await sendMetaSocialMessage({
+      ...sendBase,
+      attachment: { type: args.mediaType || 'image', url: mediaUrl },
+    });
+    await Message.create({
+      ...messageBase,
+      externalMessageId: mediaResult.messageId || undefined,
+      messageContent: '',
+      messageType: args.mediaType || 'image',
+      mediaUrl,
+      mediaType: args.mediaType || 'image',
+      metadata: mediaResult.raw || {},
+    });
+  }
+
+  const text = cleanString(args.message);
+  let textResult: { messageId: string; raw: any } | null = null;
+  let createdMessage: any = null;
+  if (text) {
+    textResult = await sendMetaSocialMessage({ ...sendBase, message: text });
+    createdMessage = await Message.create({
+      ...messageBase,
+      externalMessageId: textResult.messageId || undefined,
+      messageContent: text,
+      messageType: 'text',
+      metadata: textResult.raw || {},
+    });
+  }
+
+  const lastMessage = text || (mediaUrl ? `[${args.mediaType || 'image'}]` : '');
   await Conversation.updateOne(
     { _id: conversation._id },
     {
       $set: {
-        lastMessage: args.message,
+        lastMessage,
         lastMessageAt: now,
         lastMessageDirection: 'outbound',
-        lastExternalMessageId: sendResult.messageId || '',
+        lastExternalMessageId: textResult?.messageId || '',
         updatedAt: now,
       },
     }
@@ -679,13 +910,16 @@ export async function importFacebookConversationHistory(
     accountScopeKey: resolvedAccount.scope.scopeKey,
   };
 
-  const platformParam = resolvedAccount.platform === 'instagram' ? '&platform=instagram' : '';
+  const isIgLogin = resolvedAccount.apiType === 'instagram_login';
+  const platformParam = !isIgLogin && resolvedAccount.platform === 'instagram' ? '&platform=instagram' : '';
   const fields = `participants,updated_time,messages.limit(${messagesPerConv}){id,message,from,to,created_time,attachments}`;
-  const proof = appsecretProof(resolvedAccount.accessToken);
-  let next: string | null = `${GRAPH_BASE}/${encodeURIComponent(resolvedAccount.accountId)}/conversations`
+  // Instagram Login reads its own inbox from /me on graph.instagram.com.
+  const convBase = isIgLogin
+    ? `${INSTAGRAM_GRAPH_BASE}/me/conversations`
+    : `${GRAPH_BASE}/${encodeURIComponent(resolvedAccount.graphNodeId)}/conversations`;
+  let next: string | null = `${convBase}`
     + `?fields=${encodeURIComponent(fields)}&limit=50${platformParam}`
-    + `&access_token=${encodeURIComponent(resolvedAccount.accessToken)}`
-    + (proof ? `&appsecret_proof=${proof}` : '');
+    + `&${authQuery(resolvedAccount.accessToken, resolvedAccount.apiType)}`;
 
   let convCount = 0;
   let msgCount = 0;
@@ -703,7 +937,12 @@ export async function importFacebookConversationHistory(
     for (const conv of (Array.isArray(data?.data) ? data.data : [])) {
       if (convCount >= maxConversations) break;
       const participants = Array.isArray(conv?.participants?.data) ? conv.participants.data : [];
-      const participant = participants.find((p: any) => cleanString(p?.id) !== resolvedAccount.accountId) || participants[0];
+      // Instagram Login returns the app-scoped id from /me, but participants and
+      // message.from use the IG Business account id — so both identify us.
+      const selfIds = new Set(
+        [resolvedAccount.accountId, cleanString((resolvedAccount as any).igBusinessId)].filter(Boolean),
+      );
+      const participant = participants.find((p: any) => !selfIds.has(cleanString(p?.id))) || participants[0];
       const participantId = cleanString(participant?.id);
       if (!participantId) continue;
       const participantName = cleanString(participant?.name) || cleanString(participant?.username) || `User ${participantId.slice(-6)}`;
@@ -716,7 +955,7 @@ export async function importFacebookConversationHistory(
       );
 
       const lastMsg = sorted[sorted.length - 1];
-      const lastDirection: 'inbound' | 'outbound' = lastMsg && cleanString(lastMsg?.from?.id) === resolvedAccount.accountId ? 'outbound' : 'inbound';
+      const lastDirection: 'inbound' | 'outbound' = lastMsg && selfIds.has(cleanString(lastMsg?.from?.id)) ? 'outbound' : 'inbound';
       const lastAt = lastMsg?.created_time ? new Date(lastMsg.created_time) : (conv?.updated_time ? new Date(conv.updated_time) : now);
 
       await Conversation.updateOne(
@@ -756,7 +995,7 @@ export async function importFacebookConversationHistory(
 
       for (const m of sorted) {
         const externalMessageId = cleanString(m?.id);
-        const direction: 'inbound' | 'outbound' = cleanString(m?.from?.id) === resolvedAccount.accountId ? 'outbound' : 'inbound';
+        const direction: 'inbound' | 'outbound' = selfIds.has(cleanString(m?.from?.id)) ? 'outbound' : 'inbound';
         const text = cleanString(m?.message);
         const firstAttachment = Array.isArray(m?.attachments?.data) ? m.attachments.data[0] : undefined;
         const mediaUrl = cleanString(
@@ -787,7 +1026,7 @@ export async function importFacebookConversationHistory(
         if (externalMessageId) {
           const result = await Message.updateOne(
             { platform: resolvedAccount.platform, ...scopeFilter, externalMessageId },
-            { $setOnInsert: { ...messageDoc, createdAt: now, updatedAt: now } },
+            { $setOnInsert: messageDoc },
             { upsert: true },
           );
           if ((result as any).upsertedCount > 0) msgCount += 1;

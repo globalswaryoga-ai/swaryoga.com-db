@@ -17,7 +17,7 @@
 
 import { computeFourStepSignificators, type SignificatorHouse, type SignificatorPlanet } from './significators';
 import type { DashaLevelRow } from './vimshottariDasha';
-import { computeTransitPosition, computeTransitLagna } from './ephemeris';
+import { computeTransitPosition, computeTransitLagna, type TransitPlanet } from './ephemeris';
 
 export interface EventSignificator {
   planet: string;
@@ -129,6 +129,84 @@ export async function refineWindowByTransit(
         moonMatch: moonMatchStrength > 0,
         moonSubMatch: sigSet.has(moonPos.subLord),
       });
+    }
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+    i++;
+  }
+  return results;
+}
+
+export interface SlowTransitMatch {
+  monthStart: string; // ISO date, first of the sampled month (UTC)
+  jupiterMatchStrength: number; // 0-3: how many of sign/star/sub-lord are significators
+  saturnMatchStrength: number; // 0-3
+}
+
+// Sun/Moon (used above) repeat their full 12-house cycle every year/~28 days
+// regardless, so they can't tell one YEAR of a multi-year Mahadasha from
+// another -- every year looks the same to them. Jupiter (~1 year/sign) and
+// Saturn (~2.5 years/sign) are the correct slow-movers for that: within a
+// typical Vimshottari Mahadasha (6-20 years) each only transits a given
+// sign/star/sub a couple of times, so the month(s) when their own sign/
+// star/sub-lord IS one of the matter's significators are the real candidate
+// years. Sampled monthly (not daily -- these move too slowly for daily
+// resolution to matter) across the whole requested range, independent of
+// which Pratyantardasha window it falls in.
+export async function findSlowTransitYears(
+  searchFrom: Date,
+  searchUntil: Date,
+  significatorPlanets: string[]
+): Promise<SlowTransitMatch[]> {
+  const sigSet = new Set(significatorPlanets);
+  const maxMonths = 300; // defensive cap — 25 years of monthly samples
+  const results: SlowTransitMatch[] = [];
+
+  let cursor = new Date(Date.UTC(searchFrom.getUTCFullYear(), searchFrom.getUTCMonth(), 1));
+  let i = 0;
+  while (cursor <= searchUntil && i < maxMonths) {
+    const jupiterPos = await computeTransitPosition(cursor, 'Jupiter');
+    const saturnPos = await computeTransitPosition(cursor, 'Saturn');
+    const jupiterMatchStrength = matchStrength(jupiterPos, sigSet);
+    const saturnMatchStrength = matchStrength(saturnPos, sigSet);
+    if (jupiterMatchStrength > 0 || saturnMatchStrength > 0) {
+      results.push({ monthStart: cursor.toISOString().slice(0, 10), jupiterMatchStrength, saturnMatchStrength });
+    }
+    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    i++;
+  }
+  return results;
+}
+
+export interface PlanetGocharMatch {
+  date: string; // ISO date (UTC midnight-anchored sample)
+  matchStrength: number; // 0-3: how many of sign/star/sub-lord are significators
+  sign: string;
+}
+
+// Astrologer-chosen gochar planet (any of the 9 grahas, not just the tool's
+// own Sun/Moon/Jupiter/Saturn suggestion) scanned day-by-day across an
+// arbitrary date range -- typically the currently-selected Bhukti/Antara's
+// own span -- for when its sign/star/sub-lord is one of the given
+// significator planets. Same rule as refineWindowByTransit above, just
+// generalised to any single planet and range instead of hardcoded Sun+Moon
+// inside one Pratyantardasha window.
+export async function findPlanetGocharMatches(
+  searchFrom: Date,
+  searchUntil: Date,
+  gocharPlanet: TransitPlanet,
+  significatorPlanets: string[]
+): Promise<PlanetGocharMatch[]> {
+  const sigSet = new Set(significatorPlanets);
+  const maxDays = 400; // defensive cap, matches refineWindowByTransit's bound
+  const results: PlanetGocharMatch[] = [];
+
+  let cursor = new Date(Date.UTC(searchFrom.getUTCFullYear(), searchFrom.getUTCMonth(), searchFrom.getUTCDate()));
+  let i = 0;
+  while (cursor <= searchUntil && i < maxDays) {
+    const pos = await computeTransitPosition(cursor, gocharPlanet);
+    const strength = matchStrength(pos, sigSet);
+    if (strength > 0) {
+      results.push({ date: cursor.toISOString().slice(0, 10), matchStrength: strength, sign: pos.sign });
     }
     cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
     i++;

@@ -1,0 +1,1308 @@
+#swaryoga-crm-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100vh;
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.08);
+  z-index: 99999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease;
+}
+
+/* ── Elements injected into WhatsApp's OWN DOM (not the sidebar) ── */
+#swaryoga-header-tabs {
+  padding: 6px 12px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e9edef;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.sy-header-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 3px 0;
+}
+
+.sy-header-tab {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.sy-header-tab.sy-active {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+.sy-header-tab.sy-header-action {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+  font-weight: 700;
+}
+
+.sy-header-tab.sy-header-action:hover {
+  background: #1b4332;
+}
+
+.sy-row-checkbox {
+  cursor: pointer;
+}
+
+#swaryoga-selected-bar {
+  position: fixed;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: min(94vw, 640px);
+  z-index: 99998;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#swaryoga-crm-sidebar.swaryoga-collapsed {
+  transform: translateX(292px);
+}
+
+#swaryoga-crm-toggle {
+  position: absolute;
+  left: -28px;
+  top: 84px;
+  width: 28px;
+  height: 40px;
+  background: #2d6a4f;
+  border-radius: 8px 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  font-size: 14px;
+  user-select: none;
+}
+
+#swaryoga-crm-sidebar .sy-header {
+  padding: 12px 14px;
+  background: #2d6a4f;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#swaryoga-crm-sidebar .sy-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+#swaryoga-crm-sidebar .sy-section {
+  margin-bottom: 16px;
+}
+
+#swaryoga-crm-sidebar .sy-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-lead-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  color: #111827;
+}
+
+#swaryoga-crm-sidebar .sy-lead-name {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+#swaryoga-crm-sidebar .sy-lead-meta {
+  color: #6b7280;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #166534;
+}
+
+#swaryoga-crm-sidebar input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+#swaryoga-crm-sidebar .sy-btn:hover {
+  background: #f3f4f6;
+}
+
+#swaryoga-crm-sidebar .sy-btn.sy-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-btn.sy-primary:hover {
+  background: #1b4332;
+}
+
+#swaryoga-crm-sidebar .sy-btn-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply {
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 11px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  background: #fff;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply:hover {
+  background: #f0fdf4;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply-title {
+  font-weight: 700;
+  color: #111827;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply-text {
+  color: #6b7280;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+#swaryoga-crm-sidebar .sy-quick-reply-text strong { color: #111827; }
+#swaryoga-crm-sidebar .sy-quick-reply-text em { font-style: italic; }
+#swaryoga-crm-sidebar .sy-quick-reply-text del { text-decoration: line-through; }
+
+/* ── Structured template preview blocks ── */
+#swaryoga-crm-sidebar .sy-tpl-block {
+  margin-top: 5px;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-block-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #9ca3af;
+  margin-bottom: 1px;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-block-text {
+  font-size: 11px;
+  color: #374151;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-block-text strong { color: #111827; }
+#swaryoga-crm-sidebar .sy-tpl-block-text em { font-style: italic; }
+#swaryoga-crm-sidebar .sy-tpl-block-text del { text-decoration: line-through; }
+
+#swaryoga-crm-sidebar .sy-tpl-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+#swaryoga-crm-sidebar .sy-tpl-button-chip {
+  font-size: 10px;
+  font-weight: 600;
+  color: #2d6a4f;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ── Modal (Schedule Message / Schedule Groups popups) ── */
+.sy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.sy-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 380px;
+  max-height: 85vh;
+  overflow: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  /* Drag the bottom-right corner to resize — sometimes you want the full
+     Report table or recipient list visible, sometimes just a quick popup
+     out of the way. */
+  resize: both;
+  min-width: 320px;
+  min-height: 220px;
+  max-width: 96vw;
+}
+
+.sy-modal.sy-modal-lg {
+  width: 75vw;
+  max-width: 1200px;
+  max-height: 85vh;
+  min-width: 480px;
+}
+
+/* ── Buttons injected into WhatsApp's own open-chat header ── */
+.sy-conv-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+.sy-conv-header-textlink {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2d6a4f;
+  background: none;
+  border: none;
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sy-conv-header-textlink:hover {
+  background: rgba(45, 106, 79, 0.1);
+  text-decoration: underline;
+}
+
+.sy-conv-header-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  /* Same neutral gray WhatsApp Web uses for its own header icons — swap
+     colorful emoji for monochrome stroke icons that blend into the row
+     instead of standing out against it. */
+  color: #54656f;
+}
+
+.sy-conv-header-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  .sy-conv-header-btn { color: #aebac1; }
+}
+
+/* ── "⚡ Actions" button injected into the compose footer + its popup ── */
+#swaryoga-compose-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #2d6a4f;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+#swaryoga-compose-action-btn:hover {
+  background: #1b4332;
+}
+
+#swaryoga-compose-toolbar {
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(10px);
+  max-width: 320px;
+  min-width: 140px;
+}
+
+.sy-compose-toolbar-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-size: 13px;
+  cursor: grab;
+  user-select: none;
+}
+
+#swaryoga-compose-ai-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.sy-compose-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sy-compose-ai-btn:hover {
+  background: #f3f4f6;
+}
+
+.sy-compose-ai-btn.sy-compose-ai-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+.sy-compose-ai-btn.sy-compose-ai-primary:hover {
+  background: #1b4332;
+}
+
+.sy-compose-ai-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#swaryoga-compose-actions-popup {
+  position: fixed;
+  width: 240px;
+  /* Capped height + internal scroll instead of unbounded growth — this
+     popup is anchored with `bottom` (grows upward from the button), so
+     without a cap, switching to the chatbot-flow list (more rows than the
+     4-item menu) could push its top edge above the visible viewport on a
+     short window, making it look like nothing happened when you clicked. */
+  max-height: min(360px, 70vh);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
+  z-index: 100000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.sy-actions-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.sy-actions-popup-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+.sy-modal-close-sm {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sy-actions-popup-list {
+  padding: 4px 6px 8px;
+}
+
+.sy-actions-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.sy-actions-popup-item:hover {
+  background: #f0fdf4;
+}
+
+.sy-actions-popup-icon {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+}
+
+.sy-actions-popup-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: default;
+}
+
+.sy-actions-popup-flow .sy-modal-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.sy-actions-popup-create-link {
+  display: block;
+  padding: 8px 10px;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2d6a4f;
+  text-decoration: none;
+}
+
+.sy-actions-popup-create-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Report page (large modal) ── */
+.sy-report-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.sy-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sy-report-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.sy-report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.sy-report-table tr:last-child td {
+  border-bottom: none;
+}
+
+.sy-report-status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.sy-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #2d6a4f;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 12px 12px 0 0;
+  position: sticky;
+  top: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.sy-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sy-modal-body {
+  padding: 16px;
+}
+
+.sy-modal-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 12px 0 4px;
+}
+
+.sy-modal-label:first-child {
+  margin-top: 0;
+}
+
+.sy-modal-body input[type="text"],
+.sy-modal-body input[type="datetime-local"],
+.sy-modal-body select,
+.sy-modal-body textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.sy-modal-body textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.sy-modal-checklist {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 6px 8px;
+}
+
+.sy-modal-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.sy-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.sy-modal-btn {
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.sy-modal-btn.sy-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+/* ── My Status popup — colorful, distinct from the CRM-green modals ── */
+.sy-modal-header.sy-modal-header-status {
+  background: linear-gradient(135deg, #f59e0b, #ec4899 55%, #8b5cf6);
+}
+
+.sy-modal-btn.sy-status-primary {
+  background: linear-gradient(135deg, #f59e0b, #ec4899 55%, #8b5cf6);
+  color: #fff;
+  border: none;
+}
+
+.sy-modal-btn.sy-status-primary:hover {
+  filter: brightness(0.95);
+}
+
+.sy-status-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.sy-status-file-row .sy-fmt-hint {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Live WhatsApp-style message preview (Create Template) ── */
+.sy-wa-preview-wrap {
+  background: #e5ddd5;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sy-wa-preview-bubble {
+  background: #d9fdd3;
+  border-radius: 8px;
+  padding: 6px 7px 8px;
+  max-width: 280px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  font-size: 13px;
+  color: #111b21;
+}
+
+.sy-wa-preview-image {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.sy-wa-preview-headertext {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.sy-wa-preview-body {
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+
+.sy-wa-preview-body strong { font-weight: 700; }
+.sy-wa-preview-body em { font-style: italic; }
+.sy-wa-preview-body del { text-decoration: line-through; }
+.sy-wa-preview-body .sy-empty { color: #667781; font-style: italic; }
+
+.sy-wa-preview-footer {
+  color: #667781;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.sy-wa-preview-time {
+  text-align: right;
+  color: #667781;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.sy-wa-preview-buttons {
+  margin: 6px -7px -8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sy-wa-preview-btn {
+  text-align: center;
+  color: #00a5f4;
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sy-wa-preview-btn:first-child {
+  border-top: none;
+}
+
+.sy-embed-iframe {
+  width: 100%;
+  height: 70vh;
+  border: none;
+  display: block;
+  border-radius: 0 0 8px 8px;
+}
+
+/* ── Merge Groups popup ── */
+.sy-modal-header.sy-modal-header-merge {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+}
+
+.sy-modal-btn.sy-merge-primary {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #fff;
+  border: none;
+}
+
+.sy-modal-btn.sy-merge-primary:hover {
+  filter: brightness(0.95);
+}
+
+.sy-modal-btn.sy-merge-primary:disabled {
+  opacity: 0.6;
+}
+
+.sy-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sy-modal-msg {
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.sy-modal-msg.sy-error { color: #b91c1c; }
+.sy-modal-msg.sy-ok { color: #166534; }
+
+#swaryoga-crm-sidebar .sy-empty {
+  color: #9ca3af;
+  font-size: 11px;
+  font-style: italic;
+}
+
+#swaryoga-crm-sidebar .sy-locked {
+  padding: 16px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+/* ── Compact icon-only tool strip ── */
+#swaryoga-crm-sidebar .sy-icon-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn:hover {
+  background: #f3f4f6;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn.sy-primary {
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn.sy-primary:hover {
+  background: #1b4332;
+}
+
+#swaryoga-crm-sidebar .sy-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── Collapsible section header ── */
+#swaryoga-crm-sidebar .sy-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-section-header .sy-section-title {
+  margin-bottom: 0;
+}
+
+#swaryoga-crm-sidebar .sy-section-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#swaryoga-crm-sidebar .sy-add-btn {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #2d6a4f;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#swaryoga-crm-sidebar .sy-add-btn:hover {
+  background: #f0fdf4;
+  border-color: #2d6a4f;
+}
+
+#swaryoga-crm-sidebar .sy-chevron {
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+/* ── Message formatting toolbar (Bold/Italic/Strike + emoji) ── */
+.sy-fmt-toolbar {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+
+.sy-fmt-btn {
+  width: 26px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+}
+
+.sy-fmt-btn:hover {
+  background: #f3f4f6;
+  border-color: #2d6a4f;
+}
+
+.sy-fmt-btn.sy-fmt-italic { font-style: italic; }
+.sy-fmt-btn.sy-fmt-strike { text-decoration: line-through; }
+
+.sy-emoji-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 5px;
+}
+
+.sy-emoji-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sy-emoji-btn:hover {
+  background: #f0fdf4;
+  border-color: #2d6a4f;
+}
+
+.sy-fmt-hint {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+
+/* ── Repeat-on-days block (Schedule Message/Groups/Selected) ── */
+.sy-repeat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin: 14px 0 4px;
+  cursor: pointer;
+}
+
+.sy-repeat-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sy-repeat-col {
+  flex: 1;
+}
+
+.sy-repeat-col-narrow {
+  width: 90px;
+}
+
+.sy-repeat-actions {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
+.sy-repeat-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 6px;
+}
+
+.sy-day-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ── Create Template popup ── */
+.sy-header-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.sy-header-type-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.sy-header-type-btn.sy-active {
+  background: #f0fdf4;
+  border-color: #2d6a4f;
+  color: #2d6a4f;
+}
+
+.sy-button-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.sy-button-row input,
+.sy-button-row select {
+  margin-bottom: 0 !important;
+}
+
+.sy-button-row .sy-button-title {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.sy-button-row .sy-button-type {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.sy-button-row .sy-button-value {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.sy-button-remove {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sy-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+}
+
+/* ── Report cards ── */
+.sy-report-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 8px 0 14px;
+}
+
+.sy-report-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 4px;
+  text-align: center;
+}
+
+.sy-report-card-warn {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.sy-report-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.sy-report-card-warn .sy-report-num {
+  color: #b91c1c;
+}
+
+.sy-report-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+/* ── Settings popup links ── */
+.sy-settings-link {
+  display: block;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  text-decoration: none;
+  margin-bottom: 6px;
+}
+
+.sy-settings-link:hover {
+  background: #f0fdf4;
+  border-color: #2d6a4f;
+  color: #2d6a4f;
+}
+
+.sy-modal-context-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin: 2px 0 10px;
+}
+
+/* ── Quick Message popup ── */
+.sy-qr-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.sy-qr-add-row textarea {
+  flex: 1;
+  min-width: 0;
+}
+
+.sy-qr-add-row .sy-modal-btn {
+  flex-shrink: 0;
+  height: 38px;
+}
+
+/* ── Message Templates popup cards ── */
+.sy-tpl-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.sy-tpl-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sy-tpl-card-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.sy-tpl-card-namecol {
+  flex: 1;
+  min-width: 0;
+}
+
+.sy-tpl-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #111827;
+}
+
+.sy-tpl-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.sy-tpl-card-body {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.sy-tpl-card-body strong { color: #111827; }
+.sy-tpl-card-body em { font-style: italic; }
+.sy-tpl-card-body del { text-decoration: line-through; }
+
+/* ── Dashboards dropdown ── */
+#swaryoga-crm-sidebar .sy-dropdown-wrap {
+  position: relative;
+}
+
+#swaryoga-crm-sidebar .sy-dropdown-menu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  z-index: 10;
+  min-width: 140px;
+}
+
+#swaryoga-crm-sidebar .sy-dropdown-menu a {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#swaryoga-crm-sidebar .sy-dropdown-menu a:hover {
+  background: #f0fdf4;
+  color: #2d6a4f;
+}

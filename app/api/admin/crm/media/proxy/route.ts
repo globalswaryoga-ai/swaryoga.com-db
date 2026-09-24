@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
  * 
  * Universal media proxy that handles:
  * 1. Bunny CDN URLs (swaryogacrm.b-cdn.net) — fetch directly (public)
- * 2. Old Bunny CDN URLs (swaryogadb.b-cdn.net) — rewrite to new CDN host
+ * 2. Old Bunny CDN URLs — rewrite to the active CDN host
  * 3. AWS S3 URLs (*.s3.*.amazonaws.com) — fetch directly (public bucket)
  * 4. Any other URL — fetch directly
  * 
@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 
 const NEW_CDN_HOST = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
-const OLD_CDN_HOST = 'swaryogadb.b-cdn.net';
+const OLD_CDN_HOSTS = ['swaryogadb.b-cdn.net', 'swaryoga.b-cdn.net'];
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,9 +43,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Fix old suspended Bunny CDN URLs → rewrite to new CDN host
-    if (originalUrl.includes(OLD_CDN_HOST)) {
-      originalUrl = originalUrl.replace(OLD_CDN_HOST, NEW_CDN_HOST);
-      console.log('[Media Proxy] Rewrote old Bunny CDN URL to:', originalUrl);
+    for (const oldHost of OLD_CDN_HOSTS) {
+      if (originalUrl.includes(oldHost)) {
+        originalUrl = originalUrl.replace(oldHost, NEW_CDN_HOST);
+        console.log('[Media Proxy] Rewrote legacy Bunny CDN URL to:', originalUrl);
+        break;
+      }
     }
 
     // Fetch the media directly — works for:

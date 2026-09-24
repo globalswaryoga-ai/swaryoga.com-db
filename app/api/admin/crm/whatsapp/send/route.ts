@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
-import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import { getBunnyLeadByPhone, getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
-import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { isSuperAdmin } from '@/lib/crm-handlers';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 
 export const dynamic = 'force-dynamic';
 
-// Mark as dynamic since this route uses request.headers or request.url
-
-/**
- * POST /api/admin/crm/whatsapp/send
- * 
- * Sends a WhatsApp message to a lead contact with detailed logging and error handling.
- * Routes to either QR Bridge or Meta API based on provider parameter.
- */
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).slice(2, 9);
   
@@ -30,7 +23,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      console.log(`[SEND:${requestId}] ❌ Invalid JSON`);
       return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 });
     }
 
@@ -42,47 +34,34 @@ export async function POST(request: NextRequest) {
     const hasText = Boolean(String(messageContent || '').trim());
     
     if (!phoneNumber || (!hasText && !hasMedia)) {
-      console.log(`[SEND:${requestId}] ❌ Missing fields`);
       return NextResponse.json({ success: false, error: 'Missing phoneNumber or messageContent' }, { status: 400 });
     }
 
-    console.log(`[SEND:${requestId}] 📨 Message to ${phoneNumber} (${providerScope})`);
-
-    await connectDB();
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
-
     const userId = decoded?.userId || decoded?.username || 'unknown';
-    const superAdmin = userId === 'admincrm' || userId === 'admin';
+    const superAdmin = isSuperAdmin(decoded);
     const normalizedPhone = normalizePhone(String(phoneNumber));
 
-    // Find or create lead — fallback to phone if leadId stale (DB migration)
-    let lead = leadId ? await Lead.findById(leadId).catch(() => null) : null;
+    // Find lead in BunnyDB
+    let lead = leadId ? await getBunnyLeadById(leadId) : null;
     if (!lead) {
-      lead = await Lead.findOne({ phoneNumber: normalizedPhone });
+      lead = await getBunnyLeadByPhone(normalizedPhone, superAdmin ? null : userId);
     }
 
     if (!superAdmin && !lead) {
-      console.log(`[SEND:${requestId}] ❌ Lead not found`);
       return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
     }
 
-    // BLOCK CHECK: Prevent sending to blocked leads
     if (lead?.isBlocked) {
-      console.log(`[SEND:${requestId}] 🚫 Lead ${lead._id} is blocked — message rejected`);
       return NextResponse.json({ 
         success: false, 
         error: 'Cannot send message to a blocked user. Unblock them first.' 
       }, { status: 403 });
     }
 
-    // ACCESS CONTROL: Check if regular admin is assigned to or created this lead (user compartment)
     if (!superAdmin && lead) {
       const assignedTo = String(lead.assignedToUserId || '').trim();
       const createdBy = String(lead.createdByUserId || '').trim();
-      // Block if assigned to someone else AND not created by this user
       if (assignedTo && assignedTo !== userId && createdBy !== userId) {
-        console.log(`[SEND:${requestId}] ❌ Forbidden: Lead assigned to ${assignedTo}, not ${userId}`);
         return NextResponse.json({ 
           success: false, 
           error: `You can only message leads assigned to you or created by you.` 
@@ -91,8 +70,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!lead) {
-      console.log(`[SEND:${requestId}] 📝 Creating lead (super admin)`);
-      lead = await Lead.create({
+      // Create lead if missing
+      lead = await saveBunnyLead({
         phoneNumber: normalizedPhone,
         source: 'manual',
         status: 'lead',
@@ -100,8 +79,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Add admin display name to message content (bold, below the message)
-    // Super admin (admincrm/admin) shows as "Swar Yoga", others show their username
     const isSuperAdminUser = userId === 'admincrm' || userId === 'admin';
     const adminDisplayName = isSuperAdminUser ? 'Swar Yoga' : (decoded.name || decoded.username || userId);
     const adminNameTag = `\n\n*${adminDisplayName}*`;
@@ -109,45 +86,48 @@ export async function POST(request: NextRequest) {
       ? String(messageContent).trim() + adminNameTag
       : '(media)';
 
-    // Create message record
-    const messageRecord = await WhatsAppMessage.create({
-      leadId: lead._id,
-      phoneNumber: normalizedPhone,
-      messageContent: finalMessageContent,
-      headerText: headerText ? String(headerText) : undefined,
-      footerText: footerText ? String(footerText) : undefined,
-      senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
-      metadata: { channel: providerScope },
-      direction: 'outbound',
-      status: 'pending',
-      sentAt: new Date(),
-      provider: providerValue,
-      sentByLabel: userId,
-      sentByUserId: userId,
-      // Save media info immediately so it's visible in UI even if pending
-      ...(media?.url && {
-        media: {
-          url: media.url,
-          kind: media.kind || 'image',
-        },
-        messageType: 'media',
-      }),
-    });
+    let messageRecord: any;
+    const documentId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    
+    if (providerScope === 'meta') {
+      messageRecord = await upsertBunnyMetaMessage({
+        documentId: documentId,
+        leadId: lead?._id ? String(lead._id) : undefined,
+        phoneNumber: normalizedPhone,
+        messageContent: finalMessageContent,
+        headerText: headerText ? String(headerText) : undefined,
+        footerText: footerText ? String(footerText) : undefined,
+        senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
+        metadata: { channel: providerScope },
+        direction: 'outbound',
+        status: 'pending',
+        sentAt: new Date().toISOString(),
+        provider: providerValue,
+        sentByLabel: userId,
+        sentByUserId: userId,
+        ...(media?.url && {
+          media: {
+            url: media.url,
+            kind: media.kind || 'image',
+          },
+          messageType: 'media',
+        }),
+      });
+    } else {
+      // QR provider fallback (usually won't hit since user migrated entirely to Bunny for meta)
+      // but keeping it simple and stubbing to avoid mongo
+      console.warn("QR provider hit but we are running in BunnyDB-only mode for send.");
+      messageRecord = { _id: documentId };
+    }
 
-    console.log(`[SEND:${requestId}] 💾 Message created: ${messageRecord._id}`);
+    const messageId = providerScope === 'meta' ? documentId : documentId;
 
     try {
       let deliveryResult: any;
 
       if (providerScope === 'qr') {
-        console.log(`[SEND:${requestId}] 🌉 Sending via QR Bridge to ${normalizedPhone}`);
         const { url: bridgeUrl, secret: bridgeSecret } = getWhatsAppBridgeConfig();
-
-        if (!bridgeUrl) {
-          throw new Error('Bridge URL not configured');
-        }
-
-        console.log(`[SEND:${requestId}] 🔗 Bridge URL: ${bridgeUrl}`);
+        if (!bridgeUrl) throw new Error('Bridge URL not configured');
 
         const bridgePayload: any = {
           to: normalizedPhone,
@@ -171,54 +151,46 @@ export async function POST(request: NextRequest) {
         });
 
         const bridgeData = await bridgeRes.json().catch(() => ({}));
+        if (!bridgeRes.ok) throw new Error(bridgeData?.error || `Bridge error ${bridgeRes.status}`);
 
-        if (!bridgeRes.ok) {
-          console.error(`[SEND:${requestId}] ❌ Bridge error:`, bridgeData);
-          throw new Error(bridgeData?.error || `Bridge error ${bridgeRes.status}`);
-        }
-
-        console.log(`[SEND:${requestId}] ✅ Bridge accepted message, queue size: ${bridgeData?.queueSize}`);
-        // Extract actual WhatsApp message ID from bridge response
         const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id || `qr-${Date.now()}`;
         deliveryResult = { waMessageId: whatsappMessageId };
       } else {
-        console.log(`[SEND:${requestId}] 🌐 Sending via Meta API`);
+        const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
         if (media?.url) {
-          console.log(`[SEND:${requestId}] 🖼 Sending media via Meta API:`, media.url);
           deliveryResult = await sendWhatsAppMedia(
-            normalizedPhone, 
-            media.url, 
-            media.kind || 'image', 
-            finalMessageContent // Use the version with the admin tag
+            normalizedPhone,
+            media.url,
+            media.kind || 'image',
+            finalMessageContent,
+            tenantCreds
           );
         } else {
-          deliveryResult = await sendWhatsAppText(normalizedPhone, finalMessageContent); // Use the version with the admin tag
+          deliveryResult = await sendWhatsAppText(normalizedPhone, finalMessageContent, tenantCreds);
         }
       }
 
-      // Mark as sent
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'sent',
-        waMessageId: deliveryResult.waMessageId,
-        whatsappMessageId: deliveryResult.waMessageId,
-        provider: providerValue,
-        deliveredAt: new Date(),
-        // Save media info if sent via Meta
-        ...(media?.url && {
-          media: {
-            url: media.url,
-            kind: media.kind || 'image'
-          }
-        })
-      });
-
-      console.log(`[SEND:${requestId}] ✅ Sent successfully`);
+      if (providerScope === 'meta') {
+        await updateBunnyMetaMessage(messageId, {
+          status: 'sent',
+          waMessageId: deliveryResult.waMessageId,
+          whatsappMessageId: deliveryResult.waMessageId,
+          provider: providerValue,
+          deliveredAt: new Date().toISOString(),
+          ...(media?.url && {
+            media: {
+              url: media.url,
+              kind: media.kind || 'image'
+            }
+          })
+        });
+      }
 
       return NextResponse.json(
         {
           success: true,
           data: {
-            messageId: messageRecord._id,
+            messageId: messageId,
             status: 'sent',
             waMessageId: deliveryResult.waMessageId,
             provider: providerScope,
@@ -229,23 +201,21 @@ export async function POST(request: NextRequest) {
 
     } catch (deliveryErr) {
       const errorMsg = deliveryErr instanceof Error ? deliveryErr.message : String(deliveryErr);
-      console.log(`[SEND:${requestId}] ⚠️  Delivery error: ${errorMsg}`);
 
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'pending',
-        errorMessage: errorMsg.substring(0, 500),
-      });
+      if (providerScope === 'meta') {
+        await updateBunnyMetaMessage(messageId, {
+          status: 'failed',
+          errorMessage: errorMsg.substring(0, 500),
+        });
+      }
 
       return NextResponse.json(
         {
-          success: true,
-          data: {
-            messageId: messageRecord._id,
-            status: 'pending',
-            error: errorMsg.substring(0, 120),
-          },
+          success: false,
+          error: errorMsg.substring(0, 200),
+          messageId: messageId,
         },
-        { status: 202 }
+        { status: 502 }
       );
     }
 

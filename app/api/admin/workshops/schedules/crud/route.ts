@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, WorkshopSchedule } from '@/lib/db';
+import { connectDB, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
 import { isAdminAuthorized } from '@/lib/adminAuth';
 import { makeWorkshopScheduleId } from '@/lib/workshopScheduleIds';
 
@@ -98,6 +98,19 @@ export async function POST(request: NextRequest) {
     });
 
     const docObj = doc.toObject();
+    await WorkshopSeatInventory.updateOne(
+      { workshopSlug, scheduleId: String(doc._id) },
+      {
+        $setOnInsert: {
+          workshopSlug,
+          scheduleId: String(doc._id),
+          seatsTotal: Number(doc.seatsTotal || 0),
+          seatsRemaining: Number(doc.seatsTotal || 0),
+        },
+        $set: { updatedAt: new Date() },
+      },
+      { upsert: true },
+    );
     console.log('[POST] Created schedule:', {
       id: String(doc._id),
       workshopName: docObj.workshopName,
@@ -183,6 +196,20 @@ export async function PUT(request: NextRequest) {
         nextUpdates.status = 'draft';
         nextUpdates.publishedAt = undefined;
       }
+    }
+
+    if (nextUpdates.seatsTotal !== undefined) {
+      await WorkshopSeatInventory.updateOne(
+        { scheduleId: String(id) },
+        {
+          $set: {
+            seatsTotal: Number(nextUpdates.seatsTotal),
+            seatsRemaining: Number(nextUpdates.seatsTotal),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
     }
 
     console.log('[PUT] Updating schedule:', id, 'with:', nextUpdates);

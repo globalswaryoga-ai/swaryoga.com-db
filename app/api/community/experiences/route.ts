@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import mongoose from 'mongoose';
+import { listBunnyModerationItems, countBunnyModerationPending } from '@/lib/bunnyModerationRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,13 @@ function getExperience() {
  */
 export async function GET(request: NextRequest) {
   try {
+    const bunnyUrl = new URL(request.url);
+    const requestedStatus = bunnyUrl.searchParams.get('status') || 'approved';
+    const bunnyLimit = parseInt(bunnyUrl.searchParams.get('limit') || '50');
+    const bunnyItems = await listBunnyModerationItems('community_experiences', requestedStatus, bunnyLimit);
+    const pendingCount = await countBunnyModerationPending('community_experiences');
+    if (requestedStatus === 'pending') return NextResponse.json({ success: true, experiences: bunnyItems, pendingCount, stats: { avgRating: 0, totalCount: bunnyItems.length } });
+    if (requestedStatus === 'approved' || requestedStatus === 'all') return NextResponse.json({ success: true, experiences: bunnyItems, pendingCount, stats: { avgRating: bunnyItems.length ? bunnyItems.reduce((sum: number, item: any) => sum + Number(item.rating || 0), 0) / bunnyItems.length : 0, totalCount: bunnyItems.length } });
     await connectDB();
     const Experience = getExperience();
     

@@ -6,12 +6,16 @@
  */
 
 import { uploadToBunnyStream, generateBunnyTitle, isBunnyConfigured } from './bunny-stream';
+import { uploadToYouTube } from './youtube-upload';
+import { getYouTubeAccessToken } from './youtube-auth';
 
 // Zoom recording types we want to sync
 const ALLOWED_RECORDING_TYPES = [
-  'speaker_view',      // Speaker view recording
-  'gallery_view',      // Gallery view (includes screen share overlay)
+  'speaker_view',                    // Speaker view recording
+  'active_speaker',                  // Active speaker recording from Zoom API
+  'gallery_view',                    // Gallery view (includes screen share overlay)
   'shared_screen_with_speaker_view', // Screen share with speaker
+  'shared_screen_with_active_speaker', // Screen share with active speaker
   'shared_screen_with_gallery_view', // Screen share with gallery
 ];
 
@@ -59,8 +63,10 @@ interface ZoomMeetingRecording {
 export interface SyncedFile {
   recordingType: string;
   fileSize: number;
-  bunnyVideoId: string;
-  bunnyEmbedUrl: string;
+  bunnyVideoId?: string;
+  bunnyEmbedUrl?: string;
+  youtubeVideoId?: string;
+  youtubeUrl?: string;
   dayNumber: number;       // Which session day (1-based)
   recordingDate: string;   // ISO date string of the recording
   /** @deprecated kept for backward compat with old sync-recordings route */
@@ -98,6 +104,7 @@ export async function getZoomAccessToken(): Promise<string> {
         Authorization: `Basic ${credentials}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
+      cache: 'no-store',
     }
   );
 
@@ -244,23 +251,55 @@ export async function syncZoomToBunny(
         emit({
           type: 'uploading', fileIndex: i, totalFiles,
           recordingType: recording.recording_type, dayNumber, fileSizeMB: sizeMB,
-          message: `Uploading Day ${dayNumber} ${typeName} to Bunny Stream (${sizeMB} MB)...`,
+          message: `Uploading Day ${dayNumber} ${typeName}...`,
           percent: Math.round(fileBasePercent + fileStepPercent * 0.5),
         });
 
-        console.log(`[Zoom→Bunny] Uploading to Bunny Stream: ${bunnyTitle} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
+        const isSpeakerView = [
+          'speaker_view',
+          'active_speaker',
+          'shared_screen_with_speaker_view',
+          'shared_screen_with_active_speaker'
+        ].includes(recording.recording_type);
 
-        const bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle);
+        const isGalleryView = [
+          'gallery_view',
+          'shared_screen_with_gallery_view'
+        ].includes(recording.recording_type);
 
-        if (!bunnyResult.success) {
-          throw new Error(`Bunny upload failed: ${bunnyResult.error}`);
+        let bunnyResult;
+        // On Bunny: ONLY speaker view (with or without screen sharing)
+        if (isSpeakerView) {
+          console.log(`[Zoom→Bunny] Uploading to Bunny Stream (Speaker View): ${bunnyTitle} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
+          bunnyResult = await uploadToBunnyStream(buffer, bunnyTitle);
+          if (!bunnyResult.success) {
+            throw new Error(`Bunny upload failed: ${bunnyResult.error}`);
+          }
+        }
+
+        let ytResult;
+        // On YouTube: 1 speaker view (with or without screen sharing) and 1 gallery view
+        if (isSpeakerView || isGalleryView) {
+          try {
+             console.log(`[Zoom→YouTube] Uploading to YouTube (${isSpeakerView ? 'Speaker' : 'Gallery'} View): ${bunnyTitle}...`);
+             const ytToken = await getYouTubeAccessToken();
+             ytResult = await uploadToYouTube(ytToken, buffer, {
+               title: bunnyTitle,
+               privacyStatus: 'unlisted'
+             });
+             console.log(`[Zoom→YouTube] Uploaded to YouTube successfully: ${ytResult.url}`);
+          } catch (ytErr: any) {
+             console.error('[Zoom→YouTube] Error uploading:', ytErr);
+          }
         }
 
         result.syncedFiles.push({
           recordingType: recording.recording_type,
           fileSize: recording.file_size,
-          bunnyVideoId: bunnyResult.videoId,
-          bunnyEmbedUrl: bunnyResult.embedUrl,
+          bunnyVideoId: bunnyResult?.videoId,
+          bunnyEmbedUrl: bunnyResult?.embedUrl,
+          youtubeVideoId: ytResult?.videoId,
+          youtubeUrl: ytResult?.url,
           dayNumber,
           recordingDate: dateStr,
           s3Key: '', // deprecated

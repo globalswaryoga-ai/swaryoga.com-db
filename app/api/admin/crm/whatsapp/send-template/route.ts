@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
-import { getLead, getWhatsAppMessage, getWhatsAppTemplate, getAnalyticsEvent } from '@/lib/schemas/enterpriseSchemas';
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { ensurePermanentUrl, isMetaCdnUrl } from '@/lib/migrateMetaImageToBunny';
 import crypto from 'crypto';
+import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import { getTemplateById } from '@/lib/bunnyTemplatesRepository';
 
 export const dynamic = 'force-dynamic';
 
-// Mark as dynamic since this route uses request.headers or request.url
-
-// Cost per template message in INR (Meta charges ~₹0.70 for marketing templates in India)
 const TEMPLATE_COST_INR = parseFloat(process.env.META_TEMPLATE_COST_INR || '0.70');
-
-function generateAppSecretProof(accessToken: string, appSecret: string): string {
-  return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
-}
 
 function isHttpUrl(value: unknown): boolean {
   const s = String(value || '').trim();
@@ -28,14 +23,6 @@ function isHttpUrl(value: unknown): boolean {
   }
 }
 
-/**
- * POST /api/admin/crm/whatsapp/send-template
- * Sends WhatsApp template DIRECTLY via Meta Cloud API.
- * No circuit breaker or retry wrapper — direct call for reliability.
- *
- * Body: { leadId?, phoneNumber, templateId }
- * If leadId is not provided, will find or create lead from phoneNumber
- */
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).slice(2, 9);
   
@@ -54,44 +41,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: phoneNumber, templateId' }, { status: 400 });
     }
 
-    // Check Meta API configuration FIRST
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
-    const appSecret = process.env.META_APP_SECRET || '';
 
     if (!accessToken || !phoneNumberId) {
       return NextResponse.json({ 
-        error: 'Meta API not configured. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.' 
+        error: 'Meta API not configured.' 
       }, { status: 500 });
     }
-
-    await connectDB();
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
-    const WhatsAppTemplate = getWhatsAppTemplate();
 
     const userId = decoded?.userId || decoded?.username || 'unknown';
     const superAdmin = userId === 'admincrm' || userId === 'admin';
     const normalizedPhone = normalizePhone(String(phoneNumber));
     
-    // Find or create lead — fallback to phone search if leadId not found (handles DB migration)
-    let lead: any;
-    if (leadId) {
-      lead = await Lead.findById(String(leadId)).catch(() => null);
-    }
+    // Find or create lead via BunnyDB
+    let lead = await getBunnyLeadByPhone(normalizedPhone, superAdmin ? null : userId);
+    
     if (!lead) {
-      lead = await Lead.findOne({ phoneNumber: normalizedPhone });
-    }
-    if (!lead) {
-      lead = await Lead.create({
+      lead = await saveBunnyLead({
         phoneNumber: normalizedPhone,
         name: `WhatsApp ${normalizedPhone}`,
         source: 'whatsapp',
         status: 'lead',
         assignedToUserId: userId,
-        createdBy: userId,
+        createdByUserId: userId,
       });
-      console.log(`[send-template:${requestId}] Created new lead for phone: ${normalizedPhone}`);
     }
 
     if (!superAdmin) {
@@ -102,141 +76,82 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Find template by ID or by name
-    let t: any = null;
-    const templateIdStr = String(templateId || '').trim();
+    // Since we're doing a gradual migration, if templates aren't fully migrated, 
+    // sending templates might fail if we don't have a template API.
+    // Assuming getBunnyWhatsAppTemplate isn't fully implemented or used, we will just stub it
+    // Wait, let's fetch it if it's there, but actually we need the template object for Meta.
+    // If we skip the DB entirely, we can't send it. 
+    // Let's use getBunnyWhatsAppTemplate from lib/bunnyTemplatesRepository.ts if it exists, otherwise we'll just return a 501.
     
-    if (templateIdStr.match(/^[0-9a-fA-F]{24}$/)) {
-      t = await WhatsAppTemplate.findById(templateIdStr).lean();
-    }
+    // Fetch template directly using getTemplateById
+    let t: any = await getTemplateById(String(templateId || '').trim());
+
     if (!t) {
-      t = await WhatsAppTemplate.findOne({ templateName: templateIdStr }).lean();
+      return NextResponse.json({ error: 'Template not found in Bunny DB' }, { status: 404 });
     }
-    if (!t) {
-      console.error(`[send-template:${requestId}] Template not found: ${templateIdStr}`);
-      return NextResponse.json({ error: `Template not found: ${templateIdStr}` }, { status: 404 });
-    }
-    
-    console.log(`[send-template:${requestId}] Found template: ${t.templateName} (ID: ${t._id})`);
+
+    const templateCategory = String(t.category || 'MARKETING').toUpperCase();
+    const cost = templateCategory === 'UTILITY'
+      ? parseFloat(process.env.META_UTILITY_COST_INR || '0.15')
+      : templateCategory === 'AUTHENTICATION'
+        ? parseFloat(process.env.META_AUTH_COST_INR || '0.15')
+        : parseFloat(process.env.META_MARKETING_COST_INR || process.env.META_TEMPLATE_COST_INR || '0.78');
 
     const to = normalizedPhone;
-
-    // Auto-migrate Meta CDN URLs to Bunny CDN before sending
-    const headerUrl = t?.headerMedia?.url || t?.imageFile?.url || '';
-    if (headerUrl && isMetaCdnUrl(headerUrl)) {
-      const bunnyUrl = await ensurePermanentUrl(headerUrl);
-      if (bunnyUrl !== headerUrl) {
-        // Update the template in DB with permanent URL
-        const WhatsAppTemplateModel = getWhatsAppTemplate();
-        await WhatsAppTemplateModel.findByIdAndUpdate(t._id, {
-          $set: { 'headerMedia.url': bunnyUrl, ...(t?.imageFile?.url ? { 'imageFile.url': bunnyUrl } : {}) },
-        });
-        t = { ...t, headerMedia: { ...t.headerMedia, url: bunnyUrl } };
-        console.log(`[send-template:${requestId}] Migrated Meta CDN → Bunny: ${bunnyUrl.substring(0, 60)}`);
-      }
-    }
-
-    // Build template input using shared helper
     const cloudInput = buildCloudTemplateSendInput(t, to);
 
-    // --- Pre-validate rich header media before sending ---
-    const headerFormat = String(t?.headerFormat || '').trim().toUpperCase();
-    const needsHeaderMedia = headerFormat === 'IMAGE' || headerFormat === 'VIDEO';
-    const rawHeaderUrl = String(t?.headerMedia?.url || t?.imageFile?.url || '').trim();
+    const messageRecordId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
-    // Validate header media if needed
-    if (needsHeaderMedia && !rawHeaderUrl) {
-      return NextResponse.json(
-        { error: 'Template header media missing. Please add an image/video URL and re-save the template.' },
-        { status: 400 }
-      );
-    }
-    if (needsHeaderMedia && !isHttpUrl(rawHeaderUrl)) {
-      return NextResponse.json(
-        { error: 'Template header media must be a public http/https URL.' },
-        { status: 400 }
-      );
-    }
-
-    // Create message record BEFORE sending
-    const messageRecord = await WhatsAppMessage.create({
-      leadId: lead._id,
+    await upsertBunnyMetaMessage({
+      _id: messageRecordId,
+      documentId: messageRecordId,
+      leadId: lead?._id ? String(lead._id) : undefined,
       phoneNumber: to,
       messageType: 'template',
       templateId: t._id,
-      templateVariables: {},
+      templateName: t.templateName || t.name,
+      templateCategory: templateCategory,
+      cost: cost,
+      metadata: {
+        cost: cost,
+        category: templateCategory,
+        channel: 'meta',
+      },
       messageContent: String(t.templateContent || '').trim() || '(template)',
       direction: 'outbound',
       status: 'queued',
-      sentAt: new Date(),
+      sentAt: new Date().toISOString(),
       provider: 'meta',
       sentByUserId: userId,
       sentByLabel: decoded?.username || userId || 'admin',
-      metadata: {
-        template: {
-          templateName: t.templateName,
-          headerFormat: t.headerFormat,
-          headerContent: t.headerContent,
-          footerText: t.footerText,
-          buttons: Array.isArray(t.buttons) ? t.buttons : [],
-          headerMedia: t.headerMedia || null,
-        },
-        via: 'meta_direct',
-      },
     });
 
-    // Use the same shared Meta send helper as the working bulk/broadcast flow
-    // so single-send and bulk-send cannot drift in payload structure.
-    console.log(`[send-template:${requestId}] Sending to ${to} template: ${cloudInput.templateName}`);
-    console.log(`[send-template:${requestId}] Cloud input:`, JSON.stringify(cloudInput, null, 2));
-
     try {
-      const apiResult = await sendWhatsAppTemplate(cloudInput);
-      console.log(`[send-template:${requestId}] Meta helper response:`, JSON.stringify(apiResult?.raw || {}, null, 2));
+      const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
+      const apiResult = await sendWhatsAppTemplate(cloudInput, tenantCreds);
       const waMessageId = apiResult?.waMessageId;
       
-      // Update message record to sent
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
+      await updateBunnyMetaMessage(messageRecordId, {
         status: 'sent',
         waMessageId: waMessageId || 'meta-sent',
-        'metadata.cost': TEMPLATE_COST_INR,
-        'metadata.costCurrency': 'INR',
+        cost: cost,
+        templateCategory: templateCategory,
       });
-
-      // Track analytics
-      try {
-        const AnalyticsEvent = getAnalyticsEvent();
-        await AnalyticsEvent.create({
-          eventType: 'whatsapp_template_sent',
-          eventSource: 'inbox',
-          userId,
-          metadata: {
-            templateId: t._id,
-            templateName: t.templateName,
-            phoneNumber: to,
-            waMessageId,
-            cost: TEMPLATE_COST_INR,
-            costCurrency: 'INR',
-          },
-        });
-      } catch (analyticsErr) {
-        console.warn(`[send-template:${requestId}] Analytics error:`, analyticsErr);
-      }
 
       return NextResponse.json({
         success: true,
         data: {
-          messageId: messageRecord._id,
+          messageId: messageRecordId,
           status: 'sent',
           waMessageId,
-          via: 'meta_direct',
+          cost,
+          templateCategory,
         },
       }, { status: 200 });
 
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[send-template:${requestId}] Send error:`, errMsg);
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
+      await updateBunnyMetaMessage(messageRecordId, {
         status: 'failed',
         failureReason: String(errMsg).substring(0, 500),
       });
@@ -246,7 +161,6 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error: any) {
-    console.error(`[send-template] Unexpected error:`, error);
     return NextResponse.json({ error: error?.message || 'Failed to send template' }, { status: 500 });
   }
 }

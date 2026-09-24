@@ -16,7 +16,7 @@ import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 export type ProviderType = 'meta' | 'qr_bridge';
 
 export type ProviderHealth = {
-  provider: ProviderType;
+  provider: string;
   status: 'healthy' | 'degraded' | 'unhealthy';
   lastCheck: Date;
   lastSuccess: Date | null;
@@ -36,8 +36,11 @@ type CircuitState = {
   attempts: { success: boolean; timestamp: Date }[];
 };
 
-// In-memory circuit state (resets on server restart)
-const circuitStates: Map<ProviderType, CircuitState> = new Map();
+// In-memory circuit state (resets on server restart). Keyed by a plain
+// provider name ('meta', 'qr_bridge') for provider-level health checks, or
+// by a scoped key like `meta:{phoneNumberId}` so one tenant's failing Meta
+// number can't trip the breaker for every other tenant's number.
+const circuitStates: Map<string, CircuitState> = new Map();
 
 // Configuration
 const CONFIG = {
@@ -56,7 +59,19 @@ const CONFIG = {
   healthCheckInterval: 30000, // 30 seconds
 };
 
-function getCircuitState(provider: ProviderType): CircuitState {
+/**
+ * Scope the Meta circuit breaker to a specific tenant's phone number
+ * instead of the single literal 'meta' bucket shared by everyone. Without
+ * this, one tenant's bad/expired token trips a breaker that then blocks
+ * sends for every other tenant's Meta number for CONFIG.resetTimeout.
+ * Falls back to the plain 'meta' key (the shared/default number) when no
+ * phoneNumberId is available.
+ */
+export function metaCircuitKey(phoneNumberId?: string | null): string {
+  return phoneNumberId ? `meta:${phoneNumberId}` : 'meta';
+}
+
+function getCircuitState(provider: string): CircuitState {
   let state = circuitStates.get(provider);
   if (!state) {
     state = {
@@ -74,7 +89,7 @@ function getCircuitState(provider: ProviderType): CircuitState {
 /**
  * Check if circuit is open (should not send)
  */
-export function isCircuitOpen(provider: ProviderType): boolean {
+export function isCircuitOpen(provider: string): boolean {
   const state = getCircuitState(provider);
   
   if (!state.isOpen) return false;
@@ -91,7 +106,7 @@ export function isCircuitOpen(provider: ProviderType): boolean {
 /**
  * Manually reset the circuit breaker for a provider
  */
-export function resetCircuit(provider: ProviderType): void {
+export function resetCircuit(provider: string): void {
   const state = getCircuitState(provider);
   state.failures = 0;
   state.isOpen = false;
@@ -103,7 +118,7 @@ export function resetCircuit(provider: ProviderType): void {
 /**
  * Record a successful attempt
  */
-export function recordSuccess(provider: ProviderType, responseTime?: number): void {
+export function recordSuccess(provider: string, responseTime?: number): void {
   const state = getCircuitState(provider);
   state.failures = 0;
   state.isOpen = false;
@@ -121,7 +136,7 @@ export function recordSuccess(provider: ProviderType, responseTime?: number): vo
 /**
  * Record a failed attempt
  */
-export function recordFailure(provider: ProviderType, error?: string): void {
+export function recordFailure(provider: string, error?: string): void {
   const state = getCircuitState(provider);
   state.failures++;
   state.lastFailure = new Date();
@@ -146,7 +161,7 @@ export function recordFailure(provider: ProviderType, error?: string): void {
 /**
  * Get provider health status
  */
-export function getProviderHealth(provider: ProviderType): ProviderHealth {
+export function getProviderHealth(provider: string): ProviderHealth {
   const state = getCircuitState(provider);
   
   const successCount = state.attempts.filter(a => a.success).length;

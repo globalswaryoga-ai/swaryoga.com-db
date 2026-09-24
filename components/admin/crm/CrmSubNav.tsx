@@ -31,6 +31,8 @@ export interface SubNavItem {
    * If the tenant does not have any of the listed bundles, the tab is hidden.
    */
   bundle?: string | string[];
+  /** Optional highlight to render as a primary gradient button */
+  highlight?: boolean;
 }
 
 interface CrmSubNavProps {
@@ -430,6 +432,19 @@ export default function CrmSubNav({
               }
 
               // Regular item (no children)
+              if (item.highlight) {
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:scale-105 text-white shadow-sm"
+                  >
+                    {ItemIcon && <ItemIcon className="h-4 w-4" />}
+                    {item.label}
+                  </Link>
+                );
+              }
+
               return (
                 <Link
                   key={item.href}

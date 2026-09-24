@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB, SocialMediaAccount, SocialMediaPost } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { decryptCredential } from '@/lib/encryption';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
@@ -258,6 +257,97 @@ async function publishInstagramPost(args: {
   const igPostId = String(publish?.id || '').trim();
   if (!igPostId) throw new Error('Instagram publish returned no id');
   return igPostId;
+}
+
+/**
+ * Instagram Story — same container-create → poll → publish pattern as Reels,
+ * but with media_type STORIES. Supports a single image or a single video.
+ * Stories disappear after 24 hours; Meta gives no separate "story post id"
+ * beyond the media id returned here.
+ */
+async function publishInstagramStory(args: {
+  igUserId: string;
+  accessToken: string;
+  imageUrls: string[];
+  videoUrls: string[];
+}): Promise<string> {
+  const { igUserId, accessToken, imageUrls, videoUrls } = args;
+
+  if (imageUrls.length === 0 && videoUrls.length === 0) {
+    throw new Error('Instagram Story requires 1 image or 1 video URL.');
+  }
+  if (imageUrls.length > 0 && videoUrls.length > 0) {
+    throw new Error('Instagram Story does not support mixing an image and a video — use one or the other.');
+  }
+  if (imageUrls.length > 1 || videoUrls.length > 1) {
+    throw new Error('Instagram Story supports only 1 image or 1 video per story.');
+  }
+
+  const createContainer = await graphPost(`${encodeURIComponent(igUserId)}/media`, {
+    access_token: accessToken,
+    media_type: 'STORIES',
+    ...(videoUrls.length > 0 ? { video_url: videoUrls[0] } : { image_url: imageUrls[0] }),
+  });
+
+  const containerId = String(createContainer?.id || '').trim();
+  if (!containerId) throw new Error('Instagram Story container creation returned no id');
+
+  // Video stories process asynchronously like Reels; images publish immediately
+  // but polling once is harmless (status_code is only meaningful for video).
+  if (videoUrls.length > 0) {
+    await waitForInstagramContainerReady(containerId, accessToken);
+  }
+
+  const publish = await graphPost(`${encodeURIComponent(igUserId)}/media_publish`, {
+    access_token: accessToken,
+    creation_id: containerId,
+  });
+
+  const igStoryId = String(publish?.id || '').trim();
+  if (!igStoryId) throw new Error('Instagram Story publish returned no id');
+  return igStoryId;
+}
+
+/**
+ * Facebook Photo Story. Video Stories need Meta's resumable upload protocol
+ * (start/transfer/finish over /video_stories), which is a materially bigger
+ * change — not implemented yet. Photo Stories are a single, well-documented
+ * two-step call: upload the photo unpublished, then attach it to a story.
+ */
+async function publishFacebookStory(args: {
+  pageId: string;
+  accessToken: string;
+  imageUrls: string[];
+  videoUrls: string[];
+}): Promise<string> {
+  const { pageId, accessToken, imageUrls, videoUrls } = args;
+
+  if (videoUrls.length > 0) {
+    throw new Error('Facebook video Stories are not supported yet — use an image, or post a Reel/video to the feed instead.');
+  }
+  if (imageUrls.length === 0) {
+    throw new Error('Facebook Story requires 1 image.');
+  }
+  if (imageUrls.length > 1) {
+    throw new Error('Facebook Story supports only 1 image per story.');
+  }
+
+  const photo = await graphPost(`${encodeURIComponent(pageId)}/photos`, {
+    access_token: accessToken,
+    url: imageUrls[0],
+    published: 'false',
+  });
+  const photoId = String(photo?.id || '').trim();
+  if (!photoId) throw new Error('Facebook Story photo upload returned no id');
+
+  const story = await graphPost(`${encodeURIComponent(pageId)}/photo_stories`, {
+    access_token: accessToken,
+    photo_id: photoId,
+  });
+
+  const storyId = String(story?.id || story?.post_id || '').trim();
+  if (!storyId) throw new Error('Facebook Story publish returned no id');
+  return storyId;
 }
 
 async function publishXPost(args: {
@@ -634,16 +724,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const postId = params?.id;
-    if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+    if (!postId || (postId.length !== 24 && postId.length !== 36)) {
       return NextResponse.json({ error: 'Invalid post id' }, { status: 400 });
     }
 
-    await connectDB();
+    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
 
-    const postDoc = (await SocialMediaPost.findById(postId).lean()) as any | null;
-    if (!postDoc) {
+    const postRes = await bunnyExecute({
+      sql: "SELECT document_json FROM mongo_documents WHERE document_id = ? AND collection_name = 'socialmediaposts'",
+      args: [postId]
+    });
+
+    if (postRes.rows.length === 0) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
+
+    const postDoc = cleanMongoJson(JSON.parse(String(postRes.rows[0].document_json || '{}')));
+    postDoc._id = postId;
 
     const platforms: string[] = Array.isArray(postDoc.platforms) ? postDoc.platforms.map(String) : [];
     if (platforms.length === 0) {
@@ -651,11 +748,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const accountObjectIds = Array.isArray(postDoc.accountIds) ? postDoc.accountIds : [];
-    const accounts = await SocialMediaAccount.find({
-      _id: { $in: accountObjectIds },
-      isConnected: true,
-      platform: { $in: platforms },
-    }).lean();
+    
+    const accountsRes = await bunnyExecute({
+      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+    });
+    
+    const accounts = [];
+    for (const row of accountsRes.rows) {
+      try {
+        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
+        if (parsed.isConnected && platforms.includes(parsed.platform) && accountObjectIds.includes(String(row.id))) {
+          if (!parsed._id) parsed._id = String(row.id);
+          accounts.push(parsed);
+        }
+      } catch {}
+    }
 
     const results: PublishResult[] = [];
     const now = new Date();
@@ -696,29 +803,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         const videoUrls = Array.isArray(postDoc?.content?.videos)
           ? postDoc.content.videos.map((v: any) => String(v?.url || '').trim()).filter(Boolean)
           : [];
+        const postType = String(postDoc?.postType || 'feed').trim();
 
         if (platform === 'facebook') {
-          const fbId = await publishFacebookPagePost({
-            pageId: accountId,
-            accessToken,
-            message: text,
-            imageUrls,
-            videoUrls,
-          });
+          const fbId = postType === 'story'
+            ? await publishFacebookStory({ pageId: accountId, accessToken, imageUrls, videoUrls })
+            : await publishFacebookPagePost({ pageId: accountId, accessToken, message: text, imageUrls, videoUrls });
           platformPostIds.facebook = fbId;
           results.push({ platform, ok: true, platformPostId: fbId });
           continue;
         }
 
         if (platform === 'instagram') {
-          // Instagram supports images or Reels (videos)
-          const igId = await publishInstagramPost({
-            igUserId: accountId,
-            accessToken,
-            caption: text,
-            imageUrls,
-            videoUrls,
-          });
+          // Instagram supports feed posts (image/Reel-video) and Stories.
+          const igId = postType === 'story'
+            ? await publishInstagramStory({ igUserId: accountId, accessToken, imageUrls, videoUrls })
+            : await publishInstagramPost({ igUserId: accountId, accessToken, caption: text, imageUrls, videoUrls });
           platformPostIds.instagram = igId;
           results.push({ platform, ok: true, platformPostId: igId });
           continue;
@@ -793,25 +893,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const okAll = results.every((r) => r.ok);
     const okAny = results.some((r) => r.ok);
 
-    await SocialMediaPost.updateOne(
-      { _id: postId },
-      {
-        $set: {
-          status: okAll ? 'published' : 'failed',
-          publishedAt: okAny ? now : null,
-          updatedAt: now,
-          failureReason: okAll ? '' : JSON.stringify(results),
-          ...(Object.keys(platformPostIds).length
-            ? {
-                platformPostIds: {
-                  ...(postDoc.platformPostIds || {}),
-                  ...platformPostIds,
-                },
-              }
-            : {}),
-        },
-      }
-    );
+    postDoc.status = okAll ? 'published' : 'failed';
+    postDoc.publishedAt = okAny ? now.toISOString() : null;
+    postDoc.updatedAt = now.toISOString();
+    postDoc.failureReason = okAll ? '' : JSON.stringify(results);
+    if (Object.keys(platformPostIds).length) {
+      postDoc.platformPostIds = {
+        ...(postDoc.platformPostIds || {}),
+        ...platformPostIds,
+      };
+    }
+
+    await bunnyExecute({
+      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
+      args: [JSON.stringify(postDoc), postId]
+    });
 
     // Mirror into MediaPost (published only if we managed to publish to at least one platform).
     // If everything failed, mark draft so it doesn't appear publicly.

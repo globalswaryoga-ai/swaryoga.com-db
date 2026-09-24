@@ -47,6 +47,7 @@ const {
 const pino = require('pino');
 const QRCode = require('qrcode');
 const { MongoClient } = require('mongodb');
+const { createClient } = require('@libsql/client');
 const fs = require('fs');
 const mime = require('mime-types');
 
@@ -55,6 +56,8 @@ const PORT = parseInt(process.env.PORT || '3333', 10);
 const BRIDGE_SECRET = (process.env.BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
 const WEBHOOK_URL = (process.env.WEBHOOK_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://swaryoga.com').trim().replace(/\/$/, '');
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGODB_URI_MAIN || '';
+const BUNNY_DATABASE_URL = process.env.BUNNY_DATABASE_URL || '';
+const BUNNY_DATABASE_AUTH_TOKEN = process.env.BUNNY_DATABASE_AUTH_TOKEN || '';
 const AUTH_COLLECTION = 'baileys_auth_state';
 const AUTH_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 const MAX_SESSIONS = 1000;
@@ -71,15 +74,43 @@ const ENABLE_DB_CHAT_HYDRATION = process.env.WHATSAPP_BRIDGE_ENABLE_DB_HYDRATION
 // ── Logging ─────────────────────────────────────────────────────────────
 const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
 
+// ── Bunny DB Singleton ───────────────────────────────────────────────────
+let bunnyClient = null;
+function getBunnyClient() {
+  if (bunnyClient) return bunnyClient;
+  if (!BUNNY_DATABASE_URL || !BUNNY_DATABASE_AUTH_TOKEN) return null;
+  bunnyClient = createClient({
+    url: BUNNY_DATABASE_URL,
+    authToken: BUNNY_DATABASE_AUTH_TOKEN,
+  });
+  console.log('[BUNNY] Connected (singleton)');
+  return bunnyClient;
+}
+
 // ── MongoDB Singleton ───────────────────────────────────────────────────
 let mongoClient = null;
 async function getMongoClient() {
-  if (mongoClient) return mongoClient;
+  if (mongoClient) {
+    try {
+      await mongoClient.db('admin').command({ ping: 1 });
+      return mongoClient;
+    } catch (error) {
+      console.warn('[MONGO] Cached client is unusable; reconnecting:', error.message);
+      try { await mongoClient.close(); } catch {}
+      mongoClient = null;
+    }
+  }
   if (!MONGODB_URI) return null;
-  mongoClient = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 10000 });
-  await mongoClient.connect();
-  console.log('[MONGO] Connected (singleton)');
-  return mongoClient;
+  const nextClient = new MongoClient(MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 10000 });
+  try {
+    await nextClient.connect();
+    mongoClient = nextClient;
+    console.log('[MONGO] Connected (singleton)');
+    return mongoClient;
+  } catch (error) {
+    try { await nextClient.close(); } catch {}
+    throw error;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -95,6 +126,7 @@ class UserSession {
     this.qrCode = null;
     this.qrBase64 = null;
     this.connectionState = 'disconnected';
+    this.lastStartError = null;
     this.retryCount = 0;
     this.phoneInfo = null;
     this.lastQrTime = 0;
@@ -270,6 +302,40 @@ function resolveToPhone(session, jid) {
   return null;
 }
 
+function resolveParticipantPhone(session, jid, participant = null) {
+  const direct = resolveToPhone(session, jid);
+  if (direct && !/^\d{14,}$/.test(direct)) return direct;
+  const participantCandidates = [
+    participant?.pn,
+    participant?.phoneNumber,
+    participant?.phone,
+    participant?.jid,
+    participant?.id,
+  ];
+  for (const candidate of participantCandidates) {
+    if (!candidate) continue;
+    const number = String(candidate).split('@')[0].replace(/\D/g, '');
+    if (/^\d{7,13}$/.test(number)) return number;
+  }
+  if (!jid) return null;
+
+  const contact = session.contactsCache.get(jid);
+  const candidates = [contact?.jid, contact?.id, contact?.phone, contact?.pn];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const number = String(candidate).split('@')[0];
+    if (/^\d{7,13}$/.test(number)) return number;
+  }
+
+  for (const [contactId, cached] of session.contactsCache.entries()) {
+    if (cached?.lid === jid || cached?.jid === jid || contactId === jid) {
+      const number = String(cached.jid || cached.id || cached.phone || '').split('@')[0];
+      if (/^\d{7,13}$/.test(number)) return number;
+    }
+  }
+  return null;
+}
+
 function getChatAliasJids(session, jid) {
   if (!jid) return [];
 
@@ -383,6 +449,53 @@ async function prefetchGroupNames(session) {
 }
 
 async function loadChatsFromDB(session) {
+  let chatCount = 0, msgCount = 0;
+  try {
+    // 1. Try Bunny DB First
+    const bClient = getBunnyClient();
+    const connectedPhone = session.sock?.user?.id?.split(':')[0];
+    
+    if (bClient && connectedPhone) {
+      const rs = await bClient.execute({
+        sql: "SELECT data_json FROM qr_messages_sql WHERE user_id = ? AND connected_phone = ? ORDER BY timestamp ASC LIMIT 2000",
+        args: [session.ownerUserId !== 'default' ? session.ownerUserId : session.userId, connectedPhone]
+      });
+      
+      for (const row of rs.rows) {
+        if (!row.data_json) continue;
+        const doc = JSON.parse(row.data_json);
+        const phone = (doc.connectedPhone || '').replace(/\\D/g, '');
+        const jid = doc.chatJid || `${phone}@s.whatsapp.net`;
+        const isFromMe = doc.direction === 'outbound';
+        
+        if (!session.chatMap.has(jid)) chatCount++;
+        session.chatMap.set(jid, { id: jid, name: jid, isGroup: false, unreadCount: 0, lastMessageTime: new Date(doc.timestamp * 1000).toISOString() });
+        
+        const msgEntry = {
+          id: doc.messageId,
+          from: phone, fromMe: isFromMe,
+          text: doc.text || (doc.mediaMimetype ? `[Media]` : ''),
+          type: doc.type || 'text',
+          timestamp: doc.timestamp || 0,
+          status: doc.status || 0, hasMedia: !!doc.mediaUrl,
+          mediaUrl: doc.mediaUrl || null, mediaMimetype: doc.mediaMimetype || null, mediaFileName: doc.mediaFileName || null,
+        };
+        if (!session.messageMap.has(jid)) session.messageMap.set(jid, []);
+        const arr = session.messageMap.get(jid);
+        arr.push(msgEntry);
+        if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
+        msgCount++;
+      }
+      if (msgCount > 0) {
+        console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from BunnyDB`);
+        return;
+      }
+    }
+  } catch (err) {
+    console.error(`[${session.userId}] Failed to load chats from BunnyDB:`, err.message);
+  }
+
+  // 2. Fallback to MongoDB
   if (!MONGODB_URI) return;
   try {
     const client = await getMongoClient();
@@ -397,8 +510,6 @@ async function loadChatsFromDB(session) {
       sentAt: { $gte: cutoff },
     };
     // Only load messages that belong to this specific user
-    // CRITICAL: Do NOT include legacy untagged messages for non-admin users
-    // as that would leak the super admin's chat data to other users.
     if (session.ownerUserId !== 'default') {
       filter.$or = [
         { bridgeUserId: session.ownerUserId },
@@ -407,10 +518,10 @@ async function loadChatsFromDB(session) {
     }
 
     const docs = await col.find(filter).sort({ sentAt: 1 }).limit(2000).toArray();
-    let chatCount = 0, msgCount = 0;
+    chatCount = 0; msgCount = 0;
 
     for (const doc of docs) {
-      const phone = (doc.phoneNumber || '').replace(/\D/g, '');
+      const phone = (doc.phoneNumber || '').replace(/\\D/g, '');
       if (!phone || phone.length < 10) continue;
       const jid = `${phone}@s.whatsapp.net`;
       const isFromMe = doc.direction === 'outbound';
@@ -432,9 +543,9 @@ async function loadChatsFromDB(session) {
       if (arr.length > MAX_MSGS_PER_CHAT) arr.shift();
       msgCount++;
     }
-    console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from DB`);
+    console.log(`[${session.userId}] Hydrated ${chatCount} chats, ${msgCount} messages from MongoDB`);
   } catch (err) {
-    console.error(`[${session.userId}] Failed to load chats:`, err.message);
+    console.error(`[${session.userId}] Failed to load chats from MongoDB:`, err.message);
   }
 }
 
@@ -520,6 +631,111 @@ async function fetchMediaBuffer(url) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to fetch media: ${resp.status}`);
   return Buffer.from(await resp.arrayBuffer());
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BUNNY DB AUTH STATE — per user
+// ═══════════════════════════════════════════════════════════════════════
+async function useBunnyDatabaseAuthState(sessionKey, ownerUserId = sessionKey) {
+  const client = getBunnyClient();
+  if (!client) {
+    console.log(`[${ownerUserId}][AUTH] No BunnyDB — falling back to MongoDB...`);
+    return useMongoDBAuthState(sessionKey, ownerUserId);
+  }
+
+  console.log(`[${ownerUserId}][AUTH] Using BunnyDB-backed auth state for session ${sessionKey}`);
+  
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS baileys_auth_state_sql (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT
+    )
+  `);
+
+  const keyPrefix = `${sessionKey}:`;
+  const legacyKeyPrefix = ownerUserId && ownerUserId !== sessionKey ? `${ownerUserId}:` : null;
+
+  const replacer = (k, v) => {
+    if (Buffer.isBuffer(v) || v instanceof Uint8Array || v?.type === 'Buffer') {
+      return { type: 'Buffer', data: Buffer.from(v?.data || v).toString('base64') };
+    }
+    return v;
+  };
+  
+  const reviver = (k, v) => {
+    if (v && typeof v === 'object' && v.type === 'Buffer' && typeof v.data === 'string') {
+      return Buffer.from(v.data, 'base64');
+    }
+    return v;
+  };
+
+  const readData = async (key) => {
+    let rs = await client.execute({
+      sql: 'SELECT value FROM baileys_auth_state_sql WHERE key = ?',
+      args: [`${keyPrefix}${key}`]
+    });
+    
+    if (rs.rows.length === 0 && legacyKeyPrefix) {
+      const legacyRs = await client.execute({
+        sql: 'SELECT value FROM baileys_auth_state_sql WHERE key = ?',
+        args: [`${legacyKeyPrefix}${key}`]
+      });
+      if (legacyRs.rows.length > 0) {
+        await client.execute({
+          sql: 'INSERT INTO baileys_auth_state_sql (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at',
+          args: [`${keyPrefix}${key}`, legacyRs.rows[0].value, new Date().toISOString()]
+        }).catch(() => {});
+        rs = legacyRs;
+      }
+    }
+    
+    if (rs.rows.length === 0) return null;
+    return JSON.parse(rs.rows[0].value, reviver);
+  };
+
+  const writeData = async (key, value) => {
+    await client.execute({
+      sql: 'INSERT INTO baileys_auth_state_sql (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at',
+      args: [`${keyPrefix}${key}`, JSON.stringify(value, replacer), new Date().toISOString()]
+    });
+  };
+
+  const removeData = async (key) => {
+    await client.execute({
+      sql: 'DELETE FROM baileys_auth_state_sql WHERE key = ?',
+      args: [`${keyPrefix}${key}`]
+    });
+  };
+
+  const creds = await readData('creds') || initAuthCreds();
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: async (type, ids) => {
+          const result = {};
+          for (const id of ids) {
+            const val = await readData(`${type}-${id}`);
+            if (val) result[id] = val;
+          }
+          return result;
+        },
+        set: async (data) => {
+          for (const [type, entries] of Object.entries(data)) {
+            for (const [id, value] of Object.entries(entries)) {
+              if (value) await writeData(`${type}-${id}`, value);
+              else await removeData(`${type}-${id}`);
+            }
+          }
+        }
+      }
+    },
+    saveCreds: async () => {
+      await writeData('creds', creds);
+    }
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -644,7 +860,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       session.sock = null;
     }
 
-    const { state, saveCreds } = await useMongoDBAuthState(session.sessionKey, session.ownerUserId);
+    const { state, saveCreds } = await useBunnyDatabaseAuthState(session.sessionKey, session.ownerUserId);
     const { version } = await fetchLatestBaileysVersion();
 
     console.log(`[${session.ownerUserId}] Starting Baileys v${version.join('.')} for session ${session.sessionKey}`);
@@ -691,6 +907,7 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
+        session.lastStartError = null;
         session.qrCode = qr;
         session.qrBase64 = await QRCode.toDataURL(qr);
         session.connectionState = 'connecting';
@@ -1309,6 +1526,8 @@ async function startSocket(sessionKey, ownerUserId = sessionKey, tenantId = null
 
   } catch (err) {
     console.error(`[${session.ownerUserId}] startSocket error for session ${session.sessionKey}:`, err.message);
+    session.lastStartError = String(err?.message || err);
+    session.connectionState = 'disconnected';
     if (!session.intentionalDisconnect) {
       session.retryCount++;
       const delay = Math.min(session.retryCount * 3000, 30000);
@@ -1418,6 +1637,7 @@ app.get('/status', async (req, res) => {
       isStabilized: session.connectionStabilizedTime > 0,
       lastDisconnectTime: session.lastDisconnectTime,
     },
+    lastStartError: session.lastStartError || null,
   });
 });
 
@@ -1437,15 +1657,35 @@ app.get('/qr', async (req, res) => {
       try { session.sock.ev.removeAllListeners(); session.sock.end(undefined); } catch {}
       session.sock = null;
     }
+    // Start a fresh session. Wait for the bridge to generate a QR (or connect)
+    // but don't block forever — poll for a short timeout so the UI gets a
+    // usable response instead of a silent deadlock. This helps avoid the
+    // situation where the UI asks for /qr while the bridge is still starting
+    // and the QR hasn't been produced yet.
     startSessionForRequest(req).catch(e => console.error(`[${req.userId}] Auto-start failed:`, e.message));
-    await new Promise(r => setTimeout(r, 2000));
+
+    const waitForQrMs = 12000; // total wait time for QR (ms)
+    const pollInterval = 500; // poll interval (ms)
+    let waited = 0;
+    while (waited < waitForQrMs) {
+      if (session.connectionState === 'connected') break;
+      if (session.qrBase64) break;
+      // If the session is explicitly logged_out and no qr was produced, stop
+      // waiting early so the caller can show a manual Reconnect flow.
+      if (session.connectionState === 'logged_out' && !session.qrBase64) break;
+      // small sleep
+      await new Promise(r => setTimeout(r, pollInterval));
+      waited += pollInterval;
+    }
   }
 
   if (session.connectionState === 'connected') {
     return res.json({ connected: true, message: 'Already connected', qr: null });
   }
   if (!session.qrBase64) {
-    return res.json({ connected: false, qr: null, message: 'QR not yet generated. Waiting...' });
+    return res.json({ connected: false, qr: null, message: session.lastStartError
+      ? 'Bridge failed to start QR session.'
+      : 'QR not yet generated. Waiting...', error: session.lastStartError || null });
   }
   res.json({
     connected: false,
@@ -1548,15 +1788,30 @@ app.get('/group-info/:jid', async (req, res) => {
     const metadata = await session.sock.groupMetadata(jid);
     let participants = metadata.participants || [];
     const mappedParticipants = participants.map(p => ({
-      id: p.jid || p.id, lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined), admin: p.admin || null,
+      id: p.jid || p.id,
+      lid: p.lid || (p.id?.endsWith('@lid') ? p.id : undefined),
+      resolvedPhone: resolveParticipantPhone(session, p.jid || p.id || p.lid, p),
+      admin: p.admin || null,
     }));
     const cachedMembers = session.groupMembersCache.get(jid);
     if (cachedMembers) {
       const existingIds = new Set(mappedParticipants.map(p => p.id));
       const existingLids = new Set(mappedParticipants.map(p => p.lid).filter(Boolean));
-      for (const memberId of cachedMembers) {
+      for (const memberEntry of cachedMembers) {
+        // Older cache entries and some Baileys events can contain participant
+        // objects rather than a raw JID string. Normalize both shapes before
+        // checking suffixes or adding them to the response.
+        const memberId = typeof memberEntry === 'string'
+          ? memberEntry
+          : memberEntry?.jid || memberEntry?.id || memberEntry?.participant || '';
+        if (!memberId || typeof memberId !== 'string') continue;
         if (!existingIds.has(memberId) && !existingLids.has(memberId))
-          mappedParticipants.push({ id: memberId, lid: memberId.endsWith('@lid') ? memberId : undefined, admin: null });
+          mappedParticipants.push({
+            id: memberId,
+            lid: memberId.endsWith('@lid') ? memberId : undefined,
+            resolvedPhone: resolveParticipantPhone(session, memberId),
+            admin: null,
+          });
       }
     }
     const actualSize = Math.max(metadata.size || participants.length, mappedParticipants.length);
@@ -1632,7 +1887,7 @@ app.get('/chats', async (req, res) => {
         if (subject) chat.name = subject;
       } else if (!chat.isGroup && (chat.id.endsWith('@lid') || isLidNumber(chat.id))) {
         chat.isLid = true;
-        const phoneNum = resolveToPhone(session, chat.id);
+        const phoneNum = resolveParticipantPhone(session, chat.id, chat);
         if (phoneNum) {
           chat.resolvedPhone = phoneNum;
           if (/^\d{14,}$/.test(chat.name)) chat.name = phoneNum;
@@ -2073,6 +2328,114 @@ app.post('/delete-message', async (req, res) => {
     const msgs = session.messageMap.get(jid);
     if (msgs) { const idx = msgs.findIndex(m => m.id === messageId); if (idx >= 0) msgs.splice(idx, 1); }
     res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Send Poll ────────────────────────────────────────────────────────────
+app.post('/send-poll', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { to, name, options, selectableCount } = req.body || {};
+  if (!to || !name) return res.status(400).json({ error: 'to and name required' });
+  if (!Array.isArray(options) || options.length < 2) return res.status(400).json({ error: 'At least 2 options required' });
+  if (options.length > 12) return res.status(400).json({ error: 'Maximum 12 options' });
+  const toStr = String(to);
+  const jid = toStr.includes('@') ? toStr : `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+  try {
+    const result = await session.sock.sendMessage(jid, {
+      poll: {
+        name: String(name).slice(0, 255),
+        values: options.map(o => String(o).slice(0, 100)),
+        selectableCount: Math.max(1, Math.min(parseInt(selectableCount, 10) || 1, options.length)),
+      },
+    });
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
+    res.json({ success: true, messageId: result?.key?.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Send Location ────────────────────────────────────────────────────────
+app.post('/send-location', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { to, latitude, longitude, name, address } = req.body || {};
+  if (!to) return res.status(400).json({ error: 'to required' });
+  const lat = Number(latitude), lng = Number(longitude);
+  if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return res.status(400).json({ error: 'Valid latitude and longitude required' });
+  const toStr = String(to);
+  const jid = toStr.includes('@') ? toStr : `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+  try {
+    const result = await session.sock.sendMessage(jid, {
+      location: {
+        degreesLatitude: lat,
+        degreesLongitude: lng,
+        ...(name ? { name: String(name).slice(0, 100) } : {}),
+        ...(address ? { address: String(address).slice(0, 200) } : {}),
+      },
+    });
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
+    res.json({ success: true, messageId: result?.key?.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Send Contact Card (vCard) ────────────────────────────────────────────
+app.post('/send-contact', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { to, contactName, contactPhone, organization } = req.body || {};
+  if (!to || !contactName || !contactPhone) return res.status(400).json({ error: 'to, contactName and contactPhone required' });
+  const toStr = String(to);
+  const jid = toStr.includes('@') ? toStr : `${toStr.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+  const phoneDigits = String(contactPhone).replace(/[^0-9]/g, '');
+  if (!phoneDigits || phoneDigits.length < 7) return res.status(400).json({ error: 'Valid contactPhone required' });
+  const safeName = String(contactName).slice(0, 100).replace(/[\r\n;]/g, ' ');
+  const safeOrg = organization ? String(organization).slice(0, 100).replace(/[\r\n;]/g, ' ') : '';
+  const vcard =
+    'BEGIN:VCARD\n' +
+    'VERSION:3.0\n' +
+    `FN:${safeName}\n` +
+    (safeOrg ? `ORG:${safeOrg}\n` : '') +
+    `TEL;type=CELL;type=VOICE;waid=${phoneDigits}:+${phoneDigits}\n` +
+    'END:VCARD';
+  try {
+    const result = await session.sock.sendMessage(jid, {
+      contacts: { displayName: safeName, contacts: [{ displayName: safeName, vcard }] },
+    });
+    if (result?.key?.id && result?.message) {
+      session.sentMessageCache.set(result.key.id, result.message);
+      if (session.sentMessageCache.size > 1500) session.sentMessageCache.delete(session.sentMessageCache.keys().next().value);
+    }
+    res.json({ success: true, messageId: result?.key?.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Post WhatsApp Status (story) ─────────────────────────────────────────
+app.post('/post-status', async (req, res) => {
+  const session = getSessionForRequest(req);
+  if (!session.sock || session.connectionState !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const { text, imageUrl, caption, backgroundColor } = req.body || {};
+  if (!text && !imageUrl) return res.status(400).json({ error: 'text or imageUrl required' });
+  // A status is only visible to JIDs in statusJidList — build the audience
+  // from every individual contact/chat this session knows about.
+  const audience = new Set();
+  for (const jid of session.contactsCache.keys()) if (typeof jid === 'string' && jid.endsWith('@s.whatsapp.net')) audience.add(jid);
+  for (const jid of session.chatMap.keys()) if (typeof jid === 'string' && jid.endsWith('@s.whatsapp.net')) audience.add(jid);
+  const statusJidList = Array.from(audience).slice(0, 3000);
+  if (!statusJidList.length) return res.status(400).json({ error: 'No contacts to share the status with yet' });
+  try {
+    const content = imageUrl
+      ? { image: { url: String(imageUrl) }, caption: String(caption || text || '') }
+      : { text: String(text) };
+    const opts = { statusJidList };
+    if (!imageUrl && backgroundColor) opts.backgroundColor = String(backgroundColor);
+    const result = await session.sock.sendMessage('status@broadcast', content, opts);
+    res.json({ success: true, messageId: result?.key?.id, audienceSize: statusJidList.length });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

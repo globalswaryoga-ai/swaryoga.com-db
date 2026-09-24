@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
       birthTime: body?.birthTime || undefined,
       birthPlace: body?.birthPlace || undefined,
       ascendant: body?.ascendant || undefined,
+      fortuna: body?.fortuna || undefined,
       houses: Array.isArray(body?.houses) ? body.houses : [],
       planets: Array.isArray(body?.planets) ? body.planets : [],
       mahadashas: Array.isArray(body?.mahadashas) ? body.mahadashas.map((m: any) => ({

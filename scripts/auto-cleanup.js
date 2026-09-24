@@ -71,7 +71,6 @@ function cleanupFolders() {
 
   // Define cleanup targets with descriptions
   const cleanupTargets = [
-    { path: '.next', name: 'Next.js build cache (.next)' },
     { path: '.turbo', name: 'Turbo cache (.turbo)' },
     { path: 'dist', name: 'Distribution folder (dist)' },
     { path: 'build', name: 'Build folder (build)' },
@@ -80,7 +79,6 @@ function cleanupFolders() {
     { path: 'coverage', name: 'Test coverage (coverage)' },
     { path: '.pytest_cache', name: 'Python test cache (.pytest_cache)' },
     { path: '__pycache__', name: 'Python cache (__pycache__)' },
-    { path: 'node_modules/.cache', name: 'Node modules cache' },
   ];
 
   log('\n📦 Removing build artifacts:', 'yellow');

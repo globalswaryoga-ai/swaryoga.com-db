@@ -1,61 +1,70 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { getFunnelConfig, getFunnelStageMapping, getLead, getFunnelStageHistory } from '@/lib/schemas/enterpriseSchemas';
+import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId, getVisibleUserIds } from '@/lib/crm-handlers';
+import { 
+  getBunnyFunnelConfig, 
+  createBunnyFunnelConfig, 
+  updateBunnyFunnelConfig, 
+  getBunnyFunnelStageMappings, 
+  upsertBunnyFunnelStageMapping, 
+  createBunnyFunnelStageHistory 
+} from '@/lib/bunnyFunnelRepository';
+import { listBunnyLeads } from '@/lib/bunnyLeadsRepository';
 
 export const dynamic = 'force-dynamic';
 
-const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-
-// GET /api/admin/crm/funnel - List funnel config with stage distribution
 export async function GET(req: NextRequest) {
   try {
-    await connectDB();
-
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Unauthorized', 403);
     }
 
-    // Get funnel config - scoped by user
-    const FunnelConfig = getFunnelConfig();
     const superAdmin = isSuperAdmin(decoded);
     const viewerUserId = getViewerUserId(decoded);
-    const configFilter = superAdmin ? {} : { createdByUserId: viewerUserId };
-    const config = await FunnelConfig.findOne(configFilter).select().lean();
+    
+    // Get funnel config
+    const config = await getBunnyFunnelConfig(viewerUserId, superAdmin);
 
     if (!config) {
       return apiSuccess({ stages: [], stats: {} });
     }
 
     // Get stage distribution - scoped by visible leads
-    const FunnelStageMapping = getFunnelStageMapping();
     const visibleUserIds = getVisibleUserIds(decoded);
-    const Lead = getLead();
-    let mappingFilter: any = {};
-    if (visibleUserIds) {
-      // Get lead IDs visible to this user
-      const leadFilter = { $or: [{ assignedToUserId: { $in: visibleUserIds } }, { createdByUserId: { $in: visibleUserIds } }] };
-      const leadIds = await Lead.find(leadFilter).distinct('_id');
-      mappingFilter = { leadId: { $in: leadIds.map(String) } };
-    }
-    const stageCounts = await FunnelStageMapping.aggregate([
-      { $match: mappingFilter },
-      { $group: { _id: '$stageKey', count: { $sum: 1 } } },
-    ]);
+    
+    // Get leads visible to this user to find their IDs
+    const result = await listBunnyLeads({ 
+      visibleUserIds, 
+      viewerUserId, 
+      skip: 0, 
+      limit: Number.MAX_SAFE_INTEGER 
+    });
+    
+    const leadIds = result.leads.map((l: any) => String(l._id));
+    
+    const mappings = await getBunnyFunnelStageMappings(leadIds);
+    
+    // Calculate stage counts
+    const stageCounts = mappings.reduce((acc: Record<string, number>, mapping: any) => {
+      const key = mapping.stageKey;
+      if (key) acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
 
     // Add counts to stages
-    const stagesWithCounts = config.stages.map((stage: any) => ({
+    const stagesWithCounts = (config.stages || []).map((stage: any) => ({
       ...stage,
-      leadCount: stageCounts.find((s) => s._id === stage.key)?.count || 0,
+      leadCount: stageCounts[stage.key] || 0,
     }));
+
+    const totalLeads = Object.values(stageCounts).reduce((sum: number, count: any) => sum + count, 0);
 
     return apiSuccess({
       config,
       stages: stagesWithCounts,
-      totalLeads: stageCounts.reduce((sum: number, s: any) => sum + s.count, 0),
+      totalLeads,
     });
   } catch (err) {
     console.error('[funnel GET]', err);
@@ -63,7 +72,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/crm/funnel - Create new funnel config OR move lead
 interface PostRequest {
   action: 'create-config' | 'move-lead';
   stages?: any[];
@@ -74,8 +82,6 @@ interface PostRequest {
 
 export async function POST(req: NextRequest) {
   try {
-    await connectDB();
-
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Unauthorized', 403);
@@ -84,18 +90,18 @@ export async function POST(req: NextRequest) {
     const body: PostRequest = await req.json();
 
     if (body.action === 'create-config') {
-      // Create default funnel config if not exist
-      const FunnelConfig = getFunnelConfig();
-      const existing = await FunnelConfig.findOne({});
+      const viewerUserId = getViewerUserId(decoded);
+      const superAdmin = isSuperAdmin(decoded);
+      const existing = await getBunnyFunnelConfig(viewerUserId, superAdmin);
 
       if (existing) {
         return apiError('Funnel config already exists', 400);
       }
 
-      const config = new FunnelConfig({
+      const config = await createBunnyFunnelConfig({
         name: 'Default Funnel',
         isActive: true,
-        createdByUserId: decoded.userId,
+        createdByUserId: decoded.userId || decoded.username,
         stages: body.stages || [
           { key: 'new', name: 'New', color: '#6366F1', order: 1, isDefault: true },
           { key: 'contacted', name: 'Contacted', color: '#3B82F6', order: 2 },
@@ -107,7 +113,6 @@ export async function POST(req: NextRequest) {
         ],
       });
 
-      await config.save();
       return apiSuccess(config, 201);
     }
 
@@ -116,43 +121,40 @@ export async function POST(req: NextRequest) {
         return apiError('leadId and stageKey required', 400);
       }
 
-      // Find the funnel config - scoped
-      const FunnelConfig = getFunnelConfig();
-      const superAdmin2 = isSuperAdmin(decoded);
-      const viewerUserId2 = getViewerUserId(decoded);
-      const config = await FunnelConfig.findOne(superAdmin2 ? {} : { createdByUserId: viewerUserId2 });
+      const viewerUserId = getViewerUserId(decoded);
+      const superAdmin = isSuperAdmin(decoded);
+      const config = await getBunnyFunnelConfig(viewerUserId, superAdmin);
 
       if (!config) {
         return apiError('Funnel config not found', 404);
       }
 
-      const stage = config.stages.find((s: any) => s.key === body.stageKey);
+      const stage = (config.stages || []).find((s: any) => s.key === body.stageKey);
       if (!stage) {
         return apiError('Stage not found', 404);
       }
 
-      // Update or create mapping
-      const FunnelStageMapping = getFunnelStageMapping();
-      const mapping = await FunnelStageMapping.findOneAndUpdate(
-        { leadId: body.leadId, funnelConfigId: config._id },
-        {
-          stageKey: body.stageKey,
-          stageName: stage.name,
-          color: stage.color,
-          movedByUserId: decoded.userId,
-          moveNote: body.moveNote || '',
-          daysInStage: 0,
-        },
-        { upsert: true, new: true }
-      );
+      // Check current mapping to see where they came from
+      const mappings = await getBunnyFunnelStageMappings([body.leadId]);
+      const currentMapping = mappings.find((m: any) => m.funnelConfigId === config._id);
+      const fromStage = currentMapping ? currentMapping.stageKey : null;
+
+      // Update mapping
+      const mapping = await upsertBunnyFunnelStageMapping(body.leadId, config._id, {
+        stageKey: body.stageKey,
+        stageName: stage.name,
+        color: stage.color,
+        movedByUserId: decoded.userId || decoded.username,
+        moveNote: body.moveNote || '',
+        daysInStage: 0,
+      });
 
       // Log history
-      const FunnelStageHistory = getFunnelStageHistory();
-      await FunnelStageHistory.create({
+      await createBunnyFunnelStageHistory({
         leadId: body.leadId,
-        fromStage: mapping.stageKey,
+        fromStage,
         toStage: body.stageKey,
-        changedByUserId: decoded.userId,
+        changedByUserId: decoded.userId || decoded.username,
         changedByName: decoded.username || 'Admin',
         note: body.moveNote,
       });
@@ -167,15 +169,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT /api/admin/crm/funnel - Update funnel config
 interface PutRequest {
   stages?: any[];
 }
 
 export async function PUT(req: NextRequest) {
   try {
-    await connectDB();
-
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin && !decoded?.userId) {
       return apiError('Unauthorized', 403);
@@ -190,18 +189,15 @@ export async function PUT(req: NextRequest) {
     // Sort stages by order
     const sortedStages = body.stages.sort((a, b) => a.order - b.order);
 
-    const FunnelConfig = getFunnelConfig();
-    const putFilter = isSuperAdmin(decoded) ? {} : { createdByUserId: getViewerUserId(decoded) };
-    const config = await FunnelConfig.findOneAndUpdate(
-      putFilter,
-      { stages: sortedStages },
-      { new: true }
-    );
-
-    if (!config) {
+    const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = isSuperAdmin(decoded);
+    const existing = await getBunnyFunnelConfig(viewerUserId, superAdmin);
+    
+    if (!existing) {
       return apiError('Funnel config not found', 404);
     }
 
+    const config = await updateBunnyFunnelConfig(existing._id, { stages: sortedStages });
     return apiSuccess(config);
   } catch (err) {
     console.error('[funnel PUT]', err);
@@ -209,11 +205,8 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE /api/admin/crm/funnel - Delete staging
 export async function DELETE(req: NextRequest) {
   try {
-    await connectDB();
-
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded || !isSuperAdmin(decoded)) {
       return apiError('Only superadmin can delete', 403);
@@ -226,18 +219,15 @@ export async function DELETE(req: NextRequest) {
       return apiError('stageKey required', 400);
     }
 
-    const FunnelConfig = getFunnelConfig();
-    const config = await FunnelConfig.findOneAndUpdate(
-      {}, // DELETE is superadmin-only, no user scoping needed
-      { $pull: { stages: { key: stageKey } } },
-      { new: true }
-    );
-
+    const config = await getBunnyFunnelConfig(getViewerUserId(decoded), true);
     if (!config) {
       return apiError('Funnel config not found', 404);
     }
+    
+    const newStages = (config.stages || []).filter((s: any) => s.key !== stageKey);
+    const updated = await updateBunnyFunnelConfig(config._id, { stages: newStages });
 
-    return apiSuccess(config);
+    return apiSuccess(updated);
   } catch (err) {
     console.error('[funnel DELETE]', err);
     return apiError('Failed to delete stage', 500);

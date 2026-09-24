@@ -28,6 +28,7 @@ export interface ComputedChart {
   ascendant: ComputedPosition;
   houses: Array<{ house: number } & ComputedPosition>;
   planets: Array<{ planet: string; house: number; retrograde: boolean; combust: boolean } & ComputedPosition>;
+  fortuna: { house: number } & ComputedPosition;
 }
 
 const PLANETS: Array<{ name: string; id: number }> = [
@@ -130,24 +131,52 @@ export async function computeChart(params: {
   planets.push({ planet: 'Rahu', house: houseOfLongitude(rahuLongitude, cuspsSidereal), retrograde: true, combust: false, ...positionFromLongitude(rahuLongitude) });
   planets.push({ planet: 'Ketu', house: houseOfLongitude(ketuLongitude, cuspsSidereal), retrograde: true, combust: false, ...positionFromLongitude(ketuLongitude) });
 
+  const moonLongitude = planets.find((p) => p.planet === 'Moon')!.siderealLongitude;
+  const fortunaLongitude = computeFortunaLongitude(ascendantLongitude, sunLongitude, moonLongitude, cuspsSidereal);
+  console.error('[DEBUG fortuna]', { ascendantLongitude, sunLongitude, moonLongitude, fortunaLongitude, row: findSubTableRowByLongitude(fortunaLongitude) });
+
   return {
     julianDay: jd,
     ascendant: positionFromLongitude(ascendantLongitude),
     houses,
     planets,
+    fortuna: { house: houseOfLongitude(fortunaLongitude, cuspsSidereal), ...positionFromLongitude(fortunaLongitude) },
   };
 }
 
-const TRANSIT_PLANET_IDS: Record<string, number> = { Sun: 0, Moon: 1 };
+// Arabic Part of Fortune: Ascendant + Moon - Sun for a day birth (Sun above
+// the Asc-Desc horizon, i.e. in houses 7-12), reversed to Ascendant + Sun -
+// Moon for a night birth (Sun in houses 1-6) -- the standard day/night
+// formula split, not just one fixed formula.
+function computeFortunaLongitude(ascendantLongitude: number, sunLongitude: number, moonLongitude: number, cuspsSidereal: number[]): number {
+  const sunHouse = houseOfLongitude(sunLongitude, cuspsSidereal);
+  const isDayBirth = sunHouse >= 7 && sunHouse <= 12;
+  const raw = isDayBirth
+    ? ascendantLongitude + moonLongitude - sunLongitude
+    : ascendantLongitude + sunLongitude - moonLongitude;
+  return ((raw % 360) + 360) % 360;
+}
 
-// Geocentric sidereal position of Sun/Moon at a given UTC instant — used for
-// transit event-timing searches (KP's "Sun transit narrows to the year, Moon
-// transit narrows to the month/day" technique). No observer location needed:
-// Sun/Moon's sign/star/sub is the same everywhere on Earth at a given moment.
-export async function computeTransitPosition(date: Date, planet: 'Sun' | 'Moon'): Promise<ComputedPosition> {
+const TRANSIT_PLANET_IDS: Record<string, number> = {
+  Sun: 0, Moon: 1, Mercury: 2, Venus: 3, Mars: 4, Jupiter: 5, Saturn: 6, Rahu: SE_MEAN_NODE,
+};
+export type TransitPlanet = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Rahu' | 'Ketu';
+
+// Geocentric sidereal position of a transit-search planet at a given UTC
+// instant. No observer location needed: a planet's sign/star/sub is the same
+// everywhere on Earth at a given moment. Which planet is the right speed
+// depends on how broad the window being searched is (Sun/Moon for a Bhukti's
+// months/days, Jupiter/Saturn for a whole Mahadasha's years) -- see
+// dashaPrediction.ts's gochar guidance -- but the astrologer can pick any of
+// the 9 grahas directly instead of only the tool's own suggestion.
+export async function computeTransitPosition(date: Date, planet: TransitPlanet): Promise<ComputedPosition> {
   const swe = await getSwe();
   const utcHour = date.getUTCHours() + date.getUTCMinutes() / 60;
   const jd = swe.julday(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), utcHour);
+  if (planet === 'Ketu') {
+    const rahuPos = swe.calc_ut(jd, SE_MEAN_NODE, SEFLG_SWIEPH | SEFLG_SIDEREAL);
+    return positionFromLongitude((rahuPos[0] + 180) % 360);
+  }
   const pos = swe.calc_ut(jd, TRANSIT_PLANET_IDS[planet], SEFLG_SWIEPH | SEFLG_SIDEREAL);
   return positionFromLongitude(pos[0]);
 }

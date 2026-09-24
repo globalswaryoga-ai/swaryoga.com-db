@@ -4,14 +4,12 @@
  * PUT  - Update funnel stages (rename, reorder, colors)
  */
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getFunnelConfig } from '@/lib/schemas/enterpriseSchemas';
-import { isSuperAdmin } from '@/lib/crm-handlers';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { getBunnyFunnelConfig, createBunnyFunnelConfig, updateBunnyFunnelConfig } from '@/lib/bunnyFunnelRepository';
 
 export const dynamic = 'force-dynamic';
-
 
 // Default 11-step funnel with 4K vibrant colors
 const DEFAULT_STAGES = [
@@ -34,20 +32,19 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
 
-    await connectDB();
-    const FunnelConfig = getFunnelConfig();
+    const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = isSuperAdmin(decoded);
 
-    let config = await FunnelConfig.findOne({ isActive: true }).lean();
+    let config = await getBunnyFunnelConfig(viewerUserId, superAdmin);
 
     // Auto-create default config if none exists
     if (!config) {
-      config = await FunnelConfig.create({
+      config = await createBunnyFunnelConfig({
         name: 'Default Funnel',
         isActive: true,
-        createdByUserId: decoded.userId,
+        createdByUserId: decoded.userId || decoded.username,
         stages: DEFAULT_STAGES,
       });
-      config = config.toObject();
     }
 
     return apiSuccess(config);
@@ -64,8 +61,7 @@ export async function PUT(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) return apiError('UNAUTHORIZED');
     if (!isSuperAdmin(decoded)) return apiError('FORBIDDEN', 'Only super admin can edit funnel config');
 
-    await connectDB();
-    const FunnelConfig = getFunnelConfig();
+    const viewerUserId = getViewerUserId(decoded);
     const body = await request.json();
 
     const { stages, name } = body;
@@ -83,21 +79,22 @@ export async function PUT(request: NextRequest) {
     // Ensure order is correct
     const orderedStages = stages.map((s: any, i: number) => ({ ...s, order: i }));
 
-    let config = await FunnelConfig.findOne({ isActive: true });
+    let config = await getBunnyFunnelConfig(viewerUserId, true);
     if (!config) {
-      config = await FunnelConfig.create({
+      config = await createBunnyFunnelConfig({
         name: name || 'Default Funnel',
         isActive: true,
-        createdByUserId: decoded.userId,
+        createdByUserId: decoded.userId || decoded.username,
         stages: orderedStages,
       });
     } else {
-      config.stages = orderedStages;
-      if (name) config.name = name;
-      await config.save();
+      config = await updateBunnyFunnelConfig(config._id, {
+        stages: orderedStages,
+        ...(name ? { name } : {})
+      });
     }
 
-    return apiSuccess(config.toObject());
+    return apiSuccess(config);
   } catch (err: any) {
     console.error('[Funnel Config PUT]', err);
     return apiError('SERVER_ERROR', err.message);

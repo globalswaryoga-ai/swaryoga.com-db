@@ -46,11 +46,15 @@ const SUSPICIOUS_PATH_PATTERNS = [
 ];
 
 function isSuspiciousRequest(pathname: string, search: string): boolean {
+  if (pathname.includes('google-form-oauth') || pathname.includes('google-connect') || pathname.includes('oauth')) {
+    return false;
+  }
   const full = pathname + search;
   try {
-    return SUSPICIOUS_PATH_PATTERNS.some(p => p.test(decodeURIComponent(full).replace(/\+/g, ' ')));
+    const decoded = decodeURIComponent(full).replace(/\+/g, ' ');
+    return SUSPICIOUS_PATH_PATTERNS.some(p => p.test(decoded));
   } catch {
-    return true;
+    return SUSPICIOUS_PATH_PATTERNS.some(p => p.test(full));
   }
 }
 
@@ -143,16 +147,40 @@ const RELAXED_CSP_RULES = [
 
 const CSP = STRICT_CSP_ENABLED ? STRICT_CSP_RULES : RELAXED_CSP_RULES;
 
+// Scoped clickjacking exception for the Swar Yoga WhatsApp CRM browser
+// extension: it embeds these two admin pages in a popup rendered inside
+// web.whatsapp.com's own page, which the browser treats as that origin
+// framing this one. X-Frame-Options can't express "allow this one other
+// origin" (the old ALLOW-FROM directive is ignored by modern Chrome), so
+// for just these two paths we skip the blanket DENY and rely on the
+// modern frame-ancestors CSP directive instead, scoped to exactly this
+// one origin. Every other route keeps X-Frame-Options: DENY untouched.
+const EXTENSION_EMBEDDABLE_PATHS = ['/admin/crm/sales'];
+function isExtensionEmbeddablePath(pathname: string): boolean {
+  return EXTENSION_EMBEDDABLE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 function applySecurityHeaders(res: NextResponse, requestId: string, pathname: string, searchParams: URLSearchParams): void {
   res.headers.set('X-Request-Id', requestId);
+  const isDev = process.env.NODE_ENV !== 'production';
   const isLandingPagePreview = pathname.startsWith('/lp/') && searchParams.get('preview') === 'true';
-  res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+  const embeddable = isExtensionEmbeddablePath(pathname);
+  
+  // Strict security headers (CSP, Frame denial, HSTS) are ONLY applied in production
+  // In development, they are omitted so that IDE webview previews (vscode-webview:),
+  // HMR websockets, and iframe testing render cleanly without being blocked.
+  if (!isDev) {
+    if (!embeddable) {
+      res.headers.set('X-Frame-Options', isLandingPagePreview ? 'SAMEORIGIN' : 'DENY');
+    }
+    res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    res.headers.set('Content-Security-Policy', embeddable ? `${CSP}; frame-ancestors 'self' https://web.whatsapp.com` : CSP);
+  }
+
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-XSS-Protection', '1; mode=block');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');
-  res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-  res.headers.set('Content-Security-Policy', CSP);
 }
 
 // ===========================================================================
@@ -166,11 +194,28 @@ export function middleware(request: NextRequest) {
   const hostname = request.nextUrl.hostname || request.headers.get('host') || '';
   const tenantSlug = extractTenantSlugEdge(request.headers, hostname);
 
+  // Public workshop language aliases. Keep the requested URL visible while
+  // loading the shared multilingual workshop form internally.
+  const workshopAlias = request.nextUrl.pathname.match(/^\/forms\/(ML-1|HL-1|EL-1)\/workshop\/?$/i);
+  if (workshopAlias) {
+    const aliasLanguage: Record<string, string> = {
+      'ml-1': 'marathi',
+      'hl-1': 'hindi',
+      'el-1': 'english',
+    };
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = '/forms/workshop';
+    rewriteUrl.searchParams.set('lang', aliasLanguage[workshopAlias[1].toLowerCase()]);
+    const response = NextResponse.rewrite(rewriteUrl);
+    applySecurityHeaders(response, requestId, request.nextUrl.pathname, request.nextUrl.searchParams);
+    return response;
+  }
+
   // ── 0b. CRM Site Subdomain Rewrite ──
   const lowerHost = hostname.toLowerCase().split(':')[0];
   if (lowerHost === CRM_SITE_DOMAIN || lowerHost === 'crm.localhost') {
     const p = request.nextUrl.pathname;
-    if (!p.startsWith('/crm-site') && !p.startsWith('/api') && !p.startsWith('/admin') && !p.startsWith('/life-planner') && !p.startsWith('/lp') && !p.startsWith('/_next') && !p.startsWith('/favicon') && !p.startsWith('/logo')) {
+    if (!p.startsWith('/crm-site') && !p.startsWith('/api') && !p.startsWith('/admin') && !p.startsWith('/life-planner') && !p.startsWith('/lp') && !p.startsWith('/_next') && !p.startsWith('/favicon') && !p.startsWith('/logo') && !p.startsWith('/privacy') && !p.startsWith('/terms') && !p.startsWith('/data-deletion')) {
       const rewriteUrl = request.nextUrl.clone();
       rewriteUrl.pathname = `/crm-site${p === '/' ? '' : p}`;
       return NextResponse.rewrite(rewriteUrl);
@@ -192,7 +237,7 @@ export function middleware(request: NextRequest) {
   const windowMs = 60 * 1000;
 
   // ── LAYER 1: Suspicious request blocking ──
-  if (isSuspiciousRequest(path, search)) {
+  if (!path.startsWith('/api/admin/google-form-oauth') && isSuspiciousRequest(path, search)) {
     return new NextResponse(
       JSON.stringify({ error: 'Blocked', code: 'SUSPICIOUS_REQUEST' }),
       { status: 403, headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId } }

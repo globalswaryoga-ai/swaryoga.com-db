@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { isSuperAdmin, getViewerUserId, isValidObjectId, toObjectId } from '@/lib/crm-handlers';
+import { formatPersonName } from '@/lib/formatName';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
 
 export const dynamic = 'force-dynamic';
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
           found: true,
           leadId: String(lead._id),
           customerId: lead?.leadNumber || null,
-          customerName: lead?.name || '',
+          customerName: formatPersonName(lead?.name) || '',
           customerPhone: lead?.phoneNumber || '',
           workshopName: lead?.workshopName || '',
           batchDate,

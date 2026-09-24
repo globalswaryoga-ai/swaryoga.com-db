@@ -434,6 +434,12 @@ const QrWhatsAppChatSchema = new mongoose.Schema(
     archived: { type: Boolean, default: false },
     profilePicUrl: { type: String, default: '' },
     metadata: { type: mongoose.Schema.Types.Mixed },
+    // ── Team inbox ──
+    assignedToUserId: { type: String, default: '', index: true }, // agent this chat is assigned to
+    assignedToName: { type: String, default: '' },
+    claimedByUserId: { type: String, default: '' },               // agent currently replying (soft lock)
+    claimedByName: { type: String, default: '' },
+    claimedAt: { type: Date },                                     // claim is stale after CLAIM_TTL
   },
   { timestamps: true, collection: 'qr_whatsapp_chats' }
 );
@@ -442,6 +448,232 @@ QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1 }, { uniqu
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, archived: 1, conversationTimestamp: -1 }); // Active chats
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, pinned: 1 }); // Pinned chats
 QrWhatsAppChatSchema.index({ userId: 1, connectedPhone: 1, unreadCount: 1 }); // Unread filtering
+
+// ============================================================================
+// 1a-QR-STORAGE. QR WHATSAPP STORAGE USAGE — per-tenant Bunny archive ledger
+// One doc per (userId, connectedPhone). Incrementally updated by the daily
+// archival cron (bytes added when messages move Mongo -> Bunny) and the
+// 6-month purge job (bytes removed when archives are finally deleted).
+// Avoids needing to query Bunny's API live for size (no such endpoint is
+// wired up), and avoids summing potentially millions of Mongo docs on read.
+// ============================================================================
+const QrWhatsappStorageUsageSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    connectedPhone: { type: String, required: true, index: true },
+    bunnyBytes: { type: Number, default: 0 },          // total bytes currently archived in Bunny
+    bunnyFileCount: { type: Number, default: 0 },       // number of archive files currently in Bunny
+    bunnyMessageCount: { type: Number, default: 0 },    // number of messages currently archived in Bunny
+    lastArchivedAt: { type: Date },                     // last time the 2am job moved data here
+    lastPurgedAt: { type: Date },                        // last time 6-month-old archives were deleted
+  },
+  { timestamps: true, collection: 'qr_whatsapp_storage_usage' }
+);
+QrWhatsappStorageUsageSchema.index({ userId: 1, connectedPhone: 1 }, { unique: true });
+
+// One row per (userId, connectedPhone, chatJid, dateKey) archive file actually
+// written to Bunny. This is the authoritative index of what's archived —
+// used both to retrieve old messages for a chat (look up which day-files
+// exist) and to find/purge archives older than 6 months, without needing to
+// list Bunny's storage directories (which the existing listFiles() helper
+// can't do reliably across the archive's nested user/phone/chat structure).
+const QrWhatsappArchiveManifestSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    connectedPhone: { type: String, required: true, index: true },
+    chatJid: { type: String, required: true, index: true },
+    dateKey: { type: String, required: true },     // 'YYYY-MM-DD', the day these messages belong to
+    bunnyPath: { type: String, required: true },
+    byteSize: { type: Number, required: true },
+    messageCount: { type: Number, required: true },
+    archivedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_archive_manifest' }
+);
+QrWhatsappArchiveManifestSchema.index({ userId: 1, connectedPhone: 1, chatJid: 1, dateKey: 1 }, { unique: true });
+QrWhatsappArchiveManifestSchema.index({ dateKey: 1 }); // for the 6-month purge sweep
+
+// One row per tenant that has connected their own personal Google Drive so
+// their WhatsApp chat archive also gets mirrored there (in addition to
+// Bunny, which remains the system of record). refreshToken is encrypted at
+// rest. needsReconnect flips true the moment a refresh attempt fails (e.g.
+// the 7-day token expiry Google enforces for unverified OAuth apps) so the
+// daily sync stops retrying a dead token until the user reconnects.
+const QrWhatsappDriveConnectionSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, unique: true, index: true },
+    connectedPhone: { type: String, default: '' },
+    googleEmail: { type: String, default: '' },
+    refreshToken: { type: String, required: true }, // encrypted via lib/encryption
+    folderId: { type: String, default: '' },          // cached Drive folder id
+    needsReconnect: { type: Boolean, default: false },
+    lastSyncedAt: { type: Date },
+    lastError: { type: String, default: '' },
+    connectedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_drive_connections' }
+);
+
+// Separate Google OAuth grants for contacts and Gmail. Drive intentionally
+// stays in its own narrow-scope connection above. One service failing or being
+// disconnected must never affect chat archival or another Google service.
+const QrWhatsappGoogleServiceConnectionSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    service: { type: String, required: true, enum: ['contacts', 'gmail'] },
+    googleEmail: { type: String, default: '' },
+    refreshToken: { type: String, required: true },
+    needsReconnect: { type: Boolean, default: false },
+    lastSyncedAt: { type: Date },
+    lastError: { type: String, default: '' },
+    connectedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'qr_whatsapp_google_service_connections' }
+);
+QrWhatsappGoogleServiceConnectionSchema.index({ userId: 1, service: 1 }, { unique: true });
+
+// ============================================================================
+// META WHATSAPP CHAT ARCHIVAL — mirrors the QR retention pipeline, but for
+// the Meta Cloud API channel (WhatsAppMessage/provider:'meta') and a
+// 1-year retention window instead of 6 months.
+//
+// Meta doesn't have a per-tenant "connectedPhone" the way QR does (a tenant
+// may use their own WABA or the shared/default super-admin number), so the
+// archive is keyed by (tenantUserId, phoneNumber) instead of
+// (userId, connectedPhone, chatJid) — tenantUserId is the Lead's
+// assignedToUserId/createdByUserId, or the literal string 'shared' for
+// messages on the default number with no resolvable tenant owner.
+// ============================================================================
+const MetaWhatsappStorageUsageSchema = new mongoose.Schema(
+  {
+    tenantUserId: { type: String, required: true, index: true }, // or 'shared'
+    bunnyBytes: { type: Number, default: 0 },
+    bunnyFileCount: { type: Number, default: 0 },
+    bunnyMessageCount: { type: Number, default: 0 },
+    lastArchivedAt: { type: Date },
+    lastPurgedAt: { type: Date },
+  },
+  { timestamps: true, collection: 'meta_whatsapp_storage_usage' }
+);
+MetaWhatsappStorageUsageSchema.index({ tenantUserId: 1 }, { unique: true });
+
+const MetaWhatsappArchiveManifestSchema = new mongoose.Schema(
+  {
+    tenantUserId: { type: String, required: true, index: true },
+    phoneNumber: { type: String, required: true, index: true },
+    dateKey: { type: String, required: true }, // 'YYYY-MM-DD'
+    bunnyPath: { type: String, required: true },
+    byteSize: { type: Number, required: true },
+    messageCount: { type: Number, required: true },
+    archivedAt: { type: Date, default: () => new Date() },
+  },
+  { timestamps: true, collection: 'meta_whatsapp_archive_manifest' }
+);
+MetaWhatsappArchiveManifestSchema.index({ tenantUserId: 1, phoneNumber: 1, dateKey: 1 }, { unique: true });
+MetaWhatsappArchiveManifestSchema.index({ dateKey: 1 }); // for the 1-year purge sweep
+
+// ============================================================================
+// 1a-TEAM. QR CHAT NOTES — internal team notes on a chat (never sent to the contact)
+// ============================================================================
+const QrChatNoteSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },  // tenant owner (matches qr_whatsapp_chats.userId)
+    chatJid: { type: String, required: true, index: true },
+    authorId: { type: String, required: true },             // agent who wrote the note
+    authorName: { type: String, default: '' },
+    text: { type: String, required: true, maxlength: 2000 },
+  },
+  { timestamps: true, collection: 'qr_chat_notes' }
+);
+QrChatNoteSchema.index({ userId: 1, chatJid: 1, createdAt: -1 });
+
+// ============================================================================
+// 1a-CSAT. QR CSAT — "rate us 1-5" requests and captured numeric replies
+// ============================================================================
+const QrCsatSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },  // tenant owner
+    phone: { type: String, required: true, index: true },    // digits only
+    chatJid: { type: String, default: '' },
+    sentByUserId: { type: String, default: '' },             // agent who requested the rating
+    sentByName: { type: String, default: '' },
+    sentAt: { type: Date, default: Date.now },
+    rating: { type: Number, min: 1, max: 5 },                // set when the contact replies 1-5
+    ratedAt: { type: Date },
+  },
+  { timestamps: true, collection: 'qr_csat' }
+);
+QrCsatSchema.index({ userId: 1, phone: 1, sentAt: -1 });
+QrCsatSchema.index({ userId: 1, ratedAt: -1 });
+
+// ============================================================================
+// 1a-STATUS. QR STATUS SCHEDULES — post a WhatsApp status later / on repeat
+// ============================================================================
+// Scheduling lives server-side rather than in the browser: the extension's
+// equivalent runs on chrome.alarms, which only fire while that Chrome window
+// is open, so a "scheduled" post silently never happens if the laptop sleeps.
+// A cron drains this collection instead, so posts fire regardless of who is
+// logged in. Per-tenant via userId.
+const QrStatusScheduleSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    text: { type: String, default: '' },
+    imageUrl: { type: String, default: '' },
+    // Absolute time for a one-off post. For repeating posts this is the next
+    // due time and is advanced after each run.
+    scheduledAt: { type: Date, required: true, index: true },
+    // 0=Sun..6=Sat. Empty means a one-off that is marked done after firing.
+    repeatDays: { type: [Number], default: [] },
+    active: { type: Boolean, default: true, index: true },
+    lastRunAt: { type: Date },
+    lastError: { type: String, default: '' },
+    runCount: { type: Number, default: 0 },
+  },
+  { timestamps: true, collection: 'qr_status_schedules' }
+);
+QrStatusScheduleSchema.index({ active: 1, scheduledAt: 1 });
+
+// ============================================================================
+// 1a-DRIP. QR DRIP SEQUENCES — multi-step lead journeys with stop-on-reply
+// ============================================================================
+const QrDripSequenceSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true }, // tenant owner
+    name: { type: String, required: true },
+    active: { type: Boolean, default: true },
+    stopOnReply: { type: Boolean, default: true },
+    steps: [
+      {
+        dayOffset: { type: Number, required: true, min: 0 },   // days after enrollment (0 = same day)
+        timeOfDay: { type: String, default: '09:00' },          // HH:mm in IST
+        messageText: { type: String, required: true, maxlength: 4000 },
+      },
+    ],
+  },
+  { timestamps: true, collection: 'qr_drip_sequences' }
+);
+QrDripSequenceSchema.index({ userId: 1, active: 1 });
+
+const QrDripEnrollmentSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },     // tenant owner
+    sequenceId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    phone: { type: String, required: true },                    // digits only
+    chatJid: { type: String, default: '' },
+    enrolledAt: { type: Date, default: Date.now },
+    currentStep: { type: Number, default: 0 },
+    nextSendAt: { type: Date, index: true },
+    stopOnReply: { type: Boolean, default: true },              // copied from sequence at enroll time
+    status: { type: String, enum: ['active', 'completed', 'stopped'], default: 'active', index: true },
+    stoppedReason: { type: String, default: '' },
+    sentCount: { type: Number, default: 0 },
+    lastError: { type: String, default: '' },
+  },
+  { timestamps: true, collection: 'qr_drip_enrollments' }
+);
+QrDripEnrollmentSchema.index({ status: 1, nextSendAt: 1 });
+QrDripEnrollmentSchema.index({ userId: 1, phone: 1, status: 1 });
+QrDripEnrollmentSchema.index({ userId: 1, sequenceId: 1, phone: 1 }, { unique: true });
 
 // ============================================================================
 // 1a-SOCIAL. SOCIAL INBOX CONVERSATIONS — Messenger / Instagram DM threads
@@ -765,7 +997,7 @@ const WhatsAppAccountSchema = new mongoose.Schema(
     // Connection status
     status: {
       type: String,
-      enum: ['connected', 'disconnected', 'pending', 'error'],
+      enum: ['connected', 'disconnected', 'pending', 'error', 'restricted'],
       default: 'disconnected',
       index: true,
     },
@@ -776,6 +1008,12 @@ const WhatsAppAccountSchema = new mongoose.Schema(
       enum: ['healthy', 'degraded', 'down'],
       default: 'down',
     },
+
+    // WhatsApp-side restriction/ban tracking (QR accounts). Lets a
+    // restriction pause the account instead of requiring deletion — see
+    // lib/whatsappRestriction.ts for the shared read/write helpers.
+    restrictedUntil: { type: Date, sparse: true },
+    restrictionReason: { type: String, sparse: true },
 
     // Configuration
     isDefault: { type: Boolean, default: false, index: true }, // Default account for sending
@@ -3129,6 +3367,17 @@ export function getDeletedLead() { return getModel('DeletedLead', DeletedLeadSch
 export function getWhatsAppMessage() { return getModel('WhatsAppMessage', WhatsAppMessageSchema); }
 export function getQrWhatsAppMessage() { return getModel('QrWhatsAppMessage', QrWhatsAppMessageSchema); }
 export function getQrWhatsAppChat() { return getModel('QrWhatsAppChat', QrWhatsAppChatSchema); }
+export function getQrWhatsappStorageUsage() { return getModel('QrWhatsappStorageUsage', QrWhatsappStorageUsageSchema); }
+export function getQrWhatsappArchiveManifest() { return getModel('QrWhatsappArchiveManifest', QrWhatsappArchiveManifestSchema); }
+export function getQrWhatsappDriveConnection() { return getModel('QrWhatsappDriveConnection', QrWhatsappDriveConnectionSchema); }
+export function getQrWhatsappGoogleServiceConnection() { return getModel('QrWhatsappGoogleServiceConnection', QrWhatsappGoogleServiceConnectionSchema); }
+export function getMetaWhatsappStorageUsage() { return getModel('MetaWhatsappStorageUsage', MetaWhatsappStorageUsageSchema); }
+export function getMetaWhatsappArchiveManifest() { return getModel('MetaWhatsappArchiveManifest', MetaWhatsappArchiveManifestSchema); }
+export function getQrChatNote() { return getModel('QrChatNote', QrChatNoteSchema); }
+export function getQrDripSequence() { return getModel('QrDripSequence', QrDripSequenceSchema); }
+export function getQrStatusSchedule() { return getModel('QrStatusSchedule', QrStatusScheduleSchema); }
+export function getQrDripEnrollment() { return getModel('QrDripEnrollment', QrDripEnrollmentSchema); }
+export function getQrCsat() { return getModel('QrCsat', QrCsatSchema); }
 export function getSocialInboxConversation() { return getModel('SocialInboxConversation', SocialInboxConversationSchema); }
 export function getSocialInboxMessage() { return getModel('SocialInboxMessage', SocialInboxMessageSchema); }
 export function getWhatsAppWebhookEvent() { return getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema); }
@@ -3529,6 +3778,27 @@ const CRMUserSettingsSchema = new mongoose.Schema(
     // QR WhatsApp access control — only super admin can enable this for each user
     // When false/unset, non-super-admin users cannot access the shared bridge (privacy compartment)
     qrWhatsappEnabled: { type: Boolean, default: false },
+    // Browser extension (CRM sidebar on the user's own WhatsApp Web) access control —
+    // same super-admin-approval gate as qrWhatsappEnabled, but independent: a user can
+    // have one, both, or neither, since the extension runs on their own personal
+    // WhatsApp Web login rather than the shared QR bridge session.
+    extensionEnabled: { type: Boolean, default: false },
+    // Custom funnel/status stages this user has created from the browser
+    // extension sidebar, in addition to the fixed Lead.status list —
+    // per-user since each person's pipeline vocabulary can differ.
+    extensionFunnelStages: { type: [String], default: [] },
+    // Chat labels for the browser extension's own WhatsApp (personal number,
+    // not the QR bridge) — same shape as chatLabels/labelPresets above but
+    // kept separate since chat identities differ between the two surfaces.
+    // Key is a phone number (1:1) or group name (group), not a WA JID.
+    extensionChatLabels: { type: mongoose.Schema.Types.Mixed, default: {} }, // { chatKey: [labelKey1, labelKey2] }
+    extensionLabelPresets: [
+      {
+        key: { type: String, required: true },
+        label: { type: String, required: true },
+        color: { type: String, default: '#2d6a4f' },
+      },
+    ],
     // Currently connected WhatsApp phone number (e.g. '919876543210')
     // Saved automatically when QR scan connects. Used for session isolation:
     // if bridge returns chats from a different phone, old chats are NOT shown.
@@ -4330,6 +4600,20 @@ const KpHoroscopeChartSchema = new mongoose.Schema(
       degree: { type: String, trim: true },
     },
 
+    // Arabic Part of Fortune -- a computed chart point (not a real graha), so
+    // it's kept separate from `planets` rather than appended into that array,
+    // which Vimshottari dasha / four-step significator logic elsewhere
+    // iterates assuming exactly the 9 classical grahas.
+    fortuna: {
+      sign: { type: String, trim: true },
+      signLord: { type: String, trim: true },
+      star: { type: String, trim: true },
+      starLord: { type: String, trim: true },
+      subLord: { type: String, trim: true },
+      house: { type: Number, min: 1, max: 12 },
+      degree: { type: String, trim: true },
+    },
+
     houses: [KpHoroscopeHouseSchema],
     planets: [KpHoroscopePlanetSchema],
     mahadashas: [KpHoroscopeMahadashaSchema],
@@ -4380,6 +4664,49 @@ const KpCustomMatterSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// One "Is [sub/star lord] Conjunct/Opposed with any planet?" block from the
+// astrologer's prediction-template worksheet. Reused 4x on KpBhavAnalysisSchema
+// (subLordConjunct/starLordConjunct/subLordOpposed/starLordOpposed) — see
+// lib/kpAstro/planetaryAspects.ts for how conjunction/opposition are detected.
+const KpAspectBlockSchema = new mongoose.Schema(
+  {
+    present: { type: String, trim: true, default: '' }, // 'Yes' | 'No'
+    planet: { type: String, trim: true, default: '' },
+    planetRetrograde: { type: String, trim: true, default: '' }, // 'Direct' | 'Retrograde'
+    starLordRetrograde: { type: String, trim: true, default: '' }, // 'Direct' | 'Retrograde'
+    signification: { type: String, trim: true, default: '' },
+    favorable: { type: String, trim: true, default: '' }, // manual judgment — not auto-derivable
+  },
+  { _id: false }
+);
+
+// The astrologer's detailed per-house judgment worksheet: pick a Matter (see
+// toolkitMatter below) + its Primary House, the sub-lord chain auto-derives
+// (sub lord -> its star -> that star's lord), then four conjunction/opposition
+// blocks (sub lord's and star lord's, each for conjunction and opposition),
+// ending in a manual Summary/Conclusion/Rule. Mirrors the astrologer's own
+// reference spreadsheet exactly (matches the reference sheet's own field
+// order — see BhavEditor.tsx for where each field is rendered).
+const KpPredictionTemplateSchema = new mongoose.Schema(
+  {
+    primaryHouse: { type: Number, min: 1, max: 12 },
+    subLordRetrograde: { type: String, trim: true, default: '' },
+    subLordStar: { type: String, trim: true, default: '' },
+    starLord: { type: String, trim: true, default: '' },
+    starLordRetrograde: { type: String, trim: true, default: '' },
+    starLordHouses: { type: String, trim: true, default: '' },
+    starLordConnecting: { type: String, trim: true, default: '' },
+    subLordConjunct: { type: KpAspectBlockSchema, default: () => ({}) },
+    starLordConjunct: { type: KpAspectBlockSchema, default: () => ({}) },
+    subLordOpposed: { type: KpAspectBlockSchema, default: () => ({}) },
+    starLordOpposed: { type: KpAspectBlockSchema, default: () => ({}) },
+    summary: { type: String, trim: true, default: '' },
+    conclusion: { type: String, trim: true, default: '' },
+    rule: { type: String, trim: true, default: '' },
+  },
+  { _id: false }
+);
+
 // KP's traditional 4-level significator categorization for a house's matters:
 // A = occupant's star lord, B = occupant, C = owner (cuspal sub lord chain),
 // D = owner's star lord. Kept as free-edit string arrays (not auto-derived
@@ -4420,6 +4747,7 @@ const KpBhavAnalysisSchema = new mongoose.Schema(
     freeNotes: { type: String, trim: true, default: '' },
     predictionOrder: { type: Number, default: 0 }, // which point in the final reading (1st, 2nd...); 0 = unordered
     includeInPrediction: { type: Boolean, default: true },
+    predictionTemplate: { type: KpPredictionTemplateSchema, default: () => ({}) },
   },
   { _id: false }
 );
@@ -4537,6 +4865,79 @@ KpMatchMakingSchema.index({ createdByUserId: 1, createdAt: -1 });
 export function getKpMatchMaking() { return getModel('KpMatchMaking', KpMatchMakingSchema); }
 export const KpMatchMaking = createModelProxy('KpMatchMaking', KpMatchMakingSchema);
 
+// Astrologer-maintained library: Matter keyword -> Rule text (e.g. keyword
+// "Higher Education", ruleText "Higher education is seen by the 9th Sub
+// Lord..."). Global, not per-chart -- the astrologer builds this up once from
+// their own KP toolkit and it auto-fills the Prediction Template's Rule field
+// for any bhav whose Matter text matches a keyword. Never seeded with
+// invented rule text; only what the astrologer enters themselves.
+const KpMatterRuleSchema = new mongoose.Schema(
+  {
+    keyword: { type: String, trim: true, required: true },
+    ruleText: { type: String, trim: true, required: true },
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'kp_matter_rules' }
+);
+KpMatterRuleSchema.index({ keyword: 1 });
+
+export function getKpMatterRule() { return getModel('KpMatterRule', KpMatterRuleSchema); }
+export const KpMatterRule = createModelProxy('KpMatterRule', KpMatterRuleSchema);
+
+// Astrologer's structured Rule Book: promise/denial house combinations by
+// life-matter (Marriage, Health, Wealth, Job, Business, Education, ...),
+// browsable on its own page and copy-pasted into the Prediction Template's
+// Rule field. Distinct from KpMatterRule above (which is a flat free-text
+// keyword matcher used for Bhav Editor auto-fill) -- this is the richer,
+// structured reference "textbook" the astrologer curates. Entries can be
+// seeded with a standard-KP starting draft (isDraft: true) which the
+// astrologer is expected to review/correct against their own toolkit;
+// editing an entry clears isDraft.
+const KpRuleBookEntrySchema = new mongoose.Schema(
+  {
+    category: { type: String, trim: true, required: true }, // e.g. 'Marriage'
+    subMatter: { type: String, trim: true, required: true }, // e.g. 'Arranged Marriage'
+    // Which house's Cuspal Sub Lord gates the natal "is this even promised"
+    // check in the Dasha Prediction tool (e.g. 7 for marriage) -- distinct
+    // from promiseHouses below (the full combination), since KP judges natal
+    // promise via ONE house's CSL first before searching Dasha windows.
+    primaryHouse: { type: Number, min: 1, max: 12 },
+    promiseHouses: { type: String, trim: true, default: '' }, // e.g. '2, 7, 11'
+    denialHouses: { type: String, trim: true, default: '' }, // e.g. '1, 6, 8, 10, 12'
+    dashaBhuktiAntara: { type: String, trim: true, default: '' },
+    gocharNote: { type: String, trim: true, default: '' },
+    notes: { type: String, trim: true, default: '' },
+    isDraft: { type: Boolean, default: false },
+    order: { type: Number, default: 0 },
+    createdByUserId: { type: String, trim: true, index: true },
+  },
+  { timestamps: true, collection: 'kp_rule_book_entries' }
+);
+KpRuleBookEntrySchema.index({ category: 1, order: 1 });
+
+export function getKpRuleBookEntry() { return getModel('KpRuleBookEntry', KpRuleBookEntrySchema); }
+export const KpRuleBookEntry = createModelProxy('KpRuleBookEntry', KpRuleBookEntrySchema);
+
+// Read-only reference material imported verbatim from the astrologer's own KP
+// toolkit spreadsheet (sheets other than BasicRules, which feeds KpRuleBookEntry
+// above): the 249 Sign/Star/Sub master table (with Diseases/Mindset/Profession
+// per sub), House significations, Aspect rules, recommended KP software links.
+// Generic {sheetKey, data} shape because each sheet's columns differ; the
+// frontend renders a fixed column layout per sheetKey. Not astrologer-editable
+// via this app -- re-run the import script to refresh from a newer toolkit file.
+const KpToolkitReferenceSchema = new mongoose.Schema(
+  {
+    sheetKey: { type: String, trim: true, required: true, index: true }, // 'subLordMaster' | 'housesMeaning' | 'aspect' | 'softwareList'
+    rowIndex: { type: Number, required: true },
+    data: { type: mongoose.Schema.Types.Mixed, required: true },
+  },
+  { timestamps: true, collection: 'kp_toolkit_reference' }
+);
+KpToolkitReferenceSchema.index({ sheetKey: 1, rowIndex: 1 });
+
+export function getKpToolkitReference() { return getModel('KpToolkitReference', KpToolkitReferenceSchema); }
+export const KpToolkitReference = createModelProxy('KpToolkitReference', KpToolkitReferenceSchema);
+
 // ============================================================================
 // AI VIDEO JOB (YouTube -> condensed script -> HeyGen clone render -> Bunny -> E-Learning)
 // ============================================================================
@@ -4629,4 +5030,28 @@ const AiVideoJobSchema = new mongoose.Schema(
 AiVideoJobSchema.index({ createdByUserId: 1, createdAt: -1 });
 
 export function getAiVideoJob() { return getModel('AiVideoJob', AiVideoJobSchema); }
+
+// ── WhatsApp Teacher Accounts (Embedded Signup) ──
+// A teacher/client connects their own WhatsApp Business number via Meta's
+// Embedded Signup flow (Tech Provider model). Once connected, our system
+// user token can send/manage messages for their phone_number_id without
+// storing a separate per-teacher access token.
+const WhatsAppTeacherAccountSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },       // our CRM user who owns this connection
+    wabaId: { type: String, required: true, index: true },       // WhatsApp Business Account ID
+    phoneNumberId: { type: String, required: true, unique: true, index: true },
+    displayPhoneNumber: { type: String, default: '' },
+    businessName: { type: String, default: '' },
+    coexistenceEnabled: { type: Boolean, default: false },
+    status: { type: String, enum: ['pending', 'connected', 'disconnected', 'error'], default: 'pending' },
+    errorMessage: { type: String, default: '' },
+    webhookSubscribed: { type: Boolean, default: false },
+    connectedAt: { type: Date },
+  },
+  { timestamps: true, collection: 'whatsapp_teacher_accounts' }
+);
+WhatsAppTeacherAccountSchema.index({ userId: 1, status: 1 });
+
+export function getWhatsAppTeacherAccount() { return getModel('WhatsAppTeacherAccount', WhatsAppTeacherAccountSchema); }
 export const AiVideoJob = createModelProxy('AiVideoJob', AiVideoJobSchema);

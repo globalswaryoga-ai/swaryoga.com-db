@@ -110,11 +110,31 @@ export async function PUT(request: NextRequest) {
     switch (service) {
       case 'email': {
         const email = conn.email;
-        if (!email?.smtpHost || !email?.smtpUser) {
-          testResult = { connected: false, error: 'SMTP host and username are required. Please fill in all SMTP fields.' };
+        if (email?.provider === 'smtp') {
+          if (!email?.smtpHost || !email?.smtpUser || !email?.smtpPass) {
+            testResult = { connected: false, error: 'SMTP host, username, and password are required. Please fill in all SMTP fields.' };
+          } else {
+            try {
+              const nodemailer = await import('nodemailer');
+              const transporter = nodemailer.createTransport({
+                host: email.smtpHost,
+                port: Number(email.smtpPort) || 587,
+                secure: Number(email.smtpPort) === 465,
+                auth: { user: email.smtpUser, pass: email.smtpPass },
+                tls: { rejectUnauthorized: false }
+              });
+              await transporter.verify();
+              testResult = { connected: true, error: '' };
+            } catch (err: any) {
+              testResult = { connected: false, error: `SMTP verification failed: ${err.message}` };
+            }
+          }
         } else {
-          // For now, mark as connected if fields are present — real SMTP test can be added later
-          testResult = { connected: true, error: '' };
+          if (!email?.apiKey) {
+            testResult = { connected: false, error: 'API Key is required for this provider.' };
+          } else {
+            testResult = { connected: true, error: '' };
+          }
         }
         break;
       }

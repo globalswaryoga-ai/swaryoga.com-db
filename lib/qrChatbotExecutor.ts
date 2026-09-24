@@ -96,6 +96,29 @@ async function sendQrText(bridgeUrl: string, bridgeSecret: string, sessionKey: s
   return { messageId: data?.messageId || data?.id || undefined };
 }
 
+/** Send a map-pin location via the EC2 bridge. */
+async function sendQrLocation(
+  bridgeUrl: string,
+  bridgeSecret: string,
+  sessionKey: string | null,
+  userId: string,
+  phone: string,
+  loc: { latitude: number; longitude: number; name?: string; address?: string }
+): Promise<{ messageId?: string }> {
+  const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+  const res = await fetch(`${bridgeUrl}/send-location`, {
+    method: 'POST',
+    headers: buildHeaders(bridgeSecret, sessionKey, userId),
+    body: JSON.stringify({ to: jid, latitude: loc.latitude, longitude: loc.longitude, name: loc.name, address: loc.address }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Bridge location send failed (${res.status}): ${err.substring(0, 200)}`);
+  }
+  const data = await res.json();
+  return { messageId: data?.messageId || data?.id || undefined };
+}
+
 /** Send button choices as numbered text (the Baileys bridge has no /send-buttons endpoint). */
 async function sendQrButtons(
   bridgeUrl: string,
@@ -191,6 +214,7 @@ async function processNode(lead: any, node: any, flow: any): Promise<{
   presenceType?: string;
   presenceDelay?: number;
   interactiveButtons?: Array<{ id: string; title: string }>;
+  location?: { latitude: number; longitude: number; name?: string; address?: string };
 } | null> {
   if (!node) return null;
 
@@ -201,6 +225,25 @@ async function processNode(lead: any, node: any, flow: any): Promise<{
       presenceType: node.presenceType || 'composing',
       presenceDelay: node.presenceDelay || 1,
     };
+  }
+
+  if (node.type === 'location') {
+    const lat = Number(node.latitude);
+    const lng = Number(node.longitude);
+    if (isFinite(lat) && isFinite(lng) && (lat !== 0 || lng !== 0)) {
+      return {
+        location: { latitude: lat, longitude: lng, name: node.locationName || '', address: node.locationAddress || '' },
+        nextNodeId: node.nextNodeId,
+        presenceType: node.presenceType || 'composing',
+        presenceDelay: node.presenceDelay || 1,
+      };
+    }
+    // Unconfigured location block — skip to the next node instead of dying.
+    if (node.nextNodeId) {
+      const next = (flow.nodes || []).find((n: any) => n.nodeId === node.nextNodeId);
+      return processNode(lead, next, flow);
+    }
+    return null;
   }
 
   if (node.type === 'question' || node.type === 'buttons') {
@@ -262,10 +305,19 @@ async function executeQrAction(action: any): Promise<{ status: 'ok' | 'error'; e
       connectedPhone = s?.qrConnectedPhoneNumber || '';
     } catch { /* non-fatal */ }
 
-    const sendMessage = async (text: string, buttons: Array<{ id: string; title: string }> | undefined, nodeId?: string) => {
+    const sendMessage = async (
+      text: string,
+      buttons: Array<{ id: string; title: string }> | undefined,
+      nodeId?: string,
+      location?: { latitude: number; longitude: number; name?: string; address?: string }
+    ) => {
       let messageId: string | undefined;
       let logText = text;
-      if (buttons && buttons.length > 0) {
+      if (location) {
+        const result = await sendQrLocation(bridgeUrl, bridgeSecret, sessionKey, userId, phone, location);
+        messageId = result.messageId;
+        logText = `📍 ${location.name || 'Location'} (${location.latitude}, ${location.longitude})`;
+      } else if (buttons && buttons.length > 0) {
         const result = await sendQrButtons(bridgeUrl, bridgeSecret, sessionKey, userId, phone, text, buttons);
         messageId = result.messageId;
         const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
@@ -283,10 +335,10 @@ async function executeQrAction(action: any): Promise<{ status: 'ok' | 'error'; e
       if (!targetNode) return { status: 'error', error: 'Target node not found' };
 
       const result = await processNode(lead, targetNode, flow);
-      if (!result?.text && !result?.interactiveButtons?.length) return { status: 'ok' };
+      if (!result?.text && !result?.interactiveButtons?.length && !result?.location) return { status: 'ok' };
 
       await sleep((result.presenceDelay || 1) * 1000);
-      await sendMessage(result.text || '', result.interactiveButtons, action.targetNodeId);
+      await sendMessage(result.text || '', result.interactiveButtons, action.targetNodeId, result.location);
 
       const flowId = String(flow._id);
       const newNodeId = result.nextNodeId || action.targetNodeId;
@@ -602,7 +654,7 @@ async function runQrFlowFromNode(params: {
   }
 
   const result = await processNode(lead, node, flow);
-  if (!result?.text && !result?.interactiveButtons?.length) return;
+  if (!result?.text && !result?.interactiveButtons?.length && !result?.location) return;
 
   const { bridgeUrl, bridgeSecret } = await getBridgeConfig(userId);
   const sessionKey = await getSessionKey(bridgeUrl, bridgeSecret, userId);
@@ -610,7 +662,11 @@ async function runQrFlowFromNode(params: {
   await sleep((result.presenceDelay || 1) * 500); // shorter delay for immediate trigger
 
   const buttons = result.interactiveButtons;
-  if (buttons && buttons.length > 0) {
+  if (result.location) {
+    const sent = await sendQrLocation(bridgeUrl, bridgeSecret, sessionKey, userId, phone, result.location);
+    const logText = `📍 ${result.location.name || 'Location'} (${result.location.latitude}, ${result.location.longitude})`;
+    await logQrOutbound(userId, connectedPhone, lead, phone, logText, String(flow._id), node.nodeId, sent.messageId, sessionKey);
+  } else if (buttons && buttons.length > 0) {
     const sent = await sendQrButtons(bridgeUrl, bridgeSecret, sessionKey, userId, phone, result.text || '', buttons);
     const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
     const logText = result.text ? `${result.text}\n\n${labels}` : labels;

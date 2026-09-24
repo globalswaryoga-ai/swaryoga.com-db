@@ -40,6 +40,10 @@ interface StarPopupProps {
   selectedChat: string | null;
   token: string | null;
   crmFetch: (url: string, options?: any) => Promise<any>;
+  /** Leaves this picker and opens the Templates tab, where templates are
+   *  authored. Using a template and creating one are separate actions and
+   *  live in separate places; this is the bridge between them. */
+  onCreateTemplate?: () => void;
 }
 
 export function StarPopup({
@@ -60,6 +64,7 @@ export function StarPopup({
   selectedChat,
   token,
   crmFetch,
+  onCreateTemplate,
 }: StarPopupProps) {
   // Quick Replies state
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
@@ -411,8 +416,18 @@ export function StarPopup({
                   className="w-full pl-8 pr-3 py-2 text-xs bg-gray-100 rounded-lg border-0 focus:ring-1 focus:ring-yellow-400 outline-none"
                 />
               </div>
-              <p className="text-xs text-gray-500">{filteredTemplates.length} saved templates</p>
-              
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">{filteredTemplates.length} saved templates</p>
+                {onCreateTemplate && (
+                  <button
+                    onClick={onCreateTemplate}
+                    className="text-xs font-semibold text-green-600 hover:text-green-700 hover:underline"
+                  >
+                    + Create new
+                  </button>
+                )}
+              </div>
+
               {loadingTemplates ? (
                 <div className="py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
               ) : filteredTemplates.length === 0 ? (

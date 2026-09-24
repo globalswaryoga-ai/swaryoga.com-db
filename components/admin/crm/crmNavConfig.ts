@@ -77,6 +77,9 @@ import {
   Bell,
   Moon,
   Sparkles,
+  BookMarked,
+  CalendarClock,
+  Plus,
 } from 'lucide-react';
 
 import type { SubNavItem } from './CrmSubNav';
@@ -240,12 +243,13 @@ export const sectionConfigs: SectionConfig[] = [
     moreItems: [
       { label: 'Broadcast Dashboard', href: '/admin/crm/broadcast-dashboard', icon: BarChart3 },
       { label: 'Send Template',  href: '/admin/crm/send-template',          icon: Send },
+      { label: 'Connect Teachers', href: '/admin/crm/whatsapp/teachers',    icon: GraduationCap },
       { label: 'WA Settings',    href: '/admin/crm/whatsapp/settings',      icon: Settings },
       { label: 'Webhook Events', href: '/admin/crm/whatsapp/webhook-events', icon: Zap },
     ],
     prefixes: [
       '/admin/crm/meta', '/admin/crm/meta-dashboard', '/admin/crm/whatsapp/meta',
-      '/admin/crm/whatsapp-meta', '/admin/crm/reports/meta',
+      '/admin/crm/whatsapp-meta', '/admin/crm/reports/meta', '/admin/crm/whatsapp/teachers',
     ],
   },
 
@@ -308,10 +312,12 @@ export const sectionConfigs: SectionConfig[] = [
     items: [
       { label: 'Recordings',     href: '/admin/crm/recording-management', icon: Video },
       { label: 'Zoom Analytics', href: '/admin/crm/zoom-analytics',       icon: BarChart2 },
+      { label: 'Workshop Students', href: '/admin/crm/workshop-management', icon: Users },
+      { label: 'Register New Batch', href: '/admin/crm/new-registration', icon: Plus, highlight: true },
     ],
     moreItems: [],
     prefixes: [
-      '/admin/crm/recording-management', '/admin/crm/zoom-analytics',
+      '/admin/crm/recording-management', '/admin/crm/zoom-analytics', '/admin/crm/workshop-management', '/admin/crm/new-registration',
     ],
   },
 
@@ -352,6 +358,7 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Broadcast',      href: '/admin/crm/qr/broadcast',         icon: Radio },
       { label: 'Group Contacts', href: '/admin/crm/qr/group-contacts',    icon: Users },
       { label: 'Group Schedule', href: '/admin/crm/qr/group-scheduler',   icon: CalendarDays },
+      { label: 'Group Delete',   href: '/admin/crm/qr/group-delete',      icon: Trash2 },
       { label: 'Reports',        href: '/admin/crm/qr/broadcast-report',  icon: BarChart3 },
     ],
     // No "More" dropdown — AI & Chatbot, Automation, Schedule etc. are reached
@@ -362,7 +369,7 @@ export const sectionConfigs: SectionConfig[] = [
       '/admin/crm/qr', '/admin/crm/qr/templates', '/admin/crm/qr/broadcast',
       '/admin/crm/qr/group-contacts', '/admin/crm/qr/group-scheduler', '/admin/crm/qr/broadcast-report',
       '/admin/crm/qr/broadcast-schedule', '/admin/crm/qr/automation',
-      '/admin/crm/qr/chatbot', '/admin/crm/qr/health-report',
+      '/admin/crm/qr/chatbot', '/admin/crm/qr/health-report', '/admin/crm/qr/group-delete',
     ],
   },
 
@@ -614,6 +621,7 @@ export const sectionConfigs: SectionConfig[] = [
     icon: Shield,
     items: [
       { label: 'Dashboard', href: '/admin/crm/super-admin', icon: LayoutDashboard },
+      { label: 'Database Migration', href: '/admin/crm/database-migration', icon: Database },
       { label: 'All Users', href: '/admin/crm/super-admin/users', icon: Users },
       { label: 'Payments', href: '/admin/crm/super-admin/payments', icon: CreditCard },
       { label: 'Signin Logs', href: '/admin/crm/super-admin/signins', icon: LogIn },
@@ -688,6 +696,8 @@ export const sectionConfigs: SectionConfig[] = [
       { label: 'Matchmaking Workspace',  href: '/admin/crm/kp-astro/matchmaking/workspace',        icon: Heart },
       { label: 'Matchmaking Prediction', href: '/admin/crm/kp-astro/matchmaking/final-prediction', icon: Heart },
       { label: 'Export (A4 PDF)',    href: '/admin/crm/kp-astro/export',                  icon: FileText },
+      { label: 'Rule Book',          href: '/admin/crm/kp-astro/rule-book',               icon: BookMarked },
+      { label: 'Dasha Prediction',   href: '/admin/crm/kp-astro/dasha-prediction',        icon: CalendarClock },
       { label: 'Toolkit',            href: '/admin/crm/kp-astro',                          icon: Sparkles },
       { label: 'All Birth Charts',   href: '/admin/crm/kp-astro/charts',                   icon: Users },
     ],
@@ -770,7 +780,7 @@ export const sectionConfigs: SectionConfig[] = [
           { label: 'QR Broadcast (old)',  href: '/admin/crm/qr-broadcast',              icon: Radio },
           { label: 'QR Templates (old)',  href: '/admin/crm/qr-templates',              icon: FileEdit },
           { label: 'QR Broadcast V2',     href: '/admin/crm/qr/broadcast-v2',           icon: Radio },
-          { label: 'QR Merge Group V2',   href: '/admin/crm/qr/merge-group-v2',         icon: Users },
+          { label: 'QR Delete Group Members', href: '/admin/crm/qr/group-delete',        icon: Trash2 },
         ],
       },
       {
@@ -797,7 +807,6 @@ export const sectionConfigs: SectionConfig[] = [
           { label: 'Instagram',       href: '/admin/crm/instagram',      icon: Share2 },
           { label: 'Messenger',       href: '/admin/crm/messenger',      icon: MessageSquare },
           { label: 'Tally',           href: '/admin/crm/tally',          icon: Calculator },
-          { label: 'KP Astro',        href: '/admin/crm/kp-astro',       icon: Moon },
           { label: 'Onboarding',      href: '/admin/crm/onboarding',     icon: ClipboardCheck },
           { label: 'Chatbot (old)',   href: '/admin/crm/chatbot',        icon: Bot },
           { label: 'Chatbot Editor',  href: '/admin/crm/chatbots/editor', icon: FileEdit },

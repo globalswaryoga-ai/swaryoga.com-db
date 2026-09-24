@@ -401,6 +401,55 @@ export async function GET(request: NextRequest) {
     };
     charges.total = +(charges.marketing + charges.marketingLite + charges.utility + charges.authentication + charges.authenticationIntl).toFixed(2);
 
+    // ── REAL billing (from Meta status webhooks) ──
+    // Messages carry metadata.metaBilling captured from Meta's own pricing
+    // payload: real conversation ids + billing categories. Meta bills per
+    // CONVERSATION (24h window), so count distinct conversation ids per real
+    // category — far more accurate than the per-message estimates above.
+    let realBilling: any = null;
+    try {
+      const realAgg: any[] = await WhatsAppMessage.aggregate([
+        { $match: { ...messageFilter, 'metadata.metaBilling.conversationId': { $exists: true, $ne: null } } },
+        {
+          $group: {
+            _id: '$metadata.metaBilling.conversationId',
+            category: { $last: '$metadata.metaBilling.category' },
+            billable: { $last: '$metadata.metaBilling.billable' },
+            messages: { $sum: 1 },
+          },
+        },
+        {
+          $group: {
+            _id: { category: { $toLower: { $ifNull: ['$category', 'unknown'] } }, billable: '$billable' },
+            conversations: { $sum: 1 },
+            messages: { $sum: '$messages' },
+          },
+        },
+      ]);
+
+      if (realAgg.length > 0) {
+        const byCategory: Record<string, { conversations: number; messages: number; billable: boolean }> = {};
+        let realTotal = 0;
+        for (const row of realAgg) {
+          const cat = row._id.category || 'unknown';
+          if (!byCategory[cat]) byCategory[cat] = { conversations: 0, messages: 0, billable: !!row._id.billable };
+          byCategory[cat].conversations += row.conversations;
+          byCategory[cat].messages += row.messages;
+          if (row._id.billable) {
+            const rate = META_PRICING_INR[cat.toUpperCase()] ?? 0;
+            realTotal += row.conversations * rate;
+          }
+        }
+        realBilling = {
+          byCategory,
+          estimatedChargesINR: +realTotal.toFixed(2),
+          note: 'Counted from Meta-reported conversation ids and billing categories (per-conversation, as Meta bills)',
+        };
+      }
+    } catch (billErr) {
+      console.warn('[meta-dashboard] Real billing aggregation failed:', billErr instanceof Error ? billErr.message : billErr);
+    }
+
     // Format chat status stats
     const chatStatuses = {
       new: chatStatusStats.find((s: any) => s._id === 'new')?.count || 0,
@@ -446,6 +495,7 @@ export async function GET(request: NextRequest) {
         freeMessages,
         paidMessages,
         charges,
+        realBilling,
         chatStatuses,
         totalLeads,
         users,

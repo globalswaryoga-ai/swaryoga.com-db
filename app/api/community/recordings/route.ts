@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
           videoUrl,
           videoSource: v.videoSource || 'aws',
           youtubeVideoId: v.youtubeVideoId,
+          youtubeUrl: v.youtubeUrl || (v.youtubeVideoId ? `https://youtu.be/${v.youtubeVideoId}` : undefined),
           bunnyLibraryId: bunnyEmbedLibraryId,
           bunnyVideoId: bunnyEmbedVideoId,
           duration: v.duration,

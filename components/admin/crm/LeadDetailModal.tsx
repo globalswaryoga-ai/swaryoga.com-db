@@ -943,6 +943,29 @@ export default function LeadDetailModal({
                     )}
                   </div>
 
+                  {/* Batch Time Slot — chosen on the public join-form confirmation
+                      screen (app/workshop-join/[formId]/JoinFormClient.tsx), saved
+                      onto metadata.lastEnquiry.timeSlot. Not editable here — it's
+                      a record of the registrant's own choice. */}
+                  {lead.metadata?.lastEnquiry?.timeSlot?.label && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Time Slot :</label>
+                      <p className="text-sm text-gray-800">
+                        {lead.metadata.lastEnquiry.timeSlot.label}
+                        {lead.metadata.lastEnquiry.timeSlot.groupLink && (
+                          <a
+                            href={lead.metadata.lastEnquiry.timeSlot.groupLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-indigo-600 hover:underline"
+                          >
+                            Group Link
+                          </a>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Created By */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Created By :</label>

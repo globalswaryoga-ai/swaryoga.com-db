@@ -6,10 +6,13 @@ import {
   X, Download, Mail, Send, FileText, Loader2, AlertCircle, Plus,
   ExternalLink, CheckCircle, Clock, ChevronDown, QrCode,
 } from 'lucide-react';
+import { formatPersonName } from '@/lib/formatName';
 
 interface ReceiptData {
   _id: string;
   leadId?: string;
+  leadNumber?: string;
+  customerId?: string;
   receiptNumber?: string;
   issuedAt?: string;
   customerName?: string;
@@ -100,8 +103,9 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     }
   }, [leadId, saleId, token]);
 
-  // Fetch receipts for this lead; if the latest one looks stale (no amount)
-  // and we know which sale this is, auto-heal it so the preview is correct
+  // Fetch receipts for this lead; if the latest one looks stale (no amount,
+  // or the customer's name has since been corrected on the lead) and we
+  // know which sale this is, auto-heal it so the preview is correct
   // immediately — no extra "Generate Receipt" click needed.
   const fetchReceipts = useCallback(async () => {
     setLoading(true);
@@ -114,7 +118,8 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
       const json = await res.json();
       const data: ReceiptData[] = res.ok && Array.isArray(json.data) ? json.data : [];
       const top = data[0];
-      const looksStale = !top || !top.payment?.amount;
+      const nameStale = Boolean(top?.customerName && leadName && top.customerName !== formatPersonName(leadName));
+      const looksStale = !top || !top.payment?.amount || nameStale;
       if (looksStale && saleId) {
         setLoading(false);
         await generateReceipt();
@@ -127,7 +132,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     } finally {
       setLoading(false);
     }
-  }, [leadId, saleId, token, generateReceipt]);
+  }, [leadId, saleId, token, leadName, generateReceipt]);
 
   useEffect(() => { fetchReceipts(); }, [fetchReceipts]);
 
@@ -199,7 +204,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
     const subject = encodeURIComponent(`Your Receipt - ${activeReceipt.receiptNumber || 'Swar Yoga'}`);
     const amt = activeReceipt.payment?.paidAmount || activeReceipt.payment?.amount || 0;
     const body = encodeURIComponent(
-      `Dear ${activeReceipt.customerName || 'Student'},\n\nPlease find your receipt details below:\n\nReceipt No: ${activeReceipt.receiptNumber || '-'}\nWorkshop: ${activeReceipt.workshopName || '-'}\nAmount Paid: ₹${amt.toLocaleString('en-IN')}\nDate: ${activeReceipt.issuedAt ? new Date(activeReceipt.issuedAt).toLocaleDateString('en-IN') : '-'}\n\nThank you for choosing Swar Yoga!\n\nBest regards,\nSwar Yoga Team`
+      `Dear ${formatPersonName(activeReceipt.customerName) || 'Student'},\n\nPlease find your receipt details below:\n\nReceipt No: ${activeReceipt.receiptNumber || '-'}\nWorkshop: ${activeReceipt.workshopName || '-'}\nAmount Paid: ₹${amt.toLocaleString('en-IN')}\nDate: ${activeReceipt.issuedAt ? new Date(activeReceipt.issuedAt).toLocaleDateString('en-IN') : '-'}\n\nThank you for choosing Swar Yoga!\n\nBest regards,\nSwar Yoga Team`
     );
     window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
   };
@@ -216,7 +221,12 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
   const totalAmt = activeReceipt?.payment?.amount ?? activeReceipt?.payment?.paidAmount ?? 0;
   const paidAmt = activeReceipt?.payment?.paidAmount ?? totalAmt;
   const dueAmt = Math.max(0, totalAmt - paidAmt);
-  const custId = (activeReceipt?.leadId || '').toString().slice(-6) || (activeReceipt?._id || '').slice(-6);
+  // Prefer the actual human-readable customer/lead number (e.g. "014250")
+  // over a meaningless slice of the MongoDB ObjectId — the latter was only
+  // ever a fallback for receipts that predate leadNumber being stored.
+  const custId = activeReceipt?.customerId || activeReceipt?.leadNumber
+    || (activeReceipt?.leadId || '').toString().slice(-6) || (activeReceipt?._id || '').slice(-6);
+  const displayName = formatPersonName(activeReceipt?.customerName || leadName);
   const methodKey = (activeReceipt?.payment?.method || activeReceipt?.payment?.provider || '').toLowerCase();
   const methodLabel = PAYMENT_MODE_LABELS[methodKey]
     || (methodKey ? methodKey.charAt(0).toUpperCase() + methodKey.slice(1).replace(/_/g, ' ') : 'Bank Transfer');
@@ -239,7 +249,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
             </div>
             <div>
               <h2 className="text-base font-bold text-white">Invoice / Receipt</h2>
-              <p className="text-xs text-white/70">{leadName || 'Customer'}{leadPhone ? ` · ${leadPhone}` : ''}</p>
+              <p className="text-xs text-white/70">{displayName || 'Customer'}{leadPhone ? ` · ${leadPhone}` : ''}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
@@ -342,7 +352,7 @@ export default function ReceiptPreviewModal({ leadId, leadName, leadPhone, leadE
                         <p className="text-[10px] uppercase tracking-wider text-gray-400">Invoice To :</p>
                         <p className="text-sm font-bold text-gray-900 mt-0.5">ID: {custId}</p>
                         <p className="text-lg font-bold mt-0.5" style={{ color: ACCENT_GREEN }}>
-                          {activeReceipt.customerName || leadName || '—'}
+                          {displayName || '—'}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">{activeReceipt.customerPhone || leadPhone || ''}</p>
                       </div>

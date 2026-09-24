@@ -1,6 +1,12 @@
-const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE || 'swaryoga';
-const BUNNY_STORAGE_API_KEY = process.env.BUNNY_STORAGE_API_KEY;
-const BUNNY_CDN_URL = process.env.BUNNY_CDN_URL || 'https://swaryoga.b-cdn.net';
+import { createHash } from 'crypto';
+
+// Keep image uploads aligned with the active Bunny Storage zone and Pull Zone.
+// The old swaryoga/swaryoga.b-cdn.net pair is no longer serving this media.
+const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE_NAME || process.env.BUNNY_STORAGE_ZONE || 'swaryogadb';
+const BUNNY_STORAGE_API_KEY = process.env.BUNNY_STORAGE_API_KEY || process.env.BUNNY_STORAGE_KEY;
+const BUNNY_CDN_URL = process.env.BUNNY_STORAGE_CDN_HOST
+  ? `https://${process.env.BUNNY_STORAGE_CDN_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '')}`
+  : (process.env.BUNNY_CDN_URL || 'https://swaryogacrm.b-cdn.net');
 
 interface UploadResponse {
   success: boolean;
@@ -30,13 +36,31 @@ export async function uploadToBunny(
       fileBuffer = file;
     }
 
-    // Create unique filename
-    const timestamp = Date.now();
-    const uniqueFileName = `${timestamp}-${fileName}`;
+    // Content-addressed filename: identical image/video bytes reuse one object.
+    // Keep the extension for correct CDN/browser content handling.
+    const extension = fileName.includes('.')
+      ? `.${fileName.split('.').pop()!.toLowerCase()}`
+      : '';
+    const contentHash = createHash('sha256').update(fileBuffer).digest('hex');
+    const uniqueFileName = `${contentHash}${extension}`;
     const filePath = `${folder}/${uniqueFileName}`;
+    const storageUrl = `https://storage.bunnycdn.com/${BUNNY_STORAGE_ZONE}/${filePath}`;
+
+    // Avoid uploading duplicate content. Range keeps this check lightweight.
+    const existing = await fetch(storageUrl, {
+      method: 'GET',
+      headers: { AccessKey: BUNNY_STORAGE_API_KEY, Range: 'bytes=0-0' },
+    });
+    if (existing.ok || existing.status === 206) {
+      return {
+        success: true,
+        url: `${BUNNY_CDN_URL}/${filePath}`,
+        bunnyId: uniqueFileName,
+      };
+    }
 
     // Upload to Bunny
-    const response = await fetch(`https://storage.bunnycdn.com/${BUNNY_STORAGE_ZONE}/${filePath}`, {
+    const response = await fetch(storageUrl, {
       method: 'PUT',
       headers: {
         AccessKey: BUNNY_STORAGE_API_KEY,

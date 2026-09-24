@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { connectDB } from '@/lib/db';
-import { getFollowUpSequence } from '@/lib/schemas/enterpriseSchemas';
+import { listFollowUpSequences, saveFollowUpSequence } from '@/lib/emailBunnyRepository';
 import { hasPermission } from '@/lib/permissions';
-import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
+import { tenantFilter } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
 
-// Mark as dynamic since this route uses request.headers and request.url
-
-// GET /api/admin/crm/email/followups - List all follow-up sequences
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -20,26 +16,25 @@ export async function GET(request: NextRequest) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check permission only for admin users (basic plan users have default access)
-    if (decoded?.isAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
+    if (decoded?.isAdmin && !decoded?.isSuperAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'read')) {
       return apiError('FORBIDDEN', 'You do not have permission to view follow-up sequences');
     }
 
-    await connectDB();
-    const FollowUpSequence = getFollowUpSequence();
     const tf = tenantFilter(decoded, 'createdBy');
 
     const { searchParams } = new URL(request.url);
     const active = searchParams.get('active');
 
-    const filter: any = {};
-    if (active !== null) {
-      filter.active = active === 'true';
-    }
+    let sequences = await listFollowUpSequences();
 
-    const sequences = await FollowUpSequence.find({ ...filter, ...tf })
-      .sort({ createdAt: -1 })
-      .lean();
+    if (active !== null) {
+      const isActive = active === 'true';
+      sequences = sequences.filter(s => s.active === isActive);
+    }
+    
+    if (tf.createdBy) {
+      sequences = sequences.filter(s => s.createdBy === tf.createdBy);
+    }
 
     return apiSuccess({
       sequences,
@@ -51,7 +46,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/admin/crm/email/followups - Create new follow-up sequence
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -61,15 +55,13 @@ export async function POST(request: NextRequest) {
       return apiError('UNAUTHORIZED');
     }
 
-    // Check permission only for admin users (basic plan users have default access)
-    if (decoded?.isAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'manageTemplates')) {
+    if (decoded?.isAdmin && !decoded?.isSuperAdmin && !hasPermission(decoded?.permissionsV2, 'email', 'manageTemplates')) {
       return apiError('FORBIDDEN', 'You do not have permission to manage follow-up sequences');
     }
 
     const body = await request.json();
     const { name, trigger, steps, active } = body;
 
-    // Validation
     if (!name || !trigger) {
       return apiError('VALIDATION_ERROR', 'Name and trigger are required');
     }
@@ -78,7 +70,6 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'At least one step is required');
     }
 
-    // Validate steps
     for (const step of steps) {
       if (!step.subject || !step.body) {
         return apiError('VALIDATION_ERROR', 'Each step must have a subject and body');
@@ -88,28 +79,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await connectDB();
-    const FollowUpSequence = getFollowUpSequence();
     const tf = tenantFilter(decoded, 'createdBy');
+    const allSequences = await listFollowUpSequences();
 
-    // Check for duplicate sequence name
-    const existing = await FollowUpSequence.findOne({ name, ...tf });
+    const existing = allSequences.find(s => s.name === name && (!tf.createdBy || s.createdBy === tf.createdBy));
     if (existing) {
       return apiError('VALIDATION_ERROR', 'A follow-up sequence with this name already exists');
     }
 
-    const sequence = await FollowUpSequence.create({
+    const sequence = await saveFollowUpSequence({
       name,
       trigger,
       steps,
-      active: active !== false, // Default to true
+      active: active !== false,
       createdBy: decoded.userId || decoded.username,
-      createdByUserId: getViewerUserId(decoded),
-      stats: {
-        totalExecutions: 0,
-        completedExecutions: 0,
-        activeExecutions: 0,
-      },
     });
 
     return apiSuccess(

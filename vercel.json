@@ -2,6 +2,9 @@
   "version": 2,
   "framework": "nextjs",
   "functions": {
+    "app/api/cron/workshop-zoom-attendance/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/admin/media/upload/route.ts": {
       "maxDuration": 60
     },
@@ -55,6 +58,24 @@
     },
     "app/api/cron/qr-queue-processor/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/cron/qr-drip-processor/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/cron/qr-chat-archive/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/meta-chat-archive/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/social-inbox-sync/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/admin/archive/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/workshop-recording-sync/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -83,8 +104,8 @@
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/admin/crm/group-merge-scheduler/run",
-      "schedule": "* * * * *"
+      "path": "/api/cron/workshop-zoom-attendance",
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/crm-site/capacity",
@@ -97,6 +118,14 @@
     {
       "path": "/api/cron/backup",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/qr-chat-archive",
+      "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/meta-chat-archive",
+      "schedule": "45 20 * * *"
     },
     {
       "path": "/api/cron/export",
@@ -117,6 +146,26 @@
     {
       "path": "/api/cron/qr-queue-processor",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/qr-drip-processor",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/social-inbox-sync",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/qr-status-scheduler",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/admin/archive",
+      "schedule": "30 18 * * *"
+    },
+    {
+      "path": "/api/cron/workshop-recording-sync",
+      "schedule": "0 */2 * * *"
     }
   ],
   "headers": [

@@ -68,6 +68,13 @@ export const ZODIAC_SIGNS = [
   'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
 ];
 
+// Fixed rulership — every sign's traditional ruling planet.
+export const SIGN_LORDS: Record<string, string> = {
+  Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon',
+  Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars',
+  Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter',
+};
+
 // subTable's `from`/`to` columns are degree-minute-second strings within the
 // sign (0-30), written with inconsistent unicode prime/double-prime
 // characters (″ ” ’ ′) — this normalizes any of them before parsing.

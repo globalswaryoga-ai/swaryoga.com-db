@@ -56,7 +56,7 @@ const envVars = {
   // === Features ===
   WHATSAPP_DISABLE_WEB_BRIDGE: process.env.WHATSAPP_DISABLE_WEB_BRIDGE || 'false',
   NEXT_PUBLIC_ENABLE_META_WHATSAPP: process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || 'true',
-  SKIP_WEBHOOK_SIGNATURE: process.env.SKIP_WEBHOOK_SIGNATURE || 'true',
+  SKIP_WEBHOOK_SIGNATURE: process.env.SKIP_WEBHOOK_SIGNATURE || 'false',
 };
 
 // Remove empty values

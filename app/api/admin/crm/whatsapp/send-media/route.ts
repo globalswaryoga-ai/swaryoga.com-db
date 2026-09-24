@@ -1,169 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
-import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppMedia } from '@/lib/whatsapp';
-import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
+import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 
 export const dynamic = 'force-dynamic';
 
-// Mark as dynamic since this route uses request.headers or request.url
-
-
-/**
- * POST /api/admin/crm/whatsapp/send-media
- * Send image or video media directly (non-template) via Meta Cloud API
- *
- * Body: { leadId?, phoneNumber, mediaUrl, mediaType, caption? }
- * mediaType: 'image' | 'video'
- * mediaUrl: Must be a public HTTP/HTTPS URL
- * caption: Optional text caption (for new things announcement)
- */
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
+    const token = req.headers.get('authorization')?.split(' ')[1] || '';
+    const decoded: any = verifyToken(token);
+    if (!decoded || (!decoded.isAdmin && !decoded.userId)) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { to, mediaUrl, kind, caption } = body;
+    if (!to || !mediaUrl || !kind) {
+      return NextResponse.json({ success: false, error: 'to, mediaUrl, and kind are required' }, { status: 400 });
+    }
+
+    const userId = decoded.userId || decoded.username || 'unknown';
+    const superAdmin = userId === 'admincrm' || userId === 'admin';
+    const phone = normalizePhone(String(to));
+
+    let lead = await getBunnyLeadByPhone(phone, superAdmin ? null : userId);
     
-    if (!decoded?.isAdmin && !decoded?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-
-    const { leadId, phoneNumber, mediaUrl, mediaType, caption } = body;
-
-    // Validation
-    if (!phoneNumber || !mediaUrl || !mediaType) {
-      return NextResponse.json(
-        { error: 'Missing required fields: phoneNumber, mediaUrl, mediaType' },
-        { status: 400 }
-      );
-    }
-
-    if (mediaType !== 'image' && mediaType !== 'video') {
-      return NextResponse.json(
-        { error: 'mediaType must be "image" or "video"' },
-        { status: 400 }
-      );
-    }
-
-    // Validate URL format
-    if (!mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
-      return NextResponse.json(
-        { error: 'mediaUrl must start with http:// or https://' },
-        { status: 400 }
-      );
-    }
-
-    await connectDB();
-    
-    // Get models after connectDB()
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
-
-    const superAdmin = decoded?.userId === 'admincrm';
-    const to = normalizePhone(String(phoneNumber));
-
-    // Find or create lead
-    let lead = leadId ? await Lead.findById(leadId) : null;
     if (!lead) {
-      lead = await Lead.findOne({ phoneNumber: to });
-    }
-
-    if (!lead) {
-      if (!superAdmin) {
-        return NextResponse.json(
-          { error: 'Lead not found (only superadmin can create)' },
-          { status: 404 }
-        );
-      }
-      lead = await Lead.create({
-        phoneNumber,
+      lead = await saveBunnyLead({
+        phoneNumber: phone,
+        name: `WhatsApp ${phone}`,
+        source: 'manual',
         status: 'lead',
-        source: 'whatsapp',
-        createdByUserId: decoded.userId,
-        assignedToUserId: decoded.userId,
+        assignedToUserId: userId,
+        createdByUserId: userId,
       });
-      // Auto-add to main broadcast list
-      await addLeadToMainBroadcastList(lead);
     }
 
-    // Permission check for non-superadmin (user compartment)
-    if (!superAdmin) {
-      const assignedTo = String((lead as any).assignedToUserId || '').trim();
-      const createdBy = String((lead as any).createdByUserId || '').trim();
-      // Allow if assigned to user OR created by user
-      if (assignedTo !== decoded?.userId && createdBy !== decoded?.userId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
+    const creds = (await getMetaCredentialsForTenant(userId)) || undefined;
 
-    // Create message record in database with proper media field
-    const messageRecord = await WhatsAppMessage.create({
-      leadId: lead._id,
-      phoneNumber: to,
-      messageContent: caption || `(${mediaType})`,
+    const messageRecordId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+
+    await upsertBunnyMetaMessage({
+      _id: messageRecordId,
+      documentId: messageRecordId,
+      leadId: lead?._id ? String(lead._id) : undefined,
+      phoneNumber: phone,
       messageType: 'media',
+      messageContent: caption || '(media)',
       direction: 'outbound',
       status: 'queued',
-      sentAt: new Date(),
-      provider: 'pending',
+      sentAt: new Date().toISOString(),
+      provider: 'meta',
+      sentByUserId: userId,
+      sentByLabel: decoded.name || decoded.username || userId,
       media: {
-        kind: mediaType,
         url: mediaUrl,
-      },
-      metadata: {
-        caption: caption || null,
-      },
+        kind: kind,
+      }
     });
 
     try {
-      // Send via Cloud API
-      const apiResult = await sendWhatsAppMedia(to, mediaUrl, mediaType, caption);
-
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
+      const result = await sendWhatsAppMedia(phone, mediaUrl, kind, caption, creds);
+      await updateBunnyMetaMessage(messageRecordId, {
         status: 'sent',
-        provider: apiResult?.raw?.provider || 'meta',
-        waMessageId: apiResult.waMessageId,
+        waMessageId: result.waMessageId,
       });
-
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            messageId: messageRecord._id,
-            status: 'sent',
-            waMessageId: apiResult.waMessageId,
-            mediaType,
-            url: mediaUrl,
-          },
-        },
-        { status: 200 }
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
+      return NextResponse.json({ success: true, waMessageId: result.waMessageId });
+    } catch (sendErr: any) {
+      await updateBunnyMetaMessage(messageRecordId, {
         status: 'failed',
-        provider: 'none',
-        failureReason: message,
+        failureReason: sendErr.message,
       });
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: message,
-          data: {
-            messageId: messageRecord._id,
-            status: 'failed',
-          },
-        },
-        { status: 400 }
-      );
+      throw sendErr;
     }
-  } catch (error: any) {
-    console.error('[WhatsApp Media] Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err: any) {
+    console.error('[META SEND-MEDIA] Error:', err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

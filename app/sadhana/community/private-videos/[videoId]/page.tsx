@@ -17,7 +17,7 @@ export default function VideoPlayerPage({
   params,
   token,
 }: {
-  params: { videoId: string };
+  params: Promise<{ videoId: string }> | { videoId: string };
   token: string | null;
 }) {
   const [video, setVideo] = useState<VideoData | null>(null);

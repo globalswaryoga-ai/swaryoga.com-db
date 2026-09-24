@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { getLead, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { formatPersonName } from '@/lib/formatName';
 import { normalizeLeadNumberInput } from '@/lib/crm/leadNumber';
 import { Types } from 'mongoose';
 
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const customerName = String(rec.customerName || rec.name || '').trim();
+        const customerName = formatPersonName(rec.customerName || rec.name);
         const customerPhone = String(rec.customerPhone || rec.phone || rec.phoneNumber || '').trim();
         const customerEmail = String(rec.customerEmail || rec.email || '').trim();
         const customerAddress = String(rec.customerAddress || rec.address || '').trim();

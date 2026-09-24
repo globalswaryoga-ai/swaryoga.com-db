@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { resolveTenantPlanAccess } from '@/lib/crm-site/tenantPlanAccess';
 import { computeTrialState } from '@/lib/tenant/trial';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,18 +29,32 @@ export async function GET(request: NextRequest) {
     const viewerId = getViewerUserId(decoded);
     const isSuper = isSuperAdmin(decoded);
 
-    await connectDB();
-    const mongoose = (await import('mongoose')).default;
-    const mainDb = mongoose.connection.useDb(process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB');
-    const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
+    // Bunny SQL is the primary runtime store. MongoDB is intentionally not
+    // contacted here because Atlas outages must not break subscription UI.
+    const userResult = await bunnyExecute({
+      sql: 'SELECT user_id,email,tenant_slug,created_at FROM admin_users_sql WHERE lower(user_id)=lower(?) OR lower(email)=lower(?) LIMIT 1',
+      args: [viewerId, viewerId],
+    });
+    const user: any = userResult.rows[0] || {};
+    const resolvedTenantSlug = String(tenantSlug || user.tenant_slug || '').trim();
 
-    // Try to find tenant — tenantSlug may be absent for regular admin users
     let tenant: any = null;
-    if (tenantSlug) {
-      tenant = await crmDb.collection('crm_tenants').findOne({ slug: tenantSlug })
-        || await mainDb.collection('tenants').findOne({
-        $or: [{ tenantSlug }, { slug: tenantSlug }],
+    if (resolvedTenantSlug) {
+      const tenantResult = await bunnyExecute({
+        sql: 'SELECT data_json FROM crm_tenants_sql WHERE tenant_slug=? LIMIT 1',
+        args: [resolvedTenantSlug],
       });
+      if (tenantResult.rows[0]?.data_json) {
+        try { tenant = JSON.parse(String(tenantResult.rows[0].data_json)); } catch { tenant = null; }
+      }
+    } else if (viewerId) {
+      const tenantResult = await bunnyExecute({
+        sql: 'SELECT data_json FROM crm_tenants_sql WHERE json_extract(data_json, \'$.ownerUserId\')=? OR lower(json_extract(data_json, \'$.ownerEmail\'))=lower(?) LIMIT 1',
+        args: [viewerId, String(user.email || viewerId)],
+      });
+      if (tenantResult.rows[0]?.data_json) {
+        try { tenant = JSON.parse(String(tenantResult.rows[0].data_json)); } catch { tenant = null; }
+      }
     }
 
     // If no tenant found, build a lightweight response from CRM data
@@ -50,39 +64,38 @@ export async function GET(request: NextRequest) {
     let storageUsedMB = 0;
     let lastPayment: any = null;
 
-    if (tenant) {
-      // Get usage stats from CRM DB scoped to tenant
-      leadsCount = await crmDb.collection('leads').countDocuments({
-        $or: [{ tenantSlug }, { tenantId: tenantSlug }],
+    if (tenant || resolvedTenantSlug) {
+      const leadResult = await bunnyExecute({
+        sql: 'SELECT count(*) AS count FROM leads_sql WHERE owner_user_id=? OR json_extract(data_json, \'$.tenantSlug\')=? OR json_extract(data_json, \'$.tenantId\')=?',
+        args: [viewerId, resolvedTenantSlug, resolvedTenantSlug],
       });
-      usersCount = await crmDb.collection('admin_users').countDocuments({ tenantSlug });
-      lastPayment = await crmDb.collection('crm_billing_orders').findOne(
-        { tenantSlug, cfStatus: 'PAID' },
-        { sort: { createdAt: -1 } }
-      );
+      leadsCount = Number((leadResult.rows[0] as any)?.count || 0);
+      const usersResult = await bunnyExecute({
+        sql: 'SELECT count(*) AS count FROM admin_users_sql WHERE tenant_slug=?',
+        args: [resolvedTenantSlug],
+      });
+      usersCount = Number((usersResult.rows[0] as any)?.count || 0);
     } else {
-      // For regular admin users without tenantSlug — scope by ownerId
-      const ownerFilter = isSuper ? {} : { ownerId: viewerId };
-      leadsCount = await crmDb.collection('crm_leads').countDocuments(ownerFilter);
-      usersCount = await crmDb.collection('admin_users').countDocuments(
-        isSuper ? {} : { $or: [{ userId: viewerId }, { createdBy: viewerId }] }
-      );
+      const leadResult = await bunnyExecute({
+        sql: isSuper ? 'SELECT count(*) AS count FROM leads_sql' : 'SELECT count(*) AS count FROM leads_sql WHERE owner_user_id=? OR json_extract(data_json, \'$.createdByUserId\')=? OR json_extract(data_json, \'$.assignedToUserId\')=?',
+        args: isSuper ? [] : [viewerId, viewerId, viewerId],
+      });
+      leadsCount = Number((leadResult.rows[0] as any)?.count || 0);
+      const usersResult = await bunnyExecute({
+        sql: isSuper ? 'SELECT count(*) AS count FROM admin_users_sql' : 'SELECT count(*) AS count FROM admin_users_sql WHERE user_id=? OR tenant_slug=?',
+        args: isSuper ? [] : [viewerId, resolvedTenantSlug],
+      });
+      usersCount = Number((usersResult.rows[0] as any)?.count || 0);
     }
-
-    // Calculate storage used (approximate from DB stats)
-    try {
-      const dbStats = await crmDb.db.stats();
-      const tenantCount = Math.max(1, await mainDb.collection('tenants').countDocuments());
-      storageUsedMB = Math.round((dbStats.dataSize / (1024 * 1024)) / tenantCount);
-    } catch {
-      storageUsedMB = 10;
-    }
+    // Bunny SQL does not expose MongoDB db.stats(); use a safe baseline until
+    // per-tenant storage accounting is available.
+    storageUsedMB = 0;
 
     // Build subscription response
     const planAccess = resolveTenantPlanAccess(tenant);
     const plan = planAccess.plan;
     const subscription = {
-      tenantSlug: tenantSlug || viewerId,
+      tenantSlug: resolvedTenantSlug || viewerId,
       plan,
       planName: planAccess.planName,
       billing: lastPayment?.billing || 'monthly',

@@ -4,13 +4,16 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner } from '@/components/admin/crm';
+import SocialComposer from '@/components/admin/crm/SocialComposer';
+import SocialBulkSendModal from '@/components/admin/crm/SocialBulkSendModal';
 
 /* ─── Types ─── */
 interface Conversation {
   _id: string;
-  name: string;
+  participantName?: string;
   participantId?: string;
-  username?: string;
+  participantUsername?: string;
+  participantProfilePic?: string;
   igScopedId?: string;
   phoneNumber?: string;
   lastMessage?: string;
@@ -51,6 +54,9 @@ interface ConnectedSocialAccount {
   metadata?: {
     autoConnectedVia?: string;
     linkedPageName?: string;
+    followers?: number;
+    postsCount?: number;
+    lastSyncedAt?: string;
   };
 }
 
@@ -87,8 +93,24 @@ export default function InstagramInboxPage() {
   const [composerText, setComposerText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
-  const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+
+  // Send failures are shown separately from connection failures — a rejected
+  // send does not mean the Instagram connection is broken.
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // Bulk selection for sending one template/message to many conversations.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const quickReplies = [
     { label: 'Thank you! 🙏', text: 'Thank you for your interest! We\'ll get back to you soon.' },
@@ -190,7 +212,7 @@ export default function InstagramInboxPage() {
         FB.login(
           (response: any) => resolve(response),
           {
-            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,instagram_basic,instagram_manage_messages,business_management',
+            scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_manage_messages,instagram_content_publish,business_management',
             ...(process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID
               ? { config_id: process.env.NEXT_PUBLIC_FB_MESSENGER_CONFIG_ID }
               : {}),
@@ -267,11 +289,11 @@ export default function InstagramInboxPage() {
     });
   }, [sidebarData.followUpDate]);
 
-  const loadInstagramMessages = useCallback(async (conversationId: string) => {
+  const loadInstagramMessages = useCallback(async (conversationId: string, silent = false) => {
     const adminToken = getStoredAdminToken();
     if (!adminToken || !conversationId) return;
 
-    setLoadingMessages(true);
+    if (!silent) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/admin/crm/social-inbox/messages?platform=instagram&conversationId=${encodeURIComponent(conversationId)}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
@@ -286,18 +308,22 @@ export default function InstagramInboxPage() {
       setMessages(loadedMessages);
       if (conversation) {
         setSelected(conversation);
-        syncSidebarFromConversation(conversation);
+        // Skip on silent (background) refreshes — overwriting these while an
+        // admin is mid-edit in the sidebar looks like the fields "vibrating".
+        if (!silent) syncSidebarFromConversation(conversation);
         setConversations((prev) => prev.map((item) => (item._id === conversation._id ? { ...item, ...conversation, unreadCount: 0 } : item)));
       }
     } catch (error) {
-      setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram messages');
-      setMessages([]);
+      if (!silent) {
+        setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram messages');
+        setMessages([]);
+      }
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   }, [getStoredAdminToken, syncSidebarFromConversation]);
 
-  const loadInstagramConversations = useCallback(async () => {
+  const loadInstagramConversations = useCallback(async (silent = false) => {
     const adminToken = getStoredAdminToken();
     if (!adminToken) return;
 
@@ -316,10 +342,11 @@ export default function InstagramInboxPage() {
         const refreshedSelected = rows.find((item: Conversation) => item._id === selected._id) || null;
         if (refreshedSelected) {
           setSelected(refreshedSelected);
-          syncSidebarFromConversation(refreshedSelected);
+          if (!silent) syncSidebarFromConversation(refreshedSelected);
         }
       }
     } catch (error) {
+      if (silent) return;
       setConnectionError(error instanceof Error ? error.message : 'Failed to load Instagram conversations');
       setConversations([]);
     }
@@ -426,16 +453,16 @@ export default function InstagramInboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-refresh conversations every 5 seconds
+  // Auto-refresh conversations every 1 minute
   useEffect(() => {
     if (!token || !instagramAccount) return;
 
     const interval = setInterval(() => {
-      loadInstagramConversations();
+      loadInstagramConversations(true);
       if (selected?._id) {
-        loadInstagramMessages(selected._id);
+        loadInstagramMessages(selected._id, true);
       }
-    }, 5000);
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [token, instagramAccount, selected?._id, loadInstagramConversations, loadInstagramMessages]);
@@ -543,19 +570,26 @@ export default function InstagramInboxPage() {
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to send Instagram message');
       }
-      // Refresh to get actual message ID and confirmation
-      await loadInstagramMessages(selected._id);
-      await loadInstagramConversations();
+      // Refresh to get actual message ID and confirmation — silent so the
+      // panel doesn't blank out while it re-fetches.
+      await loadInstagramMessages(selected._id, true);
+      await loadInstagramConversations(true);
     } catch (error) {
       setComposerText(messageText);
       // Remove optimistic message on error
       setMessages(messages.filter(m => m._id !== optimisticMessage._id));
-      setConnectionError(error instanceof Error ? error.message : 'Failed to send Instagram message');
+      setSendError(error instanceof Error ? error.message : 'Failed to send Instagram message');
     }
   };
 
   const filteredConversations = conversations.filter(c => {
-    const matchesSearch = !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.username || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.trim().toLowerCase();
+    const matchesSearch = !query
+      || (c.participantName || '').toLowerCase().includes(query)
+      || (c.participantUsername || '').toLowerCase().includes(query)
+      || (c.participantId || '').toLowerCase().includes(query)
+      || (c.phoneNumber || '').toLowerCase().includes(query)
+      || (c.notes || '').toLowerCase().includes(query);
     const matchesArchiveFilter = showArchived ? c.isArchived : !c.isArchived;
     return matchesSearch && matchesArchiveFilter;
   });
@@ -625,6 +659,18 @@ export default function InstagramInboxPage() {
               <span>{settingsScope.label}</span>
             </div>
           )}
+          {instagramAccount && typeof instagramAccount.metadata?.followers === 'number' && (
+            <div
+              className="hidden xl:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/15 text-white border-white/25 text-[10px] font-bold uppercase tracking-wider"
+              title={instagramAccount.metadata?.lastSyncedAt ? `Last synced ${new Date(instagramAccount.metadata.lastSyncedAt).toLocaleString()}` : undefined}
+            >
+              <i className="ph-bold ph-users text-xs"></i>
+              <span>{instagramAccount.metadata.followers.toLocaleString()} Followers</span>
+              {typeof instagramAccount.metadata?.postsCount === 'number' && (
+                <span className="opacity-70">· {instagramAccount.metadata.postsCount.toLocaleString()} Posts</span>
+              )}
+            </div>
+          )}
           {!connectionRestricted && (
             <>
               <button onClick={connectMetaAccount} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white/10 text-white/80 border-white/20 hover:bg-white/20 hover:text-white text-[10px] font-bold transition-all duration-200">
@@ -643,6 +689,15 @@ export default function InstagramInboxPage() {
             <i className="ph-bold ph-funnel text-xs"></i>
             <span className="hidden lg:inline uppercase tracking-wider">Funnel</span>
           </button>
+          <button
+            onClick={() => router.push('/admin/social-media')}
+            title="Post a new photo, video or reel to Facebook/Instagram"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-bold text-[10px] text-white transition-all duration-200 hover:shadow-lg hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)' }}
+          >
+            <i className="ph-bold ph-plus-circle text-xs"></i>
+            <span className="uppercase tracking-wider">New Post</span>
+          </button>
         </div>
       </header>
 
@@ -658,7 +713,7 @@ export default function InstagramInboxPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search conversations..."
+                placeholder="Search by name, @username, or user ID..."
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/80 backdrop-blur-sm shadow-sm border text-xs font-medium focus:ring-2 focus:ring-pink-300/30 focus:border-pink-400 outline-none transition-all"
                 style={{ borderColor: 'rgba(193,53,132,0.15)' }}
               />
@@ -677,12 +732,79 @@ export default function InstagramInboxPage() {
             </button>
           </div>
 
+          {/* Bulk selection bar */}
+          {filteredConversations.length > 0 && (
+            <div className="px-3 pb-2 flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 cursor-pointer accent-[#C13584]"
+                  checked={filteredConversations.length > 0 && filteredConversations.every((c) => selectedIds.has(c._id))}
+                  onChange={(e) =>
+                    setSelectedIds(e.target.checked ? new Set(filteredConversations.map((c) => c._id)) : new Set())
+                  }
+                />
+                Select all
+              </label>
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-[11px] text-slate-400">{selectedIds.size} selected</span>
+                  <button
+                    onClick={() => setBulkOpen(true)}
+                    className="ml-auto px-2.5 py-1 rounded-lg text-[11px] font-bold text-white transition-all active:scale-95 flex items-center gap-1"
+                    style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)' }}
+                  >
+                    <i className="ph-bold ph-paper-plane-right text-xs"></i>
+                    Send template
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 hover:bg-slate-100"
+                    title="Clear selection"
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Conversation List */}
           <div className="flex-1 overflow-y-auto">
             {connectionError ? (
               <div className="mx-3 mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
                 <div className="font-bold">Instagram connection check failed</div>
                 <div className="mt-0.5">{connectionError}</div>
+              </div>
+            ) : null}
+
+            {sendError ? (
+              <div className="mx-3 mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-bold">
+                      {/human agent/i.test(sendError)
+                        ? 'Reply window expired (auto-extend needs approval)'
+                        : /(#10)|outside of allowed window/i.test(sendError)
+                          ? "Outside Meta's reply window"
+                          : /not the thread owner/i.test(sendError)
+                            ? 'Waiting for their first message'
+                            : 'Message not sent'}
+                    </div>
+                    <div className="mt-0.5 leading-snug">
+                      {/human agent/i.test(sendError)
+                        ? 'We automatically tried extending the reply window to 7 days, but that needs Meta to approve our "Human Agent" access first (pending App Review). Once approved this will work automatically — no action needed here.'
+                        : /(#10)|outside of allowed window/i.test(sendError)
+                          ? 'We tried sending — Meta blocked it because this chat is too old. It will unblock the moment they message you again.'
+                          : /not the thread owner/i.test(sendError)
+                            ? "Meta hasn't linked this chat to our app yet — this happens on conversations imported from history that this contact hasn't messaged since we connected. Ask them to send any new message here; once it arrives, replying will work immediately."
+                            : sendError}
+                    </div>
+                  </div>
+                  <button onClick={() => setSendError(null)} className="p-1 rounded hover:bg-amber-100 shrink-0" title="Dismiss">
+                    <i className="ph ph-x"></i>
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -735,15 +857,31 @@ export default function InstagramInboxPage() {
                     borderColor: selected?._id === conv._id ? 'rgba(193,53,132,0.2)' : 'rgba(193,53,132,0.08)',
                   }}
                 >
-                  <div className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C, #F77737)' }}>
-                    {conv.name?.[0]?.toUpperCase() || 'U'}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(conv._id)}
+                    onChange={(e) => { e.stopPropagation(); toggleSelected(conv._id); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-2.5 h-4 w-4 shrink-0 cursor-pointer accent-[#C13584]"
+                    title="Select for bulk send"
+                  />
+                  {conv.participantProfilePic ? (
+                    <img
+                      src={conv.participantProfilePic}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover shrink-0 bg-slate-100"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                    />
+                  ) : null}
+                  <div className={`h-9 w-9 rounded-full items-center justify-center text-white font-bold text-sm shrink-0 ${conv.participantProfilePic ? 'hidden' : 'flex'}`} style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C, #F77737)' }}>
+                    {conv.participantName?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.name || 'Unknown'}</span>
+                      <span className="text-[13px] font-bold text-slate-900 truncate">{conv.participantName || 'Unknown'}</span>
                       <span className="text-[10px] text-slate-400 shrink-0">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : ''}</span>
                     </div>
-                    {conv.username && <p className="text-[10px] text-pink-500/70 font-semibold">@{conv.username}</p>}
+                    {conv.participantUsername && <p className="text-[10px] text-pink-500/70 font-semibold">@{conv.participantUsername}</p>}
                     <p className="text-[11px] text-slate-500 truncate mt-0.5">{conv.lastMessage || 'No messages'}</p>
                   </div>
                   {(conv.unreadCount || 0) > 0 && (
@@ -768,8 +906,8 @@ export default function InstagramInboxPage() {
                     <i className="ph ph-user text-sm"></i>
                   </div>
                   <div>
-                    <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.name || 'Unknown'}</div>
-                    <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : selected.participantId || 'Instagram'}</div>
+                    <div className="text-[13px] font-bold text-slate-900 leading-none">{selected.participantName || 'Unknown'}</div>
+                    <div className="text-[10px] font-semibold mt-0.5" style={{ color: '#C13584' }}>{selected.participantUsername ? `@${selected.participantUsername}` : selected.participantId || 'Instagram'}</div>
                   </div>
                   <div className="ml-auto lg:ml-0">
                     <button
@@ -863,54 +1001,33 @@ export default function InstagramInboxPage() {
               </div>
 
               {/* Composer */}
-              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md relative" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(255,240,245,0.9) 100%)', borderTop: '1px solid rgba(193,53,132,0.1)' }}>
-                {/* Quick Replies Dropdown */}
-                {showQuickReplies && (
-                  <div className="absolute bottom-20 left-3 bg-white rounded-xl border shadow-lg p-2 w-80 max-h-48 overflow-y-auto z-50" style={{ borderColor: 'rgba(193,53,132,0.2)' }}>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase px-2 mb-1">Quick Replies</p>
-                    {quickReplies.map((reply, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          setComposerText(reply.text);
-                          setShowQuickReplies(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-pink-50 text-[12px] font-medium text-slate-700 transition-colors"
-                      >
-                        {reply.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-end gap-2 max-w-6xl mx-auto">
-                  <button
-                    onClick={() => setShowQuickReplies(!showQuickReplies)}
-                    title="Quick replies"
-                    className="text-slate-500 h-9 px-3 rounded-2xl font-bold text-sm transition-all hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    <i className="ph-bold ph-lightning text-lg"></i>
-                  </button>
-
-                  <div className="flex-1 rounded-2xl bg-white/80 backdrop-blur-sm transition-all relative" style={{ border: '1px solid rgba(193,53,132,0.15)', boxShadow: '0 2px 8px rgba(193,53,132,0.06)' }}>
-                    <textarea
-                      value={composerText}
-                      onChange={(e) => setComposerText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                      placeholder="Send a message..."
-                      rows={1}
-                      className="w-full px-4 py-2.5 border-none focus:ring-0 max-h-28 min-h-[36px] placeholder:text-slate-400 font-medium text-slate-700 text-[13px] resize-none bg-transparent outline-none rounded-2xl"
-                    />
-                  </div>
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!composerText.trim()}
-                    className="text-white h-9 px-4 rounded-2xl font-bold text-xs transition-all active:scale-95 disabled:opacity-40 flex items-center gap-1.5 self-end hover:shadow-lg hover:scale-105"
-                    style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)', boxShadow: '0 2px 12px rgba(193,53,132,0.35)' }}
-                  >
-                    <i className="ph-bold ph-paper-plane-right text-sm"></i>
-                    <span className="hidden xl:inline">Send</span>
-                  </button>
+              <div className="px-3 pt-2 pb-6 shrink-0 z-30 backdrop-blur-md relative flex items-end gap-2" style={{ background: 'linear-gradient(0deg, rgba(255,255,255,0.98) 0%, rgba(255,240,245,0.9) 100%)', borderTop: '1px solid rgba(193,53,132,0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => router.push('/admin/social-media')}
+                  title="Post a new photo, video or reel"
+                  className="shrink-0 h-11 w-11 rounded-xl flex items-center justify-center text-white shadow-md hover:scale-105 transition-transform"
+                  style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)' }}
+                >
+                  <i className="ph-fill ph-image-square text-lg"></i>
+                </button>
+                <div className="flex-1">
+                  <SocialComposer
+                    value={composerText}
+                    onChange={setComposerText}
+                    onSend={handleSendMessage}
+                    token={token}
+                    replyContext={[...messages].reverse().find((m) => m.direction === 'inbound')?.messageContent || ''}
+                    quickReplies={quickReplies}
+                    placeholder="Send a message..."
+                    accent={{
+                      color: '#C13584',
+                      soft: 'rgba(193,53,132,0.08)',
+                      border: 'rgba(193,53,132,0.15)',
+                      sendBg: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)',
+                      sendShadow: '0 2px 12px rgba(193,53,132,0.35)',
+                    }}
+                  />
                 </div>
               </div>
             </>
@@ -974,12 +1091,21 @@ export default function InstagramInboxPage() {
             {/* Avatar */}
             <div className="mb-4 p-1 pb-3" style={{ borderBottom: '1px solid rgba(193,53,132,0.1)' }}>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0" style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 35%, #E1306C 70%, #F77737 100%)', boxShadow: '0 4px 12px rgba(193,53,132,0.3)' }}>
-                  {selected.name?.[0]?.toUpperCase() || 'U'}
+                {selected.participantProfilePic ? (
+                  <img
+                    src={selected.participantProfilePic}
+                    alt=""
+                    className="w-12 h-12 rounded-2xl object-cover shrink-0 bg-slate-100"
+                    style={{ boxShadow: '0 4px 12px rgba(193,53,132,0.3)' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                  />
+                ) : null}
+                <div className={`w-12 h-12 rounded-2xl items-center justify-center text-white font-extrabold text-xl shrink-0 ${selected.participantProfilePic ? 'hidden' : 'flex'}`} style={{ background: 'linear-gradient(135deg, #833AB4 0%, #C13584 35%, #E1306C 70%, #F77737 100%)', boxShadow: '0 4px 12px rgba(193,53,132,0.3)' }}>
+                  {selected.participantName?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.name || 'Unknown'}</h3>
-                  <p className="text-xs font-semibold" style={{ color: '#C13584' }}>{selected.username ? `@${selected.username}` : 'Instagram'}</p>
+                  <h3 className="font-extrabold text-slate-900 leading-tight">{selected.participantName || 'Unknown'}</h3>
+                  <p className="text-xs font-semibold" style={{ color: '#C13584' }}>{selected.participantUsername ? `@${selected.participantUsername}` : 'Instagram'}</p>
                 </div>
               </div>
             </div>
@@ -1162,6 +1288,17 @@ export default function InstagramInboxPage() {
         ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #833AB4 0%, #C13584 50%, #E1306C 100%); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #6A2E94 0%, #A12B6E 50%, #C12860 100%); }
         ::selection { background: rgba(193,53,132,0.2); color: inherit; }
+      <SocialBulkSendModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        platform="instagram"
+        conversationIds={Array.from(selectedIds)}
+        token={token}
+        accentColor="#C13584"
+        accentGradient="linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 100%)"
+        onSent={() => { setSelectedIds(new Set()); loadInstagramConversations(); }}
+      />
+
       `}</style>
     </div>
   );

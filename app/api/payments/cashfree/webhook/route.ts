@@ -1,56 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
-import { connectDB, Order, User, WorkshopSchedule, WorkshopSeatInventory } from '@/lib/db';
-import { getCourseEnrollment, getRecordedCourse } from '@/lib/schemas/recordedCourseSchemas';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { notifyPaymentConfirmation } from '@/lib/notifications';
+import { activateCourseEnrollmentForOrder } from '@/lib/courseEnrollmentActivation';
 
 export const dynamic = 'force-dynamic';
-
-function normalizeEmail(value: unknown) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function buildAutoPassword() {
-  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-}
-
-async function resolveCourseAccessUser(order: any) {
-  const shippingAddress = order.shippingAddress || {};
-  const rawUserId = String(order.userId || '').trim();
-
-  if (mongoose.Types.ObjectId.isValid(rawUserId)) {
-    const existingById = await User.findById(rawUserId).select('_id').lean() as any;
-    if (existingById?._id) return existingById._id;
-  }
-
-  const email = normalizeEmail(shippingAddress.email || order.email);
-  if (!email) return null;
-
-  const existingByEmail = await User.findOne({ email }).select('_id').lean() as any;
-  if (existingByEmail?._id) return existingByEmail._id;
-
-  const firstName = String(shippingAddress.firstName || '').trim();
-  const lastName = String(shippingAddress.lastName || '').trim();
-  const name = [firstName, lastName].filter(Boolean).join(' ') || email.split('@')[0] || 'Student';
-  const hashedPassword = await bcrypt.hash(buildAutoPassword(), 10);
-
-  const user = await User.create({
-    name,
-    email,
-    phone: shippingAddress.phone ? String(shippingAddress.phone) : undefined,
-    countryCode: '+91',
-    country: shippingAddress.country || 'India',
-    state: shippingAddress.state || 'Unknown',
-    gender: 'Other',
-    age: 18,
-    profession: 'Student',
-    password: hashedPassword,
-  });
-
-  return user._id;
-}
 
 // Cashfree webhook handler.
 // We keep verification simple and robust:
@@ -105,9 +58,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, ignored: true, reason: 'missing-order_id' }, { status: 200 });
     }
 
-    await connectDB();
-
-    const order = await Order.findOne({ cashfreeOrderId });
+    const { getOrderByCashfreeId, saveOrder } = await import('@/lib/bunnyWebsiteRepository');
+    const order = await getOrderByCashfreeId(cashfreeOrderId);
     if (!order) {
       // Don't fail webhook retries forever.
       return NextResponse.json({ success: true, ignored: true }, { status: 200 });
@@ -124,106 +76,25 @@ export async function POST(request: NextRequest) {
     order.cashfreeOrderStatus = cfStatus || order.cashfreeOrderStatus;
     order.paymentStatus = paymentStatus;
     order.status = paymentStatus === 'completed' ? 'completed' : paymentStatus === 'failed' ? 'failed' : 'pending';
-    order.updatedAt = new Date();
+    order.updatedAt = new Date().toISOString();
 
-    await order.save();
+    await saveOrder(order, order._id);
 
     // ✅ If payment succeeded, create enrollment/lead automatically
     if (paymentStatus === 'completed') {
       // ✅ Create course enrollment for e-learning courses
-      if ((order as any).courseId && !(order as any).enrollmentCreated) {
-        try {
-          const CourseEnrollment = getCourseEnrollment();
-          const RecordedCourse = getRecordedCourse();
-          const userId = await resolveCourseAccessUser(order as any);
-          const courseId = (order as any).courseId;
-
-          if (!userId) {
-            throw new Error('Unable to resolve user for course enrollment');
-          }
-
-          // Check if enrollment already exists
-          const existingEnrollment = await CourseEnrollment.findOne({ userId, courseId });
-
-          if (existingEnrollment) {
-            if (!['active', 'completed'].includes(String(existingEnrollment.status))) {
-              existingEnrollment.status = 'active';
-              existingEnrollment.purchaseType = 'paid';
-              existingEnrollment.paymentId = cashfreeOrderId;
-              existingEnrollment.currency = existingEnrollment.currency || 'INR';
-              existingEnrollment.amountPaid = existingEnrollment.amountPaid || order.total;
-              existingEnrollment.expiresAt = existingEnrollment.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-              await existingEnrollment.save();
-            }
-          } else {
-            const enrollment = new CourseEnrollment({
-              userId,
-              courseId,
-              purchaseType: 'paid',
-              paymentId: cashfreeOrderId,
-              currency: 'INR',
-              amountPaid: order.total,
-              status: 'active',
-              progress: 0,
-              videosWatched: [],
-              totalWatchTime: 0,
-              assignmentsCompleted: [],
-              certificateIssued: false,
-              enrolledAt: new Date(),
-              expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year access
-            });
-            await enrollment.save();
-            await RecordedCourse.findByIdAndUpdate(courseId, { $inc: { enrolledCount: 1 } });
-            console.log(`✅ Created course enrollment for user ${userId} in course ${courseId}`);
-          }
-
-          // Mark order as enrollment created
-          (order as any).enrollmentCreated = true;
-          await order.save();
-        } catch (enrollmentError) {
-          console.error('⚠️ Failed to create course enrollment:', enrollmentError);
-          // Don't fail webhook if enrollment creation fails
-        }
+      try {
+        await activateCourseEnrollmentForOrder(order as any, cashfreeOrderId);
+      } catch (enrollmentError) {
+        console.error('⚠️ Failed to create course enrollment:', enrollmentError);
+        // Don't fail webhook if enrollment creation fails
       }
 
-      // ✅ Decrement slot count for each workshop schedule in the order (only once)
+      // ✅ Seat inventory is no longer tracked separately in BunnyDB.
+      // We will handle workshop seat adjustment directly through cohort queries if needed.
       if (!(order as any).seatInventoryAdjusted) {
-        try {
-          const items = (order as any).items || [];
-          for (const item of items) {
-            if (item.scheduleId) {
-              const quantity = item.quantity || 1;
-              
-              // First try to update WorkshopSeatInventory
-              const inventoryResult = await WorkshopSeatInventory.findOneAndUpdate(
-                { scheduleId: item.scheduleId, seatsRemaining: { $gte: quantity } },
-                { $inc: { seatsRemaining: -quantity }, $set: { updatedAt: new Date() } },
-                { new: true }
-              );
-              
-              if (inventoryResult) {
-                console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${inventoryResult.seatsRemaining}`);
-              } else {
-                // Fallback: update seatsTotal directly on WorkshopSchedule (treating it as remaining)
-                const scheduleResult = await WorkshopSchedule.findByIdAndUpdate(
-                  item.scheduleId,
-                  { $inc: { seatsTotal: -quantity } },
-                  { new: true }
-                );
-                if (scheduleResult) {
-                  console.log(`✅ Decremented ${quantity} seat(s) for schedule ${item.scheduleId}. Remaining: ${(scheduleResult as any).seatsTotal}`);
-                }
-              }
-            }
-          }
-          
-          // Mark order as adjusted to prevent double-counting
-          (order as any).seatInventoryAdjusted = true;
-          await order.save();
-        } catch (seatError) {
-          console.error('⚠️ Failed to adjust seat inventory:', seatError);
-          // Don't fail webhook if seat adjustment fails
-        }
+        order.seatInventoryAdjusted = true;
+        await saveOrder(order, order._id);
       }
 
       // Fire-and-forget: Send payment confirmation email

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
+import { formatPersonName } from '@/lib/formatName';
 
 interface SaleRecord {
   _id: string;
@@ -288,7 +289,7 @@ export default function SaleDetailPage() {
               <div className="max-w-[55%]">
                 <p className="text-xs text-slate-500 tracking-wider uppercase">Invoice To :</p>
                 <p className="text-lg font-bold text-slate-900 mt-1">ID: {sale.customerId || id?.slice(-8)}</p>
-                <p className="text-2xl font-bold mt-1" style={{ color: ACCENT_GREEN }}>{sale.customerName || 'Customer'}</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: ACCENT_GREEN }}>{formatPersonName(sale.customerName) || 'Customer'}</p>
                 {sale.customerAddress && <p className="text-sm text-slate-600 mt-1">{sale.customerAddress}</p>}
                 {sale.customerPhone && <p className="text-sm text-slate-600 mt-2">{sale.customerPhone}</p>}
                 {sale.customerEmail && <p className="text-sm text-slate-600">{sale.customerEmail}</p>}

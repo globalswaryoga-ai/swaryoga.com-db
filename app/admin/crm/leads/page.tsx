@@ -128,6 +128,13 @@ export default function LeadsPage() {
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [exportingLeads, setExportingLeads] = useState(false);
 
+  // Deduplication state
+  const [dedupModalOpen, setDedupModalOpen] = useState(false);
+  const [dedupScanning, setDedupScanning] = useState(false);
+  const [dedupMerging, setDedupMerging] = useState(false);
+  const [dedupResult, setDedupResult] = useState<any>(null);
+  const [dedupMergeResult, setDedupMergeResult] = useState<any>(null);
+
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [leadsForBroadcast, setLeadsForBroadcast] = useState<Lead[]>([]);
 
@@ -968,41 +975,67 @@ export default function LeadsPage() {
               🗑️ Deleted
             </button>
             {isSuperAdmin && (
-              <button
-                onClick={async () => {
-                  if (!token) return;
-                  try {
-                    setBackfillBusy(true);
-                    let totalUpdated = 0;
-                    let remaining = 0;
-                    // Keep running until every lead has a Lead ID (each run covers up to 2000).
-                    while (true) {
-                      const res = await fetch('/api/admin/crm/leads/backfill-ids?limit=2000', {
-                        method: 'POST',
+              <>
+                <button
+                  onClick={async () => {
+                    if (!token) return;
+                    try {
+                      setBackfillBusy(true);
+                      let totalUpdated = 0;
+                      let remaining = 0;
+                      while (true) {
+                        const res = await fetch('/api/admin/crm/leads/backfill-ids?limit=2000', {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data?.error || 'Backfill failed');
+                        totalUpdated += data?.data?.updated || 0;
+                        remaining = data?.data?.remaining || 0;
+                        if (!data?.data?.updated || remaining === 0) break;
+                      }
+                      fetchMetadata();
+                      fetchLeads();
+                      alert(`Backfilled ${totalUpdated} lead IDs. Remaining without an ID: ${remaining}`);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Backfill failed');
+                    } finally {
+                      setBackfillBusy(false);
+                    }
+                  }}
+                  disabled={backfillBusy}
+                  className="bg-orange-500/90 hover:bg-orange-500 text-black px-4 py-2.5 rounded-xl transition-all duration-300 disabled:opacity-60 font-bold border border-orange-400/50 hover:shadow-lg hover:shadow-orange-500/20"
+                >
+                  {backfillBusy ? '⏳ Generating…' : '🧾 Generate IDs'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!token) return;
+                    setDedupModalOpen(true);
+                    setDedupResult(null);
+                    setDedupMergeResult(null);
+                    try {
+                      setDedupScanning(true);
+                      const res = await fetch('/api/admin/crm/leads/dedup', {
                         headers: { Authorization: `Bearer ${token}` },
                       });
-                      const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(data?.error || 'Backfill failed');
-
-                      totalUpdated += data?.data?.updated || 0;
-                      remaining = data?.data?.remaining || 0;
-                      if (!data?.data?.updated || remaining === 0) break;
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data?.error || 'Scan failed');
+                      setDedupResult(data.data);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Scan failed');
+                      setDedupModalOpen(false);
+                    } finally {
+                      setDedupScanning(false);
                     }
-
-                    fetchMetadata();
-                    fetchLeads();
-                    alert(`Backfilled ${totalUpdated} lead IDs. Remaining without an ID: ${remaining}`);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Backfill failed');
-                  } finally {
-                    setBackfillBusy(false);
-                  }
-                }}
-                disabled={backfillBusy}
-                className="bg-orange-500/90 hover:bg-orange-500 text-black px-4 py-2.5 rounded-xl transition-all duration-300 disabled:opacity-60 font-bold border border-orange-400/50 hover:shadow-lg hover:shadow-orange-500/20"
-              >
-                {backfillBusy ? '⏳ Generating…' : '🧾 Generate IDs'}
-              </button>
+                  }}
+                  disabled={dedupScanning}
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2.5 rounded-xl transition-all duration-300 disabled:opacity-60 font-bold border border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/20 flex items-center gap-2"
+                  title="Scan for duplicate leads by phone number and email"
+                >
+                  🔍 Find Duplicates
+                </button>
+              </>
             )}
             <button
               onClick={() => {
@@ -2314,6 +2347,167 @@ export default function LeadsPage() {
                 {settingsSaving ? '⏳ Saving…' : '💾 Save Settings'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Deduplication Modal ── */}
+      {dedupModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">🔍 Duplicate Lead Scanner</h2>
+              <button
+                onClick={() => { setDedupModalOpen(false); setDedupResult(null); setDedupMergeResult(null); }}
+                className="text-gray-400 hover:text-white text-xl transition"
+              >✕</button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              {dedupScanning && (
+                <div className="flex flex-col items-center justify-center py-16 gap-4">
+                  <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-gray-400 text-sm">Scanning {total} leads for duplicates…</p>
+                </div>
+              )}
+
+              {dedupMergeResult && (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl px-5 py-4">
+                  <p className="text-green-400 font-bold text-base mb-1">✅ Merge Complete!</p>
+                  <p className="text-gray-300 text-sm">Merged <strong className="text-white">{dedupMergeResult.mergedGroups}</strong> duplicate groups</p>
+                  <p className="text-gray-300 text-sm">Removed <strong className="text-white">{dedupMergeResult.deletedLeads}</strong> duplicate leads</p>
+                  {dedupMergeResult.errors?.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-red-400 text-xs font-semibold">Errors:</p>
+                      {dedupMergeResult.errors.map((e: string, i: number) => (
+                        <p key={i} className="text-red-300 text-xs">{e}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {dedupResult && !dedupMergeResult && (
+                <>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center">
+                      <p className="text-2xl font-bold text-white">{dedupResult.totalLeads}</p>
+                      <p className="text-gray-400 text-xs mt-1">Total Leads</p>
+                    </div>
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 text-center">
+                      <p className="text-2xl font-bold text-yellow-400">{dedupResult.duplicateGroups}</p>
+                      <p className="text-gray-400 text-xs mt-1">Duplicate Groups</p>
+                    </div>
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-center">
+                      <p className="text-2xl font-bold text-red-400">{dedupResult.totalDuplicates}</p>
+                      <p className="text-gray-400 text-xs mt-1">Leads to Remove</p>
+                    </div>
+                  </div>
+
+                  {dedupResult.duplicateGroups === 0 ? (
+                    <div className="text-center py-10">
+                      <p className="text-4xl mb-3">🎉</p>
+                      <p className="text-green-400 font-semibold text-lg">No duplicates found!</p>
+                      <p className="text-gray-400 text-sm mt-1">All {dedupResult.totalLeads} leads have unique phone numbers and emails.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-yellow-400 text-sm font-semibold">⚠️ Found {dedupResult.duplicateGroups} duplicate groups. The oldest lead will be kept as primary; data from duplicates will be merged into it before deletion.</p>
+                      <div className="space-y-3">
+                        {dedupResult.groups.slice(0, 30).map((group: any, i: number) => (
+                          <div key={i} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${group.matchType === 'phone' ? 'bg-blue-500/20 text-blue-300' : 'bg-pink-500/20 text-pink-300'}`}>
+                                  {group.matchType === 'phone' ? '📱 Phone' : '📧 Email'}
+                                </span>
+                                <span className="text-white text-sm font-mono">{group.key}</span>
+                              </div>
+                              <span className="text-red-400 text-xs font-semibold">{group.duplicateCount} duplicate{group.duplicateCount > 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="space-y-1">
+                              {group.leads.map((lead: any, j: number) => (
+                                <div key={j} className={`flex items-center justify-between text-xs rounded-lg px-3 py-1.5 ${
+                                  lead._id === group.primaryId
+                                    ? 'bg-green-500/10 border border-green-500/20 text-green-300'
+                                    : 'bg-red-500/10 border border-red-500/10 text-gray-400'
+                                }`}>
+                                  <span className="font-semibold">{lead._id === group.primaryId ? '✅ Keep' : '🗑️ Remove'}</span>
+                                  <span className="flex-1 mx-3 truncate">{lead.name || lead.phoneNumber}</span>
+                                  <span className="text-gray-500">{lead.source || '—'}</span>
+                                  <span className="ml-3 text-gray-500">{lead.leadNumber || ''}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        {dedupResult.groups.length > 30 && (
+                          <p className="text-gray-500 text-xs text-center">…and {dedupResult.groups.length - 30} more groups</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {dedupResult && dedupResult.duplicateGroups > 0 && !dedupMergeResult && (
+              <div className="sticky bottom-0 bg-[#1a1a2e] border-t border-white/10 px-6 py-4 flex items-center justify-between gap-3 rounded-b-2xl">
+                <p className="text-gray-400 text-sm">
+                  This will <strong className="text-white">remove {dedupResult.totalDuplicates} leads</strong> and merge their data into the oldest lead in each group.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setDedupModalOpen(false); setDedupResult(null); }}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-400 hover:text-white hover:bg-white/10 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!token) return;
+                      if (!confirm(`Are you sure? This will permanently delete ${dedupResult.totalDuplicates} duplicate leads.`)) return;
+                      try {
+                        setDedupMerging(true);
+                        const res = await fetch('/api/admin/crm/leads/dedup', {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'merge' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data?.error || 'Merge failed');
+                        setDedupMergeResult(data.data);
+                        fetchLeads();
+                        fetchMetadata();
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : 'Merge failed');
+                      } finally {
+                        setDedupMerging(false);
+                      }
+                    }}
+                    disabled={dedupMerging}
+                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-400 disabled:opacity-50 transition shadow-lg shadow-red-500/20 flex items-center gap-2"
+                  >
+                    {dedupMerging ? '⏳ Merging…' : `🗑️ Merge & Remove ${dedupResult.totalDuplicates} Duplicates`}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {dedupMergeResult && (
+              <div className="sticky bottom-0 bg-[#1a1a2e] border-t border-white/10 px-6 py-4 flex justify-end">
+                <button
+                  onClick={() => { setDedupModalOpen(false); setDedupResult(null); setDedupMergeResult(null); }}
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-green-500 hover:bg-green-400 transition"
+                >
+                  ✅ Done
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -29,29 +29,37 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const state = searchParams.get('state'); // Contains adminToken for auth
 
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
+    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
+    const host = rawHost.split(':')[0]; // Strip any port
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const baseUrl = `${protocol}://${host}`;
+
     // Handle OAuth errors
     if (error) {
       console.error('[YouTube OAuth] Error from Google:', error);
       return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(error)}`, request.url)
+        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(error)}`, baseUrl)
       );
     }
 
     if (!code) {
+      const allParams = Array.from(searchParams.entries()).map(([k, v]) => `${k}=${v}`).join("&");
       return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=missing_code', request.url)
+        new URL(`/admin/social-media-setup?platform=youtube&error=missing_code&debug=${encodeURIComponent(allParams)}`, baseUrl)
       );
     }
 
     // Get OAuth credentials from environment
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = `${process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000'}/api/admin/social-media/youtube/oauth/callback`;
+    const redirectUri = `${baseUrl}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId || !clientSecret) {
       console.error('[YouTube OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
       return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=missing_credentials', request.url)
+        new URL('/admin/social-media-setup?platform=youtube&error=missing_credentials', baseUrl)
       );
     }
 
@@ -75,7 +83,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error('[YouTube OAuth] Token exchange failed:', tokenData);
       return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`, request.url)
+        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`, baseUrl)
       );
     }
 
@@ -96,7 +104,7 @@ export async function GET(request: NextRequest) {
     if (!channelResponse.ok || !channelData.items?.length) {
       console.error('[YouTube OAuth] Failed to fetch channel:', channelData);
       return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=no_channel_found', request.url)
+        new URL('/admin/social-media-setup?platform=youtube&error=no_channel_found', baseUrl)
       );
     }
 
@@ -107,75 +115,127 @@ export async function GET(request: NextRequest) {
     const subscribers = parseInt(channel.statistics?.subscriberCount || '0', 10);
     const videoCount = parseInt(channel.statistics?.videoCount || '0', 10);
 
-    // Connect to database and save account
-    await connectDB();
-
-    // Check if account already exists
-    const existingAccount = await SocialMediaAccount.findOne({
-      platform: 'youtube',
-      accountId: channelId,
-    });
-
     const encryptedAccessToken = encryptCredential(access_token);
-    const encryptedRefreshToken = refresh_token ? encryptCredential(refresh_token) : '';
     const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000);
 
-    if (existingAccount) {
-      // Update existing account
-      await SocialMediaAccount.updateOne(
-        { _id: existingAccount._id },
-        {
-          $set: {
-            accessToken: encryptedAccessToken,
-            refreshToken: encryptedRefreshToken,
-            tokenExpiresAt,
-            isConnected: true,
-            connectedAt: new Date(),
-            accountName: channelName,
-            accountHandle: channelHandle,
-            metadata: {
-              followers: subscribers,
-              postsCount: videoCount,
-              lastSyncedAt: new Date(),
-            },
-            grantedScopes: ['youtube.upload', 'youtube.readonly'],
-            updatedAt: new Date(),
-          },
-        }
-      );
-    } else {
-      // Create new account
-      const newAccount = new SocialMediaAccount({
+    // ── PRIMARY SAVE: Bunny Database ──
+    // Save to Bunny DB first (works regardless of MongoDB availability)
+    let encryptedRefreshToken = refresh_token ? encryptCredential(refresh_token) : '';
+    try {
+      const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
+      const existingDocRes = await bunnyExecute({
+        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+      });
+      let matchedRow: any = null;
+      let matchedId: string | null = null;
+      for (const row of existingDocRes.rows) {
+        try {
+          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
+          if (parsed.platform === 'youtube') {
+            matchedRow = parsed;
+            matchedId = String(row.id);
+            // Preserve old refresh token if new one not provided
+            if (!encryptedRefreshToken && matchedRow.refreshToken) {
+              encryptedRefreshToken = matchedRow.refreshToken;
+            }
+            break;
+          }
+        } catch {}
+      }
+
+      const finalRefresh = encryptedRefreshToken || matchedRow?.refreshToken || '';
+      const updatedDoc = {
+        ...(matchedRow || {}),
         platform: 'youtube',
         accountName: channelName,
         accountHandle: channelHandle,
         accountId: channelId,
         accessToken: encryptedAccessToken,
-        refreshToken: encryptedRefreshToken,
-        tokenExpiresAt,
+        refreshToken: finalRefresh,
+        tokenExpiresAt: tokenExpiresAt.toISOString(),
         isConnected: true,
-        connectedAt: new Date(),
+        connectedAt: new Date().toISOString(),
         metadata: {
+          ...(matchedRow?.metadata || {}),
           followers: subscribers,
           postsCount: videoCount,
-          lastSyncedAt: new Date(),
+          lastSyncedAt: new Date().toISOString(),
         },
         grantedScopes: ['youtube.upload', 'youtube.readonly'],
-      });
+        updatedAt: new Date().toISOString(),
+      };
 
-      await newAccount.save();
+      if (matchedId) {
+        await bunnyExecute({
+          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+          args: [JSON.stringify(updatedDoc), matchedId]
+        });
+      } else {
+        await bunnyExecute({
+          sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+          args: [crypto.randomUUID(), JSON.stringify(updatedDoc)]
+        });
+      }
+      console.log('[YouTube OAuth] Saved YouTube account to Bunny Database (primary storage).');
+    } catch (bunnySaveErr: any) {
+      console.error('[YouTube OAuth] Failed to save to Bunny Database:', bunnySaveErr.message);
+    }
+
+    // ── SECONDARY SAVE: MongoDB (best-effort) ──
+    try {
+      await connectDB();
+      const existingMongo = await SocialMediaAccount.findOne({ platform: 'youtube', accountId: channelId });
+      const finalRefresh = encryptedRefreshToken || existingMongo?.refreshToken || '';
+      if (existingMongo) {
+        await SocialMediaAccount.updateOne(
+          { _id: existingMongo._id },
+          {
+            $set: {
+              accessToken: encryptedAccessToken,
+              ...(finalRefresh ? { refreshToken: finalRefresh } : {}),
+              tokenExpiresAt,
+              isConnected: true,
+              connectedAt: new Date(),
+              accountName: channelName,
+              accountHandle: channelHandle,
+              metadata: { followers: subscribers, postsCount: videoCount, lastSyncedAt: new Date() },
+              grantedScopes: ['youtube.upload', 'youtube.readonly'],
+              updatedAt: new Date(),
+            },
+          }
+        );
+      } else {
+        const newAccount = new SocialMediaAccount({
+          platform: 'youtube',
+          accountName: channelName,
+          accountHandle: channelHandle,
+          accountId: channelId,
+          accessToken: encryptedAccessToken,
+          refreshToken: finalRefresh,
+          tokenExpiresAt,
+          isConnected: true,
+          connectedAt: new Date(),
+          metadata: { followers: subscribers, postsCount: videoCount, lastSyncedAt: new Date() },
+          grantedScopes: ['youtube.upload', 'youtube.readonly'],
+        });
+        await newAccount.save();
+      }
+      console.log('[YouTube OAuth] Also mirrored to MongoDB.');
+    } catch (mongoSaveErr: any) {
+      console.warn('[YouTube OAuth] Could not mirror to MongoDB (non-critical):', mongoSaveErr.message);
     }
 
     console.log(`[YouTube OAuth] Successfully connected channel: ${channelName} (${channelId})`);
 
+
     // Redirect back to setup page with success
     return NextResponse.redirect(
-      new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, request.url)
+      new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, baseUrl)
     );
   } catch (error) {
     console.error('[YouTube OAuth] Error:', error);
     return NextResponse.redirect(
-      new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent('internal_error')}`, request.url)
+      new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent('internal_error')}`, baseUrl)
     );
   }
 }

@@ -34,6 +34,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (!chart) return NextResponse.json({ error: 'Chart not found' }, { status: 404 });
 
     const bhavRows = Array.isArray(chart.bhavAnalysis) ? chart.bhavAnalysis : [];
+    const hasTemplateContent = (pt: any) =>
+      !!pt && (
+        pt.subLordRetrograde || pt.subLordStar || pt.starLord || pt.starLordRetrograde ||
+        pt.starLordHouses || pt.starLordConnecting || pt.summary || pt.conclusion || pt.rule ||
+        [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some(
+          (block: any) => block && (block.present || block.planet || block.signification || block.favorable)
+        )
+      );
+
     const hasContent = (b: any) =>
       b.subLord || b.positiveNotes || b.negativeNotes || b.dashaNotes || b.freeNotes ||
       b.subLordAbcdPlanets || b.subLordKaryeshBhav || b.subLordRahuKetuConnection ||
@@ -44,7 +53,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       (b.customMatters && b.customMatters.length) ||
       (b.drishtiPlanets && b.drishtiPlanets.length) || (b.connectionPlanets && b.connectionPlanets.length) ||
       (b.significatorsA && b.significatorsA.length) || (b.significatorsB && b.significatorsB.length) ||
-      (b.significatorsC && b.significatorsC.length) || (b.significatorsD && b.significatorsD.length);
+      (b.significatorsC && b.significatorsC.length) || (b.significatorsD && b.significatorsD.length) ||
+      hasTemplateContent(b.predictionTemplate);
 
     const hasAnyContent = bhavRows.some((b: any) =>
       hasContent(b)
@@ -69,6 +79,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       lifeStageNotes: chart.lifeStageNotes || '',
       orderedBhavs,
       currentMahadasha,
+      // Cusp positions let the prompt pull the curated rulebook texts
+      // (mindset/diseases/profession) matched to this chart's sub lords.
+      houses: Array.isArray(chart.houses)
+        ? chart.houses.map((h: any) => ({ house: h.house, sign: h.sign, star: h.star, subLord: h.subLord }))
+        : undefined,
     });
 
     const reportText = await callAI(systemPrompt, [], 'Generate the final prediction now.', 4000);

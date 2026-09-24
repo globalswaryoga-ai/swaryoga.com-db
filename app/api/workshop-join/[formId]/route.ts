@@ -28,7 +28,9 @@ export async function GET(
       workshopImage: form.workshopImage || '',
       price: form.price || 0,
       currency: form.currency || 'INR',
+      feeOptions: Array.isArray(form.feeOptions) ? form.feeOptions.map((f: any) => ({ label: f.label || '', price: f.price || 0 })) : [],
       groupLink: form.groupLink || '',
+      timeSlots: Array.isArray(form.timeSlots) ? form.timeSlots.map((t: any) => ({ label: t.label || '', groupLink: t.groupLink || '' })) : [],
     },
   });
 }
@@ -43,10 +45,10 @@ export async function POST(
   if (!form) return NextResponse.json({ error: 'Form not found or inactive' }, { status: 404 });
 
   const body = await req.json();
-  const { name, mobile, email, city, country } = body;
+  const { name, mobile, email, gender, country } = body;
 
-  if (!name?.trim() || !mobile?.trim() || !city?.trim()) {
-    return NextResponse.json({ error: 'Name, mobile and city are required' }, { status: 400 });
+  if (!name?.trim() || !mobile?.trim() || !email?.trim()) {
+    return NextResponse.json({ error: 'Name, mobile and email are required' }, { status: 400 });
   }
 
   // Increment submission count
@@ -79,9 +81,9 @@ export async function POST(
           lastEnquiry: {
             workshopId: form.workshopId || form.formId,
             workshopName: form.workshopName,
-            city: city.trim(),
             country: country?.trim() || '',
             email: email?.trim() || '',
+            gender: gender?.trim() || '',
             submittedAt: new Date(),
             formId: params.formId,
           },

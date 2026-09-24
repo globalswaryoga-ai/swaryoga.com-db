@@ -23,6 +23,8 @@ interface SadhanaSchedule {
   _id: string;
   name: string;
   botName?: string;
+  chatMessages?: Array<{ message: string; delayMinutes: number }>;
+  enableAiChatReplies?: boolean;
   videoUrl: string;
   videoDuration?: number;
   botJoinMinutes?: number;
@@ -449,8 +451,64 @@ try {
                   </div>
                 </div>
 
+                {/* Bot / Playback Settings */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 border-t border-gray-700 pt-4">
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Bot Name</p>
+                    <p className="text-white">{schedule.botName || 'Sadhana Bot'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Video Duration</p>
+                    <p className="text-white">{schedule.videoDuration ? `${schedule.videoDuration} min` : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Bot Joins</p>
+                    <p className="text-white">{schedule.botJoinMinutes != null ? `${schedule.botJoinMinutes} min before` : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Chat Messages</p>
+                    <p className="text-white">
+                      {schedule.chatMessages?.length
+                        ? `${schedule.chatMessages.length} scheduled (${schedule.chatMessages.map((m) => `${m.delayMinutes}m`).join(', ')})`
+                        : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">AI Chat Replies</p>
+                    <p className={schedule.enableAiChatReplies ? 'text-green-400' : 'text-gray-400'}>
+                      {schedule.enableAiChatReplies ? 'Enabled' : 'Disabled'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Auto Close</p>
+                    <p className="text-white">{schedule.autoCloseMinutes != null ? `${schedule.autoCloseMinutes} min after` : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Bot Automation</p>
+                    <p className={schedule.enableBotAutomation === false ? 'text-gray-400' : 'text-green-400'}>
+                      {schedule.enableBotAutomation === false ? 'Disabled' : 'Enabled'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs uppercase mb-1">Start Date</p>
+                    <p className="text-white">{schedule.schedule?.startDate ? new Date(schedule.schedule.startDate).toLocaleDateString() : '—'}</p>
+                  </div>
+                  {schedule.zoomPassword && (
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase mb-1">Zoom Password</p>
+                      <p className="text-gray-300 font-mono">{'•'.repeat(Math.min(schedule.zoomPassword.length, 10))}</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Links Preview */}
                 <div className="border-t border-gray-700 pt-4 space-y-2">
+                  {schedule.chatMessages?.filter((m) => m.message).map((m, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="text-gray-500 text-sm min-w-fit">💬 +{m.delayMinutes}m:</span>
+                      <span className="text-gray-300 text-sm whitespace-pre-wrap">{m.message}</span>
+                    </div>
+                  ))}
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 text-sm min-w-fit">📹 Video:</span>
                     <a

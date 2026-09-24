@@ -4,7 +4,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
 import { getKpHoroscopeChart } from '@/lib/schemas/enterpriseSchemas';
-import { findEventSignificators, findDashaChainWindows, refineWindowByTransit, refineDayByLagna, type DashaChainWindow, type DailyTransitMatch, type HourlyLagnaMatch } from '@/lib/kpAstro/eventTiming';
+import { findEventSignificators, findDashaChainWindows, refineWindowByTransit, refineDayByLagna, findSlowTransitYears, type DashaChainWindow, type DailyTransitMatch, type HourlyLagnaMatch } from '@/lib/kpAstro/eventTiming';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -59,12 +59,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (significators.length === 0) {
       return NextResponse.json({
         success: true,
-        data: { significators: [], windows: [] },
+        data: { significators: [], windows: [], slowTransitMatches: [] },
       }, { status: 200 });
     }
 
     const windows = findDashaChainWindows(dashaPeriods, significators, searchFrom, searchUntil);
     const significatorPlanetNames = significators.map((s) => s.planet);
+
+    // Jupiter/Saturn move too slowly for day-level use but are exactly the
+    // right speed to say "which YEAR(S) in this multi-year search range" --
+    // independent of the Pratyantardasha-window day/hour refinement below.
+    const slowTransitMatches = await findSlowTransitYears(searchFrom, searchUntil, significatorPlanetNames);
 
     const refinedWindows: Array<DashaChainWindow & {
       transitMatches: DailyTransitMatch[];
@@ -94,6 +99,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         significators,
         totalWindowsFound: windows.length,
         windows: refinedWindows,
+        slowTransitMatches,
         lagnaRefinementSkipped: !hasLagnaInputs,
       },
     }, { status: 200 });

@@ -1,14 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
-import { connectDB } from '@/lib/db';
-import { getCRMUserSettings } from '@/lib/schemas/enterpriseSchemas';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
-import mongoose from 'mongoose';
 import { getWhatsAppBridgeUrl } from '@/lib/whatsappBridgeConfig';
-import { normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
+import { normalizeConnectedPhone } from '@/lib/qrSessionIsolation';
+import { findBunnyCrmUserSettingsBySecret, getBunnyCrmUserSettings, saveBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 
 const BRIDGE_BASE_URL = getWhatsAppBridgeUrl();
 
@@ -25,8 +23,6 @@ function generateUniqueBridgeSecret(userId: string): string {
 // GET /api/admin/crm/settings - Load current user's CRM settings
 export async function GET(req: NextRequest) {
   try {
-    await connectDB();
-
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return apiError('Unauthorized', 401);
@@ -35,29 +31,16 @@ export async function GET(req: NextRequest) {
     // Resolve effective userId — admin tokens have username not userId
     const effectiveUserId = (decoded?.userId || decoded?.username || 'admin') as string;
 
-    const CRMUserSettings = getCRMUserSettings();
-    let settings: any = await CRMUserSettings.findOne({ userId: effectiveUserId }).lean();
+    let settings: any = await getBunnyCrmUserSettings(effectiveUserId);
 
     // ── Auto-generate unique bridge secret for new users ──
     if (!settings?.qrBridgeSecret) {
       const uniqueSecret = generateUniqueBridgeSecret(effectiveUserId);
-      settings = await CRMUserSettings.findOneAndUpdate(
-        { userId: effectiveUserId },
-        {
-          $setOnInsert: { userId: effectiveUserId },
-          $set: { qrBridgeSecret: uniqueSecret },
-        },
-        { upsert: true, new: true }
-      ).lean();
+      settings = await saveBunnyCrmUserSettings(effectiveUserId, { qrBridgeSecret: uniqueSecret });
       console.log(`[crm-settings] Auto-generated unique bridge secret for user ${effectiveUserId}`);
     }
 
-    const reconciled = await reconcileQrConnectedPhone(effectiveUserId, {
-      isSuperAdmin: isSuperAdmin(decoded),
-      storedPhone: settings?.qrConnectedPhoneNumber || '',
-      phoneChangedAt: settings?.qrPhoneChangedAt || null,
-    });
-    const resolvedConnectedPhone = reconciled.resolvedPhone;
+    const resolvedConnectedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || '');
 
     // Base settings visible to all admin users
     const response: Record<string, any> = {
@@ -92,8 +75,6 @@ export async function GET(req: NextRequest) {
 // PUT /api/admin/crm/settings - Update current user's CRM settings
 export async function PUT(req: NextRequest) {
   try {
-    await connectDB();
-
     const decoded = verifyToken(req.headers.get('authorization') || '');
     if (!decoded?.isAdmin && !decoded?.userId && !decoded?.username) {
       return apiError('Unauthorized', 401);
@@ -124,28 +105,16 @@ export async function PUT(req: NextRequest) {
       return apiError('No settings to update', 400);
     }
 
-    const CRMUserSettings = getCRMUserSettings();
-
     // ── Uniqueness check for bridge secret ──
     if (update.qrBridgeSecret) {
-      const conflict = await CRMUserSettings.findOne({
-        userId: { $ne: effectiveUserId },
-        qrBridgeSecret: update.qrBridgeSecret,
-      }).lean();
+      const conflict = await findBunnyCrmUserSettingsBySecret(update.qrBridgeSecret, effectiveUserId);
       if (conflict) {
         update.qrBridgeSecret = generateUniqueBridgeSecret(effectiveUserId);
         console.warn(`[crm-settings] Bridge secret collision for ${effectiveUserId}, auto-regenerated`);
       }
     }
 
-    const settings = await CRMUserSettings.findOneAndUpdate(
-      { userId: effectiveUserId },
-      {
-        $set: update,
-        $setOnInsert: { userId: effectiveUserId },
-      },
-      { upsert: true, new: true }
-    );
+    const settings = await saveBunnyCrmUserSettings(effectiveUserId, update);
 
     return apiSuccess(settings);
   } catch (err) {

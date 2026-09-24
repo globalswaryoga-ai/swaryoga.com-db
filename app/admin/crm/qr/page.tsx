@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
-import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp } from 'lucide-react';
+import { QrCode, Wifi, WifiOff, RefreshCw, LogOut, Phone, PhoneCall, Send, Image as ImageIcon, FileText, Mic, ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Unplug, Funnel, Plus, Tag, CheckSquare, Square, X, Paperclip, Video, File, Pencil, Trash2, Users, Mail, MailOpen, Radio, Info, Shield, Crown, Calendar, MessageSquare, Hash, UserCircle, PhoneOff, Search, Star, Bold, Italic, Strikethrough, Smile, Zap, Type, Link2, Copy, RotateCcw, Lock, Unlock, UserMinus, ChevronUp, ChevronDown, Save, Settings, Eye, ChevronLeft, ChevronRight, Merge, ArrowDown, ArrowUp, BarChart3, Megaphone, MoreVertical, CloudUpload, DollarSign, TrendingUp, Clock } from 'lucide-react';
 import type { ConnectionStatus, BridgeStatus, QRResponse, FunnelStage, LabelPreset, ChatItem, MessageItem, ChatFilter, GroupParticipant, GroupInfo } from './types';
 import { formatPhoneNumber, getAvatarColor, linkifyText, getInitials, formatUptime } from './utils';
 import { FUNNEL_COLORS, LABEL_COLORS, EMOJI_LIST, QUICK_REPLIES, TEMPLATES, DEFAULT_FUNNEL_STAGES, DEFAULT_LABEL_PRESETS, REACTION_EMOJIS } from './constants';
@@ -28,8 +28,29 @@ import {
   HistoryTab,
 } from './components';
 import ChatSidebar from './components/ChatSidebar';
+import { LeadsModal, SalesModal } from './components/LeadsSalesModals';
 import ChatArea from './components/ChatArea';
 import { useCrmSidebarAutoHide } from '@/components/admin/crm/CrmShell';
+
+// Message timestamps are stored in ms (some in seconds from older records) —
+// normalize before comparing days so the separator logic is consistent.
+function toMs(timestamp: number): number {
+  return timestamp > 1e12 ? timestamp : timestamp * 1000;
+}
+
+function isSameDay(aTs: number, bTs: number): boolean {
+  return new Date(toMs(aTs)).toDateString() === new Date(toMs(bTs)).toDateString();
+}
+
+function dateSeparatorLabel(timestamp: number): string {
+  const date = new Date(toMs(timestamp));
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 function isPlaceholderChatName(name: string | undefined | null): boolean {
   const value = String(name || '').trim();
@@ -339,13 +360,20 @@ export default function QRWhatsAppPage() {
   const [chatPresence, setChatPresence] = useState<{ presence: string; lastSeen: number | null } | null>(null);
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
+  // Spell / AI reply — mirrors the pair the browser extension injects into
+  // WhatsApp Web's composer, so the same two actions are available whether
+  // the user is in web.whatsapp.com or here.
+  const [aiFixing, setAiFixing] = useState(false);
+  const [aiReplying, setAiReplying] = useState(false);
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as any) || 'connection';
   const [tab, setTab] = useState<'connection' | 'inbox' | 'templates' | 'broadcast' | 'history' | 'settings'>(initialTab);
-  // Reclaim full width for the conversation by hiding the CRM sidebar while a
-  // chat is open in the inbox — a menu button appears in the header to bring
-  // it back as an overlay.
-  useCrmSidebarAutoHide(tab === 'inbox' && !!selectedChat);
+  // This page now has its own left icon rail (matching web.whatsapp.com's
+  // own vertical strip) that replaces CrmShell's persistent sidebar rather
+  // than sitting alongside it — hide it unconditionally for the whole page,
+  // not just while a chat is open. A menu button appears in the header to
+  // bring the CRM sidebar back as an overlay when needed.
+  useCrmSidebarAutoHide(true);
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [downloadingExtension, setDownloadingExtension] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
@@ -391,6 +419,10 @@ export default function QRWhatsAppPage() {
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [groupSettingsLoading, setGroupSettingsLoading] = useState<string | null>(null);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
+  // Leads / Sales open over the inbox rather than navigating away, so a lead
+  // can be looked up and its chat opened without losing the current thread.
+  const [showLeadsModal, setShowLeadsModal] = useState(false);
+  const [showSalesModal, setShowSalesModal] = useState(false);
   const [statusData, setStatusData] = useState<any[]>([]);
   const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [selectedStatusUser, setSelectedStatusUser] = useState<any>(null);
@@ -398,6 +430,11 @@ export default function QRWhatsAppPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showPollComposer, setShowPollComposer] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [pollMultiSelect, setPollMultiSelect] = useState(false);
+  const [sendingPoll, setSendingPoll] = useState(false);
   const [showStarPopup, setShowStarPopup] = useState(false);
   const [starTab, setStarTab] = useState<'quick' | 'template' | 'broadcast' | 'schedule' | 'repeat'>('quick');
   const [broadcastChats, setBroadcastChats] = useState<Set<string>>(new Set());
@@ -415,12 +452,19 @@ export default function QRWhatsAppPage() {
   const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
   const [reactingToMsg, setReactingToMsg] = useState<string | null>(null);
   const [showMsgActions, setShowMsgActions] = useState<string | null>(null);
+  const [showChatContextMenu, setShowChatContextMenu] = useState(false);
   const [showGroupCreate, setShowGroupCreate] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState('');
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState('');
+  const [showClassInvite, setShowClassInvite] = useState(false);
+  const [classInviteType, setClassInviteType] = useState<'video' | 'voice'>('video');
+  const [classInviteTitle, setClassInviteTitle] = useState('');
+  const [classInviteLink, setClassInviteLink] = useState('');
+  const [classInviteStart, setClassInviteStart] = useState('');
+  const [sendingClassInvite, setSendingClassInvite] = useState(false);
   const [contactAbout, setContactAbout] = useState<string | null>(null);
   const [showMergeGroups, setShowMergeGroups] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState('');
@@ -465,7 +509,7 @@ export default function QRWhatsAppPage() {
   const isSuperAdminRef = useRef(isSuperAdminUser);
   const pinnedChatsRef = useRef(pinnedChats);
   const messengerRef = useRef<HTMLDivElement>(null);
-  const composerInputRef = useRef<HTMLInputElement>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const tabRef = useRef(tab);
   const isResizing = useRef(false);
   const settingsSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -934,7 +978,18 @@ export default function QRWhatsAppPage() {
         // qrAvailable stays false until /qr starts the new socket.
         try {
           const qr = await bridgeCall('/qr');
-          if (qr?.qr) setQrData(qr.qr);
+          if (qr?.expired) {
+            // Bridge stopped unattended QR pairing (anti-ban cap) — clear the
+            // stale code and tell the user to reconnect manually.
+            setQrData(null);
+            setError('QR expired — click Reconnect to get a fresh code.');
+          } else if (qr?.qr) {
+            setQrData(qr.qr);
+            setError(null);
+          } else if (qr?.error) {
+            setQrData(null);
+            setError(`Bridge could not start QR: ${qr.error}`);
+          }
         } catch {
           // Keep existing QR if fetch fails
         }
@@ -987,7 +1042,20 @@ export default function QRWhatsAppPage() {
     const id = setInterval(async () => {
       try {
         const qr = await bridgeCall('/qr');
-        if (qr?.qr) setQrData(qr.qr);
+          if (qr?.expired) {
+            setQrData(null);
+            setError('QR expired — click Reconnect to get a fresh code.');
+          } else if (qr?.qr) {
+            setQrData(qr.qr);
+            setError(null);
+          } else if (qr && qr.message && qr.message.includes('Waiting')) {
+            // Bridge is starting but hasn't produced a QR yet — show friendly state
+            setQrData(null);
+            setError('Waiting for bridge to produce QR. Click Reconnect if this persists.');
+          } else if (qr?.error) {
+            setQrData(null);
+            setError(`Bridge could not start QR: ${qr.error}`);
+          }
       } catch {
         // Keep existing QR if fetch fails
       }
@@ -1092,9 +1160,6 @@ export default function QRWhatsAppPage() {
 
   // ── Fetch profile picture for a JID ──
   const fetchProfilePic = useCallback(async (jid: string) => {
-    // Groups use a group icon and their profile-pic proxy is access-gated (401),
-    // so never spend a bridge round-trip on them.
-    if (jid.endsWith('@g.us')) return;
     if (profilePicLoadedRef.current.has(jid)) return;
     try {
       const data = await bridgeCall(`/profile-pic/${encodeURIComponent(jid)}`);
@@ -1141,6 +1206,22 @@ export default function QRWhatsAppPage() {
       if (data?.chats) {
         // Deduplicate: merge LID and phone JIDs for the same contact (optimized with early exits)
         const phoneMap = new Map<string, ChatItem>();
+        // Exact-JID dedupe for rows that have no phone key: the same group can
+        // arrive from both the bridge /chats and /groups endpoints, and the
+        // same unresolved @lid row from both the bridge and the DB merge.
+        const jidMap = new Map<string, ChatItem>();
+        const mergeTwinIntoExisting = (existing: ChatItem, c: ChatItem) => {
+          existing.unreadCount = Math.max(existing.unreadCount || 0, c.unreadCount || 0);
+          const eT = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
+          const cT = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+          if (cT > eT) {
+            existing.lastMessage = c.lastMessage;
+            existing.lastMessageTime = c.lastMessageTime;
+          }
+          if (isPlaceholderChatName(existing.name) && !isPlaceholderChatName(c.name)) existing.name = c.name;
+          const eAny = existing as any, cAny = c as any;
+          if (!eAny.participants?.length && cAny.participants?.length) eAny.participants = cAny.participants;
+        };
         const deduped: ChatItem[] = [];
         for (const c of data.chats as any[]) {
           // Skip if chat has no ID
@@ -1169,16 +1250,27 @@ export default function QRWhatsAppPage() {
             c.lastMessage = '';
           }
           if (c.isGroup) {
-            deduped.push(c);
+            const gid = String(c.id || '');
+            const existingGroup = gid ? jidMap.get(gid) : undefined;
+            if (existingGroup) {
+              mergeTwinIntoExisting(existingGroup, c);
+            } else {
+              if (gid) jidMap.set(gid, c);
+              deduped.push(c);
+            }
             continue;
           }
 
           // Extract phone from resolvedPhone, name, or JID
           const phone = extractBestChatPhone(c);
+          // Key by the trailing 10 digits so the same contact keyed with and
+          // without a country code ("919876…" vs "9876…") still collapses —
+          // both render identically as "+91 …" in the sidebar.
+          const phoneKey = phone.length > 10 ? phone.slice(-10) : phone;
 
-          if (phone && phoneMap.has(phone)) {
+          if (phone && phoneMap.has(phoneKey)) {
             // Merge: keep the entry with more recent message, combine unread counts
-            const existing = phoneMap.get(phone)!;
+            const existing = phoneMap.get(phoneKey)!;
             const eTime = existing.lastMessageTime ? new Date(existing.lastMessageTime).getTime() : 0;
             const cTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
             if (cTime > eTime) {
@@ -1189,7 +1281,7 @@ export default function QRWhatsAppPage() {
               if (droppedReadAt && !readChatsRef.current.has(c.id)) {
                 readChatsRef.current.set(c.id, droppedReadAt);
               }
-              phoneMap.set(phone, c);
+              phoneMap.set(phoneKey, c);
               const idx = deduped.indexOf(existing);
               if (idx >= 0) deduped[idx] = c;
             } else {
@@ -1200,9 +1292,105 @@ export default function QRWhatsAppPage() {
                 readChatsRef.current.set(existing.id, droppedReadAt);
               }
             }
-          } else {
-            if (phone) phoneMap.set(phone, c);
+          } else if (phone) {
+            phoneMap.set(phoneKey, c);
             deduped.push(c);
+          } else {
+            // No resolvable phone (unresolved @lid) — dedupe by exact JID so
+            // the same row from the bridge and the DB merge can't both render.
+            const idKey = String(c.id || '');
+            const existing = idKey ? jidMap.get(idKey) : undefined;
+            if (existing) {
+              mergeTwinIntoExisting(existing, c);
+            } else {
+              if (idKey) jidMap.set(idKey, c);
+              deduped.push(c);
+            }
+          }
+        }
+
+        // ── SECOND PASS: merge unresolved @lid twins by display name ──
+        // An @lid chat whose lid→phone mapping isn't known yet has NO phone key
+        // (lids are 14+ digits and correctly rejected as phones), so the pass
+        // above can't merge it and the contact shows twice. When two non-group
+        // chats share the exact same meaningful name and exactly one of them
+        // has a resolvable phone, they're the same person — merge the
+        // phone-less twin into the phone-bearing one (which is also the only
+        // JID that's safe to send to).
+        {
+          const byName = new Map<string, ChatItem[]>();
+          for (const c of deduped) {
+            if (c.isGroup) continue;
+            const name = String(c.name || '').trim().toLowerCase();
+            if (name.length < 4 || /^[\d\s+\-()]+$/.test(name)) continue; // skip short/phone-like names
+            if (!byName.has(name)) byName.set(name, []);
+            byName.get(name)!.push(c);
+          }
+          const dropIds = new Set<string>();
+          for (const entries of byName.values()) {
+            if (entries.length < 2) continue;
+            const withPhone = entries.filter((c) => extractBestChatPhone(c as any));
+            const withoutPhone = entries.filter((c) => !extractBestChatPhone(c as any));
+            if (withPhone.length !== 1 || withoutPhone.length === 0) continue;
+            const survivor = withPhone[0];
+            for (const twin of withoutPhone) {
+              survivor.unreadCount = (survivor.unreadCount || 0) + (twin.unreadCount || 0);
+              const sTime = survivor.lastMessageTime ? new Date(survivor.lastMessageTime).getTime() : 0;
+              const tTime = twin.lastMessageTime ? new Date(twin.lastMessageTime).getTime() : 0;
+              if (tTime > sTime) {
+                survivor.lastMessage = twin.lastMessage;
+                survivor.lastMessageTime = twin.lastMessageTime;
+              }
+              const droppedReadAt = readChatsRef.current.get(twin.id);
+              if (droppedReadAt && !readChatsRef.current.has(survivor.id)) {
+                readChatsRef.current.set(survivor.id, droppedReadAt);
+              }
+              dropIds.add(twin.id);
+            }
+          }
+          if (dropIds.size > 0) {
+            for (let i = deduped.length - 1; i >= 0; i--) {
+              if (dropIds.has(deduped[i].id)) deduped.splice(i, 1);
+            }
+          }
+        }
+
+        // ── THIRD PASS: merge unresolved @lid twins by identical last message ──
+        // When the lid→phone mapping is unknown AND the two rows carry DIFFERENT
+        // names (e.g. the phone row shows the CRM lead name while the @lid row
+        // shows nothing → "Contact"), neither pass above can match them. But both
+        // JIDs mirror the same conversation, so their last message is identical —
+        // merge the phone-less row into the phone-bearing one when the last
+        // messages match exactly and landed within 2 minutes of each other,
+        // and exactly ONE phone-bearing candidate matches (ambiguity = keep both).
+        {
+          const dropIds = new Set<string>();
+          const phonelessRows = deduped.filter(c => !c.isGroup && !extractBestChatPhone(c as any));
+          const phoneRows = deduped.filter(c => !c.isGroup && !!extractBestChatPhone(c as any));
+          for (const twin of phonelessRows) {
+            const msg = typeof twin.lastMessage === 'string' ? twin.lastMessage.trim() : '';
+            const tTime = twin.lastMessageTime ? new Date(twin.lastMessageTime).getTime() : 0;
+            if (!msg || !tTime) continue;
+            const matches = phoneRows.filter(c => {
+              const cMsg = typeof c.lastMessage === 'string' ? c.lastMessage.trim() : '';
+              if (!cMsg || cMsg !== msg) return false;
+              const cTime = c.lastMessageTime ? new Date(c.lastMessageTime).getTime() : 0;
+              return !!cTime && Math.abs(cTime - tTime) <= 2 * 60 * 1000;
+            });
+            if (matches.length !== 1) continue;
+            const survivor = matches[0];
+            survivor.unreadCount = Math.max(survivor.unreadCount || 0, twin.unreadCount || 0);
+            if (isPlaceholderChatName(survivor.name) && !isPlaceholderChatName(twin.name)) survivor.name = twin.name;
+            const droppedReadAt = readChatsRef.current.get(twin.id);
+            if (droppedReadAt && !readChatsRef.current.has(survivor.id)) {
+              readChatsRef.current.set(survivor.id, droppedReadAt);
+            }
+            dropIds.add(twin.id);
+          }
+          if (dropIds.size > 0) {
+            for (let i = deduped.length - 1; i >= 0; i--) {
+              if (dropIds.has(deduped[i].id)) deduped.splice(i, 1);
+            }
           }
         }
 
@@ -1248,16 +1436,16 @@ export default function QRWhatsAppPage() {
         setChats(sorted);
         setError(null);
         chatsRef.current = sorted;
-        // Preload avatars for ALL individual chats (not just first 30).
-        // Groups are skipped inside fetchProfilePic (group icon + access-gated
-        // proxy), and profilePicLoadedRef guarantees each JID is fetched at most
+        // Preload avatars for ALL chats — groups included (the bridge's
+        // profilePictureUrl works for group JIDs and returns the group photo).
+        // profilePicLoadedRef guarantees each JID is fetched at most
         // once per session (failed/timed-out fetches are NOT marked, so they
         // retry on the next 30s chat poll instead of being stuck forever).
         // Fetch in small concurrent batches instead of one-at-a-time with a
         // 100ms stagger — with 100+ chats the old approach took 10s+ just to
         // *start* the last request, which is why only the first couple avatars
         // ever showed up before the user navigated away.
-        const individualChats = sorted.filter((c: ChatItem) => !c.isGroup && !profilePicLoadedRef.current.has(c.id));
+        const individualChats = sorted.filter((c: ChatItem) => !profilePicLoadedRef.current.has(c.id));
         console.log(`[QR Avatar] Loading ${individualChats.length} profile pictures...`);
         const PIC_CONCURRENCY = 6;
         (async () => {
@@ -1465,7 +1653,12 @@ export default function QRWhatsAppPage() {
               return stripAttribution(sv.text) === stripAttribution(opt.text);
             });
           });
-          return [...merged, ...remainingOptimistic];
+          // Re-sort after appending — an optimistic message's client-side
+          // Date.now() can occasionally land earlier than a just-synced
+          // server message's timestamp (clock skew, or archived history
+          // arriving in the same poll), and a plain concat would leave it
+          // stuck out of chronological order until the next full refresh.
+          return [...merged, ...remainingOptimistic].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         });
         setFailedInlineMediaIds(prev => {
           if (prev.size === 0) return prev;
@@ -1629,17 +1822,74 @@ export default function QRWhatsAppPage() {
     }
   }, [selectedChat, bridgeCall, fetchGroupInfo]);
 
+  // ── Add participants to group ──
+  const addGroupParticipants = useCallback(async (phones: string[]) => {
+    if (!selectedChat || phones.length === 0) return;
+    const jids = phones.map(p => `${p.replace(/[^0-9]/g, '')}@s.whatsapp.net`).filter(j => j !== '@s.whatsapp.net');
+    if (jids.length === 0) return;
+
+    // A couple of adds is fine to do immediately — pacing only matters once
+    // there's an actual sequence of operations that could look like a burst.
+    if (jids.length <= 2) {
+      try {
+        await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'add', participants: jids });
+      } catch (e: any) {
+        if (String(e?.message || '').includes('rate limit reached')) {
+          setError('Reached the hourly/daily group-operation limit — please try again later.');
+        } else {
+          setError(e.message || `Failed to add ${jids.join(', ')}`);
+        }
+      }
+      await fetchGroupInfo(selectedChat);
+      return;
+    }
+
+    // Larger bulk adds go through the same human-paced background queue the
+    // Merge Group tool uses (3-7 min random gaps, no repeats) instead of a
+    // fast client-side loop — a rapid burst of group-add calls is exactly
+    // the pattern that has gotten this number restricted before, and a
+    // client-side setTimeout loop for tens of minutes also breaks the moment
+    // the tab is closed or the laptop sleeps, leaving the add half-done.
+    try {
+      const res = await fetch('/api/admin/crm/qr/merge-group-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          sessionKey: qrStorageScope,
+          targetGroupId: selectedChat,
+          participantIds: jids,
+          operationType: 'add',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || `Failed to queue add (${res.status})`);
+        return;
+      }
+      setError(`✅ Queued: ${jids.length} members will be added over ~${data.estimatedDuration} min (human-paced, 3-7 min gaps) — no need to keep this tab open.`);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to queue bulk add');
+    }
+  }, [selectedChat, bridgeCall, fetchGroupInfo, token, qrStorageScope]);
+
   // ── Bulk remove participants from group ──
   const bulkRemoveParticipants = useCallback(async (jids: string[]) => {
     if (!selectedChat || jids.length === 0) return;
+    // Batches are small and delays are short here because the real hard cap
+    // (15/hour, 150/day) is enforced server-side at the qr-bridge proxy —
+    // this pacing is just to look human, not the safety mechanism itself.
     const batchSize = 5;
     for (let i = 0; i < jids.length; i += batchSize) {
       const batch = jids.slice(i, i + batchSize);
       if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 4000));
       try {
         await bridgeCall(`/group-participants/${encodeURIComponent(selectedChat)}`, 'POST', { action: 'remove', participants: batch });
-      } catch {
-        // some may fail
+      } catch (e: any) {
+        if (String(e?.message || '').includes('rate limit reached')) {
+          setError('Reached the hourly/daily group-operation limit — remaining members were not removed. Please try again later.');
+          break;
+        }
+        // some may fail for other reasons (privacy settings etc) — keep going
       }
     }
     await fetchGroupInfo(selectedChat);
@@ -1735,6 +1985,49 @@ export default function QRWhatsAppPage() {
     // reset so same file can be re-selected
     e.target.value = '';
   }, []);
+
+  // ── Spell / AI reply ──
+  // Same two actions the extension injects into WhatsApp Web's composer,
+  // backed by the CRM-authenticated /ai-assist route rather than the
+  // extension's token-based /api/extension/ai.
+  const runAiAssist = useCallback(async (mode: 'fix' | 'reply') => {
+    if (!token) return;
+    const setBusy = mode === 'fix' ? setAiFixing : setAiReplying;
+    if (mode === 'fix' && !composerText.trim()) return;
+
+    // 'reply' drafts from the most recent inbound message in this chat.
+    const lastInbound = mode === 'reply'
+      ? [...messages].reverse().find(m => !m.fromMe && (m.text || '').trim())
+      : undefined;
+    if (mode === 'reply' && !lastInbound) {
+      setError('No incoming message to reply to yet.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/crm/ai-assist', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          mode === 'fix'
+            ? { mode, text: composerText }
+            : { mode, context: lastInbound?.text || '' }
+        ),
+      });
+      const data = await res.json();
+      if (res.ok && data?.success && data.result) {
+        setComposerText(data.result);
+        composerInputRef.current?.focus();
+      } else {
+        setError(data?.error || (mode === 'fix' ? 'Spell check failed' : 'Could not draft a reply'));
+      }
+    } catch (e: any) {
+      setError(e?.message || 'AI request failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [token, composerText, messages]);
 
   // ── Send message (text or media) ──
   const handleSend = useCallback(async () => {
@@ -1839,6 +2132,7 @@ export default function QRWhatsAppPage() {
       }
       const hadMedia = !!mediaPreview;
       setComposerText('');
+      if (composerInputRef.current) composerInputRef.current.style.height = 'auto';
       setReplyingTo(null);
       // Refresh messages — longer delay for media (webhook needs time to upload & set CDN URL)
       setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), hadMedia ? 1500 : 500);
@@ -1853,6 +2147,70 @@ export default function QRWhatsAppPage() {
       sendLockRef.current = false; // Release lock
     }
   }, [composerText, mediaPreview, selectedChat, sending, bridgeCall, fetchMessages, token, replyingTo]);
+
+  // WhatsApp Web's QR protocol cannot initiate native voice/video calls. A
+  // secure meeting link (Zoom, Google Meet, Jitsi, etc.) is therefore sent
+  // through the connected QR WhatsApp account for live classes.
+  const handleSendClassInvite = useCallback(async () => {
+    if (!selectedChat || !classInviteTitle.trim() || !classInviteLink.trim() || sendingClassInvite) return;
+    let joinUrl: URL;
+    try {
+      joinUrl = new URL(classInviteLink.trim());
+      if (!['https:', 'http:'].includes(joinUrl.protocol)) throw new Error('Unsupported link');
+    } catch {
+      setError('Enter a valid Zoom, Google Meet, Jitsi, or other HTTPS class link.');
+      return;
+    }
+
+    setSendingClassInvite(true);
+    try {
+      const startsAt = classInviteStart ? new Date(classInviteStart) : null;
+      const timeLabel = startsAt && !Number.isNaN(startsAt.getTime())
+        ? startsAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }) + ' IST'
+        : 'Starting now';
+      const typeLabel = classInviteType === 'video' ? 'Video class' : 'Voice class';
+      const message = `🧘 *${classInviteTitle.trim()}*\n\n🎓 ${typeLabel}\n🗓️ ${timeLabel}\n\n🔗 Join class: ${joinUrl.toString()}\n\nPlease join a few minutes early.`;
+      const to = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid')
+        ? selectedChat
+        : selectedChat.replace('@s.whatsapp.net', '');
+      await bridgeCall('/send', 'POST', { to, message, type: 'text' });
+      setShowClassInvite(false);
+      setClassInviteTitle('');
+      setClassInviteLink('');
+      setClassInviteStart('');
+      setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), 500);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to send the class invitation.');
+    } finally {
+      setSendingClassInvite(false);
+    }
+  }, [selectedChat, classInviteTitle, classInviteLink, classInviteStart, classInviteType, sendingClassInvite, bridgeCall, fetchMessages]);
+
+  // ── Send a poll ──
+  const handleSendPoll = useCallback(async () => {
+    const opts = pollOptions.map(o => o.trim()).filter(Boolean);
+    if (!selectedChat || !pollQuestion.trim() || opts.length < 2 || sendingPoll) return;
+    setSendingPoll(true);
+    try {
+      const isGroupChat = selectedChat.endsWith('@g.us') || selectedChat.endsWith('@lid');
+      const to = isGroupChat ? selectedChat : selectedChat.replace('@s.whatsapp.net', '');
+      await bridgeCall('/send-poll', 'POST', {
+        to,
+        name: pollQuestion.trim(),
+        options: opts,
+        selectableCount: pollMultiSelect ? opts.length : 1,
+      });
+      setShowPollComposer(false);
+      setPollQuestion('');
+      setPollOptions(['', '']);
+      setPollMultiSelect(false);
+      setTimeout(() => fetchMessages(selectedChat, { forceScroll: true }), 800);
+    } catch (e: any) {
+      setError(e.message || 'Failed to send poll');
+    } finally {
+      setSendingPoll(false);
+    }
+  }, [selectedChat, pollQuestion, pollOptions, pollMultiSelect, sendingPoll, bridgeCall, fetchMessages]);
 
   // ── React to a message ──
   const handleReaction = useCallback(async (messageId: string, emoji: string, participant?: string) => {
@@ -1994,36 +2352,48 @@ export default function QRWhatsAppPage() {
       const { getRandomMergeBatchSize, getRandomMergeDelay } = await import('@/lib/whatsappRateLimiter');
       
       let added = 0;
+      const failedToAdd = new Set<string>();
       if (allNewJids.length > 0) {
         const totalBatches = Math.ceil(allNewJids.length / 2.5); // Average 2-3 per batch
-        const totalMinutes = Math.ceil((totalBatches * 120) / 60); // Average 120s per batch
-        
-        for (let i = 0; i < allNewJids.length; i += 1) {
+        let batchIndex = 0;
+        let processed = 0;
+
+        while (processed < allNewJids.length) {
           const batchSize = getRandomMergeBatchSize(); // 2-3 only (Option B)
-          const batch = allNewJids.slice(i, Math.min(i + batchSize, allNewJids.length));
-          
+          const batch = allNewJids.slice(processed, Math.min(processed + batchSize, allNewJids.length));
+
           if (batch.length === 0) break;
-          
+
           // OPTION B: 60-180 second delays (1-3 minutes between batches)
           // Makes merge look 100% human, prevents WhatsApp bans
-          if (i > 0) {
+          if (batchIndex > 0) {
             const delayMs = getRandomMergeDelay(); // 60-180 sec
             await new Promise(r => setTimeout(r, delayMs));
           }
-          
-          const batchNum = Math.ceil((i + 1) / 2.5);
-          const estimatedRemaining = Math.ceil(((allNewJids.length - (i + batchSize)) / 2.5) * 2); // minutes
-          setMergeProgressText(`🔄 Batch ${batchNum}/${totalBatches}: Adding ${batch.length} members (${i + batch.length}/${allNewJids.length})\n⏱️ Option B: 60-180s delays ~ ${estimatedRemaining}+ min remaining\n🛡️ Ultra-safe (2-3 per batch, no bans, no auto-logout)`);
+
+          const estimatedRemaining = Math.ceil(((allNewJids.length - (processed + batch.length)) / 2.5) * 2); // minutes
+          setMergeProgressText(`🔄 Batch ${batchIndex + 1}/${totalBatches}: Adding ${batch.length} members (${processed + batch.length}/${allNewJids.length})\n⏱️ Option B: 60-180s delays ~ ${estimatedRemaining}+ min remaining\n🛡️ Ultra-safe (2-3 per batch, no bans, no auto-logout)`);
           try {
             await bridgeCall(`/group-participants/${mergeTargetId}`, 'POST', {
               action: 'add',
               participants: batch,
             });
             added += batch.length;
-          } catch {
-            // some may fail (privacy settings etc)
+          } catch (e: any) {
+            // some may fail (privacy settings etc) — don't remove these from source later
+            batch.forEach(id => failedToAdd.add(id));
+            if (String(e?.message || '').includes('rate limit reached')) {
+              // Mark everything not yet attempted as failed-to-add too, so the
+              // removal step below doesn't strand them out of both groups.
+              allNewJids.slice(processed + batch.length).forEach(id => failedToAdd.add(id));
+              setMergeProgressText('⏸️ Hit the hourly/daily group-operation limit — stopping here to protect this WhatsApp number. Remaining members were not added.');
+              processed = allNewJids.length;
+              break;
+            }
           }
-          setMergeProgress(30 + Math.round(((i + batch.length) / allNewJids.length) * 35));
+          processed += batch.length;
+          batchIndex += 1;
+          setMergeProgress(30 + Math.round((processed / allNewJids.length) * 35));
         }
       }
 
@@ -2036,29 +2406,40 @@ export default function QRWhatsAppPage() {
         for (let g = 0; g < sourceArr.length; g++) {
           const groupId = sourceArr[g];
           const members = sourceGroupMembers[groupId] || [];
-          // Remove all non-owner members
-          const toRemove = members.filter(p => p.admin !== 'superadmin').map(p => p.id);
+          // Remove all non-owner members, EXCEPT anyone who was supposed to be
+          // added to the target group but failed — removing them from source
+          // without a successful add would leave them in neither group.
+          const toRemove = members.filter(p => p.admin !== 'superadmin' && !failedToAdd.has(p.id)).map(p => p.id);
           if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += 1) {
+            let processed = 0;
+            let batchIndex = 0;
+            while (processed < toRemove.length) {
               const removalBatchSize = getBatchSize(); // 2-3 for removal too
-              const batch = toRemove.slice(i, Math.min(i + removalBatchSize, toRemove.length));
-              
+              const batch = toRemove.slice(processed, Math.min(processed + removalBatchSize, toRemove.length));
+
               // OPTION B: Safe delays for removal too
-              if (i > 0) {
+              if (batchIndex > 0) {
                 const delayMs = getDelay(); // 60-180 sec
                 await new Promise(r => setTimeout(r, delayMs));
               }
-              
-              setMergeProgressText(`🗑️ Removing from group ${g + 1}/${sourceArr.length}: batch (${i + batch.length}/${toRemove.length})\n⏱️ Option B delays active`);
+
+              setMergeProgressText(`🗑️ Removing from group ${g + 1}/${sourceArr.length}: batch (${processed + batch.length}/${toRemove.length})\n⏱️ Option B delays active`);
               try {
                 await bridgeCall(`/group-participants/${groupId}`, 'POST', {
                   action: 'remove',
                   participants: batch,
                 });
                 removedFromSource += batch.length;
-              } catch {
-                // some may fail
+              } catch (e: any) {
+                if (String(e?.message || '').includes('rate limit reached')) {
+                  setMergeProgressText('⏸️ Hit the hourly/daily group-operation limit — stopping here to protect this WhatsApp number. Remaining members were not removed from source groups.');
+                  g = sourceArr.length; // stop the outer loop too
+                  break;
+                }
+                // some may fail for other reasons
               }
+              processed += batch.length;
+              batchIndex += 1;
             }
           }
           setMergeProgress(65 + Math.round(((g + 1) / sourceArr.length) * 35));
@@ -2227,29 +2608,20 @@ export default function QRWhatsAppPage() {
   const handleDownloadInstaller = useCallback(async () => {
     setDownloadingExtension(true);
     try {
-      // First download the installer script
-      const response = await fetch('/api/admin/crm/whatsapp/download-installer');
-      if (!response.ok) throw new Error('Failed to download installer');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.download = 'install.sh';
+      link.href = '/downloads/swar-yoga-whatsapp-extension.zip';
+      link.download = 'swar-yoga-whatsapp-extension.zip';
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-      
+      setTimeout(() => document.body.removeChild(link), 100);
+
       // Show install guide after download
       setTimeout(() => {
         setShowInstallGuide(true);
       }, 500);
     } catch (err: any) {
-      setError(err.message || 'Failed to download installer');
+      setError(err.message || 'Failed to download extension');
     } finally {
       setDownloadingExtension(false);
     }
@@ -2496,7 +2868,108 @@ export default function QRWhatsAppPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-16">
+      {/* ═══ Left Icon Rail — matches web.whatsapp.com's own vertical icon
+          strip (Chats/Calls/Status/Communities + Settings/profile at the
+          bottom). Fixed positioning keeps it clear of every fixed inset-0
+          modal in this page (unaffected by the root's padding-left). Wires
+          into the SAME state/handlers as the top toolbar — this is a
+          second entry point for the same actions, not new functionality;
+          removing the now-redundant top toolbar/tabs is a later cleanup
+          pass once this placement is confirmed to be what's wanted. */}
+      <div className="fixed left-0 top-0 bottom-0 w-16 bg-gray-50 border-r flex flex-col items-center py-3 gap-1 z-30">
+        <button
+          onClick={() => { setTab('inbox'); if (isConnected) fetchChats(); }}
+          className={`relative p-3 rounded-full transition ${tab === 'inbox' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Inbox"
+        >
+          <MessageSquare className="w-5 h-5" />
+          {chats.filter(c => c.unreadCount > 0).length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-bold flex items-center justify-center">
+              {chats.filter(c => c.unreadCount > 0).length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab('connection')}
+          className={`relative p-3 rounded-full transition ${tab === 'connection' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Connection (QR & Status)"
+        >
+          <QrCode className="w-5 h-5" />
+          {isConnected && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-500" />}
+        </button>
+        <button
+          onClick={() => setTab('templates')}
+          className={`p-3 rounded-full transition ${tab === 'templates' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Templates"
+        >
+          <FileText className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => setTab('broadcast')}
+          className={`p-3 rounded-full transition ${tab === 'broadcast' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Broadcast"
+        >
+          <Send className="w-5 h-5" />
+        </button>
+        <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="Stories / Status">
+          <Radio className="w-5 h-5" />
+        </button>
+        {isConnected && (
+          <>
+            <button onClick={() => setShowNewChat(true)} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="New Chat">
+              <Plus className="w-5 h-5" />
+            </button>
+            <button onClick={() => setShowGroupCreate(true)} className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="New Group">
+              <Users className="w-5 h-5" />
+            </button>
+          </>
+        )}
+        <div className="w-8 h-px bg-gray-200 my-1" />
+        <button
+          onClick={() => setTab('history')}
+          className={`p-3 rounded-full transition ${tab === 'history' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Sent Messages"
+        >
+          <Calendar className="w-5 h-5" />
+        </button>
+        {isConnected && (
+          <button
+            onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }}
+            className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition"
+            title="Merge Groups"
+          >
+            <Merge className="w-5 h-5" />
+          </button>
+        )}
+        <a href="/admin/crm/qr/broadcast-report" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Broadcast Reports">
+          <BarChart3 className="w-5 h-5" />
+        </a>
+        {/* "Channel" has no CRM equivalent (WA's one-way broadcast channels
+            aren't a feature here) — skipped rather than mapped to something
+            meaningless. "Meta bulk message" -> the separate Meta WhatsApp
+            Business API broadcast tool, a different provider from QR. */}
+        <a href="/admin/crm/meta" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="Meta WhatsApp Bulk Message">
+          <Megaphone className="w-5 h-5" />
+        </a>
+
+        <div className="flex-1" />
+
+        <a href="/admin/crm/qr/leads" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Leads">
+          <UserCircle className="w-5 h-5" />
+        </a>
+        <a href="/admin/crm/qr/funnel-report" className="p-3 rounded-full text-gray-600 hover:bg-gray-200 transition" title="QR Funnel Report">
+          <Funnel className="w-5 h-5" />
+        </a>
+        <button
+          onClick={() => setTab('settings')}
+          className={`p-3 rounded-full transition ${tab === 'settings' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
+          title="Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* ═══ Error Banner ═══ */}
       {error && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between">
@@ -2509,9 +2982,10 @@ export default function QRWhatsAppPage() {
           </button>
         </div>
       )}
-      {/* ═══ Page Header ═══ */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="px-4 py-3 flex items-center justify-between">
+      {/* Page identity only. Navigation and actions live in the icon rail so the
+          inbox does not repeat the same controls in a second header/tab row. */}
+      <div className="bg-white border-b">
+        <div className="px-4 py-1.5 flex items-center justify-between">
           {/* Left: Title + Status Badge + Compartment */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -2544,109 +3018,67 @@ export default function QRWhatsAppPage() {
               <Lock className="w-2.5 h-2.5" />
               {isSuperAdminUser ? '👑 Admin' : currentUserId || 'User'}
             </div>
-          </div>
-          {/* Right: Quick Actions */}
-          <div className="flex items-center gap-2">
+            {/* Chat Stats */}
             {isConnected && (
-              <>
-                <button onClick={() => setShowNewChat(true)} className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200 flex items-center gap-1.5 transition" title="New Chat">
-                  <Plus className="w-3.5 h-3.5" /> New Chat
-                </button>
-                <button onClick={() => setShowGroupCreate(true)} className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 transition" title="New Group">
-                  <Users className="w-3.5 h-3.5" /> New Group
-                </button>
-                <button onClick={() => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); }} className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 border border-amber-200 flex items-center gap-1.5 transition" title="Merge Groups">
-                  <Merge className="w-3.5 h-3.5" /> Merge Group
-                </button>
-              </>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 ring-1 ring-gray-200 shadow-sm" title="Total chats">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{chats.length}</span>
+                </div>
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 shadow-sm" title="Unread messages">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>{chats.filter(c => c.unreadCount > 0).length}</span>
+                </div>
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 ring-1 ring-blue-200 shadow-sm" title="Group chats">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>{chats.filter(c => c.isGroup).length}</span>
+                </div>
+              </div>
             )}
-            <button onClick={() => { setShowStatusPanel(true); fetchStatuses(); }} className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5 transition" title="View Statuses">
-              <Radio className="w-3.5 h-3.5" /> Stories
-            </button>
-            <a href="/admin/crm/qr/leads" className="px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 border border-teal-200 flex items-center gap-1.5 transition" title="QR Leads">
-              👥 QR Leads
-            </a>
-            <a href="/admin/crm/qr/funnel-report" className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1.5 transition" title="QR Funnel Report">
-              🔻 QR Funnel
-            </a>
-            <a href="/admin/crm/qr/manage" className="px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 border border-orange-200 flex items-center gap-1.5 transition" title="Manage QR Funnel">
-              ⚙️ QR Manage
-            </a>
-            <a href="/admin/crm/qr/broadcast-report" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 transition" title="QR Broadcast Reports">
-              📊 QR Reports
-            </a>
           </div>
-        </div>
-
-        {/* ═══ Tab Navigation ═══ */}
-        <div className="px-4 flex items-center gap-1 border-t bg-gray-50/50">
-          {([
-            { key: 'connection' as const, label: 'Connection', icon: <QrCode className="w-3.5 h-3.5" />, desc: 'QR & Status' },
-            { key: 'inbox' as const, label: 'Inbox', icon: <MessageSquare className="w-3.5 h-3.5" />, desc: `${chats.length} chats`, badge: chats.filter(c => c.unreadCount > 0).length },
-            { key: 'history' as const, label: 'Sent Messages', icon: <Calendar className="w-3.5 h-3.5" />, desc: 'Delivery history' },
-            { key: 'settings' as const, label: 'Settings', icon: <Settings className="w-3.5 h-3.5" />, desc: 'Configure' },
-          ]).map(t => (
-            <button
-              key={t.key}
-              onClick={() => { setTab(t.key); if (t.key === 'inbox' && isConnected) fetchChats(); }}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
-                tab === t.key
-                  ? 'border-green-600 text-green-700 bg-white'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {t.icon}
-              <span>{t.label}</span>
-              {t.key === 'inbox' && (t.badge ?? 0) > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-green-600 text-white font-semibold">{t.badge}</span>
-              )}
-            </button>
-          ))}
-
-          {/* NOTE: Templates / Broadcast / Group Contacts intentionally live ONLY
-              in the top QR WhatsApp menu (CrmSubNav) — not here — to avoid the
-              duplicate header labels. */}
-
-          {/* Funnel pills — visible only on inbox tab */}
-          {tab === 'inbox' && (
-            <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide ml-4 flex-1">
-              {funnelStages.map(stage => {
-                const count = stage.key === 'all'
-                  ? chats.length
-                  : chats.filter(c => chatFunnels[c.id] === stage.key).length;
-                return (
-                  <div key={stage.key} className="flex items-center flex-shrink-0 group">
-                    <button
-                      onClick={() => { setActiveFunnel(stage.key); setSelectedChats(new Set()); }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border whitespace-nowrap transition ${activeFunnel === stage.key ? stage.color + ' ring-1 ring-offset-1 ring-current' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      {stage.label}
-                      <span className={`text-[10px] px-1 rounded-full ${activeFunnel === stage.key ? 'bg-white/60' : 'bg-gray-100'}`}>{count}</span>
-                    </button>
-                    {stage.key !== 'all' && (
-                      <button onClick={() => openEditModal('funnel', 'edit', stage)} className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition" title="Edit">
-                        <Pencil className="w-2.5 h-2.5 text-gray-400" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              <button onClick={() => openEditModal('funnel', 'add')} className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border border-dashed border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400 whitespace-nowrap transition flex-shrink-0" title="Add funnel stage">
-                <Plus className="w-3 h-3" /> Add
-              </button>
-            </div>
-          )}
+          {/* Monochrome symbol row, matching the extension's conversation
+              header. Icon-only with a native tooltip instead of a text label,
+              so both surfaces read the same. Merge / Report / Delete / Schedule
+              were previously alert() stubs; they now open the pages that
+              already implement each feature. */}
+          <div className="flex items-center gap-0.5">
+            {/* One distinct symbol per function — Radio was previously used for
+                both Broadcast and Status, and the trash icon pointed at the
+                group-contacts page rather than group deletion. */}
+            {[
+              { icon: FileText, label: 'Template', onClick: () => setTab('templates') },
+              { icon: Merge, label: 'Merge Groups', onClick: () => { setShowMergeGroups(true); setMergeTargetId(''); setMergeSourceIds(new Set()); setMergeResult(null); setMergeProgress(0); setMergeProgressText(''); setMergeGroupSearch(''); setMergeRemoveFromSource(false); } },
+              { icon: Megaphone, label: 'Broadcast', onClick: () => setTab('broadcast') },
+              { icon: Clock, label: 'Schedule Message', href: '/admin/crm/qr/broadcast-schedule' },
+              { icon: Calendar, label: 'Group Schedule', href: '/admin/crm/qr/group-scheduler' },
+              { icon: Users, label: 'Group Contacts', href: '/admin/crm/qr/group-contacts' },
+              { icon: Trash2, label: 'Delete Group Members', href: '/admin/crm/qr/group-delete' },
+              { icon: Funnel, label: 'Funnel Report', href: '/admin/crm/qr/funnel-report' },
+              { icon: BarChart3, label: 'Broadcast Report', href: '/admin/crm/qr/broadcast-report' },
+              { icon: TrendingUp, label: 'Event Charts', href: '/admin/crm/sales/events' },
+              { icon: UserCircle, label: 'QR Leads', onClick: () => setShowLeadsModal(true) },
+              { icon: DollarSign, label: 'QR Sales', onClick: () => setShowSalesModal(true) },
+              { icon: Eye, label: 'Status', onClick: () => { setShowStatusPanel(true); fetchStatuses(); } },
+              { icon: CloudUpload, label: 'Google Drive Backup', onClick: () => setTab('settings') },
+            ].map(({ icon: Icon, label, onClick, href }) => {
+              const cls = 'p-1.5 rounded-full text-gray-800 hover:bg-gray-200 hover:text-black transition';
+              return href ? (
+                <a key={label} href={href} className={cls} title={label} aria-label={label}>
+                  <Icon className="w-4 h-4" />
+                </a>
+              ) : (
+                <button key={label} type="button" onClick={onClick} className={cls} title={label} aria-label={label}>
+                  <Icon className="w-4 h-4" />
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Error Banner */}
-      {error && error !== 'NO_BRIDGE' && !error.includes('bridge configured') && (
-        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600 text-sm font-medium">×</button>
-        </div>
-      )}
+      {/* The page-level error banner above is the single place errors render.
+          A second copy used to sit here, so every error appeared twice. */}
 
       {/* Loading */}
       {loading && (
@@ -2744,12 +3176,16 @@ export default function QRWhatsAppPage() {
         </div>
       )}
       {!loading && tab === 'inbox' && isConnected && (
-        <div className="flex h-[calc(100vh-105px)]">
+        <div className="flex h-[calc(100vh-57px)]" style={{ background: 'radial-gradient(circle at top right, rgba(16,185,129,0.08), transparent 24%), radial-gradient(circle at bottom left, rgba(34,197,94,0.05), transparent 20%)' }}>
           {/* Chat List — full width on mobile, resizable sidebar on lg+ */}
           <div
-            className={`bg-white flex flex-col border-r ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
+            className={`bg-white/95 backdrop-blur-sm flex flex-col border-r border-gray-200 shadow-xl ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
             style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%', minWidth: 280, maxWidth: 600, flexShrink: 0 }}
           >
+            <div className="px-4 py-1.5 bg-white border-b flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900">Your WhatsApp chats</h2>
+              <div className="text-[10px] text-gray-500">Updated live</div>
+            </div>
             {/* Chat filter tabs: All | Unread | Read | Groups */}
             <div className="px-2 py-1 border-b flex items-center gap-0.5 bg-gray-50">
               {([
@@ -2925,12 +3361,20 @@ export default function QRWhatsAppPage() {
             {/* Chat items */}
             <div className="flex-1 overflow-y-auto">
               {filteredChats.length === 0 && (
-                <div className="p-6 text-center text-gray-400 text-sm">
-                  {chatFilter === 'groups' ? 'No group chats found.' :
-                   chatFilter === 'unread' ? 'No unread chats.' :
-                   chatFilter === 'read' ? 'No read chats.' :
-                   activeFunnel !== 'all' ? `No chats in "${funnelStages.find(s => s.key === activeFunnel)?.label}"` :
-                   isConnected ? 'No chats yet.' : 'Connect WhatsApp to see chats.'}
+                <div className="p-6">
+                  <div className="mx-auto max-w-sm rounded-3xl border border-dashed border-gray-200 bg-white/90 p-6 text-center shadow-sm">
+                    <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center text-xl">
+                      🪷
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900 mb-2">
+                      {chatFilter === 'groups' ? 'No group chats found.' :
+                       chatFilter === 'unread' ? 'No unread chats.' :
+                       chatFilter === 'read' ? 'No read chats.' :
+                       activeFunnel !== 'all' ? `No chats in "${funnelStages.find(s => s.key === activeFunnel)?.label}"` :
+                       isConnected ? 'No chats yet.' : 'Connect WhatsApp to see chats.'}
+                    </p>
+                    <p className="text-xs text-gray-500">Use search, filters, or refresh to discover conversations.</p>
+                  </div>
                 </div>
               )}
               {filteredChats.map(chat => {
@@ -2957,30 +3401,30 @@ export default function QRWhatsAppPage() {
                   <div
                     key={chat.id}
                     data-chat-id={chat.id}
-                    className={`group w-full text-left px-2 py-2 border-b hover:bg-gray-50 transition flex items-center gap-2 cursor-pointer ${
-                      selectedChat === chat.id ? 'bg-green-50 border-l-4 border-l-green-500' : ''
+                    className={`group w-full text-left px-3 py-3 border-b border-gray-100 hover:bg-emerald-50/40 transition flex items-center gap-3 cursor-pointer ${
+                      selectedChat === chat.id ? 'bg-emerald-50' : ''
                     }`}
                     onClick={() => selectChat(chat.id)}
                   >
                     {/* Checkbox — always visible */}
                     <div className="flex-shrink-0" onClick={(e) => { e.stopPropagation(); toggleChatSelection(chat.id); }}>
                       {isSelected
-                        ? <CheckSquare className="w-4 h-4 text-indigo-600" />
-                        : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />
+                        ? <div className="w-4 h-4 rounded-md bg-indigo-600 text-white grid place-items-center"><CheckSquare className="w-3 h-3" /></div>
+                        : <div className="w-4 h-4 rounded-md border border-slate-300 bg-white hover:border-slate-400"></div>
                       }
                     </div>
 
-                    {/* Avatar / Profile Picture */}
+                    {/* Avatar / Profile Picture — sized to match web.whatsapp.com's own chat-row avatar */}
                     <div className="relative flex-shrink-0">
                       {profilePics[chat.id] ? (
                         <img
                           src={profilePics[chat.id]!}
                           alt={chat.name}
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-12 h-12 rounded-2xl object-cover shadow-sm"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
                         />
                       ) : null}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-xs ${avatarColor} ${profilePics[chat.id] ? 'hidden' : ''}`}>
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white font-semibold text-sm ${avatarColor} ${profilePics[chat.id] ? 'hidden' : ''}`}>
                         {chat.isGroup ? <Users className="w-5 h-5" /> : (initials || '👤')}
                       </div>
                       {chat.isGroup && (
@@ -2992,88 +3436,49 @@ export default function QRWhatsAppPage() {
 
                     {/* Chat Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-medium text-sm text-gray-900 truncate flex items-center gap-1">
-                          {chat.isGroup && <Users className="w-3 h-3 text-indigo-500 flex-shrink-0" />}
-                          {chatTitle}
-                        </span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {/* Label dots — colored circles, hover to see name */}
-                          {chatLabelList.length > 0 && (
-                            <div className="flex items-center -space-x-0.5">
-                              {chatLabelList.slice(0, 3).map(lbl => {
-                                const li = labelPresets.find(l => l.key === lbl);
-                                if (!li) return null;
-                                return (
-                                  <span
-                                    key={lbl}
-                                    title={li.label}
-                                    onClick={(e) => { e.stopPropagation(); setActiveLabel(activeLabel === li.key ? 'all' : li.key); }}
-                                    className={`w-3 h-3 rounded-full border border-white cursor-pointer hover:scale-125 transition-transform ${li.color.split(' ')[0]}`}
-                                  />
-                                );
-                              })}
-                              {chatLabelList.length > 3 && (
-                                <span className="text-[8px] text-gray-400 ml-0.5">+{chatLabelList.length - 3}</span>
-                              )}
-                            </div>
-                          )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            {chat.isGroup && <Users className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />}
+                            <span className="font-semibold text-sm text-slate-900 truncate">{chatTitle}</span>
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500 truncate max-w-[240px]">
+                            {chat.lastMessage ? String(chat.lastMessage).trim() : 'No conversation yet'}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          {timeStr && <span className="text-[10px] text-slate-400">{timeStr}</span>}
                           {chat.unreadCount > 0 && chat.id !== selectedChat && (
-                            <span className="bg-green-500 text-white text-[9px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-medium">
-                              {chat.unreadCount}
-                            </span>
+                            <span className="bg-emerald-600 text-white text-[10px] rounded-full px-2 py-0.5 font-semibold">{chat.unreadCount}</span>
                           )}
-                          {timeStr && <span className="text-[10px] text-gray-400 whitespace-nowrap">{timeStr}</span>}
                         </div>
                       </div>
-                      {!chat.isGroup && chatPhone && chatPhone !== chatTitle && (
-                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{chatPhone}</p>
-                      )}
-                      {/* Funnel stage + labels + lead status row */}
-                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                        {/* Lead status badge */}
+                      <div className="mt-2 flex flex-wrap gap-1 items-center">
                         {chat.leadStatus && (
-                          <span className={`text-[9px] px-1.5 py-0 rounded-full font-medium ${
-                            chat.leadStatus === 'enrolled' ? 'bg-green-100 text-green-700 border border-green-300' :
-                            chat.leadStatus === 'interested' || chat.leadStatus === 'hot' ? 'bg-orange-100 text-orange-700 border border-orange-300' :
-                            chat.leadStatus === 'contacted' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
-                            chat.leadStatus === 'new_lead' || chat.leadStatus === 'lead' ? 'bg-purple-100 text-purple-700 border border-purple-300' :
-                            chat.leadStatus === 'prospect' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
-                            chat.leadStatus === 'inactive' ? 'bg-gray-100 text-gray-500 border border-gray-300' :
-                            'bg-gray-100 text-gray-600 border border-gray-300'
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-semibold ${
+                            chat.leadStatus === 'enrolled' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                            chat.leadStatus === 'interested' || chat.leadStatus === 'hot' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                            chat.leadStatus === 'contacted' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
+                            chat.leadStatus === 'new_lead' || chat.leadStatus === 'lead' ? 'bg-violet-100 text-violet-700 border border-violet-200' :
+                            chat.leadStatus === 'prospect' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                            chat.leadStatus === 'inactive' ? 'bg-slate-100 text-slate-500 border border-slate-200' :
+                            'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
                             {chat.leadStatus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </span>
                         )}
                         {stageInfo && (
-                          <span className={`text-[9px] px-1.5 py-0 rounded-full border ${stageInfo.color}`}>
-                            {stageInfo.label}
-                          </span>
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full border ${stageInfo.color}`}>{stageInfo.label}</span>
                         )}
-                        {chatLabelList.map(lbl => {
+                        {chatLabelList.slice(0, 2).map(lbl => {
                           const labelInfo = labelPresets.find(l => l.key === lbl);
                           return labelInfo ? (
-                            <span key={lbl} className={`text-[9px] px-1 py-0 rounded ${labelInfo.color} flex items-center gap-0.5`}>
-                              {labelInfo.label}
-                              <button onClick={(e) => { e.stopPropagation(); removeChatLabel(chat.id, lbl); }} className="hover:text-red-600">
-                                <X className="w-2 h-2" />
-                              </button>
-                            </span>
+                            <span key={lbl} className={`text-[9px] px-2 py-0.5 rounded-full ${labelInfo.color} border border-slate-200`}>{labelInfo.label}</span>
                           ) : null;
                         })}
-                        {!stageInfo && chatLabelList.length === 0 && chat.lastMessage && (
-                          <p className="text-[10px] text-gray-400 truncate flex-1">
-                            {String(chat.lastMessage).substring(0, 35)}
-                          </p>
+                        {chatLabelList.length > 2 && (
+                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">+{chatLabelList.length - 2} more</span>
                         )}
-                        {/* Pin/unpin button */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); togglePinChat(chat.id); }}
-                          className={`ml-auto flex-shrink-0 p-0.5 rounded hover:bg-gray-200 transition ${pinnedChats.includes(chat.id) ? 'text-green-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`}
-                          title={pinnedChats.includes(chat.id) ? 'Unpin chat' : (pinnedChats.length >= 5 ? 'Max 5 pinned chats' : 'Pin chat')}
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M4.146.146A.5.5 0 0 1 4.5 0h7a.5.5 0 0 1 .5.5c0 .68-.342 1.174-.646 1.479-.126.125-.25.224-.354.298v4.431l.078.048c.203.127.476.314.751.555C12.36 7.775 13 8.527 13 9.5a.5.5 0 0 1-.5.5h-4v4.5a.5.5 0 0 1-1 0V10h-4A.5.5 0 0 1 3 9.5c0-.973.64-1.725 1.17-2.189A5.921 5.921 0 0 1 5 6.708V2.277a2.77 2.77 0 0 1-.354-.298C4.342 1.674 4 1.179 4 .5a.5.5 0 0 1 .146-.354z"/></svg>
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -3112,19 +3517,30 @@ export default function QRWhatsAppPage() {
           {/* Message Area — hidden on mobile when no chat selected */}
           <div className={`flex-1 flex flex-col bg-gray-100 ${!selectedChat ? 'hidden lg:flex' : 'flex'}`}>
             {!selectedChat ? (
-              <div className="flex-1 flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <Send className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>Select a chat to start messaging</p>
+              <div className="flex-1 flex items-center justify-center text-slate-500 relative overflow-hidden px-4">
+                <div className="relative w-full max-w-lg rounded-[32px] border border-white/70 bg-white/85 backdrop-blur-xl shadow-lg shadow-slate-900/5 p-10 text-center">
+                  <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-green-100 via-transparent to-transparent opacity-70 pointer-events-none" />
+                  <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-emerald-50 text-3xl flex items-center justify-center text-emerald-700 shadow-inner shadow-emerald-100/80">
+                    🧘
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-900 mb-2">Begin your quiet conversation</h2>
+                  <p className="mx-auto max-w-xs text-sm text-slate-500 leading-6">Choose a chat to start sending gentle messages. Small notes, little progress.</p>
+                  <div className="mx-auto mt-6 flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" />
+                    inbox ready
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" />
+                  </div>
+                  <div className="absolute left-8 bottom-8 h-12 w-12 rounded-full bg-emerald-100/80 blur-2xl" />
+                  <div className="absolute right-8 bottom-12 h-10 w-10 rounded-full bg-slate-100/80" />
                 </div>
               </div>
             ) : (
               <>
                 {/* Chat Header — Compact Single Row */}
-                <div className="bg-white px-3 py-1.5 border-b flex items-center gap-2 justify-between">
+                <div className="bg-white px-3 py-2.5 border-b flex items-center gap-2 justify-between">
                   {/* Left: Avatar + Phone + Online + Stage (clickable to open details) */}
                   <div
-                    className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer hover:bg-gray-50 rounded-lg px-1 py-0.5 transition"
+                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:bg-gray-50 rounded-lg px-1 py-0.5 transition"
                     onClick={() => openDetailsPanel(selectedChat)}
                   >
                     <button onClick={(e) => { e.stopPropagation(); setSelectedChat(null); }} className="lg:hidden p-1 hover:bg-gray-100 rounded flex-shrink-0">
@@ -3165,11 +3581,11 @@ export default function QRWhatsAppPage() {
                             <img
                               src={profilePics[selectedChat]!}
                               alt={chatName}
-                              className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
                             />
                           ) : null}
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0 ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0 ${avatarColor} ${profilePics[selectedChat] ? 'hidden' : ''}`}>
                             {isGroupChat ? <Users className="w-4 h-4" /> : (initials || '👤')}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -3206,29 +3622,23 @@ export default function QRWhatsAppPage() {
                     })()}
                   </div>
 
-                  {/* Right: Call buttons + Info + Refresh */}
+                  {/* Right: familiar WhatsApp Web conversation actions */}
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
-                      onClick={() => {
-                        const chatInfo = chats.find(c => c.id === selectedChat);
-                        const phone = chatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', '').replace('@g.us', '');
-                        window.open(`tel:+${phone}`, '_blank');
-                      }}
-                      className="p-1.5 rounded-full hover:bg-green-50 text-gray-500 hover:text-green-600 transition"
-                      title="Voice Call"
-                    >
-                      <Phone className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        const chatInfo = chats.find(c => c.id === selectedChat);
-                        const phone = chatInfo?.resolvedPhone || selectedChat.replace('@s.whatsapp.net', '').replace('@g.us', '');
-                        window.open(`https://wa.me/${phone}?video=true`, '_blank');
-                      }}
+                      onClick={() => { setClassInviteType('video'); setShowClassInvite(true); }}
                       className="p-1.5 rounded-full hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 transition"
-                      title="Video Call"
+                      title="Send video class invite"
+                      aria-label="Send video class invite"
                     >
                       <Video className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => { setClassInviteType('voice'); setShowClassInvite(true); }}
+                      className="p-1.5 rounded-full hover:bg-green-50 text-gray-500 hover:text-green-600 transition"
+                      title="Send voice class invite"
+                      aria-label="Send voice class invite"
+                    >
+                      <Phone className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => openDetailsPanel(selectedChat)}
@@ -3244,17 +3654,63 @@ export default function QRWhatsAppPage() {
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                     </button>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowChatContextMenu(v => !v)}
+                        className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500 transition"
+                        title="Chat menu"
+                        aria-label="Open chat menu"
+                        aria-expanded={showChatContextMenu}
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      {showChatContextMenu && (
+                        <div className="absolute right-0 top-full mt-1 w-52 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl z-30">
+                          <button
+                            onClick={() => { openDetailsPanel(selectedChat); setShowChatContextMenu(false); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Info className="w-4 h-4" /> Contact info
+                          </button>
+                          <button
+                            onClick={() => { togglePinChat(selectedChat); setShowChatContextMenu(false); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Star className="w-4 h-4" /> {pinnedChats.includes(selectedChat) ? 'Remove from favourites' : 'Add to favourites'}
+                          </button>
+                          <button
+                            onClick={() => { setSelectedChats(new Set([selectedChat])); setShowBulkLabel(true); setShowChatContextMenu(false); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Tag className="w-4 h-4" /> Manage labels
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Remove this chat from your inbox? This only hides it here and does not delete WhatsApp messages.')) {
+                                setChats(prev => prev.filter(chat => chat.id !== selectedChat));
+                                setChatFunnels(prev => { const next = { ...prev }; delete next[selectedChat]; return next; });
+                                setChatLabels(prev => { const next = { ...prev }; delete next[selectedChat]; return next; });
+                                setSelectedChat(null);
+                              }
+                              setShowChatContextMenu(false);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" /> Remove from inbox
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Messages - Simple clean background */}
-                <div ref={messengerRef} className="flex-1 overflow-y-auto p-4 space-y-2 bg-gradient-to-b from-white to-gray-50" style={{
-                  backgroundColor: '#fafafa',
-                }}>
+                {/* Messages — warm, low-contrast WhatsApp-inspired doodle texture */}
+                <div ref={messengerRef} className="qr-chat-texture flex-1 overflow-y-auto p-4 space-y-2">
                   {messages.length === 0 && (
                     <div className="text-center text-gray-400 text-sm py-10">No messages yet</div>
                   )}
-                  {messages.map(msg => {
+                  {messages.map((msg, msgIdx) => {
+                    const showDateSeparator = msgIdx === 0 || !isSameDay(messages[msgIdx - 1].timestamp || 0, msg.timestamp || 0);
                     const isGroupChat = selectedChat?.endsWith('@g.us');
                     const senderName = msg.pushName || msg.participant?.split('@')[0] || '';
                     const senderColor = senderName ? getAvatarColor(senderName) : '';
@@ -3275,7 +3731,15 @@ export default function QRWhatsAppPage() {
                     const hasOnlyMedia = hasMediaPreview && !msg.text;
                     const reactionEntries = msg.reactions ? Object.entries(msg.reactions).filter(([, v]) => v) : [];
                     return (
-                    <div key={msg.id} className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} group/msg relative`}>
+                    <React.Fragment key={msg.id}>
+                    {showDateSeparator && (
+                      <div className="flex justify-center py-2">
+                        <span className="bg-white/90 shadow-sm border border-gray-200 rounded-full px-3 py-1 text-[11px] font-medium text-gray-500">
+                          {dateSeparatorLabel(msg.timestamp || 0)}
+                        </span>
+                      </div>
+                    )}
+                    <div className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} group/msg relative`}>
                       {/* Message action buttons — visible on hover */}
                       <div className={`absolute ${msg.fromMe ? 'left-0 -translate-x-full pr-1' : 'right-0 translate-x-full pl-1'} top-1 hidden group-hover/msg:flex items-center gap-0.5 z-10`}>
                         <button onClick={() => setReplyingTo(msg)} className="p-1 rounded-full bg-white shadow hover:bg-gray-100" title="Reply">
@@ -3434,6 +3898,7 @@ export default function QRWhatsAppPage() {
                         </div>
                       )}
                     </div>
+                    </React.Fragment>
                     );
                   })}
                 </div>
@@ -3468,7 +3933,7 @@ export default function QRWhatsAppPage() {
                 )}
 
                 {/* Composer */}
-                <div className="bg-white border-t relative">
+                <div className="bg-[#f0f2f5] border-t border-gray-200 relative">
                   {/* Emoji Picker Popup */}
                   {showEmojiPicker && (
                     <div className="absolute bottom-full left-12 mb-1 bg-white border rounded-xl shadow-xl p-3 w-80 z-30">
@@ -3491,6 +3956,59 @@ export default function QRWhatsAppPage() {
                       <button onClick={() => { handleFileSelect('video/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Video className="w-4 h-4 text-indigo-600" /> Video</button>
                       <button onClick={() => { handleFileSelect('.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><FileText className="w-4 h-4 text-orange-500" /> Document</button>
                       <button onClick={() => { handleFileSelect('audio/*'); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><Mic className="w-4 h-4 text-purple-500" /> Audio</button>
+                      <button onClick={() => { setShowPollComposer(true); setShowAttachMenu(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"><CheckSquare className="w-4 h-4 text-sky-600" /> Poll</button>
+                    </div>
+                  )}
+
+                  {/* Poll Composer Modal */}
+                  {showPollComposer && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                      <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-bold text-gray-900">📊 Create Poll</h3>
+                          <button onClick={() => setShowPollComposer(false)} className="text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
+                        </div>
+                        <input
+                          type="text"
+                          value={pollQuestion}
+                          onChange={(e) => setPollQuestion(e.target.value)}
+                          placeholder="Ask a question…"
+                          maxLength={255}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                        <div className="space-y-2 mb-3">
+                          {pollOptions.map((opt, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={opt}
+                                onChange={(e) => setPollOptions(prev => prev.map((o, i) => (i === idx ? e.target.value : o)))}
+                                placeholder={`Option ${idx + 1}`}
+                                maxLength={100}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                              />
+                              {pollOptions.length > 2 && (
+                                <button onClick={() => setPollOptions(prev => prev.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {pollOptions.length < 12 && (
+                          <button onClick={() => setPollOptions(prev => [...prev, ''])} className="text-sm text-green-600 hover:text-green-700 font-medium mb-3">+ Add option</button>
+                        )}
+                        <label className="flex items-center gap-2 text-sm text-gray-700 mb-4 cursor-pointer">
+                          <input type="checkbox" checked={pollMultiSelect} onChange={(e) => setPollMultiSelect(e.target.checked)} className="rounded" />
+                          Allow multiple answers
+                        </label>
+                        <button
+                          onClick={handleSendPoll}
+                          disabled={sendingPoll || !pollQuestion.trim() || pollOptions.filter(o => o.trim()).length < 2}
+                          className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:bg-gray-300 flex items-center justify-center gap-2"
+                        >
+                          {sendingPoll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                          {sendingPoll ? 'Sending…' : 'Send Poll'}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -3506,12 +4024,12 @@ export default function QRWhatsAppPage() {
 
                   {/* Input Row — Only show when connected */}
                   {isConnected && (
-                    <div className="px-3 py-2 flex items-center gap-1.5">
+                    <div className="px-3 py-2 flex items-end gap-1.5">
                       {/* Attach button */}
                       <button
                         onClick={() => { setShowAttachMenu(!showAttachMenu); setShowEmojiPicker(false); setShowFormatBar(false); }}
                         disabled={!isConnected}
-                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-green-600 disabled:opacity-40 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] disabled:opacity-40 transition"
                         title="Attach"
                       >
                         <Paperclip className="w-4 h-4" />
@@ -3519,7 +4037,7 @@ export default function QRWhatsAppPage() {
                       {/* Emoji button */}
                       <button
                         onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowAttachMenu(false); setShowFormatBar(false); }}
-                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-yellow-600 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] transition"
                         title="Emoji"
                       >
                         <Smile className="w-4 h-4" />
@@ -3527,28 +4045,61 @@ export default function QRWhatsAppPage() {
                       {/* Format button */}
                       <button
                         onClick={() => { setShowFormatBar(!showFormatBar); setShowEmojiPicker(false); setShowAttachMenu(false); }}
-                        className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-indigo-600 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] transition"
                         title="Format text"
                       >
                         <Type className="w-4 h-4" />
                       </button>
-                      {/* Text Input */}
-                      <input
+                      {/* Text Input — textarea so multi-line/pasted paragraphs keep their
+                          line breaks instead of being silently flattened to one line
+                          (an <input> can never hold a newline, no matter what's typed
+                          or pasted into it). Enter sends, Shift+Enter adds a new line. */}
+                      <textarea
                         ref={composerInputRef}
-                        type="text"
+                        rows={1}
                         value={composerText}
-                        onChange={e => { setComposerText(e.target.value); handleTyping(); }}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(); }}
+                        onChange={e => {
+                          setComposerText(e.target.value);
+                          handleTyping();
+                          const el = e.target;
+                          el.style.height = 'auto';
+                          el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSend();
+                          }
+                        }}
                         onFocus={closeComposerPopups}
                         placeholder={replyingTo ? `Reply to ${replyingTo.pushName || replyingTo.from}...` : mediaPreview ? 'Add caption...' : 'Type a message...'}
-                        className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                        className="flex-1 resize-none border-0 bg-white px-3 py-2.5 rounded-lg text-sm leading-normal max-h-[120px] overflow-y-auto text-[#111b21] placeholder:text-[#667781] focus:outline-none focus:ring-0"
                         disabled={!isConnected || sending}
                       />
+                      {/* Spell / AI reply — right side, beside Send */}
+                      <button
+                        onClick={() => runAiAssist('fix')}
+                        disabled={!isConnected || aiFixing || !composerText.trim()}
+                        className="shrink-0 inline-flex items-center gap-1 h-[30px] px-2.5 rounded-full border border-gray-300 bg-white text-[#374151] text-xs font-bold whitespace-nowrap hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        title="Fix spelling and grammar in your message"
+                      >
+                        {aiFixing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pencil className="w-3 h-3" />}
+                        Spell
+                      </button>
+                      <button
+                        onClick={() => runAiAssist('reply')}
+                        disabled={!isConnected || aiReplying}
+                        className="shrink-0 inline-flex items-center gap-1 h-[30px] px-2.5 rounded-full border border-[#2d6a4f] bg-[#2d6a4f] text-white text-xs font-bold whitespace-nowrap hover:bg-[#1b4332] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        title="Draft a reply to the last incoming message"
+                      >
+                        {aiReplying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                        AI reply
+                      </button>
                       {/* Star button — Quick Actions */}
                       <button
                         onClick={() => { setShowStarPopup(true); closeComposerPopups(); }}
                         disabled={!isConnected}
-                        className="p-2 rounded-full hover:bg-yellow-50 text-gray-500 hover:text-yellow-600 disabled:opacity-40 transition"
+                        className="p-2 rounded-full hover:bg-gray-200 text-[#54656f] hover:text-[#111b21] disabled:opacity-40 transition"
                         title="Quick Actions"
                       >
                         <Star className="w-4 h-4" />
@@ -3557,7 +4108,7 @@ export default function QRWhatsAppPage() {
                       <button
                         onClick={handleSend}
                         disabled={(!composerText.trim() && !mediaPreview) || !isConnected || sending}
-                        className="p-2.5 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        className="p-2.5 bg-[#00a884] text-white rounded-full hover:bg-[#008f72] disabled:bg-[#aebac1] disabled:opacity-100 disabled:cursor-not-allowed transition"
                       >
                         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       </button>
@@ -3596,11 +4147,13 @@ export default function QRWhatsAppPage() {
               groupSettingsLoading={groupSettingsLoading}
               updateGroupSetting={updateGroupSetting}
               updateGroupParticipant={updateGroupParticipant}
+              addGroupParticipants={addGroupParticipants}
               bulkRemoveParticipants={bulkRemoveParticipants}
               handleRenameGroup={handleRenameGroup}
               handleLeaveGroup={handleLeaveGroup}
               setDetailsPanel={setDetailsPanel}
               setLightboxImage={setLightboxImage}
+              token={token}
             />
           )}
         </div>
@@ -3618,6 +4171,34 @@ export default function QRWhatsAppPage() {
         setSelectedStatusUser={setSelectedStatusUser}
         currentStatusIndex={currentStatusIndex}
         setCurrentStatusIndex={setCurrentStatusIndex}
+        onPostStatus={async (text: string, imageUrl?: string) => {
+          // imageUrl posts an image status with `text` as its caption; the
+          // bridge accepts either form.
+          const data = await bridgeCall('/post-status', 'POST', imageUrl ? { imageUrl, caption: text, text } : { text });
+          return data?.audienceSize || data?.data?.audienceSize || 0;
+        }}
+        onScheduleStatus={async ({ text, imageUrl, scheduledAt, repeatDays }) => {
+          const res = await fetch('/api/admin/crm/qr/status-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ text, imageUrl, scheduledAt, repeatDays }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || 'Failed to schedule status');
+        }}
+        onUploadMedia={async (file: File) => {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await fetch('/api/admin/crm/media/upload', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+          const data = await res.json();
+          const url = data?.data?.url || data?.url;
+          if (!res.ok || !url) throw new Error(data?.error || 'Upload failed');
+          return url;
+        }}
       />
       <ExtensionModal
         showExtensionModal={showExtensionModal}
@@ -3654,7 +4235,16 @@ export default function QRWhatsAppPage() {
         selectedChat={selectedChat}
         token={token}
         crmFetch={crmFetch}
+        onCreateTemplate={() => { setShowStarPopup(false); setTab('templates'); }}
       />
+      {showLeadsModal && (
+        <LeadsModal
+          token={token}
+          onClose={() => setShowLeadsModal(false)}
+          onOpenChat={(phone) => { setTab('inbox'); selectChat(`${String(phone).replace(/\D/g, '')}@s.whatsapp.net`); }}
+        />
+      )}
+      {showSalesModal && <SalesModal token={token} onClose={() => setShowSalesModal(false)} />}
       <Lightbox lightboxImage={lightboxImage} setLightboxImage={setLightboxImage} />
       <GroupCreateModal
         showGroupCreate={showGroupCreate}
@@ -3810,6 +4400,57 @@ export default function QRWhatsAppPage() {
                 className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
               >
                 <MessageSquare className="w-4 h-4" /> Start Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Voice/video classes are hosted by the supplied meeting platform; this
+          sends the join invitation through the connected QR WhatsApp account. */}
+      {showClassInvite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !sendingClassInvite && setShowClassInvite(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between rounded-t-2xl bg-[#00a884] px-5 py-4 text-white">
+              <div>
+                <h3 className="font-semibold">Send class invitation</h3>
+                <p className="mt-0.5 text-xs text-white/80">Sent through your connected QR WhatsApp</p>
+              </div>
+              <button onClick={() => setShowClassInvite(false)} disabled={sendingClassInvite} className="rounded-full p-1 hover:bg-white/10 disabled:opacity-50" aria-label="Close class invitation">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 p-5">
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                WhatsApp QR supports sending class invitations, not starting native WhatsApp calls. Add your Zoom, Google Meet, Jitsi, or other class link below.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['video', 'voice'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setClassInviteType(type)}
+                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${classInviteType === type ? 'border-[#00a884] bg-emerald-50 text-[#007d65]' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {type === 'video' ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+                    {type === 'video' ? 'Video class' : 'Voice class'}
+                  </button>
+                ))}
+              </div>
+              <label className="block text-sm font-medium text-gray-700">
+                Class name
+                <input value={classInviteTitle} onChange={event => setClassInviteTitle(event.target.value)} placeholder="e.g. Morning Swar Yoga" className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#00a884] focus:ring-2 focus:ring-emerald-100" autoFocus />
+              </label>
+              <label className="block text-sm font-medium text-gray-700">
+                Join link
+                <input type="url" value={classInviteLink} onChange={event => setClassInviteLink(event.target.value)} placeholder="https://zoom.us/j/..." className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#00a884] focus:ring-2 focus:ring-emerald-100" />
+              </label>
+              <label className="block text-sm font-medium text-gray-700">
+                Start time <span className="font-normal text-gray-400">(optional)</span>
+                <input type="datetime-local" value={classInviteStart} onChange={event => setClassInviteStart(event.target.value)} className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#00a884] focus:ring-2 focus:ring-emerald-100" />
+              </label>
+              <button onClick={handleSendClassInvite} disabled={sendingClassInvite || !classInviteTitle.trim() || !classInviteLink.trim()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#00a884] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#008f72] disabled:cursor-not-allowed disabled:bg-gray-300">
+                {sendingClassInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendingClassInvite ? 'Sending invitation…' : 'Send class invitation'}
               </button>
             </div>
           </div>

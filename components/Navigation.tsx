@@ -250,32 +250,8 @@ export default function Navigation() {
           {isMenuOpen && (
             <div className="lg:hidden mt-4 pb-4 border-t border-swar-border animate-in slide-in-from-top duration-200">
               <nav className="flex flex-col space-y-1.5 mt-4">
-                {navigation.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`px-4 py-3.5 rounded-xl font-medium transition-all duration-200 touch-manipulation active:scale-[0.98] ${
-                      isActive(item.href) 
-                        ? 'text-white bg-gradient-to-r from-swar-primary to-green-600 shadow-md' 
-                        : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
-                    }`}
-                    onClick={closeMenu}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-                
-                {/* Mobile Actions */}
-                <div className="flex flex-col space-y-2 pt-4 mt-2 border-t border-swar-border">
-                  <Link
-                    href="/cart"
-                    className="flex items-center space-x-3 px-4 py-3.5 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-xl transition-all duration-200 touch-manipulation active:scale-[0.98]"
-                    onClick={closeMenu}
-                  >
-                    <ShoppingCart className="h-5 w-5" />
-                    <span>Cart {cartCount > 0 && `(${cartCount})`}</span>
-                  </Link>
-                  
+                {/* Sign In / Sign Out — shown first, in red */}
+                <div className="flex flex-col space-y-2 pb-4 mb-2 border-b border-swar-border">
                   {user ? (
                     <>
                       <Link
@@ -294,14 +270,14 @@ export default function Navigation() {
                         className="flex items-center space-x-3 px-4 py-3.5 text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 font-medium touch-manipulation active:scale-[0.98]"
                       >
                         <LogOut className="h-5 w-5" />
-                        <span>Logout</span>
+                        <span>Sign Out</span>
                       </button>
                     </>
                   ) : (
                     <>
                       <Link
                         href="/signin"
-                        className="flex items-center justify-center space-x-2 px-4 py-3.5 text-swar-primary border-2 border-swar-primary hover:bg-swar-primary-light rounded-xl transition-all duration-200 font-medium touch-manipulation active:scale-[0.98]"
+                        className="flex items-center justify-center space-x-2 px-4 py-3.5 text-red-600 border-2 border-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 font-medium touch-manipulation active:scale-[0.98]"
                         onClick={closeMenu}
                       >
                         <span>Sign In</span>
@@ -315,6 +291,33 @@ export default function Navigation() {
                       </Link>
                     </>
                   )}
+                </div>
+
+                {navigation.map((item) => (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`px-4 py-3.5 rounded-xl font-medium transition-all duration-200 touch-manipulation active:scale-[0.98] ${
+                      isActive(item.href)
+                        ? 'text-white bg-gradient-to-r from-swar-primary to-green-600 shadow-md'
+                        : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
+                    }`}
+                    onClick={closeMenu}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+
+                {/* Cart */}
+                <div className="pt-4 mt-2 border-t border-swar-border">
+                  <Link
+                    href="/cart"
+                    className="flex items-center space-x-3 px-4 py-3.5 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-xl transition-all duration-200 touch-manipulation active:scale-[0.98]"
+                    onClick={closeMenu}
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    <span>Cart {cartCount > 0 && `(${cartCount})`}</span>
+                  </Link>
                 </div>
               </nav>
             </div>

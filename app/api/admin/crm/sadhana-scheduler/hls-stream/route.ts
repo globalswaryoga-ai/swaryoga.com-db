@@ -12,7 +12,6 @@ import {
   stopHLSStream,
   getStreamStatus,
   listActiveStreams,
-  getStreamingInstructions,
 } from '@/lib/zoomHLSStreamService';
 
 export const dynamic = 'force-dynamic';
@@ -153,19 +152,17 @@ export async function POST(request: NextRequest) {
       }
 
       const status = getStreamStatus(meetingId);
-      if (status.status !== 'streaming' || !status.rtmpUrl) {
+      if (status.status !== 'streaming') {
         return NextResponse.json(
           { error: 'Stream not active' },
           { status: 400 }
         );
       }
 
-      const instructions = getStreamingInstructions(hlsUrl, status.rtmpUrl);
-
       return NextResponse.json(
         {
           success: true,
-          instructions,
+          status,
         },
         { status: 200 }
       );

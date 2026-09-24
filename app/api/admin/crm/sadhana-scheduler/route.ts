@@ -13,6 +13,12 @@ const sadhanaScheduleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     botName: { type: String, default: 'Swar Sadhana' }, // Name shown in Zoom meeting
+    // Up to 4 custom in-meeting chat messages, each posted after its own delay from join.
+    chatMessages: {
+      type: [{ message: { type: String, default: '' }, delayMinutes: { type: Number, default: 0 } }],
+      default: [],
+    },
+    enableAiChatReplies: { type: Boolean, default: false }, // Bot answers participant questions in chat via AI
     videoUrl: { type: String, required: true },
     videoDuration: { type: Number, default: 40 }, // Minutes (for auto-close)
     botJoinMinutes: { type: Number, default: 5 }, // How many minutes before scheduled time bot joins (5 or 3)
@@ -153,6 +159,8 @@ export async function POST(request: NextRequest) {
       slug: programSlug,
       programSlug: programSlug,
       botName: body.botName || 'Swar Sadhana',
+      chatMessages: Array.isArray(body.chatMessages) ? body.chatMessages.slice(0, 4) : [],
+      enableAiChatReplies: !!body.enableAiChatReplies,
       videoUrl: body.videoUrl,
       videoDuration: body.videoDuration || 40,
       botJoinMinutes: body.botJoinMinutes || 5,

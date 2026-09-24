@@ -723,8 +723,8 @@ export default function ProgramDetailPage() {
             </div>
 
             <div className="overflow-y-auto flex-1 p-6">
-              {Object.keys(participantsBySlot).length === 0 && unlistedParticipants.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No users joined on this date</p>
+              {Object.keys(participantsBySlot).length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No users joined during a scheduled session on this date</p>
               ) : (
                 <div className="space-y-4">
                   {program?.timeSlots.map((timeSlot) => {
@@ -745,42 +745,24 @@ export default function ProgramDetailPage() {
                           </button>
                         </div>
                         <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-700/30 rounded-lg p-3 space-y-2">
-                          {usersInSlot.map((user, idx) => {
-                            const duration = user.duration ? `${user.duration} min` : (user.joinTime ? user.joinTime : '—');
-                            return (
-                              <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
-                                <span className="w-4 h-4 rounded-full bg-purple-500 flex-shrink-0"></span>
-                                <span className="truncate font-medium">{user.name}</span>
-                                <span className="text-xs text-emerald-400 ml-auto flex-shrink-0 font-semibold">
-                                  {duration}
+                          {usersInSlot.map((user, idx) => (
+                            <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
+                              <span className="w-4 h-4 rounded-full bg-purple-500 flex-shrink-0"></span>
+                              <span className="truncate font-medium flex-1">{user.name}</span>
+                              <span className="text-xs text-gray-400 flex-shrink-0">
+                                {user.joinTime}{user.leaveTime ? ` – ${user.leaveTime}` : ''}
+                              </span>
+                              {user.duration != null && (
+                                <span className="text-xs text-emerald-400 flex-shrink-0 font-semibold">
+                                  {user.duration}m
                                 </span>
-                              </div>
-                            );
-                          })}
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
                   })}
-
-                  {unlistedParticipants.length > 0 && (
-                    <div>
-                      <div className="text-sm font-semibold text-amber-300 mb-2">🕐 Other Sessions ({unlistedParticipants.length})</div>
-                      <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 border border-amber-700/30 rounded-lg p-3 space-y-2">
-                        {unlistedParticipants.map((user, idx) => {
-                          const duration = user.duration ? `${user.duration} min` : (user.joinTime ? user.joinTime : '—');
-                          return (
-                            <div key={idx} className="text-sm text-gray-200 flex items-center gap-2">
-                              <span className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></span>
-                              <span className="truncate font-medium">{user.name}</span>
-                              <span className="text-xs text-emerald-400 ml-auto flex-shrink-0 font-semibold">
-                                {duration}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

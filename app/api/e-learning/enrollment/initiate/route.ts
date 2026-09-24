@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
     const cashfreeOrderId = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 9);
     const returnUrl = getCashfreeReturnUrl(request);
     const notifyUrl = getCashfreeWebhookUrl(request);
-    const customerId = String(userId).slice(-48);
+    // Cashfree requires customer_id to be alphanumeric + underscore/hyphen only
+    // (userId can be an email or "guest-<timestamp>" — both need sanitizing).
+    const customerId = String(userId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(-48);
 
     console.log(`📡 Creating Cashfree order: ${cashfreeOrderId} for course ${course.content?.en?.title || courseId}`);
 

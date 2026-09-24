@@ -10,8 +10,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { DailyExportService } from '@/lib/backup/daily-export';
+import { snapshotBunnySqlToStorage } from '@/lib/bunnySqlStorageSnapshot';
 import { logger } from '@/lib/backup/logger';
 
 export async function GET(req: NextRequest) {
@@ -22,10 +21,9 @@ export async function GET(req: NextRequest) {
 
   try {
     logger.info('⏰ Vercel Cron: Daily export triggered');
-    await connectDB();
-
-    const exportService = new DailyExportService(process.env.BUNNY_STORAGE_KEY!);
-    const { results, totalSizeBytes, dateStr } = await exportService.runExport();
+    // Bunny SQL is now the live application database. Snapshot it directly to
+    // Bunny Storage so Atlas availability cannot block the daily archive.
+    const { results, totalBytes: totalSizeBytes, date: dateStr } = await snapshotBunnySqlToStorage();
 
     const successCount = results.filter((r) => r.status === 'success').length;
     const errorCount = results.filter((r) => r.status === 'error').length;

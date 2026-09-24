@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { connectDB } from '@/lib/db';
-import { getEmailTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { getEmailTemplate, saveEmailTemplate, deleteEmailTemplate } from '@/lib/emailBunnyRepository';
 import { hasPermission } from '@/lib/permissions';
 import { tenantFilter } from '@/lib/crm-handlers';
 
@@ -29,8 +28,7 @@ export async function PUT(
     const body = await request.json();
     const { name, subject, body: emailBody, category, variables, attachments } = body;
 
-    await connectDB();
-    const EmailTemplate = getEmailTemplate();
+        
     const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if template exists
@@ -97,8 +95,7 @@ export async function DELETE(
       return apiError('FORBIDDEN', 'You do not have permission to manage email templates');
     }
 
-    await connectDB();
-    const EmailTemplate = getEmailTemplate();
+        const EmailTemplate = getEmailTemplate();
     const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if template exists

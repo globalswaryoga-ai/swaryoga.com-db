@@ -69,6 +69,11 @@ export async function POST(request: NextRequest) {
         planets: chart.planets.map((p) => ({
           planet: p.planet, sign: p.sign, star: p.star, subLord: p.subLord, house: p.house, degree: p.degree, retrograde: p.retrograde, combust: p.combust,
         })),
+        fortuna: {
+          sign: chart.fortuna.sign, signLord: chart.fortuna.signLord, star: chart.fortuna.star,
+          starLord: chart.fortuna.starLord, subLord: chart.fortuna.subLord, house: chart.fortuna.house, degree: chart.fortuna.degree,
+          _debugLongitude: (chart.fortuna as any).siderealLongitude,
+        },
         mahadashas,
         dashaPeriods,
       },

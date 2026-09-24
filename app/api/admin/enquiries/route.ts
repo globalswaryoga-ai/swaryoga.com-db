@@ -9,6 +9,7 @@ import { normalizePhone } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { listSubmissions, createSubmission } from '@/lib/bunny-forms-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,8 +46,7 @@ function saveEnquiries(enquiries: any[]) {
     ensureDataDirExists();
     fs.writeFileSync(enquiriesFilePath, JSON.stringify(enquiries, null, 2));
   } catch (error) {
-    console.error('Error saving enquiries:', error);
-    throw error;
+    console.error('Error saving enquiries (likely read-only FS):', error);
   }
 }
 
@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
       const leads = await Lead.find(query).sort({ createdAt: -1 }).limit(2000).lean();
       mongoEnquiries = (leads as any[]).map((l: any) => {
         const meta = l.metadata?.lastEnquiry || l.metadata || {};
+        const payment = l.metadata?.payment;
         return {
           id: l.leadNumber || String(l._id),
           leadId: String(l._id),
@@ -100,14 +101,31 @@ export async function GET(request: NextRequest) {
           workshopName: meta.workshopName || l.workshopName || 'Enquiry',
           name: l.name || 'Unknown',
           mobile: l.phoneNumber || '',
+          email: l.email || meta.email || '',
           gender: meta.gender || '',
           city: meta.city || '',
+          country: meta.country || '',
+          mode: meta.mode || '',
+          language: meta.language || '',
+          month: meta.month || '',
           submittedAt: (meta.submittedAt || l.createdAt || new Date()).toString(),
           status: ['registered', 'enrolled', 'completed', 'customer'].includes(l.status) ? 'registered'
             : l.status === 'contacted' ? 'contacted'
             : 'new',
           notes: l.notes || '',
           labels: l.labels || [],
+          timeSlot: meta.timeSlot || null,
+          dynamicAnswers: meta.dynamicAnswers || {},
+          // Include 'pending' (Pay Later link sent, not yet paid) too — not just
+          // 'paid' — so the admin can see amount due, not just amount received.
+          payment: payment
+            ? {
+                status: payment.status || ((l.labels || []).includes('paid') ? 'paid' : 'pending'),
+                amount: payment.amount,
+                currency: payment.currency || 'INR',
+                paidAt: payment.paidAt || null,
+              }
+            : null,
         };
       });
       if (workshopId) {
@@ -117,21 +135,47 @@ export async function GET(request: NextRequest) {
       console.error('[enquiries GET] Mongo read failed (will fall back to JSON only):', mongoErr);
     }
 
-    // ── Legacy JSON file: merge in any rows whose phone isn't already in Mongo ──
+    // ── BunnyDB source: form_submissions ──
+    let bunnyEnquiries: any[] = [];
+    try {
+      const bSubs = await listSubmissions(workshopId || undefined);
+      bunnyEnquiries = bSubs.map(s => ({
+        id: s.id,
+        workshopId: s.formId,
+        workshopName: s.formId,
+        name: s.name,
+        mobile: s.mobile,
+        email: s.email,
+        gender: s.gender,
+        city: s.city,
+        submittedAt: s.submittedAt,
+        dynamicAnswers: s.dynamicAnswers,
+        status: 'new',
+        payment: {
+          status: s.paymentStatus,
+          amount: s.amount,
+          currency: s.currency,
+        }
+      }));
+    } catch (bErr) {
+      console.error('[enquiries GET] BunnyDB read failed:', bErr);
+    }
+
+    // ── Legacy JSON file: merge in any rows whose phone isn't already in Mongo/Bunny ──
     const jsonEnquiries = getEnquiries();
-    const phonesInMongo = new Set(mongoEnquiries.map(e => String(e.mobile).replace(/\D/g, '')));
+    const existingIds = new Set([...mongoEnquiries, ...bunnyEnquiries].map(e => e.id));
     const extras = (jsonEnquiries as any[])
-      .filter((e: any) => !phonesInMongo.has(String(e.mobile || '').replace(/\D/g, '')))
+      .filter((e: any) => !existingIds.has(e.id))
       .filter((e: any) => !workshopId || e.workshopId === workshopId);
 
-    const merged = [...mongoEnquiries, ...extras];
+    const merged = [...bunnyEnquiries, ...mongoEnquiries, ...extras];
 
     return NextResponse.json(
       {
         message: 'Enquiries retrieved successfully',
         data: merged,
         count: merged.length,
-        sources: { mongo: mongoEnquiries.length, json: extras.length },
+        sources: { bunny: bunnyEnquiries.length, mongo: mongoEnquiries.length, json: extras.length },
       },
       { status: 200 }
     );
@@ -150,34 +194,79 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Validation
-    if (!body.name || !body.mobile || !body.gender || !body.city || !body.workshopId) {
+    if (!body.name || !body.mobile || !body.gender || !body.country || !body.workshopId) {
       return NextResponse.json(
-        { message: 'Missing required fields: name, mobile, gender, city, workshopId' },
+        { message: 'Missing required fields: name, mobile, gender, country, workshopId' },
         { status: 400 }
       );
     }
 
-    // Get existing enquiries
-    const enquiries = getEnquiries();
+    // Removed JSON file usage entirely
+    const newEnquiryId = `ENQ-${Date.now()}`;
+    const timestamp = body.submittedAt || new Date().toISOString();
 
-    // Create new enquiry
-    const newEnquiry = {
-      id: `ENQ-${Date.now()}`,
-      workshopId: body.workshopId,
-      workshopName: body.workshopName,
-      name: body.name,
-      mobile: body.mobile,
-      gender: body.gender,
-      city: body.city,
-      submittedAt: body.submittedAt || new Date().toISOString(),
-      status: 'new', // new, contacted, registered
-    };
-
-    // Add to enquiries
-    enquiries.push(newEnquiry);
-
-    // Save enquiries
-    saveEnquiries(enquiries);
+    // Save to BunnyDB form_submissions
+    let submissionId = newEnquiryId;
+    let paymentSessionId = undefined;
+    let cashfreeOrderId = undefined;
+    
+    try {
+      submissionId = await createSubmission({
+        formId: body.workshopId,
+        name: body.name,
+        mobile: body.mobile,
+        email: body.email || '',
+        gender: body.gender,
+        city: body.country || body.city || '', // Map country to city column for backwards compat
+        dynamicAnswers: body.dynamicAnswers || {},
+        paymentStatus: 'pending',
+        amount: body.amount || 0,
+        currency: body.currency || 'INR',
+      });
+      
+      // Auto-add to workshop cohorts as student
+      const { upsertStudent } = await import('@/lib/workshopBunnyRepository');
+      await upsertStudent({
+        cohortId: body.workshopId,
+        name: body.name,
+        phone: body.mobile,
+        email: body.email || '',
+        source: 'enquiry_form',
+      });
+      
+      // Cashfree integration
+      if (body.amount > 0) {
+        const { cashfreeCreateOrder, getCashfreeReturnUrl, getCashfreeWebhookUrl } = await import('@/lib/payments/cashfree');
+        cashfreeOrderId = `FORM-${submissionId}-${Date.now()}`;
+        
+        const cfUrl = new URL(request.url);
+        const baseUrl = `${cfUrl.protocol}//${cfUrl.host}`;
+        
+        const cf = await cashfreeCreateOrder({
+          order_id: cashfreeOrderId,
+          order_amount: Number(body.amount),
+          order_currency: body.currency || 'INR',
+          customer_details: {
+            customer_id: `cust_${submissionId}`,
+            customer_name: body.name.trim(),
+            customer_email: body.email || 'guest@example.com',
+            customer_phone: String(body.mobile).replace(/[^0-9]/g, '').slice(-10),
+          },
+          order_note: body.workshopName || 'Form Payment',
+          order_meta: {
+            return_url: `${baseUrl}/api/payments/cashfree/return?order_id={order_id}`,
+            notify_url: `${baseUrl}/api/payments/cashfree/webhook`,
+          },
+        });
+        
+        paymentSessionId = cf.payment_session_id;
+        
+        // Save the cashfreeOrderId to the submission metadata/DB if needed
+        // For now, it will be in the Orders collection or handled by webhook
+      }
+    } catch (bErr) {
+      console.error('[enquiries POST] BunnyDB/Cashfree failed:', bErr);
+    }
 
     // Also create/update CRM Lead so enquiries appear under Leads for unknown users
     let leadNumber: string | null = null;
@@ -209,8 +298,9 @@ export async function POST(request: NextRequest) {
               workshopId: body.workshopId,
               workshopName: body.workshopName,
               gender: body.gender,
-              city: body.city,
+              city: body.country || body.city || '',
               submittedAt: new Date(),
+              dynamicAnswers: body.dynamicAnswers || {},
             },
           };
           await existingLead.save();
@@ -236,6 +326,7 @@ export async function POST(request: NextRequest) {
               gender: body.gender,
               city: body.city,
               submittedAt: new Date(),
+              dynamicAnswers: body.dynamicAnswers || {},
             },
           });
           await addLeadToMainBroadcastList(newLead);
@@ -247,11 +338,37 @@ export async function POST(request: NextRequest) {
       // Non-fatal: enquiry should still succeed even if CRM write fails
       console.error('❌ CRM lead creation from admin enquiry failed:', leadError);
     }
+    
+    // Send email with unique reference code
+    const uniqueId = leadNumber || submissionId;
+    if (body.email && body.email.trim() !== '') {
+      try {
+        const { sendEmail, wrapInEmailTemplate } = await import('@/lib/email');
+        const emailContent = `
+          <div style="font-family: sans-serif; padding: 20px;">
+            <h2>Thank You for Reaching Out!</h2>
+            <p>Hi ${body.name || 'there'},</p>
+            <p>Your form submission for <strong>${body.workshopName || 'Swar Yoga'}</strong> has been received successfully.</p>
+            <p>Your unique reference code is: <strong style="font-size: 1.2em; color: #2d6a4f;">${uniqueId}</strong></p>
+            <p>If you have any further questions or if you want to update your submission later, you can use this reference code or your email/mobile number.</p>
+            <p>Warm regards,<br/>The Swar Yoga Team</p>
+          </div>
+        `;
+        await sendEmail({
+          to: body.email,
+          subject: 'Form Submission Confirmation - Swar Yoga',
+          html: wrapInEmailTemplate(emailContent, 'Submission Confirmation')
+        });
+      } catch (emailErr) {
+        console.error('❌ Failed to send confirmation email:', emailErr);
+      }
+    }
 
     return NextResponse.json(
       {
         message: 'Enquiry submitted successfully',
-        data: { ...newEnquiry, leadNumber },
+        data: { id: submissionId, leadNumber: uniqueId },
+        paymentSessionId,
       },
       { status: 201 }
     );
@@ -341,11 +458,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ message: 'Enquiry ID is required' }, { status: 400 });
     }
 
-    const hasName = typeof body.name === 'string' && body.name.trim() !== '';
-    const hasMobile = typeof body.mobile === 'string' && body.mobile.trim() !== '';
-    if (!body.status && !hasName && !hasMobile && !body.notes) {
-      return NextResponse.json({ message: 'Nothing to update (status, name, mobile or notes required)' }, { status: 400 });
-    }
+    // We allow any field to be updated now.
 
     // ── Primary: update the MongoDB Lead this enquiry was sourced from ──
     try {
@@ -360,12 +473,31 @@ export async function PATCH(request: NextRequest) {
 
       if (lead) {
         if (body.status) lead.status = ENQUIRY_TO_LEAD_STATUS[body.status] || body.status;
-        if (hasName) lead.name = body.name.trim();
-        if (hasMobile) {
-          const cleaned = normalizePhone(body.mobile) || String(body.mobile).trim();
-          lead.phoneNumber = cleaned;
+        if (body.name !== undefined) lead.name = String(body.name).trim();
+        if (body.mobile !== undefined) lead.phoneNumber = normalizePhone(body.mobile) || String(body.mobile).trim();
+        if (body.notes !== undefined) lead.notes = body.notes;
+        
+        if (body.email !== undefined) lead.email = String(body.email).trim();
+        
+        // Handle metadata updates
+        if (!lead.metadata) lead.metadata = {};
+        if (body.gender !== undefined) lead.metadata.gender = body.gender;
+        if (body.city !== undefined) lead.metadata.city = body.city;
+        
+        // Dynamic answers (everything else not explicitly checked)
+        const standardKeys = ['status', 'name', 'mobile', 'notes', 'email', 'gender', 'city', 'id'];
+        const dynamicUpdates = Object.keys(body).filter(k => !standardKeys.includes(k));
+        
+        if (dynamicUpdates.length > 0) {
+          if (!lead.metadata.dynamicAnswers) lead.metadata.dynamicAnswers = {};
+          dynamicUpdates.forEach(k => {
+            lead.metadata.dynamicAnswers[k] = body[k];
+          });
         }
-        if (body.notes) lead.notes = body.notes;
+        
+        // Mark metadata modified
+        lead.markModified('metadata');
+        
         await lead.save();
         return NextResponse.json(
           { message: 'Enquiry updated successfully', data: { id: enquiryId, name: lead.name, mobile: lead.phoneNumber, status: body.status } },

@@ -24,6 +24,20 @@ export interface SignificatorPlanet {
   degree?: string;
 }
 
+// Arabic Part of Fortune -- a computed chart point, not a real graha, so it's
+// shaped like a planet for display purposes but kept as its own type rather
+// than folded into SignificatorPlanet (it has no Vimshottari dasha role and
+// owns no houses).
+export interface FortunaPoint {
+  sign?: string;
+  signLord?: string;
+  star?: string;
+  starLord?: string;
+  subLord?: string;
+  house?: number;
+  degree?: string;
+}
+
 export function housesOccupiedBy(planets: SignificatorPlanet[], planetName: string | undefined): number[] {
   if (!planetName) return [];
   const planet = planets.find((p) => p.planet === planetName);

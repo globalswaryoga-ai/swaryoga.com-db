@@ -54,7 +54,7 @@ export default function DietPlanPage() {
   const [formData, setFormData] = useState<DietPlan>({
     ritu: 'grishma',
     phase: 'peak',
-    meals: MEAL_SLOTS.map(slot => ({ ...slot, foods: [], tip: '' })),
+    meals: MEAL_SLOTS.map(slot => ({ ...slot, foods: [] as any[], tip: '' })),
     herbs: [],
     lifestyleTips: [],
     avoidFoods: [],
@@ -121,7 +121,7 @@ export default function DietPlanPage() {
       setFormData({
         ritu,
         phase,
-        meals: MEAL_SLOTS.map(slot => ({ ...slot, foods: [], tip: '' })),
+        meals: MEAL_SLOTS.map(slot => ({ ...slot, foods: [] as any[], tip: '' })),
         herbs: [],
         lifestyleTips: [],
         avoidFoods: [],
@@ -155,7 +155,7 @@ export default function DietPlanPage() {
                 setFormData({
                   ritu: 'grishma',
                   phase: 'peak',
-                  meals: MEAL_SLOTS.map(slot => ({ ...slot, foods: [], tip: '' })),
+                  meals: MEAL_SLOTS.map(slot => ({ ...slot, foods: [] as any[], tip: '' })),
                   herbs: [],
                   lifestyleTips: [],
                   avoidFoods: [],

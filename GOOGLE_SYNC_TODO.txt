@@ -1,0 +1,12 @@
+Google backup and sync rollout
+
+[x] Keep CRM/MongoDB as the live source of truth for inboxes and contacts.
+[x] Keep Google Drive as an independent archive/backup, never as the live inbox database.
+[x] Provide the existing one-click Google Drive connection and manual backup.
+[ ] Add simple Google Contacts connection in QR WhatsApp Settings.
+[ ] Add simple Gmail connection in QR WhatsApp Settings.
+[ ] Sync new CRM/WhatsApp contacts to connected Google Contacts in the background.
+[ ] Import selected Google Contacts into CRM without overwriting CRM changes.
+[ ] Export contact CSV and media manifest alongside each Drive archive.
+[ ] Add daily sync status, last success time, retry, reconnect, and error reporting.
+[ ] Complete Google OAuth verification before production use of Gmail/Contacts permissions.

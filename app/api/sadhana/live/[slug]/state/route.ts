@@ -137,12 +137,16 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     const participants = db.collection('sadhana_live_participants');
     const schedules = db.collection('sadhana_schedules');
     const chatCol = db.collection('sadhana_live_chat');
+    const joinHistoryCol = db.collection('sadhana_join_history');
 
     const now = new Date();
     const activeThreshold = new Date(now.getTime() - 15 * 1000);
 
     if (sessionId) {
       await participants.updateOne({ sessionId, programSlug: params.slug }, { $set: { lastSeen: now } });
+      // Heartbeat the persistent join-history record too, so its lastSeen doubles
+      // as an effective "left at" time once polling stops (used for duration filtering).
+      await joinHistoryCol.updateOne({ sessionId, programSlug: params.slug }, { $set: { lastSeen: now } });
     }
 
     await participants.deleteMany({ programSlug: params.slug, lastSeen: { $lt: activeThreshold } });
@@ -316,7 +320,6 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       .toArray();
 
     // Get persistent join history for today
-    const joinHistoryCol = db.collection('sadhana_join_history');
     const todaysJoins = await joinHistoryCol
       .find({ programSlug: params.slug, joinedAt: { $gte: oneDayAgo } })
       .sort({ joinedAt: 1 })

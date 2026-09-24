@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { normalizePhone } from '@/lib/whatsapp';
@@ -12,6 +14,30 @@ import { applyQrStatusUpdate } from '@/lib/qrStatusUpdates';
 
 function normalizeConnectedPhone(value: string): string {
   return normalizePhone(String(value || '').split(':')[0].split('@')[0]);
+}
+
+/**
+ * Drops inline base64 media before the payload is persisted as `rawMessage`.
+ *
+ * The bridge ships each photo/video/document as base64 in the webhook body. By
+ * the time we store the message that binary has already been uploaded to Bunny
+ * and its CDN URL saved in `mediaUrl`, so keeping the base64 too stored every
+ * attachment twice — and the Mongo copy was by far the more expensive one
+ * (single messages reached 2 MB, averaging ~59 KB against ~500 bytes for text).
+ * Everything except the binary is preserved, since rawMessage is still read for
+ * fromMe/participant resolution.
+ */
+function stripInlineMedia(payload: any): any {
+  if (!payload || typeof payload !== 'object') return payload;
+  const { mediaBase64, ...rest } = payload as Record<string, any>;
+  if (rest.media && typeof rest.media === 'object') {
+    const { data, ...mediaRest } = rest.media as Record<string, any>;
+    rest.media = mediaRest;
+  }
+  if (Array.isArray(rest.messages)) {
+    rest.messages = rest.messages.map((m: any) => (m && typeof m === 'object' ? stripInlineMedia(m) : m));
+  }
+  return rest;
 }
 
 /**
@@ -54,6 +80,19 @@ export async function POST(req: NextRequest) {
     // the forensic log below so high-frequency receipts don't flood the events collection.
     if (payload?.type === 'status_update' || payload?.event === 'message_status') {
       const result = await applyQrStatusUpdate(payload, payload.bridgeUserId);
+      return apiSuccess({ ok: true, ...result });
+    }
+
+    // ── History-sync backfill (old messages after a fresh QR scan) ──
+    // The bridge tags these `type: 'history_sync'` and sends them in
+    // batches. This is old data, not a live event: it must NOT create
+    // leads/CRM WhatsAppMessage rows, trigger chatbot automations, opt-out
+    // handling, drip stop-on-reply, or CSAT capture — it only needs to
+    // backfill qr_whatsapp_messages/qr_whatsapp_chats so the inbox shows
+    // history. Handled before the forensic log so a burst of backfill
+    // batches doesn't flood the events collection.
+    if (payload?.type === 'history_sync') {
+      const result = await ingestQRHistorySync(payload);
       return apiSuccess({ ok: true, ...result });
     }
 
@@ -150,6 +189,17 @@ async function ingestQRPayload(payload: any) {
     // Validate phone number - skip if it looks invalid (e.g., timestamp, group ID)
     if (!isValidPhoneNumber(normalizedPhone)) {
       console.warn(`[QR WEBHOOK] Skipping invalid phone: ${fromPhone} -> ${normalizedPhone}`);
+      skippedInvalidPhone++;
+      continue;
+    }
+
+    // Never auto-create/attach a lead for the bridge's OWN connected number —
+    // e.g. self-messages, or a group getting misattributed to its numeric-ish
+    // id, otherwise the business's own WhatsApp number ends up as a fake lead
+    // (seen in production: the same connected number imported as 4 different
+    // "leads" under fabricated names).
+    if (connectedPhone && normalizedPhone === connectedPhone) {
+      console.warn(`[QR WEBHOOK] Skipping message where phone matches bridge's own connected number: ${normalizedPhone}`);
       skippedInvalidPhone++;
       continue;
     }
@@ -314,7 +364,7 @@ async function ingestQRPayload(payload: any) {
                 quotedId: '',
                 quotedText: '',
                 quotedParticipant: '',
-                rawMessage: payload,
+                rawMessage: stripInlineMedia(payload),
                 metadata: doc.metadata,
               },
               $setOnInsert: { createdAt: new Date() }
@@ -375,6 +425,75 @@ async function ingestQRPayload(payload: any) {
       const msgText = text || messageContent;
       const isFirstInbound = created === 1 && !m.fromMe; // rough heuristic: first message we stored
 
+      // ── OPT-OUT COMPLIANCE (runs before chatbot/automations) ──
+      // STOP/UNSUBSCRIBE adds the sender to the tenant's opt-out list and
+      // confirms; START opts back in. Either way the command message itself
+      // must not trigger chatbot flows or automation rules. An already
+      // opted-out contact is also excluded from all automated replies.
+      try {
+        const { handleQrOptOutKeyword, isOptedOut } = await import('@/lib/qrOptOut');
+        const wasOptCommand = await handleQrOptOutKeyword({
+          userId: bridgeUserId,
+          phoneNumber: normalizedPhone,
+          chatJid,
+          messageText: msgText,
+        });
+        if (wasOptCommand || (await isOptedOut(bridgeUserId, normalizedPhone))) {
+          continue;
+        }
+      } catch (optErr: any) {
+        console.warn('[QR WEBHOOK] Opt-out check failed (non-fatal):', optErr.message);
+      }
+
+      // ── DRIP STOP-ON-REPLY (runs before CSAT so a rating reply also stops journeys) ──
+      try {
+        const { getQrDripEnrollment } = await import('@/lib/schemas/enterpriseSchemas');
+        await getQrDripEnrollment().updateMany(
+          { userId: bridgeUserId, phone: normalizedPhone, status: 'active', stopOnReply: true },
+          { $set: { status: 'stopped', stoppedReason: 'replied' } }
+        );
+      } catch (dripErr: any) {
+        console.warn('[QR WEBHOOK] Drip stop-on-reply failed (non-fatal):', dripErr.message);
+      }
+
+      // ── CSAT RATING CAPTURE ──
+      // A bare 1-5 reply within 48h of a pending rating request is the
+      // customer's rating: record it, thank them, and don't let the digit
+      // trigger chatbot flows or keyword automations.
+      const csatRating = /^[1-5]$/.test(msgText.trim()) ? parseInt(msgText.trim(), 10) : null;
+      if (csatRating !== null) {
+        try {
+          const { getQrCsat } = await import('@/lib/schemas/enterpriseSchemas');
+          const QrCsat = getQrCsat();
+          const pending = await QrCsat.findOneAndUpdate(
+            {
+              userId: bridgeUserId,
+              phone: normalizedPhone,
+              rating: { $exists: false },
+              sentAt: { $gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+            },
+            { $set: { rating: csatRating, ratedAt: new Date() } },
+            { sort: { sentAt: -1 } }
+          );
+          if (pending) {
+            try {
+              const { resolveQrTenantBridge, isQrTenantConnected, sendQrTenantMessage } = await import('@/lib/qrTenantBridge');
+              const session = await resolveQrTenantBridge(bridgeUserId);
+              if (session && (await isQrTenantConnected(session))) {
+                await sendQrTenantMessage(session, {
+                  to: `${normalizedPhone}@s.whatsapp.net`,
+                  type: 'text',
+                  message: 'Thank you for your feedback! 🙏',
+                });
+              }
+            } catch { /* thank-you is best-effort */ }
+            continue; // rating captured — skip chatbot/automations for this digit
+          }
+        } catch (csatErr: any) {
+          console.warn('[QR WEBHOOK] CSAT capture failed (non-fatal):', csatErr.message);
+        }
+      }
+
       try {
         const { triggerQrChatbotFlow } = await import('@/lib/qrChatbotExecutor');
         await triggerQrChatbotFlow({
@@ -405,6 +524,134 @@ async function ingestQRPayload(payload: any) {
   }
 
   return { count: created, skippedInvalidPhone, mediaProcessed, mediaUrl: lastMediaUrl };
+}
+
+/**
+ * Bulk backfill path for `{ type: 'history_sync' }` batches from the bridge.
+ * Insert-only: never overwrites a message/chat that already exists (whether
+ * created by a live message or an earlier history-sync batch), so a
+ * historical backfill can never clobber fresher live data. Strictly scoped
+ * by bridgeUserId + connectedPhone — never a cross-tenant write.
+ */
+async function ingestQRHistorySync(payload: any) {
+  const bridgeUserId = String(payload.bridgeUserId || '').trim();
+  if (!bridgeUserId) return { count: 0, reason: 'missing_bridge_user' };
+
+  const messages = normalizeQRIncomingMessages(payload);
+  if (!messages.length) return { count: 0, reason: 'no_messages_detected' };
+
+  await connectDB();
+  const { getQrWhatsAppMessage, getQrWhatsAppChat, getCRMUserSettings } = await import('@/lib/schemas/enterpriseSchemas');
+  const QrWhatsAppMessage = getQrWhatsAppMessage();
+  const QrWhatsAppChat = getQrWhatsAppChat();
+  const CRMUserSettings = getCRMUserSettings();
+
+  const bridgeSettings = await CRMUserSettings.findOne({ userId: bridgeUserId }, { qrConnectedPhoneNumber: 1 }).lean();
+  const connectedPhone = normalizeConnectedPhone(
+    payload.connectedPhone || (bridgeSettings as any)?.qrConnectedPhoneNumber || ''
+  );
+  if (!connectedPhone) return { count: 0, reason: 'missing_connected_phone' };
+
+  const msgOps: any[] = [];
+  const chatCandidates = new Map<
+    string,
+    { chatJid: string; isGroup: boolean; name: string; lastMessage: string; lastMessageTime: Date; conversationTimestamp: number; fromMe: boolean }
+  >();
+
+  for (const m of messages) {
+    if (!m.messageId) continue;
+    const sourceJid = m.chatJid || (m.fromMe ? (m.to || m.from) : m.from);
+    const chatJid = normalizeQRChatJid(String(sourceJid || ''));
+    if (!chatJid) continue;
+
+    const text = (m.text || '').trim();
+    const hasMedia = !!(m.hasMedia && m.media);
+    const messageContent = text || (hasMedia ? `[${m.media?.kind || 'media'} message]` : '');
+    if (!messageContent) continue;
+
+    const timestampMs = m.timestamp instanceof Date ? m.timestamp.getTime() : Date.now();
+    const timestampSeconds = Math.floor(timestampMs / 1000);
+
+    msgOps.push({
+      updateOne: {
+        filter: { messageId: m.messageId, userId: bridgeUserId, connectedPhone },
+        update: {
+          $setOnInsert: {
+            userId: bridgeUserId,
+            connectedPhone,
+            chatJid,
+            direction: m.fromMe ? 'outbound' : 'inbound',
+            fromMe: !!m.fromMe,
+            text: messageContent,
+            type: m.media?.kind || m.type || 'text',
+            participant: m.participant || '',
+            pushName: m.pushName || '',
+            timestamp: timestampSeconds,
+            status: m.fromMe ? QR_MESSAGE_STATUS.SENT : QR_MESSAGE_STATUS.PENDING,
+            hasMedia,
+            mediaUrl: '',
+            mediaMimetype: '',
+            mediaFileName: '',
+            quotedId: '',
+            quotedText: '',
+            quotedParticipant: '',
+            createdAt: new Date(),
+          },
+        },
+      },
+      upsert: true,
+    });
+
+    const existing = chatCandidates.get(chatJid);
+    if (!existing || timestampSeconds > existing.conversationTimestamp) {
+      chatCandidates.set(chatJid, {
+        chatJid,
+        isGroup: chatJid.endsWith('@g.us'),
+        name: m.pushName || chatJid.split('@')[0],
+        lastMessage: messageContent,
+        lastMessageTime: new Date(timestampMs),
+        conversationTimestamp: timestampSeconds,
+        fromMe: !!m.fromMe,
+      });
+    }
+  }
+
+  if (msgOps.length) {
+    await QrWhatsAppMessage.bulkWrite(msgOps, { ordered: false });
+  }
+
+  // Chat docs: $setOnInsert only — if the chat already exists (e.g. a live
+  // message already created it), leave its preview fields untouched rather
+  // than risk overwriting newer data with this (by definition, older) backfill.
+  const chatOps = Array.from(chatCandidates.values()).map((c) => ({
+    updateOne: {
+      filter: { userId: bridgeUserId, connectedPhone, chatJid: c.chatJid },
+      update: {
+        $setOnInsert: {
+          userId: bridgeUserId,
+          connectedPhone,
+          chatJid: c.chatJid,
+          isGroup: c.isGroup,
+          name: c.name,
+          lastMessage: c.lastMessage,
+          lastMessageTime: c.lastMessageTime,
+          lastMessageFromMe: c.fromMe,
+          conversationTimestamp: c.conversationTimestamp,
+          pinned: false,
+          archived: false,
+          profilePicUrl: '',
+          unreadCount: 0,
+          createdAt: new Date(),
+        },
+      },
+      upsert: true,
+    },
+  }));
+  if (chatOps.length) {
+    await QrWhatsAppChat.bulkWrite(chatOps, { ordered: false });
+  }
+
+  return { count: msgOps.length, chats: chatOps.length, historySync: true };
 }
 
 async function logQREvent(event: {

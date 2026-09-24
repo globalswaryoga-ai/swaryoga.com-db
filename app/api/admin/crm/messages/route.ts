@@ -1,156 +1,127 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import {
   verifyAdminAccess,
   parsePagination,
-  buildFilter,
   handleCrmError,
   formatCrmSuccess,
   buildMetadata,
   isValidObjectId,
-  toObjectId,
   normalizePhone,
+  isSuperAdmin,
 } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';
-import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
 import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
+import { 
+  listBunnyMetaMessages, 
+  countBunnyMetaMessages, 
+  upsertBunnyMetaMessage, 
+  updateBunnyMetaMessage, 
+  updateBunnyMetaMessagesMany, 
+  deleteBunnyMetaMessage,
+  getBunnyMetaMessage
+} from '@/lib/bunnyMetaWhatsAppRepository';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import crypto from 'node:crypto';
 
-/**
- * WhatsApp message management - REFACTORED
- * GET: Fetch messages with filtering
- * POST: Send a message
- * PUT: Update message (retry, mark as read)
- * DELETE: Delete message
- */
-
-// Mark this route as dynamic (uses request.url for filtering)
-
+// Re-implement the GET endpoint using BunnyDB
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
-
     const viewerUserId = verifyAdminAccess(request);
-    const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    const superAdmin = isSuperAdmin(decoded);
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
     const orderParam = url.searchParams.get('order');
     const sortDir = orderParam === 'asc' ? 1 : -1;
 
-    // Build filter from query parameters
     const filterParams = {
       leadId: url.searchParams.get('leadId') || undefined,
       phoneNumber: url.searchParams.get('phoneNumber') || undefined,
       status: url.searchParams.get('status') || undefined,
       direction: url.searchParams.get('direction') || undefined,
     };
-    const filter: any = buildFilter(filterParams);
 
     const providerParam = url.searchParams.get('provider');
 
-    // Strict separation: generic CRM messages API is for Meta inbox only.
-    // QR WhatsApp now uses dedicated QR session collections/endpoints and should
-    // never read from the generic Meta message API.
     if (providerParam === 'qr') {
-      return formatCrmSuccess({ messages: [], total: 0, note: 'Use dedicated QR WhatsApp APIs for QR messages.' }, buildMetadata(0, limit, skip));
+      return formatCrmSuccess({ messages: [], total: 0, note: 'Use dedicated QR APIs' }, buildMetadata(0, limit, skip));
     }
 
-    // Provider filtering — STRICT SEPARATION:
-    // - Default (no param) & provider=meta: Meta Cloud API messages ONLY
-    // - provider=qr: QR bridge messages ONLY (no overlap with Meta)
-    // - provider=all: everything (admin analytics/reports)
-    //
-    // The Meta channel is a single shared WABA owned by META_WHATSAPP_OWNER_IDS
-    // (super admin). Tenants who don't own it have no Meta messages of their own.
-    if (providerParam === 'all') {
-      if (!superAdmin) {
-        filter.provider = { $ne: 'meta' };
-      }
-    } else {
-      if (!superAdmin) {
+    const beforeParam = url.searchParams.get('before');
+
+    // Fetch messages from BunnyDB
+    const rawPhone = filterParams.phoneNumber || (filterParams.leadId && /^\d{10,}$/.test(filterParams.leadId) ? filterParams.leadId : undefined);
+    const targetPhone = rawPhone ? normalizePhone(rawPhone) : undefined;
+    const targetLeadId = targetPhone ? undefined : filterParams.leadId;
+
+    let bunnyMessages = await listBunnyMetaMessages({
+      phoneNumber: targetPhone,
+      leadId: targetLeadId,
+      limit: limit * 2, // Fetch more to allow for filtering
+      skip: 0,
+      before: beforeParam || undefined,
+    });
+
+    let bunnyTotal = await countBunnyMetaMessages({ 
+      phoneNumber: targetPhone, 
+      leadId: targetLeadId 
+    });
+
+    if (!superAdmin) {
+      // Need to filter by accessible leads and ownership
+      const allLeads = await loadBunnyLeads();
+      const accessibleLeads = allLeads.filter(l => l.assignedToUserId === viewerUserId || l.createdByUserId === viewerUserId);
+      const accessibleIds = accessibleLeads.map(l => String(l._id));
+
+      if (filterParams.leadId && !accessibleIds.includes(String(filterParams.leadId))) {
         return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
       }
-      // Default & 'meta': strictly Meta Cloud API messages only
-      filter.provider = 'meta';
+
+      // Filter messages in memory for now if not superAdmin
+      bunnyMessages = bunnyMessages.filter((m: any) => 
+        (m.leadId && accessibleIds.includes(String(m.leadId))) ||
+        m.sentByUserId === viewerUserId ||
+        m.bridgeUserId === viewerUserId ||
+        m.ownerId === viewerUserId
+      );
+      bunnyTotal = bunnyMessages.length; // Approximate
     }
 
-    // Add date range filter — match on sentAt OR createdAt (inbound messages may not have sentAt)
+    // Apply additional filters (status, direction)
+    if (filterParams.status) {
+      bunnyMessages = bunnyMessages.filter((m: any) => m.status === filterParams.status);
+    }
+    if (filterParams.direction) {
+      bunnyMessages = bunnyMessages.filter((m: any) => m.direction === filterParams.direction);
+    }
+    
+    // Date filters
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
-    if (startDate || endDate) {
-      const dateRange: any = {};
-      if (startDate) dateRange.$gte = new Date(startDate);
-      if (endDate) {
+    if (startDate) {
+        bunnyMessages = bunnyMessages.filter((m: any) => new Date(m.sentAt || m.createdAt) >= new Date(startDate));
+    }
+    if (endDate) {
         const end = new Date(endDate);
-        end.setDate(end.getDate() + 1); // include full end day
-        dateRange.$lt = end;
-      }
-      // Use $and so this doesn't conflict with any existing $or on filter
-      if (!filter.$and) filter.$and = [];
-      filter.$and.push({
-        $or: [
-          { sentAt: dateRange },
-          { sentAt: { $exists: false }, createdAt: dateRange },
-        ],
-      });
+        end.setDate(end.getDate() + 1);
+        bunnyMessages = bunnyMessages.filter((m: any) => new Date(m.sentAt || m.createdAt) < end);
     }
 
-    // Access control:
-    // - Super admin (admincrm/admin) can see all messages.
-    // - Other admins can see messages:
-    //   a) For leads assigned to or created by them (Meta messages), OR
-    //   b) Sent/received via their QR WhatsApp session (sentByUserId / bridgeUserId / ownerId)
-    if (!superAdmin) {
-      if (filter.leadId) {
-        // Specific lead requested — check access
-        const accessibleLeads = await Lead.find({
-          $or: [
-            { assignedToUserId: viewerUserId },
-            { createdByUserId: viewerUserId }
-          ]
-        }).select('_id').lean();
-        const accessibleIds = accessibleLeads.map(l => String(l._id));
-        if (!accessibleIds.includes(String(filter.leadId))) {
-          return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
-        }
-      } else {
-        // No specific lead — allow messages where:
-        // 1. Lead assigned to this user, OR
-        // 2. Message sent by this user (QR outbound), OR
-        // 3. Message received on this user's QR session (inbound via bridgeUserId)
-        const accessibleLeads = await Lead.find({
-          $or: [
-            { assignedToUserId: viewerUserId },
-            { createdByUserId: viewerUserId }
-          ]
-        }).select('_id').lean();
-        const accessibleIds = accessibleLeads.map(l => String(l._id));
+    // Apply sorting and pagination
+    bunnyMessages.sort((a: any, b: any) => {
+        const at = new Date(a.sentAt || a.createdAt).getTime();
+        const bt = new Date(b.sentAt || b.createdAt).getTime();
+        return sortDir === 1 ? at - bt : bt - at;
+    });
 
-        filter.$or = [
-          { leadId: { $in: accessibleIds } },
-          { sentByUserId: viewerUserId },      // QR outbound messages sent by this admin
-          { bridgeUserId: viewerUserId },      // QR inbound messages on this user's session
-          { ownerId: viewerUserId },           // QR messages tagged with ownerId
-        ];
-      }
-    }
+    const paginatedMessages = bunnyMessages.slice(skip, skip + limit);
 
-    const messages = await WhatsAppMessage.find(filter)
-      .sort({ sentAt: sortDir, createdAt: sortDir }) // createdAt fallback for messages without sentAt
-      .skip(skip)
-      .limit(limit)
-      .populate('leadId', 'name phoneNumber assignedToUserId')
-      .lean();
-
-    const total = await WhatsAppMessage.countDocuments(filter);
-    const meta = buildMetadata(total, limit, skip);
-
-    return formatCrmSuccess({ messages, total }, meta);
+    return formatCrmSuccess({ messages: paginatedMessages, total: bunnyTotal }, buildMetadata(bunnyTotal, limit, skip));
   } catch (error) {
     return handleCrmError(error, 'GET messages');
   }
@@ -158,142 +129,101 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-    
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
     const userId = verifyAdminAccess(request);
-    const superAdmin = userId === 'admincrm' || userId === 'admin';
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    const superAdmin = isSuperAdmin(decoded);
     const body = await request.json().catch(() => null);
 
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
-    // Handle special actions (e.g., markThreadAsRead)
     if (body.action === 'markThreadAsRead') {
-      // This is just a QR chat action, minimal validation
-      const { phoneNumber } = body;
-      if (phoneNumber) {
-        // Mark all messages for this phone as read
-        const normalizedPhone = normalizePhone(String(phoneNumber));
-        if (normalizedPhone) {
-          await WhatsAppMessage.updateMany(
-            { phoneNumber: normalizedPhone, status: { $ne: 'read' } },
-            { $set: { status: 'read', readAt: new Date() } }
-          ).catch(() => {}); // Silently fail
-        }
-      }
-      return NextResponse.json({ success: true, action: 'markThreadAsRead' }, { status: 200 });
+      const { phoneNumber, leadId } = body;
+      if (!leadId && !phoneNumber) return NextResponse.json({ error: 'Missing leadId/phoneNumber' }, { status: 400 });
+      const normalizedPhone = phoneNumber ? (normalizePhone(String(phoneNumber)) || String(phoneNumber)) : undefined;
+      const result = await updateBunnyMetaMessagesMany(
+        { phoneNumber: normalizedPhone || (phoneNumber ? String(phoneNumber) : undefined), leadId: leadId ? String(leadId) : undefined, direction: 'inbound', statusNot: 'read' },
+        { isRead: true, status: 'read', readAt: new Date().toISOString() }
+      );
+      return NextResponse.json({ success: true, action: 'markThreadAsRead', ...result }, { status: 200 });
     }
 
     const { leadId, phoneNumber, messageContent, messageType, mediaUrl, mediaType: providedMediaType } = body;
 
-    // Validate required fields
     if (!leadId || !phoneNumber || (!messageContent && !mediaUrl)) {
-      return NextResponse.json(
-        { error: 'Missing required fields: leadId, phoneNumber, messageContent/mediaUrl' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Validate leadId format
-    if (!isValidObjectId(String(leadId))) {
-      return NextResponse.json({ error: 'Invalid leadId format' }, { status: 400 });
-    }
+    const allLeads = await loadBunnyLeads();
+    const lead = allLeads.find(l => String(l._id) === String(leadId));
+    
+    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    // Find lead
-    const lead = await Lead.findById(leadId);
-    if (!lead) {
-      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    }
-
-    // ACCESS CONTROL: Check if admin is assigned to or created this lead (user compartment)
     if (!superAdmin) {
       const assignedTo = String(lead.assignedToUserId || '').trim();
       const createdBy = String(lead.createdByUserId || '').trim();
       if (assignedTo && assignedTo !== userId && createdBy !== userId) {
-        return NextResponse.json(
-          { error: 'Forbidden: You can only message leads assigned to you or created by you' },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
 
-    // Normalize phone
     const normalizedPhone = normalizePhone(String(phoneNumber));
-    if (!normalizedPhone) {
-      return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
-    }
+    if (!normalizedPhone) return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
 
-    // Create message in database (with admin display name in bold below message)
     const now = new Date();
-    const decoded = verifyToken(request.headers.get('authorization')?.slice('Bearer '.length));
+    // use existing decoded from POST scope
     const adminDisplayName = decoded?.name || decoded?.username || userId;
     const adminNameTag = `\n\n*${adminDisplayName}*`;
     const messageWithAdmin = messageContent ? String(messageContent).trim() + adminNameTag : '';
     
+    const messageId = crypto.randomUUID();
+
     const insertData: any = {
+      _id: messageId,
+      documentId: messageId,
       leadId: leadId,
       phoneNumber: normalizedPhone,
       messageContent: messageWithAdmin,
       direction: 'outbound',
       messageType: mediaUrl ? 'media' : (messageType || 'text'),
-      status: 'queued', // Start as queued
-      sentAt: now,
+      status: 'queued',
+      sentAt: now.toISOString(),
+      createdAt: now.toISOString(),
       sentByLabel: userId,
       sentByUserId: userId,
       provider: 'meta',
     };
 
     if (mediaUrl) {
-      insertData.media = {
-        kind: providedMediaType || 'image',
-        url: mediaUrl
-      };
+      insertData.media = { kind: providedMediaType || 'image', url: mediaUrl };
     }
 
-    const newMessage = await WhatsAppMessage.create(insertData);
+    const newMessage = await upsertBunnyMetaMessage(insertData);
 
-    // Actually send the message via Meta Cloud API / Bridge
     try {
       let apiResult;
       if (mediaUrl) {
-         apiResult = await sendWhatsAppMedia(
-           normalizedPhone, 
-           mediaUrl, 
-           (providedMediaType as any) || 'image', 
-           messageWithAdmin
-         );
+         apiResult = await sendWhatsAppMedia(normalizedPhone, mediaUrl, (providedMediaType as any) || 'image', messageWithAdmin);
       } else {
          apiResult = await sendWhatsAppText(normalizedPhone, messageWithAdmin);
       }
 
-      await WhatsAppMessage.updateOne(
-        { _id: newMessage._id },
-        { 
-          $set: { 
-            status: 'sent', 
-            waMessageId: apiResult.waMessageId,
-            provider: apiResult.raw?.provider || 'meta',
-            updatedAt: new Date()
-          } 
-        }
-      );
+      await updateBunnyMetaMessage(messageId, {
+        status: 'sent',
+        waMessageId: apiResult.waMessageId,
+        provider: apiResult.raw?.provider || 'meta',
+      });
+      newMessage.status = 'sent';
+      newMessage.waMessageId = apiResult.waMessageId;
     } catch (sendErr) {
       console.error('[Messages API] Meta send failed:', sendErr);
-      await WhatsAppMessage.updateOne(
-        { _id: newMessage._id },
-        { $set: { status: 'failed', failureReason: sendErr instanceof Error ? sendErr.message : 'Send failed' } }
-      );
+      await updateBunnyMetaMessage(messageId, {
+        status: 'failed',
+        failureReason: sendErr instanceof Error ? sendErr.message : 'Send failed'
+      });
+      newMessage.status = 'failed';
     }
 
-    // Update lead's lastMessageAt
-    await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: now } });
-
-    console.log(`[Messages API] Message processed: ${newMessage._id} status updated to sent/failed`);
-
-    // Return success
     return formatCrmSuccess(newMessage);
   } catch (error) {
     return handleCrmError(error, 'POST message');
@@ -302,189 +232,60 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
-
     const userId = verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
     const { messageId, leadId, phoneNumber, action, ...updates } = body;
-
-    // Backward-compatible action aliases used by older UI code.
-    const normalizedAction =
-      action === 'mark-read'
-        ? 'markAsRead'
-        : action === 'mark-unread'
-          ? 'markAsUnread'
-
-          : action;
+    const normalizedAction = action === 'mark-read' ? 'markAsRead' : action === 'mark-unread' ? 'markAsUnread' : action;
 
     if (normalizedAction === 'markThreadAsRead') {
-      const markFilter: any = {
-        direction: 'inbound',
-        isRead: { $ne: true },
-      };
-
-      if (leadId && isValidObjectId(String(leadId))) {
-        markFilter.leadId = toObjectId(String(leadId));
-      } else if (phoneNumber) {
-        markFilter.phoneNumber = phoneNumber;
-      } else {
-        return NextResponse.json({ error: 'Missing: leadId or phoneNumber' }, { status: 400 });
-      }
-
-      const res = await WhatsAppMessage.updateMany(
-        markFilter,
-        { $set: { isRead: true, status: 'read', readAt: new Date(), updatedAt: new Date() } }
+      if (!leadId && !phoneNumber) return NextResponse.json({ error: 'Missing leadId/phoneNumber' }, { status: 400 });
+      const normalizedPhone = phoneNumber ? (normalizePhone(String(phoneNumber)) || String(phoneNumber)) : undefined;
+      const result = await updateBunnyMetaMessagesMany(
+        { phoneNumber: normalizedPhone || (phoneNumber ? String(phoneNumber) : undefined), leadId: leadId ? String(leadId) : undefined, direction: 'inbound', statusNot: 'read' },
+        { isRead: true, status: 'read', readAt: new Date().toISOString() }
       );
-
-      return formatCrmSuccess({ modifiedCount: res.modifiedCount });
+      return formatCrmSuccess(result);
     }
 
-    if (!messageId) {
-      return NextResponse.json({ error: 'Missing: messageId' }, { status: 400 });
-    }
-
-    if (!isValidObjectId(String(messageId))) {
-      return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
-    }
+    if (!messageId) return NextResponse.json({ error: 'Missing: messageId' }, { status: 400 });
 
     if (normalizedAction === 'markAsRead') {
-      const message = await WhatsAppMessage.findByIdAndUpdate(
-        messageId,
-        { $set: { isRead: true, status: 'read', readAt: new Date(), updatedAt: new Date() } },
-        { new: true }
-      );
-      if (!message) {
-        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-      }
+      const message = await updateBunnyMetaMessage(messageId, { isRead: true, status: 'read', readAt: new Date().toISOString() });
+      if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       return formatCrmSuccess(message);
     } else if (normalizedAction === 'markAsUnread') {
-      const message = await WhatsAppMessage.findByIdAndUpdate(
-        messageId,
-        {
-          $set: { isRead: false, status: 'delivered', updatedAt: new Date() },
-          $unset: { readAt: 1 },
-        },
-        { new: true }
-      );
-      if (!message) {
-        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-      }
+      const message = await updateBunnyMetaMessage(messageId, { isRead: false, status: 'delivered', readAt: null });
+      if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       return formatCrmSuccess(message);
     } else if (normalizedAction === 'archive' || normalizedAction === 'unarchive') {
-      const archived = normalizedAction === 'archive';
-      const message = await WhatsAppMessage.findByIdAndUpdate(
-        messageId,
-        { $set: { 'metadata.archived': archived } },
-        { new: true }
-      );
-      if (!message) {
-        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-      }
+      const message = await updateBunnyMetaMessage(messageId, { 'metadata.archived': normalizedAction === 'archive' });
+      if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       return formatCrmSuccess(message);
     } else if (normalizedAction === 'retry') {
-      const message = await WhatsAppMessage.findById(messageId);
+      const message = await getBunnyMetaMessage(messageId);
       if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-
-      if (String(message.messageType || 'text') !== 'text') {
-        return NextResponse.json({ error: 'Retry currently supported only for text messages' }, { status: 400 });
-      }
-
-      if (!message.messageContent) {
-        return NextResponse.json({ error: 'Message content missing' }, { status: 400 });
-      }
-
-      const maxRetries = typeof message.maxRetries === 'number' ? message.maxRetries : 3;
-      const retryCount = typeof message.retryCount === 'number' ? message.retryCount : 0;
-      if (retryCount >= maxRetries) {
-        return NextResponse.json({ error: 'Max retries exceeded' }, { status: 400 });
-      }
+      if (String(message.messageType || 'text') !== 'text') return NextResponse.json({ error: 'Retry text only' }, { status: 400 });
 
       const to = normalizePhone(String(message.phoneNumber));
       const compliance = await ConsentManager.validateCompliance(to);
       if (!compliance.compliant) {
-        await WhatsAppMessage.updateOne(
-          { _id: message._id },
-          {
-            $set: {
-              status: 'failed',
-              failureReason: compliance.reason || 'User has opted out or is blocked',
-              updatedAt: new Date(),
-            },
-            $inc: { retryCount: 1 },
-          }
-        );
-        return NextResponse.json(
-          { error: compliance.reason || 'User has opted out or is blocked' },
-          { status: 403 }
-        );
+        await updateBunnyMetaMessage(messageId, { status: 'failed', failureReason: compliance.reason, retryCount: (message.retryCount || 0) + 1 });
+        return NextResponse.json({ error: compliance.reason }, { status: 403 });
       }
 
       try {
         const apiResult = await sendWhatsAppText(to, String(message.messageContent).trim());
-        const updated = await WhatsAppMessage.findByIdAndUpdate(
-          messageId,
-          {
-            $set: {
-              status: 'sent',
-              waMessageId: apiResult.waMessageId,
-              updatedAt: new Date(),
-            },
-            $unset: {
-              failureReason: 1,
-              nextRetryAt: 1,
-            },
-            $inc: { retryCount: 1 },
-          },
-          { new: true }
-        );
-
-        if (updated && isValidObjectId(String(userId))) {
-          await AuditLogger.log({
-            userId: String(userId),
-            actionType: 'message_send',
-            resourceType: 'whatsapp_message',
-            resourceId: String(updated._id),
-            description: `Retried WhatsApp message to ${to}`,
-            metadata: { to, waMessageId: apiResult.waMessageId },
-          });
-        }
-
+        const updated = await updateBunnyMetaMessage(messageId, { status: 'sent', waMessageId: apiResult.waMessageId, retryCount: (message.retryCount || 0) + 1, failureReason: null });
         return formatCrmSuccess(updated || message);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
-        const updated = await WhatsAppMessage.findByIdAndUpdate(
-          messageId,
-          {
-            $set: {
-              status: 'failed',
-              failureReason: String(msg),
-              nextRetryAt: new Date(),
-              updatedAt: new Date(),
-            },
-            $inc: { retryCount: 1 },
-          },
-          { new: true }
-        );
-
-        const status = typeof (err as any)?.status === 'number' ? (err as any).status : 502;
-        return NextResponse.json({ error: msg, data: updated }, { status });
+        const updated = await updateBunnyMetaMessage(messageId, { status: 'failed', failureReason: String(err), retryCount: (message.retryCount || 0) + 1 });
+        return NextResponse.json({ error: String(err), data: updated }, { status: 502 });
       }
     } else {
-      // Generic update
-      const message = await WhatsAppMessage.findByIdAndUpdate(
-        messageId,
-        { $set: updates },
-        { new: true }
-      );
-      if (!message) {
-        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-      }
+      const message = await updateBunnyMetaMessage(messageId, updates);
+      if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       return formatCrmSuccess(message);
     }
   } catch (error) {
@@ -494,27 +295,13 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await connectDB();
-    const WhatsAppMessage = getWhatsAppMessage();
-
     verifyAdminAccess(request);
     const url = new URL(request.url);
     const messageId = url.searchParams.get('messageId');
 
-    if (!messageId) {
-      return NextResponse.json({ error: 'messageId parameter required' }, { status: 400 });
-    }
+    if (!messageId) return NextResponse.json({ error: 'messageId required' }, { status: 400 });
 
-    if (!isValidObjectId(messageId)) {
-      return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
-    }
-
-    const result = await WhatsAppMessage.findByIdAndDelete(messageId);
-
-    if (!result) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-    }
-
+    await deleteBunnyMetaMessage(messageId);
     return formatCrmSuccess({ deleted: true });
   } catch (error) {
     return handleCrmError(error, 'DELETE message');

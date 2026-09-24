@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order, EnquiryForm } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import { cashfreeGetOrder } from '@/lib/payments/cashfree';
 import { sendTextViaQrBridge } from '@/lib/qrBridgeSend';
 
@@ -62,9 +62,20 @@ export async function GET(
       if (form && phone) {
         const currency = (form.currency || 'INR').toUpperCase();
         const symbol = CURRENCY_SYMBOL[currency] || '';
-        if (form.groupLink) {
+        // Use the slot resolved+stored at checkout (pay/route.ts) — each time
+        // slot has its own group — falling back to the legacy single group
+        // link for forms with no time slots.
+        const slot = (order as any).workshopTimeSlot;
+        const effectiveGroupLink = slot?.groupLink || form.groupLink;
+        // The amount actually charged — order.total, not form.price (the legacy
+        // single-price field), since forms with multiple fee tiers (e.g. "New
+        // Participant Fees" ₹2999 vs "Repeater Fees" ₹600) resolve the real
+        // price onto the order at checkout, and form.price doesn't reflect it.
+        const paidAmount = Number((order as any).total) || 0;
+        if (effectiveGroupLink) {
+          const slotSuffix = slot?.label ? ` (${slot.label})` : '';
           const msg =
-            `Payment received, ${firstName}! ✅\n\nThank you for joining *${form.workshopName}* (${symbol}${form.price}).\n\nJoin the workshop WhatsApp group here:\n${form.groupLink}\n\n— Swar Yoga 🙏`;
+            `Payment received, ${firstName}! ✅\n\nThank you for joining *${form.workshopName}*${slotSuffix} (${symbol}${paidAmount}).\n\nJoin the workshop WhatsApp group here:\n${effectiveGroupLink}\n\n— Swar Yoga 🙏`;
           await sendTextViaQrBridge(phone, msg);
         }
 
@@ -78,7 +89,7 @@ export async function GET(
               payment: {
                 ...((lead.metadata as any)?.payment || {}),
                 status: 'paid',
-                amount: form.price,
+                amount: paidAmount,
                 currency,
                 workshopName: form.workshopName,
                 formId: params.formId,
@@ -86,7 +97,37 @@ export async function GET(
               },
             };
             lead.labels = Array.from(new Set([...(lead.labels || []).filter((l: string) => l !== 'payment-pending'), 'paid']));
+            lead.status = 'customer';
             await lead.save();
+
+            // Auto-add to Sales — this is the only place a payment-link payment
+            // gets recorded, since the CRM's Sales page reads a separate
+            // sales_reports collection and nothing else creates a row here for
+            // this flow (unlike a manual admin conversion, which does).
+            try {
+              const SalesReport = getSalesReport();
+              const existingSale = await SalesReport.findOne({ transactionId: cashfreeOrderId });
+              if (!existingSale) {
+                await SalesReport.create({
+                  leadId: lead._id,
+                  customerId: lead.leadNumber || lead._id.toString(),
+                  customerName: lead.name || firstName,
+                  customerPhone: phone,
+                  customerEmail: lead.email || '',
+                  workshopName: form.workshopName,
+                  reportedByUserId: 'system',
+                  saleAmount: paidAmount,
+                  paidAmount: paidAmount,
+                  dueAmount: 0,
+                  paymentType: 'full',
+                  paymentMode: 'cashfree',
+                  transactionId: cashfreeOrderId,
+                  currency,
+                  status: 'completed',
+                  saleDate: new Date(),
+                });
+              }
+            } catch (e) { console.error('[pay-return] sale record creation failed:', e); }
           }
         } catch (e) { console.error('[pay-return] lead update failed:', e); }
       }
@@ -94,7 +135,11 @@ export async function GET(
       console.error('[pay-return] post-payment delivery failed:', e);
     }
 
-    return back(`paid=${encodeURIComponent(cashfreeOrderId)}`);
+    // Carry the chosen time slot back in the redirect URL so the client can
+    // restore it on mount (the page fully reloads after the Cashfree round trip).
+    const returnedSlotIndex = (order as any).workshopTimeSlot?.index;
+    const slotParam = Number.isInteger(returnedSlotIndex) ? `&slot=${returnedSlotIndex}` : '';
+    return back(`paid=${encodeURIComponent(cashfreeOrderId)}${slotParam}`);
   } catch (err) {
     console.error('[workshop-join/pay-return] error:', err);
     return back('payfailed=1');

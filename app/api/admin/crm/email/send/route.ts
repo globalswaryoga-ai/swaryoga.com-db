@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
+
 import { verifyToken } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getEmailCampaign, getEmailLog } from '@/lib/schemas/enterpriseSchemas';
+import { saveEmailCampaign, saveEmailLog, saveEmailLogsBulk } from '@/lib/emailBunnyRepository';
 import { sendBulkEmails, sendEmailToLead } from '@/lib/email';
 import type { EmailRecipient, EmailAttachment } from '@/lib/email';
 import { getViewerUserId } from '@/lib/crm-handlers';
@@ -63,9 +63,7 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Email body is required');
     }
 
-    await connectDB();
-    const EmailCampaign = getEmailCampaign();
-    const EmailLog = getEmailLog();
+
 
     // Single-email mode (from leads-followup page)
     if (source === 'followup' && validRecipients.length === 1) {
@@ -81,20 +79,16 @@ export async function POST(request: NextRequest) {
       const result = await sendEmailToLead(recipient, subject, emailBody, { attachments: emailAttachments });
 
       // Log the email
-      await EmailLog.create({
+      await saveEmailLog({
         leadId: recipient.leadId,
         recipientEmail: recipient.email,
-        recipientName: recipient.name,
         subject,
         body: emailBody,
         attachments: emailAttachments,
         status: result.status === 'sent' ? 'sent' : 'failed',
-        resendId: result.resendId,
         error: result.error,
         sentAt: result.sentAt,
-        sentBy: decoded.userId || 'unknown',
-        createdByUserId: getViewerUserId(decoded),
-        source: 'followup',
+        sentBy: decoded.userId || 'unknown'
       });
 
       if (result.status === 'failed') {
@@ -108,35 +102,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Bulk email mode — create campaign record
-    const campaign = new EmailCampaign({
+    let campaign = await saveEmailCampaign({
       name: subject,
       subject,
       body: emailBody,
-      templateId: templateId || undefined,
+      templateId: templateId || null,
       recipients: validRecipients.map((r: any) => r.email),
       attachments: emailAttachments,
       status: scheduleMode === 'later' ? 'scheduled' : 'draft',
-      scheduledAt: scheduledAt || undefined,
-      stats: {
-        total: validRecipients.length,
-        sent: 0,
-        delivered: 0,
-        opened: 0,
-        clicked: 0,
-        bounced: 0,
-        failed: 0,
-      },
-      createdBy: decoded.userId || 'unknown',
-      createdByUserId: getViewerUserId(decoded),
-      createdAt: new Date(),
+      scheduledAt: scheduledAt || null,
+      sentCount: 0,
+      failedCount: 0,
+      createdBy: decoded.userId || 'unknown'
     });
-
-    await campaign.save();
 
     // If sending now, send emails via Resend API
     if (scheduleMode === 'now') {
-      campaign.status = 'sending';
-      await campaign.save();
+      campaign = await saveEmailCampaign({ ...campaign, status: 'sending' });
 
       try {
         const emailRecipients: EmailRecipient[] = validRecipients.map((r: any) => ({
@@ -153,35 +135,25 @@ export async function POST(request: NextRequest) {
           campaignId: campaign._id,
           leadId: result.recipient.leadId,
           recipientEmail: result.recipient.email,
-          recipientName: result.recipient.name,
           subject,
           body: emailBody,
           attachments: emailAttachments,
           status: result.status === 'sent' ? 'sent' : 'failed',
-          resendId: result.resendId,
           error: result.error,
           sentAt: result.sentAt,
-          sentBy: decoded.userId || 'unknown',
-          createdByUserId: getViewerUserId(decoded),
-          source: 'bulk' as const,
+          sentBy: decoded.userId || 'unknown'
         }));
-
         if (logEntries.length > 0) {
-          await EmailLog.insertMany(logEntries);
+          await saveEmailLogsBulk(logEntries);
         }
 
         // Update campaign stats
-        campaign.status = bulkResult.failed === bulkResult.total ? 'failed' : 'sent';
-        campaign.stats.sent = bulkResult.sent;
-        campaign.stats.delivered = bulkResult.sent;
-        campaign.stats.failed = bulkResult.failed;
-        campaign.sentAt = new Date();
-        await campaign.save();
+        campaign = await saveEmailCampaign({ ...campaign, status: bulkResult.failed === bulkResult.total ? 'failed' : 'sent', sentCount: bulkResult.sent, failedCount: bulkResult.failed, sentAt: new Date().toISOString() });
 
         return apiSuccess({
           message: `Email sent: ${bulkResult.sent} delivered, ${bulkResult.failed} failed`,
           campaignId: campaign._id,
-          stats: campaign.stats,
+          stats: { sent: campaign.sentCount, failed: campaign.failedCount },
           summary: {
             total: bulkResult.total,
             sent: bulkResult.sent,
@@ -199,7 +171,7 @@ export async function POST(request: NextRequest) {
     return apiSuccess({
       message: 'Email campaign scheduled successfully',
       campaignId: campaign._id,
-      stats: campaign.stats,
+      stats: { sent: campaign.sentCount, failed: campaign.failedCount },
     });
   } catch (error: any) {
     console.error('Error sending email:', error);

@@ -558,30 +558,62 @@ export async function processDueBroadcastRuns(options?: {
         }
 
         // Route-level API stores WhatsAppMessage; we do it here to fully control tracking.
-        const msg = await WhatsAppMessage.create({
-          leadId: leadId,
-          phoneNumber: to,
-          direction: 'outbound',
-          messageType: 'template',
-          templateId: (template as any)._id,
-          templateVariables: {},
-          messageContent: String((template as any).templateContent || '').trim() || '(template)',
-          status: 'queued',
-          sentAt: now,
-          provider: 'pending',
-          ...(metaCreds?.phoneNumber ? { senderNumber: metaCreds.phoneNumber } : {}),
-          metadata: {
-            broadcast: { runId: String((run as any)._id) },
-            template: {
-              templateName: (template as any).templateName,
-              headerFormat: (template as any).headerFormat,
-              headerContent: (template as any).headerContent,
-              footerText: (template as any).footerText,
-              buttons: Array.isArray((template as any).buttons) ? (template as any).buttons : [],
-              headerMedia: (template as any).headerMedia || null,
+        // Route-level API stores WhatsAppMessage; we do it here to fully control tracking.
+        let msgId: string;
+        
+        if (runProvider === 'meta') {
+          const { upsertBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
+          const metaRecord = await upsertBunnyMetaMessage({
+            documentId: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            leadId: leadId,
+            phoneNumber: to,
+            direction: 'outbound',
+            messageType: 'template',
+            messageContent: String((template as any).templateContent || '').trim() || '(template)',
+            status: 'queued',
+            sentAt: now.toISOString(),
+            provider: 'pending',
+            ...(metaCreds?.phoneNumber ? { senderNumber: metaCreds.phoneNumber } : {}),
+            metadata: {
+              broadcast: { runId: String((run as any)._id) },
+              template: {
+                templateName: (template as any).templateName,
+                headerFormat: (template as any).headerFormat,
+                headerContent: (template as any).headerContent,
+                footerText: (template as any).footerText,
+                buttons: Array.isArray((template as any).buttons) ? (template as any).buttons : [],
+                headerMedia: (template as any).headerMedia || null,
+              },
             },
-          },
-        });
+          });
+          msgId = metaRecord.documentId;
+        } else {
+          const msg = await WhatsAppMessage.create({
+            leadId: leadId,
+            phoneNumber: to,
+            direction: 'outbound',
+            messageType: 'template',
+            templateId: (template as any)._id,
+            templateVariables: {},
+            messageContent: String((template as any).templateContent || '').trim() || '(template)',
+            status: 'queued',
+            sentAt: now,
+            provider: 'pending',
+            ...(metaCreds?.phoneNumber ? { senderNumber: metaCreds.phoneNumber } : {}),
+            metadata: {
+              broadcast: { runId: String((run as any)._id) },
+              template: {
+                templateName: (template as any).templateName,
+                headerFormat: (template as any).headerFormat,
+                headerContent: (template as any).headerContent,
+                footerText: (template as any).footerText,
+                buttons: Array.isArray((template as any).buttons) ? (template as any).buttons : [],
+                headerMedia: (template as any).headerMedia || null,
+              },
+            },
+          });
+          msgId = String(msg._id);
+        }
 
         stat.attempted++;
         result.attempted++;
@@ -591,18 +623,28 @@ export async function processDueBroadcastRuns(options?: {
         // post-timeout verification path (in the catch block) — QR bridge can
         // actually deliver despite our HTTP request timing out.
         const markMessageSent = async (apiResult: any) => {
-          await WhatsAppMessage.updateOne(
-            { _id: msg._id },
-            {
-              $set: {
-                status: 'sent',
-                waMessageId: apiResult.waMessageId,
-                provider: apiResult?.raw?.provider || 'sent',
-                updatedAt: new Date(),
-              },
-              $unset: { failureReason: 1, nextRetryAt: 1 },
-            }
-          );
+          if (runProvider === 'meta') {
+            const { updateBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
+            await updateBunnyMetaMessage(msgId, {
+              status: 'sent',
+              waMessageId: apiResult.waMessageId,
+              provider: apiResult?.raw?.provider || 'sent',
+              updatedAt: new Date().toISOString(),
+            });
+          } else {
+            await WhatsAppMessage.updateOne(
+              { _id: msgId },
+              {
+                $set: {
+                  status: 'sent',
+                  waMessageId: apiResult.waMessageId,
+                  provider: apiResult?.raw?.provider || 'sent',
+                  updatedAt: new Date(),
+                },
+                $unset: { failureReason: 1, nextRetryAt: 1 },
+              }
+            );
+          }
 
           if (!apiResult.waMessageId) {
             console.warn('[Broadcast] WARNING: Message marked as sent but waMessageId is undefined. API Result:', JSON.stringify(apiResult));
@@ -615,7 +657,7 @@ export async function processDueBroadcastRuns(options?: {
                 status: 'sent',
                 waMessageId: apiResult.waMessageId,
                 provider: apiResult?.raw?.provider || 'sent',
-                whatsappMessageId: msg._id,
+                whatsappMessageId: msgId,
                 sentAt: now,
                 updatedAt: new Date(),
               },
@@ -764,6 +806,15 @@ export async function processDueBroadcastRuns(options?: {
 
             // ── Send via bridge ───────────────────────────────────────────────
             let bridgeResponse: Response;
+            // Tracks whether the image/video/document actually went out, so the
+            // qr_whatsapp_messages history record below doesn't claim media was
+            // delivered when the recipient only got the text fallback (WhatsApp
+            // often rejects unsolicited media to cold leads with "forbidden"
+            // while still allowing plain text — that's a platform anti-spam
+            // signal, not a fetch/upload bug, so we don't retry harder here,
+            // just make sure the failure is visible instead of silent).
+            let mediaDeliveryFailed = false;
+            let mediaFailureReason = '';
 
             if (hasMedia && mediaUrl) {
               // type:'media' is correct — bridge expects media/cdnUrl, NOT type:'image'/imageUrl
@@ -788,7 +839,9 @@ export async function processDueBroadcastRuns(options?: {
 
               // If media send failed, fall back to sending text only
               if (!bridgeResponse.ok) {
-                console.warn('[Broadcast QR] Media send failed, falling back to text-only');
+                mediaDeliveryFailed = true;
+                mediaFailureReason = await bridgeResponse.text().catch(() => `HTTP ${bridgeResponse.status}`);
+                console.warn('[Broadcast QR] Media send failed, falling back to text-only. Bridge said:', bridgeResponse.status, mediaFailureReason);
                 const fallbackMsg = fullMessage || `[Media: ${fileName}]\n\n${caption}`.trim();
                 bridgeResponse = await fetchWithTimeout(`${resolvedBridgeUrl}/send`, {
                   method: 'POST',
@@ -850,8 +903,16 @@ export async function processDueBroadcastRuns(options?: {
             const waMessageId = bridgeData?.id || bridgeData?.messageId || bridgeData?.key?.id || `qr_${Date.now()}`;
             apiResult = {
               waMessageId,
-              raw: { provider: 'qr' },
+              raw: {
+                provider: 'qr',
+                ...(mediaDeliveryFailed ? { mediaDeliveryFailed: true, mediaFailureReason } : {}),
+              },
             };
+
+            // Did the image/video/document actually reach the recipient, or did
+            // we silently fall back to text? Only mark the history record as
+            // media if it really was delivered as media.
+            const mediaActuallyDelivered = hasImage && !mediaDeliveryFailed;
 
             // Save to qr_whatsapp_messages so the stats/history page shows this send
             if (connectedPhone) {
@@ -869,13 +930,13 @@ export async function processDueBroadcastRuns(options?: {
                       direction: 'outbound',
                       fromMe: true,
                       text: String((template as any).templateContent || '').trim(),
-                      type: hasImage ? 'image' : 'text',
+                      type: mediaActuallyDelivered ? 'image' : 'text',
                       participant: '',
                       pushName: '',
                       timestamp: Math.floor(Date.now() / 1000),
                       status: 1,
-                      hasMedia: hasImage,
-                      mediaUrl: hasImage ? (mediaUrl || '') : '',
+                      hasMedia: mediaActuallyDelivered,
+                      mediaUrl: mediaActuallyDelivered ? (mediaUrl || '') : '',
                       mediaMimetype: '',
                       mediaFileName: '',
                       metadata: { sessionKey, tenantId: sessionKey, runId: String((run as any)._id) },
@@ -1048,16 +1109,25 @@ export async function processDueBroadcastRuns(options?: {
           const failureReason = `[${errorCategory}] ${errorMsg}`;
           console.log(`[Broadcast] Message failed for ${to}: ${failureReason}`);
 
-          await WhatsAppMessage.updateOne(
-            { _id: msg._id },
-            {
-              $set: {
-                status: 'failed',
-                failureReason: failureReason,
-                updatedAt: new Date(),
-              },
-            }
-          );
+          if (runProvider === 'meta') {
+            const { updateBunnyMetaMessage } = await import('@/lib/bunnyMetaWhatsAppRepository');
+            await updateBunnyMetaMessage(msgId, {
+              status: 'failed',
+              errorMessage: failureReason,
+              updatedAt: new Date().toISOString(),
+            });
+          } else {
+            await WhatsAppMessage.updateOne(
+              { _id: msgId },
+              {
+                $set: {
+                  status: 'failed',
+                  failureReason: failureReason,
+                  updatedAt: new Date(),
+                },
+              }
+            );
+          }
 
           await BroadcastRunMessage.updateOne(
             { _id: (item as any)._id },
@@ -1066,7 +1136,7 @@ export async function processDueBroadcastRuns(options?: {
                 status: 'failed',
                 failureReason: failureReason,
                 errorCategory: errorCategory,
-                whatsappMessageId: msg._id,
+                whatsappMessageId: msgId,
                 updatedAt: new Date(),
               },
             }
@@ -1095,6 +1165,24 @@ export async function processDueBroadcastRuns(options?: {
               }
             );
             console.error(`[Broadcast QR] 🚫 Restriction detected — run ${(run as any)._id} paused 24h until ${pauseUntil.toISOString()}`);
+
+            // Also record it against the account itself (shared with group-op
+            // code via lib/whatsappRestriction.ts) so it's visible/enforced
+            // everywhere, not just within this one broadcast run.
+            try {
+              const runUserId = String((run as any).createdByUserId || '');
+              const userSettings = runUserId
+                ? await CRMUserSettings.findOne({ userId: runUserId }, { qrConnectedPhoneNumber: 1 }).lean()
+                : null;
+              const connectedPhone = (userSettings as any)?.qrConnectedPhoneNumber;
+              if (connectedPhone) {
+                const { markQRAccountRestricted } = await import('@/lib/whatsappRestriction');
+                await markQRAccountRestricted(connectedPhone, `Broadcast blocked by WhatsApp: ${errorMsg}`);
+              }
+            } catch (markErr) {
+              console.warn('[Broadcast QR] Failed to record account-level restriction:', markErr);
+            }
+
             qrHardStopped = true;
             break;
           }

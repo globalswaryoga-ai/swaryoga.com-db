@@ -159,6 +159,29 @@ export default function QRGroupContactsPage() {
     return '';
   };
 
+  // Reuse the same live chat identity mapping shown in the QR inbox sidebar.
+  // The sidebar can learn a LID's real phone from message/contact events even
+  // when /lid-map has not been updated yet.
+  const buildSidebarPhoneMap = (chatRows: any[]): Record<string, string> => {
+    const map: Record<string, string> = {};
+    for (const chat of chatRows) {
+      const phone = String(
+        chat?.resolvedPhone || chat?.phoneNumber || chat?.phone || chat?.contact?.phone || ''
+      ).replace(/\D/g, '');
+      if (!phone || /^\d{14,}$/.test(phone)) continue;
+      const ids = [chat?.id, chat?.jid, chat?.chatId, chat?.lid, chat?.contact?.lid].filter(Boolean);
+      for (const id of ids) {
+        const value = String(id);
+        if (value.endsWith('@lid') || /^\d{14,}$/.test(value.split('@')[0])) {
+          map[value] = phone;
+          map[`${value.split('@')[0]}@lid`] = phone;
+          map[`${value.split('@')[0]}@s.whatsapp.net`] = phone;
+        }
+      }
+    }
+    return map;
+  };
+
   // Merge: collect all contacts from selected groups → add to existing group OR create new
   const handleMergeGroups = async () => {
     if (mergeMode === 'new' && !mergeNewGroupName.trim()) { setError('Please enter a group name'); return; }
@@ -327,34 +350,22 @@ export default function QRGroupContactsPage() {
           // Step 1: Immediate 5-second wait (let socket breathe)
           await new Promise(r => setTimeout(r, 5000));
           
-          // Step 2: FORCE activity - call /status to wake up the session
-          // This forces the bridge to verify the connection and keeps it alive
+          // Step 2: Verify the session — but NEVER auto-fire /reconnect here.
+          // If WhatsApp logged us out, an automatic reconnect restarts QR
+          // pairing unattended and fights the user's manual reconnect —
+          // rapid socket churn is a bot signal (ban risk). Manual only.
           try {
             const statusData = await bridgeCall('/status', 'GET', {});
             if (statusData?.connected) {
               console.log(`✅ Post-merge status check: Connection ACTIVE`);
               setMergeProgress(`✅ Connection verified! WhatsApp is responsive.`);
             } else {
-              console.warn(`⚠️ Post-merge: Status shows not connected, attempting reconnect...`);
-              // Try to reconnect if status shows disconnected
-              try {
-                await bridgeCall('/reconnect', 'POST', {});
-                console.log(`✅ Reconnection triggered after disconnect`);
-                setMergeProgress(`✅ Reconnection initiated. Please wait 10 seconds...`);
-                await new Promise(r => setTimeout(r, 10000));
-              } catch (reconnectErr: any) {
-                console.warn('Reconnect attempt result:', reconnectErr?.message?.substring(0, 50));
-              }
+              console.warn(`⚠️ Post-merge: Status shows not connected`);
+              setMergeProgress(`⚠️ WhatsApp disconnected during the merge. Open the QR page and click Reconnect to restore the session.`);
             }
           } catch (statusErr: any) {
             console.warn('Post-merge status check failed:', statusErr?.message?.substring(0, 40));
-            // Try force reconnect anyway
-            try {
-              await bridgeCall('/reconnect', 'POST', {});
-              console.log(`✅ Force reconnect triggered after status failure`);
-            } catch (e) {
-              // Silent fail - connection might recover on its own
-            }
+            setMergeProgress(`⚠️ Could not verify the WhatsApp connection. If it stays disconnected, click Reconnect on the QR page.`);
           }
           
           // Step 3: Final verification - try to fetch chats (proves session is responsive)
@@ -542,7 +553,18 @@ export default function QRGroupContactsPage() {
       setLoading(true);
       setError('');
 
-      // Fetch chats and LID map in parallel
+      // Verify the live WhatsApp session before loading groups. A stale group
+      // card can remain visible after logout/QR expiry, but group-info cannot
+      // work until the phone is connected again.
+      const statusData = await bridgeCall('/status');
+      if (!statusData?.connected) {
+        setGroups([]);
+        const status = statusData?.status ? ` (${statusData.status})` : '';
+        setError(`WhatsApp is not connected${status}. Open Connection, scan the QR code, then return here.`);
+        return;
+      }
+
+      // Fetch chats and LID map in parallel after the session check.
       const [chatsData, lidData] = await Promise.all([
         bridgeCall('/chats'),
         bridgeCall('/lid-map'),
@@ -552,10 +574,10 @@ export default function QRGroupContactsPage() {
       const groupChats = allChats.filter((c) => c.isGroup);
       setGroups(groupChats);
 
-      // Store LID map
-      if (lidData?.map) {
-        setLidMap(lidData.map);
-      }
+      // Merge the bridge map with live sidebar chat mappings. The live chat
+      // response is the source used by the QR inbox sidebar and may contain a
+      // newer LID→phone mapping than the dedicated map endpoint.
+      setLidMap({ ...(lidData?.map || {}), ...buildSidebarPhoneMap(allChats) });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch groups');
     } finally {
@@ -576,7 +598,27 @@ export default function QRGroupContactsPage() {
         setSelectedGroup(group);
         setGroupInfo(null);
 
-        const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(group.id)}`);
+          const statusData = await bridgeCall('/status');
+          if (!statusData?.connected) {
+            setSelectedGroup(null);
+            const status = statusData?.status ? ` (${statusData.status})` : '';
+            throw new Error(`WhatsApp is not connected${status}. Scan the QR code from the Connection tab first.`);
+          }
+
+        let info: GroupInfo | null = null;
+        let lastError: unknown = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            info = await bridgeCall(`/group-info/${encodeURIComponent(group.id)}`);
+            break;
+          } catch (err) {
+            lastError = err;
+            if (attempt < 2) {
+              await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+            }
+          }
+        }
+        if (!info) throw lastError instanceof Error ? lastError : new Error('Failed to fetch group info');
 
         // Resolve LID participants to phone numbers
         if (info?.participants) {
@@ -639,24 +681,27 @@ export default function QRGroupContactsPage() {
     (p) => !!(p.resolvedPhone || phoneFromJid(p.id))
   );
 
+  const contactExportRow = (p: GroupParticipant, groupName: string) => {
+    const phone = p.resolvedPhone || phoneFromJid(p.id);
+    return {
+      'Phone Number': phone ? formatPhone(phone) : '',
+      'Raw Number': phone || '',
+      JID: p.id,
+      'WhatsApp ID': p.lid || '',
+      Role: p.admin === 'superadmin' ? 'Super Admin' : p.admin === 'admin' ? 'Admin' : 'Member',
+      'Group Name': groupName,
+    };
+  };
+
   // Export contacts for selected group
   const exportGroupContacts = () => {
     if (!groupInfo || !selectedGroup) return;
-    const rows = (groupInfo.participants || [])
-      .map((p) => {
-        const phone = p.resolvedPhone || phoneFromJid(p.id);
-        return {
-          'Phone Number': phone ? formatPhone(phone) : '',
-          'Raw Number': phone || '',
-          JID: p.id,
-          Role: p.admin === 'superadmin' ? 'Super Admin' : p.admin === 'admin' ? 'Admin' : 'Member',
-          'Group Name': selectedGroup.name || groupInfo.subject || '',
-        };
-      })
-      .filter((r) => r['Raw Number']); // Only rows with phone numbers
+    const rows = (groupInfo.participants || []).map((p) =>
+      contactExportRow(p, selectedGroup.name || groupInfo.subject || '')
+    );
 
     if (rows.length === 0) {
-      alert('No contacts with phone numbers to export');
+      alert('No contacts to export');
       return;
     }
 
@@ -667,6 +712,7 @@ export default function QRGroupContactsPage() {
       { wch: 20 }, // Phone Number
       { wch: 15 }, // Raw Number
       { wch: 30 }, // JID
+      { wch: 30 }, // WhatsApp ID / LID
       { wch: 12 }, // Role
       { wch: 25 }, // Group Name
     ];
@@ -686,35 +732,23 @@ export default function QRGroupContactsPage() {
         'Phone Number': string;
         'Raw Number': string;
         JID: string;
+        'WhatsApp ID': string;
         Role: string;
         'Group Name': string;
       }[] = [];
 
-      const uniquePhones = new Set<string>();
+      const uniqueContacts = new Set<string>();
 
       for (const group of groups) {
         try {
           const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(group.id)}`);
           if (!info?.participants) continue;
           for (const p of info.participants) {
-            let phone = phoneFromJid(p.id);
-            if (!phone) {
-              const lidJid = p.lid || p.id;
-              const resolved = lidMap[lidJid] || lidMap[`${lidJid.split('@')[0]}@lid`] || lidMap[`${lidJid.split('@')[0]}@s.whatsapp.net`];
-              if (resolved) {
-                const rp = resolved.split('@')[0];
-                if (!/^\d{14,}$/.test(rp)) phone = rp;
-              }
-            }
-            if (phone && !uniquePhones.has(phone)) {
-              uniquePhones.add(phone);
-              allRows.push({
-                'Phone Number': formatPhone(phone),
-                'Raw Number': phone,
-                JID: p.id,
-                Role: p.admin === 'superadmin' ? 'Super Admin' : p.admin === 'admin' ? 'Admin' : 'Member',
-                'Group Name': group.name || info.subject || '',
-              });
+            const phone = resolvePhone(p);
+            const uniqueKey = phone ? `phone:${phone}` : `jid:${p.id}`;
+            if (!uniqueContacts.has(uniqueKey)) {
+              uniqueContacts.add(uniqueKey);
+              allRows.push(contactExportRow(p, group.name || info.subject || ''));
             }
           }
         } catch {
@@ -731,7 +765,7 @@ export default function QRGroupContactsPage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'All Group Contacts');
       ws['!cols'] = [
-        { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 25 },
+        { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 12 }, { wch: 25 },
       ];
       XLSX.writeFile(wb, `all_group_contacts_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (err) {
@@ -753,7 +787,7 @@ export default function QRGroupContactsPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {selectedGroup
-                ? `${selectedGroup.name} — ${contactsWithPhone.length} contacts`
+                ? `${selectedGroup.name} — ${groupInfo?.participants.length || 0} contacts`
                 : `${groups.length} groups found`}
             </p>
           </div>
@@ -802,22 +836,17 @@ export default function QRGroupContactsPage() {
                     (async () => {
                       try {
                         const allRows: any[] = [];
-                        const uniquePhones = new Set<string>();
+                        const uniqueContacts = new Set<string>();
                         for (const group of selectedGroupsList) {
                           try {
                             const info: GroupInfo = await bridgeCall(`/group-info/${encodeURIComponent(group.id)}`);
                             if (!info?.participants) continue;
                             for (const p of info.participants) {
                               const phone = resolvePhone(p);
-                              if (phone && !uniquePhones.has(phone)) {
-                                uniquePhones.add(phone);
-                                allRows.push({
-                                  'Phone Number': formatPhone(phone),
-                                  'Raw Number': phone,
-                                  JID: p.id,
-                                  Role: p.admin === 'superadmin' ? 'Super Admin' : p.admin === 'admin' ? 'Admin' : 'Member',
-                                  'Group Name': group.name || info.subject || '',
-                                });
+                              const uniqueKey = phone ? `phone:${phone}` : `jid:${p.id}`;
+                              if (!uniqueContacts.has(uniqueKey)) {
+                                uniqueContacts.add(uniqueKey);
+                                allRows.push(contactExportRow(p, group.name || info.subject || ''));
                               }
                             }
                           } catch { /* skip */ }
@@ -826,7 +855,7 @@ export default function QRGroupContactsPage() {
                         const ws = XLSX.utils.json_to_sheet(allRows);
                         const wb = XLSX.utils.book_new();
                         XLSX.utils.book_append_sheet(wb, ws, 'Selected Groups');
-                        ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 25 }];
+                        ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 12 }, { wch: 25 }];
                         XLSX.writeFile(wb, `selected_groups_contacts_${new Date().toISOString().split('T')[0]}.xlsx`);
                       } catch (err) {
                         setError(err instanceof Error ? err.message : 'Export failed');
@@ -882,6 +911,14 @@ export default function QRGroupContactsPage() {
       {error && (
         <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+          {(error.includes('WhatsApp is not connected') || error.includes('Bridge service temporarily unavailable')) && (
+            <a
+              href="/admin/crm/qr"
+              className="ml-2 shrink-0 rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700"
+            >
+              Open Connection
+            </a>
+          )}
           <button onClick={() => setError('')} className="ml-auto text-red-400 hover:text-red-600">✕</button>
         </div>
       )}
@@ -1070,7 +1107,7 @@ export default function QRGroupContactsPage() {
                                         <span className="font-mono text-gray-900">{formatPhone(phone)}</span>
                                       </span>
                                     ) : (
-                                      <span className="text-gray-400 italic">LID (no phone)</span>
+                                      <span className="text-gray-400 italic">Phone unavailable</span>
                                     )}
                                   </td>
                                   <td className="px-4 py-2.5 text-gray-400 font-mono text-xs truncate max-w-[200px]">
@@ -1103,7 +1140,7 @@ export default function QRGroupContactsPage() {
                       <span>
                         Showing {filteredParticipants.length} of {groupInfo.participants?.length || 0} members
                       </span>
-                      <span>{contactsWithPhone.length} with resolved phone numbers</span>
+                      <span>{contactsWithPhone.length} with phone numbers; all members are downloadable</span>
                     </div>
                   </div>
                 </>

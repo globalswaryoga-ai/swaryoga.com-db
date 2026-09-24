@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { connectDB } from '@/lib/db';
-import { getEmailCampaign } from '@/lib/schemas/enterpriseSchemas';
+import { getEmailCampaign, saveEmailCampaign } from '@/lib/emailBunnyRepository';
 import { hasPermission } from '@/lib/permissions';
 import { tenantFilter } from '@/lib/crm-handlers';
 
@@ -29,13 +28,11 @@ export async function POST(
       return apiError('FORBIDDEN', 'You do not have permission to retry email campaigns');
     }
 
-    await connectDB();
-    const EmailCampaign = getEmailCampaign();
     const tf = tenantFilter(decoded, 'createdBy');
 
     // Check if campaign exists
-    const campaign = await EmailCampaign.findOne({ _id: params.id, ...tf });
-    if (!campaign) {
+    let campaign = await getEmailCampaign(params.id);
+    if (!campaign || (tf.createdBy && campaign.createdBy !== tf.createdBy)) {
       return apiError('NOT_FOUND', 'Email campaign not found');
     }
 
@@ -45,14 +42,11 @@ export async function POST(
     }
 
     // Update campaign status
-    campaign.status = 'sending';
-    await campaign.save();
+    campaign = await saveEmailCampaign({ ...campaign, status: 'sending' });
 
     // TODO: Implement actual retry logic with email service
     // For now, mark as sent (in production, this would re-queue the campaign)
-    campaign.status = 'sent';
-    campaign.sentAt = new Date();
-    await campaign.save();
+    campaign = await saveEmailCampaign({ ...campaign, status: 'sent', sentAt: new Date().toISOString() });
 
     return apiSuccess({
       campaign,

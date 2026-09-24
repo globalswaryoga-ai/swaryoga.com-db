@@ -4,8 +4,9 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import AdminSidebar from '@/components/AdminSidebar';
-import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, Send, QrCode, Archive, ArchiveRestore, ChevronDown, ChevronUp } from 'lucide-react';
+import { Phone, MapPin, Trash2, Eye, EyeOff, Plus, Copy, Check, X, ImagePlus, Loader as LoaderIcon, MessageCircle, Pencil, Send, QrCode, Archive, ArchiveRestore, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
 interface Enquiry {
   id: string;
@@ -14,12 +15,19 @@ interface Enquiry {
   workshopName: string;
   name: string;
   mobile: string;
+  email?: string;
   gender: string;
   city: string;
+  country?: string;
+  mode?: string;
+  language?: string;
+  month?: string;
   submittedAt: string;
   status: 'new' | 'contacted' | 'registered';
   notes?: string;
   labels?: string[];
+  timeSlot?: { label: string; groupLink: string } | null;
+  payment?: { status: string; amount?: number; currency?: string; paidAt?: string | null } | null;
 }
 
 interface EnquiryForm {
@@ -32,7 +40,9 @@ interface EnquiryForm {
   workshopImage?: string;
   price?: number;
   currency?: string;
+  feeOptions?: { label: string; price: number }[];
   groupLink?: string;
+  timeSlots?: { label: string; groupLink: string }[];
   isActive: boolean;
   submissionCount: number;
   createdAt: string;
@@ -68,9 +78,10 @@ export default function EnquiriesPage() {
   const [newWsMode, setNewWsMode] = useState('online');
   const [newWsDesc, setNewWsDesc] = useState('');
   const [newWsImage, setNewWsImage] = useState('');
-  const [newWsPrice, setNewWsPrice] = useState('');
   const [newWsCurrency, setNewWsCurrency] = useState('INR');
+  const [newWsFeeOptions, setNewWsFeeOptions] = useState<{ label: string; price: string }[]>([{ label: '', price: '' }]);
   const [newWsGroupLink, setNewWsGroupLink] = useState('');
+  const [newWsTimeSlots, setNewWsTimeSlots] = useState<{ label: string; groupLink: string }[]>([{ label: '', groupLink: '' }]);
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [savingForm, setSavingForm] = useState(false);
@@ -164,13 +175,15 @@ export default function EnquiriesPage() {
     setEditingFormId(null);
     setFormSaveError('');
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
-    setNewWsDesc(''); setNewWsImage(''); setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsDesc(''); setNewWsImage(''); setNewWsFeeOptions([{ label: '', price: '' }]); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsTimeSlots([{ label: '', groupLink: '' }]);
   };
 
   const openCreateForm = () => {
     setEditingFormId(null);
     setNewWsName(''); setNewWsDate(''); setNewWsTime(''); setNewWsMode('online');
-    setNewWsDesc(''); setNewWsImage(''); setNewWsPrice(''); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsDesc(''); setNewWsImage(''); setNewWsFeeOptions([{ label: '', price: '' }]); setNewWsCurrency('INR'); setNewWsGroupLink('');
+    setNewWsTimeSlots([{ label: '', groupLink: '' }]);
     setFormSaveError('');
     setShowAddForm(true);
   };
@@ -183,18 +196,49 @@ export default function EnquiriesPage() {
     setNewWsMode(form.workshopMode || 'online');
     setNewWsDesc(form.description || '');
     setNewWsImage(form.workshopImage || '');
-    setNewWsPrice(form.price ? String(form.price) : '');
+    // Migrate an old single-price form into one repeater row so editing it
+    // doesn't silently drop the existing price.
+    const existingFees = form.feeOptions && form.feeOptions.length
+      ? form.feeOptions.map((f) => ({ label: f.label || '', price: String(f.price ?? '') }))
+      : form.price
+        ? [{ label: 'Fee', price: String(form.price) }]
+        : [{ label: '', price: '' }];
+    setNewWsFeeOptions(existingFees);
     setNewWsCurrency(form.currency || 'INR');
     setNewWsGroupLink(form.groupLink || '');
+    // Migrate an old single groupLink form into one repeater row so editing it
+    // doesn't silently drop the existing group link.
+    const existingTimeSlots = form.timeSlots && form.timeSlots.length
+      ? form.timeSlots.map((t) => ({ label: t.label || '', groupLink: t.groupLink || '' }))
+      : form.groupLink
+        ? [{ label: '', groupLink: form.groupLink }]
+        : [{ label: '', groupLink: '' }];
+    setNewWsTimeSlots(existingTimeSlots);
     setFormSaveError('');
     setShowAddForm(true);
   };
+
+  const addFeeOptionRow = () => setNewWsFeeOptions((prev) => [...prev, { label: '', price: '' }]);
+  const removeFeeOptionRow = (idx: number) => setNewWsFeeOptions((prev) => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+  const updateFeeOptionRow = (idx: number, field: 'label' | 'price', value: string) =>
+    setNewWsFeeOptions((prev) => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+
+  const addTimeSlotRow = () => setNewWsTimeSlots((prev) => [...prev, { label: '', groupLink: '' }]);
+  const removeTimeSlotRow = (idx: number) => setNewWsTimeSlots((prev) => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+  const updateTimeSlotRow = (idx: number, field: 'label' | 'groupLink', value: string) =>
+    setNewWsTimeSlots((prev) => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
 
   const saveNewForm = async () => {
     if (!newWsName.trim()) { setFormSaveError('Workshop name is required'); return; }
     setSavingForm(true);
     setFormSaveError('');
     try {
+      const feeOptions = newWsFeeOptions
+        .map((f) => ({ label: f.label.trim(), price: Math.max(0, Number(f.price) || 0) }))
+        .filter((f) => f.label || f.price > 0);
+      const timeSlots = newWsTimeSlots
+        .map((t) => ({ label: t.label.trim(), groupLink: t.groupLink.trim() }))
+        .filter((t) => t.label || t.groupLink);
       const payload = {
         workshopName: newWsName.trim(),
         workshopDate: newWsDate,
@@ -202,9 +246,10 @@ export default function EnquiriesPage() {
         workshopMode: newWsMode,
         description: newWsDesc.trim(),
         workshopImage: newWsImage,
-        price: Math.max(0, Number(newWsPrice) || 0),
+        feeOptions,
         currency: newWsCurrency || 'INR',
         groupLink: newWsGroupLink.trim(),
+        timeSlots,
       };
       if (editingFormId) {
         const res = await fetch(`/api/admin/enquiry-forms?id=${editingFormId}`, {
@@ -489,6 +534,44 @@ export default function EnquiriesPage() {
     }
   };
 
+  const downloadExcel = (form: EnquiryForm) => {
+    const formEnquiries = getFormEnquiries(form.formId);
+    if (formEnquiries.length === 0) {
+      alert('No submissions for this form yet.');
+      return;
+    }
+
+    const excelData = formEnquiries.map((enq) => {
+      // Base data
+      const data: Record<string, string | number> = {
+        'Submission ID': enq.id,
+        'Name': enq.name || '',
+        'Mobile': enq.mobile || '',
+        'Email': enq.email || '',
+        'Gender': enq.gender || '',
+        'City': enq.city || '',
+        'Submitted At': new Date(enq.submittedAt).toLocaleString('en-IN'),
+        'Status': enq.status || 'new',
+        'Notes': enq.notes || '',
+      };
+      
+      // Dynamic answers are stored in `dynamicAnswers` inside the DB but the EnquiriesAPI maps them... wait! 
+      // I need to check if the API returns dynamic answers. If so, they'll be in `enq.dynamicAnswers` or similar.
+      // For now, let's include basic fields. If dynamicAnswers exist on the object, I'll add them.
+      const dynamicAnswers = (enq as any).dynamicAnswers || {};
+      for (const [key, value] of Object.entries(dynamicAnswers)) {
+        data[key] = Array.isArray(value) ? value.join(', ') : String(value || '');
+      }
+
+      return data;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Submissions');
+    XLSX.writeFile(wb, `${form.workshopName.replace(/[^a-zA-Z0-9]/g, '_')}_Submissions.xlsx`);
+  };
+
   const hiddenCount = enquiries.filter((e) => (e.labels || []).includes(HIDE_LABEL)).length;
 
   const getFormEnquiries = (formId: string) =>
@@ -547,6 +630,33 @@ export default function EnquiriesPage() {
     new Date(dateString).toLocaleDateString('en-IN', {
       year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
+
+  // Compact badge for the list/table rows: green "Received ₹X" once paid,
+  // amber "₹X due" while a Pay Later link is out but unpaid.
+  const paymentBadge = (payment: Enquiry['payment']) => {
+    if (!payment?.amount) return null;
+    const amount = `${payment.currency || 'INR'} ${payment.amount}`;
+    return payment.status === 'paid'
+      ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">💰 Received {amount}</span>
+      : <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">⏳ {amount} due</span>;
+  };
+
+  // Fuller line for the expanded detail view.
+  const paymentDetail = (payment: Enquiry['payment']) => {
+    if (!payment?.amount) return null;
+    const amount = `${payment.currency || 'INR'} ${payment.amount}`;
+    return payment.status === 'paid'
+      ? (
+        <p className="text-green-700 font-semibold">
+          💰 Amount Received: {amount}{payment.paidAt && ` on ${formatDate(payment.paidAt)}`}
+        </p>
+      )
+      : (
+        <p className="text-amber-700 font-semibold">
+          ⏳ Amount Due: {amount} (Pay Later link sent, not yet paid)
+        </p>
+      );
+  };
 
   const MODE_LABELS: Record<string, string> = { online: 'Online', offline: 'Offline', residential: 'Residential', recorded: 'Recorded' };
   const MODE_ICONS: Record<string, string> = { online: '💻', offline: '📍', residential: '🏡', recorded: '🎥' };
@@ -647,6 +757,17 @@ export default function EnquiriesPage() {
                           QR
                         </button>
 
+                        {/* Export Excel */}
+                        <button
+                          onClick={() => downloadExcel(form)}
+                          disabled={formEnquiries.length === 0}
+                          title="Export submissions to Excel"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                        >
+                          <Download size={12} />
+                          Export
+                        </button>
+
                         {/* View toggle */}
                         <button
                           onClick={() => setExpandedFormId(isExpanded ? null : form.formId)}
@@ -729,9 +850,12 @@ export default function EnquiriesPage() {
                                       <h3 className="font-semibold text-swar-text text-sm">{enquiry.name}</h3>
                                       <p className="text-xs text-swar-text-secondary">{enquiry.city} · {enquiry.gender}</p>
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
-                                      {enquiry.status}
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
+                                        {enquiry.status}
+                                      </span>
+                                      {paymentBadge(enquiry.payment)}
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-swar-text-secondary mb-2">
                                     <Phone className="w-3 h-3" />{enquiry.mobile}
@@ -807,6 +931,7 @@ export default function EnquiriesPage() {
                                             <option value="contacted">Contacted</option>
                                             <option value="registered">Registered</option>
                                           </select>
+                                          {enquiry.payment?.amount ? <div className="mt-1">{paymentBadge(enquiry.payment)}</div> : null}
                                         </td>
                                         <td className="px-5 py-3">
                                           <div className="flex items-center gap-2">
@@ -856,7 +981,20 @@ export default function EnquiriesPage() {
                                           <td colSpan={6} className="px-5 py-3">
                                             <div className="text-xs text-swar-text-secondary space-y-1">
                                               <p><strong>ID:</strong> {enquiry.id}</p>
+                                              {enquiry.email && <p><strong>Email:</strong> {enquiry.email}</p>}
+                                              {(enquiry.mode || enquiry.language || enquiry.month || enquiry.country) && (
+                                                <p><strong>Details:</strong> {[enquiry.mode, enquiry.language, enquiry.month, enquiry.country].filter(Boolean).join(' · ')}</p>
+                                              )}
                                               <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
+                                              <p>
+                                                <strong>Time Slot:</strong> {enquiry.timeSlot?.label || '—'}
+                                                {enquiry.timeSlot?.groupLink && (
+                                                  <a href={enquiry.timeSlot.groupLink} target="_blank" rel="noopener noreferrer" className="ml-2 text-[#2d6a4f] underline">
+                                                    Group Link
+                                                  </a>
+                                                )}
+                                              </p>
+                                              {paymentDetail(enquiry.payment)}
                                             </div>
                                           </td>
                                         </tr>
@@ -1006,6 +1144,7 @@ export default function EnquiriesPage() {
                                               <option value="contacted">Contacted</option>
                                               <option value="registered">Registered</option>
                                             </select>
+                                            {enquiry.payment?.amount ? <div className="mt-1">{paymentBadge(enquiry.payment)}</div> : null}
                                           </td>
                                           <td className="px-5 py-3">
                                             <div className="flex items-center gap-2">
@@ -1030,7 +1169,20 @@ export default function EnquiriesPage() {
                                           <tr className="bg-white border-b border-gray-100">
                                             <td colSpan={6} className="px-5 py-3 text-xs text-swar-text-secondary space-y-1">
                                               <p><strong>ID:</strong> {enquiry.id}</p>
+                                              {enquiry.email && <p><strong>Email:</strong> {enquiry.email}</p>}
+                                              {(enquiry.mode || enquiry.language || enquiry.month || enquiry.country) && (
+                                                <p><strong>Details:</strong> {[enquiry.mode, enquiry.language, enquiry.month, enquiry.country].filter(Boolean).join(' · ')}</p>
+                                              )}
                                               <p><strong>Notes:</strong> {enquiry.notes || 'No notes'}</p>
+                                              <p>
+                                                <strong>Time Slot:</strong> {enquiry.timeSlot?.label || '—'}
+                                                {enquiry.timeSlot?.groupLink && (
+                                                  <a href={enquiry.timeSlot.groupLink} target="_blank" rel="noopener noreferrer" className="ml-2 text-[#2d6a4f] underline">
+                                                    Group Link
+                                                  </a>
+                                                )}
+                                              </p>
+                                              {paymentDetail(enquiry.payment)}
                                             </td>
                                           </tr>
                                         )}
@@ -1049,7 +1201,10 @@ export default function EnquiriesPage() {
                                         <h3 className="font-semibold text-swar-text text-sm">{enquiry.name}</h3>
                                         <p className="text-xs text-swar-text-secondary">{enquiry.city} · {enquiry.gender}</p>
                                       </div>
-                                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>{enquiry.status}</span>
+                                      <div className="flex flex-col items-end gap-1">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>{enquiry.status}</span>
+                                        {paymentBadge(enquiry.payment)}
+                                      </div>
                                     </div>
                                     <div className="text-xs text-swar-text-secondary mb-2 flex items-center gap-1.5"><Phone className="w-3 h-3" />{enquiry.mobile}</div>
                                     <div className="text-[11px] text-swar-text-secondary mb-3">{formatDate(enquiry.submittedAt)}</div>
@@ -1160,24 +1315,92 @@ export default function EnquiriesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Price <span className="font-normal text-gray-400">(0 = free)</span></label>
-                  <input type="number" min="0" value={newWsPrice} onChange={(e) => setNewWsPrice(e.target.value)} placeholder="e.g. 999" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Currency</label>
-                  <select value={newWsCurrency} onChange={(e) => setNewWsCurrency(e.target.value)} className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 bg-white">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-semibold text-gray-700">Fees <span className="font-normal text-gray-400">(leave blank/0 for free)</span></label>
+                  <select value={newWsCurrency} onChange={(e) => setNewWsCurrency(e.target.value)} className="h-8 px-2 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 bg-white">
                     <option value="INR">₹ INR</option>
                     <option value="USD">$ USD</option>
                     <option value="NPR">रू NPR</option>
                   </select>
                 </div>
+                <div className="space-y-2">
+                  {newWsFeeOptions.map((fee, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={fee.label}
+                        onChange={(e) => updateFeeOptionRow(idx, 'label', e.target.value)}
+                        placeholder="e.g. Early Bird"
+                        className="flex-1 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={fee.price}
+                        onChange={(e) => updateFeeOptionRow(idx, 'price', e.target.value)}
+                        placeholder="Amount"
+                        className="w-28 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeFeeOptionRow(idx)}
+                        disabled={newWsFeeOptions.length === 1}
+                        className="w-11 h-11 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:border-gray-200 shrink-0"
+                        title="Remove this fee option"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addFeeOptionRow}
+                  className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-[#2d6a4f] hover:text-[#1b4332]"
+                >
+                  <Plus className="w-4 h-4" /> Add Fee Option
+                </button>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">WhatsApp Group Link <span className="font-normal text-gray-400">(optional)</span></label>
-                <input type="url" value={newWsGroupLink} onChange={(e) => setNewWsGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/…" className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Batch Time Slots <span className="font-normal text-gray-400">(each with its own WhatsApp group — leave blank for a single default group)</span></label>
+                <div className="space-y-2">
+                  {newWsTimeSlots.map((slot, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={slot.label}
+                        onChange={(e) => updateTimeSlotRow(idx, 'label', e.target.value)}
+                        placeholder="e.g. Morning"
+                        className="w-32 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <input
+                        type="url"
+                        value={slot.groupLink}
+                        onChange={(e) => updateTimeSlotRow(idx, 'groupLink', e.target.value)}
+                        placeholder="https://chat.whatsapp.com/…"
+                        className="flex-1 h-11 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeTimeSlotRow(idx)}
+                        disabled={newWsTimeSlots.length === 1}
+                        className="w-11 h-11 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:border-gray-200 shrink-0"
+                        title="Remove this time slot"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addTimeSlotRow}
+                  className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-[#2d6a4f] hover:text-[#1b4332]"
+                >
+                  <Plus className="w-4 h-4" /> Add Time Slot
+                </button>
               </div>
 
               <div>

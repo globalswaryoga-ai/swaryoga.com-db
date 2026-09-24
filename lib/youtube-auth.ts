@@ -60,12 +60,39 @@ export async function getYouTubeAccessToken() {
 
     // Fallback to database (if admin connected via Social Media UI)
     console.log('[YouTube Auth] No env token, trying database...');
-    await connectDB();
+    let account: any = null;
 
-    const account = await SocialMediaAccount.findOne({
-      platform: 'youtube',
-      isConnected: true,
-    });
+    try {
+      await connectDB();
+      account = await SocialMediaAccount.findOne({
+        platform: 'youtube',
+        isConnected: true,
+      });
+    } catch (mongoErr: any) {
+      console.warn('[YouTube Auth] MongoDB unavailable, trying Bunny Database fallback:', mongoErr.message);
+    }
+
+    // Bunny Database fallback
+    if (!account) {
+      try {
+        const { bunnyExecute } = await import('./bunnyDatabase');
+        const res = await bunnyExecute({
+          sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
+        });
+        for (const row of res.rows) {
+          try {
+            const parsed = JSON.parse(String(row.document_json || '{}'));
+            if (parsed.platform === 'youtube' && parsed.isConnected) {
+              account = parsed;
+              console.log('[YouTube Auth] Found YouTube account in Bunny Database');
+              break;
+            }
+          } catch {}
+        }
+      } catch (bunnyErr: any) {
+        console.error('[YouTube Auth] Bunny fallback error:', bunnyErr.message);
+      }
+    }
 
     if (!account) {
       throw new Error(
@@ -161,7 +188,12 @@ async function refreshYouTubeToken(account: any) {
     const data = await response.json();
 
     if (!response.ok || !data.access_token) {
-      throw new Error(`Token refresh failed: ${data.error}`);
+      if (data.error === 'invalid_grant') {
+        throw new Error(
+          'YouTube token expired or was revoked (invalid_grant). In Google Cloud Console, ensure Publishing status is "In production" (not "Testing"), then reconnect YouTube via Settings → Social Media.'
+        );
+      }
+      throw new Error(`Token refresh failed: ${data.error || 'unknown error'}`);
     }
 
     // Update token in database
@@ -169,16 +201,34 @@ async function refreshYouTubeToken(account: any) {
     const newAccessToken = encryptCredential(data.access_token);
     const newExpiry = new Date(Date.now() + (data.expires_in || 3600) * 1000);
 
-    await SocialMediaAccount.updateOne(
-      { _id: account._id },
-      {
-        $set: {
-          accessToken: newAccessToken,
-          tokenExpiresAt: newExpiry,
-          updatedAt: new Date(),
-        },
+    try {
+      if (account._id) {
+        await SocialMediaAccount.updateOne(
+          { _id: account._id },
+          {
+            $set: {
+              accessToken: newAccessToken,
+              tokenExpiresAt: newExpiry,
+              updatedAt: new Date(),
+            },
+          }
+        );
       }
-    );
+    } catch (mErr: any) {
+      console.warn('[YouTube Auth] Could not update token in Mongo:', mErr.message);
+    }
+
+    // Also update in Bunny DB mongo_documents
+    try {
+      const { bunnyExecute } = await import('./bunnyDatabase');
+      const updatedAccount = { ...account, accessToken: newAccessToken, tokenExpiresAt: newExpiry, updatedAt: new Date() };
+      await bunnyExecute({
+        sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND document_json LIKE '%\"platform\":\"youtube\"%'",
+        args: [JSON.stringify(updatedAccount)]
+      });
+    } catch (bErr: any) {
+      console.warn('[YouTube Auth] Could not update token in Bunny DB:', bErr.message);
+    }
 
     console.log('[YouTube Auth] Token refreshed successfully');
     return data.access_token;

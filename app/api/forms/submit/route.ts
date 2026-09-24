@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User, CommunityMember } from '@/lib/db';
+import { connectDB, User, CommunityMember, WorkshopSeatInventory } from '@/lib/db';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
@@ -15,6 +15,8 @@ import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import bcrypt from 'bcryptjs';
 import { notifyFormSubmission } from '@/lib/notifications';
+import { buildContactDuplicateQuery } from '@/lib/contactDuplicateCheck';
+import { randomInt } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,24 +27,19 @@ const FORM_RATE_LIMIT = {
   maxRequests: 10,
 };
 
-// Symbols for password generation
-const SYMBOLS = ['@', '#', '$', '%', '&', '*', '!', '?'];
-
 /**
- * Generate password: 4 letters of name + 4 digits of phone + @#
- * Example: mohan + 9309986820 = moha6820@#
+ * Generate a short password for a newly created account.
+ * Format: three letters followed by three numbers, with the first letter
+ * uppercase (for example: Nat993).
  */
-function generatePassword(name: string, phone: string): string {
-  // Get first 4 letters of name (lowercase)
-  const cleanName = name.replace(/[^a-zA-Z]/g, '').toLowerCase();
-  const namePart = cleanName.slice(0, 4).padEnd(4, 'a'); // pad if name too short
-  
-  // Get last 4 digits of phone
-  const cleanPhone = phone.replace(/\D/g, '');
-  const phonePart = cleanPhone.slice(-4).padStart(4, '0'); // pad if phone too short
-  
-  // Fixed symbols @#
-  return `${namePart}${phonePart}@#`;
+function generatePassword(): string {
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  const randomLetter = () => letters[randomInt(letters.length)];
+  const firstLetter = randomLetter().toUpperCase();
+  const remainingLetters = `${randomLetter()}${randomLetter()}`;
+  const numbers = String(randomInt(1000)).padStart(3, '0');
+
+  return `${firstLetter}${remainingLetters}${numbers}`;
 }
 
 /**
@@ -310,11 +307,22 @@ export async function POST(request: NextRequest) {
       workshopName,
       workshopLanguage,
       workshopMode,
+      educationStatus,
       batchPreference,
+      participantStatus,
+      city,
+      timeAvailable,
+      videoOnDuringClass,
+      regularAttendance,
+      healthIssues,
+      deviceForWorkshop,
+      donationReady,
+      awarenessConfirmed,
+      finalConfirmation,
       courseName,
       paymentMode,
       message,
-      password: userPassword, // User-provided password (optional)
+      workshopScheduleId,
     } = body;
 
     // Validate required fields
@@ -334,10 +342,40 @@ export async function POST(request: NextRequest) {
     const cleanedPhone = normalizePhone(phone);
     const cleanedName = name.trim();
 
-    // Use user-provided password if available, otherwise auto-generate
-    const generatedPassword = (userPassword && userPassword.trim().length >= 6)
-      ? userPassword.trim()
-      : generatePassword(cleanedName, phone);
+    // Reserve one admin-approved seat atomically. Re-submitting the same
+    // contact for the same batch does not consume another seat.
+    if (formType === 'workshop' && workshopScheduleId) {
+      const Lead = getLead();
+      const priorLead = await Lead.findOne({
+        $or: buildContactDuplicateQuery(cleanedEmail, cleanedPhone),
+      }).select({ metadata: 1 }).lean() as any;
+      const priorScheduleId = String(priorLead?.metadata?.workshopScheduleId || '');
+
+      if (priorScheduleId !== String(workshopScheduleId)) {
+        const inventory = await WorkshopSeatInventory.findOneAndUpdate(
+          {
+            scheduleId: String(workshopScheduleId),
+            seatsRemaining: { $gt: 0 },
+          },
+          { $inc: { seatsRemaining: -1 }, $set: { updatedAt: new Date() } },
+          { new: true },
+        ).lean();
+
+        if (!inventory) {
+          return apiError('SLOT_UNAVAILABLE', 'This workshop batch is full. Please choose another batch.');
+        }
+
+        if (priorScheduleId) {
+          await WorkshopSeatInventory.updateOne(
+            { scheduleId: priorScheduleId },
+            { $inc: { seatsRemaining: 1 }, $set: { updatedAt: new Date() } },
+          );
+        }
+      }
+    }
+
+    // Passwords are generated server-side and emailed to newly created users.
+    const generatedPassword = generatePassword();
     
     // Check if user already exists
     const existingUser = await User.findOne({
@@ -374,6 +412,27 @@ export async function POST(request: NextRequest) {
       console.log(`✅ New user created: ${cleanedEmail}`);
     }
 
+    // Existing signed-in/form users can edit their profile details and save again.
+    // Do not change their password during a repeat submission.
+    if (existingUser && (formType === 'signup' || formType === 'workshop')) {
+      await User.updateOne(
+        { _id: (existingUser as any)._id },
+        {
+          $set: {
+            name: cleanedName,
+            email: cleanedEmail,
+            phone: cleanedPhone,
+            countryCode: countryCode || '+91',
+            country: country?.trim() || 'India',
+            state: state?.trim() || '',
+            gender: gender?.trim() || '',
+            age: age ? parseInt(age, 10) : null,
+            profession: profession?.trim() || '',
+          },
+        },
+      );
+    }
+
     // Create/Update CRM Lead
     try {
       const Lead = getLead();
@@ -391,19 +450,28 @@ export async function POST(request: NextRequest) {
         workshopName: workshopName || '',
         workshopLanguage: workshopLanguage || '',
         workshopMode: workshopMode || '',
+        educationStatus: educationStatus || '',
         batchPreference: batchPreference || '',
+        workshopScheduleId: workshopScheduleId || '',
+        participantStatus: participantStatus || '',
+        city: city || '',
+        timeAvailable: timeAvailable || '',
+        videoOnDuringClass: videoOnDuringClass || '',
+        regularAttendance: regularAttendance || '',
+        healthIssues: healthIssues || '',
+        deviceForWorkshop: deviceForWorkshop || '',
+        donationReady: donationReady || '',
+        awarenessConfirmed: Boolean(awarenessConfirmed),
+        finalConfirmation: Boolean(finalConfirmation),
         courseName: courseName || '',
         paymentMode: paymentMode || '',
         message: message || '',
         submittedAt: new Date(),
       };
 
-      // Check for existing lead
+      // Check for existing lead using normalized email/phone matching
       const existingLead = await Lead.findOne({
-        $or: [
-          { phoneNumber: cleanedPhone },
-          { email: cleanedEmail },
-        ],
+        $or: buildContactDuplicateQuery(cleanedEmail, cleanedPhone),
       }).lean();
 
       if (existingLead) {
@@ -481,9 +549,11 @@ export async function POST(request: NextRequest) {
       // Non-fatal
     }
 
-    // Send notifications (WhatsApp + Email)
-    if (isNewUser || formType === 'signup' || formType === 'workshop') {
-      // Send credentials via WhatsApp and Email (async, don't wait)
+    // Send credentials only for a newly created account. Existing users keep
+    // their current password and can simply submit updated form details.
+    if (isNewUser) {
+      // Notifications are intentionally fire-and-forget so form submission
+      // does not wait for external messaging providers.
       Promise.all([
         sendWhatsAppCredentials(
           phone,
@@ -522,10 +592,9 @@ export async function POST(request: NextRequest) {
     return apiSuccess({
       message: 'Form submitted successfully',
       leadNumber,
-      credentials: (isNewUser || formType === 'signup' || formType === 'workshop') ? {
+      credentials: isNewUser ? {
         userId: leadNumber || user?._id?.toString() || '',
         email: cleanedEmail,
-        password: generatedPassword,
       } : undefined,
       token,
     }, 201);

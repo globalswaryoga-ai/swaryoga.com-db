@@ -2,88 +2,291 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle, Loader, ChevronDown } from 'lucide-react';
+import { CheckCircle, Loader, ExternalLink, CreditCard, Check } from 'lucide-react';
+import { COUNTRY_PHONE_CODES } from '@/lib/countryPhoneCodes';
 
-interface Workshop {
-  id: string;
-  name: string;
+interface DynamicQuestion {
+  _id: string;
+  fieldKey: string;
+  questionType: 'text' | 'paragraph' | 'dropdown' | 'radio' | 'checkbox' | 'info' | 'payment' | 'image' | 'document';
+  label: { en: string };
+  placeholder?: { en?: string };
+  options?: Array<{ value: string; label: { en: string } }>;
+  imageUrl?: string;
+  qrCodeUrl?: string;
+  linkUrl?: string;
+  linkLabel?: string;
+  paymentConfig?: Array<{
+    amount?: number;
+    currency?: string;
+    buttonText?: string;
+  }> | {
+    amount?: number;
+    currency?: string;
+    buttonText?: string;
+  };
+  required: boolean;
+}
+
+interface EnquiryFormDetails {
+  formId: string;
+  workshopName: string;
+  workshopDate?: string;
+  workshopEndDate?: string;
+  workshopTime?: string;
+  duration?: string;
+  holidays?: string;
+  description?: string;
+  workshopImage?: string;
 }
 
 function EnquiryForm() {
   const searchParams = useSearchParams();
-  // Pre-fill from URL: ?workshopId=swar-yoga-basic&workshopName=Swar+Yoga+Basic
-  const preWorkshopId = searchParams.get('workshopId') || searchParams.get('w') || '';
-  const preWorkshopName = searchParams.get('workshopName') || '';
+  const formId = searchParams.get('workshopId') || searchParams.get('w') || '';
 
-  const [workshops, setWorkshops] = useState<Workshop[]>([]);
-  const [workshopsLoading, setWorkshopsLoading] = useState(true);
-
+  const [formDetails, setFormDetails] = useState<EnquiryFormDetails | null>(null);
+  const [dynamicQuestions, setDynamicQuestions] = useState<DynamicQuestion[]>([]);
+  const [dynamicAnswers, setDynamicAnswers] = useState<Record<string, string | string[]>>({});
+  
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
   const [gender, setGender] = useState('');
-  const [city, setCity] = useState('');
-  const [workshopId, setWorkshopId] = useState(preWorkshopId);
-  const [workshopName, setWorkshopName] = useState(preWorkshopName);
+  const [country, setCountry] = useState('India');
 
-  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+
+  const [loadingForm, setLoadingForm] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedLeadNumber, setSubmittedLeadNumber] = useState('');
   const [error, setError] = useState('');
 
-  // Load workshops from DB — auto-updates whenever admin publishes a new one
+  // Load specific form details and questions
   useEffect(() => {
-    fetch('/api/workshops/list')
-      .then((r) => r.json())
-      .then((data) => {
-        const list: Workshop[] = (data.data || []).map((w: any) => ({
-          id: w.id,
-          name: w.name,
-        }));
-        setWorkshops(list);
+    if (!formId) {
+      setLoadingForm(false);
+      setError('No form ID provided in URL.');
+      return;
+    }
 
-        // If URL pre-filled an ID but no name, resolve the name from list
-        if (preWorkshopId && !preWorkshopName) {
-          const found = list.find((w) => w.id === preWorkshopId);
-          if (found) setWorkshopName(found.name);
+    fetch(`/api/enquiry-form/${formId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) {
+          setError(data.error || 'Form not found or inactive.');
+          return;
         }
-        // If URL pre-filled a name but no ID, pick the first match
-        if (!preWorkshopId && preWorkshopName) {
-          const found = list.find((w) => w.name === preWorkshopName);
-          if (found) setWorkshopId(found.id);
-        }
+        setFormDetails(data.form);
+        setDynamicQuestions(data.questions || []);
+        
+        const init: Record<string, string | string[]> = {};
+        (data.questions || []).forEach((q: DynamicQuestion) => {
+          init[q.fieldKey] = q.questionType === 'checkbox' ? [] : '';
+        });
+        setDynamicAnswers(init);
       })
-      .catch(() => {})
-      .finally(() => setWorkshopsLoading(false));
-  }, []);
+      .catch(() => setError('Failed to load form.'))
+      .finally(() => setLoadingForm(false));
+  }, [formId]);
 
-  const handleWorkshopChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = e.target.value;
-    setWorkshopId(id);
-    const found = workshops.find((w) => w.id === id);
-    setWorkshopName(found?.name || '');
+  const setAnswer = (key: string, value: string) => {
+    setDynamicAnswers(prev => ({ ...prev, [key]: value }));
   };
+
+  const toggleCheckbox = (key: string, value: string) => {
+    setDynamicAnswers(prev => {
+      const current = (prev[key] as string[]) || [];
+      const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+      return { ...prev, [key]: next };
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // 5MB Validation
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      e.target.value = '';
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        const res = await fetch('/api/admin/crm/upload/s3/base64', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64, fileName: file.name, category: 'form-uploads' }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setAnswer(key, data.data.publicUrl);
+        } else {
+          setError('Failed to upload file');
+        }
+        setSubmitting(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError('Error reading file');
+      setSubmitting(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setSearchError('');
+    try {
+      const res = await fetch(`/api/enquiries/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        setName(data.data.name || '');
+        setMobile(data.data.mobile || '');
+        setEmail(data.data.email || '');
+        if (data.data.gender) setGender(data.data.gender.toLowerCase());
+        setCountry(data.data.city || 'India'); // city column stores country
+        setDynamicAnswers(data.data.dynamicAnswers || {});
+      } else {
+        setSearchError('No past submission found with this detail.');
+      }
+    } catch (err) {
+      setSearchError('Failed to search.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const getActiveFieldIndex = () => {
+    if (!name.trim()) return 0;
+    if (!email.trim() || !email.includes('@')) return 1;
+    if (!gender) return 2;
+    if (!country) return 3;
+    if (!mobile.trim() || mobile.length < 10) return 4;
+    
+    for (let i = 0; i < dynamicQuestions.length; i++) {
+      const q = dynamicQuestions[i];
+      if (q.required) {
+        const ans = dynamicAnswers[q.fieldKey];
+        if (q.questionType === 'checkbox') {
+          if (!ans || (ans as string[]).length === 0) return 5 + i;
+        } else {
+          if (!ans || String(ans).trim() === '') return 5 + i;
+        }
+      }
+    }
+    return -1;
+  };
+  
+  const activeIdx = getActiveFieldIndex();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gender) { setError('Please select your gender.'); return; }
-    if (!workshopId) { setError('Please select a workshop.'); return; }
-    setLoading(true);
+    if (!formDetails) return;
+
+    for (const q of dynamicQuestions) {
+      if (!q.required) continue;
+      if (q.questionType === 'info' || q.questionType === 'payment') continue;
+      const val = dynamicAnswers[q.fieldKey];
+      const isEmpty = Array.isArray(val) ? val.length === 0 : !String(val || '').trim();
+      if (isEmpty) { setError(`Please answer: ${q.label.en}`); return; }
+    }
+
+    setSubmitting(true);
     setError('');
+
+    // Calculate Total Amount
+    let totalAmount = 0;
+    let currency = 'INR';
+    dynamicQuestions.forEach(q => {
+      if (q.questionType === 'payment' && q.paymentConfig) {
+        const configs = Array.isArray(q.paymentConfig) ? q.paymentConfig : [q.paymentConfig];
+        if (configs.length > 0) {
+          totalAmount += Number(configs[0].amount || 0);
+          currency = configs[0].currency || 'INR';
+        }
+      }
+    });
 
     try {
       const res = await fetch('/api/admin/enquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, mobile: '+91' + mobile, gender, city, workshopId, workshopName }),
+        body: JSON.stringify({
+          name,
+          mobile: (COUNTRY_PHONE_CODES[country]?.code || '+91') + mobile,
+          email,
+          gender,
+          country,
+          workshopId: formDetails.formId,
+          workshopName: formDetails.workshopName,
+          dynamicAnswers,
+          amount: totalAmount,
+          currency,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Submission failed');
-      setSubmitted(true);
+      
+      if (data.data && data.data.leadNumber) {
+        setSubmittedLeadNumber(data.data.leadNumber);
+      }
+      
+      if (data.paymentSessionId) {
+        // Load Cashfree SDK dynamically and trigger payment
+        const script = document.createElement('script');
+        script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        script.async = true;
+        script.onload = () => {
+          let cf = (window as any).Cashfree;
+          if (typeof cf === 'function' && typeof cf.checkout !== 'function') {
+            cf = cf({ mode: 'production' });
+          }
+          if (cf && typeof cf.checkout === 'function') {
+            cf.checkout({
+              paymentSessionId: data.paymentSessionId,
+              redirectTarget: '_self'
+            });
+          }
+        };
+        document.body.appendChild(script);
+      } else {
+        setSubmitted(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
+
+  if (loadingForm) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8]">
+        <Loader className="animate-spin text-[#2d6a4f]" size={40} />
+      </div>
+    );
+  }
+
+  if (error && !formDetails) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] px-4">
+        <div className="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full text-center">
+          <div className="text-4xl mb-4">😕</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops!</h1>
+          <p className="text-red-500 font-medium">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -93,10 +296,14 @@ function EnquiryForm() {
             <CheckCircle className="text-green-600" size={40} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-3">Thank You, {name.split(' ')[0]}!</h1>
-          <p className="text-gray-600 mb-2">
-            Enquiry received for <strong>{workshopName}</strong>.
-          </p>
-          <p className="text-gray-500 text-sm">Our team will contact you on WhatsApp shortly.</p>
+          <p className="text-gray-600 mb-2">Form submitted for <strong>{formDetails?.workshopName}</strong>.</p>
+          {submittedLeadNumber && (
+            <div className="bg-gray-100 p-4 rounded-xl mt-4 mb-4 border border-gray-200">
+              <p className="text-sm text-gray-500 mb-1">Your unique reference code is:</p>
+              <p className="text-xl font-mono font-bold text-[#2d6a4f]">{submittedLeadNumber}</p>
+            </div>
+          )}
+          <p className="text-gray-500 text-sm">You will get an email with all these details shortly.</p>
         </div>
       </div>
     );
@@ -104,123 +311,229 @@ function EnquiryForm() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f0f7ee] to-[#e8f4e8] flex items-center justify-center px-4 py-10">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden">
-        {/* Header */}
-        <div className="bg-[#2d6a4f] px-8 py-7 text-white">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">🧘</span>
-            <span className="font-semibold text-white/80 text-sm">Swar Yoga</span>
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden">
+        {/* Header Section */}
+        {formDetails?.workshopImage ? (
+          <div className="w-full h-48 bg-gray-100 relative">
+            <img src={formDetails.workshopImage} alt="Header" className="w-full h-full object-cover" />
           </div>
-          <h1 className="text-2xl font-bold mb-1">Workshop Enquiry</h1>
-          <p className="text-white/70 text-sm">Fill in your details and we'll reach out on WhatsApp.</p>
+        ) : (
+          <div className="bg-[#2d6a4f] h-32 flex items-end px-8 pb-6 text-white">
+            <h1 className="text-2xl font-bold">{formDetails?.workshopName}</h1>
+          </div>
+        )}
+
+        <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/50">
+          <div className="mb-6 bg-white p-4 rounded-xl border border-blue-100 shadow-sm flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-1">I have filled this already</p>
+              <p className="text-xs text-gray-500 mb-2">Enter your email, mobile number, or reference code to autofill.</p>
+            </div>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={searchQuery} 
+                onChange={e => setSearchQuery(e.target.value)} 
+                placeholder="Email, mobile, or reference code" 
+                className="flex-1 h-10 px-3 border border-gray-200 rounded-lg text-sm outline-none focus:border-[#2d6a4f]"
+              />
+              <button 
+                type="button" 
+                onClick={handleSearch} 
+                disabled={searching || !searchQuery.trim()}
+                className="px-4 h-10 bg-[#2d6a4f] text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                {searching ? '...' : 'Search'}
+              </button>
+            </div>
+            {searchError && <p className="text-xs text-red-500">{searchError}</p>}
+          </div>
+
+          {formDetails?.workshopImage && (
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{formDetails?.workshopName}</h1>
+          )}
+          {formDetails?.description && (
+            <p className="text-gray-600 text-sm whitespace-pre-wrap mt-2 leading-relaxed">{formDetails.description}</p>
+          )}
+
+          <div className="flex flex-wrap gap-3 mt-5">
+            {formDetails?.workshopDate && (
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
+                📅 {formDetails.workshopDate} {formDetails.workshopEndDate ? `- ${formDetails.workshopEndDate}` : ''}
+              </div>
+            )}
+            {formDetails?.workshopTime && (
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
+                🕐 {formDetails.workshopTime}
+              </div>
+            )}
+            {formDetails?.duration && (
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
+                ⏳ {formDetails.duration}
+              </div>
+            )}
+            {formDetails?.holidays && (
+              <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700">
+                🏖️ Holidays: {formDetails.holidays}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-8 py-7 space-y-5">
+        <form onSubmit={handleSubmit} className="px-8 py-7 space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-              {error}
-            </div>
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>
           )}
 
-          {/* Workshop selector — live from DB */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Select Workshop *</label>
-            <div className="relative">
-              <select
-                value={workshopId}
-                onChange={handleWorkshopChange}
-                required
-                disabled={workshopsLoading}
-                className="w-full h-12 px-4 pr-10 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f] appearance-none bg-white disabled:bg-gray-50"
-              >
-                <option value="">{workshopsLoading ? 'Loading workshops…' : 'Choose a workshop'}</option>
-                {workshops.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-            </div>
-          </div>
-
-          {/* Name */}
+          {/* Standard Fields */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name"
-              required
-              className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]"
-            />
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your answer" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 0 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
           </div>
 
-          {/* Mobile */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
-            <div className="flex gap-2">
-              <div className="flex items-center justify-center w-16 h-12 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 bg-gray-50 shrink-0">
-                +91
-              </div>
-              <input
-                type="tel"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="9876543210"
-                required
-                pattern="\d{10}"
-                title="Enter 10-digit mobile number"
-                className="flex-1 h-12 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]"
-              />
-            </div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 1 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
           </div>
 
-          {/* Gender */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Gender *</label>
-            <div className="grid grid-cols-3 gap-2">
-              {['Male', 'Female', 'Other'].map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setGender(g.toLowerCase())}
-                  className={`h-12 rounded-xl text-sm font-semibold border-2 transition-all ${
-                    gender === g.toLowerCase()
-                      ? 'bg-[#2d6a4f] text-white border-[#2d6a4f]'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f]/50'
-                  }`}
-                >
+            <div className="grid grid-cols-3 gap-3">
+              {['Male', 'Female', 'Other'].map(g => (
+                <button key={g} type="button" onClick={() => setGender(g.toLowerCase())} className={`h-11 rounded-lg text-sm font-semibold border-2 transition-all ${gender === g.toLowerCase() ? 'bg-[#2d6a4f]/10 text-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === 2 ? 'bg-white text-gray-600 border-red-200 hover:border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300')}`}>
                   {g}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* City */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">City *</label>
-            <input
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Your city"
-              required
-              className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f]"
-            />
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Country *</label>
+            <select value={country} onChange={e => setCountry(e.target.value)} required className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 3 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
+              {Object.keys(COUNTRY_PHONE_CODES).map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full h-12 bg-[#2d6a4f] text-white rounded-xl font-bold text-sm hover:bg-[#1b4332] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader className="animate-spin" size={18} /> : 'Submit Enquiry'}
-          </button>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">WhatsApp Number *</label>
+            <div className="flex gap-2">
+              <div className={`flex items-center justify-center min-w-[3.5rem] px-2 border-b-2 bg-gray-50 rounded-t-xl text-sm font-semibold text-gray-600 shrink-0 ${activeIdx === 4 ? 'border-red-400' : 'border-gray-200'}`}>
+                {COUNTRY_PHONE_CODES[country]?.code || '+91'}
+              </div>
+              <input type="tel" value={mobile} onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Enter number" required className={`flex-1 h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === 4 ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+            </div>
+          </div>
 
-          <p className="text-center text-xs text-gray-400">
-            We'll contact you on WhatsApp within 24 hours.
-          </p>
+          {/* Dynamic Questions */}
+          {dynamicQuestions.map((q, idx) => (
+            <div key={q._id}>
+              {q.imageUrl && <img src={q.imageUrl} alt="" className="w-full max-h-56 object-cover rounded-xl border border-gray-100 mb-4" />}
+              
+              {q.questionType !== 'info' && (
+                <label className="block text-sm font-semibold text-gray-800 mb-2">
+                  {q.label.en}
+                  {q.required && <span className="text-red-500 ml-1">*</span>}
+                </label>
+              )}
+
+              {(q.qrCodeUrl || q.linkUrl) && (
+                <div className="flex items-center gap-4 flex-wrap mb-4">
+                  {q.qrCodeUrl && <img src={q.qrCodeUrl} alt="QR Code" className="w-32 h-32 object-cover rounded-xl border border-gray-200 shadow-sm" />}
+                  {q.linkUrl && (
+                    <a href={q.linkUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-colors">
+                      <ExternalLink size={14} /> {q.linkLabel || 'Open Link'}
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {q.questionType === 'text' && (
+                <input value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+              )}
+
+              {q.questionType === 'paragraph' && (
+                <textarea value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} placeholder={q.placeholder?.en || 'Your answer'} required={q.required} rows={4} className={`w-full px-4 py-3 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors resize-none ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`} />
+              )}
+
+              {q.questionType === 'dropdown' && (
+                <select value={(dynamicAnswers[q.fieldKey] as string) || ''} onChange={e => setAnswer(q.fieldKey, e.target.value)} required={q.required} className={`w-full h-12 px-4 border-b-2 bg-gray-50 rounded-t-xl text-sm outline-none transition-colors ${activeIdx === (5 + idx) ? 'border-red-400 focus:border-red-500 focus:bg-white' : 'border-gray-200 focus:border-[#2d6a4f] focus:bg-white'}`}>
+                  <option value="">Choose…</option>
+                  {(q.options || []).map(o => <option key={o.value} value={o.value}>{o.label.en}</option>)}
+                </select>
+              )}
+
+              {q.questionType === 'radio' && (
+                <div className="space-y-3 mt-1">
+                  {(q.options || []).map(o => (
+                    <label key={o.value} className="flex items-center gap-3 cursor-pointer group">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${dynamicAnswers[q.fieldKey] === o.value ? 'border-[#2d6a4f]' : (activeIdx === (5 + idx) ? 'border-red-400 group-hover:border-red-500' : 'border-gray-300 group-hover:border-gray-400')}`}>
+                        {dynamicAnswers[q.fieldKey] === o.value && <div className="w-2.5 h-2.5 bg-[#2d6a4f] rounded-full" />}
+                      </div>
+                      <input type="radio" name={q.fieldKey} value={o.value} checked={(dynamicAnswers[q.fieldKey] as string) === o.value} onChange={() => setAnswer(q.fieldKey, o.value)} required={q.required} className="hidden" />
+                      <span className="text-sm text-gray-700">{o.label.en}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {q.questionType === 'checkbox' && (
+                <div className="space-y-3 mt-1">
+                  {(q.options || []).map(o => {
+                    const isChecked = ((dynamicAnswers[q.fieldKey] as string[]) || []).includes(o.value);
+                    return (
+                      <label key={o.value} className="flex items-center gap-3 cursor-pointer group">
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${isChecked ? 'bg-[#2d6a4f] border-[#2d6a4f]' : (activeIdx === (5 + idx) ? 'border-red-400 group-hover:border-red-500' : 'border-gray-300 group-hover:border-gray-400')}`}>
+                          {isChecked && <Check size={14} className="text-white" strokeWidth={3} />}
+                        </div>
+                        <input type="checkbox" checked={isChecked} onChange={() => toggleCheckbox(q.fieldKey, o.value)} className="hidden" />
+                        <span className="text-sm text-gray-700">{o.label.en}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {q.questionType === 'info' && (
+                <div className="bg-blue-50/50 border-l-4 border-blue-400 py-3 px-4 rounded-r-lg">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{q.label.en}</p>
+                </div>
+              )}
+
+              {(q.questionType === 'image' || q.questionType === 'document') && (
+                <div className="space-y-2 mt-2">
+                  <input
+                    type="file"
+                    accept={q.questionType === 'image' ? "image/*" : ".pdf,.doc,.docx"}
+                    onChange={(e) => handleFileUpload(e, q.fieldKey)}
+                    required={q.required && !dynamicAnswers[q.fieldKey]}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#2d6a4f]/10 file:text-[#2d6a4f] hover:file:bg-[#2d6a4f]/20"
+                  />
+                  {dynamicAnswers[q.fieldKey] && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <CheckCircle className="text-green-600" size={16} />
+                      <a href={dynamicAnswers[q.fieldKey] as string} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">View Uploaded {q.questionType === 'image' ? 'Image' : 'Document'}</a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {q.questionType === 'payment' && q.paymentConfig && (
+                <div className="flex items-center justify-center gap-2 w-full h-12 bg-white border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-xl font-bold mt-2 cursor-default">
+                  <CreditCard size={18} /> {Array.isArray(q.paymentConfig) ? q.paymentConfig[0]?.buttonText : q.paymentConfig.buttonText || 'Pay Now'} {Array.isArray(q.paymentConfig) ? (q.paymentConfig[0]?.amount ? ` (₹${q.paymentConfig[0].amount})` : '') : (q.paymentConfig.amount ? ` (₹${q.paymentConfig.amount})` : '')}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div className="pt-4 border-t border-gray-100">
+            <button type="submit" disabled={submitting} className="w-full h-12 bg-[#2d6a4f] text-white rounded-xl font-bold text-base hover:bg-[#1b4332] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md">
+              {submitting ? <Loader className="animate-spin" size={20} /> : 'Submit'}
+            </button>
+            <p className="text-center text-xs text-gray-400 mt-4">Never submit passwords through this form.</p>
+          </div>
         </form>
       </div>
     </div>
@@ -229,11 +542,7 @@ function EnquiryForm() {
 
 export default function EnquiryPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader className="animate-spin text-[#2d6a4f]" size={32} />
-      </div>
-    }>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-[#2d6a4f]" size={40} /></div>}>
       <EnquiryForm />
     </Suspense>
   );

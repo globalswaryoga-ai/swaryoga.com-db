@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { User } from '@/lib/db';
+import { listTemplates, createTemplate, updateTemplate, deleteTemplate, getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import { deleteTemplateFilesFromS3 } from '@/lib/bunny-storage';
 import mongoose from 'mongoose';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
@@ -38,31 +39,21 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
-
     const filter: any = {};
-
-    // Ownership scoping:
-    //  • Regular admins/tenants only ever see their own templates.
-    //  • QR templates are ALWAYS owner-scoped — even for the super admin — because
-    //    QR is per-connected-account. Without this, the super admin's QR template
-    //    list leaks every tenant's QR templates. (Meta keeps super-admin "see all".)
     if (!superAdmin || provider === 'qr') {
       filter.createdBy = viewerUserId;
     }
-
     if (category) filter.category = category;
     if (status) filter.status = status;
-    if (provider) filter.provider = provider;
+    if (provider) {
+      if (provider === 'meta') {
+        filter.provider = 'meta'; // handled in bunnyTemplatesRepository
+      } else {
+        filter.provider = provider;
+      }
+    }
 
-    const templates = await WhatsAppTemplate.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await WhatsAppTemplate.countDocuments(filter);
+    const { templates, total } = await listTemplates(filter, limit, skip);
 
     return NextResponse.json(
       { success: true, templates, total, data: { templates, total, limit, skip } },
@@ -119,8 +110,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
+    // MongoDB connection removed
 
     // WhatsAppTemplate schema uses createdBy as a String (userId like 'admincrm').
     // Use viewerUserId directly — no need for ObjectId conversion.
@@ -181,7 +171,7 @@ export async function POST(request: NextRequest) {
     // QR = auto-approved, Meta = pending_approval (waiting for admin review)
     const finalStatus = safeProvider === 'qr' ? 'approved' : 'pending_approval';
 
-    const template = await WhatsAppTemplate.create({
+    const template = await createTemplate({
       templateName,
       provider: safeProvider,
       category: safeCategory,
@@ -234,31 +224,18 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
     }
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
-
     if (action === 'approve') {
-      const template = await WhatsAppTemplate.findByIdAndUpdate(
-        templateId,
-        { $set: { status: 'approved', approvedBy: decoded.userId, approvalDate: new Date() } },
-        { new: true }
-      );
+      const template = await updateTemplate(templateId, { status: 'approved', approvedBy: decoded.userId, approvalDate: new Date() });
       if (!template) {
         return NextResponse.json({ error: 'Template not found' }, { status: 404 });
       }
       return NextResponse.json({ success: true, data: template }, { status: 200 });
     } else if (action === 'reject') {
-      const template = await WhatsAppTemplate.findByIdAndUpdate(
-        templateId,
-        {
-          $set: {
-            status: 'rejected',
-            rejectionReason: updates.rejectionReason || 'No reason provided',
-            rejectionDate: new Date(),
-          },
-        },
-        { new: true }
-      );
+      const template = await updateTemplate(templateId, {
+        status: 'rejected',
+        rejectionReason: updates.rejectionReason || 'No reason provided',
+        rejectionDate: new Date(),
+      });
       if (!template) {
         return NextResponse.json({ error: 'Template not found' }, { status: 404 });
       }
@@ -292,7 +269,7 @@ export async function PUT(request: NextRequest) {
       // Handle file updates (imageFile, documents, videoUrl)
       // If imageFile is being updated, delete old file from S3
       if ((updates as any)?.imageFile !== undefined) {
-        const oldTemplate = await WhatsAppTemplate.findById(templateId).lean();
+        const oldTemplate = await getTemplateById(templateId);
         if (oldTemplate && (oldTemplate as any)?.imageFile?.url) {
           try {
             await deleteTemplateFilesFromS3([(oldTemplate as any).imageFile.url]);
@@ -308,7 +285,7 @@ export async function PUT(request: NextRequest) {
 
       // If documents are being updated, delete old documents from S3
       if ((updates as any)?.documents !== undefined) {
-        const oldTemplate = await WhatsAppTemplate.findById(templateId).lean();
+        const oldTemplate = await getTemplateById(templateId);
         if (oldTemplate && Array.isArray((oldTemplate as any)?.documents)) {
           const oldUrls = (oldTemplate as any).documents
             .map((d: any) => d?.url)
@@ -340,11 +317,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Generic update
-      const template = await WhatsAppTemplate.findByIdAndUpdate(
-        templateId,
-        { $set: { ...updates, updatedAt: new Date() } },
-        { new: true }
-      );
+      const template = await updateTemplate(templateId, { ...updates, updatedAt: new Date() });
       if (!template) {
         return NextResponse.json({ error: 'Template not found' }, { status: 404 });
       }
@@ -375,11 +348,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
     }
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
-
     // Get template before deleting to clean up S3 files
-    const template = await WhatsAppTemplate.findById(templateId).lean();
+    const template = await getTemplateById(templateId);
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
@@ -405,7 +375,8 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    const result = await WhatsAppTemplate.findByIdAndDelete(templateId);
+    await deleteTemplate(templateId);
+    const result = true;
 
     if (!result) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });

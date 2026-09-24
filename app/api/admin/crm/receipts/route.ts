@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { Lead, CrmReceipt, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
+import { formatPersonName } from '@/lib/formatName';
 
 // Builds the payment/workshop snapshot for a receipt from the actual sale
 // record (SalesReport), which is the source of truth for amounts — the
@@ -144,7 +145,14 @@ export async function POST(request: NextRequest) {
     if (existing && sale?._id && !existing.saleId) {
       await (CrmReceipt as any).updateOne({ _id: existing._id }, { $set: { saleId: sale._id } });
     }
-    const existingIsStale = Boolean(existing) && !existing!.payment?.amount && Boolean(sale?.saleAmount);
+    // Receipt number, issue date and payment/financial data are an
+    // immutable snapshot by design (audit trail — see below). Contact info
+    // like the customer's name isn't financial data though, and a lead-name
+    // correction (typo fix, etc.) made after the receipt was first issued
+    // should show up next time the receipt is viewed, not stay frozen.
+    const currentName = formatPersonName(sale?.customerName || lead.name || lead.userName);
+    const nameIsStale = Boolean(existing) && Boolean(currentName) && existing!.customerName !== currentName;
+    const existingIsStale = Boolean(existing) && ((!existing!.payment?.amount && Boolean(sale?.saleAmount)) || nameIsStale);
     if (existing && !force && !existingIsStale) {
       return NextResponse.json({ success: true, data: existing, message: 'Existing receipt returned' }, { status: 200 });
     }
@@ -157,7 +165,7 @@ export async function POST(request: NextRequest) {
     if (existing && existingIsStale) {
       receipt = await (CrmReceipt as any).findByIdAndUpdate(
         existing._id,
-        { $set: { workshopName, payment } },
+        { $set: { workshopName, payment, customerName: currentName } },
         { new: true }
       ).lean();
     } else {
@@ -172,7 +180,7 @@ export async function POST(request: NextRequest) {
         receiptNumber,
         issuedByUserId: viewerUserId,
         issuedAt: new Date(),
-        customerName: sale?.customerName || lead.name || lead.userName,
+        customerName: currentName,
         customerPhone: sale?.customerPhone || lead.phoneNumber,
         customerEmail: sale?.customerEmail || lead.email,
         workshopName,

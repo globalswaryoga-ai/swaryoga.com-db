@@ -172,6 +172,930 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### QR Bridge Startup Diagnostics (Session: September 19, 2026) — Commit `pending`
+
+- Updated `deploy/wa-baileys/index.js` to expose `lastStartError` in `/status` and `/qr` when a session cannot initialize.
+- Updated `app/admin/crm/qr/page.tsx` to show the bridge startup error instead of an indefinite generic QR waiting message.
+- Hetzner bridge HTTPS is reachable, but SSH access is currently rejected for both configured users, so PM2/Docker logs and restart remain blocked until the correct key/user is supplied.
+
+### CRM Subscription Bunny SQL Cutover (Session: September 18, 2026) — Commit `pending`
+
+- Updated `app/api/crm-site/subscription/route.ts` to resolve tenant, lead usage, and user usage from Bunny SQL instead of connecting to MongoDB Atlas.
+- Subscription requests now remain available during Atlas outages and preserve the existing response contract for the CRM frontend.
+- Storage usage is reported as a safe Bunny-backed baseline until dedicated per-tenant storage accounting is completed.
+
+### Vercel Dashboard API Filesystem Crash Fix (Session: September 18, 2026) — Commit `pending`
+
+- Fixed `lib/backup/logger.ts` so Vercel/serverless API bundles do not call `mkdirSync('.logs/backup')` during module initialization.
+- Production logging now uses Vercel runtime logs; local development retains file logging under `.logs/backup`.
+- This resolves the HTML 500 crash observed on `/api/admin/dashboard` and `/api/admin/crm/analytics` before authentication.
+
+### Dashboard API Serverless Module-Load Fix (Session: September 18, 2026) — Commit `pending`
+
+- Removed the legacy `BunnyStorageClient`/`node-fetch` import from `lib/bunnyDashboardRepository.ts`, which could crash `/api/admin/dashboard` and CRM analytics before authentication with an HTML 500 response.
+- Optional Bunny Storage snapshots now use lazy native `fetch` and safely fall back to Bunny SQL/archive data when unavailable.
+- Focused route diagnostics and production build validation are included before deployment.
+
+### Messenger and Instagram Bunny SQL Migration Foundation (Session: September 18, 2026) — Commit `pending`
+
+- Added `migrations/0024_social_inbox_sql.sql` for connected social accounts, Messenger/Instagram conversations, and messages with indexed scope/platform fields and lossless `data_json` preservation.
+- Added `lib/bunnySocialInboxRepository.ts` and `scripts/migrate-social-inbox-to-bunny.mjs` for resumable, non-destructive MongoDB-to-Bunny migration support.
+- Schema application and importer syntax validation pass; the live MongoDB import is currently blocked by the existing Atlas server-selection timeout, and no legacy records are deleted.
+
+### Bunny SQL Runtime Deployment Alignment (Session: September 18, 2026) — Commit `pending`
+
+- Added the pending Bunny SQL authentication, leads, moderation, Zoom, recording, and storage repository files that were present locally but not included in the deployed commit.
+- Included the related route cutovers and environment templates so production CRM routes use the same Bunny-backed runtime as the local code.
+- Added the required `BUNNY_DATABASE_URL` and `BUNNY_DATABASE_AUTH_TOKEN` values to Vercel Production and redeployed; MongoDB Atlas remains a separate health warning while Bunny-backed routes continue independently.
+
+### Bunny Dashboard Repository Deploy Fix (Session: September 18, 2026) — Commit `b48624bf`
+
+- Added the previously untracked `lib/bunnyDashboardRepository.ts` required by `app/api/admin/crm/analytics/route.ts` and `app/api/admin/dashboard/route.ts`.
+- This resolves Vercel’s `Module not found: Can't resolve '@/lib/bunnyDashboardRepository'` webpack failure.
+- Focused TypeScript diagnostics for the repository and importing routes are clean; unrelated pre-existing repository-wide TypeScript errors remain outside this fix.
+
+### Meta WhatsApp Archived Conversation Discovery (Session: September 18, 2026) — Commit `pending`
+
+- Restored 2,646 preserved `meta_whatsapp_archive_manifest` rows into Bunny SQL, covering 1,165 phone conversations.
+- Meta conversation discovery now merges hot Bunny messages with archived Bunny manifest conversations instead of showing only the small hot-message subset.
+- Added `scripts/restore-meta-archive-manifest-from-bunny.mjs` for repeatable, non-destructive restoration.
+
+### Zoom Management and Workshop Recording Data Verification (Session: September 18, 2026) — Commit `pending`
+
+- Verified Bunny SQL contains 4 Zoom community mappings and 1 workshop recording delivery.
+- The workshop delivery has both Speaker/Gallery YouTube URLs and both Speaker/Gallery Bunny URLs; no preserved Mongo Zoom/recording source collections remain to import.
+- The Zoom recording-sync ledger is currently empty and remains a follow-up only for future uploader records.
+- Updated the live migration dashboard and cutover checklist to reflect the verified Zoom state.
+
+### Bunny SQL Community Data Restore (Session: September 18, 2026) — Commit `pending`
+
+- Added `migrations/0022_community_sql.sql` and extended `lib/bunnyCommunityRepository.ts` for members, videos, posts, watch logs, experiences, and questions.
+- Added non-destructive `scripts/restore-community-from-bunny-archive.mjs`; verified 435 members, 22 videos, 10 posts, 22 watch logs, 2 experiences, and 1 question restored into Bunny SQL.
+- Community member reads now use the Bunny repository; moderation mutations and remaining e-learning runtime paths remain separate follow-up work.
+
+### Bunny SQL QR/Meta Historical Restore (Session: September 18, 2026) — Commit `pending`
+
+- Added `scripts/restore-whatsapp-data-from-bunny-archive.mjs` to restore preserved Mongo documents from Bunny SQL `mongo_documents` without contacting MongoDB.
+- Verified Bunny SQL now contains 85,650 QR messages, 24,373 QR chats, 5,527 QR archive manifests, and 11 Meta messages.
+- The restore is non-destructive; no MongoDB records were changed or deleted. The archive contains no `whatsapp_accounts` documents, so account ownership import remains blocked separately.
+
+### MongoDB Outage Route Recovery (Session: September 18, 2026) — Commit `pending`
+
+- CRM analytics overview now reaches Bunny SQL before any legacy MongoDB connection attempt.
+- CRM account profile and tenant module routes now read Bunny SQL instead of MongoDB `admin_users`/tenant collections.
+- Community member listing now reads preserved Bunny archive data and keeps the existing filters/pagination response shape; deletion reports an explicit Bunny mutation migration status.
+- Focused diagnostics, TypeScript checks, and `git diff --check` pass while the historical WhatsApp restore continues independently.
+
+### Bunny SQL Schema Application and Meta Migration Ledger Repair (Session: September 18, 2026) — Commit `pending`
+
+- Applied and verified QR, Meta WhatsApp, and WhatsApp-account schemas in Bunny SQL; the remote ledger now records migrations `0019`–`0021` with SHA-256 checksums.
+- Repaired the Meta schema mismatch found during application by adding the declared `sent_by_user_id` ownership column before reapplying the index.
+- Verified Bunny SQL connectivity and table creation; Meta/QR tables are empty until historical source data can be imported.
+- MongoDB remains untouched; historical import is blocked by the current Atlas server-selection timeout.
+
+### Meta WhatsApp Account Lookup on Bunny SQL (Session: September 18, 2026) — Commit `11d6f48d`
+
+- Added `migrations/0021_whatsapp_accounts_sql.sql` and `lib/bunnyWhatsAppAccounts.ts` for Meta account ownership and encrypted credential storage.
+- `lib/whatsappAccounts.ts` now resolves tenant and phone-number Meta credentials from Bunny SQL first, with MongoDB retained only for unimported legacy accounts.
+- Added non-destructive `scripts/migrate-whatsapp-accounts-to-bunny.mjs` and updated the live dashboard/checklist.
+- Historical account/message import remains pending because MongoDB Atlas is currently timing out; no legacy data was deleted.
+
+### Meta WhatsApp Bunny-First Read/Write Follow-up (Session: September 18, 2026) — Commit `1625b994`
+
+- Meta webhook writes and Meta inbox/message reads prefer Bunny SQL whenever Bunny records are available, while preserving MongoDB only as a temporary historical fallback.
+- The migration checklist and live dashboard now distinguish the completed Bunny-first boundary from the remaining MongoDB Meta-account and lead-association dependency.
+- Historical Meta import remains blocked by the current MongoDB Atlas server-selection timeout; no legacy data was deleted.
+
+### Meta WhatsApp Bunny-First Runtime Data (Session: September 18, 2026) — Commit `1625b994`
+
+- Meta inbound webhook messages now write to Bunny SQL with the existing Mongo write retained only as a temporary compatibility fallback.
+- Meta conversations and selected message history now prefer Bunny SQL when migrated/new records are available, preserving the existing response contract and old-history fallback.
+- Focused route diagnostics, TypeScript checks, migration-script syntax, and `git diff --check` pass.
+- Historical Meta import remains pending because the current MongoDB source is timing out; no legacy records were deleted.
+
+### Bunny SQL Meta WhatsApp Storage Foundation (Session: September 18, 2026) — Commit `7e104e06`
+
+- Added `migrations/0020_meta_whatsapp_sql.sql` for Meta messages and webhook event storage with indexed phone, lead, provider, and message identity.
+- Added `lib/bunnyMetaWhatsAppRepository.ts` with JSON preservation so existing Meta message fields remain available during the read-path cutover.
+- Added non-destructive `scripts/migrate-meta-whatsapp-to-bunny.mjs` to import historical Meta data and record the migration checksum without deleting MongoDB records.
+- Updated the live migration dashboard and cutover checklist to show Meta schema/repository work as in progress until historical parity is verified.
+
+### Bunny SQL QR WhatsApp Storage Foundation (Session: September 18, 2026) — Commit `b4e09e56`
+
+- Added `migrations/0019_qr_whatsapp_sql.sql` for QR sessions, chats, messages, archive manifests, storage usage, queues, and migration tracking.
+- Added `lib/bunnyQrRepository.ts` with session-safe composite keys and JSON preservation for old QR fields.
+- Added non-destructive `scripts/migrate-qr-whatsapp-to-bunny.mjs`; it reports source counts, records the migration checksum, and never deletes MongoDB data.
+- Updated the live migration dashboard and cutover checklist to show QR schema/repository work as in progress until source/target parity is verified.
+
+### Live Bunny Database Migration Dashboard and CRM Settings Cutover (Session: September 18, 2026) — Commit `fece5a04`
+
+- Added `/admin/crm/database-migration` with a read-only checklist, phase progress bars, Bunny SQL health, migration-ledger status, and automatic 15-second refresh.
+- Added the dashboard to the Super Admin navigation so migration progress is visible without manually reading repository files.
+- Moved CRM settings GET/PUT and QR auto-provision persistence to Bunny SQL, including Bunny-backed bridge-secret uniqueness and tenant-owner lookup.
+- MongoDB remains protected as temporary legacy storage; QR reconciliation, chats/messages, archive metadata, and remaining modules are still tracked as pending work.
+
+### MongoDB → Bunny SQL Cutover Audit and Workshop Stability Fixes (Session: September 18, 2026) — Commit `N/A (working tree only)`
+
+- Added `docs/MONGODB_TO_BUNNY_SQL_CUTOVER_TODO.md` with the complete staged SQL migration backlog, parity rules, and rollback requirements.
+- Fixed `lib/bunnyDatabase.ts` to read Bunny environment variables when the client is created, preventing stale Next.js module initialization from reporting a false “Bunny Database is not configured” error.
+- Added `migrations/0016_admin_authentication.sql`, `lib/bunnyAuthRepository.ts`, and `scripts/migrate-admin-users-archive-to-bunny.mjs`; `/api/admin/auth/login` now verifies admin bcrypt hashes and records sign-ins in Bunny SQL.
+- Moved QR bridge session resolution and connected-phone persistence in `app/api/admin/crm/whatsapp/qr-bridge/route.ts` to Bunny SQL so a MongoDB outage no longer prevents the Hetzner QR session from loading.
+- Added Bunny SQL Zoom mapping and recording-ledger repositories; Community Zoom Settings and Zoom Management recording reads/writes no longer require MongoDB. Community-video linking and YouTube-result reconciliation remain explicitly tracked as follow-up work.
+- Fixed Community Moderation startup in `app/admin/crm/community-moderation/page.tsx`: archived submission reads use Bunny SQL first and client requests time out instead of leaving the page stuck when a backend is unavailable.
+- Moved CRM analytics overview and Super Admin dashboard metrics to Bunny SQL/archive reads in `lib/bunnyDashboardRepository.ts`; `/api/admin/crm/analytics?view=overview` and `/api/admin/dashboard` no longer require MongoDB Atlas.
+- Fixed `app/api/cron/export/route.ts` so daily exports snapshot Bunny SQL directly to Bunny Storage via `lib/bunnySqlStorageSnapshot.ts`; Atlas outages no longer block the SQL archive pipeline. `CRON_SECRET` must be configured for the cron to run.
+- Added `lib/bunnyLeadsRepository.ts`; the main Leads list and metadata GET routes now read `leads_sql` with tenant ownership, search, pagination, status/workshop/label/source filters preserved. Lead writes remain staged until SQL mutation parity is complete.
+- Fixed `lib/workshopBunnyRepository.ts` so SQL snake_case rows expose the camelCase cohort, student, attendance, and recording fields expected by the UI and workers.
+- Added workshop student identity indexes, removed the unnecessary MongoDB connection from `app/api/cron/workshop-zoom-attendance/route.ts`, and hardened the detailed workshop GET route's Bunny error response.
+- Added `BUNNY_DATABASE_URL` and `BUNNY_DATABASE_AUTH_TOKEN` to the committed environment templates; `.env.local` values remain local and are not printed or committed.
+- Validation: target diagnostics, TypeScript checks, and `git diff --check` pass. Full SQL cutover remains staged; legacy Mongo-backed modules are not switched blindly.
+
+### Delayed Zoom Recording Processing Safety (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` with a 10-minute minimum age before processing newly ended Zoom meetings.
+- The uploader now waits when the Zoom meeting or MP4 view is still processing, so delayed Speaker/Gallery files are retried on the next run.
+- A meeting is marked uploaded only after all selected recording views have successfully reached YouTube; partial uploads remain eligible for retry.
+- Existing YouTube playlist insertion, Day N community links, Bunny MP4 storage, and Zoom trash behavior remain unchanged.
+- Validation: uploader syntax and `git diff --check` pass; no live upload was triggered.
+
+### Canonical YouTube Links Stored for Community Recordings (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added `youtubeUrl` to the `CommunityVideo` schema and recording API responses.
+- The Zoom uploader now builds and stores the canonical `https://youtu.be/{videoId}` link for every successful unlisted YouTube upload.
+- The same link is saved in the mapped community recording and `metadata.uploadedMeetings.youtubeUrls`, while existing YouTube IDs remain supported.
+- Validation: uploader syntax, `git diff --check`, and target-file diagnostics pass; no live upload was triggered.
+
+### Scheduled Zoom Recording Uploads and Safe Zoom Cleanup (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added `deploy/zoom-recording-uploader/zoom-recording-uploader.cron` for daily runs at 2:00 AM, 11:00 AM, 2:00 PM, and 10:00 PM IST.
+- Added `deploy/zoom-recording-uploader/README.md` with worker-server installation and environment guidance.
+- Updated `scripts/zoom-recording-uploader.mjs` so Zoom recordings move to recoverable Trash only after all selected YouTube and Bunny uploads succeed.
+- Delayed or failed recordings remain in Zoom and are retried by the next scheduled run; the existing two-day lookback finds morning recordings during the later runs.
+- Validation: uploader syntax, `git diff --check`, and target-file diagnostics pass; the server crontab itself still needs installation on the worker host.
+
+### One-Time Marathi Day 1 Upload Attempt (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added optional `ZOOM_MEETING_ID` filtering to `scripts/zoom-recording-uploader.mjs` so a one-time run can target only the mapped Marathi Swar Yoga L-1 session (`84612021311`).
+- The targeted run found exactly one Zoom meeting, but Google returned `invalid_grant` while refreshing the stored YouTube OAuth token.
+- No YouTube/Bunny upload and no Zoom cleanup occurred; reconnecting YouTube OAuth is required before rerunning the targeted upload.
+
+### YouTube Post-System Token Alignment (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` to use the same token precedence as the website YouTube post system: explicit `YOUTUBE_REFRESH_TOKEN`, valid stored access token, then stored refresh token.
+- Confirmed `.env.local` and `.env.zoom-uploader` contain matching Google OAuth client credentials and encryption key; neither currently contains `YOUTUBE_REFRESH_TOKEN`.
+- The current database access token expired on June 10, 2026 and its refresh token returns Google `invalid_grant`, so YouTube must be reconnected before the Marathi upload can proceed.
+
+### Automatic Workshop Recording Delivery Link Sync (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `app/api/admin/crm/workshop-management/route.ts` to sync uploader history into workshop recording deliveries using canonical YouTube URLs and Bunny CDN URLs.
+- The workshop page now refreshes the selected cohort every minute, so newly completed uploads appear automatically without manual link entry or page reload.
+- The existing Marathi Day 1 upload was populated immediately with both YouTube links and both Bunny links for cohort `Marathi Swar yoga L1`.
+- Validation: target page/API diagnostics, uploader syntax, and `git diff --check` pass.
+
+### Workshop Student Detail Date Safety (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Fixed `app/admin/crm/workshop-management/page.tsx` so clicking a student safely opens the attendance detail table even when optional holiday or attendance dates are blank/invalid.
+- Invalid workshop start dates now show an actionable message instead of causing `RangeError: Invalid time value` in the browser.
+- Bunny Database remains the planned cutover target; this change does not add new Mongo collections or pretend the existing workshop APIs have already migrated before SQL parity is verified.
+- Validation: no diagnostics in the workshop page and no matching TypeScript errors in the workshop-management files.
+
+### Workshop Management Database Error Visibility (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Updated `app/admin/crm/workshop-management/page.tsx` so failed workshop API/database loads show the actual error and a Retry button instead of incorrectly displaying `No workshops yet`.
+- Verified the current local MongoDB connection is failing with Atlas `ReplicaSetNoPrimary`; no delete operation or deletion route was introduced by the recent deployment commits.
+- This protects the UI from making an unavailable database look like a deleted Marathi Swar Yoga workshop while Bunny SQL cutover work is still being validated.
+
+### Workshop Management Bunny SQL Cutover (Session: September 15, 2026) — Commit `N/A (working tree only)`
+
+- Added `migrations/0015_workshop_management.sql` and `lib/workshopBunnyRepository.ts` for Bunny SQL cohorts, students, attendance, and recording deliveries.
+- Switched the workshop management, student CRUD/import/group sync, attendance, Zoom attendance persistence, worker, and recording delivery paths to Bunny SQL storage instead of MongoDB workshop models.
+- Restored the Marathi Swar Yoga L-1 cohort in Bunny SQL with Zoom meeting ID `84612021311` and restored its Day 1 YouTube/Bunny recording links.
+- Bunny SQL verification: one cohort, zero students (no student archive was available), zero attendance rows, and one recording delivery.
+- Validation: target diagnostics, focused TypeScript checks, and `git diff --check` pass; live MongoDB is no longer required for the workshop management page.
+
+### Automatic Email Password Delivery for Public Forms (Session: September 13, 2026 — Phase 125) — Commit `N/A (working tree only)`
+
+**✅ REMOVED USER PASSWORD ENTRY AND ADDED SERVER-GENERATED EMAIL CREDENTIALS**
+
+1. **✅ Secure password generation**
+   - Updated `app/api/forms/submit/route.ts` to generate a password only for newly created accounts
+   - Format is exactly three letters plus three numbers, with the first letter uppercase, for example `Nat993`
+   - Password generation uses server-side secure randomness and the password is never returned to the browser
+
+2. **✅ Simplified public form registration**
+   - Updated `app/forms/[formType]/page.tsx` to remove password and confirmation inputs
+   - Removed the password from the success-screen credential display
+   - New account credentials continue to be sent to the submitted Gmail/email address through the existing Resend integration
+   - Existing users keep their current password during repeat submissions
+
+3. **✅ Workshop dates are separated by class language**
+   - Marathi keeps the previously configured workshop batches
+   - Hindi now shows only the six dates and seat counts supplied by the administrator
+   - English now shows the eight administrator-provided morning and evening batches with 60 seats each
+   - Changing the language clears the previous date selection so dates cannot be submitted for the wrong class
+
+4. **✅ Hindi workshop date correction**
+   - Changed the first Hindi evening batch from 12th September 2026 to 16th September 2026
+   - Kept the 7:00 PM–8:15 PM timing and 40-seat capacity unchanged
+
+### Admin-Controlled Online Workshop Slots (Session: September 13, 2026 — Phase 126) — Commit `N/A (working tree only)`
+
+**✅ PUBLIC WORKSHOP FORM NOW USES ONLINE ZOOM BATCHES WITH LIVE RED SLOT COUNTS**
+
+1. **✅ Online-only registration mode**
+   - The public workshop form now fixes the mode to Online on Zoom; offline selection was removed
+
+2. **✅ Admin-approved schedules and slot display**
+   - Published future schedules from Admin are preferred for each selected language
+   - Each date/time option displays its remaining seat number in red
+   - Admin schedule seat edits synchronize the seat inventory used by the public form
+
+3. **✅ Automatic seat decrement**
+   - New admissions reserve one seat atomically in `WorkshopSeatInventory`
+   - Repeat submissions for the same contact and batch do not consume another seat
+   - Full batches are rejected with a clear message instead of allowing overbooking
+
+### Public Workshop Form Language Review (Session: September 13, 2026 — Phase 127) — Commit `N/A (working tree only)`
+
+**✅ CORRECTED VISIBLE SPELLING, GRAMMAR, AND WORDING**
+
+- Improved English workshop instructions, participant labels, donation wording, date punctuation, and helper messages
+- Corrected Hindi wording such as `अपनी आईडी`, `जाँच`, and `पंजीकृत`
+- Corrected Marathi wording such as `तुमचा संदेश`, `हे वर्कशॉप`, `कोणते डिव्हाइस`, and natural registration phrasing
+- Removed unnecessary mixed-language labels such as `(Education)` from Hindi and Marathi education headings
+- The spell checker still reports Hindi/Marathi vocabulary and international place names as dictionary misses; these are expected language/name false positives
+
+### Public Workshop Language URL Aliases (Session: September 13, 2026 — Phase 128) — Commit `N/A (working tree only)`
+
+**✅ ADDED SHARED WORKSHOP FORM URLS FOR EACH LANGUAGE**
+
+- `/forms/workshop` remains the common all-language form
+- `/forms/ML-1/workshop` loads Marathi
+- `/forms/HL-1/workshop` loads Hindi
+- `/forms/EL-1/workshop` loads English
+- Middleware rewrites aliases internally to the shared form without duplicating the form implementation
+
+### Marathi Participant Status Options (Session: September 14, 2026 — Phase 129) — Commit `N/A (working tree only)`
+
+- Marathi participant status now contains only three choices:
+   - `मी नवीन विद्यार्थी आहे`
+   - `मी रिपीट करीत आहे`
+   - `मी आधी केले आहे पण पूर्ण करू शकलो नाही`
+
+### Marathi Donation Question Wording (Session: September 14, 2026 — Phase 130) — Commit `N/A (working tree only)`
+
+- Corrected the Marathi donation question to: `हे वर्कशॉप पूर्णपणे मोफत आहे. शेवटी आपण स्वेच्छेने ऐच्छिक देणगी देण्यास तयार आहात का?`
+
+### Admin Form Submission Excel Management (Session: September 14, 2026 — Phase 131) — Commit `2d02fc05`
+
+**✅ ADDED ADMIN DOWNLOAD, EDIT, AND RE-UPLOAD WORKFLOW FOR ALL PUBLIC FORM SUBMISSIONS**
+
+- Added `/admin/crm/form-submissions` and linked it from the existing Form Links Manager
+- Added `GET /api/admin/crm/form-submissions` to list public form leads with flattened workshop/profile fields
+- Added Excel download using the existing `xlsx` dependency
+- Added Excel upload that updates existing records by `_id`, `leadNumber`, or email and never creates duplicates
+- Kept Admin authentication and CRM lead ownership checks on the API
+
+### International First-and-Last Name Fields (Session: September 14, 2026 — Phase 132) — Commit `N/A (working tree only)`
+
+- Replaced the single public form name input with separate `First Name` and `Last Name` fields
+- The submission API still receives the combined full name, preserving CRM, login, duplicate-check, and Excel compatibility
+- Existing saved full names are split back into first and last name when form details are restored
+
+### Progressive Required-Field Focus Map (Session: September 14, 2026 — Phase 133) — Commit `N/A (working tree only)`
+
+- Added a soft red highlight to the first incomplete required field, starting with Email
+- The highlight advances to the next incomplete field as each value becomes valid
+- Completed fields return to the normal border color, while submitted invalid fields retain a stronger red error style
+
+### Online and Residential Workshop Modes (Session: September 14, 2026 — Phase 134) — Commit `N/A (working tree only)`
+
+- Added `Online on Zoom` and `Residential at Mumbai` as the two workshop mode choices
+- Online mode keeps the current language-specific dates
+- Residential mode requests Admin-published residential schedules and shows a pending-date message until those dates are available
+
+### Google/Gmail Email Autofill Support (Session: September 14, 2026 — Phase 135) — Commit `N/A (working tree only)`
+
+- Added browser-standard `autocomplete="email"` metadata to the public email field
+- Added a Google-style `Use Google/Gmail autofill` action that focuses the field and opens saved browser/Password Manager email suggestions
+- The browser still requires the user to choose an email; websites cannot silently read a device Google account email without explicit OAuth consent
+
+### QR Group Contacts Complete Export (Session: September 14, 2026 — Phase 136) — Commit `b34a6224`
+
+- Updated `app/admin/crm/qr/group-contacts/page.tsx` so single-group, selected-group, and all-group Excel exports include every WhatsApp participant
+- LID-only participants without a resolved phone number are retained with their JID/LID identifiers instead of being silently excluded
+- Export deduplication now uses the resolved phone when available and falls back to the participant JID; the page also clarifies that all members are downloadable
+
+### QR Group Contacts Large-Group Loading (Session: September 14, 2026 — Phase 139) — Commit `b34a6224`
+
+- Updated `app/admin/crm/qr/group-contacts/page.tsx` to verify the live QR WhatsApp session before loading groups or group participants
+- Logged-out or expired QR sessions now clear stale group data and show the bridge status with a direct `Open Connection` action instead of producing a generic 503 group error
+- Verified the route still returns HTTP 200 and the modified page has no editor diagnostics
+
+### Hetzner Bridge Host Cleanup (Session: September 14, 2026 — Phase 138) — Commit `b34a6224`
+
+- Updated `lib/whatsappBridgeConfig.ts` to normalize known retired bridge IPs to the active `https://wa-bridge.swaryoga.com` hostname
+- Updated `.env.production` so production QR proxy requests use the active Hetzner bridge hostname directly
+- This prevents stale deployment environment values from producing `Bridge service temporarily unavailable` while the current bridge is healthy
+
+### QR Group Contacts Connection Recovery (Session: September 14, 2026 — Phase 137) — Commit `b34a6224`
+
+- Increased QR proxy timeouts for large `/group-info` requests and added short retries so slow WhatsApp metadata refreshes do not appear as bridge disconnects
+- Updated `deploy/wa-baileys/index.js` to return server-resolved phone numbers for known LID participants while retaining unresolved LIDs
+- Group Contacts now opens large groups more reliably and displays more usable phone numbers without dropping any participants
+
+### QR Group Info Cached-Member Type Fix (Session: September 14, 2026 — Phase 140) — Commit `b34a6224`
+
+- Fixed `deploy/wa-baileys/index.js` `/group-info` failures caused by cached participant objects being treated as strings
+- Cached member entries are now normalized from JID/object shapes before suffix checks and response merging
+- This removes the `memberId.endsWith is not a function` error that was surfacing in the UI as `Bridge service temporarily unavailable`
+
+### QR Group Contact Phone Resolution (Session: September 14, 2026 — Phase 141) — Commit `10952978`
+
+- Added a bridge contact-cache fallback for resolving known LID participants to phone numbers
+- Changed unresolved Group Contacts rows to show `Phone unavailable` instead of displaying an internal LID as a phone number
+- Verified the target group opens with HTTP 200 and all participants remain available for export; WhatsApp-only LIDs without a phone mapping remain identifiable in the download
+
+### QR Sidebar Contact Phone Resolution (Session: September 14, 2026 — Phase 142) — Commit `b1c4a59e`
+
+- Updated the QR bridge `/chats` response to use the contact-cache-aware phone resolver before the sidebar renders contact identities
+- Updated Group Contacts to merge live sidebar chat mappings with `/lid-map`, so a phone learned in the sidebar automatically appears in group participants
+- Unresolved WhatsApp LIDs remain safe and downloadable without being displayed as fake phone numbers
+
+### Workshop Student Management and Two-View Recording Rule (Session: September 14, 2026 — Phase 143) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` so each class prefers screen-shared speaker/gallery files, uploads both selected views to YouTube as unlisted, and stores both MP4 files in Bunny
+- Added cohort, student, attendance, and recording-delivery schemas in `lib/schemas/workshopStudentManagementSchemas.ts`
+- Added `/admin/crm/workshop-management` with APIs for workshop setup and student records; fields include dates, holidays, class times, Zoom ID/link, WhatsApp group link, and attendance summaries
+
+### Workshop Student Google Forms Excel Import (Session: September 14, 2026 — Phase 144) — Commit `N/A (working tree only)`
+
+- Added `POST /api/admin/crm/workshop-management/students/import` to import `.xlsx`, `.xls`, and `.csv` Google Forms exports into the selected cohort
+- Added flexible matching for common headers such as Name, Email Address, Phone Number, and WhatsApp Number
+- Existing students are updated by WhatsApp JID, email, phone, or WhatsApp number instead of being duplicated; invalid rows are reported as skipped
+- Added the import control and result summary to `/admin/crm/workshop-management` beside the manual Add student form
+
+### Automatic Workshop YouTube Recording Links (Session: September 14, 2026 — Phase 145) — Commit `N/A (working tree only)`
+
+- Updated `scripts/zoom-recording-uploader.mjs` to persist the Zoom meeting ID with each uploaded recording
+- Workshop management now synchronizes uploaded YouTube/Bunny metadata automatically when a cohort is opened
+- Recording deliveries are labeled by class day and expose full unlisted YouTube URLs for Speaker and Gallery views
+
+### Workshop Student Google Forms Column Mapping (Session: September 14, 2026 — Phase 146) — Commit `N/A (working tree only)`
+
+- Added an optional Google Forms link field to the workshop student import panel
+- Added spreadsheet preview and selectable mappings for Name, Email, Phone, WhatsApp number, and WhatsApp JID
+- Google Forms `.xlsx`, `.xls`, and `.csv` exports can now be reviewed before import, with existing student duplicate protection preserved
+
+### Workshop Student Import Field Checklist (Session: September 14, 2026 — Phase 147) — Commit `N/A (working tree only)`
+
+- Added checkbox selection for the student fields to collect/import: Name, Email, Phone, WhatsApp number, and WhatsApp JID
+- Added Select all fields and Clear optional fields actions; Name remains required for safe student creation
+- The import API now ignores unchecked fields while preserving the selected spreadsheet-column mapping
+
+### Workshop AI Worker and Editable Attendance Chart (Session: September 15, 2026 — Phase 148) — Commit `N/A (working tree only)`
+
+- Added an admin-controlled Workshop AI Worker that previews and sends newly available recording links to active workshop students through the QR WhatsApp bridge
+- Added duplicate-safe delivery tracking using `deliveredStudentIds`, plus worker result counts for sent, skipped, and failed messages
+- Added a clickable student detail chart with editable 14-day class attendance, holiday highlighting, duration minutes, status, and bulk Save
+- Added explicit workshop settings for enabling the worker and opting into automatic WhatsApp recording delivery
+
+### Workshop Student CRM Lead Linking and Removal (Session: September 15, 2026 — Phase 149) — Commit `N/A (working tree only)`
+
+- Manual, Excel, and WhatsApp-group student imports now reuse matching CRM Leads by email/phone and create a Lead when a valid phone is available
+- Workshop students now store and display the linked CRM Lead Number and Lead ID
+- Added checkbox selection and bulk Remove selected behavior; removal soft-deactivates workshop enrollment without deleting CRM Leads or attendance history
+
+### Email-First Workshop Form Recovery (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ ADDED SIGNED-IN EMAIL PREFILL AND EDITABLE REPEAT SUBMISSIONS**
+
+1. **✅ Email-first contact flow**
+   - Email is now shown before WhatsApp, followed immediately by WhatsApp number and editable country code
+   - Signed-in users are prefetched from the normal website `user`/`token` session state
+
+2. **✅ Existing data recovery**
+   - Added `app/api/forms/contact-lookup/route.ts` to find the latest account/lead record by email
+   - Restores saved profile and workshop metadata into the form so users can edit it
+
+3. **✅ Safe repeat save**
+   - Existing user profile and CRM lead data are updated on resubmission
+   - Existing passwords are not regenerated; new credentials are sent only for newly created users
+
+4. **✅ Verification**
+   - Form returns HTTP 200
+   - Lookup route validation responds correctly
+   - No editor diagnostics in the form, lookup route, or submission route
+
+### Complete Three-Language Workshop Form (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ MADE THE WORKSHOP FORM CONTENT FOLLOW THE SELECTED LANGUAGE**
+
+1. **✅ English, Hindi, and Marathi UI dictionaries**
+   - Translated education, participant status, device, attendance, donation, password, welcome, location, and helper text
+   - Replaced remaining hardcoded Marathi options with selected-language values
+
+2. **✅ Personal field order**
+   - Workshop personal details now proceed through gender, age, education, country, state, and city before later workshop questions
+
+3. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 with no editor diagnostics
+
+### Email and WhatsApp Green Checks (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ ADDED SMALL GREEN VALIDATION CHECKS TO THE CONTACT FIELDS**
+
+1. **✅ Email check**
+   - Shows a green check inside the Email (Google/Gmail) field when the email format is valid
+
+2. **✅ WhatsApp check**
+   - Shows a green check inside the WhatsApp number field when a country code and valid-length number are present
+
+3. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 with no editor diagnostics
+
+### Compact Optional Registration Lookup (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ MADE THE EXISTING-PARTICIPANT ID LOOKUP SMALL AND OPTIONAL**
+
+1. **✅ Compact collapsed section**
+   - Converted the large lookup panel into a collapsed `<details>` section
+   - Added an explicit `(Optional)` label so new participants can skip it
+
+2. **✅ Smaller controls**
+   - Reduced input/button height to `40px`
+   - Kept ID auto-fill behavior available when the section is opened
+
+3. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 with no editor diagnostics
+
+### Remove Redundant Language Hint (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ REMOVED THE EXTRA “CHOOSE YOUR PREFERRED LANGUAGE” BOX**
+
+1. **✅ Cleaner form layout**
+   - Removed the redundant green hint box from `app/forms/[formType]/page.tsx`
+   - Language buttons remain directly below the hero banner
+
+2. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 and the old hint text is absent
+
+### Language Buttons Below Workshop Banner (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ MOVED THE LANGUAGE SELECTOR OUTSIDE THE HERO BANNER**
+
+1. **✅ Cleaner header**
+   - Removed English, Hindi, and Marathi buttons from the banner’s top row
+   - Kept the Mohan Sir badge on the right side of the banner
+
+2. **✅ Dedicated language row**
+   - Added a centered language-button row directly below the banner
+   - The active language remains highlighted in yellow
+
+3. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 and the language row renders below the banner
+
+### Small Circular Mohan Sir Header Image (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ ADDED THE PROVIDED MOHAN SIR IMAGE AS A COMPACT RIGHT-SIDE BADGE**
+
+1. **✅ Header image**
+   - Replaced the meditation emoji with the supplied Mohan Sir image URL
+   - Displayed it as a small `40 × 40px` circular image with a subtle gold border
+
+2. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 with no editor diagnostics
+
+### Remove Broken Workshop Poster Card (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ REMOVED THE BROKEN IMAGE FRAME FROM THE PUBLIC WORKSHOP HEADER**
+
+1. **✅ Removed broken poster UI**
+   - Deleted the poster card and image element from `app/forms/[formType]/page.tsx`
+   - Removed the unused language poster URL mapping
+
+2. **✅ Kept header content clean**
+   - The language controls, workshop title, booking button, subtitle, and contact details remain
+   - Decorative side overlays remain removed
+
+3. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 with no editor diagnostics
+
+### Workshop Hero Height Reduction (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ REDUCED THE HERO HEIGHT AFTER THE 16:3 HEADER REMAINED TOO LARGE VISUALLY**
+
+1. **✅ Smaller poster and content**
+   - Reduced the poster card to `300 × 140px`
+   - Tightened hero padding, gaps, title scale, button sizing, and contact rows
+
+2. **✅ Preserved requested ratio**
+   - Desktop hero remains `aspect-[16/3]`
+   - Full poster artwork still uses `object-contain`
+
+3. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 with no editor diagnostics
+
+### Workshop Hero 16:3 Layout (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ SET THE DESKTOP WORKSHOP FORM HERO TO AN EXACT 16:3 RATIO**
+
+1. **✅ Exact banner proportion**
+   - Updated `app/forms/[formType]/page.tsx` with `lg:aspect-[16/3]`
+   - Removed the fixed desktop minimum height so the hero follows the requested 16:3 proportion
+
+2. **✅ Responsive behavior**
+   - The 16:3 ratio applies on large screens
+   - Mobile retains natural height so language controls and form content remain usable
+
+3. **✅ Verification**
+   - Local `/forms/workshop` returns HTTP 200 and the page has no editor diagnostics
+
+### Compact Workshop Form Hero (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ REDUCED THE PUBLIC WORKSHOP FORM HEADER FOOTPRINT**
+
+1. **✅ Compact hero layout**
+   - Reduced the hero minimum height from `260px` to `200px`
+   - Reduced the responsive title scale, spacing, padding, and decorative shadow sizes
+
+2. **✅ Smaller full-poster card**
+   - Reduced the poster area from `420 × 240px` to `360 × 200px`
+   - Kept `object-contain` so the complete language-specific poster remains visible without cropping
+
+3. **✅ Verification**
+   - Local `/forms/workshop` request returns HTTP 200 with no editor diagnostics in the form page
+
+### Pre-Build Cleanup Artifact Fix (Session: September 13, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ FIXED THE NEXT.JS BUILD ARTIFACT CORRUPTION CAUSING MISSING VENDOR CHUNKS**
+
+1. **✅ Removed destructive cleanup from the build pipeline**
+   - Updated `scripts/auto-cleanup.js` so it no longer removes `.next` or `node_modules/.cache` before `next build`
+   - This was the root cause behind the missing `lucide-react` chunk and other transient `MODULE_NOT_FOUND` errors during production page generation
+
+2. **✅ Kept non-destructive cleanup only**
+   - Temporary logs, generic cache folders, and stale non-runtime artifacts remain eligible for cleanup
+   - The actual app build output is now left intact so Next.js can compile and emit vendor chunks correctly
+
+3. **✅ Verification**
+   - Stopped duplicate Next.js dev processes, regenerated `.next`, and verified the workshop form loads locally with HTTP 200 without the missing vendor-chunk error
+
+### Workshop Form Render Fix (Session: September 12, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ FIXED THE PUBLIC WORKSHOP FORM RENDER BREAKAGE**
+
+1. **✅ Restored the missing runtime language object bindings**
+   - Updated [app/forms/[formType]/page.tsx](app/forms/[formType]/page.tsx) to create the active language-specific text objects before rendering the form UI
+   - This resolves the stale `workshopText` / `commonText` references that caused the page to crash during render instead of loading the multilingual hero and form fields
+
+2. **✅ Verified the route loads again in the browser**
+   - Confirmed the page loads at `http://localhost:3000/forms/workshop` after the fix
+   - The language switcher, 16:3 hero layout, translated headings, and form content are now visible without the earlier runtime crash
+
+3. **✅ Kept the design flow aligned with the multilingual workshop requirements**
+   - The English / Hindi / Marathi language toggle remains in place with the correct hero headings and button labels
+   - The fix is limited to runtime stability so the visual polish can be finalized cleanly afterward
+
+### Form Duplicate Guard for Public Lead Intake (Session: September 12, 2026 — Phase 124) — Commit `N/A (working tree only)`
+
+**✅ PUBLIC WORKSHOP FORM NOW REUSES EXISTING LEAD LOOKUPS BEFORE CREATING NEW RECORDS**
+
+1. **✅ Duplicate detection is centralized**
+   - Added a shared contact matcher in `lib/contactDuplicateCheck.ts` to normalize email + WhatsApp phone values before any lead or user record is considered new
+   - This keeps the form flow aligned with the existing CRM lead logic instead of creating separate parallel duplicate rules
+
+2. **✅ Public form submissions now use the same normalized identity check**
+   - Updated `app/api/forms/submit/route.ts` to look up an existing lead with the shared query before creating a new row
+   - Repeated submissions with the same email or WhatsApp number now update the same lead instead of duplicating the record
+
+3. **✅ Validation**
+   - Added a focused regression check in `tests/contact-duplicate-check.test.js` for the same email + normalized phone match path
+   - The validation is intended to keep the form intake flow clean and useful for CRM follow-up without requiring a brand new database structure
+
+---
+
+### Preserve-First MongoDB→Bunny SQL Validation (Session: September 12, 2026 — Phase 113) — Commit `N/A (working tree only)`
+
+**✅ VALIDATED ARCHIVE-FIRST MIGRATION PATH REMAINS SAFE WHILE MONGODB STAYS LIVE**
+
+1. **✅ Archive-first pattern is proven**
+   - The lead archive was repaired to use document-based keys instead of a collapsing composite key
+   - The importer safely reset the SQL table and reloaded every record with `ON CONFLICT(document_id)` semantics
+   - The migration flow remains resumable, batch-safe, and non-breaking for the live app
+
+2. **✅ Verified parity against live MongoDB**
+   - Final check confirmed exact equality: `mongoCount: 5637`, `sqlCount: 5637`
+   - This validates the migration pattern for the highest-risk collection before moving to additional archival modules
+   - MongoDB remains the active runtime database while SQL remains an additive preservation layer
+
+3. **✅ Media repair and archive work are both stable**
+   - Bunny storage/CDN configuration issues were corrected so website images render again
+   - The migration path and the media fix are now independent, tested, and safe to continue in parallel without forcing a live cutover
+
+4. **✅ Next safe step**
+   - Continue with the next incremental archival module using the same document-based upsert pattern and row-count validation discipline
+   - Do not perform a broad runtime cutover until each module has matched live MongoDB counts and passed a safe validation pass
+
+---
+
+### CRM Receipts SQL Archive Step (Session: September 13, 2026 — Phase 120) — Commit `N/A (working tree only)`
+
+**✅ CRM_RECEIPTS ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for CRM receipts is live**
+   - Added migration file: `migrations/0013_crm_receipts_archive.sql`
+   - Added importer: `scripts/migrate-crm-receipts-to-bunny.mjs`
+   - This table stores each receipt document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `23`
+   - Bunny SQL count: `23`
+   - Output confirmed: `{ "mongoCount": 23, "sqlCount": 23 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow continues to be safe, resumable, and incremental
+   - We are still validating focused modules one at a time before any broad runtime cutover
+
+---
+
+### WhatsApp Templates SQL Archive Step (Session: September 13, 2026 — Phase 119) — Commit `N/A (working tree only)`
+
+**✅ WHATSAPP_TEMPLATES ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for WhatsApp templates is live**
+   - Added migration file: `migrations/0012_whatsapp_templates_archive.sql`
+   - Added importer: `scripts/migrate-whatsapp-templates-to-bunny.mjs`
+   - This table stores each template document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `33`
+   - Bunny SQL count: `33`
+   - Output confirmed: `{ "mongoCount": 33, "sqlCount": 33 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow continues to be safe, resumable, and incremental
+   - We are still validating focused modules one at a time before any broad runtime cutover
+
+---
+
+### Broadcast List Members SQL Archive Step (Session: September 13, 2026 — Phase 118) — Commit `N/A (working tree only)`
+
+**✅ BROADCAST_LIST_MEMBERS ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for broadcast list members is live**
+   - Added migration file: `migrations/0011_broadcast_list_members_archive.sql`
+   - Added importer: `scripts/migrate-broadcast-list-members-to-bunny.mjs`
+   - This table stores each broadcast list member document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `5224`
+   - Bunny SQL count: `5224`
+   - Output confirmed: `{ "mongoCount": 5224, "sqlCount": 5224 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow continues to be safe, resumable, and incremental
+   - We are still validating focused modules one at a time before any broad runtime cutover
+
+---
+
+### Broadcast Runs SQL Archive Step (Session: September 13, 2026 — Phase 121) — Commit `N/A (working tree only)`
+
+**✅ BROADCAST_RUNS ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for broadcast runs is live**
+   - Added migration file: `migrations/0014_broadcast_runs_archive.sql`
+   - Added importer: `scripts/migrate-broadcast-runs-to-bunny.mjs`
+   - This table stores each broadcast run document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `52`
+   - Bunny SQL count: `52`
+   - Output confirmed: `{ "mongoCount": 52, "sqlCount": 52 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow continues to be safe, resumable, and incremental
+   - We are still validating focused modules one at a time before any broad runtime cutover
+
+---
+
+### Broadcast Lists SQL Archive Step (Session: September 13, 2026 — Phase 117) — Commit `N/A (working tree only)`
+
+**✅ BROADCAST_LISTS ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for broadcast lists is live**
+   - Added migration file: `migrations/0010_broadcast_lists_archive.sql`
+   - Added importer: `scripts/migrate-broadcast-lists-to-bunny.mjs`
+   - This table stores each broadcast list document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `8`
+   - Bunny SQL count: `8`
+   - Output confirmed: `{ "mongoCount": 8, "sqlCount": 8 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow continues to be safe, resumable, and incremental
+   - We are still validating focused modules one at a time before any broad runtime cutover
+
+---
+
+### Quick Replies SQL Archive Step (Session: September 13, 2026 — Phase 116) — Commit `N/A (working tree only)`
+
+**✅ QUICK_REPLIES ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for quick replies is live**
+   - Added migration file: `migrations/0009_quick_replies_archive.sql`
+   - Added importer: `scripts/migrate-quick-replies-to-bunny.mjs`
+   - This table stores each quick reply document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `1`
+   - Bunny SQL count: `1`
+   - Output confirmed: `{ "mongoCount": 1, "sqlCount": 1 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow continues to be safe, resumable, and incremental
+   - We are still validating focused modules one at a time before any broad runtime cutover
+
+---
+
+### Lead Notes SQL Archive Step (Session: September 13, 2026 — Phase 115) — Commit `N/A (working tree only)`
+
+**✅ LEAD_NOTES ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for lead notes is live**
+   - Added migration file: `migrations/0008_lead_notes_archive.sql`
+   - Added importer: `scripts/migrate-lead-notes-to-bunny.mjs`
+   - This table stores each note document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `171`
+   - Bunny SQL count: `171`
+   - Output confirmed: `{ "mongoCount": 171, "sqlCount": 171 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow continues to be safe, resumable, and incremental
+   - We are still validating focused modules one at a time before any broad runtime cutover
+
+---
+
+### Lead Followups SQL Archive Step (Session: September 13, 2026 — Phase 114) — Commit `N/A (working tree only)`
+
+**✅ LEAD_FOLLOWUPS ARCHIVE VALIDATED WITH LIVE MONGODB PARITY**
+
+1. **✅ Archival table for lead followups is live**
+   - Added migration file: `migrations/0007_lead_followups_archive.sql`
+   - Added importer: `scripts/migrate-lead-followups-to-bunny.mjs`
+   - This table stores each followup document in SQL using the proven document-based upsert pattern
+
+2. **✅ Validation succeeded**
+   - MongoDB count: `22`
+   - Bunny SQL count: `22`
+   - Output confirmed: `{ "mongoCount": 22, "sqlCount": 22 }`
+   - MongoDB remains the active runtime database while SQL remains archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow remains safe, resumable, and incremental
+   - We continue validating one bounded module at a time before broad runtime cutover work
+
+---
+
+### Leads SQL Archive Repair and Validation (Session: September 12, 2026 — Phase 112) — Commit `N/A (working tree only)`
+
+**✅ LEADS ARCHIVE FULLY REPAIRED AND VERIFIED AGAINST LIVE MONGODB**
+
+1. **✅ Root cause corrected**
+   - The first lead exporter used a composite `owner + phone` key, which collapsed rows and archived only `302` records instead of the full `5637` leads collection
+   - The archival table and importer were reset to document-based keys so every lead row is preserved exactly once
+
+2. **✅ Safe SQL repair pattern**
+   - `migrations/0006_leads_archive.sql` now stores `document_id` as the primary key and uses `lead_key` as a unique secondary index
+   - `scripts/migrate-leads-to-bunny.mjs` now resets the table safely with `DELETE FROM leads_sql` and reimports every lead row with `ON CONFLICT(document_id)` semantics
+   - The importer performs batched writes to avoid the earlier timeout path caused by thousands of single-row SQL round-trips
+
+3. **✅ Verification complete**
+   - Live validation now matches exactly: `mongoCount: 5637`, `sqlCount: 5637`
+   - This confirms the full `leads` collection has been preserved in Bunny SQL while MongoDB remains the active runtime database
+   - The migration pattern is now proven safe, resumable, and ready for the next archival module without risking a live cutover
+
+---
+
+### CRM User Compartments SQL Archive Step (Session: September 12, 2026 — Phase 111) — Commit `N/A (working tree only)`
+
+**✅ FOURTH SAFE SQL MODULE MIGRATED WHILE MONGODB STAYS LIVE**
+
+1. **✅ Archival table for CRM user compartments is live**
+   - Added migration file: `migrations/0005_user_compartments_archive.sql`
+   - Added importer: `scripts/migrate-user-compartments-to-bunny.mjs`
+   - This table stores each user compartment document in SQL with resumable, upsert-safe archival behavior
+
+2. **✅ Live validation succeeded**
+   - The migration script processed `27 user_compartments` documents without breaking the application
+   - Output confirmed: `Migrated 27 user_compartments rows into Bunny SQL`
+   - MongoDB remains the active runtime database; SQL stays archival and low-risk
+
+3. **✅ Pattern remains stable**
+   - The migration workflow continues to stay safe, repeatable, and incremental
+   - We are still validating stable, low-write modules before scaling to broader SQL cutover work
+
+---
+
+### CRM Tenant Setup SQL Archive Step (Session: September 12, 2026 — Phase 110) — Commit `N/A (working tree only)`
+
+**✅ THIRD SAFE SQL MODULE MIGRATED WHILE MONGODB STAYS LIVE**
+
+1. **✅ Archival table for tenant setup configuration is live**
+   - Added migration file: `migrations/0004_tenant_setup_archive.sql`
+   - Added importer: `scripts/migrate-tenant-setup-to-bunny.mjs`
+   - This table stores each tenant setup document in SQL with resumable, upsert-safe archival behavior
+
+2. **✅ Live validation succeeded**
+   - The migration script processed `24 tenant_setup` documents without breaking the application
+   - Output confirmed: `Migrated 24 tenant_setup rows into Bunny SQL`
+   - MongoDB remains the active runtime database; SQL stays archival and low-risk
+
+3. **✅ Pattern remains stable**
+   - The migration workflow is still safe, repeatable, and incremental
+   - We continue validating low-write, read-heavy modules before broader SQL cutover work
+
+---
+
+### CRM Tenant Metadata SQL Archive Step (Session: September 12, 2026 — Phase 109) — Commit `N/A (working tree only)`
+
+**✅ SECOND SAFE SQL MODULE MIGRATED WHILE MONGODB STAYS LIVE**
+
+1. **✅ Archival table for CRM tenant metadata is live**
+   - Added migration file: `migrations/0003_crm_tenants_archive.sql`
+   - Added importer: `scripts/migrate-crm-tenants-to-bunny.mjs`
+   - This table stores each tenant record in SQL with resumable, upsert-safe archival behavior
+
+2. **✅ Live validation succeeded**
+   - The migration script processed `24 crm_tenants` documents without breaking the application
+   - Output confirmed: `Migrated 24 crm_tenants rows into Bunny SQL`
+   - MongoDB remains the active runtime database; SQL is still archival and low-risk
+
+3. **✅ Pattern is holding**
+   - The migration workflow is safe, repeatable, and incremental
+   - We are validating one small module at a time before moving to additional read-heavy or write-heavy collections
+
+---
+
+### CRM User Settings SQL Archive Step (Session: September 12, 2026 — Phase 108) — Commit `N/A (working tree only)`
+
+**✅ FIRST SAFE SQL MODULE MIGRATED WHILE MONGODB STAYS LIVE**
+
+1. **✅ Archival table for CRM user settings is live**
+   - Added migration file: `migrations/0002_crm_settings_archive.sql`
+   - Added importer: `scripts/migrate-crm-user-settings-to-bunny.mjs`
+   - This table stores the user settings documents in SQL with upsert-safe, resumable archival behavior
+
+2. **✅ Live validation succeeded**
+   - The migration script processed `44 crm_user_settings` documents without breaking the application
+   - Output confirmed: `Migrated 44 crm_user_settings rows into Bunny SQL`
+   - MongoDB remains the active runtime database; SQL is archival and low-risk
+
+3. **✅ Next safe step**
+   - Continue with more stable, low-write modules such as CRM settings, tenant metadata, and then higher-volume collections after validation
+   - Keep the live app on MongoDB until each module has been proven stable in SQL-backed reads/writes
+
+---
+
+### Bunny SQL Archive + Media Fix Completion (Session: September 12, 2026 — Phase 107) — Commit `N/A (working tree only)`
+
+**✅ COMPLETED: MongoDB preservation archive + Bunny media repair without breaking the live app**
+
+1. **✅ Bunny Database Foundation Is Live**
+   - Added `lib/bunnyDatabase.ts` and `migrations/0001_application_foundation.sql` for server-side SQL access and the initial migration schema
+   - `mongo_documents` and `mongo_migration_runs` tables are created and being populated from MongoDB archives
+   - The SQL layer is intentionally passive for now: it preserves legacy data while MongoDB remains the live app database
+
+2. **✅ MongoDB-to-Bunny Import Is Running Safely**
+   - `scripts/migrate-mongodb-to-bunny.mjs` exports all MongoDB documents to Bunny SQL with `ON CONFLICT` upserts and resumable batch processing
+   - Sensitive auth collections are excluded by default; the importer keeps a migration run record and protects against duplicate rows
+   - Current verification showed the importer actively processing large collections and preserving run status in Bunny SQL
+
+3. **✅ Media/CDN Repair Is Fixed**
+   - `lib/bunny-storage.ts`, `lib/bunny/bunnyUpload.ts`, and `app/api/admin/crm/media/proxy/route.ts` now target the active Bunny storage zone and corrected CDN host
+   - Old/stale host rewrites are handled so image loads no longer fail when legacy Bunny URLs are still present
+   - Upload deduplication is now content-based so repeated asset uploads do not create duplicate files unnecessarily
+
+4. **✅ Build Validation**
+   - `npm run build` completed successfully with the app still compiling cleanly after the migration/media work
+   - This confirms the protected migration path is not breaking the application while MongoDB remains the active runtime layer
+
+5. **✅ Current State**
+   - MongoDB remains live and unchanged for app operations; the Bunny SQL archive is additive, resumable, and safe for future cutover work
+   - Next phase is to convert the lowest-risk modules one by one, but the platform is stable for the transition path and the remaining work is now incremental rather than emergency repair
+
+---
+
 ### QR WhatsApp Performance Optimization (Session: April 23, 2026 — Phase 106) — Commit `c1e8e929`
 
 **✅ PRODUCTION DEPLOYMENT: 50-70% QR polling reduction + batch query optimization**

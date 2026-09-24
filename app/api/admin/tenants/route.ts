@@ -227,6 +227,19 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function PATCH(request: NextRequest) {
+  try {
+    return await patchTenant(request);
+  } catch (error: any) {
+    console.error('[PATCH /api/admin/tenants] Unhandled error:', error);
+    if (error?.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'field';
+      return apiError('DUPLICATE_ENTRY', `That ${field} is already used by another tenant`);
+    }
+    return apiError('SERVER_ERROR', error?.message || 'Failed to update tenant');
+  }
+}
+
+async function patchTenant(request: NextRequest) {
   await connectDB();
 
   const decoded = requireSuperAdmin(request);
@@ -252,9 +265,17 @@ export async function PATCH(request: NextRequest) {
   ];
 
   const $set: any = {};
+  const $unset: any = {};
   for (const key of allowed) {
     if (updates[key] !== undefined) {
-      $set[key] = updates[key];
+      // customDomain has a unique sparse index — an empty string is a real
+      // value to Mongo (sparse only skips missing fields), so a blank field
+      // must unset it rather than write "", or the 2nd blank save collides.
+      if (key === 'customDomain' && !String(updates[key]).trim()) {
+        $unset.customDomain = '';
+      } else {
+        $set[key] = updates[key];
+      }
     }
   }
 
@@ -304,13 +325,17 @@ export async function PATCH(request: NextRequest) {
   if (updates.pricing !== undefined) $set.pricing = sanitizePricing(updates.pricing);
   if (updates.customLimits !== undefined) $set.customLimits = sanitizeLimits(updates.customLimits);
 
-  if (Object.keys($set).length === 0) {
+  if (Object.keys($set).length === 0 && Object.keys($unset).length === 0) {
     return apiError('VALIDATION_ERROR', 'No valid fields to update');
   }
 
+  const updateOp: any = {};
+  if (Object.keys($set).length > 0) updateOp.$set = $set;
+  if (Object.keys($unset).length > 0) updateOp.$unset = $unset;
+
   const updated = await Tenant.findOneAndUpdate(
     { slug },
-    { $set },
+    updateOp,
     { new: true, runValidators: true },
   ).lean();
 

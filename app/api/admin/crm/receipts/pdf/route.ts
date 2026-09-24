@@ -7,6 +7,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter } from '@/lib/crm-handlers';
 import { CrmReceipt, SalesReport } from '@/lib/schemas/enterpriseSchemas';
+import { formatPersonName } from '@/lib/formatName';
 
 const PAYMENT_MODE_LABELS: Record<string, string> = {
   payu: 'PayU',
@@ -187,7 +188,7 @@ async function buildReceiptPdf(receipt: any): Promise<Uint8Array> {
   const custId = safe(receipt?.leadNumber || receipt?.customerId || (receipt?.leadId?.toString?.() || '').slice(-6) || '—');
   text(`ID: ${custId}`, M, H - 168, { size: 10, font: bold });
 
-  const customerName = safe(receipt?.customerName);
+  const customerName = safe(formatPersonName(receipt?.customerName));
   text(trunc(customerName, 32), M, H - 186, { size: 17, font: bold, color: accentGreen });
 
   const customerPhone = safe(receipt?.customerPhone);

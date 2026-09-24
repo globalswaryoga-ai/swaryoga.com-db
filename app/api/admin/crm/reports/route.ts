@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     // ── Models ──
     const Lead = getLead();
-    const EmailLog = getEmailLog();
+    
     const WhatsAppMsg = getWhatsAppMessage();
     const QrMsg = getQrWhatsAppMessage();
     const TelegramMsg = getTelegramMessage();
@@ -124,26 +124,11 @@ export async function GET(request: NextRequest) {
           ]).toArray()
         : Promise.resolve([]),
 
-      // Email sent (all statuses except queued/failed)
-      EmailLog.countDocuments({
-        ...scopeFilter,
-        createdAt: { $gte: startDate, $lte: now },
-        status: { $in: ['sent', 'delivered', 'opened', 'clicked'] },
-      }),
+      bunnyExecute({ sql: "SELECT COUNT(*) as c FROM email_logs_sql WHERE status IN ('sent', 'delivered', 'opened', 'clicked') AND created_at >= ? AND created_at <= ?" + (scopeFilter.createdBy ? " AND sent_by = ?" : ""), args: scopeFilter.createdBy ? [startDate.toISOString(), now.toISOString(), scopeFilter.createdBy] : [startDate.toISOString(), now.toISOString()] }).then(r => r.rows[0].c as number),
 
-      // Email opened
-      EmailLog.countDocuments({
-        ...scopeFilter,
-        createdAt: { $gte: startDate, $lte: now },
-        status: { $in: ['opened', 'clicked'] },
-      }),
+      bunnyExecute({ sql: "SELECT COUNT(*) as c FROM email_logs_sql WHERE status IN ('opened', 'clicked') AND created_at >= ? AND created_at <= ?" + (scopeFilter.createdBy ? " AND sent_by = ?" : ""), args: scopeFilter.createdBy ? [startDate.toISOString(), now.toISOString(), scopeFilter.createdBy] : [startDate.toISOString(), now.toISOString()] }).then(r => r.rows[0].c as number),
 
-      // Email clicked
-      EmailLog.countDocuments({
-        ...scopeFilter,
-        createdAt: { $gte: startDate, $lte: now },
-        status: 'clicked',
-      }),
+      bunnyExecute({ sql: "SELECT COUNT(*) as c FROM email_logs_sql WHERE status = 'clicked' AND created_at >= ? AND created_at <= ?" + (scopeFilter.createdBy ? " AND sent_by = ?" : ""), args: scopeFilter.createdBy ? [startDate.toISOString(), now.toISOString(), scopeFilter.createdBy] : [startDate.toISOString(), now.toISOString()] }).then(r => r.rows[0].c as number),
 
       // QR broadcasts aggregate (sum stats from broadcast_runs)
       crmDb.collection('broadcast_runs').aggregate([

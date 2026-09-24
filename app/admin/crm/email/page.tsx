@@ -236,17 +236,56 @@ export default function EmailAutomationPage() {
     void fetchEmailSettings();
   }, [isAuthenticated, token]);
 
+  // Pre-load contacts from sessionStorage (from Workshop tab "Email Broadcast")
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem('broadcast_preload_contacts');
+    if (!raw) return;
+    sessionStorage.removeItem('broadcast_preload_contacts');
+    try {
+      const contacts = JSON.parse(raw);
+      if (!Array.isArray(contacts) || contacts.length === 0) return;
+      const fakeLeads = contacts.map((c, idx) => ({
+        _id: `csv_${idx}_${c.email || c.phoneNumber || idx}`,
+        name: c.name || '',
+        email: c.email || '',
+        phone: c.phoneNumber || ''
+      })).filter(c => c.email);
+      
+      if (fakeLeads.length > 0) {
+        setSelectedRecipients(fakeLeads);
+        setActiveTab('compose');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+
   // Auto-select leads from URL params (e.g. from pipeline manage page)
   useEffect(() => {
     const leadIdsParam = searchParams.get('leadIds');
-    if (!leadIdsParam || leads.length === 0) return;
+    if (leadIdsParam && leads.length > 0) {
+      const ids = leadIdsParam.split(',').filter(Boolean);
+      if (ids.length > 0) {
+        const matchedLeads = leads.filter(l => ids.includes(l._id) && l.email?.trim());
+        if (matchedLeads.length > 0) {
+          setSelectedRecipients(matchedLeads);
+          setActiveTab('compose');
+          return;
+        }
+      }
+    }
 
-    const ids = leadIdsParam.split(',').filter(Boolean);
-    if (ids.length === 0) return;
-
-    const matchedLeads = leads.filter(l => ids.includes(l._id) && l.email?.trim());
-    if (matchedLeads.length > 0) {
-      setSelectedRecipients(matchedLeads);
+    const toParam = searchParams.get('to') || searchParams.get('email');
+    if (toParam) {
+      const nameParam = searchParams.get('name') || toParam.split('@')[0];
+      const matched = leads.find(l => l.email?.toLowerCase() === toParam.toLowerCase());
+      if (matched) {
+        setSelectedRecipients([matched]);
+      } else {
+        setSelectedRecipients([{ _id: `custom-${toParam}`, name: nameParam, email: toParam }]);
+      }
       setActiveTab('compose');
     }
   }, [leads, searchParams]);

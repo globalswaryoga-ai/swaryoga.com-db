@@ -1,38 +1,38 @@
 /**
- * QR WhatsApp Messages API — Fetch messages from MongoDB persistent storage
+ * QR WhatsApp Messages API — Fetch messages for a specific chat.
  *
- * ✅ FIXED VERSION
+ * GET /api/admin/crm/whatsapp/qr/messages?chatJid=xxx&connectedPhone=xxx&limit=100
  *
- * GET /api/admin/crm/whatsapp/qr/messages?chatJid=xxx&limit=50
+ * Reads from QrWhatsAppMessage (qr_whatsapp_messages) — the collection the
+ * QR webhook route and bridge actually persist to — scoped by
+ * (userId, connectedPhone, chatJid) per the QR tenant-isolation model.
  *
- * Returns messages for a specific chat from WhatsAppMessage collection.
- * Only returns messages for the CURRENT chat JID (session isolation).
+ * A previous version of this route queried the unrelated Meta WhatsApp
+ * collection (WhatsAppMessage / whatsapp_messages) and ignored
+ * userId/connectedPhone entirely, so any message not still cached in the
+ * bridge's in-memory session (e.g. after a bridge restart, or a chat
+ * older than the live session) came back empty — the chat still showed a
+ * preview in the inbox list (populated separately, from qr_whatsapp_chats),
+ * but opening it showed no messages.
  *
- * Security: Requires admin auth token (same as other CRM endpoints)
- *
- * FIXES:
- * - Changed from getQrWhatsAppMessage() to getWhatsAppMessage() [correct collection]
- * - Query uses phoneNumber field (as saved by webhook)
- * - Uses sentAt field for sorting/pagination
- * - Maps direction field to fromMe boolean
- * - Handles messageContent field from schema
+ * Also falls back to the Bunny archive (lib/qrWhatsappArchive.ts) once
+ * Mongo's ~1 day hot window is exhausted, so older history (already swept
+ * out by the daily archive cron) is still reachable here.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';  // ✅ FIXED: Was getQrWhatsAppMessage
+import { getQrWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { getViewerUserId } from '@/lib/crm-handlers';
 import { apiError, apiSuccess } from '@/lib/api-error';
+import { normalizePhone } from '@/lib/whatsapp';
+import { getArchivedMessages, dateKeyForTimestamp, RETENTION_DAYS } from '@/lib/qrWhatsappArchive';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Extract phone number from WhatsApp JID
- * e.g., "919309986820@c.us" -> "919309986820"
- */
-function extractPhoneFromJid(jid: string): string {
-  return String(jid || '').split('@')[0].split(':')[0].replace(/\D/g, '').slice(-10);
+function normalizeConnectedPhone(value: string): string {
+  return normalizePhone(String(value || '').split(':')[0].split('@')[0]);
 }
 
 export async function GET(req: NextRequest) {
@@ -49,74 +49,91 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const chatJid = searchParams.get('chatJid');
+    const connectedPhone = normalizeConnectedPhone(searchParams.get('connectedPhone') || '');
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
-    const before = searchParams.get('before'); // timestamp for pagination (optional)
+    const before = searchParams.get('before'); // ms timestamp, for pagination (optional)
 
     if (!chatJid) {
       return apiError('Missing chatJid', 400);
     }
-
-    // ✅ FIXED: Use correct collection that webhook actually saves to
-    const WhatsAppMessage = getWhatsAppMessage();
-
-    // Extract phone number from JID format
-    const phoneNumber = extractPhoneFromJid(chatJid);
-
-    if (!phoneNumber) {
-      return apiError('Invalid chatJid format', 400);
+    if (!connectedPhone) {
+      return apiError('Missing connectedPhone', 400);
     }
 
-    // ✅ FIXED: Build query using actual saved fields
-    const query: any = {
-      phoneNumber,  // ✅ This field IS saved by webhook
-      // Note: No userId/connectedPhone filters - webhook doesn't save these
-      // Frontend handles session isolation via connected phone in page.tsx
-    };
+    const QrWhatsAppMessage = getQrWhatsAppMessage();
 
-    // ✅ FIXED: Handle pagination using sentAt field (not timestamp)
-    if (before) {
-      query.sentAt = { $lt: new Date(parseInt(before)) };
-    }
+    const query: any = { userId, connectedPhone, chatJid };
+    const beforeSeconds = before ? Math.floor(parseInt(before) / 1000) : undefined;
+    if (beforeSeconds) query.timestamp = { $lt: beforeSeconds };
 
-    // ✅ FIXED: Query from WhatsAppMessage collection, sort by sentAt
-    const messages = await WhatsAppMessage.find(query)
-      .sort({ sentAt: -1 })  // Most recent first for pagination, will reverse in frontend
+    const messages = await QrWhatsAppMessage.find(query)
+      .sort({ timestamp: -1 }) // most recent first, frontend reverses for display
       .limit(limit)
       .lean();
 
-    // ✅ FIXED: Map WhatsAppMessage schema fields to MessageItem format
+    let source = 'mongodb';
+    let combined = messages;
+
+    // Mongo's hot window is only ~1 day — once it's exhausted for this
+    // chat, pull the rest from the Bunny archive instead of returning empty.
+    if (messages.length < limit) {
+      try {
+        const untilTs = beforeSeconds || Math.floor(Date.now() / 1000);
+        const untilDateKey = dateKeyForTimestamp(untilTs);
+        const sinceDateKey = dateKeyForTimestamp(Math.max(
+          untilTs - 30 * 24 * 60 * 60,
+          Math.floor(Date.now() / 1000) - RETENTION_DAYS * 24 * 60 * 60
+        ));
+        const archived = await getArchivedMessages(userId, connectedPhone, chatJid, sinceDateKey, untilDateKey);
+        const filtered = archived.filter((m) => !beforeSeconds || m.timestamp < beforeSeconds);
+        if (filtered.length) {
+          source = 'mongodb+archive';
+          const byId = new Map(messages.map((m: any) => [m.messageId, m]));
+          for (const m of filtered) {
+            if (!byId.has(m.messageId)) {
+              byId.set(m.messageId, {
+                messageId: m.messageId, direction: m.direction, fromMe: m.fromMe,
+                text: m.text, type: m.type, participant: m.participant, pushName: m.pushName,
+                timestamp: m.timestamp, status: m.status, hasMedia: m.hasMedia,
+                mediaUrl: m.mediaUrl, mediaMimetype: m.mediaMimetype, mediaFileName: m.mediaFileName,
+                quotedId: m.quotedId, quotedText: m.quotedText, quotedParticipant: m.quotedParticipant,
+              });
+            }
+          }
+          combined = Array.from(byId.values())
+            .sort((a: any, b: any) => b.timestamp - a.timestamp)
+            .slice(0, limit);
+        }
+      } catch (archiveErr) {
+        console.warn('[QR Messages API] Archive fallback failed (non-fatal):', archiveErr);
+      }
+    }
+
     return apiSuccess({
-      messages: messages.map((m: any) => ({
-        id: m._id?.toString() || m.id || '',
-        from: m.phoneNumber + '@c.us',
-        // ✅ FIXED: Use direction field instead of looking for fromMe
-        fromMe: m.direction === 'outbound',
-        // ✅ FIXED: Use messageContent field
-        text: m.messageContent || m.body || m.text || '',
-        // ✅ FIXED: Use messageType field
-        type: m.messageType || m.type || 'text',
-        // ✅ FIXED: Use sentAt and convert to timestamp
-        timestamp: m.sentAt ? new Date(m.sentAt).getTime() : (m.timestamp || 0),
-        // Status: 0 = sent (outbound), 1 = delivered, 2 = read
-        status: m.status === 'sent' ? 1 : m.status === 'received' ? 0 : 0,
-        participant: m.phoneNumber,
-        pushName: m.contactName || '',  // Not available in this schema
-        hasMedia: m.hasMedia || !!m.media?.url || false,
-        // ✅ FIXED: Handle nested media object
-        mediaUrl: m.media?.url || m.mediaUrl || null,
-        mediaMimetype: m.media?.mimeType || m.mediaMimetype || null,
+      messages: combined.map((m: any) => ({
+        id: m.messageId || '',
+        from: m.fromMe ? connectedPhone : (m.participant || chatJid.split('@')[0]),
+        fromMe: !!m.fromMe,
+        text: m.text || '',
+        type: m.type || 'text',
+        timestamp: (m.timestamp || 0) * 1000, // seconds -> ms for the frontend
+        status: m.status ?? 0,
+        participant: m.participant || '',
+        pushName: m.pushName || '',
+        hasMedia: !!m.hasMedia,
+        mediaUrl: m.mediaUrl || null,
+        mediaMimetype: m.mediaMimetype || null,
         mediaFileName: m.mediaFileName || null,
-        quoted: null,  // Not in schema
+        quoted: m.quotedId ? { id: m.quotedId, text: m.quotedText, participant: m.quotedParticipant } : null,
         quotedId: m.quotedId || null,
-        reactions: {},  // Not in schema
+        reactions: {},
       })),
-      source: 'mongodb',
-      phoneNumber,
-      count: messages.length,
-      // Return pagination info
+      source,
+      connectedPhone,
+      count: combined.length,
       ...(messages.length === limit && {
         hasMore: true,
-        nextBefore: messages[messages.length - 1]?.sentAt?.getTime(),
+        nextBefore: (messages[messages.length - 1] as any)?.timestamp ? (messages[messages.length - 1] as any).timestamp * 1000 : undefined,
       }),
     });
   } catch (err: any) {

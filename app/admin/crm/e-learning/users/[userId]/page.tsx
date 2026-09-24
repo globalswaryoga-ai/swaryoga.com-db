@@ -20,6 +20,10 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  Key,
+  Copy,
+  Check,
+  RefreshCw,
 } from 'lucide-react';
 
 interface CourseData {
@@ -88,6 +92,13 @@ export default function UserDetailPage() {
   const [enrollmentStatus, setEnrollmentStatus] = useState<'active' | 'expired' | 'suspended' | 'completed'>('active');
   const [expiresAt, setExpiresAt] = useState('');
   const [giftHours, setGiftHours] = useState(0);
+
+  // Password reset (admin sets a new password and shares it with the student —
+  // we never have their current password since only the hash is stored).
+  const [newPassword, setNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [passwordResetDone, setPasswordResetDone] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!token || !enrollmentId) return;
@@ -218,6 +229,57 @@ export default function UserDetailPage() {
     }
   };
 
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let pwd = '';
+    for (let i = 0; i < 8; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+    setNewPassword(pwd);
+    setPasswordResetDone(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!token || !enrollment) return;
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setResettingPassword(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/signups/${enrollment.userId._id}/reset-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (res.ok) {
+        setPasswordResetDone(true);
+        setSuccessMessage('Password reset — share the credentials below with the student');
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to reset password');
+      }
+    } catch (err) {
+      setError('Error resetting password');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const copyCredentials = () => {
+    if (!enrollment) return;
+    const text = `Email: ${enrollment.userId.email}\nPassword: ${newPassword}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   if (!token) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -307,6 +369,59 @@ export default function UserDetailPage() {
                   <p className="text-white">{new Date(enrollment.enrolledAt).toLocaleDateString()}</p>
                 </div>
               </div>
+            </div>
+
+            {/* Login Credentials — password is hashed, so we can only set a
+                new one here, not display the existing one. */}
+            <div className="mt-6 pt-6 border-t border-gray-800">
+              <h3 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+                <Key size={16} className="text-yellow-400" />
+                Login Credentials
+              </h3>
+              <p className="text-sm text-gray-400 mb-3">
+                Student logs in with: <span className="text-white">{enrollment.userId.email}</span>
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => { setNewPassword(e.target.value); setPasswordResetDone(false); }}
+                  placeholder="New password (min 6 chars)"
+                  className="flex-1 px-4 py-2.5 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-green-500 focus:outline-none text-sm"
+                />
+                <button
+                  onClick={generatePassword}
+                  title="Generate a password"
+                  className="px-3 py-2.5 bg-gray-800 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <RefreshCw size={16} />
+                </button>
+                <button
+                  onClick={handleResetPassword}
+                  disabled={resettingPassword || newPassword.length < 6}
+                  className="px-4 py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold rounded-lg text-sm transition-colors whitespace-nowrap"
+                >
+                  {resettingPassword ? 'Resetting...' : 'Reset Password'}
+                </button>
+              </div>
+
+              {passwordResetDone && (
+                <div className="mt-3 bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 mb-2">Share these with the student:</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm text-white font-mono">
+                      <div>Email: {enrollment.userId.email}</div>
+                      <div>Password: {newPassword}</div>
+                    </div>
+                    <button
+                      onClick={copyCredentials}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition-colors"
+                    >
+                      {copied ? <><Check size={14} className="text-green-400" /> Copied</> : <><Copy size={14} /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

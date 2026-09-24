@@ -10,7 +10,8 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getEmailCampaign, getEmailLog, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { listEmailCampaigns, saveEmailCampaign, saveEmailLogsBulk } from '@/lib/emailBunnyRepository';
 import { sendBulkEmails } from '@/lib/email';
 import type { EmailRecipient, EmailAttachment } from '@/lib/email';
 
@@ -42,17 +43,13 @@ export async function POST(request: NextRequest) {
       return apiError('UNAUTHORIZED', 'Valid admin token or CRON_SECRET required');
     }
 
-    await connectDB();
-    const EmailCampaign = getEmailCampaign();
-    const EmailLog = getEmailLog();
+    await connectDB(); // Still needed for getLead()
     const Lead = getLead();
 
     // Find campaigns that are scheduled and past their scheduledAt time
     const now = new Date();
-    const pendingCampaigns = await EmailCampaign.find({
-      status: 'scheduled',
-      scheduledAt: { $lte: now },
-    }).lean();
+    const allCampaigns = await listEmailCampaigns();
+    const pendingCampaigns = allCampaigns.filter(c => c.status === 'scheduled' && c.scheduledAt && new Date(c.scheduledAt) <= now);
 
     if (pendingCampaigns.length === 0) {
       return apiSuccess({ message: 'No scheduled campaigns to process', processed: 0 });
@@ -60,10 +57,10 @@ export async function POST(request: NextRequest) {
 
     const results: Array<{ campaignId: string; subject: string; sent: number; failed: number }> = [];
 
-    for (const campaign of pendingCampaigns as any[]) {
+    for (let campaign of pendingCampaigns) {
       try {
         // Mark as sending
-        await EmailCampaign.updateOne({ _id: campaign._id }, { $set: { status: 'sending' } });
+        campaign = await saveEmailCampaign({ ...campaign, status: 'sending' });
 
         // Resolve recipient emails to full data from leads collection
         const recipientEmails: string[] = campaign.recipients || [];
@@ -97,44 +94,39 @@ export async function POST(request: NextRequest) {
           campaignId: campaign._id,
           leadId: result.recipient.leadId,
           recipientEmail: result.recipient.email,
-          recipientName: result.recipient.name,
           subject: campaign.subject,
           body: campaign.body,
           attachments,
           status: result.status === 'sent' ? 'sent' : 'failed',
-          resendId: result.resendId,
           error: result.error,
           sentAt: result.sentAt,
           sentBy: campaign.createdBy || 'scheduler',
-          source: 'bulk' as const,
         }));
 
         if (logEntries.length > 0) {
-          await EmailLog.insertMany(logEntries);
+          await saveEmailLogsBulk(logEntries);
         }
 
         // Update campaign
-        await EmailCampaign.updateOne({ _id: campaign._id }, {
-          $set: {
-            status: bulkResult.failed === bulkResult.total ? 'failed' : 'sent',
-            'stats.sent': bulkResult.sent,
-            'stats.delivered': bulkResult.sent,
-            'stats.failed': bulkResult.failed,
-            sentAt: new Date(),
-          },
+        await saveEmailCampaign({ 
+          ...campaign,
+          status: bulkResult.failed === bulkResult.total ? 'failed' : 'sent',
+          sentCount: bulkResult.sent,
+          failedCount: bulkResult.failed,
+          sentAt: new Date().toISOString()
         });
 
         results.push({
-          campaignId: campaign._id.toString(),
+          campaignId: campaign._id,
           subject: campaign.subject,
           sent: bulkResult.sent,
           failed: bulkResult.failed,
         });
       } catch (err: any) {
         console.error(`[Scheduled Email] Campaign ${campaign._id} error:`, err);
-        await EmailCampaign.updateOne({ _id: campaign._id }, { $set: { status: 'failed' } });
+        await saveEmailCampaign({ ...campaign, status: 'failed' });
         results.push({
-          campaignId: campaign._id.toString(),
+          campaignId: campaign._id,
           subject: campaign.subject,
           sent: 0,
           failed: (campaign.recipients || []).length,

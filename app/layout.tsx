@@ -9,14 +9,15 @@ import { PerformanceMonitor } from '@/components/PerformanceMonitor';
 import { CartProvider } from '@/lib/context/CartContext';
 import { siteConfig } from '@/lib/seo';
 import { OrganizationJsonLd, WebsiteJsonLd } from '@/components/seo/JsonLd';
-import { startSadhanaScheduler } from '@/lib/sadhanaSchedulerServiceV2';
 
-// Initialize Sadhana Scheduler on server start
-if (typeof window === 'undefined') {
-  startSadhanaScheduler().catch(err => {
-    console.error('[App] Failed to start Sadhana scheduler:', err);
-  });
-}
+// Sadhana bot scheduling runs via the /api/admin/crm/sadhana-scheduler/run
+// Vercel Cron route (every minute), not an in-process scheduler started
+// here. A setInterval bootstrapped as a module-level side effect in this
+// layout used to start a fresh copy in every warm serverless container,
+// with each container's in-memory "already triggered" state invisible to
+// the others — that caused schedules to double-fire (a bot session
+// appearing to restart mid-way). See that route for the current,
+// DB-idempotent trigger logic.
 
 export const metadata: Metadata = {
   title: {

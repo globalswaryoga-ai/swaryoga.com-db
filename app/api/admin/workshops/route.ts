@@ -4,7 +4,10 @@ import { isSuperAdmin } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
 import { getWorkshop, getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
 import { createZoomMeeting } from '@/lib/zoom-meetings';
-import { createWorkshopCommunity, initializeSystemCommunities } from '@/lib/community-manager';
+import { 
+  createWorkshopCommunity,
+  initializeSystemCommunities
+} from '@/lib/bunnyCommunityRepository';
 
 export const dynamic = 'force-dynamic';
 

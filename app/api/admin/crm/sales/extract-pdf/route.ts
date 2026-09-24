@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/crm-handlers';
+import { formatPersonName } from '@/lib/formatName';
 
 const PDFParser = require('pdf2json');
 
@@ -14,7 +15,7 @@ interface ExtractedSale {
   saleDate?: string;
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
                 const namePart = line.substring(0, line.indexOf(amountMatches[amountMatches.length - 1])).trim();
 
                 sales.push({
-                  customerName: namePart || undefined,
+                  customerName: formatPersonName(namePart) || undefined,
                   saleAmount: amount,
                   saleDate: dateMatch[1],
                 });

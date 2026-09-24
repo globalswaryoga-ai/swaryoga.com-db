@@ -1,13 +1,135 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
-import { getCRMUserSettings, getLead, getQrWhatsAppChat, getQrWhatsAppMessage, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { upsertBunnyQrChat, upsertBunnyQrMessage, listBunnyQrChats, listBunnyQrMessages } from '@/lib/bunnyQrRepository';
+
+function getLead() {
+  return {
+    findOne: (filter?: any, projection?: any) => ({
+      lean: async () => {
+        const phones = filter?.phoneNumber?.$in || [];
+        if (!phones.length) return null;
+        const placeholders = phones.map(() => '?').join(',');
+        const rs = await bunnyExecute({
+          sql: `SELECT data_json FROM leads_sql WHERE json_extract(data_json, '$.phoneNumber') IN (${placeholders})`,
+          args: phones
+        });
+        if (rs.rows.length > 0) return JSON.parse(String(rs.rows[0].data_json || '{}'));
+        return null;
+      }
+    }),
+    find: (filter?: any, projection?: any) => ({
+      lean: async () => {
+        const phones = filter?.phoneNumber?.$in || [];
+        if (!phones.length) return [];
+        const placeholders = phones.map(() => '?').join(',');
+        const rs = await bunnyExecute({
+          sql: `SELECT data_json FROM leads_sql WHERE json_extract(data_json, '$.phoneNumber') IN (${placeholders})`,
+          args: phones
+        });
+        return rs.rows.map(r => JSON.parse(String(r.data_json || '{}')));
+      }
+    })
+  };
+}
+
+function getQrWhatsAppChat() {
+  return {
+    find: (filter?: any, projection?: any) => ({
+      sort: (sortObj?: any) => ({
+        limit: (limitNum?: number) => ({
+          lean: async () => {
+            return listBunnyQrChats({ userId: filter?.userId, connectedPhone: filter?.connectedPhone, limit: limitNum || 1000 });
+          }
+        })
+      })
+    }),
+    exists: async (filter?: any) => {
+      const rs = await bunnyExecute({
+        sql: 'SELECT 1 FROM qr_chats_sql WHERE user_id = ? AND connected_phone = ? AND chat_jid = ? LIMIT 1',
+        args: [filter?.userId, filter?.connectedPhone, filter?.chatJid]
+      });
+      return rs.rows.length > 0;
+    },
+    updateOne: async (filter?: any, update?: any, options?: any) => {
+      const set = update?.$set || {};
+      const data: any = {
+        userId: filter?.userId, connectedPhone: filter?.connectedPhone, chatJid: filter?.chatJid,
+        name: filter?.chatJid, isGroup: filter?.chatJid?.includes('g.us'),
+        ...set
+      };
+      await upsertBunnyQrChat(data);
+    },
+    bulkWrite: async (ops?: any[], options?: any) => {
+      for (const op of (ops || [])) {
+        if (op?.updateOne) {
+          const filter = op.updateOne.filter;
+          const set = op.updateOne.update.$set || {};
+          const data: any = {
+            userId: filter?.userId, connectedPhone: filter?.connectedPhone, chatJid: filter?.chatJid,
+            name: filter?.chatJid, isGroup: filter?.chatJid?.includes('g.us'),
+            ...set
+          };
+          await upsertBunnyQrChat(data);
+        }
+      }
+    }
+  };
+}
+
+function getQrWhatsAppMessage() {
+  return {
+    find: (filter?: any, projection?: any) => ({
+      sort: (sortObj?: any) => ({
+        limit: (limitNum?: number) => ({
+          lean: async () => {
+            return listBunnyQrMessages({ 
+              userId: filter?.userId, connectedPhone: filter?.connectedPhone, chatJid: filter?.chatJid,
+              limit: limitNum || 200, before: filter?.timestamp?.$gte
+            });
+          }
+        })
+      })
+    }),
+    updateOne: async (filter?: any, update?: any, options?: any) => {
+      const set = update?.$set || {};
+      const data: any = {
+        userId: filter?.userId, connectedPhone: filter?.connectedPhone, chatJid: filter?.chatJid, messageId: filter?.messageId,
+        ...set
+      };
+      await upsertBunnyQrMessage(data);
+    }
+  };
+}
+
+function getWhatsAppMessage() {
+  return getQrWhatsAppMessage();
+}
+
+const mongoose = {
+  connection: {
+    getClient: () => ({
+      db: (dbName?: string) => ({
+        collection: (colName?: string) => ({
+          insertOne: async (doc: any) => {
+            await bunnyExecute({
+              sql: 'INSERT INTO qr_message_queue_sql (user_id, session_key, tenant_id, "to", message, type, url, status, send_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+              args: [
+                doc.userId, doc.sessionKey, doc.tenantId, doc.to, doc.message, doc.type || 'text', doc.url || null, doc.status || 'pending', doc.sendAt
+              ]
+            });
+          }
+        })
+      })
+    })
+  }
+};
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin as checkSuperAdmin } from '@/lib/crm-handlers';
 import { logApiError } from '@/lib/error-logger';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
-import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, getAuthStatePhone, normalizeConnectedPhone, reconcileQrConnectedPhone } from '@/lib/qrSessionIsolation';
+import { clearQrSessionContamination, findOtherUsersWithConnectedPhone, normalizeConnectedPhone } from '@/lib/qrSessionIsolation';
 import { resolveOwnerSessionKey } from '@/lib/qrTenantSession';
+import { getBunnyCrmUserSettings, saveBunnyCrmUserSettings } from '@/lib/bunnyCrmSettings';
 import { isQRSendAllowed, getQRTimeGuardError, getCurrentISTTime, getNext5AMIST } from '@/lib/qrTimeGuard';
 
 export const dynamic = 'force-dynamic';
@@ -77,14 +199,26 @@ function evictStaleBridgeCache() {
   }
 }
 
-type BridgeResolution = 
+type BridgeResolution =
   | { ok: true; url: string; secret: string; userId: string; ownerUserId: string; bridgeSessionId: string; isSuperAdmin: boolean; hasOwnBridge: boolean; storedPhone: string; phoneChangedAt: Date | null; senderDisplayName: string; tenantId?: string }
-  | { ok: false; reason: 'no_bridge' | 'unauthorized' };
+  | { ok: false; reason: 'no_bridge' | 'unauthorized' | 'internal_error' };
 
 async function resolveUserBridge(authHeader: string | null): Promise<BridgeResolution> {
+  // Token check is OUTSIDE the try block below on purpose. Everything after
+  // it (connectDB, CRMUserSettings lookups, reconcileQrConnectedPhone, ...)
+  // can throw for reasons that have nothing to do with the user's session
+  // (a transient Mongo hiccup during the 30s inbox poll, for example) — that
+  // used to fall into the same catch as a real auth failure and get reported
+  // to the user as "Unauthorized — please log in again" even though their
+  // token was completely valid, which is confusing (the rest of the page
+  // still has their data loaded) and prompts an unnecessary re-login.
+  const decoded = verifyToken(authHeader || '');
+  if (!decoded?.userId || !decoded?.isAdmin) {
+    return { ok: false, reason: 'unauthorized' };
+  }
+
   try {
-    const decoded = verifyToken(authHeader || '');
-    if (decoded?.userId && decoded?.isAdmin) {
+    {
       // ── Check cache first ──
       const cacheKey = decoded.userId;
       const cached = bridgeCache.get(cacheKey);
@@ -95,22 +229,11 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       const superAdmin = checkSuperAdmin(decoded);
 
       // Check if user has a custom bridge URL or permanent tenant ID
-      await connectDB();
-      const CRMUserSettings = getCRMUserSettings();
-      const settings = await CRMUserSettings.findOne(
-        { userId: decoded.userId },
-        { permanentTenantId: 1, qrBridgeUrl: 1, qrBridgeSecret: 1, qrWhatsappEnabled: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1, senderDisplayName: 1 }
-      ).lean();
-
-      const rawStoredPhone = (settings as any)?.qrConnectedPhoneNumber || '';
-      const reconciledPhone = await reconcileQrConnectedPhone(decoded.userId, {
-        isSuperAdmin: superAdmin,
-        storedPhone: rawStoredPhone,
-        phoneChangedAt: (settings as any)?.qrPhoneChangedAt || null,
-      });
-      const authStatePhone = reconciledPhone.authStatePhone;
-      const storedPhone = reconciledPhone.resolvedPhone;
-      const phoneChangedAt = reconciledPhone.phoneChangedAt;
+      // QR session identity is now read from Bunny SQL. The bridge is an
+      // external Hetzner service and does not require MongoDB for resolution.
+      const settings = await getBunnyCrmUserSettings(decoded.userId);
+      const storedPhone = normalizeConnectedPhone(settings?.qrConnectedPhoneNumber || '');
+      const phoneChangedAt = settings?.qrPhoneChangedAt ? new Date(settings.qrPhoneChangedAt) : null;
       const senderDisplayName = (settings as any)?.senderDisplayName || '';
       const permanentTenantId = (settings as any)?.permanentTenantId || '';
 
@@ -124,10 +247,7 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
         : await resolveOwnerSessionKey({ userId: decoded.userId, tenantSlug: (decoded as any).tenantSlug });
       const sessionKey = ownerSessionKey || permanentTenantId;
       const ownerSettings: any = ownerSessionKey
-        ? await CRMUserSettings.findOne(
-            { permanentTenantId: ownerSessionKey },
-            { userId: 1, qrConnectedPhoneNumber: 1, qrPhoneChangedAt: 1 }
-          ).lean()
+        ? await getBunnyCrmUserSettings(ownerSessionKey)
         : null;
       const sessionOwnerUserId = String(ownerSettings?.userId || decoded.userId);
       const sessionStoredPhone = normalizeConnectedPhone(ownerSettings?.qrConnectedPhoneNumber || storedPhone);
@@ -185,7 +305,11 @@ async function resolveUserBridge(authHeader: string | null): Promise<BridgeResol
       return noBridge;
     }
   } catch (e) {
-    console.warn('[QR Bridge Proxy] Failed to resolve user bridge:', (e as Error).message);
+    // A valid, already-verified token got this far — anything thrown past
+    // this point is a backend problem (DB, session lookup, ...), not the
+    // user needing to log back in.
+    console.warn('[QR Bridge Proxy] Failed to resolve user bridge (internal error, not an auth failure):', (e as Error).message);
+    return { ok: false, reason: 'internal_error' };
   }
   return { ok: false, reason: 'unauthorized' };
 }
@@ -236,19 +360,13 @@ async function saveConnectedPhone(
     // Strip the @s.whatsapp.net suffix if present: "919876543210:xx@s.whatsapp.net" → "919876543210"
     const phone = phoneId.split(':')[0].split('@')[0].replace(/\D/g, '');
     if (!phone) return;
-    const CRMUserSettings = getCRMUserSettings();
     const normalizedPhone = normalizeConnectedPhone(phoneId);
-    const authStatePhone = await getAuthStatePhone(userId);
-    const nextPhone = authStatePhone || normalizedPhone;
+    const nextPhone = normalizedPhone;
     const update: any = { qrConnectedPhoneNumber: phone };
     if (isChange) {
       update.qrPhoneChangedAt = new Date();
     }
-    await CRMUserSettings.updateOne(
-      { userId },
-      { $set: { ...update, qrConnectedPhoneNumber: nextPhone || phone } },
-      { upsert: true }
-    );
+    await saveBunnyCrmUserSettings(userId, { ...update, qrConnectedPhoneNumber: nextPhone || phone });
     invalidateBridgeCache(userId);
     console.log(`[QR Bridge Proxy] Saved connected phone ${phone} for user ${userId}${isChange ? ' (PHONE CHANGED)' : ''}`);
     if (isChange && resolved) {
@@ -265,11 +383,11 @@ async function saveConnectedPhone(
  */
 async function clearPhoneChangedFlag(userId: string): Promise<void> {
   try {
-    const CRMUserSettings = getCRMUserSettings();
-    await CRMUserSettings.updateOne(
-      { userId },
-      { $unset: { qrPhoneChangedAt: 1 } }
-    );
+    const settings = await getBunnyCrmUserSettings(userId);
+    if (settings) {
+      delete settings.qrPhoneChangedAt;
+      await saveBunnyCrmUserSettings(userId, settings);
+    }
     invalidateBridgeCache(userId);
   } catch (e) {
     console.warn('[QR Bridge Proxy] Failed to clear phoneChangedAt:', (e as Error).message);
@@ -483,31 +601,49 @@ async function syncMongoSessionChats(userId: string, connectedPhone: string, cha
 
     const ops = chats
       .filter((chat: any) => chat?.id)
-      .map((chat: any) => ({
-        updateOne: {
-          filter: { userId, connectedPhone, chatJid: chat.id },
-          update: {
-            $set: {
-              userId,
-              connectedPhone,
-              chatJid: chat.id,
-              name: chat.name || chat.id,
-              isGroup: !!chat.isGroup,
-              lastMessage: typeof chat.lastMessage === 'string' ? chat.lastMessage : (chat?.lastMessage?.body || ''),
-              lastMessageTime: chat.lastMessageTime ? new Date(chat.lastMessageTime) : undefined,
-              lastMessageFromMe: !!chat.lastMessageFromMe,
-              unreadCount: Number(chat.unreadCount || 0),
-              conversationTimestamp: Number(chat.conversationTimestamp || 0),
-              pinned: !!chat.pinned,
-              archived: !!chat.archived,
-              profilePicUrl: chat.profilePicUrl || '',
-              metadata: chat.metadata || {},
+      .map((chat: any) => {
+        // The bridge's live in-memory chat object can be stale/empty for a
+        // given group (e.g. right after a restart, before history-sync has
+        // repopulated it) — this poll runs every 30s while the inbox is
+        // open, so unconditionally writing a falsy/zero value here would
+        // repeatedly clobber a genuinely correct conversationTimestamp/
+        // lastMessage that a send/webhook path already wrote. Only include
+        // these fields in $set when the bridge actually has something to
+        // say; otherwise leave the existing stored value untouched.
+        const incomingTs = Number(chat.conversationTimestamp || 0);
+        const incomingLastMessage = typeof chat.lastMessage === 'string' ? chat.lastMessage : (chat?.lastMessage?.body || '');
+        const hasFreshPreview = incomingTs > 0 || Boolean(incomingLastMessage.trim());
+
+        const set: Record<string, any> = {
+          userId,
+          connectedPhone,
+          chatJid: chat.id,
+          name: chat.name || chat.id,
+          isGroup: !!chat.isGroup,
+          unreadCount: Number(chat.unreadCount || 0),
+          pinned: !!chat.pinned,
+          archived: !!chat.archived,
+          profilePicUrl: chat.profilePicUrl || '',
+          metadata: chat.metadata || {},
+        };
+        if (hasFreshPreview) {
+          set.lastMessage = incomingLastMessage;
+          set.lastMessageTime = chat.lastMessageTime ? new Date(chat.lastMessageTime) : undefined;
+          set.lastMessageFromMe = !!chat.lastMessageFromMe;
+          set.conversationTimestamp = incomingTs;
+        }
+
+        return {
+          updateOne: {
+            filter: { userId, connectedPhone, chatJid: chat.id },
+            update: {
+              $set: set,
+              $setOnInsert: { createdAt: new Date() },
             },
-            $setOnInsert: { createdAt: new Date() },
+            upsert: true,
           },
-          upsert: true,
-        },
-      }));
+        };
+      });
 
     if (ops.length > 0) {
       await QrChat.bulkWrite(ops, { ordered: false });
@@ -665,6 +801,12 @@ function extractPhoneFromPath(path: string): string {
   const parts = path.split('/').filter(Boolean);
   if (parts.length >= 2) {
     const jid = decodeURIComponent(parts[1]);
+    // Group JIDs are not phones. Lead-ownership checks don't apply to groups
+    // (they're scoped by the session key itself — see the /chats route), and a
+    // modern digits-only group JID ("120363…@g.us") stripped to digits would
+    // masquerade as a "phone" that fails the lead lookup and wrongly blocks
+    // group endpoints like /profile-pic/ and /group-info/.
+    if (jid.split('?')[0].endsWith('@g.us')) return '';
     return extractPhoneFromJid(jid);
   }
   return '';
@@ -687,9 +829,13 @@ const ALWAYS_ALLOWED_PATHS = new Set([
  */
 const SUPER_ADMIN_ONLY_PATHS = new Set([
   '/reconnect',
-  '/disconnect', 
+  '/disconnect',
   '/logout',
-  '/group-create',   // Creating groups from Super Admin's WhatsApp
+  '/group-create',       // Creating groups from Super Admin's WhatsApp
+  '/community-create',   // Creating announcement communities — same session-level action as
+                         // /group-create (no target lead/phone to check ownership against),
+                         // was missing from this set so a shared-bridge team member could
+                         // create a community from the bridge owner's number unrestricted.
 ]);
 
 /**
@@ -697,6 +843,9 @@ const SUPER_ADMIN_ONLY_PATHS = new Set([
  */
 const BODY_TARGET_PATHS = new Set([
   '/send',
+  '/send-poll',
+  '/send-location',
+  '/send-contact',
   '/reply',
   '/react',
   '/delete-message',
@@ -734,6 +883,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { error: 'No WhatsApp bridge configured. Please set up your bridge URL in Settings tab.', noBridge: true },
           { status: 422 }
+        );
+      }
+      if (resolution.reason === 'internal_error') {
+        // Token was valid — this is a transient backend hiccup (DB, session
+        // lookup, ...), not the user needing to log back in. 503 so the
+        // frontend can retry instead of prompting a re-login.
+        return NextResponse.json(
+          { error: 'Temporary error loading your WhatsApp session — please try again in a moment.', transient: true },
+          { status: 503 }
         );
       }
       return NextResponse.json(
@@ -948,6 +1106,81 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── RESTRICTION PREFLIGHT: block group ops while account is restricted ──
+    // If a prior call already detected a WhatsApp-side block/restriction on
+    // this number (see the post-fetch check below), refuse further group
+    // ops until the restriction window passes instead of letting them
+    // through and deepening the ban.
+    if (basePath === '/group-participants' && resolved.storedPhone) {
+      const { getQRAccountRestriction } = await import('@/lib/whatsappRestriction');
+      const restriction = await getQRAccountRestriction(resolved.storedPhone);
+      if (restriction.restricted) {
+        return NextResponse.json({
+          success: false,
+          error: `This WhatsApp number is restricted until ${restriction.restrictedUntil.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST (${restriction.reason || 'WhatsApp flagged recent activity'}). Group operations are paused to avoid deepening the restriction.`,
+          restricted: true,
+          restrictedUntil: restriction.restrictedUntil.toISOString(),
+        }, { status: 423 });
+      }
+    }
+
+    // ── GROUP-OP RATE LIMIT: cap group participant add/remove ops ──
+    // Adding/removing many group members quickly is a strong WhatsApp ban
+    // signal. Reserve one slot per participant from the same persisted
+    // hourly/daily budget used by the background bulk-group-merge job, so
+    // the cap holds no matter which UI feature calls this proxy (merge,
+    // bulk-remove, etc.) and survives tab closes/reloads/concurrent users.
+    if (basePath === '/group-participants' && body && (body.action === 'add' || body.action === 'remove') && Array.isArray(body.participants)) {
+      const { reserveGroupOpSlot } = await import('@/lib/qrGroupOpRateLimit');
+      const allowedParticipants: string[] = [];
+      for (const p of body.participants) {
+        const r = await reserveGroupOpSlot(userId);
+        if (r.allowed) {
+          allowedParticipants.push(p);
+        } else {
+          console.warn(`[QR Bridge Proxy] Group-op rate limit hit for userId=${userId}, reason=${r.reason}`);
+          break;
+        }
+      }
+      if (allowedParticipants.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'Group operation rate limit reached (max 15/hour, 150/day) to protect this WhatsApp number from being banned. Please wait and try again.',
+          rateLimited: true,
+        }, { status: 429 });
+      }
+      body.participants = allowedParticipants;
+    }
+
+    // /group-create and /community-create add participants via the exact
+    // same groupParticipantsUpdate WhatsApp API as /group-participants above
+    // (both directly at creation and in the bridge's own follow-up batches)
+    // — without this, creating groups/communities was a way to add members
+    // in bulk that never touched the shared ban-protection budget at all.
+    if ((basePath === '/group-create' || basePath === '/community-create') && body && Array.isArray(body.participants) && body.participants.length > 0) {
+      const { reserveGroupOpSlot } = await import('@/lib/qrGroupOpRateLimit');
+      const allowedParticipants: string[] = [];
+      for (const p of body.participants) {
+        const r = await reserveGroupOpSlot(userId);
+        if (r.allowed) {
+          allowedParticipants.push(p);
+        } else {
+          console.warn(`[QR Bridge Proxy] Group-op rate limit hit for userId=${userId} on ${basePath}, reason=${r.reason}`);
+          break;
+        }
+      }
+      // /group-create requires at least one participant to form the group —
+      // /community-create can still proceed with zero (invite-link-only growth).
+      if (allowedParticipants.length === 0 && basePath === '/group-create') {
+        return NextResponse.json({
+          success: false,
+          error: 'Group operation rate limit reached (max 15/hour, 150/day) to protect this WhatsApp number from being banned. Please wait and try again.',
+          rateLimited: true,
+        }, { status: 429 });
+      }
+      body.participants = allowedParticipants;
+    }
+
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
@@ -968,13 +1201,16 @@ export async function POST(req: NextRequest) {
     // /send with media: 45s (large base64 payloads)
     // Messages polling: 12s (can be slow, needs more time)
     // Status check: 8s
-    // Contact/Group details: 3s (timeout quickly, use fallback)
+    // Contact/Group details: group metadata can take several seconds while
+    // WhatsApp refreshes a large member list; do not mislabel that delay as a
+    // disconnected bridge.
     // Other endpoints: 8s
     let timeoutMs = 8000;
     if (['/logout', '/reconnect', '/disconnect'].includes(decodedPath)) timeoutMs = 30000;
     if (decodedPath.includes('/send')) timeoutMs = 45000; // Large media uploads need more time
     if (decodedPath.includes('/messages')) timeoutMs = 12000;
-    if (decodedPath.includes('/contact') || decodedPath.includes('/group')) timeoutMs = 3000;
+    if (decodedPath.includes('/contact')) timeoutMs = 8000;
+    if (decodedPath.includes('/group')) timeoutMs = 15000;
     
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -1058,8 +1294,12 @@ export async function POST(req: NextRequest) {
         // Not JSON, use generic message
       }
       
-      // Handle specific error codes with helpful messages
-      let errorMessage = 'Bridge error';
+      // Handle specific error codes with helpful messages. Any status not
+      // explicitly handled below (including 500) falls through to the last
+      // branch, which surfaces the bridge's own error text instead of a
+      // generic "Bridge error" — a real 500 from Baileys (e.g. groupMetadata
+      // failing) used to show as an opaque, undiagnosable message.
+      let errorMessage = bridgeSpecificMessage || 'Bridge error';
       if (res.status === 404) {
         errorMessage = `Endpoint not found: ${decodedPath}`;
       } else if (res.status === 503 || res.status === 502) {
@@ -1070,7 +1310,20 @@ export async function POST(req: NextRequest) {
         // Use bridge's specific message if available (e.g., "QR not available")
         errorMessage = bridgeSpecificMessage || 'Invalid request format';
       }
-      
+
+      // ── DETECT WHATSAPP-SIDE RESTRICTION ON GROUP OPS ──
+      // If the bridge's error looks like a WhatsApp block/restriction signal
+      // (same keyword check used for broadcast hard-stops), record it against
+      // this account so future group ops are paused for 24h instead of
+      // someone having to delete the account doc to "reset" it.
+      if (basePath === '/group-participants' && resolved.storedPhone) {
+        const { isWhatsAppBlockedSignal, markQRAccountRestricted } = await import('@/lib/whatsappRestriction');
+        const signal = `${bridgeSpecificMessage || ''} ${errorText}`;
+        if (isWhatsAppBlockedSignal(signal)) {
+          await markQRAccountRestricted(resolved.storedPhone, `Group operation blocked by WhatsApp: ${bridgeSpecificMessage || errorText.substring(0, 150)}`);
+        }
+      }
+
       return NextResponse.json(
         { 
           error: errorMessage,
@@ -1352,6 +1605,12 @@ export async function GET(req: NextRequest) {
           { status: 422 }
         );
       }
+      if (resolution.reason === 'internal_error') {
+        return NextResponse.json(
+          { error: 'Temporary error loading your WhatsApp session — please try again in a moment.', transient: true },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         { error: 'Unauthorized — please log in again.' },
         { status: 401 }
@@ -1436,7 +1695,14 @@ export async function GET(req: NextRequest) {
     // current stored QR session. This prevents stale or foreign bridge data from leaking.
     if (resolved.hasOwnBridge && resolved.storedPhone && isPathTargetEndpoint(path)) {
       const chatJid = extractChatJidFromPath(path);
-      if (chatJid) {
+      // Group profile pictures self-scope at the bridge: the current session's
+      // socket can only fetch photos of groups the connected account is in, so
+      // a stale/foreign group simply yields url:null. Groups also often have no
+      // qr_whatsapp_chats row (they come from the bridge /groups endpoint), so
+      // running them through the per-chat session gate blanked out every group
+      // avatar.
+      const skipGateForGroupPic = chatJid.endsWith('@g.us') && path.startsWith('/profile-pic/');
+      if (chatJid && !skipGateForGroupPic) {
         const allowed = await isChatAllowedInCurrentSession(userId, resolved.storedPhone, chatJid);
         if (!allowed) {
           // For /messages/ requests: auto-register the chat if it comes from the bridge
@@ -1498,7 +1764,8 @@ export async function GET(req: NextRequest) {
     let timeoutMs = 8000;
     if (path.includes('/media')) timeoutMs = 30000; // Long timeout for media downloads
     if (path.includes('/messages')) timeoutMs = 12000; // Increased from 5s to 12s
-    if (path.includes('/contact') || path.includes('/group')) timeoutMs = 3000;
+    if (path.includes('/contact')) timeoutMs = 8000;
+    if (path.includes('/group')) timeoutMs = 15000;
     
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -1596,8 +1863,12 @@ export async function GET(req: NextRequest) {
         // Not JSON, use generic message
       }
       
-      // Handle specific error codes with helpful messages
-      let errorMessage = 'Bridge error';
+      // Handle specific error codes with helpful messages. Any status not
+      // explicitly handled below (including 500) falls through to the last
+      // branch, which surfaces the bridge's own error text instead of a
+      // generic "Bridge error" — a real 500 from Baileys (e.g. groupMetadata
+      // failing) used to show as an opaque, undiagnosable message.
+      let errorMessage = bridgeSpecificMessage || 'Bridge error';
       if (res.status === 404) {
         errorMessage = `Endpoint not found: ${path}`;
       } else if (res.status === 503 || res.status === 502) {
@@ -1608,7 +1879,7 @@ export async function GET(req: NextRequest) {
         // Use bridge's specific message if available (e.g., "QR not available")
         errorMessage = bridgeSpecificMessage || 'Invalid request format';
       }
-      
+
       // For group chats that fail, return empty messages instead of error
       if (path.includes('/messages') && path.includes('@lid')) {
         console.warn(`[QR Bridge Proxy] Group chat message fetch failed (${res.status}), returning empty array`);

@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
 import { connectDB } from '@/lib/db';
-import { getLead, getWhatsAppMessage, getChatbotFlow, getWhatsAppTemplate, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
+import { getChatbotFlow, getWhatsAppTemplate, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import crypto from 'node:crypto';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
@@ -56,12 +59,10 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-    const Lead = getLead();
-    const WhatsAppMessage = getWhatsAppMessage();
     const ChatbotFlow = getChatbotFlow();
 
     // Load lead and flow
-    const lead = await Lead.findOne({ _id: body.leadId, ...tf }).lean() as any;
+    const lead = await getBunnyLeadById(body.leadId);
     if (!lead) {
       return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
     }
@@ -111,32 +112,35 @@ export async function POST(request: NextRequest) {
 
       let finalText = metadata?.spintaxEnabled ? applySpintax(text) : text;
 
-      const msg = await WhatsAppMessage.create({
-        leadId: lead._id,
+      const msgId = crypto.randomUUID();
+      await upsertBunnyMetaMessage({
+        _id: msgId,
+        documentId: msgId,
+        leadId: String(lead._id),
         phoneNumber: phone,
         direction: 'outbound',
         messageType: 'text',
         messageContent: finalText,
         status: 'queued',
-        sentAt: now,
-        metadata: { chatbot: { flowId: flow._id, nodeId: metadata?.nodeId, autoStart: true } },
+        sentAt: now.toISOString(),
+        metadata: { chatbot: { flowId: String(flow._id), nodeId: metadata?.nodeId, autoStart: true } },
         provider: 'meta',
         senderNumber,
       });
 
       try {
         const result = await sendWhatsAppText(phone, finalText);
-        await WhatsAppMessage.updateOne(
-          { _id: msg._id },
-          { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
-        );
+        await updateBunnyMetaMessage(msgId, {
+          status: 'sent', 
+          waMessageId: result.waMessageId,
+        });
         return { success: true, waMessageId: result.waMessageId };
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : 'Send failed';
-        await WhatsAppMessage.updateOne(
-          { _id: msg._id },
-          { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
-        );
+        await updateBunnyMetaMessage(msgId, {
+          status: 'failed', 
+          failureReason: errMsg,
+        });
         return { success: false, error: errMsg };
       }
     }
@@ -164,14 +168,17 @@ export async function POST(request: NextRequest) {
       const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
       const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 
-      const msg = await WhatsAppMessage.create({
-        leadId: lead._id,
+      const msgId = crypto.randomUUID();
+      await upsertBunnyMetaMessage({
+        _id: msgId,
+        documentId: msgId,
+        leadId: String(lead._id),
         phoneNumber: phone,
         direction: 'outbound',
         messageType: 'interactive',
         messageContent: displayContent,
         status: 'queued',
-        sentAt: now,
+        sentAt: now.toISOString(),
         metadata: chatbotMeta,
         provider: 'meta',
         senderNumber,
@@ -179,17 +186,17 @@ export async function POST(request: NextRequest) {
 
       try {
         const result = await sendWhatsAppInteractiveButtons(phone, bodyText, buttons, { headerImageUrl });
-        await WhatsAppMessage.updateOne(
-          { _id: msg._id },
-          { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
-        );
+        await updateBunnyMetaMessage(msgId, {
+          status: 'sent', 
+          waMessageId: result.waMessageId,
+        });
         return { success: true, waMessageId: result.waMessageId };
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : 'Send failed';
-        await WhatsAppMessage.updateOne(
-          { _id: msg._id },
-          { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
-        );
+        await updateBunnyMetaMessage(msgId, {
+          status: 'failed', 
+          failureReason: errMsg,
+        });
         return { success: false, error: errMsg };
       }
     }
@@ -211,15 +218,18 @@ export async function POST(request: NextRequest) {
       const env = getWhatsAppEnv();
       const senderNumber = env?.phoneNumber || '9779006820';
 
-      const msg = await WhatsAppMessage.create({
-        leadId: lead._id,
+      const msgId = crypto.randomUUID();
+      await upsertBunnyMetaMessage({
+        _id: msgId,
+        documentId: msgId,
+        leadId: String(lead._id),
         phoneNumber: phone,
         direction: 'outbound',
         messageType: 'template',
         messageContent: `[Template: ${(tplDoc as any).templateName}]`,
         status: 'queued',
-        sentAt: now,
-        metadata: { chatbot: { flowId: flow._id, nodeId: node.nodeId, autoStart: true }, templateName: (tplDoc as any).templateName },
+        sentAt: now.toISOString(),
+        metadata: { chatbot: { flowId: String(flow._id), nodeId: node.nodeId, autoStart: true }, templateName: (tplDoc as any).templateName },
         provider: 'meta',
         senderNumber,
       });
@@ -227,17 +237,17 @@ export async function POST(request: NextRequest) {
       try {
         const templateInput = buildCloudTemplateSendInput(tplDoc, phone);
         const result = await sendWhatsAppTemplate(templateInput);
-        await WhatsAppMessage.updateOne(
-          { _id: msg._id },
-          { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
-        );
+        await updateBunnyMetaMessage(msgId, {
+          status: 'sent', 
+          waMessageId: result.waMessageId,
+        });
         return { success: true };
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : 'Template send failed';
-        await WhatsAppMessage.updateOne(
-          { _id: msg._id },
-          { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
-        );
+        await updateBunnyMetaMessage(msgId, {
+          status: 'failed', 
+          failureReason: errMsg,
+        });
         return { success: false, error: errMsg };
       }
     }
@@ -395,7 +405,8 @@ export async function POST(request: NextRequest) {
       // CRM update node - apply and continue
       if (nextNode.type === 'crm_update') {
         if (nextNode.leadUpdates && typeof nextNode.leadUpdates === 'object') {
-          await Lead.updateOne({ _id: lead._id, ...tf }, { $set: nextNode.leadUpdates });
+          await saveBunnyLead({ ...lead, ...nextNode.leadUpdates }, String(lead._id));
+          Object.assign(lead, nextNode.leadUpdates);
         }
         nextStateNodeId = nextNode.nextNodeId || '';
         chainCount++;
@@ -423,24 +434,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const metadata = lead.metadata || {};
     if (nextStateNodeId) {
       // Flow is in progress
-      await Lead.updateOne(
-        { _id: lead._id, ...tf },
-        { $set: { 'metadata.chatbotFlowState': flowState } }
-      );
+      metadata.chatbotFlowState = flowState;
     } else {
       // Flow completed (end node or no next node)
-      await Lead.updateOne(
-        { _id: lead._id, ...tf },
-        { $unset: { 'metadata.chatbotFlowState': 1, 'metadata.chatbotVariables': 1 } }
-      );
+      delete metadata.chatbotFlowState;
+      delete metadata.chatbotVariables;
+    }
+    
+    // Assign labels from start node if defined
+    let labels = lead.labels || [];
+    if (Array.isArray(startNode.assignLabels) && startNode.assignLabels.length > 0) {
+      labels = [...new Set([...labels, ...startNode.assignLabels])];
     }
 
-    // Assign labels from start node if defined
-    if (Array.isArray(startNode.assignLabels) && startNode.assignLabels.length > 0) {
-      await Lead.updateOne({ _id: lead._id, ...tf }, { $addToSet: { labels: { $each: startNode.assignLabels } } });
-    }
+    await saveBunnyLead({ ...lead, metadata, labels }, String(lead._id));
 
     console.log(`[FlowStart] ✅ Flow "${flow.name}" started for ${phone}. Sent ${sentMessages.length} message(s). State: node=${nextStateNodeId || 'completed'}`);
 

@@ -45,24 +45,14 @@ export async function GET(request: NextRequest) {
       ),
     });
   } catch (error: any) {
-    console.error('[Zoom Settings GET]', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[Bunny Zoom Settings GET]', error);
+    return NextResponse.json({ error: error?.message || 'Failed to load Bunny Zoom settings' }, { status: 500 });
   }
 }
 
-/**
- * POST /api/admin/community/zoom-settings
- * Add a new Zoom → Community mapping
- */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
+    if (!admin(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     const body = await request.json();
     const { zoomMeetingId, communityId, zoomTopic, thumbnailUrl, googleFormUrl, crmFormId } = body;
 
@@ -104,8 +94,8 @@ export async function POST(request: NextRequest) {
       mapping,
     });
   } catch (error: any) {
-    console.error('[Zoom Settings POST]', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[Bunny Zoom Settings POST]', error);
+    return NextResponse.json({ error: error?.message || 'Failed to save Bunny Zoom mapping' }, { status: 500 });
   }
 }
 
@@ -116,13 +106,7 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
+    if (!admin(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     const body = await request.json();
     const { id, zoomTopic, thumbnailUrl, youtubePlaylistName, googleFormUrl, crmFormId } = body;
     if (!id) {
@@ -151,24 +135,14 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Zoom Settings PATCH]', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[Bunny Zoom Settings PATCH]', error);
+    return NextResponse.json({ error: error?.message || 'Failed to update Bunny Zoom mapping' }, { status: 500 });
   }
 }
 
-/**
- * DELETE /api/admin/community/zoom-settings?id=mappingId
- * Delete a Zoom → Community mapping
- */
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
+    if (!admin(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     const id = request.nextUrl.searchParams.get('id');
     if (!id) {
       return NextResponse.json({ error: 'id parameter required' }, { status: 400 });
@@ -187,7 +161,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Zoom Settings DELETE]', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[Bunny Zoom Settings DELETE]', error);
+    return NextResponse.json({ error: error?.message || 'Failed to delete Bunny Zoom mapping' }, { status: 500 });
   }
 }

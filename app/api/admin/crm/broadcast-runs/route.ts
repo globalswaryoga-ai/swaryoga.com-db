@@ -29,12 +29,15 @@ async function resolveLeadIdsFromTarget(
   // Tenant isolation: never let a tenant's run target leads they don't own.
   // (Super admin keeps cross-tenant reach for Meta broadcasts; their QR pages are
   // already scoped to their own leads via the leads API.)
+  // Opt-out compliance: blocked leads (STOP replies / Meta-blocked numbers) are
+  // excluded from EVERY targeting path — explicit IDs, lists, and filters alike.
   const restrictToOwned = async (ids: mongoose.Types.ObjectId[]) => {
-    if (superAdmin || !ids.length) return ids;
-    const owned = await Lead.find({
-      _id: { $in: ids },
-      $or: [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }],
-    }).select({ _id: 1 }).lean();
+    if (!ids.length) return ids;
+    const query: any = { _id: { $in: ids }, isBlocked: { $ne: true } };
+    if (!superAdmin) {
+      query.$or = [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }];
+    }
+    const owned = await Lead.find(query).select({ _id: 1 }).lean();
     return owned.map((l: any) => toObjectId(String(l._id)));
   };
 
@@ -57,9 +60,9 @@ async function resolveLeadIdsFromTarget(
     return restrictToOwned(members.map((m: any) => toObjectId(String(m.leadId))));
   }
 
-  // filters — always scope to viewer's own leads
+  // filters — always scope to viewer's own leads (and never blocked/opted-out ones)
   const filters = target?.filters || {};
-  const q: any = {};
+  const q: any = { isBlocked: { $ne: true } };
   if (!superAdmin) {
     q.$or = [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }];
   }

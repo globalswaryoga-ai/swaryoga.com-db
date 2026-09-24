@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '@/lib/auth';
+import { findBunnyAdmin, recordBunnyAdminSignin } from '@/lib/bunnyAuthRepository';
 
 // CORS headers for all responses
 const corsHeaders = {
@@ -37,19 +37,9 @@ export async function POST(request: Request) {
       );
     }
 
-    await connectDB();
-
-    // Get User model
-    const { User } = await import('@/lib/db');
-    const UserModel = User;
-
-    // Find user by userId or email (people often try email on the admin screen).
-    const user = await UserModel.findOne({
-      $or: [
-        { userId: identifier },
-        { email: identifier.toLowerCase() },
-      ],
-    });
+    // Admin authentication is Bunny SQL-backed. MongoDB is not required for
+    // the CRM admin login path.
+    const user = await findBunnyAdmin(identifier);
     if (!user) {
       return jsonResponse(
         { error: 'Invalid credentials', success: false },
@@ -58,7 +48,7 @@ export async function POST(request: Request) {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       return jsonResponse(
         { error: 'Invalid credentials', success: false },
@@ -75,7 +65,7 @@ export async function POST(request: Request) {
     }
 
     // For admins, tenantId is their userId (they own their own CRM tenant)
-    const tenantId = user.userId || user.email || user._id?.toString();
+    const tenantId = user.userId || user.email;
 
     // Generate JWT token using the same secret/config as the rest of the app.
     const token = generateToken({
@@ -84,9 +74,16 @@ export async function POST(request: Request) {
       isAdmin: user.isAdmin,
       role: user.role,
       permissions: user.permissions,
-      permissionsV2: user.permissionsV2 || null,
+      permissionsV2: (user.permissionsV2 || undefined) as any,
       managedUserIds: user.managedUserIds || [], // For managers: IDs of users they supervise
       tenantId, // Add tenantId to JWT for Life Planner access
+    });
+
+    await recordBunnyAdminSignin({
+      email: user.email,
+      userId: user.userId,
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
     });
 
     return jsonResponse({

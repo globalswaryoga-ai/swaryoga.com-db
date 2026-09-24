@@ -1,51 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import {
-  verifyAdminAccess,
-  parsePagination,
-  handleCrmError,
-  formatCrmSuccess,
-  buildMetadata,
-  isValidObjectId,
-  toObjectId,
-  escapeRegexLiteral,
-} from '@/lib/crm-handlers';
+import { verifyAdminAccess, handleCrmError, formatCrmSuccess } from '@/lib/crm-handlers';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-import { QuickReply } from '@/lib/schemas/enterpriseSchemas';
 
-// Mark as dynamic since this route uses request.headers or request.url
+function getUid(req: NextRequest): string {
+  const token = req.headers.get('authorization')?.slice('Bearer '.length);
+  const decoded: any = verifyToken(token);
+  return String(decoded?.userId || decoded?._id || 'system');
+}
 
+// Ensure table exists (idempotent)
+async function ensureTable() {
+  await bunnyExecute({
+    sql: `CREATE TABLE IF NOT EXISTS quick_replies_sql (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL,
+      title TEXT,
+      content TEXT NOT NULL,
+      shortcut TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    args: [],
+  });
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
-    const { limit, skip } = parsePagination(request);
+    verifyAdminAccess(request);
+    const uid = getUid(request);
     const url = new URL(request.url);
+    const q = url.searchParams.get('q')?.trim().toLowerCase() || '';
 
-    await connectDB();
+    await ensureTable();
 
-  const qRaw = url.searchParams.get('q')?.trim();
-    const enabled = url.searchParams.get('enabled');
+    const result = await bunnyExecute({
+      sql: 'SELECT * FROM quick_replies_sql WHERE owner_user_id = ? ORDER BY sort_order ASC, created_at DESC',
+      args: [uid],
+    });
 
-    const filter: any = { createdByUserId: String(userId) };
-    if (enabled === 'true') filter.enabled = true;
-    if (enabled === 'false') filter.enabled = false;
-
-    if (qRaw) {
-      const q = escapeRegexLiteral(qRaw);
-      filter.$or = [
-        { title: { $regex: q, $options: 'i' } },
-        { shortcut: { $regex: q, $options: 'i' } },
-        { content: { $regex: q, $options: 'i' } },
-      ];
+    let replies = result.rows as any[];
+    if (q) {
+      replies = replies.filter(
+        (r) =>
+          String(r.title || '').toLowerCase().includes(q) ||
+          String(r.content || '').toLowerCase().includes(q) ||
+          String(r.shortcut || '').toLowerCase().includes(q)
+      );
     }
 
-    const replies = await QuickReply.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
-    const total = await QuickReply.countDocuments(filter);
-    const meta = buildMetadata(total, limit, skip);
-
-    return formatCrmSuccess({ replies, total }, meta);
+    return formatCrmSuccess({ replies, total: replies.length });
   } catch (error) {
     return handleCrmError(error, 'GET quick-replies');
   }
@@ -53,29 +60,29 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
+    verifyAdminAccess(request);
+    const uid = getUid(request);
     const body = await request.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
     const title = String(body?.title || '').trim();
-    const content = String(body?.content || '').trim();
-    const shortcut = typeof body?.shortcut === 'string' ? body.shortcut.trim() : '';
+    const content = String(body?.content || body?.text || '').trim();
+    const shortcut = String(body?.shortcut || '').trim();
 
-    if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 });
     if (!content) return NextResponse.json({ error: 'content is required' }, { status: 400 });
 
-    await connectDB();
+    await ensureTable();
 
-    const reply = await QuickReply.create({
-      title,
-      content,
-      shortcut: shortcut || undefined,
-      tags: Array.isArray(body?.tags) ? body.tags.map((t: any) => String(t).trim()).filter(Boolean) : [],
-      enabled: typeof body?.enabled === 'boolean' ? body.enabled : true,
-      createdByUserId: String(userId),
+    const id = `qr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+
+    await bunnyExecute({
+      sql: `INSERT INTO quick_replies_sql (id, owner_user_id, title, content, shortcut, sort_order, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [id, uid, title || null, content, shortcut || null, 0, now, now],
     });
 
-    return formatCrmSuccess(reply);
+    return formatCrmSuccess({ id, title, content, shortcut, owner_user_id: uid, created_at: now });
   } catch (error) {
     return handleCrmError(error, 'POST quick-replies');
   }
@@ -83,28 +90,34 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
+    verifyAdminAccess(request);
+    const uid = getUid(request);
     const body = await request.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
-    const id = String(body?.id || body?._id || '').trim();
-    if (!id || !isValidObjectId(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    const id = String(body?.id || '').trim();
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
-    const allowed: any = {};
-    for (const f of ['title', 'shortcut', 'content', 'tags', 'enabled']) {
-      if (Object.prototype.hasOwnProperty.call(body, f)) allowed[f] = body[f];
-    }
+    await ensureTable();
 
-    await connectDB();
+    const fields: string[] = [];
+    const args: any[] = [];
+    if (body.title !== undefined) { fields.push('title = ?'); args.push(String(body.title).trim() || null); }
+    if (body.content !== undefined) { fields.push('content = ?'); args.push(String(body.content).trim()); }
+    if (body.shortcut !== undefined) { fields.push('shortcut = ?'); args.push(String(body.shortcut).trim() || null); }
+    if (body.sort_order !== undefined) { fields.push('sort_order = ?'); args.push(Number(body.sort_order)); }
+    fields.push('updated_at = ?');
+    args.push(new Date().toISOString());
+    args.push(id, uid);
 
-    const updated = await QuickReply.findOneAndUpdate(
-      { _id: toObjectId(id), createdByUserId: String(userId) },
-      { $set: allowed },
-      { new: true }
-    ).lean();
+    if (fields.length === 1) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
 
-    if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return formatCrmSuccess(updated);
+    await bunnyExecute({
+      sql: `UPDATE quick_replies_sql SET ${fields.join(', ')} WHERE id = ? AND owner_user_id = ?`,
+      args,
+    });
+
+    return formatCrmSuccess({ updated: true });
   } catch (error) {
     return handleCrmError(error, 'PUT quick-replies');
   }
@@ -112,18 +125,21 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
+    verifyAdminAccess(request);
+    const uid = getUid(request);
     const url = new URL(request.url);
-    const id = url.searchParams.get('id');
+    const id = url.searchParams.get('id')?.trim();
 
-    if (!id || !isValidObjectId(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
-    await connectDB();
+    await ensureTable();
 
-    const res = await QuickReply.deleteOne({ _id: toObjectId(id), createdByUserId: String(userId) });
-    if (!res.deletedCount) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    await bunnyExecute({
+      sql: 'DELETE FROM quick_replies_sql WHERE id = ? AND owner_user_id = ?',
+      args: [id, uid],
+    });
 
-    return formatCrmSuccess({ deletedCount: res.deletedCount });
+    return formatCrmSuccess({ deleted: true });
   } catch (error) {
     return handleCrmError(error, 'DELETE quick-replies');
   }

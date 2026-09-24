@@ -312,6 +312,15 @@ const orderSchema = new mongoose.Schema({
 
   transactionId: { type: String },
   failureReason: { type: String },
+  // The workshop-join batch time slot chosen at checkout (if the form has
+  // any) — resolved server-side from EnquiryForm.timeSlots, never trusted
+  // from the client. Lets pay-return reveal/WhatsApp the RIGHT group link
+  // (each slot has its own) instead of always the legacy default.
+  workshopTimeSlot: {
+    index: Number,
+    label: String,
+    groupLink: String,
+  },
   shippingAddress: {
     firstName: String,
     lastName: String,
@@ -523,6 +532,7 @@ const communityVideoSchema = new mongoose.Schema({
   
   // For YouTube videos (unlisted)
   youtubeVideoId: { type: String }, // Just the video ID (not full URL)
+  youtubeUrl: { type: String }, // Canonical unlisted URL, e.g. https://youtu.be/{id}
   youtubeUnlisted: { type: Boolean, default: true }, // Must be unlisted for security
   
   duration: { type: Number }, // Duration in seconds
@@ -1053,16 +1063,12 @@ const socialMediaAccountSchema = new mongoose.Schema({
   disconnectedAt: { type: Date },
   lastTokenRefresh: { type: Date },
   
-  // Platform-specific metadata
-  metadata: {
-    followers: { type: Number, default: 0 },
-    following: { type: Number, default: 0 },
-    postsCount: { type: Number, default: 0 },
-    engagementRate: { type: Number, default: 0 },
-    lastSyncedAt: { type: Date },
-    businessCategory: { type: String },
-    website: { type: String },
-  },
+  // Platform-specific metadata. Mixed (not a fixed sub-schema) because fields
+  // like apiType/linkedPageId/igBusinessId are written by the Instagram/Messenger
+  // connect flow but weren't declared here — under Mongoose's default strict
+  // mode, any undeclared nested key gets silently dropped on the next full
+  // .save() of this document, which would quietly break Instagram send/import.
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   
   // Permissions
   grantedScopes: [String], // OAuth scopes granted
@@ -1093,10 +1099,19 @@ const socialMediaPostSchema = new mongoose.Schema({
       enum: ['facebook', 'youtube', 'x', 'linkedin', 'instagram', 'tiktok'],
     },
   ],
-  
+
+  // What kind of post this is on Facebook/Instagram. 'feed' = normal timeline
+  // post, 'story' = 24-hour Story, 'reel' = Instagram Reel (video only).
+  postType: {
+    type: String,
+    enum: ['feed', 'story', 'reel'],
+    default: 'feed',
+  },
+
   // Post content
   content: {
-    text: { type: String, required: true },
+    // Not required: Stories/Reels are commonly posted with no caption.
+    text: { type: String, default: '' },
     images: [
       {
         url: { type: String },
@@ -2287,16 +2302,38 @@ const enquiryFormSchema = new mongoose.Schema(
   {
     formId: { type: String, required: true, unique: true, index: true }, // short unique ID for URL
     workshopName: { type: String, required: true },
-    workshopDate: { type: String, default: '' },     // human-readable date string
+    workshopDate: { type: String, default: '' },     // human-readable start date string
+    workshopEndDate: { type: String, default: '' },
     workshopTime: { type: String, default: '' },
+    duration: { type: String, default: '' },
+    holidays: { type: String, default: '' },
     workshopMode: { type: String, enum: ['online', 'offline', 'residential', 'recorded'], default: 'online' },
     workshopId: { type: String, default: '' },        // optional slug reference
     description: { type: String, default: '' },
     workshopImage: { type: String, default: '' },     // banner image URL
     // Payment (optional): when price > 0 the public form shows Pay Now / Pay Later.
+    // Legacy single-price field — kept for backward compatibility with forms
+    // created before feeOptions existed, and as a display fallback. When
+    // feeOptions has entries, it is the one that drives the public form.
     price: { type: Number, default: 0 },               // 0 = free / no payment
-    currency: { type: String, default: 'INR' },
-    groupLink: { type: String, default: '' },          // WhatsApp group invite link shown after join
+    currency: { type: String, default: 'INR' },        // applies to all feeOptions too
+    // Multiple selectable fee tiers (e.g. "Early Bird", "Standard"). The public
+    // registrant picks one; the SELECTED INDEX (never a client-sent amount) is
+    // what the pay/pay-later routes look up server-side to get the amount —
+    // same amount-tampering protection as the legacy single `price` field.
+    feeOptions: {
+      type: [{ label: { type: String, default: '' }, price: { type: Number, default: 0 } }],
+      default: [],
+    },
+    groupLink: { type: String, default: '' },          // legacy single WhatsApp group link — fallback when timeSlots is empty
+    // Multiple selectable batch time slots (e.g. "Morning", "Evening"), each
+    // paired with its OWN WhatsApp group link (different batches meet in
+    // different groups). Same relationship to the legacy `groupLink` field
+    // above that feeOptions has to the legacy `price` field.
+    timeSlots: {
+      type: [{ label: { type: String, default: '' }, groupLink: { type: String, default: '' } }],
+      default: [],
+    },
     isActive: { type: Boolean, default: true, index: true },
     createdByUserId: { type: String, default: 'admin' },
     submissionCount: { type: Number, default: 0 },
@@ -2333,6 +2370,16 @@ export function getCourseSection() {
 export function getCourseEnrollment() {
   const { getCourseEnrollment: getter } = require('./schemas/recordedCourseSchemas');
   return getter();
+}
+
+export function getWorkshopStudent() {
+  const mod = require('./schemas/workshopStudent');
+  return mod.default || mod;
+}
+
+export function getWorkshopRecording() {
+  const mod = require('./schemas/workshopRecording');
+  return mod.default || mod;
 }
 
 // Default export for backward compatibility

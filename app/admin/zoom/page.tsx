@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
 
 interface SyncedFile {
   recordingType: string;
@@ -32,6 +33,7 @@ interface ZoomMeeting {
 }
 
 export default function ZoomAdminPage() {
+  const token = useAuth();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [meetings, setMeetings] = useState<ZoomMeeting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,13 +51,15 @@ export default function ZoomAdminPage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    fetchRecordings();
-    fetchMeetings();
-  }, []);
+    if (token) {
+      fetchRecordings();
+      fetchMeetings();
+    }
+  }, [token]);
 
   const fetchRecordings = async () => {
     try {
-      const res = await fetch(`/api/admin/zoom/recordings?search=${search}`);
+      const res = await fetch(`/api/admin/zoom/recordings?search=${search}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) {
         setRecordings(data.recordings);
@@ -69,7 +73,7 @@ export default function ZoomAdminPage() {
 
   const fetchMeetings = async () => {
     try {
-      const res = await fetch('/api/admin/zoom/meetings');
+      const res = await fetch('/api/admin/zoom/meetings', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) {
         setMeetings(data.meetings);
@@ -84,7 +88,7 @@ export default function ZoomAdminPage() {
     try {
       const res = await fetch('/api/admin/zoom/meetings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(newMeeting),
       });
       const data = await res.json();

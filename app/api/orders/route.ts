@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order } from '@/lib/db';
+import { saveOrder, getOrdersByUser } from '@/lib/bunnyWebsiteRepository';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
     const body = await request.json();
 
     const {
@@ -25,16 +23,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create order
-    const order = new Order({
+    // Create order using BunnyDB
+    const order = await saveOrder({
       userId,
       items,
       total,
       shippingAddress,
       status: 'pending',
     });
-
-    await order.save();
 
     return NextResponse.json(
       { message: 'Order created successfully', order },
@@ -51,8 +47,6 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    
     // Verify token
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -72,7 +66,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const orders = await Order.find({ userId: decoded.userId }).sort({ createdAt: -1 });
+    // Fetch orders using BunnyDB
+    const orders = await getOrdersByUser(decoded.userId);
 
     return NextResponse.json(orders, { status: 200 });
   } catch (error) {

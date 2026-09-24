@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { courseId, title, description, bunnyVideoId, duration = 0, hoursGap = 0, isFree = false, thumbnail, transcript = '', aiSummary = '', ragEnabled = false } = body;
+    const { courseId, title, description, bunnyVideoId, duration = 0, hoursGap = 0, isFree = false, thumbnail, transcript = '', aiSummary = '', ragEnabled = false, transcriptI18n, aiSummaryI18n } = body;
 
     if (!courseId || !title || !bunnyVideoId) {
       return NextResponse.json({
@@ -187,6 +187,8 @@ export async function POST(request: NextRequest) {
       thumbnail: thumbnail || '',
       transcript: String(transcript || ''),
       aiSummary: String(aiSummary || ''),
+      ...(transcriptI18n && typeof transcriptI18n === 'object' ? { transcriptI18n } : {}),
+      ...(aiSummaryI18n && typeof aiSummaryI18n === 'object' ? { aiSummaryI18n } : {}),
       ragEnabled: ragEnabled === true,
       createdBy: decoded.email || decoded.userId || 'admin',
       content: {
@@ -243,7 +245,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, title, description, duration, hoursGap, isFree, thumbnail, transcript, aiSummary, ragEnabled } = body;
+    const { videoId, title, description, duration, hoursGap, isFree, thumbnail, transcript, aiSummary, ragEnabled, transcriptI18n, aiSummaryI18n } = body;
 
     if (!videoId) {
       return NextResponse.json({ error: 'Video ID required' }, { status: 400 });
@@ -260,6 +262,8 @@ export async function PUT(request: NextRequest) {
     if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
     if (transcript !== undefined) updateData.transcript = String(transcript || '');
     if (aiSummary !== undefined) updateData.aiSummary = String(aiSummary || '');
+    if (transcriptI18n !== undefined && (transcriptI18n === null || typeof transcriptI18n === 'object')) updateData.transcriptI18n = transcriptI18n || undefined;
+    if (aiSummaryI18n !== undefined && (aiSummaryI18n === null || typeof aiSummaryI18n === 'object')) updateData.aiSummaryI18n = aiSummaryI18n || undefined;
     if (ragEnabled !== undefined) updateData.ragEnabled = ragEnabled === true;
 
     const video = await CourseVideo.findByIdAndUpdate(videoId, updateData, { new: true });

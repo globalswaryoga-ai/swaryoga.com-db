@@ -1,12 +1,74 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
-import { computeConjunctions, computeDrishtiOnPlanets } from '@/lib/kpAstro/aspectAnalysis';
-import { housesOccupiedBy, housesOwnedBy, starLordOf, type SignificatorHouse, type SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { ChevronDown, ChevronRight, Eye, EyeOff, BookMarked } from 'lucide-react';
+import type { SignificatorHouse, SignificatorPlanet } from '@/lib/kpAstro/significators';
+import { computeFreshTemplate, FORTUNA_HOUSE_MEANINGS, IMPROVING_BHAVAS, type MatterRule } from './bhavAutoFill';
+import MatterRuleLibrary from './MatterRuleLibrary';
 
-// Per-bhav (per-house) astrologer working sheet. Each row stays editable so
-// the astrologer can correct the auto-filled KP data before final prediction.
+// Per-bhav (per-house) astrologer working sheet — the "Prediction Template":
+// pick a Matter + its Primary House, the sub-lord chain auto-derives (sub
+// lord -> its star -> that star's lord), then four conjunction/opposition
+// blocks, ending in a manual Summary/Conclusion/Rule. Mirrors the
+// astrologer's own reference spreadsheet field-for-field and row-for-row.
+
+// The nine KP planets, in Vimshottari order — options for planet dropdowns.
+const KP_PLANETS = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury'];
+
+// The 27 nakshatras, in standard order — derived from lib/kpAstro/subTable.json's
+// unique `star` values (NOT lib/panchang.ts's NAKSHATRAS, which is built for
+// Panchang/calendar use: wrong spellings, an extra "Abhijit," and missing "Revati").
+const NAKSHATRAS = [
+  'Ashvini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashīrsha', 'Ardra', 'Punarvasu', 'Pushya', 'Āshleshā',
+  'Maghā', 'Pūrva Phalgunī', 'Uttara Phalgunī', 'Hasta', 'Chitra', 'Svati', 'Vishakha', 'Anuradha',
+  'Jyeshtha', 'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha',
+  'Purva Bhadrapada', 'Uttara Bhādrapadā', 'Revati',
+];
+
+const RETROGRADE_OPTIONS = ['Direct', 'Retrograde'];
+const HOUSE_NUMBERS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+// Per-house color accents so each bhav box is visually distinct at a glance.
+const HOUSE_COLORS: Record<number, { badge: string; border: string }> = {
+  1:  { badge: 'bg-red-500 text-white',     border: 'border-red-300' },
+  2:  { badge: 'bg-orange-500 text-white',  border: 'border-orange-300' },
+  3:  { badge: 'bg-amber-500 text-white',   border: 'border-amber-300' },
+  4:  { badge: 'bg-yellow-500 text-white',  border: 'border-yellow-300' },
+  5:  { badge: 'bg-lime-600 text-white',    border: 'border-lime-300' },
+  6:  { badge: 'bg-emerald-600 text-white', border: 'border-emerald-300' },
+  7:  { badge: 'bg-teal-600 text-white',    border: 'border-teal-300' },
+  8:  { badge: 'bg-cyan-600 text-white',    border: 'border-cyan-300' },
+  9:  { badge: 'bg-sky-600 text-white',     border: 'border-sky-300' },
+  10: { badge: 'bg-indigo-600 text-white',  border: 'border-indigo-300' },
+  11: { badge: 'bg-violet-600 text-white',  border: 'border-violet-300' },
+  12: { badge: 'bg-pink-600 text-white',    border: 'border-pink-300' },
+};
+
+export interface AspectBlock {
+  present: string;          // 'Yes' | 'No' | ''
+  planet: string;           // which planet, if present === 'Yes'
+  planetRetrograde: string; // 'Direct' | 'Retrograde'
+  starLordRetrograde: string; // 'Direct' | 'Retrograde' — of that planet's OWN star lord
+  signification: string;    // auto text, editable override
+  favorable: string;        // manual judgment — not auto-derivable
+}
+
+export interface PredictionTemplate {
+  primaryHouse: number;
+  subLordRetrograde: string;
+  subLordStar: string;
+  starLord: string;
+  starLordRetrograde: string;
+  starLordHouses: string;
+  starLordConnecting: string;
+  subLordConjunct: AspectBlock;
+  starLordConjunct: AspectBlock;
+  subLordOpposed: AspectBlock;
+  starLordOpposed: AspectBlock;
+  summary: string;
+  conclusion: string;
+  rule: string;
+}
 
 export interface BhavAnalysisRow {
   house: number;
@@ -41,6 +103,24 @@ export interface BhavAnalysisRow {
   freeNotes: string;
   predictionOrder: number;
   includeInPrediction: boolean;
+  predictionTemplate: PredictionTemplate;
+}
+
+function emptyAspectBlock(): AspectBlock {
+  return { present: '', planet: '', planetRetrograde: '', starLordRetrograde: '', signification: '', favorable: '' };
+}
+
+function emptyPredictionTemplate(house: number): PredictionTemplate {
+  return {
+    primaryHouse: house,
+    subLordRetrograde: '', subLordStar: '', starLord: '', starLordRetrograde: '',
+    starLordHouses: '', starLordConnecting: '',
+    subLordConjunct: emptyAspectBlock(),
+    starLordConjunct: emptyAspectBlock(),
+    subLordOpposed: emptyAspectBlock(),
+    starLordOpposed: emptyAspectBlock(),
+    summary: '', conclusion: '', rule: '',
+  };
 }
 
 export function emptyBhavAnalysis(): BhavAnalysisRow[] {
@@ -58,7 +138,40 @@ export function emptyBhavAnalysis(): BhavAnalysisRow[] {
     positiveNotes: '', negativeNotes: '', dashaNotes: '', freeNotes: '',
     predictionOrder: 0,
     includeInPrediction: true,
+    predictionTemplate: emptyPredictionTemplate(i + 1),
   }));
+}
+
+function normalizeAspectBlock(found: any): AspectBlock {
+  return {
+    present: found?.present || '',
+    planet: found?.planet || '',
+    planetRetrograde: found?.planetRetrograde || '',
+    starLordRetrograde: found?.starLordRetrograde || '',
+    signification: found?.signification || '',
+    favorable: found?.favorable || '',
+  };
+}
+
+function normalizePredictionTemplate(found: any, house: number): PredictionTemplate {
+  const pt = found?.predictionTemplate;
+  const primaryHouse = Number(pt?.primaryHouse);
+  return {
+    primaryHouse: Number.isInteger(primaryHouse) && primaryHouse >= 1 && primaryHouse <= 12 ? primaryHouse : house,
+    subLordRetrograde: pt?.subLordRetrograde || '',
+    subLordStar: pt?.subLordStar || '',
+    starLord: pt?.starLord || '',
+    starLordRetrograde: pt?.starLordRetrograde || '',
+    starLordHouses: pt?.starLordHouses || '',
+    starLordConnecting: pt?.starLordConnecting || '',
+    subLordConjunct: normalizeAspectBlock(pt?.subLordConjunct),
+    starLordConjunct: normalizeAspectBlock(pt?.starLordConjunct),
+    subLordOpposed: normalizeAspectBlock(pt?.subLordOpposed),
+    starLordOpposed: normalizeAspectBlock(pt?.starLordOpposed),
+    summary: pt?.summary || '',
+    conclusion: pt?.conclusion || '',
+    rule: pt?.rule || '',
+  };
 }
 
 // Fills in missing houses / fields when loading a chart saved before this
@@ -102,44 +215,10 @@ export function normalizeBhavAnalysis(rows: any[] | undefined): BhavAnalysisRow[
       freeNotes: found.freeNotes || '',
       predictionOrder: found.predictionOrder || 0,
       includeInPrediction: found.includeInPrediction !== false,
+      predictionTemplate: normalizePredictionTemplate(found, empty.house),
     };
   });
 }
-
-const HOUSE_LABELS: Record<number, string> = {
-  1: 'Self, personality, body', 2: 'Wealth, family, speech', 3: 'Siblings, courage, communication',
-  4: 'Home, mother, property', 5: 'Children, education, romance', 6: 'Health, enemies, debts, service',
-  7: 'Marriage, partnerships', 8: 'Longevity, obstacles, transformation', 9: 'Fortune, father, higher learning',
-  10: 'Career, status, profession', 11: 'Gains, income, elder siblings', 12: 'Loss, expenditure, foreign, moksha',
-};
-
-const TOOLKIT_RULE_FIELDS = [
-  'Matter',
-  'Primary House of Matter',
-  'House Sub Lord (CSL)',
-  'CSL Retrograde or Direct',
-  'Star of CSL',
-  'Owner of Star of CSL',
-  'Star of CSL Retrograde or Direct',
-  'Signification by Owner of Star of CSL',
-  'Result',
-  'Conclusion',
-];
-
-const FORTUNA_HOUSE_MEANINGS = [
-  '1: fortunate in enterprise, industry, effort, confidence, career',
-  '2: property, business, bank balance, domestic happiness, status',
-  '3: brothers, short journeys, agency, publication, advisory work',
-  '4: patrimony, savings, landed property, mines, minerals, hidden treasure',
-  '5: sports, cinema, music, children, speculation, share market',
-  '6: cattle, pets, uncle/aunt support, small banking, overdraft facility',
-  '7: partner, spouse, contracts, litigation, public organizations',
-  '8: will, insurance, gratuity, bonus, partner lump sum money',
-  '9: long journeys, foreign contracts, publishing, education, legal/spiritual service',
-  '10: service gains, quick status rise, strong professional money',
-  '11: friends, brothers, profitable business, high society support, fulfilled desires',
-  '12: unknown sources, purchases/sales luck, investments, gains through hidden matters',
-];
 
 const TOOLKIT_REFERENCE_CARDS = [
   {
@@ -162,8 +241,8 @@ const TOOLKIT_REFERENCE_CARDS = [
     title: 'Malefic / Benefic',
     badge: 'Dasha filter',
     lines: [
-      'Improving bhavas: 1, 2, 3, 6, 10, 11.',
-      'Non-improving bhavas: 4, 5, 7, 8, 9, 12.',
+      `Improving bhavas: ${IMPROVING_BHAVAS.join(', ')}.`,
+      `Non-improving bhavas: ${HOUSE_NUMBERS.filter((h) => !IMPROVING_BHAVAS.includes(h)).join(', ')}.`,
       'Deposition is most important.',
       'A benefic Sun and Moon in a natal chart is an asset.',
       'Benefic planets can still do good in their periods even when linked to difficult houses.',
@@ -186,178 +265,24 @@ const TOOLKIT_REFERENCE_CARDS = [
 
 type KaryeshPlanet = SignificatorPlanet & { retrograde?: boolean; combust?: boolean };
 
-function TextCell({ value, onChange, placeholder, rows = 2 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
-  return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      rows={rows}
-      placeholder={placeholder}
-      className="w-full resize-y rounded-lg border border-zinc-700 bg-black/60 px-2.5 py-2 text-xs leading-relaxed text-zinc-100 shadow-sm placeholder:text-zinc-500 focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
-    />
-  );
-}
-
-function FieldBox({ label, children, tone = 'slate' }: { label: string; children: ReactNode; tone?: 'slate' | 'indigo' | 'emerald' | 'red' }) {
-  const toneClass = {
-    slate: 'bg-zinc-900/80 border-zinc-700 text-zinc-300',
-    indigo: 'bg-yellow-500/10 border-yellow-500/40 text-yellow-300',
-    emerald: 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300',
-    red: 'bg-red-950/60 border-red-700/60 text-red-300',
-  }[tone];
-
-  return (
-    <div className={`rounded-xl border p-3 ${toneClass}`}>
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide">{label}</div>
-      {children}
-    </div>
-  );
-}
-
-function InputCell({ value, onChange, placeholder, accent = 'slate' }: { value: string; onChange: (v: string) => void; placeholder?: string; accent?: 'slate' | 'yellow' | 'red' }) {
-  const accentClass = {
-    slate: 'border-zinc-700 text-zinc-100 focus:border-yellow-400',
-    yellow: 'border-yellow-500/40 text-yellow-100 focus:border-yellow-400',
-    red: 'border-red-700/60 text-zinc-100 focus:border-red-400',
-  }[accent];
-
-  return (
-    <input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`w-full rounded-lg border bg-black px-3 py-2 text-sm shadow-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 ${accentClass}`}
-    />
-  );
-}
-
 function bhavLabel(house: number): string {
   return `${house}${house === 1 ? 'st' : house === 2 ? 'nd' : house === 3 ? 'rd' : 'th'} Bhav`;
 }
 
-function rowProgress(row: BhavAnalysisRow): { done: number; total: number } {
-  const fields = [
-    row.subLord,
-    row.subLordKaryeshBhav,
-    row.toolkitMatter,
-    row.cslRetrogradeStatus,
-    row.cslStarLord,
-    row.cslStarLordOwner,
-    row.cslStarLordSignification,
-    row.karyeshRuleResult,
-    row.karyeshRuleConclusion,
-  ];
-  return { done: fields.filter(Boolean).length, total: fields.length };
-}
-
-function houseList(values: number[]): string {
-  return values.length ? values.join(', ') : '-';
-}
-
-function parseHouseNumbers(value: string): number[] {
-  return [...value.matchAll(/\d+/g)]
-    .map((match) => Number(match[0]))
-    .filter((n) => n >= 1 && n <= 12);
-}
-
-function intersect(a: number[], b: number[]): number[] {
-  const bSet = new Set(b);
-  return [...new Set(a.filter((value) => bSet.has(value)))].sort((x, y) => x - y);
-}
-
-function KaryeshDataPill({ label, value, tone = 'slate' }: { label: string; value: string; tone?: 'slate' | 'yellow' | 'emerald' | 'red' }) {
-  const toneClass = {
-    slate: 'border-zinc-700 bg-zinc-950 text-zinc-100',
-    yellow: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-100',
-    emerald: 'border-emerald-700/60 bg-emerald-950/60 text-emerald-100',
-    red: 'border-red-700/60 bg-red-950/60 text-red-100',
-  }[tone];
-
-  return (
-    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</div>
-      <div className="mt-1 min-h-[18px] text-xs font-semibold leading-snug">{value || '-'}</div>
-    </div>
-  );
-}
-
-function ManagedKaryeshView({
-  row,
-  houses,
-  planets,
-  onApplySuggestion,
-}: {
-  row: BhavAnalysisRow;
-  houses: SignificatorHouse[];
-  planets: KaryeshPlanet[];
-  onApplySuggestion: (result: string) => void;
-}) {
-  const house = houses.find((h) => h.house === row.house);
-  const subLordPlanet = planets.find((p) => p.planet === row.subLord);
-  const derivedStarOwner = subLordPlanet ? starLordOf(subLordPlanet) : undefined;
-  const starOwner = row.cslStarLordOwner || derivedStarOwner || '';
-  const starOwnerPlanet = planets.find((p) => p.planet === starOwner);
-  const subLordOccupied = housesOccupiedBy(planets, row.subLord);
-  const subLordOwned = housesOwnedBy(houses, row.subLord);
-  const starOwnerOccupied = housesOccupiedBy(planets, starOwner);
-  const starOwnerOwned = housesOwnedBy(houses, starOwner);
-  const starOwnerHouses = [...new Set([...starOwnerOccupied, ...starOwnerOwned])].sort((a, b) => a - b);
-  const supporting = parseHouseNumbers(row.toolkitSupportingHouses);
-  const opposing = parseHouseNumbers(row.toolkitOpposingHouses);
-  const supportingHits = intersect(starOwnerHouses, supporting);
-  const opposingHits = intersect(starOwnerHouses, opposing);
-  const conjunctions = computeConjunctions(planets)
-    .filter((c) => c.planetA === row.subLord || c.planetB === row.subLord)
-    .map((c) => `${c.planetA === row.subLord ? c.planetB : c.planetA} (${c.separation.toFixed(1)} deg)`);
-  const drishti = computeDrishtiOnPlanets(planets)
-    .filter((d) => d.from === row.subLord || d.to === row.subLord)
-    .map((d) => d.from === row.subLord ? `${d.from} -> ${d.to} (H${d.toHouse})` : `${d.from} -> ${d.to} (H${d.toHouse})`);
-  const suggestedResult = supportingHits.length && !opposingHits.length
-    ? `Supports matter through houses ${houseList(supportingHits)}`
-    : opposingHits.length && !supportingHits.length
-      ? `Denial/delay through houses ${houseList(opposingHits)}`
-      : supportingHits.length && opposingHits.length
-        ? `Mixed: supports ${houseList(supportingHits)}, opposes ${houseList(opposingHits)}`
-        : starOwnerHouses.length
-          ? `Judge manually from star-owner houses ${houseList(starOwnerHouses)}`
-          : 'Need CSL/star-owner data';
-
-  return (
-    <div className="rounded-xl border border-zinc-700 bg-black/60 p-3">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Managed Karyesh View</div>
-          <div className="text-[11px] text-zinc-500">Generated from saved chart data and editable Bhav fields.</div>
-        </div>
-        <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-[11px] font-semibold text-zinc-300">Bhav {row.house}</span>
-      </div>
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <KaryeshDataPill label="Bhav Sign" value={house?.sign || '-'} />
-        <KaryeshDataPill label="Bhav Sub Lord" value={row.subLord || house?.subLord || '-'} tone="yellow" />
-        <KaryeshDataPill label="Sub Lord R/D" value={row.cslRetrogradeStatus || (subLordPlanet ? (subLordPlanet.retrograde ? 'Retrograde' : 'Direct') : '-')} />
-        <KaryeshDataPill label="CSL Star Lord" value={row.cslStarLord || subLordPlanet?.star || '-'} />
-        <KaryeshDataPill label="Owner of Star" value={starOwner || '-'} tone="yellow" />
-        <KaryeshDataPill label="Star Owner R/D" value={row.cslStarLordRetrogradeStatus || (starOwnerPlanet ? (starOwnerPlanet.retrograde ? 'Retrograde' : 'Direct') : '-')} />
-        <KaryeshDataPill label="Sub Lord In / Owns" value={`In ${houseList(subLordOccupied)}; owns ${houseList(subLordOwned)}`} />
-        <KaryeshDataPill label="Star Owner In / Owns" value={`In ${houseList(starOwnerOccupied)}; owns ${houseList(starOwnerOwned)}`} />
-        <KaryeshDataPill label="Conjunction" value={conjunctions.join('; ') || row.subLordConjunction || '-'} />
-        <KaryeshDataPill label="Opposition / Drishti" value={drishti.join('; ') || row.subLordDrishti || '-'} />
-        <KaryeshDataPill label="Favorable Hits" value={houseList(supportingHits)} tone={supportingHits.length ? 'emerald' : 'slate'} />
-        <KaryeshDataPill label="Denial Hits" value={houseList(opposingHits)} tone={opposingHits.length ? 'red' : 'slate'} />
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
-        <div>
-          <span className="font-semibold text-yellow-300">Suggested result: </span>{suggestedResult}
-        </div>
-        <button
-          type="button"
-          onClick={() => onApplySuggestion(suggestedResult)}
-          className="rounded-lg bg-yellow-400 px-2.5 py-1.5 text-[11px] font-bold text-black hover:bg-yellow-300"
-        >
-          Apply
-        </button>
-      </div>
-    </div>
+// A row counts as "in use" only once the astrologer has actually typed into
+// it — NOT once the chart's auto-fill has touched it. subLord, dashaChain,
+// starLord, the aspect blocks' "present" flag, Rule, and now Summary (both
+// auto-drafted, see composeBaseRule/composeBaseSummary in bhavAutoFill.ts)
+// are all computed for every one of the 12 houses on every auto-fill pass
+// regardless of which matter the astrologer cares about, so none of them can
+// be used as the "in use" signal (that was the bug, three times now: it made
+// every row look active). Matter/Conclusion/Favorable are the only fields
+// auto-fill never touches.
+function hasRowContent(row: BhavAnalysisRow): boolean {
+  const pt = row.predictionTemplate;
+  return Boolean(
+    row.toolkitMatter.trim() || pt.conclusion.trim() ||
+    [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some((b) => b.favorable.trim())
   );
 }
 
@@ -365,35 +290,35 @@ function ToolkitReferenceCards() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="border-b border-zinc-800 bg-black/80 p-3">
+    <div className="border-b border-gray-200 bg-gray-50 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Reference</div>
-          <div className="text-[11px] text-zinc-500">Small cards stay collapsed until needed.</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Toolkit Reference</div>
+          <div className="text-[11px] text-gray-500">Small cards stay collapsed until needed.</div>
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
       {TOOLKIT_REFERENCE_CARDS.map((card) => {
         const open = !!openCards[card.title];
         return (
-          <div key={card.title} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
+          <div key={card.title} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <button
               type="button"
               onClick={() => setOpenCards((prev) => ({ ...prev, [card.title]: !open }))}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-zinc-900"
+              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-gray-50"
             >
               <div className="flex min-w-0 items-center gap-2">
-                {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
-                <span className="truncate text-sm font-semibold text-zinc-100">{card.title}</span>
+                {open ? <ChevronDown className="h-4 w-4 shrink-0 text-indigo-600" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+                <span className="truncate text-sm font-semibold text-gray-900">{card.title}</span>
               </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-bold text-black">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-bold text-white">
                 {open ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 {card.badge}
               </span>
             </button>
             {open && (
-              <div className="max-h-72 overflow-y-auto border-t border-zinc-800 px-4 py-3">
-                <ul className="grid gap-2 text-xs leading-relaxed text-zinc-300">
+              <div className="max-h-72 overflow-y-auto border-t border-gray-200 px-4 py-3">
+                <ul className="grid gap-2 text-xs leading-relaxed text-gray-600">
                   {card.lines.map((line) => <li key={line}>{line}</li>)}
                 </ul>
               </div>
@@ -406,233 +331,423 @@ function ToolkitReferenceCards() {
   );
 }
 
+// One label/value row in the sheet-style template. `highlight` reproduces the
+// astrologer's own reference sheet's color coding.
+function SheetRow({
+  label,
+  children,
+  hint,
+  highlight,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  hint?: string;
+  highlight?: 'yellow' | 'orange' | 'blue';
+}) {
+  const labelBg =
+    highlight === 'yellow' ? 'bg-yellow-200' :
+    highlight === 'orange' ? 'bg-amber-400' :
+    highlight === 'blue' ? 'bg-sky-100' :
+    'bg-gray-100';
+  return (
+    <div className="grid grid-cols-1 border-b border-gray-200 last:border-b-0 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div className={`px-3 py-2.5 text-sm font-medium text-gray-800 ${labelBg}`}>{label}</div>
+      <div className="px-3 py-2 bg-white">
+        {children}
+        {hint && <p className="mt-1 text-[11px] italic text-gray-400">{hint}</p>}
+      </div>
+    </div>
+  );
+}
+
+function PlanetSelect({ value, onChange, className = '' }: { value: string; onChange: (v: string) => void; className?: string }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${className}`}
+    >
+      <option value="">— select —</option>
+      {KP_PLANETS.map((p) => <option key={p} value={p}>{p}</option>)}
+      {value && !KP_PLANETS.includes(value) && <option value={value}>{value}</option>}
+    </select>
+  );
+}
+
+function StarSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+    >
+      <option value="">— select —</option>
+      {NAKSHATRAS.map((s) => <option key={s} value={s}>{s}</option>)}
+      {value && !NAKSHATRAS.includes(value) && <option value={value}>{value}</option>}
+    </select>
+  );
+}
+
+function RetrogradeSelect({ value, onChange, className = '' }: { value: string; onChange: (v: string) => void; className?: string }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${className}`}
+    >
+      <option value="">— select —</option>
+      {RETROGRADE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+    </select>
+  );
+}
+
+function YesNoSelect({ value, onChange, className = '' }: { value: string; onChange: (v: string) => void; className?: string }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${className}`}
+    >
+      <option value="">— select —</option>
+      <option value="Yes">Yes</option>
+      <option value="No">No</option>
+    </select>
+  );
+}
+
+// The four repeated "Is X Conjunct/Opposed with any planet?" blocks — same
+// shape, reused for sub lord's conjunctions, star lord's conjunctions, sub
+// lord's oppositions, and star lord's oppositions.
+function AspectBlockRows({
+  subjectLabel,
+  verb,
+  block,
+  onUpdate,
+}: {
+  subjectLabel: string; // e.g. "Sun" (the sub lord or star lord planet name), for the question text
+  verb: 'Conjunct' | 'Opposed';
+  block: AspectBlock;
+  onUpdate: <K extends keyof AspectBlock>(field: K, value: AspectBlock[K]) => void;
+}) {
+  const questionText = verb === 'Conjunct'
+    ? `Is ${subjectLabel || 'this planet'} Conjunct with any planet?`
+    : `Is ${subjectLabel || 'this planet'} Opposed by any planet?`;
+  return (
+    <>
+      <SheetRow label={questionText} highlight="yellow">
+        <div className="flex flex-wrap items-center gap-2">
+          <YesNoSelect value={block.present} onChange={(v) => onUpdate('present', v)} />
+          {block.present === 'Yes' && (
+            <PlanetSelect value={block.planet} onChange={(v) => onUpdate('planet', v)} />
+          )}
+        </div>
+      </SheetRow>
+      <SheetRow
+        label={verb === 'Conjunct' ? 'Is the Conjunct planet retrograde?' : 'Is the opposed planet retrograde?'}
+        hint="Matter will delay till planet turns direct. Safe to predict later."
+      >
+        <RetrogradeSelect value={block.planetRetrograde} onChange={(v) => onUpdate('planetRetrograde', v)} />
+      </SheetRow>
+      <SheetRow
+        label={verb === 'Conjunct' ? 'Is the Star Lord of conjunct planet retrograde?' : "Is the Star Lord of the opposed planet retrograde?"}
+        hint="Matter will deny. Safe to predict later."
+      >
+        <RetrogradeSelect value={block.starLordRetrograde} onChange={(v) => onUpdate('starLordRetrograde', v)} />
+      </SheetRow>
+      <SheetRow label={verb === 'Conjunct' ? 'Signification of Conjunct planet along with its starlord' : "Signification of the Opposed Planet and it's Star Lord"}>
+        <input
+          type="text"
+          value={block.signification}
+          onChange={(e) => onUpdate('signification', e.target.value)}
+          className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+        />
+      </SheetRow>
+      <SheetRow label={verb === 'Conjunct' ? 'Is the Conjunct planet signifying favorable houses to the matter?' : "Is the signification of the opposed planet and it's star lord favorable?"}>
+        <input
+          type="text"
+          value={block.favorable}
+          onChange={(e) => onUpdate('favorable', e.target.value)}
+          placeholder="Astrologer's judgment"
+          className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+        />
+      </SheetRow>
+    </>
+  );
+}
+
 export default function BhavEditor({
   rows,
   onChange,
   houses = [],
   planets = [],
+  matterRules = [],
+  onMatterRulesChanged,
 }: {
   rows: BhavAnalysisRow[];
   onChange: (rows: BhavAnalysisRow[]) => void;
   houses?: SignificatorHouse[];
   planets?: KaryeshPlanet[];
+  matterRules?: MatterRule[];
+  onMatterRulesChanged?: () => void;
 }) {
   const [openHouse, setOpenHouse] = useState(1);
+  // Slots the astrologer explicitly added this session but hasn't typed into
+  // yet — kept visible until they either fill it in (then hasRowContent takes
+  // over) or reload without saving anything into it.
+  const [manuallyAdded, setManuallyAdded] = useState<Set<number>>(new Set());
+  const [showRuleLibrary, setShowRuleLibrary] = useState(false);
+
+  const contentHouses = rows.filter(hasRowContent).map((r) => r.house);
+  const activeHouseSet = new Set<number>([...contentHouses, ...manuallyAdded]);
+  if (activeHouseSet.size === 0) activeHouseSet.add(rows[0]?.house ?? 1);
+  const activeRows = rows.filter((r) => activeHouseSet.has(r.house)).sort((a, b) => a.house - b.house);
+  const unusedHouses = rows.map((r) => r.house).filter((h) => !activeHouseSet.has(h));
 
   const updateRow = <K extends keyof BhavAnalysisRow>(house: number, key: K, value: BhavAnalysisRow[K]) => {
     onChange(rows.map((r) => (r.house === house ? { ...r, [key]: value } : r)));
   };
 
-  const applyKaryeshSuggestion = (house: number, result: string) => {
-    onChange(rows.map((r) => (r.house === house ? { ...r, karyeshRuleResult: result, karyeshRuleConclusion: r.karyeshRuleConclusion || result } : r)));
+  const updateTemplate = <K extends keyof PredictionTemplate>(house: number, key: K, value: PredictionTemplate[K]) => {
+    onChange(rows.map((r) => (r.house === house ? { ...r, predictionTemplate: { ...r.predictionTemplate, [key]: value } } : r)));
+  };
+
+  // Changing the Primary House means the whole sub-lord/star-lord chain and
+  // all four aspect blocks now describe a DIFFERENT house — recompute every
+  // dependent field fresh instead of leaving the old house's values behind.
+  const applyFreshTemplate = (house: number, newPrimaryHouse: number) => {
+    const matter = rows.find((r) => r.house === house)?.toolkitMatter || '';
+    const { subLord, predictionTemplate } = computeFreshTemplate(newPrimaryHouse, houses, planets, matter, matterRules);
+    onChange(rows.map((r) => (r.house === house ? { ...r, subLord, predictionTemplate } : r)));
+  };
+
+  const updateAspectBlock = <K extends keyof AspectBlock>(
+    house: number,
+    blockKey: 'subLordConjunct' | 'starLordConjunct' | 'subLordOpposed' | 'starLordOpposed',
+    field: K,
+    value: AspectBlock[K]
+  ) => {
+    onChange(rows.map((r) => (r.house === house
+      ? { ...r, predictionTemplate: { ...r.predictionTemplate, [blockKey]: { ...r.predictionTemplate[blockKey], [field]: value } } }
+      : r)));
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-700 bg-gradient-to-b from-zinc-950 to-black shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-black px-4 py-3">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
         <div>
-          <h3 className="text-sm font-semibold text-white">12 Bhav Working Dropdowns</h3>
-          <p className="mt-0.5 text-xs text-zinc-500">Open one Bhav, complete Karyesh logic, save, then generate final prediction.</p>
+          <h3 className="text-sm font-semibold text-gray-900">Bhav Prediction Template</h3>
+          <p className="mt-0.5 text-xs text-gray-500">Add a matter, complete the template, save, then generate final prediction.</p>
         </div>
-        <div className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">12 bhavs</div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowRuleLibrary(true)}
+            className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+          >
+            <BookMarked className="h-3.5 w-3.5" /> Matter Rules
+          </button>
+          <div className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">{activeRows.length} {activeRows.length === 1 ? 'matter' : 'matters'}</div>
+        </div>
       </div>
       <ToolkitReferenceCards />
       <div className="space-y-2 p-3">
-        {rows.map((row) => {
+        {activeRows.map((row) => {
           const open = openHouse === row.house;
-          const progress = rowProgress(row);
-          const isReady = progress.done >= 7 || Boolean(row.karyeshRuleConclusion);
+          const pt = row.predictionTemplate;
+          const colors = HOUSE_COLORS[pt.primaryHouse] || HOUSE_COLORS[1];
+          const hasConjOrOpp = [pt.subLordConjunct, pt.starLordConjunct, pt.subLordOpposed, pt.starLordOpposed].some((b) => b.present === 'Yes');
 
           return (
-            <div key={row.house} className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-sm">
+            <div key={row.house} className={`overflow-hidden rounded-xl border bg-white shadow-sm ${open ? colors.border : 'border-gray-200'}`}>
               <button
                 type="button"
                 onClick={() => setOpenHouse(open ? 0 : row.house)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-900"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  {open ? <ChevronDown className="h-4 w-4 shrink-0 text-yellow-300" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
-                  <span className="shrink-0 rounded-full bg-yellow-400 px-2.5 py-1 text-xs font-bold text-black">{bhavLabel(row.house)}</span>
-                  <span className="truncate text-sm font-medium text-zinc-100">{HOUSE_LABELS[row.house]}</span>
+                  {open ? <ChevronDown className="h-4 w-4 shrink-0 text-indigo-600" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${colors.badge}`}>{bhavLabel(pt.primaryHouse)}</span>
+                  <span className="truncate text-sm font-medium text-gray-800">{row.toolkitMatter || 'Untitled matter'}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className={`hidden rounded-full px-2.5 py-1 text-xs font-bold sm:inline ${isReady ? 'bg-emerald-900 text-emerald-200' : 'bg-zinc-800 text-zinc-400'}`}>
-                    {progress.done}/{progress.total}
-                  </span>
-                  {row.predictionOrder > 0 && <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-xs font-bold text-black">#{row.predictionOrder}</span>}
-                  {row.subLord && <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-100">Sub: {row.subLord}</span>}
-                  {row.dashaChain && <span className="hidden rounded-full bg-emerald-950 px-2.5 py-1 text-xs font-semibold text-emerald-300 sm:inline">{row.dashaChain}</span>}
+                  {row.predictionOrder > 0 && <span className="rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white">#{row.predictionOrder}</span>}
+                  {row.subLord && <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Sub: {row.subLord}</span>}
+                  {hasConjOrOpp && <span className="hidden rounded-full bg-yellow-200 px-2.5 py-1 text-xs font-semibold text-yellow-800 sm:inline">Conj/Opp</span>}
+                  {row.dashaChain && <span className="hidden rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 sm:inline">{row.dashaChain}</span>}
                 </div>
               </button>
 
               {open && (
-                <div className="space-y-3 border-t border-zinc-800 bg-black/70 p-4">
-                  <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
-                    <FieldBox label="Sub Lord Planet" tone="indigo">
-                      <InputCell
-                        value={row.subLord}
-                        onChange={(v) => updateRow(row.house, 'subLord', v)}
-                        accent="yellow"
-                      />
-                    </FieldBox>
-                    <FieldBox label="Maha-Antar-Vidasha">
-                      <InputCell
+                <div className="space-y-3 border-t border-gray-200 bg-white p-4">
+                  {/* Utility bar — operational controls, not part of the sheet itself */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Maha-Antar-Vidasha</span>
+                      <input
                         value={row.dashaChain}
-                        onChange={(v) => updateRow(row.house, 'dashaChain', v)}
+                        onChange={(e) => updateRow(row.house, 'dashaChain', e.target.value)}
                         placeholder="Sun-Moon-Saturn"
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       />
-                    </FieldBox>
-                    <FieldBox label="Use">
-                      <div className="flex h-[38px] items-center justify-center">
-                        <input
-                          type="checkbox"
-                          checked={row.includeInPrediction}
-                          onChange={(e) => updateRow(row.house, 'includeInPrediction', e.target.checked)}
-                          className="h-5 w-5 rounded border-zinc-600 bg-black text-yellow-400 focus:ring-yellow-500/30"
-                        />
-                      </div>
-                    </FieldBox>
-                    <FieldBox label="Order">
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={row.includeInPrediction}
+                        onChange={(e) => updateRow(row.house, 'includeInPrediction', e.target.checked)}
+                        className="h-5 w-5 rounded border-gray-300 bg-white text-indigo-600 focus:ring-indigo-200"
+                      />
+                      <span className="text-sm text-gray-700">Use in prediction</span>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Order</span>
                       <input
                         type="number"
                         value={row.predictionOrder || ''}
                         onChange={(e) => updateRow(row.house, 'predictionOrder', Number(e.target.value) || 0)}
-                        className="w-20 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 shadow-sm focus:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                        className="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       />
-                    </FieldBox>
+                    </label>
                   </div>
 
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    <FieldBox label="Sub Lord ABCD Planets" tone="indigo">
-                      <TextCell value={row.subLordAbcdPlanets} onChange={(v) => updateRow(row.house, 'subLordAbcdPlanets', v)} rows={3} />
-                    </FieldBox>
-                    <FieldBox label="Sub Lord Karyesh Bhav - ABCD" tone="indigo">
-                      <TextCell value={row.subLordKaryeshBhav} onChange={(v) => updateRow(row.house, 'subLordKaryeshBhav', v)} rows={3} />
-                    </FieldBox>
-                  </div>
-
-                  <ManagedKaryeshView row={row} houses={houses} planets={planets} onApplySuggestion={(result) => applyKaryeshSuggestion(row.house, result)} />
-
-                  <div className="overflow-hidden rounded-xl border border-yellow-500/30 bg-yellow-500/5">
-                    <div className="border-b border-yellow-500/20 bg-black/50 px-3 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Toolkit Rule Template</div>
-                        <div className="mt-1 text-[11px] text-zinc-400">{TOOLKIT_RULE_FIELDS.join(' -> ')}</div>
+                  {/* The Prediction Template sheet — exact same row sequence as the reference spreadsheet */}
+                  <div className="overflow-hidden rounded-xl border border-gray-300">
+                    <SheetRow label="Matter">
+                      <input
+                        type="text"
+                        value={row.toolkitMatter}
+                        onChange={(e) => updateRow(row.house, 'toolkitMatter', e.target.value)}
+                        placeholder="e.g. Marriage, Career, Health"
+                        className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </SheetRow>
+                    <SheetRow label="Primary House of Matter in Question" hint="Calculate fills the whole chain below from this house's chart data">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={pt.primaryHouse}
+                          onChange={(e) => applyFreshTemplate(row.house, Number(e.target.value))}
+                          className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                        >
+                          {HOUSE_NUMBERS.map((h) => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => applyFreshTemplate(row.house, pt.primaryHouse)}
+                          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                        >
+                          Calculate
+                        </button>
                       </div>
-                      <span className="rounded-full bg-yellow-400 px-2.5 py-1 text-[11px] font-bold text-black">Karyesh logic</span>
-                    </div>
-                    </div>
-                    <div className="space-y-3 p-3">
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <FieldBox label="Matter / Event" tone="indigo">
-                        <InputCell
-                          value={row.toolkitMatter}
-                          onChange={(v) => updateRow(row.house, 'toolkitMatter', v)}
-                          placeholder="Marriage, Job, Stock, Health..."
-                          accent="yellow"
-                        />
-                      </FieldBox>
-                      <FieldBox label="Primary House">
-                        <InputCell
-                          value={row.toolkitPrimaryHouse}
-                          onChange={(v) => updateRow(row.house, 'toolkitPrimaryHouse', v)}
-                          placeholder={`${row.house}`}
-                        />
-                      </FieldBox>
-                      <FieldBox label="Supporting Houses">
-                        <InputCell
-                          value={row.toolkitSupportingHouses}
-                          onChange={(v) => updateRow(row.house, 'toolkitSupportingHouses', v)}
-                          placeholder="2, 7, 11"
-                        />
-                      </FieldBox>
-                    </div>
-                    <div className="mt-3 grid gap-3 lg:grid-cols-4">
-                      <FieldBox label="Opposing / Denial Houses" tone="red">
-                        <InputCell
-                          value={row.toolkitOpposingHouses}
-                          onChange={(v) => updateRow(row.house, 'toolkitOpposingHouses', v)}
-                          placeholder="1, 6, 10, 12"
-                          accent="red"
-                        />
-                      </FieldBox>
-                      <FieldBox label="CSL R/D">
-                        <InputCell
-                          value={row.cslRetrogradeStatus}
-                          onChange={(v) => updateRow(row.house, 'cslRetrogradeStatus', v)}
-                          placeholder="Direct / Retrograde"
-                        />
-                      </FieldBox>
-                      <FieldBox label="Star of CSL">
-                        <InputCell
-                          value={row.cslStarLord}
-                          onChange={(v) => updateRow(row.house, 'cslStarLord', v)}
-                        />
-                      </FieldBox>
-                      <FieldBox label="Owner of Star">
-                        <InputCell
-                          value={row.cslStarLordOwner}
-                          onChange={(v) => updateRow(row.house, 'cslStarLordOwner', v)}
-                        />
-                      </FieldBox>
-                    </div>
-                    <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                      <FieldBox label="Star Owner R/D">
-                        <InputCell
-                          value={row.cslStarLordRetrogradeStatus}
-                          onChange={(v) => updateRow(row.house, 'cslStarLordRetrogradeStatus', v)}
-                          placeholder="Direct / Retrograde"
-                        />
-                      </FieldBox>
-                      <FieldBox label="Owner Signification">
-                        <TextCell value={row.cslStarLordSignification} onChange={(v) => updateRow(row.house, 'cslStarLordSignification', v)} rows={3} />
-                      </FieldBox>
-                      <FieldBox label="Rule Result" tone="emerald">
-                        <TextCell value={row.karyeshRuleResult} onChange={(v) => updateRow(row.house, 'karyeshRuleResult', v)} rows={3} />
-                      </FieldBox>
-                    </div>
-                    <div className="mt-3">
-                      <FieldBox label="Rule Conclusion" tone="emerald">
-                        <TextCell value={row.karyeshRuleConclusion} onChange={(v) => updateRow(row.house, 'karyeshRuleConclusion', v)} rows={3} />
-                      </FieldBox>
-                    </div>
-                    </div>
-                  </div>
+                    </SheetRow>
+                    <SheetRow label={`Sub Lord of the Primary House No.: ${pt.primaryHouse}`}>
+                      <PlanetSelect value={row.subLord} onChange={(v) => updateRow(row.house, 'subLord', v)} />
+                    </SheetRow>
+                    <SheetRow label="Is Sub Lord Retrograde or Direct?">
+                      <RetrogradeSelect value={pt.subLordRetrograde} onChange={(v) => updateTemplate(row.house, 'subLordRetrograde', v)} />
+                    </SheetRow>
+                    <SheetRow label="is deposited in which Star?">
+                      <StarSelect value={pt.subLordStar} onChange={(v) => updateTemplate(row.house, 'subLordStar', v)} />
+                    </SheetRow>
+                    <SheetRow label="Star lord of the star?">
+                      <PlanetSelect value={pt.starLord} onChange={(v) => updateTemplate(row.house, 'starLord', v)} />
+                    </SheetRow>
+                    <SheetRow label="Is retrograde?" hint="Matter will delay till planet turns direct. Safe to predict later.">
+                      <RetrogradeSelect value={pt.starLordRetrograde} onChange={(v) => updateTemplate(row.house, 'starLordRetrograde', v)} />
+                    </SheetRow>
+                    <SheetRow label="is deposited in and owning houses?" hint="Deposition is more important than ownership">
+                      <input
+                        type="text"
+                        value={pt.starLordHouses}
+                        onChange={(e) => updateTemplate(row.house, 'starLordHouses', e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </SheetRow>
+                    <SheetRow label="Is connecting to 6, 8, 12?" hint="6, 8, 12 are afflicted houses">
+                      <input
+                        type="text"
+                        value={pt.starLordConnecting}
+                        onChange={(e) => updateTemplate(row.house, 'starLordConnecting', e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </SheetRow>
 
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    <FieldBox label="Rahu/Ketu Connection">
-                      <TextCell value={row.subLordRahuKetuConnection} onChange={(v) => updateRow(row.house, 'subLordRahuKetuConnection', v)} rows={3} />
-                    </FieldBox>
-                    <FieldBox label="Sub Lord Drishti">
-                      <TextCell value={row.subLordDrishti} onChange={(v) => updateRow(row.house, 'subLordDrishti', v)} rows={3} />
-                    </FieldBox>
-                    <FieldBox label="Conjunction - Planet & Degree">
-                      <TextCell value={row.subLordConjunction} onChange={(v) => updateRow(row.house, 'subLordConjunction', v)} rows={3} />
-                    </FieldBox>
-                  </div>
+                    <AspectBlockRows
+                      subjectLabel={row.subLord}
+                      verb="Conjunct"
+                      block={pt.subLordConjunct}
+                      onUpdate={(field, value) => updateAspectBlock(row.house, 'subLordConjunct', field, value)}
+                    />
+                    <AspectBlockRows
+                      subjectLabel={pt.starLord}
+                      verb="Conjunct"
+                      block={pt.starLordConjunct}
+                      onUpdate={(field, value) => updateAspectBlock(row.house, 'starLordConjunct', field, value)}
+                    />
+                    <AspectBlockRows
+                      subjectLabel={row.subLord}
+                      verb="Opposed"
+                      block={pt.subLordOpposed}
+                      onUpdate={(field, value) => updateAspectBlock(row.house, 'subLordOpposed', field, value)}
+                    />
+                    <AspectBlockRows
+                      subjectLabel={pt.starLord}
+                      verb="Opposed"
+                      block={pt.starLordOpposed}
+                      onUpdate={(field, value) => updateAspectBlock(row.house, 'starLordOpposed', field, value)}
+                    />
 
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    <FieldBox label="Positive Notes" tone="emerald">
-                      <TextCell value={row.positiveNotes} onChange={(v) => updateRow(row.house, 'positiveNotes', v)} rows={3} />
-                    </FieldBox>
-                    <FieldBox label="Negative Notes" tone="red">
-                      <TextCell value={row.negativeNotes} onChange={(v) => updateRow(row.house, 'negativeNotes', v)} rows={3} />
-                    </FieldBox>
-                    <FieldBox label="Dasha Cross Notes">
-                      <TextCell value={row.dashaNotes} onChange={(v) => updateRow(row.house, 'dashaNotes', v)} rows={3} />
-                    </FieldBox>
+                    <SheetRow label="Summary of the analysis" highlight="orange">
+                      <textarea
+                        value={pt.summary}
+                        onChange={(e) => updateTemplate(row.house, 'summary', e.target.value)}
+                        rows={4}
+                        className="w-full resize-y rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </SheetRow>
+                    <SheetRow label="Conclusion" highlight="blue">
+                      <textarea
+                        value={pt.conclusion}
+                        onChange={(e) => updateTemplate(row.house, 'conclusion', e.target.value)}
+                        rows={3}
+                        className="w-full resize-y rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </SheetRow>
+                    <SheetRow label="Rule" hint="Check rule book and enter rule below" highlight="blue">
+                      <textarea
+                        value={pt.rule}
+                        onChange={(e) => updateTemplate(row.house, 'rule', e.target.value)}
+                        rows={2}
+                        className="w-full resize-y rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      />
+                    </SheetRow>
                   </div>
-
-                  <FieldBox label="Prediction Notes">
-                    <TextCell value={row.freeNotes} onChange={(v) => updateRow(row.house, 'freeNotes', v)} rows={4} />
-                  </FieldBox>
                 </div>
               )}
             </div>
           );
         })}
+        {unusedHouses.length > 0 && (
+          <select
+            value=""
+            onChange={(e) => {
+              const h = Number(e.target.value);
+              if (!h) return;
+              setManuallyAdded((prev) => new Set(prev).add(h));
+              setOpenHouse(h);
+            }}
+            className="w-full rounded-xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          >
+            <option value="">+ Add Matter</option>
+            {unusedHouses.map((h) => <option key={h} value={h}>{bhavLabel(h)}</option>)}
+          </select>
+        )}
       </div>
+      <MatterRuleLibrary
+        open={showRuleLibrary}
+        onClose={() => setShowRuleLibrary(false)}
+        rules={matterRules}
+        onChanged={() => onMatterRulesChanged?.()}
+      />
     </div>
   );
 }

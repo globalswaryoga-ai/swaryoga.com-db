@@ -1,5 +1,6 @@
 // JWT Authentication Utilities
 import jwt from 'jsonwebtoken';
+export { encryptCredential, decryptCredential, maskCredential } from './encryption';
 
 const JWT_SECRET = (process.env.JWT_SECRET || 'your-secret-key-change-in-production').trim();
 
@@ -20,8 +21,8 @@ export interface TokenPayload {
   managedUserIds?: string[]; // For managers: list of user IDs they supervise
 }
 
-export const generateToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+export const generateToken = (payload: TokenPayload, expiresIn: jwt.SignOptions['expiresIn'] = '7d'): string => {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
 export const verifyToken = (token?: string): TokenPayload | null => {
@@ -75,3 +76,4 @@ export const verifyToken = (token?: string): TokenPayload | null => {
     return null;
   }
 };
+

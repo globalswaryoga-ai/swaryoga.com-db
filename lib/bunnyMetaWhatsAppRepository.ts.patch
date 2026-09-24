@@ -1,0 +1,82 @@
+--- lib/bunnyMetaWhatsAppRepository.ts
++++ lib/bunnyMetaWhatsAppRepository.ts
+@@ -1,5 +1,6 @@
+ import { bunnyBatch, bunnyExecute } from '@/lib/bunnyDatabase';
++import crypto from 'node:crypto';
+ 
+ function parse<T = Record<string, any>>(value: unknown, fallback: T): T {
+   try { return value ? JSON.parse(String(value)) as T : fallback; } catch { return fallback; }
+@@ -16,6 +17,7 @@
+     { sql: 'CREATE TABLE IF NOT EXISTS meta_archive_manifest_sql (document_id TEXT PRIMARY KEY,tenant_user_id TEXT NOT NULL,phone_number TEXT NOT NULL,date_key TEXT NOT NULL,bunny_path TEXT NOT NULL,byte_size INTEGER NOT NULL DEFAULT 0,message_count INTEGER NOT NULL DEFAULT 0,archived_at TEXT,data_json TEXT NOT NULL)', args: [] },
+     { sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_meta_archive_phone_day ON meta_archive_manifest_sql(tenant_user_id,phone_number,date_key)', args: [] },
+     { sql: 'CREATE INDEX IF NOT EXISTS idx_meta_archive_phone ON meta_archive_manifest_sql(phone_number,date_key DESC)', args: [] },
++    { sql: 'CREATE TABLE IF NOT EXISTS meta_template_payloads_sql (template_hash TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT)', args: [] },
+   ]);
+ }
+ 
+@@ -31,6 +33,39 @@
+   return row;
+ }
+ 
++export async function deduplicateAndUpsertMetaMessage(message: Record<string, any>) {
++  await initBunnyMetaWhatsAppSchema();
++  
++  // If it's a large message (e.g., bulk template), extract the payload
++  const isBulk = message.isBulk || message.metadata?.isBulk;
++  const payloadToHash = message.messageContent || message.media?.url;
++  
++  if (isBulk && payloadToHash) {
++    const payload = { 
++      messageContent: message.messageContent, 
++      media: message.media 
++    };
++    const hash = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
++    
++    // Store payload exactly once
++    await bunnyExecute({
++      sql: `INSERT OR IGNORE INTO meta_template_payloads_sql (template_hash, payload_json, created_at) VALUES (?, ?, ?)`,
++      args: [hash, JSON.stringify(payload), new Date().toISOString()]
++    });
++    
++    // Remove payload from the message itself to save space
++    delete message.messageContent;
++    delete message.media;
++    message.templateHash = hash;
++  }
++  
++  return upsertBunnyMetaMessage(message);
++}
++
++const templatePayloadCache = new Map<string, any>();
++
+ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadId?: string; limit?: number; skip?: number; before?: string }) {
+   await initBunnyMetaWhatsAppSchema();
+   const clauses = ["provider = 'meta'"];
+@@ -40,7 +75,27 @@
+   const limit = Math.min(Math.max(Number(input.limit || 100), 1), 500);
+   const skip = Math.max(Number(input.skip || 0), 0);
+   args.push(limit, skip);
+   const result = await bunnyExecute({ sql: `SELECT data_json FROM meta_messages_sql WHERE ${clauses.join(' AND ')} ORDER BY COALESCE(sent_at,created_at) DESC LIMIT ? OFFSET ?`, args });
+-  return result.rows.map((row) => parse(row.data_json, {}));
++  
++  const messages = result.rows.map((row) => parse(row.data_json, {}));
++  
++  // Re-inflate deduplicated payloads
++  for (const msg of messages) {
++    if (msg.templateHash) {
++      if (!templatePayloadCache.has(msg.templateHash)) {
++        const payloadRes = await bunnyExecute({ sql: `SELECT payload_json FROM meta_template_payloads_sql WHERE template_hash = ?`, args: [msg.templateHash] });
++        if (payloadRes.rows[0]) {
++          templatePayloadCache.set(msg.templateHash, parse(payloadRes.rows[0].payload_json, {}));
++        }
++      }
++      const cachedPayload = templatePayloadCache.get(msg.templateHash);
++      if (cachedPayload) {
++        msg.messageContent = cachedPayload.messageContent;
++        msg.media = cachedPayload.media;
++      }
++    }
++  }
++  
++  return messages;
+ }

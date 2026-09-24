@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityPost } from '@/lib/db';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 import { verifyToken } from '@/lib/auth';
-import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +8,6 @@ export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
 
     // Verify admin token
     const authHeader = request.headers.get('Authorization') || '';
@@ -32,70 +30,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'content is required and must be a string' }, { status: 400 });
     }
 
-    // Validate ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(postId)) {
-      return NextResponse.json({ error: 'Invalid postId' }, { status: 400 });
-    }
-
-    // Validate status if provided
-    if (status && !['published', 'draft', 'scheduled'].includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-
     // Check if post exists
-    const existingPost = await CommunityPost.findOne({ _id: postId });
-    if (!existingPost) {
+    const postRes = await bunnyExecute({
+      sql: 'SELECT data_json FROM community_posts_sql WHERE document_id = ?',
+      args: [postId]
+    });
+    
+    if (postRes.rows.length === 0) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Prepare update data
-    const updateData: any = {
-      content: content.trim(),
-      updatedAt: new Date(),
-    };
+    const existingPost = JSON.parse(String(postRes.rows[0].data_json));
 
     // Update optional fields if provided
+    existingPost.content = content.trim();
+    existingPost.updatedAt = new Date().toISOString();
+
     if (Array.isArray(images)) {
-      updateData.images = images;
+      existingPost.images = images;
     }
     if (Array.isArray(videos)) {
-      updateData.videos = videos;
+      existingPost.videos = videos;
     }
     if (Array.isArray(documents)) {
-      updateData.documents = documents;
+      existingPost.documents = documents;
     }
     if (Array.isArray(links)) {
-      updateData.links = links;
+      existingPost.links = links;
     }
     if (status) {
-      updateData.status = status;
+      existingPost.status = status;
     }
     if (metadata) {
-      updateData.metadata = {
+      existingPost.metadata = {
         ...existingPost.metadata,
         ...metadata
       };
     }
 
     // Update the post
-    const updatedPost = await CommunityPost.findOneAndUpdate({ _id: postId }, updateData, { new: true }).lean() as any;
-
-    if (!updatedPost) {
-      return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
-    }
+    await bunnyExecute({
+      sql: 'UPDATE community_posts_sql SET data_json = ?, updated_at = ? WHERE document_id = ?',
+      args: [JSON.stringify(existingPost), existingPost.updatedAt, postId]
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Post updated successfully',
       data: {
-        _id: updatedPost._id?.toString(),
-        content: updatedPost.content,
-        images: updatedPost.images,
-        videos: updatedPost.videos,
-        documents: updatedPost.documents,
-        links: updatedPost.links,
-        status: updatedPost.status,
-        updatedAt: updatedPost.updatedAt,
+        _id: postId,
+        content: existingPost.content,
+        images: existingPost.images,
+        videos: existingPost.videos,
+        documents: existingPost.documents,
+        links: existingPost.links,
+        status: existingPost.status,
+        updatedAt: existingPost.updatedAt,
       },
     });
   } catch (error: any) {
