@@ -411,9 +411,18 @@ export default function NewRegistrationPage() {
         }
         
         const gRes = await fetch('/api/admin/google-forms/list');
+        const gJson = await gRes.json();
         if (gRes.ok) {
-          const gJson = await gRes.json();
-          if (gJson.forms) setGoogleFormsList(gJson.forms);
+          if (gJson.forms) {
+            setGoogleFormsList(gJson.forms);
+            setNeedsGoogleAuth(false);
+          }
+        } else {
+          if (gJson.needsAuth) {
+            setNeedsGoogleAuth(true);
+          } else {
+            toast.error(gJson.error || 'Failed to load Google Forms');
+          }
         }
       } catch (err) {
         console.error('Error fetching forms:', err);
@@ -1258,6 +1267,8 @@ export default function NewRegistrationPage() {
                                 <option value="">Select a form from your Google Drive...</option>
                                 {isLoadingGoogleForms ? (
                                   <option disabled>Loading Google forms...</option>
+                                ) : googleFormsList.length === 0 && !needsGoogleAuth ? (
+                                  <option disabled>No forms found in Google Drive</option>
                                 ) : (
                                   googleFormsList.map((f: any) => (
                                     <option key={f.id} value={f.id}>{f.name}</option>
