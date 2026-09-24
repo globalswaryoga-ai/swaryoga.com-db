@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
-
     if (!clientId || !clientSecret) {
       console.error('[Google Forms OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
       return NextResponse.redirect(

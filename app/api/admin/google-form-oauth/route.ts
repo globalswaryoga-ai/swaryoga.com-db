@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const envRedirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
     const clientOrigin = request.nextUrl.searchParams.get('origin');
-    const baseUrl = (clientOrigin && clientOrigin !== 'null' && clientOrigin !== 'undefined') ? clientOrigin.replace(/\/$/, '') : getRequestBaseUrl(request);
+    const baseUrl = (clientOrigin && clientOrigin !== 'null' && clientOrigin !== 'undefined') ? clientOrigin.replace(/\/$/, '') : (getRequestBaseUrl(request) || 'https://swaryoga.com');
     const computedRedirectUri = `${baseUrl}/api/admin/google-form-oauth/callback`;
     const redirectUri = envRedirectUri || computedRedirectUri;
 
