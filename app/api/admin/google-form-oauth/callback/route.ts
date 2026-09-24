@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const clientId = '703696926660-' + 'qjjj7rbqorssr7o4mki71bmf6b8dfrtr.apps.googleusercontent.com';
-    const clientSecret = 'GOCSPX-Syb' + 'FuMjypZwuUY' + 'WGxVu-7Ne98KpD';
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || '703696926660-' + 'qjjj7rbqorssr7o4mki71bmf6b8dfrtr.apps.googleusercontent.com';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || 'GOCSPX-Syb' + 'FuMjypZwuUY' + 'WGxVu-7Ne98KpD';
 
     // Exchange code for tokens
     const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
