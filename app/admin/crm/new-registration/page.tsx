@@ -26,12 +26,12 @@ export default function NewRegistrationPage() {
   const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
   const [newBatchName, setNewBatchName] = useState('');
   
-  const [formSource, setFormSource] = useState<'internal'|'google'>('internal');
+  const [formSource, setFormSource] = useState<'internal'|'google'>('google');
   const [fetchedForms, setFetchedForms] = useState<any[]>([]);
   const [isLoadingForms, setIsLoadingForms] = useState(false);
   
   const [selectedFormId, setSelectedFormId] = useState<string>('');
-  const [linkedFormId, setLinkedFormId] = useState<string>('');
+  const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [leadsData, setLeadsData] = useState<any[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -548,7 +548,8 @@ export default function NewRegistrationPage() {
     const defaultBatch = {
       id: 'w_english_swar_yoga',
       name: 'English swar yoga',
-      formId: '',
+      formId: 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit',
+      googleFormUrl: 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit',
       leads: 0,
       language: 'English'
     };
@@ -616,8 +617,11 @@ export default function NewRegistrationPage() {
       if (typeof window !== 'undefined') {
         const searchParams = new URLSearchParams(window.location.search);
         if (searchParams.get('success') === 'google_forms_connected') {
-          toast.success('🎉 Google Account connected successfully! Now paste your Google Form link and click "Link Form & Fetch Data".');
+          const defaultUrl = 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
+          toast.success('🎉 Google Account connected! Swar Yoga Form saved & data loaded automatically.');
           setFormSource('google');
+          setGoogleFormUrl(defaultUrl);
+          setLinkedFormId(defaultUrl);
           setActiveTab('forms');
           setIsFormSetupCollapsed(false);
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -1047,40 +1051,11 @@ export default function NewRegistrationPage() {
                     {!isFormSetupCollapsed && (
                       <>
                         <div className="p-6 space-y-6">
-                      <div className="space-y-3">
-                        <label className="text-sm font-bold text-slate-700">Form Source</label>
-                        <div className="flex gap-4">
-                          <label className={`flex-1 flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${formSource === 'internal' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}>
-                            <input 
-                              type="radio" 
-                              name="formSource" 
-                              checked={formSource === 'internal'} 
-                              onChange={() => setFormSource('internal')}
-                              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500" 
-                            />
-                            <div>
-                              <div className="font-bold text-slate-800">Internal Form</div>
-                              <div className="text-xs text-slate-500">From crm/form-questions</div>
-                            </div>
-                          </label>
-                          <label className={`flex-1 flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${formSource === 'google' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}>
-                            <input 
-                              type="radio" 
-                              name="formSource" 
-                              checked={formSource === 'google'} 
-                              onChange={() => setFormSource('google')}
-                              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500" 
-                            />
-                            <div>
-                              <div className="font-bold text-slate-800">Google Form</div>
-                              <div className="text-xs text-slate-500">External URL</div>
-                            </div>
-                          </label>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-bold text-slate-700">Workshop Registration Form</label>
+                          <span className="text-xs text-slate-500 font-medium">Default: Google Form</span>
                         </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">Select or enter form</label>
                         
                         {formSource === 'internal' ? (
                           <select 
