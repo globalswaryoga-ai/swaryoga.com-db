@@ -542,15 +542,14 @@ export default function NewRegistrationPage() {
     if (!isAi4Active || !linkedFormId) return;
     
     let isFetching = false;
-    // We capture the mapping here so we don't depend on the whole workshops array
-    const mapping = workshops.find(w => w.formId === linkedFormId)?.googleFormMapping;
+    const mapping = workshops.find((w: any) => w.formId === linkedFormId)?.googleFormMapping;
     
     const interval = setInterval(async () => {
       if (isFetching) return;
       isFetching = true;
       try {
-        let fetchedLeads = [];
-        let newQuestionMap = null;
+        let fetchedLeads: any[] = [];
+        let newQuestionMap: any = null;
         
         if (linkedFormId.includes('docs.google.com/forms') || formSource === 'google') {
            if (token) {
@@ -559,9 +558,9 @@ export default function NewRegistrationPage() {
              });
              if (syncRes.ok) {
                const json = await syncRes.json();
-               let mappedLeads = json.data || [];
+               let mappedLeads: any[] = json.data || [];
                if (mapping && mappedLeads.length > 0) {
-                 mappedLeads = mappedLeads.map(lead => {
+                 mappedLeads = mappedLeads.map((lead: any) => {
                    const raw = lead._rawRecord || {};
                    return {
                      ...lead,
@@ -580,7 +579,6 @@ export default function NewRegistrationPage() {
              }
            }
         } else {
-           // internal crm form
            const res = await fetch(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(linkedFormId)}`, {
              headers: { Authorization: `Bearer ${token}` }
            });
@@ -591,26 +589,26 @@ export default function NewRegistrationPage() {
         }
 
         if (fetchedLeads.length > 0) {
-          setLeadsData(prevLeads => {
-            const existingIds = new Set(prevLeads.map(l => l.id));
-            const newLeads = fetchedLeads.filter(l => !existingIds.has(l.id));
+          setLeadsData((prevLeads: any[]) => {
+            const existingIds = new Set(prevLeads.map((l: any) => l.id));
+            const newLeads = fetchedLeads.filter((l: any) => !existingIds.has(l.id));
             
             if (newLeads.length > 0) {
                let leadsToMove = newLeads;
                if (leadsFilter) {
                  const lowerFilter = leadsFilter.toLowerCase();
-                 leadsToMove = newLeads.filter(lead => {
+                 leadsToMove = newLeads.filter((lead: any) => {
                    const valuesToSearch = [
                      lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
                      ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
-                   ].filter(Boolean).map(v => String(v).toLowerCase());
-                   return valuesToSearch.some(v => v.includes(lowerFilter));
+                   ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+                   return valuesToSearch.some((v: any) => v.includes(lowerFilter));
                  });
                }
 
                if (leadsToMove.length > 0) {
-                 setCrmLeadIds((prevCrm) => {
-                   const idsToMove = leadsToMove.map(l => l.id);
+                 setCrmLeadIds((prevCrm: string[]) => {
+                   const idsToMove = leadsToMove.map((l: any) => l.id);
                    const newCrmIds = [...new Set([...prevCrm, ...idsToMove])];
                    toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
                    return newCrmIds;
@@ -619,8 +617,8 @@ export default function NewRegistrationPage() {
                  toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, but none matched your filter.`);
                }
 
-               setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: (w.leads || 0) + newLeads.length } : w));
-               setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: (prev.leads || 0) + newLeads.length } : prev);
+               setWorkshops((prev: any[]) => prev.map((w: any) => w.formId === linkedFormId ? { ...w, leads: (w.leads || 0) + newLeads.length } : w));
+               setSelectedWorkshop((prev: any) => prev && prev.formId === linkedFormId ? { ...prev, leads: (prev.leads || 0) + newLeads.length } : prev);
                
                return [...prevLeads, ...newLeads];
             }
@@ -638,7 +636,7 @@ export default function NewRegistrationPage() {
     }, (ai4Interval || 600) * 1000); 
     
     return () => clearInterval(interval);
-  }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter]);
+  }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter, workshops]);
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
