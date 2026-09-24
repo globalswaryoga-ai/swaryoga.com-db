@@ -1054,12 +1054,40 @@ export default function NewRegistrationPage() {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <label className="text-sm font-bold text-slate-700">Workshop Registration Form</label>
-                          <span className="text-xs text-slate-500 font-medium">Default: Google Form</span>
+                          <span className="text-xs text-slate-500 font-medium">Data Source Selection</span>
                         </div>
                         
+                        <div className="flex items-center gap-6 mb-2 bg-slate-100 p-2 rounded-lg inline-flex">
+                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white transition-colors">
+                            <input 
+                              type="radio" 
+                              name="formSource" 
+                              value="internal" 
+                              checked={formSource === 'internal'} 
+                              onChange={() => setFormSource('internal')}
+                              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-sm font-bold text-slate-700">Add leads form - CRM</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white transition-colors">
+                            <input 
+                              type="radio" 
+                              name="formSource" 
+                              value="google" 
+                              checked={formSource === 'google'} 
+                              onChange={() => setFormSource('google')}
+                              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-sm font-bold text-slate-700">Upload leads form - Google Form</span>
+                          </label>
+                        </div>
+
                         {formSource === 'internal' ? (
-                          <select 
-                            className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                            <label className="text-sm font-bold text-slate-700">Select CRM Form</label>
+                            <p className="text-xs text-slate-500 mb-2">Create forms in <a href="/admin/crm/form-questions" className="text-indigo-600 hover:underline" target="_blank">Settings &gt; Forms Setup</a></p>
+                            <select 
+                              className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                             value={selectedFormId}
                             onChange={(e) => setSelectedFormId(e.target.value)}
                           >
@@ -1072,6 +1100,7 @@ export default function NewRegistrationPage() {
                               ))
                             )}
                           </select>
+                          </div>
                         ) : (
                           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
                             <div className="flex items-center justify-between flex-wrap gap-4">
