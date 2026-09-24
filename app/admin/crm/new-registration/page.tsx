@@ -13,7 +13,7 @@ export default function NewRegistrationPage() {
   const toast = useToast();
   
   const [activeTab, setActiveTab] = useState<'details'|'forms'|'leads'|'closing'|'templates'>('details');
-  const [leadSubTab, setLeadSubTab] = useState<'new'|'approved'|'pending'|'registered'>('new');
+  const [leadSubTab, setLeadSubTab] = useState<'new'|'approved'|'pending'|'registered'|'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
   
@@ -538,6 +538,9 @@ export default function NewRegistrationPage() {
     loadLeads();
   }, [linkedFormId, token]);
 
+  const [workshops, setWorkshops] = useState<any[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
   useEffect(() => {
     if (!isAi4Active || !linkedFormId) return;
     
@@ -609,7 +612,7 @@ export default function NewRegistrationPage() {
                if (leadsToMove.length > 0) {
                  setCrmLeadIds((prevCrm: string[]) => {
                    const idsToMove = leadsToMove.map((l: any) => l.id);
-                   const newCrmIds = [...new Set([...prevCrm, ...idsToMove])];
+                   const newCrmIds = Array.from(new Set([...prevCrm, ...idsToMove]));
                    toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
                    return newCrmIds;
                  });
@@ -637,9 +640,6 @@ export default function NewRegistrationPage() {
     
     return () => clearInterval(interval);
   }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter, workshops]);
-
-  const [workshops, setWorkshops] = useState<any[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const defaultBatch = {
@@ -904,7 +904,7 @@ export default function NewRegistrationPage() {
           onClick={() => {
             if (confirm('Move selected leads back to Registered Forms?')) {
               setPendingLeadIds(prev => prev.filter(id => !selectedRowIds.includes(id)));
-              setRegisteredLeadIds(prev => [...new Set([...prev, ...selectedRowIds])]);
+              setRegisteredLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
               setSelectedRowIds([]);
               toast.success('Leads restored to Registered Forms!');
             }
@@ -927,7 +927,7 @@ export default function NewRegistrationPage() {
       <button 
         onClick={() => {
           if(selectedRowIds.length === 0) { toast.error("Select leads first"); return; }
-          setStudentKotaLeadIds(prev => [...new Set([...prev, ...selectedRowIds])]);
+          setStudentKotaLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
           setSelectedRowIds([]);
           toast.success("Moved to Student Kota!");
         }}
@@ -1466,6 +1466,7 @@ export default function NewRegistrationPage() {
                               </button>
                             </div>
                           )}
+                          </div>
                         <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center gap-3">
                           <input 
                             type="text" 
@@ -1857,9 +1858,7 @@ export default function NewRegistrationPage() {
                               } else if (leadSubTab === 'pending') {
                                 if (isRejected) baseBgClass = 'bg-red-50/60 hover:bg-red-100/60';
                                 else baseBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/60';
-                              } else if (leadSubTab === 'registered') {
-                                return registeredLeadIds.includes(l.id);
-                              } else if (leadSubTab === 'student_kota') {
+                              } else if (leadSubTab === 'registered' || leadSubTab === 'student_kota') {
                                 if (isClosed) baseBgClass = 'bg-emerald-50/60 hover:bg-emerald-100/60';
                                 else if (registeredAiInsights[lead.id]) baseBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/60';
                               }
