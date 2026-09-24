@@ -1237,9 +1237,41 @@ export default function NewRegistrationPage() {
                           </div>
                         ) : (
                           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                            <label className="text-sm font-bold text-slate-700">Select Google Form</label>
+                            <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                              Select Google Form
+                              {googleFormsList.length > 0 && (
+                                <span className="text-xs font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                  ✓ {googleFormsList.length} forms loaded
+                                </span>
+                              )}
+                            </label>
+
+                            {/* Status Banner */}
+                            {needsGoogleAuth && (
+                              <div className="bg-orange-50 border border-orange-300 rounded-xl p-4 flex items-center justify-between gap-4">
+                                <div>
+                                  <p className="font-bold text-orange-800 text-sm">⚠ Google not connected</p>
+                                  <p className="text-xs text-orange-700 mt-0.5">Click the button to connect your Google account and load all your forms automatically.</p>
+                                </div>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const origin = window.location.origin;
+                                      const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
+                                      const data = await res.json();
+                                      if (data.authUrl) window.location.href = data.authUrl;
+                                      else toast.error(data.error || 'Failed to start Google login');
+                                    } catch { toast.error('Failed to initiate Google Login'); }
+                                  }}
+                                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-md whitespace-nowrap flex-shrink-0"
+                                >
+                                  🔗 Connect Google Account
+                                </button>
+                              </div>
+                            )}
+
                             <div className="flex items-center gap-2">
-                              <select 
+                              <select
                                 className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                                 value={googleFormUrl}
                                 onChange={(e) => setGoogleFormUrl(e.target.value)}
@@ -1248,32 +1280,58 @@ export default function NewRegistrationPage() {
                                 {isLoadingGoogleForms ? (
                                   <option disabled>Loading Google forms...</option>
                                 ) : googleFormsList.length === 0 && !needsGoogleAuth ? (
-                                  <option disabled>No forms found in Google Drive</option>
+                                  <option disabled>No forms found — click Refresh or Connect Google</option>
                                 ) : (
                                   googleFormsList.map((f: any) => (
                                     <option key={f.id} value={f.id}>{f.name}</option>
                                   ))
                                 )}
                               </select>
-                              <button 
+
+                              {/* Refresh button — reloads forms without re-auth */}
+                              <button
+                                onClick={async () => {
+                                  setIsLoadingGoogleForms(true);
+                                  try {
+                                    const res = await fetch('/api/admin/google-forms/list', {
+                                      headers: token ? { Authorization: `Bearer ${token}` } : {}
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok && data.forms) {
+                                      setGoogleFormsList(data.forms);
+                                      setNeedsGoogleAuth(false);
+                                      toast.success(`Loaded ${data.forms.length} forms from Google Drive!`);
+                                    } else if (data.needsAuth) {
+                                      setNeedsGoogleAuth(true);
+                                      toast.error('Please connect your Google account first');
+                                    } else {
+                                      toast.error(data.error || 'Failed to load forms');
+                                    }
+                                  } catch { toast.error('Failed to refresh forms'); }
+                                  finally { setIsLoadingGoogleForms(false); }
+                                }}
+                                disabled={isLoadingGoogleForms}
+                                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                                title="Reload forms from Google Drive"
+                              >
+                                {isLoadingGoogleForms ? '⏳' : '🔄'} Refresh
+                              </button>
+
+                              {/* Reconnect button */}
+                              <button
                                 onClick={async () => {
                                   try {
                                     const origin = window.location.origin;
                                     const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
                                     const data = await res.json();
-                                    if (data.authUrl) {
-                                      window.location.href = data.authUrl;
-                                    } else if (data.error) {
-                                      toast.error(data.error);
-                                    }
-                                  } catch (e) {
-                                    toast.error('Failed to initiate Google Login');
-                                  }
+                                    if (data.authUrl) window.location.href = data.authUrl;
+                                    else toast.error(data.error || 'Failed to start Google login');
+                                  } catch { toast.error('Failed to initiate Google Login'); }
                                 }}
-                                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-2 whitespace-nowrap"
-                                title="Reconnect if forms are missing"
+                                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                                title="Reconnect Google account"
                               >
-                                <span>Reconnect Google</span>
+                                🔗 Reconnect
                               </button>
                             </div>
                             
