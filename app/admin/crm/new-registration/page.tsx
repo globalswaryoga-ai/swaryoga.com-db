@@ -539,39 +539,106 @@ export default function NewRegistrationPage() {
   }, [linkedFormId, token]);
 
   useEffect(() => {
-    if (!isAi4Active || linkedFormId !== 'google-form-sync') return;
+    if (!isAi4Active || !linkedFormId) return;
     
-    const interval = setInterval(() => {
-      const newCount = Math.floor(Math.random() * 3) + 1; // 1 to 3 new leads
-      const newLeads = Array.from({ length: newCount }).map((_, i) => ({
-        id: `google-mock-auto-${Date.now()}-${i}`,
-        name: `Auto Google Lead ${Math.floor(Math.random() * 1000)}`,
-        email: `auto.lead${Date.now()}@example.com`,
-        mobile: `+123456789${Math.floor(Math.random() * 99)}`,
-        phoneNumber: `+123456789${Math.floor(Math.random() * 99)}`,
-        country: ['USA', 'India', 'UK', 'Australia'][Math.floor(Math.random() * 4)],
-        city: ['New York', 'Mumbai', 'London', 'Sydney'][Math.floor(Math.random() * 4)],
-        gender: Math.random() > 0.5 ? 'Female' : 'Male',
-        createdAt: new Date().toISOString(),
-        dynamicAnswers: {
-          'Age': String(25 + Math.floor(Math.random() * 40)),
-          'Profession': ['Job', 'Business', 'Jobless', 'Self-employed'][Math.floor(Math.random() * 4)],
-          'Commitment to 14 days': 'Yes',
-          'Video on requirement': 'Yes',
-          'Special offer': 'Yes',
-          'Education': 'Degree'
+    let isFetching = false;
+    // We capture the mapping here so we don't depend on the whole workshops array
+    const mapping = workshops.find(w => w.formId === linkedFormId)?.googleFormMapping;
+    
+    const interval = setInterval(async () => {
+      if (isFetching) return;
+      isFetching = true;
+      try {
+        let fetchedLeads = [];
+        let newQuestionMap = null;
+        
+        if (linkedFormId.includes('docs.google.com/forms') || formSource === 'google') {
+           if (token) {
+             const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
+               headers: { Authorization: `Bearer ${token}` }
+             });
+             if (syncRes.ok) {
+               const json = await syncRes.json();
+               let mappedLeads = json.data || [];
+               if (mapping && mappedLeads.length > 0) {
+                 mappedLeads = mappedLeads.map((lead: any) => {
+                   const raw = lead._rawRecord || {};
+                   return {
+                     ...lead,
+                     name: raw[mapping['Name']] || lead.name,
+                     email: raw[mapping['Email']] || lead.email,
+                     mobile: raw[mapping['Mobile']] || lead.mobile,
+                     phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
+                     city: raw[mapping['City']] || lead.city,
+                     country: raw[mapping['Country']] || lead.country,
+                     gender: raw[mapping['Gender']] || lead.gender,
+                   };
+                 });
+               }
+               fetchedLeads = mappedLeads;
+               if (json.questionMap) newQuestionMap = json.questionMap;
+             }
+           }
+        } else {
+           // internal crm form
+           const res = await fetch(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(linkedFormId)}`, {
+             headers: { Authorization: `Bearer ${token}` }
+           });
+           if (res.ok) {
+             const json = await res.json();
+             fetchedLeads = json.data || [];
+           }
         }
-      }));
-      
-      setLeadsData(prev => [...prev, ...newLeads]);
-      setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: w.leads! + newLeads.length } : w));
-      setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: prev.leads! + newLeads.length } : prev);
-      
-      toast.success(`🤖 AI-4 Auto Fetch downloaded ${newCount} new Google Form responses!`);
-    }, ai4Interval * 1000); // converting the input to seconds for demo speed
+
+        if (fetchedLeads.length > 0) {
+          setLeadsData(prevLeads => {
+            const existingIds = new Set(prevLeads.map((l: any) => l.id));
+            const newLeads = fetchedLeads.filter((l: any) => !existingIds.has(l.id));
+            
+            if (newLeads.length > 0) {
+               let leadsToMove = newLeads;
+               if (leadsFilter) {
+                 const lowerFilter = leadsFilter.toLowerCase();
+                 leadsToMove = newLeads.filter((lead: any) => {
+                   const valuesToSearch = [
+                     lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                     ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
+                   ].filter(Boolean).map(v => String(v).toLowerCase());
+                   return valuesToSearch.some((v: any) => v.includes(lowerFilter));
+                 });
+               }
+
+               if (leadsToMove.length > 0) {
+                 setCrmLeadIds((prevCrm) => {
+                   const idsToMove = leadsToMove.map((l: any) => l.id);
+                   const newCrmIds = [...new Set([...prevCrm, ...idsToMove])];
+                   toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
+                   return newCrmIds;
+                 });
+               } else {
+                 toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, but none matched your filter.`);
+               }
+
+               setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: w.leads! + newLeads.length } : w));
+               setSelectedWorkshop((prev: any) => prev && prev.formId === linkedFormId ? { ...prev, leads: prev.leads! + newLeads.length } : prev);
+               
+               return [...prevLeads, ...newLeads];
+            }
+            
+            return prevLeads;
+          });
+          
+          if (newQuestionMap) setGoogleFormQuestionMap(newQuestionMap);
+        }
+      } catch (err) {
+        console.error("AI4 Fetch error", err);
+      } finally {
+        isFetching = false;
+      }
+    }, (ai4Interval || 600) * 1000); 
     
     return () => clearInterval(interval);
-  }, [isAi4Active, linkedFormId, ai4Interval]);
+  }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter]);
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
