@@ -19,6 +19,8 @@ interface Template {
 
 interface TemplatesTabProps {
   token: string | null;
+  provider?: string;
+  title?: string;
 }
 
 const EMOJI_QUICK = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍', '💰', '🎯', '⭐', '💪'];
@@ -34,7 +36,7 @@ const EMOJI_CATEGORIES: Record<string, string[]> = {
   'Objects': ['🎁','🎀','🎈','🎂','📚','📖','✏️','📝','🖊️','⌚','🔑','🔒','🔓','🎁','🎪']
 };
 
-export function TemplatesTab({ token }: TemplatesTabProps) {
+export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProps) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/crm/templates?provider=qr&limit=200', {
+      const res = await fetch(`/api/admin/crm/templates?provider=${provider}&limit=200`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to load templates');
@@ -175,7 +177,7 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
         headerFormat: formData.headerFormat,
         footerText: formData.footer,
         buttons: formData.buttons.map(b => ({ ...b, type: b.kind })),
-        provider: 'qr',
+        provider: provider,
       };
 
       if (formData.headerFormat === 'IMAGE' && formData.headerMediaUrl) {
@@ -315,10 +317,11 @@ export function TemplatesTab({ token }: TemplatesTabProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-slate-200">
       {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b">
-        <div className="flex-1 relative">
+      <div className="flex items-center gap-4 p-5 border-b border-slate-100">
+        {title && <h2 className="text-lg font-bold text-slate-800 whitespace-nowrap">{title}</h2>}
+        <div className="flex-1 relative max-w-md">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
           <input
             type="text"

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { TemplatesTab } from '@/app/admin/crm/qr/components/TemplatesTab';
 
 export default function NewRegistrationPage() {
   const router = useRouter();
@@ -2521,23 +2522,8 @@ export default function NewRegistrationPage() {
 
         {/* TAB 5: Message Templates */}
         {activeTab === 'templates' && (
-          <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-slate-800">Create & Save Messages</h2>
-                <button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-5 py-2 rounded-lg flex items-center gap-2">
-                  <Plus size={16} /> New Template
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="border border-slate-200 rounded-xl p-4 hover:border-indigo-300 transition-colors cursor-pointer">
-                    <h3 className="font-bold text-slate-800 mb-2">Welcome Template {i}</h3>
-                    <p className="text-sm text-slate-500 line-clamp-3">Hello [Name], welcome to our workshop! We are excited to have you onboard. Here is your zoom link...</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="max-w-5xl mx-auto h-[600px] animate-fade-in">
+            <TemplatesTab token={token} provider="crm_registration" title="Create & Save Messages" />
           </div>
         )}
 
