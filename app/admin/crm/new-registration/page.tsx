@@ -725,6 +725,9 @@ export default function NewRegistrationPage() {
     const savedRegisteredAiState = localStorage.getItem('crm_registered_ai_active');
     if (savedRegisteredAiState) setIsRegisteredAiWorkerActive(savedRegisteredAiState === 'true');
     
+    const savedAi4State = localStorage.getItem('crm_ai_4_active');
+    if (savedAi4State) setIsAi4Active(savedAi4State === 'true');
+    
     try {
       const savedCrm = localStorage.getItem('crm_lead_ids');
       if (savedCrm) setCrmLeadIds(JSON.parse(savedCrm));
@@ -757,6 +760,7 @@ export default function NewRegistrationPage() {
               if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
               if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
+              if (data.crm_ai_4_active) setIsAi4Active(data.crm_ai_4_active === 'true');
               // We also save to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'string') localStorage.setItem(k, v);
@@ -1545,9 +1549,18 @@ export default function NewRegistrationPage() {
                               <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
                                 <span className="text-xs font-bold text-slate-500">AI-4</span>
                                 <button 
-                                  onClick={() => {
-                                    setIsAi4Active(!isAi4Active);
-                                    if (!isAi4Active) toast.success(`🤖 AI-4 activated! Following your instructions on every fetch.`);
+                                  onClick={async () => {
+                                    const newState = !isAi4Active;
+                                    setIsAi4Active(newState);
+                                    localStorage.setItem('crm_ai_4_active', String(newState));
+                                    try {
+                                      await fetch('/api/admin/crm/new-registration/state', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                        body: JSON.stringify({ crm_ai_4_active: String(newState) })
+                                      });
+                                    } catch (e) {}
+                                    if (newState) toast.success(`🤖 AI-4 activated! Following your instructions on every fetch.`);
                                   }}
                                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAi4Active ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                 >
