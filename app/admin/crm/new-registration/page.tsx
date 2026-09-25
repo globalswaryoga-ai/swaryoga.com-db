@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { 
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
-  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight
+  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -897,6 +897,44 @@ export default function NewRegistrationPage() {
     // In a real app we'd populate the modal with 'w' data
   };
 
+  const handleMoveBatchUp = async (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    if (index === 0) return;
+    const newWorkshops = [...workshops];
+    const temp = newWorkshops[index];
+    newWorkshops[index] = newWorkshops[index - 1];
+    newWorkshops[index - 1] = temp;
+    setWorkshops(newWorkshops);
+    
+    localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+    try {
+      await fetch('/api/admin/crm/new-registration/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+      });
+    } catch (err) {}
+  };
+
+  const handleMoveBatchDown = async (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    if (index === workshops.length - 1) return;
+    const newWorkshops = [...workshops];
+    const temp = newWorkshops[index];
+    newWorkshops[index] = newWorkshops[index + 1];
+    newWorkshops[index + 1] = temp;
+    setWorkshops(newWorkshops);
+    
+    localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+    try {
+      await fetch('/api/admin/crm/new-registration/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+      });
+    } catch (err) {}
+  };
+
   // State for Zoom meetings & message numbers per lead (used in Closing tab)
   const [meetingSchedule, setMeetingSchedule] = useState<Record<string, string>>({});
   const [messageNumber, setMessageNumber] = useState<Record<string, number>>({});
@@ -1091,16 +1129,36 @@ export default function NewRegistrationPage() {
                   </div>
                   
                   {/* Hover Actions */}
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 p-1 rounded-lg">
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded-lg border border-slate-100 shadow-sm">
+                    {workshops.findIndex(wx => wx.id === w.id) > 0 && (
+                      <button 
+                        onClick={(e) => handleMoveBatchUp(e, workshops.findIndex(wx => wx.id === w.id))}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Move Up"
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                    )}
+                    {workshops.findIndex(wx => wx.id === w.id) < workshops.length - 1 && (
+                      <button 
+                        onClick={(e) => handleMoveBatchDown(e, workshops.findIndex(wx => wx.id === w.id))}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Move Down"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                    )}
                     <button 
                       onClick={(e) => handleEditBatch(e, w)}
                       className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Edit"
                     >
                       <Edit2 size={14} />
                     </button>
                     <button 
                       onClick={(e) => handleDeleteBatch(e, w.id)}
                       className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete"
                     >
                       <Trash2 size={14} />
                     </button>
