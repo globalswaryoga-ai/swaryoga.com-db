@@ -545,9 +545,28 @@ export default function NewRegistrationPage() {
         let fetchedLeads: any[] = [];
         let newQuestionMap: any = null;
         
+        const fetchWithRetry = async (url: string, options: any, retries = 3): Promise<Response> => {
+          let lastErr: any;
+          for (let i = 0; i < retries; i++) {
+            try {
+              const res = await fetch(url, options);
+              if (res.ok) return res;
+              // If it's a server error but not ok, we also might want to retry
+              if (res.status >= 500) throw new Error('Server error');
+              return res; // Client errors (400) shouldn't be retried
+            } catch (e) {
+              lastErr = e;
+              if (i < retries - 1) {
+                await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Backoff
+              }
+            }
+          }
+          throw lastErr;
+        };
+        
         if (linkedFormId.includes('docs.google.com/forms') || formSource === 'google') {
            if (token) {
-             const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
+             const syncRes = await fetchWithRetry(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
                headers: { Authorization: `Bearer ${token}` }
              });
              if (syncRes.ok) {
@@ -573,7 +592,7 @@ export default function NewRegistrationPage() {
              }
            }
         } else {
-           const res = await fetch(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(linkedFormId)}`, {
+           const res = await fetchWithRetry(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(linkedFormId)}`, {
              headers: { Authorization: `Bearer ${token}` }
            });
            if (res.ok) {
