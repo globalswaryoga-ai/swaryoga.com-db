@@ -1891,7 +1891,7 @@ export default function NewRegistrationPage() {
                             
                             return (
                               <table className="w-full text-left text-sm text-slate-600">
-                                <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs whitespace-nowrap shadow-sm">
+                                <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
                                   <tr>
                                     <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50">
                                       <input 
@@ -1912,7 +1912,7 @@ export default function NewRegistrationPage() {
                                 <th className="px-4 py-3 font-bold text-slate-500">City</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Country</th>
                                 {dynamicColumns.map(col => (
-                                  <th key={col} className="px-4 py-3 font-bold text-slate-500">{col}</th>
+                                  <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[180px] max-w-[250px] break-words leading-relaxed">{col}</th>
                                 ))}
                                 <th className="px-4 py-3 font-bold text-slate-500">
                                   <button onClick={() => setTab2SortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-indigo-600 transition-colors">
@@ -1972,7 +1972,7 @@ export default function NewRegistrationPage() {
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.country || '-'}</td>
                                     {dynamicColumns.map(col => (
-                                      <td key={col} className="px-4 py-3 whitespace-nowrap text-slate-500">
+                                      <td key={col} className="px-4 py-3 whitespace-normal min-w-[180px] max-w-[250px] break-words text-slate-500">
                                         {lead.dynamicAnswers?.[col] || '-'}
                                       </td>
                                     ))}
@@ -2177,7 +2177,7 @@ export default function NewRegistrationPage() {
                     
                     return (
                       <table className="w-full text-left text-sm text-slate-600">
-                        <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs whitespace-nowrap shadow-sm">
+                        <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
                           <tr>
                             <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50">
                               <input 
@@ -2196,7 +2196,7 @@ export default function NewRegistrationPage() {
                             <th className="px-4 py-3 font-bold text-slate-500">Gender</th>
                             <th className="px-4 py-3 font-bold text-slate-500">City</th>
                             {dynamicColumns.map(col => (
-                              <th key={col} className="px-4 py-3 font-bold text-slate-500">{col}</th>
+                              <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[180px] max-w-[250px] break-words leading-relaxed">{col}</th>
                             ))}
                             <th className="px-4 py-3 font-bold text-slate-500">Payment</th>
                             <th className="px-4 py-3 font-bold text-slate-500">Submitted At</th>
@@ -2287,7 +2287,7 @@ export default function NewRegistrationPage() {
                                   <td className="px-4 py-3 capitalize whitespace-nowrap">{lead.gender || '-'}</td>
                                   <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
                                   {dynamicColumns.map(col => (
-                                    <td key={col} className="px-4 py-3 whitespace-nowrap text-slate-500">
+                                    <td key={col} className="px-4 py-3 whitespace-normal min-w-[180px] max-w-[250px] break-words text-slate-500">
                                       {lead.dynamicAnswers?.[col] || '-'}
                                     </td>
                                   ))}
