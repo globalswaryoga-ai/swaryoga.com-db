@@ -642,6 +642,8 @@ export default function NewRegistrationPage() {
                setSelectedWorkshop((prev: any) => prev && prev.formId === linkedFormId ? { ...prev, leads: (prev.leads || 0) + newLeads.length } : prev);
                
                return [...prevLeads, ...newLeads];
+            } else {
+              toast.info(`🤖 AI-4: Sync check completed. No new leads found.`);
             }
             
             return prevLeads;
@@ -672,9 +674,11 @@ export default function NewRegistrationPage() {
         if (res.ok && data.forms && data.forms.length > 0) {
           setGoogleFormsList(data.forms);
           setNeedsGoogleAuth(false);
+          toast.info(`🔗 AI-4: Google reconnected. ${data.forms.length} forms ready.`);
           console.log(`[AI-4] Google reconnect: ${data.forms.length} forms refreshed`);
         } else if (data.needsAuth) {
           setNeedsGoogleAuth(true);
+          toast.warning('⚠️ AI-4: Google connection lost. Reconnect required.');
           console.warn('[AI-4] Google token expired, needs reconnect');
         }
       } catch (err) {
