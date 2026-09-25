@@ -457,7 +457,7 @@ export default function NewRegistrationPage() {
           } else {
             toast.error('Failed to load Google Sheets CSV');
           }
-        } else if (linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms')) {
+        } else if (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms')) {
           let fetchedLeads = [];
           setNeedsGoogleAuth(false);
           
