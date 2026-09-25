@@ -1068,6 +1068,17 @@ export default function NewRegistrationPage() {
           >
             Bulk Zoom Reg
           </button>
+          <button 
+            onClick={() => {
+              if (selectedRowIds.length === 0) return;
+              setClosedLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
+              setSelectedRowIds([]);
+              toast.success('Leads Submitted & Moved to Workshop!');
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-xs font-bold transition-colors ml-1"
+          >
+            <CheckSquare size={14} /> Submit & Move
+          </button>
         </>
       )}
       <button onClick={() => handleBulkAction('QR Code')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-bold transition-colors">
@@ -1503,7 +1514,7 @@ export default function NewRegistrationPage() {
                               >
                                 {isLoadingGoogleForms ? '⏳' : '🔄'} Refresh
                               </button>
-
+                              
                               {/* Reconnect button */}
                               <button
                                 onClick={async () => {
@@ -1516,10 +1527,23 @@ export default function NewRegistrationPage() {
                                   } catch { toast.error('Failed to initiate Google Login'); }
                                 }}
                                 className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
-                                title="Reconnect Google account"
+                                title="Reconnect Google Account"
                               >
                                 🔗 Reconnect
                               </button>
+                              
+                              {/* Open Google Form Button */}
+                              {googleFormUrl && (
+                                <a
+                                  href={googleFormUrl.includes('docs.google.com') ? googleFormUrl : `https://docs.google.com/forms/d/${googleFormUrl}/edit#responses`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                                  title="Open form responses in Google Forms"
+                                >
+                                  <ExternalLink size={14} /> Open
+                                </a>
+                              )}
                             </div>
                             
                             <details className="text-xs text-slate-500 pt-2 border-t border-slate-200">
@@ -1626,8 +1650,10 @@ export default function NewRegistrationPage() {
                         )}
                       </div>
                     </div>
+                    </>
+                    )}
                     
-                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end shadow-inner z-10">
                       <button 
                         onClick={() => {
                           if (formSource === 'internal' && !selectedFormId) {
@@ -1652,13 +1678,12 @@ export default function NewRegistrationPage() {
                           setLinkedFormId(formSource === 'google' ? googleFormUrl : selectedFormId);
                           toast.success('Form saved! Mapping fields and fetching leads...');
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2 shadow-sm"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-lg transition-colors flex items-center gap-2 shadow-md transform hover:scale-105 active:scale-95 duration-200"
                       >
-                        <Users size={16} /> Save & Map Data
+                        <Users size={18} /> Save & Map Data
                       </button>
                     </div>
-                    </>
-                    )}
+                    
                     
                     {/* Render Fetched Leads Inline in Forms Tab */}
                     {linkedFormId && (

@@ -13,11 +13,16 @@ export async function GET(request: NextRequest) {
 
     // Extract Form ID
     let formId = '';
-    const dMatch = formUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    if (dMatch && !formUrl.includes('/d/e/')) {
-      formId = dMatch[1];
+    if (formUrl.includes('docs.google.com') || formUrl.includes('/d/')) {
+      const dMatch = formUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if (dMatch && !formUrl.includes('/d/e/')) {
+        formId = dMatch[1];
+      } else {
+        return NextResponse.json({ error: 'Please provide the Google Form Edit URL (e.g. docs.google.com/forms/d/1XYZ/edit), not the public viewform URL.' }, { status: 400 });
+      }
     } else {
-      return NextResponse.json({ error: 'Please provide the Google Form Edit URL (e.g. docs.google.com/forms/d/1XYZ/edit), not the public viewform URL.' }, { status: 400 });
+      // Assume it's the raw ID passed directly
+      formId = formUrl;
     }
 
     const accountRes = await bunnyExecute({
