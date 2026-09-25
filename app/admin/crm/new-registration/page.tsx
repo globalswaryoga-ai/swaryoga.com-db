@@ -950,6 +950,39 @@ export default function NewRegistrationPage() {
   // State for Zoom meetings & message numbers per lead (used in Closing tab)
   const [meetingSchedule, setMeetingSchedule] = useState<Record<string, string>>({});
   const [messageNumber, setMessageNumber] = useState<Record<string, number>>({});
+  const [zoomMeetingId, setZoomMeetingId] = useState<string>('');
+  
+  const handleZoomRegister = async (leadIds: string[]) => {
+    if (!zoomMeetingId) {
+      toast.error('Please enter a Zoom Meeting ID in the bulk actions bar above first.');
+      return;
+    }
+    const leadsToRegister = leadsData.filter(l => leadIds.includes(l.id));
+    if (leadsToRegister.length === 0) return;
+    
+    let successCount = 0;
+    toast.info(`Starting Zoom registration for ${leadsToRegister.length} lead(s)...`);
+    
+    for (const lead of leadsToRegister) {
+      try {
+        const res = await fetch('/api/webhooks/google-forms/zoom-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            meetingId: zoomMeetingId,
+            email: lead.email,
+            firstName: lead.name?.split(' ')[0] || 'Unknown',
+            lastName: lead.name?.split(' ').slice(1).join(' ') || '',
+            phone: lead.mobile || lead.phoneNumber || ''
+          })
+        });
+        if (res.ok) successCount++;
+      } catch (err) {
+        console.error('Zoom Reg Error for lead:', lead.id, err);
+      }
+    }
+    toast.success(`Successfully registered ${successCount}/${leadsToRegister.length} leads in Zoom!`);
+  };
 
   const handleBulkAction = (action: string) => {
     if (action === 'Delete') {
@@ -1016,6 +1049,24 @@ export default function NewRegistrationPage() {
         >
           Restore to Registered ({selectedRowIds.length})
         </button>
+      )}
+      {activeTab === 'closing' && (
+        <>
+          <div className="w-px h-6 bg-slate-200 mx-1"></div>
+          <input 
+            type="text" 
+            placeholder="Zoom Meeting ID..." 
+            value={zoomMeetingId}
+            onChange={(e) => setZoomMeetingId(e.target.value)}
+            className="w-32 border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+          />
+          <button 
+            onClick={() => handleZoomRegister(selectedRowIds)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs font-bold transition-colors"
+          >
+            Bulk Zoom Reg
+          </button>
+        </>
       )}
       <button onClick={() => handleBulkAction('QR Code')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-bold transition-colors">
         <QrCode size={14}/> QR
@@ -2397,6 +2448,7 @@ export default function NewRegistrationPage() {
                                     onChange={e => setMessageNumber(prev => ({ ...prev, [lead.id]: Number(e.target.value) }))}
                                     placeholder="Msg #"
                                   />
+                                  <button onClick={() => handleZoomRegister([lead.id])} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">Zoom Reg</button>
                                   <button onClick={() => {
                                     setRegisteredLeadIds(prev => prev.filter(id => id !== lead.id));
                                     setPendingLeadIds(prev => [...prev, lead.id]);
