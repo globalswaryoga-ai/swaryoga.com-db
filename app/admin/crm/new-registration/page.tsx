@@ -1669,7 +1669,6 @@ export default function NewRegistrationPage() {
                       </div>
                     </div>
                     
-                    </div>
                     </>
                     )}
                     
