@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { 
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
-  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp
+  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
