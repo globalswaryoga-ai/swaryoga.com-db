@@ -58,6 +58,7 @@ export default function NewRegistrationPage() {
   const [ai4Interval, setAi4Interval] = useState(10);
   const [ai4FormatRules, setAi4FormatRules] = useState('');
   const [needsGoogleAuth, setNeedsGoogleAuth] = useState(false);
+  const [showDynamicColumns, setShowDynamicColumns] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState('');
   const [googleFormsList, setGoogleFormsList] = useState<any[]>([]);
   const [isLoadingGoogleForms, setIsLoadingGoogleForms] = useState(false);
@@ -1672,13 +1673,23 @@ export default function NewRegistrationPage() {
                       {/* Fetched Fields Section */}
                       <div className="mt-8 pt-6 border-t border-slate-100">
                         <div className="flex items-center justify-between mb-4">
-                          <button 
-                            onClick={() => setIsMapDataCollapsed(!isMapDataCollapsed)}
-                            className="flex items-center gap-2 font-bold text-slate-800 hover:text-indigo-600 transition-colors"
-                          >
-                            {isMapDataCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                            Map Data to Leads
-                          </button>
+                          <div className="flex items-center gap-4">
+                            <button 
+                              onClick={() => setIsMapDataCollapsed(!isMapDataCollapsed)}
+                              className="flex items-center gap-2 font-bold text-slate-800 hover:text-indigo-600 transition-colors"
+                            >
+                              {isMapDataCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
+                              Map Data to Leads
+                            </button>
+                            {!isMapDataCollapsed && (
+                              <button 
+                                onClick={() => setShowDynamicColumns(!showDynamicColumns)}
+                                className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${showDynamicColumns ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                              >
+                                {showDynamicColumns ? 'Hide Custom Answers' : 'Show Custom Answers'}
+                              </button>
+                            )}
+                          </div>
                           
                           {!isMapDataCollapsed && (
                             <label className="flex items-center gap-2 text-sm text-indigo-600 font-bold cursor-pointer">
@@ -1911,7 +1922,7 @@ export default function NewRegistrationPage() {
                                 <th className="px-4 py-3 font-bold text-slate-500">Age</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">City</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Country</th>
-                                {dynamicColumns.map(col => (
+                                {showDynamicColumns && dynamicColumns.map(col => (
                                   <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[180px] max-w-[250px] break-words leading-relaxed">{col}</th>
                                 ))}
                                 <th className="px-4 py-3 font-bold text-slate-500">
@@ -1971,7 +1982,7 @@ export default function NewRegistrationPage() {
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.age || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.country || '-'}</td>
-                                    {dynamicColumns.map(col => (
+                                    {showDynamicColumns && dynamicColumns.map(col => (
                                       <td key={col} className="px-4 py-3 whitespace-normal min-w-[180px] max-w-[250px] break-words text-slate-500">
                                         {lead.dynamicAnswers?.[col] || '-'}
                                       </td>
@@ -2102,6 +2113,14 @@ export default function NewRegistrationPage() {
                   <h3 className="font-bold text-slate-800 text-lg">{LeadSubTabs.find(t => t.id === leadSubTab)?.label}</h3>
                   <div className="flex items-center gap-2">
                     {renderBulkActions()}
+                    <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
+                      <button 
+                        onClick={() => setShowDynamicColumns(!showDynamicColumns)}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${showDynamicColumns ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                      >
+                        {showDynamicColumns ? 'Hide Custom Answers' : 'Show Custom Answers'}
+                      </button>
+                    </div>
                     {leadSubTab === 'new' && (
                       <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
                         <span className="text-xs font-bold text-slate-500">AI WORKER</span>
@@ -2195,7 +2214,7 @@ export default function NewRegistrationPage() {
                             <th className="px-4 py-3 font-bold text-slate-500">Email</th>
                             <th className="px-4 py-3 font-bold text-slate-500">Gender</th>
                             <th className="px-4 py-3 font-bold text-slate-500">City</th>
-                            {dynamicColumns.map(col => (
+                            {showDynamicColumns && dynamicColumns.map(col => (
                               <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[180px] max-w-[250px] break-words leading-relaxed">{col}</th>
                             ))}
                             <th className="px-4 py-3 font-bold text-slate-500">Payment</th>
@@ -2286,7 +2305,7 @@ export default function NewRegistrationPage() {
                                   <td className="px-4 py-3 whitespace-nowrap">{lead.email || '-'}</td>
                                   <td className="px-4 py-3 capitalize whitespace-nowrap">{lead.gender || '-'}</td>
                                   <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
-                                  {dynamicColumns.map(col => (
+                                  {showDynamicColumns && dynamicColumns.map(col => (
                                     <td key={col} className="px-4 py-3 whitespace-normal min-w-[180px] max-w-[250px] break-words text-slate-500">
                                       {lead.dynamicAnswers?.[col] || '-'}
                                     </td>
