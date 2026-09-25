@@ -438,6 +438,8 @@ export default function NewRegistrationPage() {
     loadForms();
   }, [token]);
 
+  const [refreshLeadsCounter, setRefreshLeadsCounter] = useState(0);
+
   useEffect(() => {
     async function loadLeads() {
       if (!linkedFormId) return;
@@ -531,7 +533,6 @@ export default function NewRegistrationPage() {
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [refreshLeadsCounter, setRefreshLeadsCounter] = useState(0);
 
   useEffect(() => {
     if (!isAi4Active || !linkedFormId) return;
