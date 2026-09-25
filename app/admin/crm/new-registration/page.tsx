@@ -744,27 +744,6 @@ export default function NewRegistrationPage() {
     if (savedAi4State) setIsAi4Active(savedAi4State === 'true');
     
     try {
-      const savedCrm = localStorage.getItem('crm_lead_ids');
-      if (savedCrm) setCrmLeadIds(JSON.parse(savedCrm));
-      
-      const savedApproved = localStorage.getItem('crm_approved_ids');
-      if (savedApproved) setApprovedLeadIds(JSON.parse(savedApproved));
-      
-      const savedPending = localStorage.getItem('crm_pending_ids');
-      if (savedPending) setPendingLeadIds(JSON.parse(savedPending));
-      
-      const savedRegistered = localStorage.getItem('crm_registered_ids');
-      if (savedRegistered) setRegisteredLeadIds(JSON.parse(savedRegistered));
-      
-      const savedRejected = localStorage.getItem('crm_rejected_ids');
-      if (savedRejected) setRejectedLeadIds(JSON.parse(savedRejected));
-      
-      const savedClosed = localStorage.getItem('crm_closed_ids');
-      if (savedClosed) setClosedLeadIds(JSON.parse(savedClosed));
-      
-      const savedSent = localStorage.getItem('crm_sent_congrats_ids');
-      if (savedSent) setSentCongratsLeadIds(JSON.parse(savedSent));
-      
       const loadFromApi = async () => {
         try {
           const res = await fetch('/api/admin/crm/new-registration/state');
@@ -787,16 +766,7 @@ export default function NewRegistrationPage() {
         }
       };
 
-      loadFromApi().then(() => {
-        const savedInsights = localStorage.getItem('crm_approval_insights');
-        if (savedInsights) setApprovalAiInsights(JSON.parse(savedInsights));
-        
-        const savedPendingInsights = localStorage.getItem('crm_pending_insights');
-        if (savedPendingInsights) setPendingAiInsights(JSON.parse(savedPendingInsights));
-        
-        const savedRegInsights = localStorage.getItem('crm_registered_insights');
-        if (savedRegInsights) setRegisteredAiInsights(JSON.parse(savedRegInsights));
-      });
+      loadFromApi();
     } catch (e) {
       console.error('Error loading crm states', e);
     }
@@ -876,12 +846,50 @@ export default function NewRegistrationPage() {
     if (selectedWorkshop?.formId) {
       setLinkedFormId(selectedWorkshop.formId);
       setSelectedFormId(selectedWorkshop.formId);
+      
+      const suffix = `_${selectedWorkshop.id}`;
+      
+      const loadList = (key: string) => {
+        const str = localStorage.getItem(key + suffix);
+        return str ? JSON.parse(str) : [];
+      };
+      const loadObj = (key: string) => {
+        const str = localStorage.getItem(key + suffix);
+        return str ? JSON.parse(str) : {};
+      };
+      
+      setCrmLeadIds(loadList('crm_lead_ids'));
+      setApprovedLeadIds(loadList('crm_approved_ids'));
+      setPendingLeadIds(loadList('crm_pending_ids'));
+      setRegisteredLeadIds(loadList('crm_registered_ids'));
+      setRejectedLeadIds(loadList('crm_rejected_ids'));
+      setStudentKotaLeadIds(loadList('crm_student_kota_ids'));
+      setClosedLeadIds(loadList('crm_closed_ids'));
+      setSentCongratsLeadIds(loadList('crm_sent_congrats_ids'));
+      
+      setApprovalAiInsights(loadObj('crm_approval_insights'));
+      setPendingAiInsights(loadObj('crm_pending_insights'));
+      setRegisteredAiInsights(loadObj('crm_registered_insights'));
     } else {
       setLinkedFormId('');
       setSelectedFormId('');
       setLeadsData([]);
+      
+      // Clear states when no batch is selected
+      setCrmLeadIds([]);
+      setApprovedLeadIds([]);
+      setPendingLeadIds([]);
+      setRegisteredLeadIds([]);
+      setRejectedLeadIds([]);
+      setStudentKotaLeadIds([]);
+      setClosedLeadIds([]);
+      setSentCongratsLeadIds([]);
+      
+      setApprovalAiInsights({});
+      setPendingAiInsights({});
+      setRegisteredAiInsights({});
     }
-  }, [selectedWorkshop]);
+  }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
 
   const handleDetailChange = (field: string, value: string) => {
     if (!selectedWorkshop) return;
