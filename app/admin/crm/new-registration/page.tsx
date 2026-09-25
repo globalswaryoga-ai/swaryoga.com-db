@@ -1036,6 +1036,16 @@ export default function NewRegistrationPage() {
     { id: 'student_kota', label: 'Student Kota' },
   ] as const;
 
+  const segmentCounts = useMemo(() => {
+    return {
+      new: leadsData.filter(l => crmLeadIds.includes(l.id)).length,
+      approved: leadsData.filter(l => crmLeadIds.includes(l.id) && (approvedLeadIds.includes(l.id) || registeredLeadIds.includes(l.id))).length,
+      pending: leadsData.filter(l => crmLeadIds.includes(l.id) && pendingLeadIds.includes(l.id) && !approvedLeadIds.includes(l.id) && !registeredLeadIds.includes(l.id)).length,
+      registered: leadsData.filter(l => crmLeadIds.includes(l.id) && registeredLeadIds.includes(l.id)).length,
+      student_kota: leadsData.filter(l => crmLeadIds.includes(l.id) && studentKotaLeadIds.includes(l.id)).length
+    };
+  }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, registeredLeadIds, studentKotaLeadIds]);
+
   const canAccessTab = (tabId: string) => {
     return !!selectedWorkshop;
   };
@@ -2000,25 +2010,25 @@ export default function NewRegistrationPage() {
                     
                     <StatCard 
                       title="New Forms" 
-                      value={leadsData.filter(l => crmLeadIds.includes(l.id) && !approvedLeadIds.includes(l.id) && !pendingLeadIds.includes(l.id)).length} 
+                      value={segmentCounts.new} 
                       target={totalLeads} 
                       progress={0} 
                     />
                     <StatCard 
                       title="Approved" 
-                      value={leadsData.filter(l => approvedLeadIds.includes(l.id)).length} 
+                      value={segmentCounts.approved} 
                       target={totalLeads} 
                       progress={0} 
                     />
                     <StatCard 
                       title="Pending" 
-                      value={leadsData.filter(l => pendingLeadIds.includes(l.id)).length} 
+                      value={segmentCounts.pending} 
                       target={totalLeads} 
                       progress={0} 
                     />
                     <StatCard 
                       title="Registered" 
-                      value={leadsData.filter(l => registeredLeadIds.includes(l.id)).length} 
+                      value={segmentCounts.registered} 
                       target={totalLeads} 
                       progress={0} 
                     />
@@ -2042,13 +2052,14 @@ export default function NewRegistrationPage() {
                     <button
                       key={tab.id}
                       onClick={() => setLeadSubTab(tab.id as any)}
-                      className={`w-full text-left px-4 py-2.5 text-sm font-bold rounded-xl transition-all ${
+                      className={`w-full text-left px-4 py-2.5 text-sm font-bold rounded-xl transition-all flex items-center justify-between ${
                         leadSubTab === tab.id 
                           ? 'bg-indigo-100 text-indigo-700 shadow-sm' 
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
-                      {tab.label}
+                      <span>{tab.label}</span>
+                      <span className="opacity-60 text-xs px-2 py-0.5 bg-black/5 rounded-full">{segmentCounts[tab.id as keyof typeof segmentCounts]}</span>
                     </button>
                   ))}
                 </div>
@@ -2110,8 +2121,8 @@ export default function NewRegistrationPage() {
                     let filteredLeads = leadsData.filter(lead => {
                       if (!crmLeadIds.includes(lead.id)) return false;
                       if (leadSubTab === 'new') return true;
-                      if (leadSubTab === 'approved') return approvedLeadIds.includes(lead.id);
-                      if (leadSubTab === 'pending') return pendingLeadIds.includes(lead.id);
+                      if (leadSubTab === 'approved') return approvedLeadIds.includes(lead.id) || registeredLeadIds.includes(lead.id);
+                      if (leadSubTab === 'pending') return pendingLeadIds.includes(lead.id) && !approvedLeadIds.includes(lead.id) && !registeredLeadIds.includes(lead.id);
                       if (leadSubTab === 'registered') return registeredLeadIds.includes(lead.id);
                       if (leadSubTab === 'student_kota') return studentKotaLeadIds.includes(lead.id);
                       return false;
