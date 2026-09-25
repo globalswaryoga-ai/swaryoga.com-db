@@ -527,10 +527,11 @@ export default function NewRegistrationPage() {
       }
     }
     loadLeads();
-  }, [linkedFormId, token]);
+  }, [linkedFormId, token, refreshLeadsCounter]);
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [refreshLeadsCounter, setRefreshLeadsCounter] = useState(0);
 
   useEffect(() => {
     if (!isAi4Active || !linkedFormId) return;
@@ -1408,21 +1409,7 @@ export default function NewRegistrationPage() {
                             <select 
                               className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                               value={selectedFormId}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setSelectedFormId(val);
-                                if (val) {
-                                  if (selectedWorkshop) {
-                                    const updated = { ...selectedWorkshop, formId: val };
-                                    setSelectedWorkshop(updated);
-                                    setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
-                                  }
-                                  setLinkedFormId(val);
-                                  toast.success('Form linked! Fetching leads automatically...');
-                                } else {
-                                  setLinkedFormId('');
-                                }
-                              }}
+                              onChange={(e) => setSelectedFormId(e.target.value)}
                             >
                               <option value="">Select a form to fetch data fields...</option>
                             {isLoadingForms ? (
@@ -1473,21 +1460,7 @@ export default function NewRegistrationPage() {
                               <select
                                 className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                                 value={googleFormUrl}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setGoogleFormUrl(val);
-                                  if (val) {
-                                    if (selectedWorkshop) {
-                                      const updated = { ...selectedWorkshop, formId: val };
-                                      setSelectedWorkshop(updated);
-                                      setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
-                                    }
-                                    setLinkedFormId(val);
-                                    toast.success('Form linked! Fetching leads automatically...');
-                                  } else {
-                                    setLinkedFormId('');
-                                  }
-                                }}
+                                onChange={(e) => setGoogleFormUrl(e.target.value)}
                               >
                                 <option value="">Select a form from your Google Drive...</option>
                                 {isLoadingGoogleForms ? (
@@ -1558,22 +1531,6 @@ export default function NewRegistrationPage() {
                                   placeholder="Google Form ID"
                                   className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 bg-white outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-                                <button 
-                                  onClick={() => {
-                                    if (googleFormUrl) {
-                                      if (selectedWorkshop) {
-                                        const updated = { ...selectedWorkshop, formId: googleFormUrl };
-                                        setSelectedWorkshop(updated);
-                                        setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
-                                      }
-                                      setLinkedFormId(googleFormUrl);
-                                      toast.success('Form linked! Fetching leads automatically...');
-                                    }
-                                  }}
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-lg text-xs transition-colors"
-                                >
-                                  Link
-                                </button>
                               </div>
                             </details>
                             
@@ -1669,6 +1626,36 @@ export default function NewRegistrationPage() {
                       </div>
                     </div>
                     
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                      <button 
+                        onClick={() => {
+                          if (formSource === 'internal' && !selectedFormId) {
+                            toast.error('Please select a form first');
+                            return;
+                          }
+                          if (formSource === 'google' && !googleFormUrl) {
+                            toast.error('Please enter a Google Form URL');
+                            return;
+                          }
+                          
+                          if (selectedWorkshop) {
+                            const updated = { 
+                              ...selectedWorkshop, 
+                              formId: formSource === 'google' ? googleFormUrl : selectedFormId,
+                              googleFormMapping: formSource === 'google' ? fieldMapping : undefined
+                            };
+                            setSelectedWorkshop(updated);
+                            setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
+                          }
+                          
+                          setLinkedFormId(formSource === 'google' ? googleFormUrl : selectedFormId);
+                          toast.success('Form saved! Mapping fields and fetching leads...');
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2 shadow-sm"
+                      >
+                        <Users size={16} /> Save & Map Data
+                      </button>
+                    </div>
                     </>
                     )}
                     
@@ -1682,6 +1669,17 @@ export default function NewRegistrationPage() {
                             </h3>
                             {linkedFormId && (
                               <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+                                <button
+                                  onClick={() => {
+                                    setRefreshLeadsCounter(prev => prev + 1);
+                                    toast.success('Retrying lead fetch...');
+                                  }}
+                                  disabled={isLoadingLeads}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 rounded-lg text-xs font-bold transition-colors shadow-sm mr-2"
+                                  title="Manually retry fetching leads from the form"
+                                >
+                                  {isLoadingLeads ? '⏳' : '🔄'} Retry
+                                </button>
                                 <span className="text-xs font-bold text-slate-500">AI-4</span>
                                 <button 
                                   onClick={async () => {
