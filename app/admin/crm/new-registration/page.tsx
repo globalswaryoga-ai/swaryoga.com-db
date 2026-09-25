@@ -476,29 +476,15 @@ export default function NewRegistrationPage() {
               if (ws?.googleFormMapping && mappedLeads.length > 0) {
                 mappedLeads = mappedLeads.map((lead: any) => {
                   const raw = lead._rawRecord || {};
-                  const mapping = ws.googleFormMapping;
-                  
-                  const newDynamicAnswers = { ...lead.dynamicAnswers };
-                  Object.keys(mapping).forEach(customField => {
-                     if (!['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].includes(customField)) {
-                         const qTitle = mapping[customField];
-                         if (raw[qTitle] !== undefined) {
-                             newDynamicAnswers[customField] = raw[qTitle];
-                             delete newDynamicAnswers[qTitle];
-                         }
-                     }
-                  });
-
                   return {
                     ...lead,
-                    name: raw[mapping['Name']] || lead.name,
-                    email: raw[mapping['Email']] || lead.email,
-                    mobile: raw[mapping['Mobile']] || lead.mobile,
-                    phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
-                    city: raw[mapping['City']] || lead.city,
-                    country: raw[mapping['Country']] || lead.country,
-                    gender: raw[mapping['Gender']] || lead.gender,
-                    dynamicAnswers: newDynamicAnswers,
+                    name: raw[ws.googleFormMapping['Name']] || lead.name,
+                    email: raw[ws.googleFormMapping['Email']] || lead.email,
+                    mobile: raw[ws.googleFormMapping['Mobile']] || lead.mobile,
+                    phoneNumber: raw[ws.googleFormMapping['Mobile']] || lead.phoneNumber,
+                    city: raw[ws.googleFormMapping['City']] || lead.city,
+                    country: raw[ws.googleFormMapping['Country']] || lead.country,
+                    gender: raw[ws.googleFormMapping['Gender']] || lead.gender,
                   };
                 });
               }
@@ -601,33 +587,21 @@ export default function NewRegistrationPage() {
              if (syncRes.ok) {
                const json = await syncRes.json();
                let mappedLeads: any[] = json.data || [];
-                if (mapping && mappedLeads.length > 0) {
-                  mappedLeads = mappedLeads.map((lead: any) => {
-                    const raw = lead._rawRecord || {};
-                    const newDynamicAnswers = { ...lead.dynamicAnswers };
-                    Object.keys(mapping).forEach(customField => {
-                       if (!['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].includes(customField)) {
-                           const qTitle = mapping[customField];
-                           if (raw[qTitle] !== undefined) {
-                               newDynamicAnswers[customField] = raw[qTitle];
-                               delete newDynamicAnswers[qTitle];
-                           }
-                       }
-                    });
-
-                    return {
-                      ...lead,
-                      name: raw[mapping['Name']] || lead.name,
-                      email: raw[mapping['Email']] || lead.email,
-                      mobile: raw[mapping['Mobile']] || lead.mobile,
-                      phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
-                      city: raw[mapping['City']] || lead.city,
-                      country: raw[mapping['Country']] || lead.country,
-                      gender: raw[mapping['Gender']] || lead.gender,
-                      dynamicAnswers: newDynamicAnswers,
-                    };
-                  });
-                }
+               if (mapping && mappedLeads.length > 0) {
+                 mappedLeads = mappedLeads.map((lead: any) => {
+                   const raw = lead._rawRecord || {};
+                   return {
+                     ...lead,
+                     name: raw[mapping['Name']] || lead.name,
+                     email: raw[mapping['Email']] || lead.email,
+                     mobile: raw[mapping['Mobile']] || lead.mobile,
+                     phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
+                     city: raw[mapping['City']] || lead.city,
+                     country: raw[mapping['Country']] || lead.country,
+                     gender: raw[mapping['Gender']] || lead.gender,
+                   };
+                 });
+               }
                
                const ws = workshops.find((w: any) => w.formId === linkedFormId);
                if (ws?.formFilterKeyword && ws.formFilterKeyword.trim() !== '') {
@@ -1641,23 +1615,9 @@ export default function NewRegistrationPage() {
                               <div className="mt-6 pt-4 border-t border-slate-200">
                                 <h4 className="font-bold text-slate-800 mb-3 text-sm">Map Google Form Fields to CRM</h4>
                                 <div className="grid grid-cols-2 gap-4">
-                                  {Array.from(new Set(['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender', ...Object.keys(fieldMapping)])).map(crmField => (
-                                    <div key={crmField} className="space-y-1 relative group">
-                                      <div className="flex items-center justify-between">
-                                        <label className="text-xs font-bold text-slate-500 uppercase">{crmField}</label>
-                                        {!['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].includes(crmField) && (
-                                          <button 
-                                            onClick={() => {
-                                              const newMap = {...fieldMapping};
-                                              delete newMap[crmField];
-                                              setFieldMapping(newMap);
-                                            }}
-                                            className="text-red-500 hover:text-red-700 text-[10px] hidden group-hover:block transition-all"
-                                          >
-                                            Remove
-                                          </button>
-                                        )}
-                                      </div>
+                                  {['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].map(crmField => (
+                                    <div key={crmField} className="space-y-1">
+                                      <label className="text-xs font-bold text-slate-500 uppercase">{crmField}</label>
                                       <select
                                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
                                         value={fieldMapping[crmField] || ''}
@@ -1670,39 +1630,6 @@ export default function NewRegistrationPage() {
                                       </select>
                                     </div>
                                   ))}
-                                  
-                                  <div className="col-span-2 pt-4 mt-2 border-t border-slate-100">
-                                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Add Custom Column Mapping</label>
-                                    <div className="flex items-center gap-2">
-                                      <input 
-                                        type="text" 
-                                        placeholder="e.g. Join Status"
-                                        className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            const val = e.currentTarget.value.trim();
-                                            if (val && !fieldMapping[val]) {
-                                              setFieldMapping({...fieldMapping, [val]: ''});
-                                              e.currentTarget.value = '';
-                                            }
-                                          }
-                                        }}
-                                      />
-                                      <button 
-                                        onClick={(e) => {
-                                          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                                          const val = input.value.trim();
-                                          if (val && !fieldMapping[val]) {
-                                            setFieldMapping({...fieldMapping, [val]: ''});
-                                            input.value = '';
-                                          }
-                                        }}
-                                        className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold px-3 py-2 rounded-lg text-xs transition-colors whitespace-nowrap"
-                                      >
-                                        + Add Column
-                                      </button>
-                                    </div>
-                                  </div>
                                 </div>
                               </div>
                             )}
@@ -2023,7 +1950,7 @@ export default function NewRegistrationPage() {
                                 tab2Leads.map((lead, i) => {
                                   const isProcessed = crmLeadIds.includes(lead.id);
                                   const isSelected = selectedRowIds.includes(lead.id);
-                                  const bgClass = isProcessed ? 'bg-slate-50 opacity-60' : isSelected ? 'bg-indigo-50 group-hover:bg-indigo-100/50' : 'bg-white group-hover:bg-slate-50';
+                                  const bgClass = isProcessed ? 'bg-slate-50 opacity-60' : isSelected ? 'bg-indigo-50 group-hover:bg-indigo-100' : 'bg-white group-hover:bg-slate-50';
                                   
                                   return (
                                     <tr key={lead.id || i} className={`group transition-colors ${bgClass}`}>
@@ -2327,34 +2254,34 @@ export default function NewRegistrationPage() {
                               let baseBgClass = 'bg-white hover:bg-slate-50';
                               
                               if (leadSubTab === 'new') {
-                                if (isRegistered || isApproved) baseBgClass = 'bg-emerald-50/60 hover:bg-emerald-100/60';
-                                else if (isPending) baseBgClass = 'bg-fuchsia-50/60 hover:bg-fuchsia-100/60';
+                                if (isRegistered || isApproved) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
+                                else if (isPending) baseBgClass = 'bg-fuchsia-50 hover:bg-fuchsia-100';
                               } else if (leadSubTab === 'approved') {
-                                if (isRegistered) baseBgClass = 'bg-emerald-50/60 hover:bg-emerald-100/60';
+                                if (isRegistered) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
                               } else if (leadSubTab === 'pending') {
-                                if (isRejected) baseBgClass = 'bg-red-50/60 hover:bg-red-100/60';
-                                else baseBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/60';
+                                if (isRejected) baseBgClass = 'bg-red-50 hover:bg-red-100';
+                                else baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
                               } else if (leadSubTab === 'registered' || leadSubTab === 'student_kota') {
-                                if (isClosed) baseBgClass = 'bg-emerald-50/60 hover:bg-emerald-100/60';
-                                else if (registeredAiInsights[lead.id]) baseBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/60';
+                                if (isClosed) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
+                                else if (registeredAiInsights[lead.id]) baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
                               }
 
-                              if (isSelected) baseBgClass = 'bg-indigo-50/80 hover:bg-indigo-100/80';
+                              if (isSelected) baseBgClass = 'bg-indigo-50 hover:bg-indigo-100';
 
                               let cellBgClass = 'bg-white group-hover:bg-slate-50';
                               if (leadSubTab === 'new') {
-                                if (isRegistered || isApproved) cellBgClass = 'bg-emerald-50/60 group-hover:bg-emerald-100/60';
-                                else if (isPending) cellBgClass = 'bg-fuchsia-50/60 group-hover:bg-fuchsia-100/60';
+                                if (isRegistered || isApproved) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
+                                else if (isPending) cellBgClass = 'bg-fuchsia-50 group-hover:bg-fuchsia-100';
                               } else if (leadSubTab === 'approved') {
-                                if (isRegistered) cellBgClass = 'bg-emerald-50/60 group-hover:bg-emerald-100/60';
+                                if (isRegistered) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
                               } else if (leadSubTab === 'pending') {
-                                if (isRejected) cellBgClass = 'bg-red-50/60 group-hover:bg-red-100/60';
-                                else cellBgClass = 'bg-yellow-50/60 group-hover:bg-yellow-100/60';
+                                if (isRejected) cellBgClass = 'bg-red-50 group-hover:bg-red-100';
+                                else cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
                               } else if (leadSubTab === 'registered') {
-                                if (isClosed) cellBgClass = 'bg-emerald-50/60 group-hover:bg-emerald-100/60';
-                                else if (registeredAiInsights[lead.id]) cellBgClass = 'bg-yellow-50/60 group-hover:bg-yellow-100/60';
+                                if (isClosed) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
+                                else if (registeredAiInsights[lead.id]) cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
                               }
-                              if (isSelected) cellBgClass = 'bg-indigo-50/80 group-hover:bg-indigo-100/80';
+                              if (isSelected) cellBgClass = 'bg-indigo-50 group-hover:bg-indigo-100';
 
                               return (
                                 <tr key={lead.id || i} className={`group transition-colors ${baseBgClass}`}>
@@ -2591,7 +2518,7 @@ export default function NewRegistrationPage() {
                       leadsData.filter(l => registeredLeadIds.includes(l.id)).map(lead => {
                         const isClosed = closedLeadIds.includes(lead.id);
                         return (
-                          <tr key={lead.id} className={`transition-colors ${isClosed ? 'bg-emerald-50/60 hover:bg-emerald-100/60' : 'bg-white hover:bg-slate-50'}`}>
+                          <tr key={lead.id} className={`transition-colors ${isClosed ? 'bg-emerald-50 hover:bg-emerald-100' : 'bg-white hover:bg-slate-50'}`}>
                             <td className="px-4 py-4">
                               <input 
                                 type="checkbox"
