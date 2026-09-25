@@ -487,6 +487,17 @@ export default function NewRegistrationPage() {
                   };
                 });
               }
+              
+              if (ws?.formFilterKeyword && ws.formFilterKeyword.trim() !== '') {
+                const keyword = ws.formFilterKeyword.toLowerCase().trim();
+                mappedLeads = mappedLeads.filter((lead: any) => {
+                  if (lead._rawRecord) {
+                    return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
+                  }
+                  return true;
+                });
+              }
+              
               fetchedLeads = mappedLeads;
               if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
               if (ws?.googleFormMapping) setFieldMapping(ws.googleFormMapping);
@@ -590,6 +601,18 @@ export default function NewRegistrationPage() {
                    };
                  });
                }
+               
+               const ws = workshops.find((w: any) => w.formId === linkedFormId);
+               if (ws?.formFilterKeyword && ws.formFilterKeyword.trim() !== '') {
+                 const keyword = ws.formFilterKeyword.toLowerCase().trim();
+                 mappedLeads = mappedLeads.filter((lead: any) => {
+                   if (lead._rawRecord) {
+                     return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
+                   }
+                   return true;
+                 });
+               }
+               
                fetchedLeads = mappedLeads;
                if (json.questionMap) newQuestionMap = json.questionMap;
              }
@@ -1367,6 +1390,14 @@ export default function NewRegistrationPage() {
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase">Registration Link</label>
                         <input type="url" value={selectedWorkshop.registrationLink || ''} onChange={(e) => handleDetailChange('registrationLink', e.target.value)} placeholder="https://..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1 col-span-2 bg-slate-100 p-4 rounded-xl border border-slate-200 mt-2">
+                        <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
+                          Form Filter Keyword (Optional)
+                          <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px]">Important</span>
+                        </label>
+                        <p className="text-xs text-slate-500 mb-2">If multiple batches share the same Google Form, enter a keyword here (e.g. "Morning" or "Evening"). The CRM will only import leads whose form answers contain this keyword.</p>
+                        <input type="text" value={selectedWorkshop.formFilterKeyword || ''} onChange={(e) => handleDetailChange('formFilterKeyword', e.target.value)} placeholder="e.g. Morning Batch" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                       </div>
                     </div>
                     <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
