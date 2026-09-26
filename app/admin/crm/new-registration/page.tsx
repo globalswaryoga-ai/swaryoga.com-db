@@ -85,16 +85,21 @@ export default function NewRegistrationPage() {
   const token = useAuth();
   
   const dynamicColumns = useMemo(() => {
-    const keys = new Set<string>();
+    const keyCounts = new Map<string, number>();
     leadsData.forEach(lead => {
       const answers = lead.dynamicAnswers || lead._rawRecord;
       if (answers) {
         Object.keys(answers).forEach(k => {
-          if (k !== 'Timestamp' && k !== 'Email Address') keys.add(k);
+          if (k !== 'Timestamp' && k !== 'Email Address') {
+            const val = answers[k];
+            if (val !== undefined && val !== null && String(val).trim() !== '') {
+              keyCounts.set(k, (keyCounts.get(k) || 0) + 1);
+            }
+          }
         });
       }
     });
-    const allKeys = Array.from(keys);
+    const allKeys = Array.from(keyCounts.keys());
     
     // Sort logic to prioritize MAPPED questions first
     const mappingValues = Object.values(selectedWorkshop?.googleFormMapping || {});
@@ -1972,7 +1977,7 @@ export default function NewRegistrationPage() {
                             });
                             
                             return (
-                              <table className="w-full text-left text-sm text-slate-600" style={{ tableLayout: 'fixed' }}>
+                              <table className="min-w-full text-left text-sm text-slate-600">
                                 <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
                                   <tr className="divide-x divide-slate-200">
                                     <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50">
@@ -1988,11 +1993,26 @@ export default function NewRegistrationPage() {
                                     </th>
                                 <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[50px] z-30 bg-slate-50">Name</th>
                                 <th className="px-4 py-3 font-bold text-slate-500 w-[110px] min-w-[110px] sticky left-[200px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
-                                {showDynamicColumns && dynamicColumns.map(col => (
-                                  <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[150px] max-w-[200px] break-words leading-tight">
+                                {showDynamicColumns && dynamicColumns.map(col => {
+                                  const width = colWidths[`t2_${col}`] || 150;
+                                  return (
+                                  <th key={col} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} className="px-4 py-3 font-bold text-slate-500 whitespace-normal break-words leading-tight relative group">
                                     <div className="line-clamp-4" title={col}>{col}</div>
+                                    <div className="absolute right-0 top-0 bottom-0 w-1 hover:w-2 bg-transparent hover:bg-indigo-400 cursor-col-resize z-50 transition-colors" onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      const startX = e.pageX;
+                                      const onMouseMove = (moveEvent: MouseEvent) => {
+                                        setColWidths(prev => ({ ...prev, [`t2_${col}`]: Math.max(50, width + moveEvent.pageX - startX) }));
+                                      };
+                                      const onMouseUp = () => {
+                                        document.removeEventListener('mousemove', onMouseMove);
+                                        document.removeEventListener('mouseup', onMouseUp);
+                                      };
+                                      document.addEventListener('mousemove', onMouseMove);
+                                      document.addEventListener('mouseup', onMouseUp);
+                                    }} />
                                   </th>
-                                ))}
+                                )})}
                                 <th className="px-4 py-3 font-bold text-slate-500 w-[200px] min-w-[200px]">Email</th>
                                 <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
                                 <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Age</th>
@@ -2050,9 +2070,29 @@ export default function NewRegistrationPage() {
                                       </td>
                                     {showDynamicColumns && dynamicColumns.map(col => {
                                       const val = (lead.dynamicAnswers && lead.dynamicAnswers[col]) || (lead._rawRecord && lead._rawRecord[col]) || '-';
+                                      const width = colWidths[`t2_${col}`] || 150;
                                       return (
-                                      <td key={col} className="px-4 py-3 whitespace-normal min-w-[150px] max-w-[200px] break-words text-slate-500 text-xs">
-                                        <div className="line-clamp-2" title={val}>{val}</div>
+                                      <td key={col} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} className="px-4 py-3 whitespace-normal break-words text-slate-500 text-xs">
+                                        <div 
+                                          className="line-clamp-2 outline-none hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1 -mx-1" 
+                                          title={val}
+                                          contentEditable
+                                          suppressContentEditableWarning
+                                          onBlur={(e) => {
+                                            const newValue = e.currentTarget.textContent || '';
+                                            if (newValue !== val && newValue !== '-') {
+                                              setLeadsData(prev => prev.map(l => {
+                                                if (l.id === lead.id) {
+                                                  const updated = { ...l };
+                                                  if (updated.dynamicAnswers && col in updated.dynamicAnswers) updated.dynamicAnswers = { ...updated.dynamicAnswers, [col]: newValue };
+                                                  if (updated._rawRecord) updated._rawRecord = { ...updated._rawRecord, [col]: newValue };
+                                                  return updated;
+                                                }
+                                                return l;
+                                              }));
+                                            }
+                                          }}
+                                        >{val}</div>
                                       </td>
                                     )})}
                                       <td className={`px-4 py-3 whitespace-nowrap w-[200px] min-w-[200px] ${bgClass} transition-colors`}>
@@ -2316,7 +2356,7 @@ export default function NewRegistrationPage() {
                     };
 
                     return (
-                      <table className="w-full text-left text-sm text-slate-600" style={{ tableLayout: 'fixed' }}>
+                      <table className="min-w-full text-left text-sm text-slate-600">
                         <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
                           <tr className="divide-x divide-slate-200">
                             <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
