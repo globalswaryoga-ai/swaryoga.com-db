@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Plus, Pencil, Trash2, Eye, Loader2, X, ChevronDown, Upload, Image as ImageIcon, Bold, Italic, Strikethrough, Smile } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Eye, Loader2, X, ChevronDown, Upload, Image as ImageIcon, Bold, Italic, Strikethrough, Smile, FolderPlus } from 'lucide-react';
 
 interface Template {
   _id: string;
@@ -14,6 +14,7 @@ interface Template {
   headerFormat?: string;
   headerMedia?: { kind: string; url: string };
   footer?: string;
+  folderName?: string;
   buttons?: Array<{ kind: string; title: string; url?: string; phoneNumber?: string }>;
 }
 
@@ -54,11 +55,33 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
     headerMediaUrl: '',
     body: '',
     footer: '',
+    folderName: '',
     buttons: [] as Array<{ kind: string; title: string; url?: string; phoneNumber?: string }>,
   });
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [headerImageFile, setHeaderImageFile] = useState<File | null>(null);
+
+  const [folders, setFolders] = useState<string[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string>('All');
+
+  useEffect(() => {
+    const savedFolders = JSON.parse(localStorage.getItem(`crm-template-folders-${provider}`) || '[]');
+    if (savedFolders.length > 0) setFolders(savedFolders);
+  }, [provider]);
+
+  const addFolder = () => {
+    const name = window.prompt('Enter folder name:');
+    if (name && name.trim()) {
+      const trimmed = name.trim();
+      if (!folders.includes(trimmed)) {
+        const newFolders = [...folders, trimmed];
+        setFolders(newFolders);
+        localStorage.setItem(`crm-template-folders-${provider}`, JSON.stringify(newFolders));
+      }
+      setSelectedFolder(trimmed);
+    }
+  };
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiCategory, setEmojiCategory] = useState<string>('Faces');
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
@@ -122,10 +145,12 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
 
   useEffect(() => { if (token) fetchTemplates(); }, [token, fetchTemplates]);
 
-  const filtered = templates.filter(t =>
-    !searchQuery || t.templateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.templateContent.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = templates.filter(t => {
+    const matchesSearch = !searchQuery || t.templateName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          t.templateContent.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFolder = selectedFolder === 'All' || (t.folderName === selectedFolder) || (selectedFolder === 'Uncategorized' && !t.folderName);
+    return matchesSearch && matchesFolder;
+  });
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this template?') || !token) return;
@@ -152,6 +177,7 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
       headerMediaUrl: t.headerMedia?.url || '',
       body: t.templateContent,
       footer: t.footer || '',
+      folderName: t.folderName || '',
       buttons: t.buttons || [],
     });
     setShowCreate(true);
@@ -176,6 +202,7 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
         category: formData.category,
         headerFormat: formData.headerFormat,
         footerText: formData.footer,
+        folderName: formData.folderName,
         buttons: formData.buttons.map(b => ({ ...b, type: b.kind })),
         provider: provider,
       };
@@ -226,6 +253,7 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
         headerMediaUrl: '',
         body: '',
         footer: '',
+        folderName: '',
         buttons: [],
       });
     } catch (e: any) {
@@ -332,10 +360,40 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
           />
         </div>
         <button
+          onClick={addFolder}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition text-sm font-medium border border-indigo-200"
+        >
+          <Plus className="w-4 h-4" /> Folder
+        </button>
+        <button
           onClick={() => setShowCreate(!showCreate)}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
         >
           <Plus className="w-4 h-4" /> New
+        </button>
+      </div>
+
+      <div className="px-5 py-3 flex gap-2 overflow-x-auto border-b border-slate-100 no-scrollbar items-center">
+        <button 
+          onClick={() => setSelectedFolder('All')}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${selectedFolder === 'All' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+        >
+          All Templates
+        </button>
+        {folders.map(f => (
+          <button 
+            key={f}
+            onClick={() => setSelectedFolder(f)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${selectedFolder === f ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+          >
+            📁 {f}
+          </button>
+        ))}
+        <button 
+          onClick={() => setSelectedFolder('Uncategorized')}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${selectedFolder === 'Uncategorized' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+        >
+          Uncategorized
         </button>
       </div>
 
@@ -358,9 +416,10 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
               <div key={t._id} className="p-3 border rounded-lg bg-white hover:shadow-md transition">
                 <h3 className="font-medium text-sm truncate">{t.templateName}</h3>
                 <p className="text-xs text-gray-500 line-clamp-2 mt-1">{t.templateContent}</p>
-                <div className="flex items-center gap-1 mt-2">
+                <div className="flex items-center gap-1 mt-2 flex-wrap">
                   {t.category && <span className="text-xs bg-gray-100 px-2 py-1 rounded">{t.category}</span>}
                   {t.language && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{t.language}</span>}
+                  {t.folderName && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded flex items-center gap-1"><FolderPlus className="w-3 h-3"/> {t.folderName}</span>}
                 </div>
                 <div className="flex items-center gap-1 mt-3">
                   <button
@@ -497,6 +556,19 @@ export function TemplatesTab({ token, provider = 'qr', title }: TemplatesTabProp
                     <option value="UTILITY">Utility</option>
                     <option value="OTP">OTP</option>
                     <option value="ACCOUNT_UPDATE">Account Update</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Folder</label>
+                  <select
+                    value={formData.folderName}
+                    onChange={e => setFormData({ ...formData, folderName: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">Uncategorized</option>
+                    {folders.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
                   </select>
                 </div>
               </div>
