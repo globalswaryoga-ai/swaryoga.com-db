@@ -1624,6 +1624,7 @@ export default function NewRegistrationPage() {
                                   }} className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded font-bold transition-colors">
                                     + Add Field
                                   </button>
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                   {crmFields.map(field => (
