@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { 
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
-  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database
+  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,32 +13,27 @@ export default function NewRegistrationPage() {
   const router = useRouter();
   const toast = useToast();
   
-  const [activeTab, setActiveTab] = useState<'all_leads'|'my_data'|'workshop_details'|'leads'|'closing'|'templates'>('all_leads');
+  const [activeTab, setActiveTab] = useState<'details'|'forms'|'leads'|'closing'|'templates'>('details');
   const [leadSubTab, setLeadSubTab] = useState<'new'|'approved'|'pending'|'registered'|'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
   
   const [sidebarPosition, setSidebarPosition] = useState<'left'|'right'>('left');
-  const [selectedDashboardLang, setSelectedDashboardLang] = useState<string>('English');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMapDataCollapsed, setIsMapDataCollapsed] = useState(false);
+  const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
   const [isStatsCollapsed, setIsStatsCollapsed] = useState(false);
   
   const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
   const [newBatchName, setNewBatchName] = useState('');
   
   const [formSource, setFormSource] = useState<'internal'|'google'>('google');
-  const [isManualFormId, setIsManualFormId] = useState(false);
   const [fetchedForms, setFetchedForms] = useState<any[]>([]);
   const [isLoadingForms, setIsLoadingForms] = useState(false);
   
   const [selectedFormId, setSelectedFormId] = useState<string>('');
   const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [leadsData, setLeadsData] = useState<any[]>([]);
-  const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
-  const masterViewLanguageFilteredLeads = useMemo(() => {
-    return leadsData.filter(l => (l.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
-  }, [leadsData, selectedDashboardLang]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [isAiWorkerActive, setIsAiWorkerActive] = useState(false);
@@ -79,11 +74,7 @@ export default function NewRegistrationPage() {
     {id: 'Mobile', label: 'MOBILE'},
     {id: 'City', label: 'CITY'},
     {id: 'Country', label: 'COUNTRY'},
-    {id: 'Gender', label: 'GENDER'},
-    {id: 'AI-7', label: 'AI-7'}
-  ]);
-  const [mapDataFields, setMapDataFields] = useState<string[]>([
-    'Name', 'Email', 'WhatsApp Number', 'Age', 'Profession', 'Country', 'City', 'Health Issues', 'Workshop Date', 'AI-7'
+    {id: 'Gender', label: 'GENDER'}
   ]);
   
   const [columnOrder, setColumnOrder] = useState<string[]>(['name', 'whatsapp', 'email', 'gender', 'city', 'payment', 'submittedAt']);
@@ -476,16 +467,9 @@ export default function NewRegistrationPage() {
               
               if (ws?.formFilterKeyword && ws.formFilterKeyword.trim() !== '') {
                 const keyword = ws.formFilterKeyword.toLowerCase().trim();
-                const ai7MappedQuestion = ws?.googleFormMapping?.['AI-7'];
                 mappedLeads = mappedLeads.filter((lead: any) => {
                   if (lead._rawRecord) {
-                    if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                      // If AI-7 is mapped, only check the answer to that specific question
-                      return String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(keyword);
-                    } else {
-                      // Fallback: check all answers
-                      return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
-                    }
+                    return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
                   }
                   return true;
                 });
@@ -598,16 +582,9 @@ export default function NewRegistrationPage() {
                const ws = workshops.find((w: any) => w.formId === linkedFormId);
                if (ws?.formFilterKeyword && ws.formFilterKeyword.trim() !== '') {
                  const keyword = ws.formFilterKeyword.toLowerCase().trim();
-                 const ai7MappedQuestion = ws?.googleFormMapping?.['AI-7'];
                  mappedLeads = mappedLeads.filter((lead: any) => {
                    if (lead._rawRecord) {
-                     if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                       // If AI-7 is mapped, only check the answer to that specific question
-                       return String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(keyword);
-                     } else {
-                       // Fallback: check all answers
-                       return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
-                     }
+                     return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
                    }
                    return true;
                  });
@@ -924,20 +901,16 @@ export default function NewRegistrationPage() {
   }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
 
   const saveWorkshopSettings = async () => {
-    const targetWorkshop = selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
-    if (!targetWorkshop) {
-      toast.error("No batch available to save settings to.");
-      return;
-    }
+    if (!selectedWorkshop) return;
     try {
       const res = await fetch('/api/admin/crm/workshop-management', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          cohortId: targetWorkshop.id,
+          cohortId: selectedWorkshop.id,
           googleFormLink: googleFormUrl,
           metadata: {
-            ...targetWorkshop.metadata,
+            ...selectedWorkshop.metadata,
             googleFormMapping: fieldMapping,
             crmFields: crmFields,
             formFilterKeyword: selectedWorkshop.formFilterKeyword || '',
@@ -1087,12 +1060,11 @@ export default function NewRegistrationPage() {
   };
 
   const TopTabs = [
-    { id: 'all_leads', label: 'All Leads Data', icon: Users },
-    { id: 'my_data', label: 'My Data', icon: Database },
-    { id: 'workshop_details', label: 'Workshop Details', icon: FileText },
+    { id: 'details', label: 'Workshop Details', icon: Calendar },
+    { id: 'forms', label: 'Workshop Forms', icon: FileText },
     { id: 'leads', label: 'Leads Management', icon: Users },
-    { id: 'closing', label: 'Closing Leads', icon: Handshake },
-    { id: 'templates', label: 'Message Template', icon: MessageSquare },
+    { id: 'closing', label: 'Leads Closing', icon: Handshake },
+    { id: 'templates', label: 'Message Templates', icon: MessageSquare },
   ] as const;
 
   const LeadSubTabs = [
@@ -1116,7 +1088,6 @@ export default function NewRegistrationPage() {
   }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, studentKotaLeadIds]);
 
   const canAccessTab = (tabId: string) => {
-    if (tabId === "all_leads" || tabId === "my_data") return true;
     return !!selectedWorkshop;
   };
 
@@ -1215,9 +1186,264 @@ export default function NewRegistrationPage() {
     </div>
   );
 
+  return (
+    <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
+      
+      {/* Global Sidebar for Batch Selection */}
+      <aside className={`bg-white flex flex-col flex-shrink-0 z-20 transition-all duration-300 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            {!isSidebarCollapsed && (
+              <h2 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                Workshops
+              </h2>
+            )}
+            <div className={`flex items-center gap-1 ${isSidebarCollapsed ? 'w-full justify-center flex-col' : ''}`}>
+              <button 
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {isSidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+              </button>
+              <button 
+                onClick={() => setSidebarPosition(p => p === 'left' ? 'right' : 'left')}
+                className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                title={`Move sidebar to ${sidebarPosition === 'left' ? 'right' : 'left'}`}
+              >
+                <ArrowLeftRight size={16} />
+              </button>
+            </div>
+          </div>
+          
+          {!isSidebarCollapsed ? (
+            <button 
+              onClick={() => setIsAddBatchModalOpen(true)}
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
+            >
+              <Plus size={16} /> Add Folder +
+            </button>
+          ) : (
+            <button 
+              onClick={() => setIsAddBatchModalOpen(true)}
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
+              title="Add Folder +"
+            >
+              <Plus size={16} />
+            </button>
+          )}
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Your Batches</div>}
+          {workshops.map((w) => (
+            <div 
+              key={w.id}
+              onClick={() => {
+                setSelectedWorkshop(w);
+                if (activeTab === 'forms') setActiveTab('leads');
+                toast.success(`Selected ${w.name}`);
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all relative group flex items-center ${
+                selectedWorkshop?.id === w.id 
+                  ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20' 
+                  : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
+              } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+              title={isSidebarCollapsed ? w.name : undefined}
+            >
+              {isSidebarCollapsed ? (
+                <div className="w-10 h-10 flex items-center justify-center bg-indigo-100 text-indigo-700 font-bold rounded-lg text-lg">
+                  {w.name.charAt(0)}
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 pr-12">
+                    <h3 className={`font-bold text-sm mb-1 line-clamp-1 ${selectedWorkshop?.id === w.id ? 'text-indigo-900' : 'text-slate-800'}`}>{w.name}</h3>
+                    <p className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                      <Users size={12}/> {w.leads} Leads
+                    </p>
+                  </div>
+                  
+                  {/* Hover Actions */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white/90 p-1 rounded-lg border border-slate-100 shadow-sm">
+                    {workshops.findIndex(wx => wx.id === w.id) > 0 && (
+                      <button 
+                        onClick={(e) => handleMoveBatchUp(e, workshops.findIndex(wx => wx.id === w.id))}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Move Up"
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                    )}
+                    {workshops.findIndex(wx => wx.id === w.id) < workshops.length - 1 && (
+                      <button 
+                        onClick={(e) => handleMoveBatchDown(e, workshops.findIndex(wx => wx.id === w.id))}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Move Down"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                    )}
+                    <button 
+                      onClick={(e) => handleEditBatch(e, w)}
+                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button 
+                      onClick={(e) => handleDeleteBatch(e, w.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </aside>
 
-  const renderWorkshopForm = () => {
-    return (
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        
+        {/* Header for Tabs */}
+        <header className="bg-white px-6 pt-5 pb-0 border-b border-slate-200 flex-shrink-0 z-10 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
+              <FileText className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">
+                {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
+              </h1>
+              <p className="text-sm text-slate-500 font-medium">
+                {selectedWorkshop ? 'Manage leads, workflow, and settings' : 'Choose from the sidebar on the left'}
+              </p>
+            </div>
+          </div>
+
+          {/* Top Navigation Tabs */}
+          <div className="flex gap-6 overflow-x-auto no-scrollbar border-b-2 border-transparent">
+            {TopTabs.map(tab => {
+              let count = null;
+              if (selectedWorkshop) {
+                switch (tab.id) {
+                  case 'forms': count = leadsData.length; break;
+                  case 'leads': count = leadsData.filter(l => pendingLeadIds.includes(l.id)).length; break;
+                  case 'approval': count = leadsData.filter(l => approvedLeadIds.includes(l.id) || registeredLeadIds.includes(l.id)).length; break;
+                  case 'closing': count = leadsData.filter(l => registeredLeadIds.includes(l.id)).length; break;
+                }
+              }
+              
+              return (
+              <button
+                key={tab.id}
+                disabled={!canAccessTab(tab.id)}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === tab.id 
+                    ? 'border-indigo-600 text-indigo-700' 
+                    : canAccessTab(tab.id)
+                      ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                      : 'border-transparent text-slate-300 cursor-not-allowed'
+                }`}
+              >
+                <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
+                {tab.label} {count !== null && `- ${count}`}
+              </button>
+            )})}
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6 bg-slate-50">
+          
+          {!selectedWorkshop ? (
+             <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                <div className="bg-slate-100 p-6 rounded-full mb-6 text-slate-300">
+                  <Handshake size={48} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-600 mb-2">No Batch Selected</h3>
+                <p className="text-sm font-medium text-slate-500 max-w-sm text-center">
+                  Please select a batch from the sidebar or create a new one to access the workspace.
+                </p>
+             </div>
+          ) : (
+            <>
+              {/* TAB 1: Workshop Details */}
+              {activeTab === 'details' && (
+                <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                      <h2 className="text-lg font-bold text-slate-800">Workshop Details</h2>
+                    </div>
+                    <div className="p-6 grid grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Workshop Name</label>
+                        <input type="text" value={selectedWorkshop.name || ''} onChange={(e) => handleDetailChange('name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Language</label>
+                        <input type="text" value={selectedWorkshop.language || ''} onChange={(e) => handleDetailChange('language', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Start Date</label>
+                        <input type="date" value={selectedWorkshop.startDate || ''} onChange={(e) => handleDetailChange('startDate', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">End Date</label>
+                        <input type="date" value={selectedWorkshop.endDate || ''} onChange={(e) => handleDetailChange('endDate', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
+                        <input type="time" value={selectedWorkshop.startTime || ''} onChange={(e) => handleDetailChange('startTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
+                        <input type="time" value={selectedWorkshop.endTime || ''} onChange={(e) => handleDetailChange('endTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Duration</label>
+                        <input type="text" value={selectedWorkshop.duration || ''} onChange={(e) => handleDetailChange('duration', e.target.value)} placeholder="e.g. 2 hours" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">WhatsApp Link</label>
+                        <input type="url" value={selectedWorkshop.whatsappLink || ''} onChange={(e) => handleDetailChange('whatsappLink', e.target.value)} placeholder="https://chat.whatsapp.com/..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Zoom Link</label>
+                        <input type="url" value={selectedWorkshop.zoomLink || ''} onChange={(e) => handleDetailChange('zoomLink', e.target.value)} placeholder="https://zoom.us/j/..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Registration Link</label>
+                        <input type="url" value={selectedWorkshop.registrationLink || ''} onChange={(e) => handleDetailChange('registrationLink', e.target.value)} placeholder="https://..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div className="space-y-1 col-span-2 bg-slate-100 p-4 rounded-xl border border-slate-200 mt-2">
+                        <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
+                          Form Filter Keyword (Optional)
+                          <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px]">Important</span>
+                        </label>
+                        <p className="text-xs text-slate-500 mb-2">If multiple batches share the same Google Form, enter a keyword here (e.g. "Morning" or "Evening"). The CRM will only import leads whose form answers contain this keyword.</p>
+                        <input type="text" value={selectedWorkshop.formFilterKeyword || ''} onChange={(e) => handleDetailChange('formFilterKeyword', e.target.value)} placeholder="e.g. Morning Batch" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                    </div>
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                      {renderBulkActions()}
+                      <button 
+                        onClick={saveWorkshopSettings}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
+                      >
+                        Save Workshop Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Workshop Forms */}
+              {activeTab === 'forms' && (
                 <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in">
                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <button 
@@ -1323,10 +1549,9 @@ export default function NewRegistrationPage() {
 
                             <div className="flex items-center gap-2">
                               <select
-                                className={`w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white ${isManualFormId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                                 value={googleFormUrl}
                                 onChange={(e) => setGoogleFormUrl(e.target.value)}
-                                disabled={isManualFormId}
                               >
                                 <option value="">Select a form from your Google Drive...</option>
                                 {isLoadingGoogleForms ? (
@@ -1400,26 +1625,21 @@ export default function NewRegistrationPage() {
                               )}
                             </div>
                             
-                            <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
-                              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
-                                <input type="checkbox" checked={isManualFormId} onChange={(e) => setIsManualFormId(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-                                I want to map fields manually (e.g. if the form cannot be fetched via API)
-                              </label>
-                              {isManualFormId && (
-                                <div className="flex items-center gap-2">
-                                  <input 
-                                    type="text" 
-                                    value={googleFormUrl} 
-                                    onChange={(e) => setGoogleFormUrl(e.target.value)}
-                                    placeholder="Enter Google Form ID"
-                                    className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-800 bg-white outline-none focus:ring-2 focus:ring-indigo-500"
-                                  />
-                                </div>
-                              )}
-                            </div>
+                            <details className="text-xs text-slate-500 pt-2 border-t border-slate-200">
+                              <summary className="cursor-pointer hover:text-slate-800 font-medium">Or enter Form ID manually</summary>
+                              <div className="flex items-center gap-2 mt-3">
+                                <input 
+                                  type="text" 
+                                  value={googleFormUrl} 
+                                  onChange={(e) => setGoogleFormUrl(e.target.value)}
+                                  placeholder="Google Form ID"
+                                  className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                              </div>
+                            </details>
                             
                             {/* Mapping UI will be rendered below when a form is selected and its fields are fetched */}
-                            {(Object.keys(googleFormQuestionMap).length > 0 || isManualFormId) && formSource === 'google' && (
+                            {Object.keys(googleFormQuestionMap).length > 0 && formSource === 'google' && (
                               <div className="mt-6 pt-4 border-t border-slate-200">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="font-bold text-slate-800 text-sm">Map Google Form Fields to CRM</h4>
@@ -1457,38 +1677,30 @@ export default function NewRegistrationPage() {
                                           }} className="text-slate-400 hover:text-indigo-600 transition-colors" title="Edit Field">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                           </button>
-                                          <button onClick={() => {
-                                            if (confirm(`Delete the "${field.id}" field?`)) {
-                                              setCrmFields(prev => prev.filter(f => f.id !== field.id));
-                                              const newMapping = { ...fieldMapping };
-                                              delete newMapping[field.id];
-                                              setFieldMapping(newMapping);
-                                            }
-                                          }} className="text-slate-400 hover:text-red-600 transition-colors" title="Delete Field">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                          </button>
+                                          {!['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].includes(field.id) && (
+                                            <button onClick={() => {
+                                              if (confirm(`Delete the "${field.id}" field?`)) {
+                                                setCrmFields(prev => prev.filter(f => f.id !== field.id));
+                                                const newMapping = { ...fieldMapping };
+                                                delete newMapping[field.id];
+                                                setFieldMapping(newMapping);
+                                              }
+                                            }} className="text-slate-400 hover:text-red-600 transition-colors" title="Delete Field">
+                                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                            </button>
+                                          )}
                                         </div>
                                       </div>
-                                      {isManualFormId ? (
-                                        <input
-                                          type="text"
-                                          placeholder="Exact form question"
-                                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
-                                          value={fieldMapping[field.id] || ''}
-                                          onChange={(e) => setFieldMapping({...fieldMapping, [field.id]: e.target.value})}
-                                        />
-                                      ) : (
-                                        <select
-                                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
-                                          value={fieldMapping[field.id] || ''}
-                                          onChange={(e) => setFieldMapping({...fieldMapping, [field.id]: e.target.value})}
-                                        >
-                                          <option value="">-- Ignore --</option>
-                                          {Object.entries(googleFormQuestionMap).map(([qId, qTitle]) => (
-                                            <option key={qId} value={qTitle}>{qTitle}</option>
-                                          ))}
-                                        </select>
-                                      )}
+                                      <select
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
+                                        value={fieldMapping[field.id] || ''}
+                                        onChange={(e) => setFieldMapping({...fieldMapping, [field.id]: e.target.value})}
+                                      >
+                                        <option value="">-- Ignore --</option>
+                                        {Object.entries(googleFormQuestionMap).map(([qId, qTitle]) => (
+                                          <option key={qId} value={qTitle}>{qTitle}</option>
+                                        ))}
+                                      </select>
                                     </div>
                                   ))}
                                 </div>
@@ -1553,51 +1765,20 @@ export default function NewRegistrationPage() {
                           </div>
                           
                           {!isMapDataCollapsed && (
-                            <div className="flex items-center gap-4">
-                              <label className="flex items-center gap-2 text-sm text-indigo-600 font-bold cursor-pointer">
-                                <input type="checkbox" defaultChecked className="rounded text-indigo-600" />
-                                Select All
-                              </label>
-                              <button onClick={() => {
-                                const newField = prompt('Enter new field name:');
-                                if (newField && newField.trim() && !mapDataFields.includes(newField.trim())) {
-                                  setMapDataFields(prev => [...prev, newField.trim()]);
-                                }
-                              }} className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded font-bold transition-colors">
-                                + Add Field
-                              </button>
-                            </div>
+                            <label className="flex items-center gap-2 text-sm text-indigo-600 font-bold cursor-pointer">
+                              <input type="checkbox" defaultChecked className="rounded text-indigo-600" />
+                              Select All
+                            </label>
                           )}
                         </div>
                         
                         {!isMapDataCollapsed && (
                           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 gap-3 animate-fade-in">
-                            {mapDataFields.map((field) => (
-                              <div key={field} className="group flex items-center justify-between p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200">
-                                <label className="flex items-center gap-3 cursor-pointer">
-                                  <input type="checkbox" defaultChecked className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" />
-                                  <span className="text-sm font-bold text-slate-700">{field}</span>
-                                </label>
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                                  <button onClick={(e) => {
-                                    e.preventDefault();
-                                    const newName = prompt('Edit field name:', field);
-                                    if (newName && newName.trim() && newName.trim() !== field) {
-                                      setMapDataFields(prev => prev.map(f => f === field ? newName.trim() : f));
-                                    }
-                                  }} className="text-slate-400 hover:text-indigo-600 transition-colors" title="Edit Field">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                  </button>
-                                  <button onClick={(e) => {
-                                    e.preventDefault();
-                                    if (confirm(`Delete "${field}"?`)) {
-                                      setMapDataFields(prev => prev.filter(f => f !== field));
-                                    }
-                                  }} className="text-slate-400 hover:text-red-600 transition-colors" title="Delete Field">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                  </button>
-                                </div>
-                              </div>
+                            {['Name', 'Email', 'WhatsApp Number', 'Age', 'Profession', 'Country', 'City', 'Health Issues', 'Workshop Date'].map((field) => (
+                              <label key={field} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200">
+                                <input type="checkbox" defaultChecked className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" />
+                                <span className="text-sm font-bold text-slate-700">{field}</span>
+                              </label>
                             ))}
                           </div>
                         )}
@@ -1944,408 +2125,7 @@ export default function NewRegistrationPage() {
                     )}
                   </div>
                 </div>
-    );
-  };
-
-  return (
-    <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
-      
-      {/* Global Sidebar for Batch Selection */}
-      <aside className={`bg-white flex flex-col flex-shrink-0 z-20 transition-all duration-300 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            {!isSidebarCollapsed && (
-              <h2 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                Workshops
-              </h2>
-            )}
-            <div className={`flex items-center gap-1 ${isSidebarCollapsed ? 'w-full justify-center flex-col' : ''}`}>
-              <button 
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
-                title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {isSidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-              </button>
-              <button 
-                onClick={() => setSidebarPosition(p => p === 'left' ? 'right' : 'left')}
-                className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
-                title={`Move sidebar to ${sidebarPosition === 'left' ? 'right' : 'left'}`}
-              >
-                <ArrowLeftRight size={16} />
-              </button>
-            </div>
-          </div>
-          
-          {!isSidebarCollapsed ? (
-            <button 
-              onClick={() => setIsAddBatchModalOpen(true)}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
-            >
-              <Plus size={16} /> Add Folder +
-            </button>
-          ) : (
-            <button 
-              onClick={() => setIsAddBatchModalOpen(true)}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
-              title="Add Folder +"
-            >
-              <Plus size={16} />
-            </button>
-          )}
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {activeTab === 'all_leads' && (
-            <>
-              {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Languages</div>}
-              {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
-                <div
-                  key={lang}
-                  onClick={() => {
-                    setSelectedDashboardLang(lang);
-                    setSelectedWorkshop(null); // Clear selected workshop when clicking a language
-                    setActiveTab('all_leads'); // Route to All Leads Data
-                  }}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                    selectedDashboardLang === lang
-                      ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
-                      : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-                  } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                  title={isSidebarCollapsed ? lang : undefined}
-                >
-                  {isSidebarCollapsed ? (
-                    <div className="font-bold text-sm">{lang.substring(0, 2)}</div>
-                  ) : (
-                    <h3 className={`font-bold text-sm ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>{lang}</h3>
-                  )}
-                </div>
-              ))}
-            </>
-          )}
-
-          {activeTab !== 'all_leads' && (
-            <>
-              {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Your Batches ({selectedDashboardLang})</div>}
-          {workshops.filter((w) => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase()).map((w) => (
-            <div 
-              key={w.id}
-              onClick={() => {
-                setSelectedWorkshop(w);
-                setActiveTab('my_data'); // Route to My Data
-                toast.success(`Selected ${w.name}`);
-              }}
-              className={`p-3 rounded-xl border cursor-pointer transition-all relative group flex items-center ${
-                selectedWorkshop?.id === w.id 
-                  ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20' 
-                  : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-              } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-              title={isSidebarCollapsed ? w.name : undefined}
-            >
-              {isSidebarCollapsed ? (
-                <div className="w-10 h-10 flex items-center justify-center bg-indigo-100 text-indigo-700 font-bold rounded-lg text-lg">
-                  {w.name.charAt(0)}
-                </div>
-              ) : (
-                <>
-                  <div className="flex-1 pr-12">
-                    <h3 className={`font-bold text-sm mb-1 line-clamp-1 ${selectedWorkshop?.id === w.id ? 'text-indigo-900' : 'text-slate-800'}`}>{w.name}</h3>
-                    <p className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                      <Users size={12}/> {w.leads} Leads
-                    </p>
-                  </div>
-                  
-                  {/* Hover Actions */}
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white/90 p-1 rounded-lg border border-slate-100 shadow-sm">
-                    {workshops.findIndex(wx => wx.id === w.id) > 0 && (
-                      <button 
-                        onClick={(e) => handleMoveBatchUp(e, workshops.findIndex(wx => wx.id === w.id))}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="Move Up"
-                      >
-                        <ChevronUp size={14} />
-                      </button>
-                    )}
-                    {workshops.findIndex(wx => wx.id === w.id) < workshops.length - 1 && (
-                      <button 
-                        onClick={(e) => handleMoveBatchDown(e, workshops.findIndex(wx => wx.id === w.id))}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="Move Down"
-                      >
-                        <ChevronDown size={14} />
-                      </button>
-                    )}
-                    <button 
-                      onClick={(e) => handleEditBatch(e, w)}
-                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Edit"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button 
-                      onClick={(e) => handleDeleteBatch(e, w.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </>
               )}
-            </div>
-          ))}
-            </>
-          )}
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        
-        {/* Header for Tabs */}
-        <header className="bg-white px-6 pt-5 pb-0 border-b border-slate-200 flex-shrink-0 z-10 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
-              <FileText className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
-              </h1>
-              <p className="text-sm text-slate-500 font-medium">
-                {selectedWorkshop ? 'Manage leads, workflow, and settings' : 'Choose from the sidebar on the left'}
-              </p>
-            </div>
-          </div>
-
-          {/* Top Navigation Tabs */}
-          <div className="flex gap-6 overflow-x-auto no-scrollbar border-b-2 border-transparent">
-            {TopTabs.map(tab => {
-              let count = null;
-              if (selectedWorkshop) {
-                switch (tab.id) {
-                  case 'forms': count = leadsData.length; break;
-                  case 'leads': count = leadsData.filter(l => pendingLeadIds.includes(l.id)).length; break;
-                  case 'approval': count = leadsData.filter(l => approvedLeadIds.includes(l.id) || registeredLeadIds.includes(l.id)).length; break;
-                  case 'closing': count = leadsData.filter(l => registeredLeadIds.includes(l.id)).length; break;
-                }
-              }
-              
-              return (
-              <button
-                key={tab.id}
-                disabled={!canAccessTab(tab.id)}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  if (tab.id === 'all_leads') setSelectedWorkshop(null);
-                }}
-                className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${
-                  activeTab === tab.id 
-                    ? 'border-indigo-600 text-indigo-700' 
-                    : canAccessTab(tab.id)
-                      ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                      : 'border-transparent text-slate-300 cursor-not-allowed'
-                }`}
-              >
-                <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
-                {tab.label} {count !== null && `- ${count}`}
-              </button>
-            )})}
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          
-          {!selectedWorkshop && activeTab === "all_leads" && (
-            <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6">
-                  <div className="mb-6 flex justify-between items-start">
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800">
-                        {selectedDashboardLang} Dashboard
-                      </h2>
-                      <p className="text-sm text-slate-500 mt-1">
-                        View active batches for this language.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {renderWorkshopForm()}
-                  {/* Grid of Batch Cards */}
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Active Batches</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    {workshops
-                      .filter((w) => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase())
-                      .map((w) => (
-                        <div key={w.id} onClick={() => { setSelectedWorkshop(w); setActiveTab("my_data" as any); }} className="border p-6 rounded-xl cursor-pointer hover:shadow-lg transition-all bg-white group">
-                          <div className="flex justify-between items-start mb-4">
-                            <h3 className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{w.name}</h3>
-                            <div className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-1 rounded">
-                              {w.leads || 0} Leads
-                            </div>
-                          </div>
-                          <div className="text-sm text-slate-500 space-y-1">
-                            <p><strong>Start:</strong> {w.startDate ? new Date(w.startDate).toLocaleDateString() : 'N/A'}</p>
-                            <p><strong>Duration:</strong> {w.duration || 'N/A'}</p>
-                          </div>
-                        </div>
-                      ))}
-                    {workshops.filter((w) => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase()).length === 0 && (
-                      <div className="col-span-full text-center py-8 text-slate-500">No batches found for this language.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* We use !selectedWorkshop ? <> ... </> : <> ... </> */}
-          {!selectedWorkshop ? (
-            <>
-              {/* My Data Table for Master View */}
-              {activeTab === 'my_data' && (
-                <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="p-6">
-                      <div className="mb-6 flex justify-between items-start">
-                        <div>
-                          <h2 className="text-xl font-bold text-slate-800">
-                            {selectedDashboardLang} Leads
-                          </h2>
-                          <p className="text-sm text-slate-500 mt-1">
-                            All leads for this language across all batches.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50 border-y border-slate-200">
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Lead details
-                              </th>
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Contact
-                              </th>
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Language
-                              </th>
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Date
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {masterViewLanguageFilteredLeads.map((lead: any) => (
-                              <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-4 py-4">
-                                  <div className="font-medium text-slate-900">{lead.name || "N/A"}</div>
-                                  <div className="text-xs text-slate-500 mt-0.5">{lead.city || "Unknown City"}</div>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <div className="text-sm text-slate-700">{lead.email || "N/A"}</div>
-                                  <div className="text-xs text-slate-500">{lead.phoneNumber || "N/A"}</div>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700">
-                                    {lead.language || selectedDashboardLang}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-500">
-                                  {new Date(lead.createdAt || Date.now()).toLocaleDateString()}
-                                </td>
-                              </tr>
-                            ))}
-                            {masterViewLanguageFilteredLeads.length === 0 && (
-                              <tr>
-                                <td colSpan={4} className="px-4 py-8 text-center text-slate-500 text-sm">
-                                  No leads found for {selectedDashboardLang}.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* TAB 1: Workshop Details (Now on its own tab) */}
-              {activeTab === 'workshop_details' && (
-                <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                      <h2 className="text-lg font-bold text-slate-800">Workshop Details</h2>
-                    </div>
-                    <div className="p-6 grid grid-cols-2 gap-6">
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Workshop Name</label>
-                        <input type="text" value={selectedWorkshop.name || ''} onChange={(e) => handleDetailChange('name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Language</label>
-                        <input type="text" value={selectedWorkshop.language || ''} onChange={(e) => handleDetailChange('language', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Start Date</label>
-                        <input type="date" value={selectedWorkshop.startDate || ''} onChange={(e) => handleDetailChange('startDate', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">End Date</label>
-                        <input type="date" value={selectedWorkshop.endDate || ''} onChange={(e) => handleDetailChange('endDate', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
-                        <input type="time" value={selectedWorkshop.startTime || ''} onChange={(e) => handleDetailChange('startTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
-                        <input type="time" value={selectedWorkshop.endTime || ''} onChange={(e) => handleDetailChange('endTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Duration</label>
-                        <input type="text" value={selectedWorkshop.duration || ''} onChange={(e) => handleDetailChange('duration', e.target.value)} placeholder="e.g. 2 hours" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">WhatsApp Link</label>
-                        <input type="url" value={selectedWorkshop.whatsappLink || ''} onChange={(e) => handleDetailChange('whatsappLink', e.target.value)} placeholder="https://chat.whatsapp.com/..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Zoom Link</label>
-                        <input type="url" value={selectedWorkshop.zoomLink || ''} onChange={(e) => handleDetailChange('zoomLink', e.target.value)} placeholder="https://zoom.us/j/..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Registration Link</label>
-                        <input type="url" value={selectedWorkshop.registrationLink || ''} onChange={(e) => handleDetailChange('registrationLink', e.target.value)} placeholder="https://..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1 col-span-2 bg-slate-100 p-4 rounded-xl border border-slate-200 mt-2">
-                        <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                          Form Filter Keyword (Optional)
-                          <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px]">Important</span>
-                        </label>
-                        <p className="text-xs text-slate-500 mb-2">If multiple batches share the same Google Form, enter a keyword here (e.g. "Morning" or "Evening"). The CRM will only import leads whose form answers contain this keyword.</p>
-                        <input type="text" value={selectedWorkshop.formFilterKeyword || ''} onChange={(e) => handleDetailChange('formFilterKeyword', e.target.value)} placeholder="e.g. Morning Batch" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                    </div>
-                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                      {renderBulkActions()}
-                      <button 
-                        onClick={saveWorkshopSettings}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
-                      >
-                        Save Workshop Details
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: My Data (Now renders the Workshop Registration Form) */}
-              {activeTab === 'my_data' && renderWorkshopForm()}
 
         {/* TAB 3: Leads Management */}
         {activeTab === 'leads' && (

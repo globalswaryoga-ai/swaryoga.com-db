@@ -523,7 +523,7 @@ function applySessionChangeFilter(data: any, phoneChangedAt: Date | null) {
   };
 }
 
-async function getMongoSessionChats(userId: string, connectedPhone: string) {
+async function getBunnySessionChats(userId: string, connectedPhone: string) {
   if (!userId || !connectedPhone) return [];
 
   try {
@@ -560,7 +560,7 @@ async function getMongoSessionChats(userId: string, connectedPhone: string) {
  * merge they'd briefly disappear from the inbox even though their history
  * is safely stored in qr_whatsapp_chats for this connectedPhone).
  */
-function mergeBridgeAndMongoChats(bridgeChats: any[], mongoChats: any[]): any[] {
+function mergeBridgeAndBunnyChats(bridgeChats: any[], mongoChats: any[]): any[] {
   const byId = new Map<string, any>();
   for (const chat of mongoChats) {
     if (chat?.id) byId.set(String(chat.id), chat);
@@ -593,7 +593,7 @@ function hasVisibleChatActivity(chat: any): boolean {
   );
 }
 
-async function syncMongoSessionChats(userId: string, connectedPhone: string, chats: any[]) {
+async function syncBunnySessionChats(userId: string, connectedPhone: string, chats: any[]) {
   if (!userId || !connectedPhone || !Array.isArray(chats)) return;
 
   try {
@@ -1388,7 +1388,7 @@ export async function POST(req: NextRequest) {
     // After a new QR scan, keep only chats whose activity is newer than the phone-change timestamp.
     // This prevents stale chats from the previously scanned number from leaking into the tenant inbox.
     if (decodedPath === '/chats') {
-      const rawBridgeData = data; // preserve unfiltered bridge data for MongoDB sync
+      const rawBridgeData = data; // preserve unfiltered bridge data for BunnyDB sync
       const sessionFiltered = applySessionChangeFilter(data, resolved.phoneChangedAt);
       if (sessionFiltered.filtered) {
         console.log(`[QR Bridge Proxy POST /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
@@ -1408,14 +1408,14 @@ export async function POST(req: NextRequest) {
         const allBridgeChats = getChatArray(rawBridgeData).filter(hasVisibleChatActivity);
         const filteredBridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
         if (allBridgeChats.length > 0) {
-          await syncMongoSessionChats(userId, resolved.storedPhone, allBridgeChats);
+          await syncBunnySessionChats(userId, resolved.storedPhone, allBridgeChats);
         }
-        const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
-        const mergedChats = mergeBridgeAndMongoChats(filteredBridgeChats, mongoChats);
+        const mongoChats = await getBunnySessionChats(userId, resolved.storedPhone);
+        const mergedChats = mergeBridgeAndBunnyChats(filteredBridgeChats, mongoChats);
         if (mergedChats.length > 0) {
           const source = filteredBridgeChats.length > 0
             ? (data?.source || 'bridge_current_session')
-            : 'qr_mongodb_fallback';
+            : 'qr_bunnydb_fallback';
           data = data?.chats
             ? { ...data, chats: mergedChats, source }
             : { chats: mergedChats, source };
@@ -1543,7 +1543,7 @@ export async function POST(req: NextRequest) {
             },
             { upsert: true }
           );
-          console.log(`[QR Bridge Proxy POST /send] Saved outbound message to MongoDB: ${chatJid}`);
+          console.log(`[QR Bridge Proxy POST /send] Saved outbound message to BunnyDB: ${chatJid}`);
 
           // Also save to WhatsAppMessage (stats/history page reads this collection)
           try {
@@ -1958,7 +1958,7 @@ export async function GET(req: NextRequest) {
     // ── SESSION ISOLATION (GET /chats) ──
     // Keep only chats newer than the current scan timestamp so previous-number chats stay hidden.
     if (path === '/chats') {
-      const rawBridgeData = data; // preserve unfiltered bridge data for MongoDB sync
+      const rawBridgeData = data; // preserve unfiltered bridge data for BunnyDB sync
       const sessionFiltered = applySessionChangeFilter(data, resolved.phoneChangedAt);
       if (sessionFiltered.filtered) {
         console.log(`[QR Bridge Proxy GET /chats] Session filter for ${userId}: ${sessionFiltered.total} total → ${sessionFiltered.visible} current-session chats`);
@@ -1978,14 +1978,14 @@ export async function GET(req: NextRequest) {
         const allBridgeChats = getChatArray(rawBridgeData).filter(hasVisibleChatActivity);
         const filteredBridgeChats = getChatArray(data).filter(hasVisibleChatActivity);
         if (allBridgeChats.length > 0) {
-          await syncMongoSessionChats(userId, resolved.storedPhone, allBridgeChats);
+          await syncBunnySessionChats(userId, resolved.storedPhone, allBridgeChats);
         }
-        const mongoChats = await getMongoSessionChats(userId, resolved.storedPhone);
-        const mergedChats = mergeBridgeAndMongoChats(filteredBridgeChats, mongoChats);
+        const mongoChats = await getBunnySessionChats(userId, resolved.storedPhone);
+        const mergedChats = mergeBridgeAndBunnyChats(filteredBridgeChats, mongoChats);
         if (mergedChats.length > 0) {
           const source = filteredBridgeChats.length > 0
             ? (data?.source || 'bridge_current_session')
-            : 'qr_mongodb_fallback';
+            : 'qr_bunnydb_fallback';
           data = data?.chats
             ? { ...data, chats: mergedChats, source }
             : { chats: mergedChats, source };
@@ -2051,7 +2051,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── MONGODB FALLBACK FOR /messages ──
+    // ── BUNNYDB FALLBACK FOR /messages ──
     // When bridge returns empty messages (memory wiped on restart),
     // fall back to persistent MongoDB storage
     if (path.startsWith('/messages/') && data?.messages?.length === 0) {
@@ -2085,10 +2085,10 @@ export async function GET(req: NextRequest) {
             .lean();
           
           const filterNote = resolved.phoneChangedAt ? ` (filtered after ${resolved.phoneChangedAt.toISOString()})` : '';
-          console.log(`[QR Bridge Proxy] MongoDB fallback query: userId=${userId}, connectedPhone=${connectedPhone}, chatJid=${chatJid} (raw was ${chatJidRaw})${filterNote} → found ${dbMessages.length} messages`);
+          console.log(`[QR Bridge Proxy] BunnyDB fallback query: userId=${userId}, connectedPhone=${connectedPhone}, chatJid=${chatJid} (raw was ${chatJidRaw})${filterNote} → found ${dbMessages.length} messages`);
 
           if (dbMessages.length > 0) {
-            console.log(`[QR Bridge Proxy] ✅ MongoDB fallback SUCCESS: ${dbMessages.length} messages for ${chatJid}`);
+            console.log(`[QR Bridge Proxy] ✅ BunnyDB fallback SUCCESS: ${dbMessages.length} messages for ${chatJid}`);
             const mapped = dbMessages.map((m: any) => ({
               id: m.messageId,
               from: m.participant || m.chatJid,
@@ -2112,11 +2112,11 @@ export async function GET(req: NextRequest) {
             const responseData = Array.isArray(data) ? [{ messages: mapped, source: 'mongodb' }] : { messages: mapped, source: 'mongodb' };
             return NextResponse.json({ success: true, data: responseData }, { status: 200 });
           } else {
-            console.warn(`[QR Bridge Proxy] ⚠️ MongoDB fallback: NO MESSAGES found (chatJid=${chatJid}, raw=${chatJidRaw})`);
+            console.warn(`[QR Bridge Proxy] ⚠️ BunnyDB fallback: NO MESSAGES found (chatJid=${chatJid}, raw=${chatJidRaw})`);
           }
         }
       } catch (dbErr) {
-        console.error('[QR Bridge Proxy] MongoDB fallback error:', dbErr);
+        console.error('[QR Bridge Proxy] BunnyDB fallback error:', dbErr);
       }
     }
 

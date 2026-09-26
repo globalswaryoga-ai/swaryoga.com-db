@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
-import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -83,14 +80,21 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const workshopId = url.searchParams.get('workshopId');
 
-    // ── Primary source: MongoDB Leads labelled as enquiry ──
+    // ── Primary source: Bunny Leads labelled as enquiry ──
     let mongoEnquiries: any[] = [];
     try {
-      await connectDB();
-      const Lead = getLead();
-      const query: any = { labels: 'enquiry' };
-      const leads = await Lead.find(query).sort({ createdAt: -1 }).limit(2000).lean();
-      mongoEnquiries = (leads as any[]).map((l: any) => {
+      const { listBunnyLeads } = await import('@/lib/bunnyLeadsRepository');
+      // For SuperAdmins fetching all enquiries, we pass null for visibleUserIds/viewerUserId
+      // If we needed to restrict by user, we'd pass decoded.userId
+      const bunnyLeads = await listBunnyLeads({ 
+        visibleUserIds: null, 
+        viewerUserId: 'system',
+        label: 'enquiry',
+        limit: 2000,
+        skip: 0
+      });
+      
+      mongoEnquiries = bunnyLeads.map((l: any) => {
         const meta = l.metadata?.lastEnquiry || l.metadata || {};
         const payment = l.metadata?.payment;
         return {
@@ -116,8 +120,6 @@ export async function GET(request: NextRequest) {
           labels: l.labels || [],
           timeSlot: meta.timeSlot || null,
           dynamicAnswers: meta.dynamicAnswers || {},
-          // Include 'pending' (Pay Later link sent, not yet paid) too — not just
-          // 'paid' — so the admin can see amount due, not just amount received.
           payment: payment
             ? {
                 status: payment.status || ((l.labels || []).includes('paid') ? 'paid' : 'pending'),
@@ -131,8 +133,8 @@ export async function GET(request: NextRequest) {
       if (workshopId) {
         mongoEnquiries = mongoEnquiries.filter(e => e.workshopId === workshopId);
       }
-    } catch (mongoErr) {
-      console.error('[enquiries GET] Mongo read failed (will fall back to JSON only):', mongoErr);
+    } catch (bunnyErr) {
+      console.error('[enquiries GET] Bunny read failed:', bunnyErr);
     }
 
     // ── BunnyDB source: form_submissions ──
@@ -271,18 +273,17 @@ export async function POST(request: NextRequest) {
     // Also create/update CRM Lead so enquiries appear under Leads for unknown users
     let leadNumber: string | null = null;
     try {
-      await connectDB();
-      const Lead = getLead();
+      const { getBunnyLeadByPhone, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
       const cleanedPhone = normalizePhone(body.mobile);
       const cleanedName = String(body.name || '').trim();
 
       if (cleanedPhone) {
-        const existingLead = await Lead.findOne({ phoneNumber: cleanedPhone });
+        const existingLead = await getBunnyLeadByPhone(cleanedPhone);
 
         if (existingLead) {
           // Update existing lead with enquiry info
           if (!existingLead.leadNumber) {
-            const { leadNumber: num } = await allocateNextLeadNumber();
+            const { leadNumber: num } = await allocateNextLeadNumber('system');
             existingLead.leadNumber = num;
           }
           if (cleanedName && !existingLead.name) existingLead.name = cleanedName;
@@ -303,13 +304,13 @@ export async function POST(request: NextRequest) {
               dynamicAnswers: body.dynamicAnswers || {},
             },
           };
-          await existingLead.save();
-          await addLeadToMainBroadcastList(existingLead);
+          await saveBunnyLead(existingLead, existingLead._id);
+          try { await addLeadToMainBroadcastList(existingLead); } catch(e) {}
           leadNumber = existingLead.leadNumber;
         } else {
           // Create new lead for unknown user
-          const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
-          const newLead = await Lead.create({
+          const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber('system');
+          const newLead = await saveBunnyLead({
             leadNumber: allocatedLeadNumber,
             name: cleanedName || 'Unknown User',
             phoneNumber: cleanedPhone,
@@ -319,6 +320,7 @@ export async function POST(request: NextRequest) {
             labels: ['enquiry', 'admin-form', body.workshopName || 'general'],
             createdByUserId: 'system',
             assignedToUserId: 'system',
+            createdAt: new Date().toISOString(),
             metadata: {
               formType: 'admin-enquiry',
               workshopId: body.workshopId,
@@ -329,7 +331,7 @@ export async function POST(request: NextRequest) {
               dynamicAnswers: body.dynamicAnswers || {},
             },
           });
-          await addLeadToMainBroadcastList(newLead);
+          try { await addLeadToMainBroadcastList(newLead); } catch(e) {}
           leadNumber = allocatedLeadNumber;
           console.log(`✅ New CRM lead created from admin enquiry: ${allocatedLeadNumber}`);
         }
@@ -460,16 +462,20 @@ export async function PATCH(request: NextRequest) {
 
     // We allow any field to be updated now.
 
-    // ── Primary: update the MongoDB Lead this enquiry was sourced from ──
+    // ── Primary: update the Bunny Lead this enquiry was sourced from ──
     try {
-      await connectDB();
-      const Lead = getLead();
-      const or: any[] = [{ leadNumber: enquiryId }];
-      if (mongoose.Types.ObjectId.isValid(enquiryId)) or.push({ _id: enquiryId });
-
-      const lead =
-        (await Lead.findOne({ $or: or, labels: 'enquiry' })) ||
-        (await Lead.findOne({ $or: or }));
+      const { getBunnyLeadById, listBunnyLeads, saveBunnyLead } = await import('@/lib/bunnyLeadsRepository');
+      
+      let lead = null;
+      // Try by ID first if it looks like a document ID
+      if (enquiryId && enquiryId.length > 10) {
+          lead = await getBunnyLeadById(enquiryId);
+      }
+      // Fallback to searching by leadNumber
+      if (!lead) {
+          const leads = await listBunnyLeads({ visibleUserIds: null, viewerUserId: 'system', skip: 0, limit: 100 });
+          lead = leads.find((l: any) => l.leadNumber === enquiryId || String(l._id) === enquiryId);
+      }
 
       if (lead) {
         if (body.status) lead.status = ENQUIRY_TO_LEAD_STATUS[body.status] || body.status;
@@ -495,17 +501,14 @@ export async function PATCH(request: NextRequest) {
           });
         }
         
-        // Mark metadata modified
-        lead.markModified('metadata');
-        
-        await lead.save();
+        await saveBunnyLead(lead, lead._id);
         return NextResponse.json(
           { message: 'Enquiry updated successfully', data: { id: enquiryId, name: lead.name, mobile: lead.phoneNumber, status: body.status } },
           { status: 200 }
         );
       }
-    } catch (mongoErr) {
-      console.error('[enquiries PATCH] Mongo update failed, falling back to JSON:', mongoErr);
+    } catch (bunnyErr) {
+      console.error('[enquiries PATCH] Bunny update failed, falling back to JSON:', bunnyErr);
     }
 
     // ── Fallback: legacy JSON file (old local-only entries) ──

@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: updatedLead, merged: true }, { status: 200 });
     }
 
-    // TODO (Phase 4): lead numbering generation relies on a MongoDB collection. For now, generate random string
-    const leadNumber = 'L' + Math.floor(Math.random() * 1000000);
+    // Use the bunny-based lead numbering
+    const { leadNumber } = await allocateNextLeadNumber(viewerUserId);
 
     const lead = await saveBunnyLead({
       leadNumber,

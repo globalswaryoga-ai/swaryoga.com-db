@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { getCohort, listRecordings, listStudents, markRecordingDelivered, updateCohort, listAttendance } from '@/lib/workshopBunnyRepository';
-import { connectDB } from '@/lib/db';
-import { getServiceConnection } from '@/lib/schemas/enterpriseSchemas';
+
 import nodemailer from 'nodemailer';
 import { getWhatsAppBridgeConfig } from '@/lib/whatsappBridgeConfig';
 import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
@@ -153,10 +152,8 @@ export async function POST(request: NextRequest) {
   const sessionKey = cohort.createdByUserId || decoded.userId;
   const attendanceData = await listAttendance(cohortId);
   
-  await connectDB();
-  const ServiceConnection = getServiceConnection();
-  const conn = await ServiceConnection.findOne({ ownerId: sessionKey }).lean() as any;
-  const emailConfig = conn?.email;
+  // MongoDB has been removed; email sending is disabled until migrated to Bunny DB
+  const emailConfig = null;
 
   let transporter: nodemailer.Transporter | null = null;
   if (emailConfig?.connected && emailConfig?.provider === 'smtp') {

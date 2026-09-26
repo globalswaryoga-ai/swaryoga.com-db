@@ -56,9 +56,7 @@ export async function PATCH(request: NextRequest) {
     const updates: any = {};
     if (body.googleFormLink !== undefined) {
       const googleFormLink = String(body.googleFormLink || '').trim();
-      if (googleFormLink && !/^https?:\/\//i.test(googleFormLink)) {
-        return NextResponse.json({ error: 'Google Forms link must start with http:// or https://' }, { status: 400 });
-      }
+
       updates.googleFormLink = googleFormLink || null;
     }
     if (body.zoomMeetingId !== undefined) {
