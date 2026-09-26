@@ -87,8 +87,11 @@ export default function NewRegistrationPage() {
   const dynamicColumns = useMemo(() => {
     const keys = new Set<string>();
     leadsData.forEach(lead => {
-      if (lead.dynamicAnswers) {
-        Object.keys(lead.dynamicAnswers).forEach(k => keys.add(k));
+      const answers = lead.dynamicAnswers || lead._rawRecord;
+      if (answers) {
+        Object.keys(answers).forEach(k => {
+          if (k !== 'Timestamp' && k !== 'Email Address') keys.add(k);
+        });
       }
     });
     const allKeys = Array.from(keys);
@@ -2019,11 +2022,13 @@ export default function NewRegistrationPage() {
                                       <td className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] sticky left-[200px] z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
                                         <div className="truncate w-full" title={lead.mobile || lead.phoneNumber}>{lead.mobile || lead.phoneNumber || '-'}</div>
                                       </td>
-                                    {showDynamicColumns && dynamicColumns.map(col => (
+                                    {showDynamicColumns && dynamicColumns.map(col => {
+                                      const val = (lead.dynamicAnswers && lead.dynamicAnswers[col]) || (lead._rawRecord && lead._rawRecord[col]) || '-';
+                                      return (
                                       <td key={col} className="px-4 py-3 whitespace-normal min-w-[150px] max-w-[200px] break-words text-slate-500 text-xs">
-                                        <div className="line-clamp-2" title={lead.dynamicAnswers?.[col]}>{lead.dynamicAnswers?.[col] || '-'}</div>
+                                        <div className="line-clamp-2" title={val}>{val}</div>
                                       </td>
-                                    ))}
+                                    )})}
                                       <td className={`px-4 py-3 whitespace-nowrap w-[200px] min-w-[200px] ${bgClass} transition-colors`}>
                                         <div className="truncate w-full" title={lead.email}>{lead.email || '-'}</div>
                                       </td>
