@@ -59,7 +59,7 @@ export default function NewRegistrationPage() {
   const [ai4Interval, setAi4Interval] = useState(10);
   const [ai4FormatRules, setAi4FormatRules] = useState('');
   const [needsGoogleAuth, setNeedsGoogleAuth] = useState(false);
-  const [showDynamicColumns, setShowDynamicColumns] = useState(false);
+  const [showDynamicColumns, setShowDynamicColumns] = useState(true);
   const [googleAuthError, setGoogleAuthError] = useState('');
   const [googleFormsList, setGoogleFormsList] = useState<any[]>([]);
   const [isLoadingGoogleForms, setIsLoadingGoogleForms] = useState(false);
