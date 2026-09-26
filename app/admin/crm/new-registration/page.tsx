@@ -39,6 +39,7 @@ export default function NewRegistrationPage() {
   const [isAiWorkerActive, setIsAiWorkerActive] = useState(false);
   const [approvedLeadIds, setApprovedLeadIds] = useState<string[]>([]);
   const [pendingLeadIds, setPendingLeadIds] = useState<string[]>([]);
+  const [pending2LeadIds, setPending2LeadIds] = useState<string[]>([]);
   const [registeredLeadIds, setRegisteredLeadIds] = useState<string[]>([]);
   const [rejectedLeadIds, setRejectedLeadIds] = useState<string[]>([]);
   const [studentKotaLeadIds, setStudentKotaLeadIds] = useState<string[]>([]);
@@ -67,6 +68,19 @@ export default function NewRegistrationPage() {
   const [approvalAiInsights, setApprovalAiInsights] = useState<Record<string, string>>({});
   const [pendingAiInsights, setPendingAiInsights] = useState<Record<string, string>>({});
   const [registeredAiInsights, setRegisteredAiInsights] = useState<Record<string, string>>({});
+  const [crmFields, setCrmFields] = useState<{id: string, label: string}[]>([
+    {id: 'Name', label: 'NAME'},
+    {id: 'Email', label: 'EMAIL'},
+    {id: 'Mobile', label: 'MOBILE'},
+    {id: 'City', label: 'CITY'},
+    {id: 'Country', label: 'COUNTRY'},
+    {id: 'Gender', label: 'GENDER'}
+  ]);
+  
+  const [columnOrder, setColumnOrder] = useState<string[]>(['name', 'whatsapp', 'email', 'gender', 'city', 'payment', 'submittedAt']);
+  const [rowDensity, setRowDensity] = useState<'compact'|'normal'|'comfortable'>('compact');
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
   
   const token = useAuth();
   
@@ -97,7 +111,7 @@ export default function NewRegistrationPage() {
     if (!isAiWorkerActive || leadsData.length === 0) return;
     
     const interval = setInterval(() => {
-      const unapproved = leadsData.filter(l => crmLeadIds.includes(l.id) && !approvedLeadIds.includes(l.id) && !pendingLeadIds.includes(l.id));
+      const unapproved = leadsData.filter(l => crmLeadIds.includes(l.id) && !approvedLeadIds.includes(l.id) && !pendingLeadIds.includes(l.id) && !pending2LeadIds.includes(l.id));
       if (unapproved.length > 0) {
         const toProcess = unapproved.slice(0, 5);
         const toApprove: string[] = [];
@@ -107,7 +121,7 @@ export default function NewRegistrationPage() {
         toProcess.forEach(lead => {
           let has14Days = false;
           let hasVideo = false;
-          let hasOffer = false;
+          let hasDonation = false;
           
           if (lead.dynamicAnswers) {
             Object.entries(lead.dynamicAnswers).forEach(([q, a]) => {
@@ -119,19 +133,19 @@ export default function NewRegistrationPage() {
               
               if ((qLower.includes('14 days') || qLower.includes('attend_all')) && isPositive) has14Days = true;
               if ((qLower.includes('video') || qLower.includes('video_on')) && isPositive) hasVideo = true;
-              if ((qLower.includes('offer') || qLower.includes('commitment')) && isPositive) hasOffer = true;
+              if ((qLower.includes('donation') || qLower.includes('contribute')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
             });
           }
           
-          if (has14Days && hasVideo && hasOffer) {
+          if (has14Days && hasVideo && hasDonation) {
             toApprove.push(lead.id);
           } else {
             toPending.push(lead.id);
             let reason = '';
             if (!has14Days) reason += 'Missed 14 Days commitment. ';
             if (!hasVideo) reason += 'Missed Video On commitment. ';
-            if (!hasOffer) reason += 'Missed Offer commitment. ';
-            newPendingInsights[lead.id] = reason.trim() || 'Did not meet all conditions.';
+            if (!hasDonation) reason += 'Missed Donation commitment. ';
+            newPendingInsights[lead.id] = reason.trim() || 'Did not meet all AI-1 conditions.';
           }
         });
 
@@ -141,9 +155,9 @@ export default function NewRegistrationPage() {
           setPendingAiInsights(prev => ({ ...prev, ...newPendingInsights }));
         }
         
-        toast.success(`🤖 AI Worker processed ${toProcess.length} forms: ${toApprove.length} Approved, ${toPending.length} Pending.`);
+        toast.success(`🤖 AI-1 processed ${toProcess.length} forms: ${toApprove.length} Approved, ${toPending.length} Pending-1.`);
       }
-    }, 10000); // Temporarily 10 seconds so the user can see it work!
+    }, 10000);
     
     return () => clearInterval(interval);
   }, [isAiWorkerActive, leadsData, approvedLeadIds, pendingLeadIds, crmLeadIds]);
@@ -152,68 +166,78 @@ export default function NewRegistrationPage() {
     if (!isApprovedAiWorkerActive || leadsData.length === 0) return;
     
     const interval = setInterval(() => {
-      // Find leads that are approved but not yet evaluated by this AI (not in registered and not already having an insight)
+      // Find leads that are approved but not yet in registered or pending-2
       const unevaluated = leadsData.filter(l => 
         approvedLeadIds.includes(l.id) && 
         !registeredLeadIds.includes(l.id) && 
-        !approvalAiInsights[l.id]
+        !pending2LeadIds.includes(l.id) &&
+        !closedLeadIds.includes(l.id)
       );
       
       if (unevaluated.length > 0) {
         const toProcess = unevaluated.slice(0, 5);
         const newRegistered: string[] = [];
+        const newPending2: string[] = [];
         const newInsights: Record<string, string> = {};
         
         toProcess.forEach(lead => {
+          let hasValidEducation = false;
+          let hasValidProfession = false;
+          let hasValidAge = false;
+          let isAI3Reject = false;
           let reason = '';
           
           if (!lead.dynamicAnswers) {
             reason = 'No form data available.';
           } else {
-            let hasValidEducation = false;
-            let hasValidProfession = false;
-            let hasValidAge = false;
-            
             Object.entries(lead.dynamicAnswers).forEach(([q, a]) => {
               const qLower = q.toLowerCase();
               const aLower = String(a).toLowerCase().trim();
               
+              // AI-2 checks
               if (qLower.includes('education') || qLower.includes('qualification')) {
-                const validEduKeywords = ['10th', 'ssc', '12th', 'degree', 'grad', 'post', 'phd', 'b.', 'm.'];
+                const validEduKeywords = ['10th', 'ssc', '12th', 'hsc', 'degree', 'grad', 'post', 'phd', 'b.', 'm.', 'bca', 'mca', 'btech', 'mtech', 'ca', 'cs'];
                 if (validEduKeywords.some(kw => aLower.includes(kw))) hasValidEducation = true;
+                if (aLower.includes('student')) isAI3Reject = true; // AI-3 check
               }
               
               if (qLower.includes('profession') || qLower.includes('occupation') || qLower.includes('work')) {
-                const validProfKeywords = ['job', 'business', 'self employed', 'self-employed'];
+                const validProfKeywords = ['job', 'business', 'self employed', 'self-employed', 'professional'];
                 if (validProfKeywords.some(kw => aLower.includes(kw))) hasValidProfession = true;
+                
+                const rejectProfKeywords = ['jobless', 'job less', 'no job', 'retired', 'student', 'housewife'];
+                if (rejectProfKeywords.some(kw => aLower.includes(kw))) isAI3Reject = true; // AI-3 check
               }
               
               if (qLower.includes('age')) {
                 const age = parseInt(aLower);
-                if (!isNaN(age) && age >= 34 && age <= 60) {
-                  hasValidAge = true;
-                } else {
-                  reason += `Age is ${aLower} (must be 34-60). `;
+                if (!isNaN(age)) {
+                  if (age >= 34 && age <= 64) hasValidAge = true;
+                  if (age < 30 || age > 64) isAI3Reject = true; // AI-3 check
                 }
               }
             });
             
-            if (!hasValidEducation) reason += 'Education does not meet criteria. ';
-            if (!hasValidProfession) reason += 'Profession does not meet criteria. ';
-            if (reason === '' && (!hasValidAge)) reason += 'Age not specified or invalid. ';
+            if (isAI3Reject) {
+                reason = "AI-3 Rule: Jobless, student, retired, or age out of bounds (<30 or >64).";
+            } else {
+                if (!hasValidEducation) reason += 'Education does not meet 12th-PhD criteria. ';
+                if (!hasValidProfession) reason += 'Profession is not job/business/self-employed. ';
+                if (!hasValidAge) reason += 'Age is not between 34-64. ';
+            }
           }
           
           if (reason === '') {
             newRegistered.push(lead.id);
           } else {
+            newPending2.push(lead.id);
             newInsights[lead.id] = reason.trim();
           }
         });
         
-        if (newRegistered.length > 0) {
-          setRegisteredLeadIds(prev => [...prev, ...newRegistered]);
-        }
-        if (Object.keys(newInsights).length > 0) {
+        if (newRegistered.length > 0) setRegisteredLeadIds(prev => [...prev, ...newRegistered]);
+        if (newPending2.length > 0) {
+          setPending2LeadIds(prev => [...prev, ...newPending2]);
           setApprovalAiInsights(prev => ({ ...prev, ...newInsights }));
         }
       }
@@ -226,91 +250,25 @@ export default function NewRegistrationPage() {
     if (!isRegisteredAiWorkerActive || leadsData.length === 0) return;
     
     const interval = setInterval(() => {
-      // Find leads that are registered but not yet evaluated by this final AI (not closed and no insight yet)
+      // Find leads that are registered but not yet evaluated by this AI (not closed)
       const unevaluated = leadsData.filter(l => 
         registeredLeadIds.includes(l.id) && 
-        !closedLeadIds.includes(l.id) &&
-        !registeredAiInsights[l.id]
+        !closedLeadIds.includes(l.id)
       );
       
       if (unevaluated.length > 0) {
         const toProcess = unevaluated.slice(0, 5);
         const newClosed: string[] = [];
         const newInsights: Record<string, string> = {};
-              const MAX_CLASS_SIZE = 150; // Total batch size. Quotas are applied per 150 leads (and effectively every 10 leads the bucket check repeats).
         
-        // 1. Calculate current demographic counts from already closed leads
-        const currentClosedCounts: Record<string, number> = {
-          'F_Jobless': 0, 'F_Under30': 0, 'F_Over60_Work': 0, 'F_Work': 0,
-          'M_Jobless': 0, 'M_Under30': 0, 'M_Over60_Work': 0, 'M_Work': 0,
-        };
-        
-        const getDemographicBucket = (l: any): string | null => {
-          let age = 0;
-          let prof = '';
-          const gender = String(l.gender || '').toLowerCase();
-          const isFemale = gender.includes('f');
-          const isMale = gender.includes('m') && !isFemale;
-          
-          if (!isFemale && !isMale) return null;
-          
-          if (l.dynamicAnswers) {
-            Object.entries(l.dynamicAnswers).forEach(([q, a]) => {
-              const qLower = q.toLowerCase();
-              const aLower = String(a).toLowerCase().trim();
-              if (qLower.includes('age')) {
-                const parsedAge = parseInt(aLower);
-                if (!isNaN(parsedAge)) age = parsedAge;
-              }
-              if (qLower.includes('profession') || qLower.includes('occupation') || qLower.includes('work')) {
-                prof = aLower;
-              }
-            });
-          }
-          
-          const isJobless = prof.includes('jobless') || prof.includes('retired') || prof.includes('housewife');
-          const isWorking = prof.includes('job') || prof.includes('business') || prof.includes('self employed') || prof.includes('self-employed');
-          
-          if (isFemale) {
-            if (age > 0 && age < 30) return 'F_Under30';
-            if (age > 60 && isWorking) return 'F_Over60_Work';
-            if (isJobless) return 'F_Jobless';
-            return 'F_Work';
-          } else {
-            if (age > 0 && age < 30) return 'M_Under30';
-            if (age > 60 && isWorking) return 'M_Over60_Work';
-            if (isJobless) return 'M_Jobless';
-            return 'M_Work';
-          }
-        };
-        
-        // Pre‑fill counts from already closed leads
-        leadsData.forEach(l => {
-          if (closedLeadIds.includes(l.id)) {
-            const b = getDemographicBucket(l);
-            if (b) currentClosedCounts[b]++;
-          }
-        });
-        
-        // Quota limits based on percentages of MAX_CLASS_SIZE
-        const quotaLimits: Record<string, number> = {
-          'F_Jobless': Math.round(MAX_CLASS_SIZE * 0.10),
-          'F_Under30': Math.round(MAX_CLASS_SIZE * 0.10),
-          'F_Over60_Work': Math.round(MAX_CLASS_SIZE * 0.10),
-          'F_Work': Math.round(MAX_CLASS_SIZE * 0.20),
-          'M_Jobless': Math.round(MAX_CLASS_SIZE * 0.10),
-          'M_Under30': Math.round(MAX_CLASS_SIZE * 0.10),
-          'M_Over60_Work': Math.round(MAX_CLASS_SIZE * 0.10),
-          'M_Work': Math.round(MAX_CLASS_SIZE * 0.20),
-        };
-
         toProcess.forEach(lead => {
           let has14Days = false;
           let hasVideo = false;
-          let hasOffer = false;
+          let hasDonation = false;
           let hasValidEducation = false;
           let hasValidProfession = false;
           let hasValidAge = false;
+          let isAI3Reject = false;
           
           if (lead.dynamicAnswers) {
             Object.entries(lead.dynamicAnswers).forEach(([q, a]) => {
@@ -323,57 +281,39 @@ export default function NewRegistrationPage() {
               
               if ((qLower.includes('14 days') || qLower.includes('attend_all')) && isPositive) has14Days = true;
               if ((qLower.includes('video') || qLower.includes('video_on')) && isPositive) hasVideo = true;
-              if ((qLower.includes('offer') || qLower.includes('commitment')) && isPositive) hasOffer = true;
+              if ((qLower.includes('donation') || qLower.includes('contribute')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
               
               // AI-2 Checks
               if (qLower.includes('education') || qLower.includes('qualification')) {
-                const validEduKeywords = ['10th', 'ssc', '12th', 'degree', 'grad', 'post', 'phd', 'b.', 'm.'];
+                const validEduKeywords = ['10th', 'ssc', '12th', 'hsc', 'degree', 'grad', 'post', 'phd', 'b.', 'm.', 'bca', 'mca', 'btech', 'mtech', 'ca', 'cs'];
                 if (validEduKeywords.some(kw => aLower.includes(kw))) hasValidEducation = true;
+                if (aLower.includes('student')) isAI3Reject = true;
               }
               if (qLower.includes('profession') || qLower.includes('occupation') || qLower.includes('work')) {
-                const validProfKeywords = ['job', 'business', 'self employed', 'self-employed'];
+                const validProfKeywords = ['job', 'business', 'self employed', 'self-employed', 'professional'];
                 if (validProfKeywords.some(kw => aLower.includes(kw))) hasValidProfession = true;
+                const rejectProfKeywords = ['jobless', 'job less', 'no job', 'retired', 'student', 'housewife'];
+                if (rejectProfKeywords.some(kw => aLower.includes(kw))) isAI3Reject = true;
               }
               if (qLower.includes('age')) {
                 const age = parseInt(aLower);
-                if (!isNaN(age) && age >= 34 && age <= 60) {
-                  hasValidAge = true;
+                if (!isNaN(age)) {
+                  if (age >= 34 && age <= 64) hasValidAge = true;
+                  if (age < 30 || age > 64) isAI3Reject = true;
                 }
               }
             });
           }
           
-          if (has14Days && hasVideo && hasOffer && hasValidEducation && hasValidProfession && hasValidAge) {
-            const bucket = getDemographicBucket(lead);
-            if (bucket) {
-              if (currentClosedCounts[bucket] < quotaLimits[bucket]) {
-                newClosed.push(lead.id);
-                currentClosedCounts[bucket]++; // Occupy the slot for the next lead in toProcess
-              } else {
-                newInsights[lead.id] = `Quota Full for ${bucket.replace('_', ' ')} (${quotaLimits[bucket]} max)`;
-              }
-            } else {
-              // Could not determine bucket, maybe missing gender/age. Pass them anyway or hold?
-              newInsights[lead.id] = 'Missing demographic data for quota';
-            }
+          if (has14Days && hasVideo && hasDonation && hasValidEducation && hasValidProfession && hasValidAge && !isAI3Reject) {
+            newClosed.push(lead.id);
           } else {
-            let reason = '';
-            if (!has14Days) reason += 'Missed 14 Days. ';
-            if (!hasVideo) reason += 'Missed Video On. ';
-            if (!hasOffer) reason += 'Missed Offer. ';
-            if (!hasValidEducation) reason += 'Invalid Education. ';
-            if (!hasValidProfession) reason += 'Invalid Profession. ';
-            if (!hasValidAge) reason += 'Invalid Age. ';
-            newInsights[lead.id] = reason.trim();
+            newInsights[lead.id] = 'Failed AI-5 final combined verification.';
           }
         });
         
-        if (newClosed.length > 0) {
-          setClosedLeadIds(prev => [...prev, ...newClosed]);
-        }
-        if (Object.keys(newInsights).length > 0) {
-          setRegisteredAiInsights(prev => ({ ...prev, ...newInsights }));
-        }
+        if (newClosed.length > 0) setClosedLeadIds(prev => [...prev, ...newClosed]);
+        if (Object.keys(newInsights).length > 0) setRegisteredAiInsights(prev => ({ ...prev, ...newInsights }));
       }
     }, 5000);
     
@@ -444,7 +384,7 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     async function loadLeads() {
-      if (!linkedFormId) return;
+      if (!linkedFormId || !selectedWorkshop) return;
       if (linkedFormId !== 'google-form-sync' && !linkedFormId.includes('docs.google.com') && !token) return;
       setIsLoadingLeads(true);
       try {
@@ -472,7 +412,7 @@ export default function NewRegistrationPage() {
             if (syncRes.ok) {
               const json = await syncRes.json();
               let mappedLeads = json.data || [];
-              const ws = workshops.find((w: any) => w.formId === linkedFormId);
+              const ws = selectedWorkshop;
               if (ws?.googleFormMapping && mappedLeads.length > 0) {
                 mappedLeads = mappedLeads.map((lead: any) => {
                   const raw = lead._rawRecord || {};
@@ -521,8 +461,8 @@ export default function NewRegistrationPage() {
           // No mock fallback — if API returned no data, show empty state
           
           setLeadsData(fetchedLeads);
-          setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
-          setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: fetchedLeads.length } : prev);
+          setWorkshops(prev => prev.map(w => w.id === selectedWorkshop.id ? { ...w, leads: fetchedLeads.length } : w));
+          setSelectedWorkshop(prev => prev && prev.id === selectedWorkshop.id ? { ...prev, leads: fetchedLeads.length } : prev);
         } else {
           const res = await fetch(`/api/admin/enquiries?workshopId=${linkedFormId}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -531,8 +471,8 @@ export default function NewRegistrationPage() {
             const json = await res.json();
             const fetchedLeads = json.data || [];
             setLeadsData(fetchedLeads);
-            setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
-            setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: fetchedLeads.length } : prev);
+            setWorkshops(prev => prev.map(w => w.id === selectedWorkshop.id ? { ...w, leads: fetchedLeads.length } : w));
+            setSelectedWorkshop(prev => prev && prev.id === selectedWorkshop.id ? { ...prev, leads: fetchedLeads.length } : prev);
           }
         }
       } catch (e) {
@@ -542,7 +482,7 @@ export default function NewRegistrationPage() {
       }
     }
     loadLeads();
-  }, [linkedFormId, token, refreshLeadsCounter]);
+  }, [linkedFormId, selectedWorkshop?.id, token, refreshLeadsCounter]);
 
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -725,7 +665,7 @@ export default function NewRegistrationPage() {
     refreshGoogleForms();
 
     // Then refresh every 2 minutes
-    const googleRefreshInterval = setInterval(refreshGoogleForms, 2 * 60 * 1000);
+    const googleRefreshInterval = setInterval(refreshGoogleForms, 10 * 60 * 1000);
     return () => clearInterval(googleRefreshInterval);
   }, [isAi4Active, token]);
 
@@ -836,6 +776,7 @@ export default function NewRegistrationPage() {
         setAndCollect('crm_lead_ids' + suffix, JSON.stringify(crmLeadIds));
         setAndCollect('crm_approved_ids' + suffix, JSON.stringify(approvedLeadIds));
         setAndCollect('crm_pending_ids' + suffix, JSON.stringify(pendingLeadIds));
+        setAndCollect('crm_pending2_ids' + suffix, JSON.stringify(pending2LeadIds));
         setAndCollect('crm_registered_ids' + suffix, JSON.stringify(registeredLeadIds));
         setAndCollect('crm_rejected_ids' + suffix, JSON.stringify(rejectedLeadIds));
         setAndCollect('crm_student_kota_ids' + suffix, JSON.stringify(studentKotaLeadIds));
@@ -864,7 +805,7 @@ export default function NewRegistrationPage() {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded]);
+  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded]);
 
   useEffect(() => {
     if (selectedWorkshop?.formId) {
@@ -1055,7 +996,8 @@ export default function NewRegistrationPage() {
   const LeadSubTabs = [
     { id: 'new', label: 'New Forms' },
     { id: 'approved', label: 'Approved Forms' },
-    { id: 'pending', label: 'Pending Forms' },
+    { id: 'pending', label: 'Pending-1' },
+    { id: 'pending2', label: 'Pending-2' },
     { id: 'registered', label: 'Registered Forms' },
     { id: 'student_kota', label: 'Student Kota' },
   ] as const;
@@ -1065,10 +1007,11 @@ export default function NewRegistrationPage() {
       new: leadsData.filter(l => crmLeadIds.includes(l.id)).length,
       approved: leadsData.filter(l => crmLeadIds.includes(l.id) && (approvedLeadIds.includes(l.id) || registeredLeadIds.includes(l.id))).length,
       pending: leadsData.filter(l => crmLeadIds.includes(l.id) && pendingLeadIds.includes(l.id) && !approvedLeadIds.includes(l.id) && !registeredLeadIds.includes(l.id)).length,
+      pending2: leadsData.filter(l => crmLeadIds.includes(l.id) && pending2LeadIds.includes(l.id)).length,
       registered: leadsData.filter(l => crmLeadIds.includes(l.id) && registeredLeadIds.includes(l.id)).length,
       student_kota: leadsData.filter(l => crmLeadIds.includes(l.id) && studentKotaLeadIds.includes(l.id)).length
     };
-  }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, registeredLeadIds, studentKotaLeadIds]);
+  }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, studentKotaLeadIds]);
 
   const canAccessTab = (tabId: string) => {
     return !!selectedWorkshop;
@@ -1310,7 +1253,18 @@ export default function NewRegistrationPage() {
 
           {/* Top Navigation Tabs */}
           <div className="flex gap-6 overflow-x-auto no-scrollbar border-b-2 border-transparent">
-            {TopTabs.map(tab => (
+            {TopTabs.map(tab => {
+              let count = null;
+              if (selectedWorkshop) {
+                switch (tab.id) {
+                  case 'forms': count = leadsData.length; break;
+                  case 'leads': count = leadsData.filter(l => pendingLeadIds.includes(l.id)).length; break;
+                  case 'approval': count = leadsData.filter(l => approvedLeadIds.includes(l.id) || registeredLeadIds.includes(l.id)).length; break;
+                  case 'closing': count = leadsData.filter(l => registeredLeadIds.includes(l.id)).length; break;
+                }
+              }
+              
+              return (
               <button
                 key={tab.id}
                 disabled={!canAccessTab(tab.id)}
@@ -1324,9 +1278,9 @@ export default function NewRegistrationPage() {
                 }`}
               >
                 <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
-                {tab.label}
+                {tab.label} {count !== null && `- ${count}`}
               </button>
-            ))}
+            )})}
           </div>
         </header>
 
@@ -1613,15 +1567,55 @@ export default function NewRegistrationPage() {
                             {/* Mapping UI will be rendered below when a form is selected and its fields are fetched */}
                             {Object.keys(googleFormQuestionMap).length > 0 && formSource === 'google' && (
                               <div className="mt-6 pt-4 border-t border-slate-200">
-                                <h4 className="font-bold text-slate-800 mb-3 text-sm">Map Google Form Fields to CRM</h4>
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-bold text-slate-800 text-sm">Map Google Form Fields to CRM</h4>
+                                  <button onClick={() => {
+                                    const id = prompt('Enter new field name (e.g., Age, Profession):');
+                                    if (id && id.trim()) {
+                                      setCrmFields(prev => [...prev, { id: id.trim(), label: id.trim().toUpperCase() }]);
+                                    }
+                                  }} className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded font-bold transition-colors">
+                                    + Add Field
+                                  </button>
+                                </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                  {['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].map(crmField => (
-                                    <div key={crmField} className="space-y-1">
-                                      <label className="text-xs font-bold text-slate-500 uppercase">{crmField}</label>
+                                  {crmFields.map(field => (
+                                    <div key={field.id} className="space-y-1 group">
+                                      <div className="flex items-center justify-between h-5">
+                                        <label className="text-xs font-bold text-slate-500 uppercase">{field.label}</label>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                                          <button onClick={() => {
+                                            const newName = prompt('Edit field name:', field.id);
+                                            if (newName && newName.trim()) {
+                                              setCrmFields(prev => prev.map(f => f.id === field.id ? { id: newName.trim(), label: newName.trim().toUpperCase() } : f));
+                                              if (fieldMapping[field.id]) {
+                                                const newMapping = { ...fieldMapping };
+                                                newMapping[newName.trim()] = newMapping[field.id];
+                                                delete newMapping[field.id];
+                                                setFieldMapping(newMapping);
+                                              }
+                                            }
+                                          }} className="text-slate-400 hover:text-indigo-600 transition-colors" title="Edit Field">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                          </button>
+                                          {!['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender'].includes(field.id) && (
+                                            <button onClick={() => {
+                                              if (confirm(`Delete the "${field.id}" field?`)) {
+                                                setCrmFields(prev => prev.filter(f => f.id !== field.id));
+                                                const newMapping = { ...fieldMapping };
+                                                delete newMapping[field.id];
+                                                setFieldMapping(newMapping);
+                                              }
+                                            }} className="text-slate-400 hover:text-red-600 transition-colors" title="Delete Field">
+                                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
                                       <select
                                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
-                                        value={fieldMapping[crmField] || ''}
-                                        onChange={(e) => setFieldMapping({...fieldMapping, [crmField]: e.target.value})}
+                                        value={fieldMapping[field.id] || ''}
+                                        onChange={(e) => setFieldMapping({...fieldMapping, [field.id]: e.target.value})}
                                       >
                                         <option value="">-- Ignore --</option>
                                         {Object.entries(googleFormQuestionMap).map(([qId, qTitle]) => (
@@ -1901,7 +1895,7 @@ export default function NewRegistrationPage() {
                             });
                             
                             return (
-                              <table className="w-full text-left text-sm text-slate-600">
+                              <table className="w-full text-left text-sm text-slate-600" style={{ tableLayout: 'fixed' }}>
                                 <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
                                   <tr>
                                     <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50">
@@ -1917,13 +1911,15 @@ export default function NewRegistrationPage() {
                                     </th>
                                 <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[50px] z-30 bg-slate-50">Name</th>
                                 <th className="px-4 py-3 font-bold text-slate-500 w-[200px] min-w-[200px] sticky left-[200px] z-30 bg-slate-50">Email</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[400px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
+                                <th className="px-4 py-3 font-bold text-slate-500 w-[110px] min-w-[110px] sticky left-[400px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Gender</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Age</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">City</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Country</th>
                                 {showDynamicColumns && dynamicColumns.map(col => (
-                                  <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[180px] max-w-[250px] break-words leading-relaxed">{col}</th>
+                                  <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[100px] max-w-[150px] break-words leading-tight">
+                                    <div className="line-clamp-4" title={col}>{col}</div>
+                                  </th>
                                 ))}
                                 <th className="px-4 py-3 font-bold text-slate-500">
                                   <button onClick={() => setTab2SortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-indigo-600 transition-colors">
@@ -1975,7 +1971,7 @@ export default function NewRegistrationPage() {
                                       <td className={`px-4 py-3 whitespace-nowrap w-[200px] min-w-[200px] sticky left-[200px] z-20 ${bgClass} transition-colors`}>
                                         <div className="truncate w-full">{lead.email || '-'}</div>
                                       </td>
-                                      <td className={`px-4 py-3 whitespace-nowrap w-[150px] min-w-[150px] sticky left-[400px] z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
+                                      <td className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] sticky left-[400px] z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
                                         {lead.mobile || lead.phoneNumber || '-'}
                                       </td>
                                       <td className="px-4 py-3 capitalize whitespace-nowrap">{lead.gender || '-'}</td>
@@ -1983,7 +1979,7 @@ export default function NewRegistrationPage() {
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.country || '-'}</td>
                                     {showDynamicColumns && dynamicColumns.map(col => (
-                                      <td key={col} className="px-4 py-3 whitespace-normal min-w-[180px] max-w-[250px] break-words text-slate-500">
+                                      <td key={col} className="px-4 py-3 whitespace-normal min-w-[100px] max-w-[150px] break-words text-slate-500 text-xs">
                                         {lead.dynamicAnswers?.[col] || '-'}
                                       </td>
                                     ))}
@@ -2001,10 +1997,10 @@ export default function NewRegistrationPage() {
                                   );
                                 })
                               )}
-                            </tbody>
-                          </table>
-                          );
-                        })()}
+                             </tbody>
+                           </table>
+                           );
+                         })()}
                         </div>
                       </div>
                     )}
@@ -2114,6 +2110,10 @@ export default function NewRegistrationPage() {
                   <div className="flex items-center gap-2">
                     {renderBulkActions()}
                     <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
+                      <div className="flex bg-slate-100 rounded-lg p-0.5">
+                        <button onClick={() => setRowDensity('compact')} className={`px-2 py-1 text-xs font-bold rounded-md transition-colors ${rowDensity === 'compact' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`} title="Compact View">≡</button>
+                        <button onClick={() => setRowDensity('normal')} className={`px-2 py-1 text-xs font-bold rounded-md transition-colors ${rowDensity === 'normal' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`} title="Normal View">≣</button>
+                      </div>
                       <button 
                         onClick={() => setShowDynamicColumns(!showDynamicColumns)}
                         className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${showDynamicColumns ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
@@ -2173,6 +2173,7 @@ export default function NewRegistrationPage() {
                       if (leadSubTab === 'new') return true;
                       if (leadSubTab === 'approved') return approvedLeadIds.includes(lead.id) || registeredLeadIds.includes(lead.id);
                       if (leadSubTab === 'pending') return pendingLeadIds.includes(lead.id) && !approvedLeadIds.includes(lead.id) && !registeredLeadIds.includes(lead.id);
+                      if (leadSubTab === 'pending2') return pending2LeadIds.includes(lead.id);
                       if (leadSubTab === 'registered') return registeredLeadIds.includes(lead.id);
                       if (leadSubTab === 'student_kota') return studentKotaLeadIds.includes(lead.id);
                       return false;
@@ -2187,18 +2188,46 @@ export default function NewRegistrationPage() {
                       }
                       
                       if (leadSubTab === 'new') {
-                        const getStatus = (id: string) => registeredLeadIds.includes(id) ? 3 : approvedLeadIds.includes(id) ? 2 : pendingLeadIds.includes(id) ? 1 : 0;
+                        const getStatus = (id: string) => registeredLeadIds.includes(id) ? 4 : approvedLeadIds.includes(id) ? 3 : pending2LeadIds.includes(id) ? 2 : pendingLeadIds.includes(id) ? 1 : 0;
                         return getStatus(a.id) - getStatus(b.id);
                       }
                       
                       return 0;
                     });
                     
+                    const handleColResize = (e: React.MouseEvent, colId: string, currentWidth: number) => {
+                      e.preventDefault();
+                      const startX = e.pageX;
+                      const onMouseMove = (moveEvent: MouseEvent) => {
+                        setColWidths(prev => ({ ...prev, [colId]: Math.max(50, currentWidth + moveEvent.pageX - startX) }));
+                      };
+                      const onMouseUp = () => {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                      };
+                      document.addEventListener('mousemove', onMouseMove);
+                      document.addEventListener('mouseup', onMouseUp);
+                    };
+
+                    const handleRowResize = (e: React.MouseEvent, rowId: string, currentHeight: number) => {
+                      e.preventDefault();
+                      const startY = e.pageY;
+                      const onMouseMove = (moveEvent: MouseEvent) => {
+                        setRowHeights(prev => ({ ...prev, [rowId]: Math.max(30, currentHeight + moveEvent.pageY - startY) }));
+                      };
+                      const onMouseUp = () => {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                      };
+                      document.addEventListener('mousemove', onMouseMove);
+                      document.addEventListener('mouseup', onMouseUp);
+                    };
+
                     return (
-                      <table className="w-full text-left text-sm text-slate-600">
+                      <table className="w-full text-left text-sm text-slate-600" style={{ tableLayout: 'fixed' }}>
                         <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
                           <tr>
-                            <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50">
+                            <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
                               <input 
                                 type="checkbox" 
                                 className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
@@ -2209,16 +2238,40 @@ export default function NewRegistrationPage() {
                                 }}
                               />
                             </th>
-                            <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[50px] z-30 bg-slate-50">Name</th>
-                            <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[200px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">Email</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">Gender</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">City</th>
-                            {showDynamicColumns && dynamicColumns.map(col => (
-                              <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[180px] max-w-[250px] break-words leading-relaxed">{col}</th>
-                            ))}
-                            <th className="px-4 py-3 font-bold text-slate-500">Payment</th>
-                            <th className="px-4 py-3 font-bold text-slate-500">Submitted At</th>
+                            {activeColumns.map((col, idx) => {
+                              let label = col;
+                              let baseWidth = 150;
+                              if (col === 'whatsapp') baseWidth = 120;
+                              else if (col === 'email') baseWidth = 180;
+                              else if (col === 'city' || col === 'gender') baseWidth = 120;
+                              else if (col === 'payment' || col === 'submittedAt') baseWidth = 120;
+                              
+                              const width = colWidths[col] || baseWidth;
+                              
+                              if (col === 'name') { label = 'Name'; }
+                              else if (col === 'whatsapp') { label = 'WhatsApp'; }
+                              else if (col === 'email') { label = 'Email'; }
+                              else if (col === 'gender') { label = 'Gender'; }
+                              else if (col === 'city') { label = 'City'; }
+                              else if (col === 'payment') { label = 'Payment'; }
+                              else if (col === 'submittedAt') { label = 'Submitted At'; }
+                              
+                              return (
+                                <th key={col} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} className={`px-4 py-3 font-bold text-slate-500 group relative`}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="truncate">{label}</span>
+                                    <div className="opacity-0 group-hover:opacity-100 flex items-center bg-slate-100 rounded px-1 -ml-1 transition-opacity">
+                                      <button onClick={() => moveColumn(col, 'left')} className="p-0.5 hover:text-indigo-600" disabled={idx === 0}>‹</button>
+                                      <button onClick={() => moveColumn(col, 'right')} className="p-0.5 hover:text-indigo-600" disabled={idx === activeColumns.length - 1}>›</button>
+                                    </div>
+                                  </div>
+                                  <div 
+                                    className="absolute right-0 top-0 bottom-0 w-1 hover:w-2 bg-transparent hover:bg-indigo-400 cursor-col-resize z-50 transition-colors"
+                                    onMouseDown={(e) => handleColResize(e, col, width)}
+                                  />
+                                </th>
+                              );
+                            })}
                             <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
                           </tr>
                         </thead>
@@ -2247,6 +2300,7 @@ export default function NewRegistrationPage() {
                               const isSelected = selectedRowIds.includes(lead.id);
                               const isApproved = approvedLeadIds.includes(lead.id);
                               const isPending = pendingLeadIds.includes(lead.id);
+                              const isPending2 = pending2LeadIds.includes(lead.id);
                               const isRegistered = registeredLeadIds.includes(lead.id);
                               const isRejected = rejectedLeadIds.includes(lead.id);
                               const isClosed = closedLeadIds.includes(lead.id);
@@ -2255,10 +2309,11 @@ export default function NewRegistrationPage() {
                               
                               if (leadSubTab === 'new') {
                                 if (isRegistered || isApproved) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
-                                else if (isPending) baseBgClass = 'bg-fuchsia-50 hover:bg-fuchsia-100';
+                                else if (isPending || isPending2) baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
                               } else if (leadSubTab === 'approved') {
                                 if (isRegistered) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
-                              } else if (leadSubTab === 'pending') {
+                                else if (isPending2) baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
+                              } else if (leadSubTab === 'pending' || leadSubTab === 'pending2') {
                                 if (isRejected) baseBgClass = 'bg-red-50 hover:bg-red-100';
                                 else baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
                               } else if (leadSubTab === 'registered' || leadSubTab === 'student_kota') {
@@ -2269,12 +2324,18 @@ export default function NewRegistrationPage() {
                               if (isSelected) baseBgClass = 'bg-indigo-50 hover:bg-indigo-100';
 
                               let cellBgClass = 'bg-white group-hover:bg-slate-50';
+                              const pyClass = rowDensity === 'compact' ? 'py-1' : rowDensity === 'normal' ? 'py-3' : 'py-5';
+                              const pxClass = rowDensity === 'compact' ? 'px-2' : rowDensity === 'normal' ? 'px-4' : 'px-6';
+                              const textClass = rowDensity === 'compact' ? 'text-xs' : 'text-sm';
+                              const spacingClass = `${pxClass} ${pyClass} ${textClass}`;
+
                               if (leadSubTab === 'new') {
                                 if (isRegistered || isApproved) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
-                                else if (isPending) cellBgClass = 'bg-fuchsia-50 group-hover:bg-fuchsia-100';
+                                else if (isPending || isPending2) cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
                               } else if (leadSubTab === 'approved') {
                                 if (isRegistered) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
-                              } else if (leadSubTab === 'pending') {
+                                else if (isPending2) cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
+                              } else if (leadSubTab === 'pending' || leadSubTab === 'pending2') {
                                 if (isRejected) cellBgClass = 'bg-red-50 group-hover:bg-red-100';
                                 else cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
                               } else if (leadSubTab === 'registered') {
@@ -2283,8 +2344,9 @@ export default function NewRegistrationPage() {
                               }
                               if (isSelected) cellBgClass = 'bg-indigo-50 group-hover:bg-indigo-100';
 
+                              const height = rowHeights[lead.id] || (rowDensity === 'compact' ? 40 : rowDensity === 'normal' ? 56 : 72);
                               return (
-                                <tr key={lead.id || i} className={`group transition-colors ${baseBgClass}`}>
+                                <tr key={lead.id || i} style={{ height: `${height}px` }} className={`group transition-colors relative ${baseBgClass}`}>
                                   <td className={`px-4 py-3 text-center w-[50px] min-w-[50px] sticky left-0 z-20 ${cellBgClass} transition-colors`}>
                                     <input 
                                       type="checkbox" 
@@ -2296,28 +2358,45 @@ export default function NewRegistrationPage() {
                                       }}
                                     />
                                   </td>
-                                  <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap w-[150px] min-w-[150px] sticky left-[50px] z-20 ${cellBgClass} transition-colors`}>
-                                    <div className="truncate w-full">{lead.name || '-'}</div>
-                                  </td>
-                                  <td className={`px-4 py-3 whitespace-nowrap w-[150px] min-w-[150px] sticky left-[200px] z-20 ${cellBgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
-                                    {lead.mobile || lead.phoneNumber || '-'}
-                                  </td>
-                                  <td className="px-4 py-3 whitespace-nowrap">{lead.email || '-'}</td>
-                                  <td className="px-4 py-3 capitalize whitespace-nowrap">{lead.gender || '-'}</td>
-                                  <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
-                                  {showDynamicColumns && dynamicColumns.map(col => (
-                                    <td key={col} className="px-4 py-3 whitespace-normal min-w-[180px] max-w-[250px] break-words text-slate-500">
-                                      {lead.dynamicAnswers?.[col] || '-'}
-                                    </td>
-                                  ))}
-                                  <td className="px-4 py-3">
-                                    {lead.payment?.status ? (
-                                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.payment.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                        {lead.payment.status}
-                                      </span>
-                                    ) : '-'}
-                                  </td>
-                                  <td className="px-4 py-3 whitespace-nowrap">{lead.submittedAt ? new Date(lead.submittedAt).toLocaleDateString() : '-'}</td>
+                                  {activeColumns.map(col => {
+                                    if (col === 'name') {
+                                      return (
+                                        <td key={col} className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap w-[150px] min-w-[150px] ${cellBgClass} transition-colors`}>
+                                          <div className="truncate w-full max-w-[140px]" title={lead.name || ''}>{lead.name || '-'}</div>
+                                        </td>
+                                      );
+                                    } else if (col === 'whatsapp') {
+                                      return (
+                                        <td key={col} className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] max-w-[120px] ${cellBgClass} transition-colors`}>
+                                          <div className="truncate w-full max-w-[110px]" title={lead.mobile || lead.phoneNumber || ''}>{lead.mobile || lead.phoneNumber || '-'}</div>
+                                        </td>
+                                      );
+                                    } else if (col === 'email') {
+                                      return <td key={col} className={`px-4 py-3 whitespace-nowrap max-w-[180px] ${cellBgClass}`}><div className="truncate w-full" title={lead.email || ''}>{lead.email || '-'}</div></td>;
+                                    } else if (col === 'gender') {
+                                      return <td key={col} className={`px-4 py-3 capitalize whitespace-nowrap ${cellBgClass}`}>{lead.gender || '-'}</td>;
+                                    } else if (col === 'city') {
+                                      return <td key={col} className={`px-4 py-3 whitespace-nowrap max-w-[120px] ${cellBgClass}`}><div className="truncate w-full" title={lead.city || ''}>{lead.city || '-'}</div></td>;
+                                    } else if (col === 'payment') {
+                                      return (
+                                        <td key={col} className={`px-4 py-3 ${cellBgClass}`}>
+                                          {lead.payment?.status ? (
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.payment.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                              {lead.payment.status}
+                                            </span>
+                                          ) : '-'}
+                                        </td>
+                                      );
+                                    } else if (col === 'submittedAt') {
+                                      return <td key={col} className={`px-4 py-3 whitespace-nowrap ${cellBgClass}`}>{lead.submittedAt ? new Date(lead.submittedAt).toLocaleDateString() : '-'}</td>;
+                                    } else {
+                                      return (
+                                        <td key={col} className={`px-4 py-3 whitespace-normal min-w-[100px] max-w-[150px] break-words text-slate-500 text-xs ${cellBgClass}`}>
+                                          <div className="line-clamp-2" title={lead.dynamicAnswers?.[col]}>{lead.dynamicAnswers?.[col] || '-'}</div>
+                                        </td>
+                                      );
+                                    }
+                                  })}
                                   <td className="px-4 py-3 whitespace-nowrap text-right">
                                     {leadSubTab === 'pending' && !isRejected && (
                                       <div className="flex flex-col items-end gap-2">
