@@ -96,19 +96,27 @@ export default function NewRegistrationPage() {
     });
     const allKeys = Array.from(keys);
     
-    // Sort logic to prioritize specific keywords
+    // Sort logic to prioritize MAPPED questions first
+    const mappingValues = Object.values(selectedWorkshop?.googleFormMapping || {});
+    
     const priority = (k: string) => {
+      // 1. Exact match with a mapped question
+      const mapIdx = mappingValues.findIndex(v => v === k);
+      if (mapIdx !== -1) return mapIdx;
+      
+      // 2. Fallback to old keyword priority for unmapped but important questions
       const lower = k.toLowerCase();
-      if (lower.includes('workshop date') || lower.includes('workshop month') || lower.includes('which workshop')) return 1;
-      if (lower.includes('14 day') || lower.includes('14-day') || lower.includes('ready to do')) return 2;
-      if (lower.includes('video')) return 3;
-      if (lower.includes('donation')) return 4;
+      if (lower.includes('workshop date') || lower.includes('workshop month') || lower.includes('which workshop')) return 50;
+      if (lower.includes('14 day') || lower.includes('14-day') || lower.includes('ready to do')) return 51;
+      if (lower.includes('video')) return 52;
+      if (lower.includes('donation')) return 53;
+      
       return 100;
     };
     
     allKeys.sort((a, b) => priority(a) - priority(b));
     return allKeys;
-  }, [leadsData]);
+  }, [leadsData, selectedWorkshop?.googleFormMapping]);
 
   const handleApprove = (id: string) => {
     setCrmLeadIds(prev => [...prev, id]);
@@ -122,6 +130,13 @@ export default function NewRegistrationPage() {
     toast.success(`Moved ${selectedRowIds.length} leads to Leads Management!`);
     setSelectedRowIds([]);
   };
+
+  useEffect(() => {
+    if (selectedWorkshop?.metadata) {
+      if (selectedWorkshop.metadata.mainFilter !== undefined) setLeadsFilter(selectedWorkshop.metadata.mainFilter);
+      if (selectedWorkshop.metadata.subFilter !== undefined) setLeadsSubFilter(selectedWorkshop.metadata.subFilter);
+    }
+  }, [selectedWorkshop?.metadata]);
 
   useEffect(() => {
     if (!isAiWorkerActive || leadsData.length === 0) return;
@@ -590,29 +605,37 @@ export default function NewRegistrationPage() {
             const newLeads = fetchedLeads.filter((l: any) => !existingIds.has(l.id));
             
             if (newLeads.length > 0) {
+               const ws = workshops.find((w: any) => w.formId === linkedFormId);
                let leadsToMove = newLeads;
-               if (leadsFilter || leadsSubFilter || leadsSubSubFilter) {
+               const effectiveF1 = leadsFilter || ws?.metadata?.mainFilter || '';
+               const effectiveF2 = leadsSubFilter || ws?.metadata?.subFilter || '';
+               const effectiveF3 = leadsSubSubFilter || '';
+
+               if (effectiveF1 || effectiveF2 || effectiveF3) {
                  leadsToMove = newLeads.filter((lead: any) => {
-                   const f1 = !leadsFilter || (() => {
+                   const f1 = !effectiveF1 || (() => {
                      const vals = [
                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
+                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                       ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                     return vals.some((v: any) => v.includes(leadsFilter.toLowerCase()));
+                     return vals.some((v: any) => v.includes(effectiveF1.toLowerCase()));
                    })();
-                   const f2 = !leadsSubFilter || (() => {
+                   const f2 = !effectiveF2 || (() => {
                      const vals = [
                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
+                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                       ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                     return vals.some((v: any) => v.includes(leadsSubFilter.toLowerCase()));
+                     return vals.some((v: any) => v.includes(effectiveF2.toLowerCase()));
                    })();
-                   const f3 = !leadsSubSubFilter || (() => {
+                   const f3 = !effectiveF3 || (() => {
                      const vals = [
                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : [])
+                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                       ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                     return vals.some((v: any) => v.includes(leadsSubSubFilter.toLowerCase()));
+                     return vals.some((v: any) => v.includes(effectiveF3.toLowerCase()));
                    })();
                    return f1 && f2 && f3;
                  });
@@ -1906,6 +1929,9 @@ export default function NewRegistrationPage() {
                                 ✕ Clear
                               </button>
                             )}
+                            <button onClick={saveWorkshopSettings} className="mt-4 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-bold transition-colors whitespace-nowrap border border-indigo-200" title="AI-4 will only automatically process leads that match these saved filters">
+                                💾 Save AI-4 Filters
+                            </button>
 
                             {/* Result count */}
                             {(leadsFilter || leadsSubFilter || leadsSubSubFilter) && (
@@ -1948,7 +1974,7 @@ export default function NewRegistrationPage() {
                             return (
                               <table className="w-full text-left text-sm text-slate-600" style={{ tableLayout: 'fixed' }}>
                                 <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
-                                  <tr>
+                                  <tr className="divide-x divide-slate-200">
                                     <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50">
                                       <input 
                                         type="checkbox" 
@@ -1968,10 +1994,10 @@ export default function NewRegistrationPage() {
                                   </th>
                                 ))}
                                 <th className="px-4 py-3 font-bold text-slate-500 w-[200px] min-w-[200px]">Email</th>
-                                <th className="px-4 py-3 font-bold text-slate-500">Gender</th>
-                                <th className="px-4 py-3 font-bold text-slate-500">Age</th>
-                                <th className="px-4 py-3 font-bold text-slate-500">City</th>
-                                <th className="px-4 py-3 font-bold text-slate-500">Country</th>
+                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
+                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Age</th>
+                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">City</th>
+                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Country</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">
                                   <button onClick={() => setTab2SortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-indigo-600 transition-colors">
                                     Submitted At
@@ -1981,7 +2007,7 @@ export default function NewRegistrationPage() {
                                 <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-slate-200">
                               {isLoadingLeads ? (
                                 <tr>
                                   <td colSpan={10 + dynamicColumns.length} className="p-8 text-center text-slate-500">Loading leads...</td>
@@ -2000,7 +2026,7 @@ export default function NewRegistrationPage() {
                                   const bgClass = isProcessed ? 'bg-slate-50 opacity-60' : isSelected ? 'bg-indigo-50 group-hover:bg-indigo-100' : 'bg-white group-hover:bg-slate-50';
                                   
                                   return (
-                                    <tr key={lead.id || i} className={`group transition-colors ${bgClass}`}>
+                                    <tr key={lead.id || i} className={`group transition-colors ${bgClass} divide-x divide-slate-200`}>
                                       <td className={`px-4 py-3 text-center w-[50px] min-w-[50px] sticky left-0 z-20 ${bgClass} transition-colors`}>
                                         <input 
                                           type="checkbox" 
@@ -2032,10 +2058,10 @@ export default function NewRegistrationPage() {
                                       <td className={`px-4 py-3 whitespace-nowrap w-[200px] min-w-[200px] ${bgClass} transition-colors`}>
                                         <div className="truncate w-full" title={lead.email}>{lead.email || '-'}</div>
                                       </td>
-                                      <td className="px-4 py-3 capitalize whitespace-nowrap">{lead.gender || '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap">{lead.age || '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap">{lead.country || '-'}</td>
+                                      <td className="px-4 py-3 capitalize whitespace-nowrap min-w-[100px]">{lead.gender || '-'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap min-w-[100px]">{lead.age || '-'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap min-w-[150px]">{lead.city || '-'}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap min-w-[150px]">{lead.country || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.submittedAt ? new Date(lead.submittedAt).toLocaleDateString() : '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap text-right">
                                       <button 
@@ -2292,7 +2318,7 @@ export default function NewRegistrationPage() {
                     return (
                       <table className="w-full text-left text-sm text-slate-600" style={{ tableLayout: 'fixed' }}>
                         <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
-                          <tr>
+                          <tr className="divide-x divide-slate-200">
                             <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
                               <input 
                                 type="checkbox" 
@@ -2338,10 +2364,15 @@ export default function NewRegistrationPage() {
                                 </th>
                               );
                             })}
+                            {showDynamicColumns && dynamicColumns.map(col => (
+                              <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[150px] max-w-[200px] break-words leading-tight">
+                                <div className="line-clamp-4" title={col}>{col}</div>
+                              </th>
+                            ))}
                             <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-200">
                           {isLoadingLeads ? (
                             <tr>
                               <td colSpan={10 + dynamicColumns.length} className="p-8 text-center text-slate-500">Loading leads...</td>
@@ -2412,7 +2443,7 @@ export default function NewRegistrationPage() {
 
                               const height = rowHeights[lead.id] || (rowDensity === 'compact' ? 40 : rowDensity === 'normal' ? 56 : 72);
                               return (
-                                <tr key={lead.id || i} style={{ height: `${height}px` }} className={`group transition-colors relative ${baseBgClass}`}>
+                                <tr key={lead.id || i} style={{ height: `${height}px` }} className={`group transition-colors relative ${baseBgClass} divide-x divide-slate-200`}>
                                   <td className={`px-4 py-3 text-center w-[50px] min-w-[50px] sticky left-0 z-20 ${cellBgClass} transition-colors`}>
                                     <input 
                                       type="checkbox" 
@@ -2462,6 +2493,14 @@ export default function NewRegistrationPage() {
                                         </td>
                                       );
                                     }
+                                  })}
+                                  {showDynamicColumns && dynamicColumns.map(col => {
+                                    const val = (lead.dynamicAnswers && lead.dynamicAnswers[col]) || (lead._rawRecord && lead._rawRecord[col]) || '-';
+                                    return (
+                                      <td key={col} className={`px-4 py-3 whitespace-normal min-w-[150px] max-w-[200px] break-words text-slate-500 text-xs ${cellBgClass}`}>
+                                        <div className="line-clamp-2" title={val}>{val}</div>
+                                      </td>
+                                    );
                                   })}
                                   <td className="px-4 py-3 whitespace-nowrap text-right">
                                     {leadSubTab === 'pending' && !isRejected && (
@@ -2651,7 +2690,7 @@ export default function NewRegistrationPage() {
                       <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-200">
                     {leadsData.filter(l => registeredLeadIds.includes(l.id)).length === 0 ? (
                       <tr>
                         <td colSpan={6} className="p-12 text-center text-slate-500">
