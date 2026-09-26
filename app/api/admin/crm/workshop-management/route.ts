@@ -73,6 +73,9 @@ export async function PATCH(request: NextRequest) {
     if (body.communityId !== undefined) {
       updates.communityId = body.communityId ? String(body.communityId).trim() : null;
     }
+    if (body.metadata !== undefined) {
+      updates.metadata = body.metadata;
+    }
     
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

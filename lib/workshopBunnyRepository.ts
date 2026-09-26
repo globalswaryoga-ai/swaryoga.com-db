@@ -60,12 +60,13 @@ export async function updateCohort(cohortId: string, fields: Record<string, any>
     communityId: 'community_id',
     workerLastRunAt: 'worker_last_run_at',
     zoomAttendanceLastSyncAt: 'zoom_attendance_last_sync_at',
+    metadata: 'metadata_json'
   };
   const sets = Object.entries(fields).filter(([key]) => allowed[key] && fields[key] !== undefined);
   if (!sets.length) return getCohort(cohortId);
   await bunnyExecute({
     sql: `UPDATE workshop_cohorts_sql SET ${sets.map(([key]) => `${allowed[key]} = ?`).join(', ')}, updated_at = ? WHERE id = ?`,
-    args: [...sets.map(([, value]) => value || null), now(), cohortId]
+    args: [...sets.map(([k, v]) => k === 'metadata' || k === 'daySubjects' || k === 'holidayDates' ? (typeof v === 'object' ? JSON.stringify(v) : v || '{}') : (v || null)), now(), cohortId]
   });
   return getCohort(cohortId);
 }

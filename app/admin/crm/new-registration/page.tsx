@@ -91,7 +91,20 @@ export default function NewRegistrationPage() {
         Object.keys(lead.dynamicAnswers).forEach(k => keys.add(k));
       }
     });
-    return Array.from(keys);
+    const allKeys = Array.from(keys);
+    
+    // Sort logic to prioritize specific keywords
+    const priority = (k: string) => {
+      const lower = k.toLowerCase();
+      if (lower.includes('workshop date') || lower.includes('workshop month') || lower.includes('which workshop')) return 1;
+      if (lower.includes('14 day') || lower.includes('14-day') || lower.includes('ready to do')) return 2;
+      if (lower.includes('video')) return 3;
+      if (lower.includes('donation')) return 4;
+      return 100;
+    };
+    
+    allKeys.sort((a, b) => priority(a) - priority(b));
+    return allKeys;
   }, [leadsData]);
 
   const handleApprove = (id: string) => {
@@ -856,6 +869,36 @@ export default function NewRegistrationPage() {
     }
   }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
 
+  const saveWorkshopSettings = async () => {
+    if (!selectedWorkshop) return;
+    try {
+      const res = await fetch('/api/admin/crm/workshop-management', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          cohortId: selectedWorkshop.id,
+          googleFormLink: googleFormUrl,
+          metadata: {
+            ...selectedWorkshop.metadata,
+            googleFormMapping: fieldMapping,
+            crmFields: crmFields,
+            formFilterKeyword: selectedWorkshop.formFilterKeyword || '',
+            mainFilter: leadsFilter,
+            subFilter: leadsSubFilter
+          }
+        })
+      });
+      if (res.ok) {
+        toast.success('Workshop settings saved successfully!');
+      } else {
+        toast.error('Failed to save workshop settings.');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Error saving settings.');
+    }
+  };
+
   const handleDetailChange = (field: string, value: string) => {
     if (!selectedWorkshop) return;
     const updated = {
@@ -1147,13 +1190,13 @@ export default function NewRegistrationPage() {
               onClick={() => setIsAddBatchModalOpen(true)}
               className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
             >
-              <Plus size={16} /> Add New Batch
+              <Plus size={16} /> Add Folder +
             </button>
           ) : (
             <button 
               onClick={() => setIsAddBatchModalOpen(true)}
               className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
-              title="Add New Batch"
+              title="Add Folder +"
             >
               <Plus size={16} />
             </button>
@@ -1191,7 +1234,7 @@ export default function NewRegistrationPage() {
                   </div>
                   
                   {/* Hover Actions */}
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded-lg border border-slate-100 shadow-sm">
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white/90 p-1 rounded-lg border border-slate-100 shadow-sm">
                     {workshops.findIndex(wx => wx.id === w.id) > 0 && (
                       <button 
                         onClick={(e) => handleMoveBatchUp(e, workshops.findIndex(wx => wx.id === w.id))}
@@ -1358,7 +1401,7 @@ export default function NewRegistrationPage() {
                     <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                       {renderBulkActions()}
                       <button 
-                        onClick={() => toast.success('Workshop details saved successfully!')}
+                        onClick={saveWorkshopSettings}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
                       >
                         Save Workshop Details
@@ -1569,7 +1612,11 @@ export default function NewRegistrationPage() {
                               <div className="mt-6 pt-4 border-t border-slate-200">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="font-bold text-slate-800 text-sm">Map Google Form Fields to CRM</h4>
-                                  <button onClick={() => {
+                                  <div className="flex gap-2">
+                                    <button onClick={saveWorkshopSettings} className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1 rounded font-bold transition-colors">
+                                      Save Mapping
+                                    </button>
+                                    <button onClick={() => {
                                     const id = prompt('Enter new field name (e.g., Age, Profession):');
                                     if (id && id.trim()) {
                                       setCrmFields(prev => [...prev, { id: id.trim(), label: id.trim().toUpperCase() }]);
@@ -1910,17 +1957,17 @@ export default function NewRegistrationPage() {
                                       />
                                     </th>
                                 <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[50px] z-30 bg-slate-50">Name</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 w-[200px] min-w-[200px] sticky left-[200px] z-30 bg-slate-50">Email</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 w-[110px] min-w-[110px] sticky left-[400px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
+                                <th className="px-4 py-3 font-bold text-slate-500 w-[110px] min-w-[110px] sticky left-[200px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
+                                {showDynamicColumns && dynamicColumns.map(col => (
+                                  <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[150px] max-w-[200px] break-words leading-tight">
+                                    <div className="line-clamp-4" title={col}>{col}</div>
+                                  </th>
+                                ))}
+                                <th className="px-4 py-3 font-bold text-slate-500 w-[200px] min-w-[200px]">Email</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Gender</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Age</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">City</th>
                                 <th className="px-4 py-3 font-bold text-slate-500">Country</th>
-                                {showDynamicColumns && dynamicColumns.map(col => (
-                                  <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[100px] max-w-[150px] break-words leading-tight">
-                                    <div className="line-clamp-4" title={col}>{col}</div>
-                                  </th>
-                                ))}
                                 <th className="px-4 py-3 font-bold text-slate-500">
                                   <button onClick={() => setTab2SortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-indigo-600 transition-colors">
                                     Submitted At
@@ -1966,23 +2013,23 @@ export default function NewRegistrationPage() {
                                         />
                                       </td>
                                       <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap w-[150px] min-w-[150px] sticky left-[50px] z-20 ${bgClass} transition-colors`}>
-                                        <div className="truncate w-full">{lead.name || '-'}</div>
+                                        <div className="truncate w-full" title={lead.name}>{lead.name || '-'}</div>
                                       </td>
-                                      <td className={`px-4 py-3 whitespace-nowrap w-[200px] min-w-[200px] sticky left-[200px] z-20 ${bgClass} transition-colors`}>
-                                        <div className="truncate w-full">{lead.email || '-'}</div>
+                                      <td className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] sticky left-[200px] z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
+                                        <div className="truncate w-full" title={lead.mobile || lead.phoneNumber}>{lead.mobile || lead.phoneNumber || '-'}</div>
                                       </td>
-                                      <td className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] sticky left-[400px] z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
-                                        {lead.mobile || lead.phoneNumber || '-'}
+                                    {showDynamicColumns && dynamicColumns.map(col => (
+                                      <td key={col} className="px-4 py-3 whitespace-normal min-w-[150px] max-w-[200px] break-words text-slate-500 text-xs">
+                                        <div className="line-clamp-2" title={lead.dynamicAnswers?.[col]}>{lead.dynamicAnswers?.[col] || '-'}</div>
+                                      </td>
+                                    ))}
+                                      <td className={`px-4 py-3 whitespace-nowrap w-[200px] min-w-[200px] ${bgClass} transition-colors`}>
+                                        <div className="truncate w-full" title={lead.email}>{lead.email || '-'}</div>
                                       </td>
                                       <td className="px-4 py-3 capitalize whitespace-nowrap">{lead.gender || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.age || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.city || '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.country || '-'}</td>
-                                    {showDynamicColumns && dynamicColumns.map(col => (
-                                      <td key={col} className="px-4 py-3 whitespace-normal min-w-[100px] max-w-[150px] break-words text-slate-500 text-xs">
-                                        {lead.dynamicAnswers?.[col] || '-'}
-                                      </td>
-                                    ))}
                                     <td className="px-4 py-3 whitespace-nowrap">{lead.submittedAt ? new Date(lead.submittedAt).toLocaleDateString() : '-'}</td>
                                     <td className="px-4 py-3 whitespace-nowrap text-right">
                                       <button 
@@ -2195,6 +2242,19 @@ export default function NewRegistrationPage() {
                       return 0;
                     });
                     
+                    const moveColumn = (colId: string, direction: 'left' | 'right') => {
+                      const idx = columnOrder.indexOf(colId);
+                      if (direction === 'left' && idx > 0) {
+                        const newOrder = [...columnOrder];
+                        [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
+                        setColumnOrder(newOrder);
+                      } else if (direction === 'right' && idx < columnOrder.length - 1) {
+                        const newOrder = [...columnOrder];
+                        [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
+                        setColumnOrder(newOrder);
+                      }
+                    };
+
                     const handleColResize = (e: React.MouseEvent, colId: string, currentWidth: number) => {
                       e.preventDefault();
                       const startX = e.pageX;
@@ -2238,7 +2298,7 @@ export default function NewRegistrationPage() {
                                 }}
                               />
                             </th>
-                            {activeColumns.map((col, idx) => {
+                            {columnOrder.map((col, idx) => {
                               let label = col;
                               let baseWidth = 150;
                               if (col === 'whatsapp') baseWidth = 120;
@@ -2262,7 +2322,7 @@ export default function NewRegistrationPage() {
                                     <span className="truncate">{label}</span>
                                     <div className="opacity-0 group-hover:opacity-100 flex items-center bg-slate-100 rounded px-1 -ml-1 transition-opacity">
                                       <button onClick={() => moveColumn(col, 'left')} className="p-0.5 hover:text-indigo-600" disabled={idx === 0}>‹</button>
-                                      <button onClick={() => moveColumn(col, 'right')} className="p-0.5 hover:text-indigo-600" disabled={idx === activeColumns.length - 1}>›</button>
+                                      <button onClick={() => moveColumn(col, 'right')} className="p-0.5 hover:text-indigo-600" disabled={idx === columnOrder.length - 1}>›</button>
                                     </div>
                                   </div>
                                   <div 
@@ -2358,7 +2418,7 @@ export default function NewRegistrationPage() {
                                       }}
                                     />
                                   </td>
-                                  {activeColumns.map(col => {
+                                  {columnOrder.map(col => {
                                     if (col === 'name') {
                                       return (
                                         <td key={col} className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap w-[150px] min-w-[150px] ${cellBgClass} transition-colors`}>
