@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     const workshopId = url.searchParams.get('workshopId');
 
     // ── Primary source: Bunny Leads labelled as enquiry ──
-    let mongoEnquiries: any[] = [];
+    let primaryEnquiries: any[] = [];
     try {
       const { listBunnyLeads } = await import('@/lib/bunnyLeadsRepository');
       // For SuperAdmins fetching all enquiries, we pass null for visibleUserIds/viewerUserId
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
         skip: 0
       });
       
-      mongoEnquiries = bunnyLeads.map((l: any) => {
+      primaryEnquiries = bunnyLeads.map((l: any) => {
         const meta = l.metadata?.lastEnquiry || l.metadata || {};
         const payment = l.metadata?.payment;
         return {
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
         };
       });
       if (workshopId) {
-        mongoEnquiries = mongoEnquiries.filter(e => e.workshopId === workshopId);
+        primaryEnquiries = primaryEnquiries.filter(e => e.workshopId === workshopId);
       }
     } catch (bunnyErr) {
       console.error('[enquiries GET] Bunny read failed:', bunnyErr);
@@ -165,19 +165,19 @@ export async function GET(request: NextRequest) {
 
     // ── Legacy JSON file: merge in any rows whose phone isn't already in Mongo/Bunny ──
     const jsonEnquiries = getEnquiries();
-    const existingIds = new Set([...mongoEnquiries, ...bunnyEnquiries].map(e => e.id));
+    const existingIds = new Set([...primaryEnquiries, ...bunnyEnquiries].map(e => e.id));
     const extras = (jsonEnquiries as any[])
       .filter((e: any) => !existingIds.has(e.id))
       .filter((e: any) => !workshopId || e.workshopId === workshopId);
 
-    const merged = [...bunnyEnquiries, ...mongoEnquiries, ...extras];
+    const merged = [...bunnyEnquiries, ...primaryEnquiries, ...extras];
 
     return NextResponse.json(
       {
         message: 'Enquiries retrieved successfully',
         data: merged,
         count: merged.length,
-        sources: { bunny: bunnyEnquiries.length, mongo: mongoEnquiries.length, json: extras.length },
+        sources: { bunny: bunnyEnquiries.length, primary: primaryEnquiries.length, json: extras.length },
       },
       { status: 200 }
     );

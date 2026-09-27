@@ -1,37 +1,40 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
+import { WorkshopFormTab } from './_WorkshopFormTab';
+import { LeadsManagementTab } from './_LeadsManagementTab';
 import { useToast } from '@/components/admin/crm/ui/Toast';
-import { 
+import {
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
-  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database
+  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { TemplatesTab } from '@/app/admin/crm/qr/components/TemplatesTab';
 
 export default function NewRegistrationPage() {
   const router = useRouter();
   const toast = useToast();
-  
-  const [activeTab, setActiveTab] = useState<'all_leads'|'my_data'|'workshop_details'|'leads'|'closing'|'templates'>('all_leads');
-  const [leadSubTab, setLeadSubTab] = useState<'new'|'approved'|'pending'|'registered'|'student_kota'>('new');
+
+  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'my_batches' | 'leads_management' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
+  const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
-  
-  const [sidebarPosition, setSidebarPosition] = useState<'left'|'right'>('left');
+
+  const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>('left');
   const [selectedDashboardLang, setSelectedDashboardLang] = useState<string>('English');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMapDataCollapsed, setIsMapDataCollapsed] = useState(false);
   const [isStatsCollapsed, setIsStatsCollapsed] = useState(false);
-  
+
   const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
   const [newBatchName, setNewBatchName] = useState('');
-  
-  const [formSource, setFormSource] = useState<'internal'|'google'>('google');
+  const [newBatchLanguage, setNewBatchLanguage] = useState('');
+  const [newBatchWorkshopName, setNewBatchWorkshopName] = useState('');
+
+  const [formSource, setFormSource] = useState<'internal' | 'google'>('google');
   const [isManualFormId, setIsManualFormId] = useState(false);
   const [fetchedForms, setFetchedForms] = useState<any[]>([]);
   const [isLoadingForms, setIsLoadingForms] = useState(false);
-  
+
   const [selectedFormId, setSelectedFormId] = useState<string>('');
   const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [leadsData, setLeadsData] = useState<any[]>([]);
@@ -59,9 +62,13 @@ export default function NewRegistrationPage() {
   const [isApprovedAiWorkerActive, setIsApprovedAiWorkerActive] = useState(false);
   const [isRegisteredAiWorkerActive, setIsRegisteredAiWorkerActive] = useState(false);
   const [isAi4Active, setIsAi4Active] = useState(false);
+  const [isAi7Active, setIsAi7Active] = useState(false);
   const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
   const [isAi4RulesOpen, setIsAi4RulesOpen] = useState(false);
   const [ai4Interval, setAi4Interval] = useState(10);
+  const [isAi7Processing, setIsAi7Processing] = useState(false);
+  const [isAi1Processing, setIsAi1Processing] = useState(false);
+  const [ai1ColumnInput, setAi1ColumnInput] = useState('');
   const [ai4FormatRules, setAi4FormatRules] = useState('');
   const [needsGoogleAuth, setNeedsGoogleAuth] = useState(false);
   const [showDynamicColumns, setShowDynamicColumns] = useState(true);
@@ -73,26 +80,26 @@ export default function NewRegistrationPage() {
   const [approvalAiInsights, setApprovalAiInsights] = useState<Record<string, string>>({});
   const [pendingAiInsights, setPendingAiInsights] = useState<Record<string, string>>({});
   const [registeredAiInsights, setRegisteredAiInsights] = useState<Record<string, string>>({});
-  const [crmFields, setCrmFields] = useState<{id: string, label: string}[]>([
-    {id: 'Name', label: 'NAME'},
-    {id: 'Email', label: 'EMAIL'},
-    {id: 'Mobile', label: 'MOBILE'},
-    {id: 'City', label: 'CITY'},
-    {id: 'Country', label: 'COUNTRY'},
-    {id: 'Gender', label: 'GENDER'},
-    {id: 'AI-7', label: 'AI-7'}
+  const [crmFields, setCrmFields] = useState<{ id: string, label: string }[]>([
+    { id: 'Name', label: 'NAME' },
+    { id: 'Email', label: 'EMAIL' },
+    { id: 'Mobile', label: 'MOBILE' },
+    { id: 'City', label: 'CITY' },
+    { id: 'Country', label: 'COUNTRY' },
+    { id: 'Gender', label: 'GENDER' },
+    { id: 'AI-7', label: 'AI-7' }
   ]);
   const [mapDataFields, setMapDataFields] = useState<string[]>([
     'Name', 'Email', 'WhatsApp Number', 'Age', 'Profession', 'Country', 'City', 'Health Issues', 'Workshop Date', 'AI-7'
   ]);
-  
+
   const [columnOrder, setColumnOrder] = useState<string[]>(['name', 'whatsapp', 'email', 'gender', 'city', 'payment', 'submittedAt']);
-  const [rowDensity, setRowDensity] = useState<'compact'|'normal'|'comfortable'>('compact');
+  const [rowDensity, setRowDensity] = useState<'compact' | 'normal' | 'comfortable'>('compact');
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
-  
+
   const token = useAuth();
-  
+
   const dynamicColumns = useMemo(() => {
     const keyCounts = new Map<string, number>();
     leadsData.forEach(lead => {
@@ -109,28 +116,61 @@ export default function NewRegistrationPage() {
       }
     });
     const allKeys = Array.from(keyCounts.keys());
-    
+
+    const mapping = selectedWorkshop?.metadata?.googleFormMapping || {};
+    const standardCrmKeys = ['Name', 'Email', 'Mobile', 'City', 'Country', 'Gender', 'NAME', 'EMAIL', 'MOBILE', 'CITY', 'COUNTRY', 'GENDER'];
+    const hiddenMappedValues = standardCrmKeys.map(key => mapping[key]).filter(Boolean);
+
+    const filteredKeys = allKeys.filter(k => !hiddenMappedValues.includes(k));
+
     // Sort logic to prioritize MAPPED questions first
-    const mappingValues = Object.values(selectedWorkshop?.googleFormMapping || {});
-    
+    const mappingValues = Object.values(mapping);
+
     const priority = (k: string) => {
       // 1. Exact match with a mapped question
       const mapIdx = mappingValues.findIndex(v => v === k);
       if (mapIdx !== -1) return mapIdx;
-      
+
       // 2. Fallback to old keyword priority for unmapped but important questions
       const lower = k.toLowerCase();
       if (lower.includes('workshop date') || lower.includes('workshop month') || lower.includes('which workshop')) return 50;
       if (lower.includes('14 day') || lower.includes('14-day') || lower.includes('ready to do')) return 51;
       if (lower.includes('video')) return 52;
       if (lower.includes('donation')) return 53;
-      
+
       return 100;
     };
-    
-    allKeys.sort((a, b) => priority(a) - priority(b));
-    return allKeys;
-  }, [leadsData, selectedWorkshop?.googleFormMapping]);
+
+    filteredKeys.sort((a, b) => priority(a) - priority(b));
+    return filteredKeys;
+  }, [leadsData, selectedWorkshop?.metadata?.googleFormMapping]);
+
+  const filterOptions = useMemo(() => {
+    const options = new Set<string>();
+
+    // Add all 22 questions from the form map
+    Object.values(googleFormQuestionMap).forEach(q => {
+      if (q && typeof q === 'string') options.add(q);
+    });
+
+    // Add unique answers from leads
+    leadsData.forEach(lead => {
+      Object.values(lead).forEach(val => {
+        if (typeof val === 'string' && val.length < 50 && val.length > 0) options.add(val);
+      });
+      if (lead.dynamicAnswers) {
+        Object.values(lead.dynamicAnswers).forEach(val => {
+          if (typeof val === 'string' && val.length < 100 && val.length > 0) options.add(val);
+        });
+      }
+      if (lead._rawRecord) {
+        Object.values(lead._rawRecord).forEach(val => {
+          if (typeof val === 'string' && val.length < 100 && val.length > 0) options.add(val);
+        });
+      }
+    });
+    return Array.from(options).sort();
+  }, [leadsData, googleFormQuestionMap]);
 
   const handleApprove = (id: string) => {
     setCrmLeadIds(prev => [...prev, id]);
@@ -145,6 +185,117 @@ export default function NewRegistrationPage() {
     setSelectedRowIds([]);
   };
 
+  const handleAi7Categorize = () => {
+    let activeLeads = leadsData;
+    if (leadsFilter || leadsSubFilter || leadsSubSubFilter) {
+      activeLeads = activeLeads.filter(lead => {
+        const str = JSON.stringify(lead).toLowerCase();
+        const f1 = !leadsFilter || str.includes(leadsFilter.toLowerCase());
+        const f2 = !leadsSubFilter || str.includes(leadsSubFilter.toLowerCase());
+        const f3 = !leadsSubSubFilter || str.includes(leadsSubSubFilter.toLowerCase());
+        return f1 && f2 && f3;
+      });
+    }
+
+    const targetLeads = selectedRowIds.length > 0 ? selectedRowIds : activeLeads.map(l => l?.id).filter(Boolean);
+    if (targetLeads.length === 0) {
+      toast.error('No leads available to categorize.');
+      return;
+    }
+
+    setIsAi7Processing(true);
+    toast.info(`🤖 AI-7 processing ${targetLeads.length} leads...`);
+
+    setTimeout(() => {
+      const tagData: Record<string, { count: number, month: string, batch: string }> = {};
+
+      setLeadsData(prev => prev.map(lead => {
+        if (!lead || !targetLeads.includes(lead.id)) return lead;
+
+        const str = JSON.stringify(lead).toLowerCase();
+
+        let batch = '';
+        if (str.includes('morning') || str.includes('mor') || str.includes('morn')) batch = 'Morning';
+        else if (str.includes('evening') || str.includes('eve')) batch = 'Evening';
+        else if (str.includes('afternoon') || str.includes('aft')) batch = 'Afternoon';
+
+        let month = '';
+        const months = [
+          { key: 'jan', val: 'Jan' }, { key: 'feb', val: 'Feb' }, { key: 'mar', val: 'Mar' },
+          { key: 'apr', val: 'Apr' }, { key: 'may', val: 'May' }, { key: 'jun', val: 'Jun' },
+          { key: 'jul', val: 'Jul' }, { key: 'aug', val: 'Aug' }, { key: 'sep', val: 'Sep' },
+          { key: 'oct', val: 'Oct' }, { key: 'nov', val: 'Nov' }, { key: 'dec', val: 'Dec' }
+        ];
+        for (const m of months) {
+          if (str.includes(m.key)) {
+            month = m.val;
+            break;
+          }
+        }
+
+        const tagParts: string[] = [];
+        if (month) tagParts.push(month);
+        if (batch) tagParts.push(batch);
+        let tag = tagParts.join('-');
+        if (tag) tag += ' Eng Batch';
+
+        const finalTag = tag || lead['AI-7'] || '';
+        if (finalTag) {
+          if (!tagData[finalTag]) tagData[finalTag] = { count: 0, month, batch };
+          tagData[finalTag].count += 1;
+        }
+
+        return {
+          ...lead,
+          'AI-7': finalTag
+        };
+      }));
+
+      if (Object.keys(tagData).length > 0) {
+        const newWorkshops = [...workshops];
+        let hasChanges = false;
+
+        Object.entries(tagData).forEach(([tag, info]) => {
+          const existing = newWorkshops.find(w => w.name.toLowerCase() === tag.toLowerCase());
+          if (existing) {
+            existing.leads = (existing.leads || 0) + info.count;
+            hasChanges = true;
+          } else {
+            newWorkshops.unshift({
+              id: 'ws-' + Date.now() + Math.random().toString(36).substring(7),
+              name: tag,
+              language: selectedWorkshop?.language || 'English',
+              status: 'Upcoming',
+              leads: info.count,
+              date: new Date().toISOString().split('T')[0],
+              time: 'TBD',
+              formId: selectedWorkshop?.formId || linkedFormId,
+              googleFormMapping: selectedWorkshop?.metadata?.googleFormMapping,
+              metadata: {
+                mainFilter: info.batch,
+                subFilter: info.month
+              }
+            });
+            hasChanges = true;
+          }
+        });
+
+        if (hasChanges) {
+          setWorkshops(newWorkshops);
+          localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+          fetch('/api/admin/crm/new-registration/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+          }).catch(console.error);
+        }
+      }
+
+      setIsAi7Processing(false);
+      toast.success(`🤖 AI-7 categorized ${targetLeads.length} leads and updated batch cards!`);
+    }, 1500);
+  };
+
   useEffect(() => {
     if (selectedWorkshop?.metadata) {
       if (selectedWorkshop.metadata.mainFilter !== undefined) setLeadsFilter(selectedWorkshop.metadata.mainFilter);
@@ -154,7 +305,7 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     if (!isAiWorkerActive || leadsData.length === 0) return;
-    
+
     const interval = setInterval(() => {
       const unapproved = leadsData.filter(l => crmLeadIds.includes(l.id) && !approvedLeadIds.includes(l.id) && !pendingLeadIds.includes(l.id) && !pending2LeadIds.includes(l.id));
       if (unapproved.length > 0) {
@@ -162,26 +313,26 @@ export default function NewRegistrationPage() {
         const toApprove: string[] = [];
         const toPending: string[] = [];
         const newPendingInsights: Record<string, string> = {};
-        
+
         toProcess.forEach(lead => {
           let has14Days = false;
           let hasVideo = false;
           let hasDonation = false;
-          
+
           if (lead.dynamicAnswers) {
             Object.entries(lead.dynamicAnswers).forEach(([q, a]) => {
               const qLower = q.toLowerCase();
               const aLower = String(a).toLowerCase().trim();
-              
+
               const isNegative = aLower === 'no' || aLower === 'n' || aLower.startsWith('no ');
               const isPositive = !isNegative && (aLower.includes('yes') || aLower.includes('ready') || aLower.includes('noted') || aLower.includes('will') || aLower.includes('agree') || aLower.includes('ok') || aLower === 'y');
-              
+
               if ((qLower.includes('14 days') || qLower.includes('attend_all')) && isPositive) has14Days = true;
               if ((qLower.includes('video') || qLower.includes('video_on')) && isPositive) hasVideo = true;
               if ((qLower.includes('donation') || qLower.includes('contribute')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
             });
           }
-          
+
           if (has14Days && hasVideo && hasDonation) {
             toApprove.push(lead.id);
           } else {
@@ -199,61 +350,61 @@ export default function NewRegistrationPage() {
           setPendingLeadIds(prev => [...prev, ...toPending]);
           setPendingAiInsights(prev => ({ ...prev, ...newPendingInsights }));
         }
-        
+
         toast.success(`🤖 AI-1 processed ${toProcess.length} forms: ${toApprove.length} Approved, ${toPending.length} Pending-1.`);
       }
     }, 10000);
-    
+
     return () => clearInterval(interval);
   }, [isAiWorkerActive, leadsData, approvedLeadIds, pendingLeadIds, crmLeadIds]);
 
   useEffect(() => {
     if (!isApprovedAiWorkerActive || leadsData.length === 0) return;
-    
+
     const interval = setInterval(() => {
       // Find leads that are approved but not yet in registered or pending-2
-      const unevaluated = leadsData.filter(l => 
-        approvedLeadIds.includes(l.id) && 
-        !registeredLeadIds.includes(l.id) && 
+      const unevaluated = leadsData.filter(l =>
+        approvedLeadIds.includes(l.id) &&
+        !registeredLeadIds.includes(l.id) &&
         !pending2LeadIds.includes(l.id) &&
         !closedLeadIds.includes(l.id)
       );
-      
+
       if (unevaluated.length > 0) {
         const toProcess = unevaluated.slice(0, 5);
         const newRegistered: string[] = [];
         const newPending2: string[] = [];
         const newInsights: Record<string, string> = {};
-        
+
         toProcess.forEach(lead => {
           let hasValidEducation = false;
           let hasValidProfession = false;
           let hasValidAge = false;
           let isAI3Reject = false;
           let reason = '';
-          
+
           if (!lead.dynamicAnswers) {
             reason = 'No form data available.';
           } else {
             Object.entries(lead.dynamicAnswers).forEach(([q, a]) => {
               const qLower = q.toLowerCase();
               const aLower = String(a).toLowerCase().trim();
-              
+
               // AI-2 checks
               if (qLower.includes('education') || qLower.includes('qualification')) {
                 const validEduKeywords = ['10th', 'ssc', '12th', 'hsc', 'degree', 'grad', 'post', 'phd', 'b.', 'm.', 'bca', 'mca', 'btech', 'mtech', 'ca', 'cs'];
                 if (validEduKeywords.some(kw => aLower.includes(kw))) hasValidEducation = true;
                 if (aLower.includes('student')) isAI3Reject = true; // AI-3 check
               }
-              
+
               if (qLower.includes('profession') || qLower.includes('occupation') || qLower.includes('work')) {
                 const validProfKeywords = ['job', 'business', 'self employed', 'self-employed', 'professional'];
                 if (validProfKeywords.some(kw => aLower.includes(kw))) hasValidProfession = true;
-                
+
                 const rejectProfKeywords = ['jobless', 'job less', 'no job', 'retired', 'student', 'housewife'];
                 if (rejectProfKeywords.some(kw => aLower.includes(kw))) isAI3Reject = true; // AI-3 check
               }
-              
+
               if (qLower.includes('age')) {
                 const age = parseInt(aLower);
                 if (!isNaN(age)) {
@@ -262,16 +413,16 @@ export default function NewRegistrationPage() {
                 }
               }
             });
-            
+
             if (isAI3Reject) {
-                reason = "AI-3 Rule: Jobless, student, retired, or age out of bounds (<30 or >64).";
+              reason = "AI-3 Rule: Jobless, student, retired, or age out of bounds (<30 or >64).";
             } else {
-                if (!hasValidEducation) reason += 'Education does not meet 12th-PhD criteria. ';
-                if (!hasValidProfession) reason += 'Profession is not job/business/self-employed. ';
-                if (!hasValidAge) reason += 'Age is not between 34-64. ';
+              if (!hasValidEducation) reason += 'Education does not meet 12th-PhD criteria. ';
+              if (!hasValidProfession) reason += 'Profession is not job/business/self-employed. ';
+              if (!hasValidAge) reason += 'Age is not between 34-64. ';
             }
           }
-          
+
           if (reason === '') {
             newRegistered.push(lead.id);
           } else {
@@ -279,7 +430,7 @@ export default function NewRegistrationPage() {
             newInsights[lead.id] = reason.trim();
           }
         });
-        
+
         if (newRegistered.length > 0) setRegisteredLeadIds(prev => [...prev, ...newRegistered]);
         if (newPending2.length > 0) {
           setPending2LeadIds(prev => [...prev, ...newPending2]);
@@ -287,25 +438,25 @@ export default function NewRegistrationPage() {
         }
       }
     }, 5000);
-    
+
     return () => clearInterval(interval);
   }, [isApprovedAiWorkerActive, leadsData, approvedLeadIds, registeredLeadIds, approvalAiInsights]);
 
   useEffect(() => {
     if (!isRegisteredAiWorkerActive || leadsData.length === 0) return;
-    
+
     const interval = setInterval(() => {
       // Find leads that are registered but not yet evaluated by this AI (not closed)
-      const unevaluated = leadsData.filter(l => 
-        registeredLeadIds.includes(l.id) && 
+      const unevaluated = leadsData.filter(l =>
+        registeredLeadIds.includes(l.id) &&
         !closedLeadIds.includes(l.id)
       );
-      
+
       if (unevaluated.length > 0) {
         const toProcess = unevaluated.slice(0, 5);
         const newClosed: string[] = [];
         const newInsights: Record<string, string> = {};
-        
+
         toProcess.forEach(lead => {
           let has14Days = false;
           let hasVideo = false;
@@ -314,20 +465,20 @@ export default function NewRegistrationPage() {
           let hasValidProfession = false;
           let hasValidAge = false;
           let isAI3Reject = false;
-          
+
           if (lead.dynamicAnswers) {
             Object.entries(lead.dynamicAnswers).forEach(([q, a]) => {
               const qLower = q.toLowerCase();
               const aLower = String(a).toLowerCase().trim();
-              
+
               // AI-1 Checks
               const isNegative = aLower === 'no' || aLower === 'n' || aLower.startsWith('no ');
               const isPositive = !isNegative && (aLower.includes('yes') || aLower.includes('ready') || aLower.includes('noted') || aLower.includes('will') || aLower.includes('agree') || aLower.includes('ok') || aLower === 'y');
-              
+
               if ((qLower.includes('14 days') || qLower.includes('attend_all')) && isPositive) has14Days = true;
               if ((qLower.includes('video') || qLower.includes('video_on')) && isPositive) hasVideo = true;
               if ((qLower.includes('donation') || qLower.includes('contribute')) && (isPositive || !isNaN(parseInt(aLower)))) hasDonation = true;
-              
+
               // AI-2 Checks
               if (qLower.includes('education') || qLower.includes('qualification')) {
                 const validEduKeywords = ['10th', 'ssc', '12th', 'hsc', 'degree', 'grad', 'post', 'phd', 'b.', 'm.', 'bca', 'mca', 'btech', 'mtech', 'ca', 'cs'];
@@ -349,34 +500,32 @@ export default function NewRegistrationPage() {
               }
             });
           }
-          
+
           if (has14Days && hasVideo && hasDonation && hasValidEducation && hasValidProfession && hasValidAge && !isAI3Reject) {
             newClosed.push(lead.id);
           } else {
             newInsights[lead.id] = 'Failed AI-5 final combined verification.';
           }
         });
-        
+
         if (newClosed.length > 0) setClosedLeadIds(prev => [...prev, ...newClosed]);
         if (Object.keys(newInsights).length > 0) setRegisteredAiInsights(prev => ({ ...prev, ...newInsights }));
       }
     }, 5000);
-    
+
     return () => clearInterval(interval);
   }, [isRegisteredAiWorkerActive, leadsData, registeredLeadIds, closedLeadIds, registeredAiInsights]);
 
   useEffect(() => {
     // Automated Congratulatory Message logic
     if (registeredLeadIds.length === 0 || leadsData.length === 0) return;
-    
+
     const unsentIds = registeredLeadIds.filter(id => !sentCongratsLeadIds.includes(id));
     if (unsentIds.length > 0) {
       unsentIds.forEach(id => {
         const lead = leadsData.find(l => l.id === id);
         if (lead) {
-          toast.success(`Automated Meta/Email sent to ${lead.name || 'Lead'}: "Congratulations, your form has been selected and approved, now final a small zoom meeting is needed for the class, so let me your date and time select any one slot and join for it."`, {
-            duration: 6000,
-          });
+          toast.success(`Automated Meta/Email sent to ${lead.name || 'Lead'}: "Congratulations, your form has been selected and approved, now final a small zoom meeting is needed for the class, so let me your date and time select any one slot and join for it."`);
         }
       });
       setSentCongratsLeadIds(prev => [...prev, ...unsentIds]);
@@ -398,7 +547,7 @@ export default function NewRegistrationPage() {
             setFetchedForms(json.data || []);
           }
         }
-        
+
         const gRes = await fetch('/api/admin/google-forms/list', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -429,7 +578,7 @@ export default function NewRegistrationPage() {
 
   useEffect(() => {
     async function loadLeads() {
-      if (!linkedFormId || !selectedWorkshop) return;
+      if (!linkedFormId) return;
       if (linkedFormId !== 'google-form-sync' && !linkedFormId.includes('docs.google.com') && !token) return;
       setIsLoadingLeads(true);
       try {
@@ -439,7 +588,7 @@ export default function NewRegistrationPage() {
             const json = await res.json();
             const fetchedLeads = json.data || [];
             setLeadsData(fetchedLeads);
-            setWorkshops(prev => prev.map(w => w.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
+            setWorkshops(prev => (prev || []).map(w => w?.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
             setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: fetchedLeads.length } : prev);
           } else {
             toast.error('Failed to load Google Sheets CSV');
@@ -447,53 +596,43 @@ export default function NewRegistrationPage() {
         } else if (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms')) {
           let fetchedLeads = [];
           setNeedsGoogleAuth(false);
-          
+
           if (token) {
             // Check Google Forms OAuth Sync first
             const syncRes = await fetch(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
               headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             if (syncRes.ok) {
               const json = await syncRes.json();
               let mappedLeads = json.data || [];
               const ws = selectedWorkshop;
-              if (ws?.googleFormMapping && mappedLeads.length > 0) {
+              const mapping = ws?.metadata?.googleFormMapping;
+              if (mapping && mappedLeads.length > 0) {
                 mappedLeads = mappedLeads.map((lead: any) => {
                   const raw = lead._rawRecord || {};
                   return {
                     ...lead,
-                    name: raw[ws.googleFormMapping['Name']] || lead.name,
-                    email: raw[ws.googleFormMapping['Email']] || lead.email,
-                    mobile: raw[ws.googleFormMapping['Mobile']] || lead.mobile,
-                    phoneNumber: raw[ws.googleFormMapping['Mobile']] || lead.phoneNumber,
-                    city: raw[ws.googleFormMapping['City']] || lead.city,
-                    country: raw[ws.googleFormMapping['Country']] || lead.country,
-                    gender: raw[ws.googleFormMapping['Gender']] || lead.gender,
+                    name: raw[mapping['NAME']] || raw[mapping['Name']] || lead.name,
+                    email: raw[mapping['EMAIL']] || raw[mapping['Email']] || lead.email,
+                    mobile: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.mobile,
+                    phoneNumber: raw[mapping['MOBILE']] || raw[mapping['Mobile']] || lead.phoneNumber,
+                    city: raw[mapping['CITY']] || raw[mapping['City']] || lead.city,
+                    country: raw[mapping['COUNTRY']] || raw[mapping['Country']] || lead.country,
+                    gender: raw[mapping['GENDER']] || raw[mapping['Gender']] || lead.gender,
+                    language: ws?.language || selectedDashboardLang,
                   };
                 });
+              } else {
+                mappedLeads = mappedLeads.map((lead: any) => ({
+                  ...lead,
+                  language: ws?.language || selectedDashboardLang,
+                }));
               }
-              
-              if (ws?.formFilterKeyword && ws.formFilterKeyword.trim() !== '') {
-                const keyword = ws.formFilterKeyword.toLowerCase().trim();
-                const ai7MappedQuestion = ws?.googleFormMapping?.['AI-7'];
-                mappedLeads = mappedLeads.filter((lead: any) => {
-                  if (lead._rawRecord) {
-                    if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                      // If AI-7 is mapped, only check the answer to that specific question
-                      return String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(keyword);
-                    } else {
-                      // Fallback: check all answers
-                      return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
-                    }
-                  }
-                  return true;
-                });
-              }
-              
+
               fetchedLeads = mappedLeads;
               if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
-              if (ws?.googleFormMapping) setFieldMapping(ws.googleFormMapping);
+              if (ws?.metadata?.googleFormMapping) setFieldMapping(ws.metadata.googleFormMapping);
             } else if (syncRes.status === 401) {
               setNeedsGoogleAuth(true);
             } else {
@@ -509,12 +648,42 @@ export default function NewRegistrationPage() {
               }
             }
           }
-          
+
           // No mock fallback — if API returned no data, show empty state
-          
+
           setLeadsData(fetchedLeads);
-          setWorkshops(prev => prev.map(w => w.id === selectedWorkshop.id ? { ...w, leads: fetchedLeads.length } : w));
-          setSelectedWorkshop(prev => prev && prev.id === selectedWorkshop.id ? { ...prev, leads: fetchedLeads.length } : prev);
+          setWorkshops(prev => {
+            const updated = (prev || []).map(w => {
+              if (w.id.startsWith('batch_') && w.formId === linkedFormId) {
+                if (w.formFilterKeyword) {
+                  const keywords = w.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
+                  const ai7MappedQuestion = w.metadata?.googleFormMapping?.['AI-7'] || w.metadata?.googleFormMapping?.['ai7'];
+                  const count = fetchedLeads.filter((lead: any) => {
+                    if (lead._rawRecord) {
+                      if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+                        return keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+                      } else {
+                        return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+                      }
+                    }
+                    return true;
+                  }).length;
+                  return { ...w, leads: count };
+                }
+              } else if (w.formId === linkedFormId) {
+                return { ...w, leads: fetchedLeads.length };
+              }
+              return w;
+            });
+            // Also update selectedWorkshop if it's currently selected
+            if (selectedWorkshop) {
+              const updatedSelected = updated.find(w => w.id === selectedWorkshop.id);
+              if (updatedSelected) {
+                setSelectedWorkshop(updatedSelected);
+              }
+            }
+            return updated;
+          });
         } else {
           const res = await fetch(`/api/admin/enquiries?workshopId=${linkedFormId}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -523,8 +692,8 @@ export default function NewRegistrationPage() {
             const json = await res.json();
             const fetchedLeads = json.data || [];
             setLeadsData(fetchedLeads);
-            setWorkshops(prev => prev.map(w => w.id === selectedWorkshop.id ? { ...w, leads: fetchedLeads.length } : w));
-            setSelectedWorkshop(prev => prev && prev.id === selectedWorkshop.id ? { ...prev, leads: fetchedLeads.length } : prev);
+            setWorkshops(prev => (prev || []).map(w => w?.id === selectedWorkshop?.id ? { ...w, leads: fetchedLeads.length } : w));
+            setSelectedWorkshop(prev => prev && prev.id === selectedWorkshop?.id ? { ...prev, leads: fetchedLeads.length } : prev);
           }
         }
       } catch (e) {
@@ -540,168 +709,165 @@ export default function NewRegistrationPage() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    if (!isAi4Active || !linkedFormId) return;
-    
+    if (!isAi7Active) return;
+
     let isFetching = false;
-    const mapping = workshops.find((w: any) => w.formId === linkedFormId)?.googleFormMapping;
-    
+
     const interval = setInterval(async () => {
       if (isFetching) return;
       isFetching = true;
       try {
-        let fetchedLeads: any[] = [];
-        let newQuestionMap: any = null;
-        
-        const fetchWithRetry = async (url: string, options: any, retries = 3): Promise<Response> => {
-          let lastErr: any;
-          for (let i = 0; i < retries; i++) {
-            try {
-              const res = await fetch(url, options);
-              if (res.ok) return res;
-              // If it's a server error but not ok, we also might want to retry
-              if (res.status >= 500) throw new Error('Server error');
-              return res; // Client errors (400) shouldn't be retried
-            } catch (e) {
-              lastErr = e;
-              if (i < retries - 1) {
-                await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Backoff
-              }
-            }
-          }
-          throw lastErr;
-        };
-        
-        if (linkedFormId.includes('docs.google.com/forms') || formSource === 'google') {
-           if (token) {
-             const syncRes = await fetchWithRetry(`/api/admin/google-forms/sync?url=${encodeURIComponent(linkedFormId)}`, {
-               headers: { Authorization: `Bearer ${token}` }
-             });
-             if (syncRes.ok) {
-               const json = await syncRes.json();
-               let mappedLeads: any[] = json.data || [];
-               if (mapping && mappedLeads.length > 0) {
-                 mappedLeads = mappedLeads.map((lead: any) => {
-                   const raw = lead._rawRecord || {};
-                   return {
-                     ...lead,
-                     name: raw[mapping['Name']] || lead.name,
-                     email: raw[mapping['Email']] || lead.email,
-                     mobile: raw[mapping['Mobile']] || lead.mobile,
-                     phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
-                     city: raw[mapping['City']] || lead.city,
-                     country: raw[mapping['Country']] || lead.country,
-                     gender: raw[mapping['Gender']] || lead.gender,
-                   };
-                 });
-               }
-               
-               const ws = workshops.find((w: any) => w.formId === linkedFormId);
-               if (ws?.formFilterKeyword && ws.formFilterKeyword.trim() !== '') {
-                 const keyword = ws.formFilterKeyword.toLowerCase().trim();
-                 const ai7MappedQuestion = ws?.googleFormMapping?.['AI-7'];
-                 mappedLeads = mappedLeads.filter((lead: any) => {
-                   if (lead._rawRecord) {
-                     if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                       // If AI-7 is mapped, only check the answer to that specific question
-                       return String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(keyword);
-                     } else {
-                       // Fallback: check all answers
-                       return Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(keyword));
-                     }
-                   }
-                   return true;
-                 });
-               }
-               
-               fetchedLeads = mappedLeads;
-               if (json.questionMap) newQuestionMap = json.questionMap;
-             }
-           }
-        } else {
-           const res = await fetchWithRetry(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(linkedFormId)}`, {
-             headers: { Authorization: `Bearer ${token}` }
-           });
-           if (res.ok) {
-             const json = await res.json();
-             fetchedLeads = json.data || [];
-           }
+        const formsToSync = Array.from(new Set(workshops.filter((w: any) => w.formId && (w.formId.includes('docs.google.com') || w.formSource === 'google')).map((w: any) => w.formId)));
+        if (formsToSync.length === 0 && linkedFormId && linkedFormId.includes('docs.google.com')) {
+          formsToSync.push(linkedFormId);
         }
 
-        if (fetchedLeads.length > 0) {
-          setLeadsData((prevLeads: any[]) => {
-            const existingIds = new Set(prevLeads.map((l: any) => l.id));
-            const newLeads = fetchedLeads.filter((l: any) => !existingIds.has(l.id));
-            
-            if (newLeads.length > 0) {
-               const ws = workshops.find((w: any) => w.formId === linkedFormId);
-               let leadsToMove = newLeads;
-               const effectiveF1 = leadsFilter || ws?.metadata?.mainFilter || '';
-               const effectiveF2 = leadsSubFilter || ws?.metadata?.subFilter || '';
-               const effectiveF3 = leadsSubSubFilter || '';
+        for (const currentFormId of formsToSync) {
+          const mapping = workshops.find((w: any) => w.formId === currentFormId)?.metadata?.googleFormMapping;
+          const currentWorkshop = workshops.find((w: any) => w.formId === currentFormId);
+          let fetchedLeads: any[] = [];
+          let newQuestionMap: any = null;
 
-               if (effectiveF1 || effectiveF2 || effectiveF3) {
-                 leadsToMove = newLeads.filter((lead: any) => {
-                   const f1 = !effectiveF1 || (() => {
-                     const vals = [
-                       lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                       ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                     ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                     return vals.some((v: any) => v.includes(effectiveF1.toLowerCase()));
-                   })();
-                   const f2 = !effectiveF2 || (() => {
-                     const vals = [
-                       lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                       ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                     ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                     return vals.some((v: any) => v.includes(effectiveF2.toLowerCase()));
-                   })();
-                   const f3 = !effectiveF3 || (() => {
-                     const vals = [
-                       lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
-                       ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
-                       ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
-                     ].filter(Boolean).map((v: any) => String(v).toLowerCase());
-                     return vals.some((v: any) => v.includes(effectiveF3.toLowerCase()));
-                   })();
-                   return f1 && f2 && f3;
-                 });
-               }
-
-               if (leadsToMove.length > 0) {
-                 setCrmLeadIds((prevCrm: string[]) => {
-                   const idsToMove = leadsToMove.map((l: any) => l.id);
-                   const newCrmIds = Array.from(new Set([...prevCrm, ...idsToMove]));
-                   toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
-                   return newCrmIds;
-                 });
-               } else {
-                 toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, but none matched your filter.`);
-               }
-
-               setWorkshops((prev: any[]) => prev.map((w: any) => w.formId === linkedFormId ? { ...w, leads: (w.leads || 0) + newLeads.length } : w));
-               setSelectedWorkshop((prev: any) => prev && prev.formId === linkedFormId ? { ...prev, leads: (prev.leads || 0) + newLeads.length } : prev);
-               
-               return [...prevLeads, ...newLeads];
-            } else {
-              toast.info(`🤖 AI-4: Sync check completed. No new leads found.`);
+          const fetchWithRetry = async (url: string, options: any, retries = 3): Promise<Response> => {
+            let lastErr: any;
+            for (let i = 0; i < retries; i++) {
+              try {
+                const res = await fetch(url, options);
+                if (res.ok) return res;
+                // If it's a server error but not ok, we also might want to retry
+                if (res.status >= 500) throw new Error('Server error');
+                return res; // Client errors (400) shouldn't be retried
+              } catch (e) {
+                lastErr = e;
+                if (i < retries - 1) {
+                  await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Backoff
+                }
+              }
             }
-            
-            return prevLeads;
-          });
-          
-          if (newQuestionMap) setGoogleFormQuestionMap(newQuestionMap);
+            throw lastErr;
+          };
+
+          if (currentFormId.includes('docs.google.com/forms')) {
+            if (token) {
+              const syncRes = await fetchWithRetry(`/api/admin/google-forms/sync?url=${encodeURIComponent(currentFormId)}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              if (syncRes.ok) {
+                const json = await syncRes.json();
+                let mappedLeads: any[] = json.data || [];
+                if (mapping && mappedLeads.length > 0) {
+                  mappedLeads = mappedLeads.map((lead: any) => {
+                    const raw = lead._rawRecord || {};
+                    return {
+                      ...lead,
+                      name: raw[mapping['Name']] || lead.name,
+                      email: raw[mapping['Email']] || lead.email,
+                      mobile: raw[mapping['Mobile']] || lead.mobile,
+                      phoneNumber: raw[mapping['Mobile']] || lead.phoneNumber,
+                      city: raw[mapping['City']] || lead.city,
+                      country: raw[mapping['Country']] || lead.country,
+                      gender: raw[mapping['Gender']] || lead.gender,
+                      language: currentWorkshop?.language || selectedDashboardLang,
+                    };
+                  });
+                } else {
+                  mappedLeads = mappedLeads.map((lead: any) => ({
+                    ...lead,
+                    language: currentWorkshop?.language || selectedDashboardLang,
+                  }));
+                }
+
+                fetchedLeads = mappedLeads;
+                if (json.questionMap) newQuestionMap = json.questionMap;
+              }
+            }
+          } else {
+            const res = await fetchWithRetry(`/api/admin/enquiry-forms/sync?formId=${encodeURIComponent(currentFormId)}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const json = await res.json();
+              fetchedLeads = json.data || [];
+              fetchedLeads = fetchedLeads.map(l => ({ ...l, language: currentWorkshop?.language || selectedDashboardLang }));
+            }
+          }
+
+          if (fetchedLeads.length > 0) {
+            setLeadsData((prevLeads: any[]) => {
+              const existingIds = new Set((prevLeads || []).filter(Boolean).map((l: any) => l?.id).filter(Boolean));
+              const newLeads = fetchedLeads.filter((l: any) => l && l.id && !existingIds.has(l.id));
+
+              if (newLeads.length > 0) {
+                const ws = workshops.find((w: any) => w.formId === linkedFormId);
+                let leadsToMove = newLeads;
+                const effectiveF1 = leadsFilter || ws?.metadata?.mainFilter || '';
+                const effectiveF2 = leadsSubFilter || ws?.metadata?.subFilter || '';
+                const effectiveF3 = leadsSubSubFilter || '';
+
+                if (effectiveF1 || effectiveF2 || effectiveF3) {
+                  leadsToMove = newLeads.filter((lead: any) => {
+                    const f1 = !effectiveF1 || (() => {
+                      const vals = [
+                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
+                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+                      return vals.some((v: any) => v.includes(effectiveF1.toLowerCase()));
+                    })();
+                    const f2 = !effectiveF2 || (() => {
+                      const vals = [
+                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
+                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+                      return vals.some((v: any) => v.includes(effectiveF2.toLowerCase()));
+                    })();
+                    const f3 = !effectiveF3 || (() => {
+                      const vals = [
+                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
+                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+                      return vals.some((v: any) => v.includes(effectiveF3.toLowerCase()));
+                    })();
+                    return f1 && f2 && f3;
+                  });
+                }
+
+                if (leadsToMove.length > 0) {
+                  setCrmLeadIds((prevCrm: string[]) => {
+                    const idsToMove = leadsToMove.map((l: any) => l?.id).filter(Boolean);
+                    const newCrmIds = Array.from(new Set([...prevCrm, ...idsToMove]));
+                    toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, moved ${leadsToMove.length} matching your filter to CRM!`);
+                    return newCrmIds;
+                  });
+                } else {
+                  toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, but none matched your filter.`);
+                }
+
+                setWorkshops((prev: any[]) => (prev || []).map((w: any) => w?.formId === currentFormId ? { ...w, leads: (w.leads || 0) + newLeads.length } : w));
+                setSelectedWorkshop((prev: any) => prev && prev.formId === currentFormId ? { ...prev, leads: (prev.leads || 0) + newLeads.length } : prev);
+
+                return [...(prevLeads || []).filter(Boolean), ...newLeads];
+              } else {
+                toast.info(`🤖 AI-7: Sync check completed. No new leads found.`);
+              }
+
+              return prevLeads;
+            });
+
+            if (newQuestionMap) setGoogleFormQuestionMap(newQuestionMap);
+          }
         }
       } catch (err) {
         console.error("AI4 Fetch error", err);
       } finally {
         isFetching = false;
       }
-    }, (ai4Interval || 600) * 1000); 
-    
+    }, 5 * 60 * 1000); // Fixed 5 minutes interval for AI-7
+
     return () => clearInterval(interval);
-  }, [isAi4Active, linkedFormId, ai4Interval, token, formSource, leadsFilter, leadsSubFilter, leadsSubSubFilter, workshops]);
+  }, [isAi7Active, linkedFormId, token, formSource, leadsFilter, leadsSubFilter, leadsSubSubFilter, workshops]);
 
   // AI-4: Auto-reconnect Google every 2 minutes to keep token fresh and reload forms
   useEffect(() => {
@@ -761,19 +927,21 @@ export default function NewRegistrationPage() {
     } else {
       setWorkshops([defaultBatch]);
     }
-    
+
     const savedAiState = localStorage.getItem('crm_ai_worker_active');
     if (savedAiState) setIsAiWorkerActive(savedAiState === 'true');
-    
+
     const savedApprovedAiState = localStorage.getItem('crm_approved_ai_active');
     if (savedApprovedAiState) setIsApprovedAiWorkerActive(savedApprovedAiState === 'true');
-    
+
     const savedRegisteredAiState = localStorage.getItem('crm_registered_ai_active');
     if (savedRegisteredAiState) setIsRegisteredAiWorkerActive(savedRegisteredAiState === 'true');
-    
+
     const savedAi4State = localStorage.getItem('crm_ai_4_active');
     if (savedAi4State) setIsAi4Active(savedAi4State === 'true');
-    
+    const savedAi7State = localStorage.getItem('crm_ai_7_active');
+    if (savedAi7State) setIsAi7Active(savedAi7State === 'true');
+
     try {
       const loadFromApi = async () => {
         try {
@@ -786,6 +954,7 @@ export default function NewRegistrationPage() {
               if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
               if (data.crm_ai_4_active) setIsAi4Active(data.crm_ai_4_active === 'true');
+              if (data.crm_ai_7_active) setIsAi7Active(data.crm_ai_7_active === 'true');
               // We also save to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'string') localStorage.setItem(k, v);
@@ -801,7 +970,7 @@ export default function NewRegistrationPage() {
     } catch (e) {
       console.error('Error loading crm states', e);
     }
-    
+
     try {
       if (typeof window !== 'undefined') {
         const searchParams = new URLSearchParams(window.location.search);
@@ -819,7 +988,7 @@ export default function NewRegistrationPage() {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       }
-    } catch (e) {}
+    } catch (e) { }
 
     setIsLoaded(true);
   }, []);
@@ -827,7 +996,7 @@ export default function NewRegistrationPage() {
   useEffect(() => {
     if (isLoaded) {
       const stateObj: Record<string, string> = {};
-      
+
       const setAndCollect = (k: string, v: string) => {
         localStorage.setItem(k, v);
         stateObj[k] = v;
@@ -839,7 +1008,7 @@ export default function NewRegistrationPage() {
       setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
 
       if (selectedWorkshop) {
-        const suffix = `_${selectedWorkshop.id}`;
+        const suffix = `_${selectedWorkshop?.id}`;
         setAndCollect('crm_lead_ids' + suffix, JSON.stringify(crmLeadIds));
         setAndCollect('crm_approved_ids' + suffix, JSON.stringify(approvedLeadIds));
         setAndCollect('crm_pending_ids' + suffix, JSON.stringify(pendingLeadIds));
@@ -862,7 +1031,7 @@ export default function NewRegistrationPage() {
             stateObj[key] = localStorage.getItem(key) || '';
           }
         }
-        
+
         fetch('/api/admin/crm/new-registration/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -878,9 +1047,29 @@ export default function NewRegistrationPage() {
     if (selectedWorkshop?.formId) {
       setLinkedFormId(selectedWorkshop.formId);
       setSelectedFormId(selectedWorkshop.formId);
-      
-      const suffix = `_${selectedWorkshop.id}`;
-      
+
+      const source = selectedWorkshop.metadata?.formSource ||
+        (selectedWorkshop.metadata?.googleFormMapping ? 'google' :
+          (selectedWorkshop.formId.includes('docs.google.com') || selectedWorkshop.formId.includes('forms.gle') ? 'google' : 'internal'));
+
+      setFormSource(source);
+      if (source === 'google') {
+        setGoogleFormUrl(selectedWorkshop.formId);
+      } else {
+        setSelectedFormId(selectedWorkshop.formId);
+      }
+
+      if (selectedWorkshop.metadata?.googleFormMapping) {
+        setFieldMapping(selectedWorkshop.metadata.googleFormMapping);
+      } else {
+        setFieldMapping({});
+      }
+
+      setLeadsFilter(selectedWorkshop.metadata?.mainFilter || '');
+      setLeadsSubFilter(selectedWorkshop.metadata?.subFilter || '');
+
+      const suffix = `_${selectedWorkshop?.id}`;
+
       const loadList = (key: string) => {
         const str = localStorage.getItem(key + suffix);
         return str ? JSON.parse(str) : [];
@@ -889,7 +1078,7 @@ export default function NewRegistrationPage() {
         const str = localStorage.getItem(key + suffix);
         return str ? JSON.parse(str) : {};
       };
-      
+
       setCrmLeadIds(loadList('crm_lead_ids'));
       setApprovedLeadIds(loadList('crm_approved_ids'));
       setPendingLeadIds(loadList('crm_pending_ids'));
@@ -898,7 +1087,7 @@ export default function NewRegistrationPage() {
       setStudentKotaLeadIds(loadList('crm_student_kota_ids'));
       setClosedLeadIds(loadList('crm_closed_ids'));
       setSentCongratsLeadIds(loadList('crm_sent_congrats_ids'));
-      
+
       setApprovalAiInsights(loadObj('crm_approval_insights'));
       setPendingAiInsights(loadObj('crm_pending_insights'));
       setRegisteredAiInsights(loadObj('crm_registered_insights'));
@@ -906,7 +1095,11 @@ export default function NewRegistrationPage() {
       setLinkedFormId('');
       setSelectedFormId('');
       setLeadsData([]);
-      
+      setGoogleFormUrl('');
+      setFieldMapping({});
+      setLeadsFilter('');
+      setLeadsSubFilter('');
+
       // Clear states when no batch is selected
       setCrmLeadIds([]);
       setApprovedLeadIds([]);
@@ -916,7 +1109,7 @@ export default function NewRegistrationPage() {
       setStudentKotaLeadIds([]);
       setClosedLeadIds([]);
       setSentCongratsLeadIds([]);
-      
+
       setApprovalAiInsights({});
       setPendingAiInsights({});
       setRegisteredAiInsights({});
@@ -924,37 +1117,64 @@ export default function NewRegistrationPage() {
   }, [selectedWorkshop?.id, selectedWorkshop?.formId]);
 
   const saveWorkshopSettings = async () => {
-    const targetWorkshop = selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
+    let targetWorkshop = selectedWorkshop || workshops.find(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
+
+    let currentWorkshops = [...workshops];
     if (!targetWorkshop) {
-      toast.error("No batch available to save settings to.");
-      return;
+      targetWorkshop = {
+        id: `master_${selectedDashboardLang.toLowerCase()}_${Date.now()}`,
+        name: `Master List - ${selectedDashboardLang}`,
+        language: selectedDashboardLang,
+        formId: formSource === 'google' ? googleFormUrl : selectedFormId,
+        metadata: {},
+        leads: 0
+      };
+      currentWorkshops = [...currentWorkshops, targetWorkshop];
     }
+
+    const updatedMetadata = {
+      ...targetWorkshop.metadata,
+      formSource: formSource,
+      googleFormMapping: fieldMapping,
+      crmFields: crmFields,
+      formFilterKeyword: targetWorkshop?.formFilterKeyword || '',
+      mainFilter: leadsFilter,
+      subFilter: leadsSubFilter
+    };
+
+    const updatedWorkshop = {
+      ...targetWorkshop,
+      formId: formSource === 'google' ? googleFormUrl : targetWorkshop.formId,
+      metadata: updatedMetadata
+    };
+
+    const newWorkshops = (currentWorkshops || []).map(w => w?.id === targetWorkshop.id ? updatedWorkshop : w);
+    setWorkshops(newWorkshops);
+    setSelectedWorkshop(updatedWorkshop);
+    setLinkedFormId(updatedWorkshop.formId);
+
+    localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+    fetch('/api/admin/crm/new-registration/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+    }).catch(console.error);
+
     try {
-      const res = await fetch('/api/admin/crm/workshop-management', {
+      await fetch('/api/admin/crm/workshop-management', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           cohortId: targetWorkshop.id,
           googleFormLink: googleFormUrl,
-          metadata: {
-            ...targetWorkshop.metadata,
-            googleFormMapping: fieldMapping,
-            crmFields: crmFields,
-            formFilterKeyword: selectedWorkshop.formFilterKeyword || '',
-            mainFilter: leadsFilter,
-            subFilter: leadsSubFilter
-          }
+          metadata: updatedMetadata
         })
       });
-      if (res.ok) {
-        toast.success('Workshop settings saved successfully!');
-      } else {
-        toast.error('Failed to save workshop settings.');
-      }
     } catch (e) {
-      console.error(e);
-      toast.error('Error saving settings.');
+      console.error('Failed to sync to workshop-management backend:', e);
     }
+
+    toast.success('Workshop settings saved successfully!');
   };
 
   const handleDetailChange = (field: string, value: string) => {
@@ -964,13 +1184,13 @@ export default function NewRegistrationPage() {
       [field]: value
     };
     setSelectedWorkshop(updated);
-    setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
+    setWorkshops((workshops || []).map(w => w?.id === updated.id ? updated : w));
   };
 
   const handleDeleteBatch = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (confirm('Are you sure you want to delete this batch?')) {
-      setWorkshops(workshops.filter(w => w.id !== id));
+      setWorkshops((workshops || []).filter(w => w && w.id !== id));
       if (selectedWorkshop?.id === id) {
         setSelectedWorkshop(null);
         setActiveTab('details');
@@ -994,7 +1214,7 @@ export default function NewRegistrationPage() {
     newWorkshops[index] = newWorkshops[index - 1];
     newWorkshops[index - 1] = temp;
     setWorkshops(newWorkshops);
-    
+
     localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
     try {
       await fetch('/api/admin/crm/new-registration/state', {
@@ -1002,7 +1222,7 @@ export default function NewRegistrationPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
       });
-    } catch (err) {}
+    } catch (err) { }
   };
 
   const handleMoveBatchDown = async (e: React.MouseEvent, index: number) => {
@@ -1013,7 +1233,7 @@ export default function NewRegistrationPage() {
     newWorkshops[index] = newWorkshops[index + 1];
     newWorkshops[index + 1] = temp;
     setWorkshops(newWorkshops);
-    
+
     localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
     try {
       await fetch('/api/admin/crm/new-registration/state', {
@@ -1021,14 +1241,14 @@ export default function NewRegistrationPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
       });
-    } catch (err) {}
+    } catch (err) { }
   };
 
   // State for Zoom meetings & message numbers per lead (used in Closing tab)
   const [meetingSchedule, setMeetingSchedule] = useState<Record<string, string>>({});
   const [messageNumber, setMessageNumber] = useState<Record<string, number>>({});
   const [zoomMeetingId, setZoomMeetingId] = useState<string>('');
-  
+
   const handleZoomRegister = async (leadIds: string[]) => {
     if (!zoomMeetingId) {
       toast.error('Please enter a Zoom Meeting ID in the bulk actions bar above first.');
@@ -1036,10 +1256,10 @@ export default function NewRegistrationPage() {
     }
     const leadsToRegister = leadsData.filter(l => leadIds.includes(l.id));
     if (leadsToRegister.length === 0) return;
-    
+
     let successCount = 0;
     toast.info(`Starting Zoom registration for ${leadsToRegister.length} lead(s)...`);
-    
+
     for (const lead of leadsToRegister) {
       try {
         const res = await fetch('/api/webhooks/google-forms/zoom-register', {
@@ -1070,7 +1290,7 @@ export default function NewRegistrationPage() {
       if (confirm(`Are you sure you want to delete ${selectedRowIds.length} leads?`)) {
         const newLeads = leadsData.filter(l => !selectedRowIds.includes(l.id));
         setLeadsData(newLeads);
-        setWorkshops(prev => prev.map(w => w.id === selectedWorkshop?.id ? { ...w, leads: newLeads.length } : w));
+        setWorkshops(prev => (prev || []).map(w => w?.id === selectedWorkshop?.id ? { ...w, leads: newLeads.length } : w));
         setSelectedWorkshop(prev => prev ? { ...prev, leads: newLeads.length } : prev);
         setApprovedLeadIds(approvedLeadIds.filter(id => !selectedRowIds.includes(id)));
         toast.success(`Deleted ${selectedRowIds.length} leads successfully!`);
@@ -1089,10 +1309,8 @@ export default function NewRegistrationPage() {
   const TopTabs = [
     { id: 'all_leads', label: 'All Leads Data', icon: Users },
     { id: 'my_data', label: 'My Data', icon: Database },
-    { id: 'workshop_details', label: 'Workshop Details', icon: FileText },
-    { id: 'leads', label: 'Leads Management', icon: Users },
-    { id: 'closing', label: 'Closing Leads', icon: Handshake },
-    { id: 'templates', label: 'Message Template', icon: MessageSquare },
+    { id: 'my_batches', label: 'My Batches', icon: Folder },
+    { id: 'leads_management', label: 'Leads Management', icon: Users },
   ] as const;
 
   const LeadSubTabs = [
@@ -1127,7 +1345,7 @@ export default function NewRegistrationPage() {
         Bulk Actions {selectedRowIds.length > 0 ? `(${selectedRowIds.length} selected)` : ''}:
       </span>
       {leadSubTab === 'pending' && selectedRowIds.length > 0 && (
-        <button 
+        <button
           onClick={() => {
             if (confirm('Move selected leads back to Registered Forms?')) {
               setPendingLeadIds(prev => prev.filter(id => !selectedRowIds.includes(id)));
@@ -1135,7 +1353,7 @@ export default function NewRegistrationPage() {
               setSelectedRowIds([]);
               toast.success('Leads restored to Registered Forms!');
             }
-          }} 
+          }}
           className="flex items-center gap-1.5 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg text-xs font-bold transition-colors"
         >
           Restore to Registered ({selectedRowIds.length})
@@ -1144,20 +1362,20 @@ export default function NewRegistrationPage() {
       {activeTab === 'closing' && (
         <>
           <div className="w-px h-6 bg-slate-200 mx-1"></div>
-          <input 
-            type="text" 
-            placeholder="Zoom Meeting ID..." 
+          <input
+            type="text"
+            placeholder="Zoom Meeting ID..."
             value={zoomMeetingId}
             onChange={(e) => setZoomMeetingId(e.target.value)}
             className="w-32 border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
           />
-          <button 
+          <button
             onClick={() => handleZoomRegister(selectedRowIds)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs font-bold transition-colors"
           >
             Bulk Zoom Reg
           </button>
-          <button 
+          <button
             onClick={() => {
               if (selectedRowIds.length === 0) return;
               setClosedLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
@@ -1171,31 +1389,173 @@ export default function NewRegistrationPage() {
         </>
       )}
       <button onClick={() => handleBulkAction('QR Code')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-bold transition-colors">
-        <QrCode size={14}/> QR
+        <QrCode size={14} /> QR
       </button>
       <button onClick={() => handleBulkAction('Meta')} className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors">
-        <Share2 size={14}/> Meta
+        <Share2 size={14} /> Meta
       </button>
       <button onClick={() => handleBulkAction('Email')} className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors">
-        <Mail size={14}/> Email
+        <Mail size={14} /> Email
       </button>
       <div className="w-px h-6 bg-slate-200 mx-1"></div>
-      <button 
+      <button
         onClick={() => {
-          if(selectedRowIds.length === 0) { toast.error("Select leads first"); return; }
+          if (selectedRowIds.length === 0) { toast.error("Select leads first"); return; }
           setStudentKotaLeadIds(prev => Array.from(new Set([...prev, ...selectedRowIds])));
           setSelectedRowIds([]);
           toast.success("Moved to Student Kota!");
         }}
         className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
       >
-        <Users size={14}/> Move to Student Kota
+        <Users size={14} /> Move to Student Kota
       </button>
       <button onClick={() => handleBulkAction('Delete')} className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors">
-        <Trash2 size={14}/> Delete {selectedRowIds.length > 0 ? `(${selectedRowIds.length})` : ''}
+        <Trash2 size={14} /> Delete {selectedRowIds.length > 0 ? `(${selectedRowIds.length})` : ''}
       </button>
     </div>
   );
+
+  useEffect(() => {
+    if (selectedWorkshop) {
+      setAi1ColumnInput(selectedWorkshop.metadata?.ai1Column || '');
+    }
+  }, [selectedWorkshop?.id]);
+
+  const saveAi1Column = () => {
+    if (!selectedWorkshop) return;
+    const updatedMetadata = { ...selectedWorkshop.metadata, ai1Column: ai1ColumnInput };
+    const updatedWorkshop = { ...selectedWorkshop, metadata: updatedMetadata };
+    setSelectedWorkshop(updatedWorkshop);
+    setWorkshops(prev => prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w));
+    toast.success('Column setting saved!');
+  };
+
+  const handleAi1BatchCreate = async () => {
+    if (!selectedWorkshop) {
+      toast.error('Please select a master list first.');
+      return;
+    }
+
+    // Look for a specific column or default to WORKSHOP DATE mapping
+    let formField = '';
+
+    // First, try the manual column input from the UI
+    const manualCol = selectedWorkshop.metadata?.ai1Column;
+
+    if (manualCol) {
+      // If they typed a number (1-based index)
+      if (!isNaN(Number(manualCol)) && leadsData.length > 0) {
+        const firstLead = leadsData[0];
+        const rawAnswers = firstLead._rawRecord || firstLead.dynamicAnswers || {};
+        const keys = Object.keys(rawAnswers);
+        const idx = parseInt(manualCol) - 1;
+        if (idx >= 0 && idx < keys.length) {
+          formField = keys[idx];
+        }
+      } else {
+        // They typed the column name, try exact match first
+        const firstLead = leadsData[0] || {};
+        const rawAnswers = firstLead._rawRecord || firstLead.dynamicAnswers || {};
+        const keys = Object.keys(rawAnswers);
+
+        if (keys.includes(manualCol)) {
+          formField = manualCol;
+        } else {
+          // Try partial match
+          const partialMatch = keys.find(k => k.toLowerCase().includes(manualCol.toLowerCase()));
+          if (partialMatch) {
+            formField = partialMatch;
+          } else {
+            formField = manualCol;
+          }
+        }
+      }
+    }
+
+    // Fallback to the old mapped field logic if formField is still empty
+    if (!formField) {
+      const dateMappingKey = Object.keys(fieldMapping).find(k => k.toUpperCase().includes('DATE') || k.toUpperCase().includes('BATCH'));
+      if (dateMappingKey && fieldMapping[dateMappingKey]) {
+        formField = fieldMapping[dateMappingKey];
+      }
+    }
+
+    if (!formField) {
+      toast.error('Please type a valid Column Number or Name, and hit Save first!');
+      return;
+    }
+
+    setIsAi1Processing(true);
+
+    try {
+      // Find all unique dates from the leads
+      const uniqueDates = new Set<string>();
+      leadsData.forEach((lead: any) => {
+        const raw = lead._rawRecord || {};
+        const dateVal = raw[formField];
+        if (dateVal && String(dateVal).trim() !== '') {
+          uniqueDates.add(String(dateVal).trim());
+        }
+      });
+
+      if (uniqueDates.size === 0) {
+        toast.error('No dates found in the selected column for the current leads.');
+        setIsAi1Processing(false);
+        return;
+      }
+
+      let newWorkshops = [...workshops];
+      let addedCount = 0;
+
+      uniqueDates.forEach(date => {
+        // Check if a batch for this exact date and language already exists
+        const exists = newWorkshops.some(w =>
+          w.id.startsWith('batch_') &&
+          (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
+          w.formFilterKeyword === date
+        );
+
+        if (!exists) {
+          const newBatch = {
+            id: `batch_${selectedDashboardLang.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: `${selectedDashboardLang} - ${date.substring(0, 30)}${date.length > 30 ? '...' : ''}`,
+            language: selectedDashboardLang,
+            formId: selectedWorkshop.formId,
+            formFilterKeyword: date,
+            metadata: {
+              batchDate: date,
+              googleFormMapping: selectedWorkshop.metadata?.googleFormMapping,
+              formSource: selectedWorkshop.metadata?.formSource
+            },
+            leads: leadsData.filter((l: any) => l._rawRecord && String(l._rawRecord[formField]).trim() === date).length
+          };
+          newWorkshops.push(newBatch);
+          addedCount++;
+        }
+      });
+
+      if (addedCount > 0) {
+        setWorkshops(newWorkshops);
+        localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+
+        // Sync to backend
+        await fetch('/api/admin/crm/new-registration/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+        });
+
+        toast.success(`AI-1 created ${addedCount} new batches successfully!`);
+      } else {
+        toast.success('All batches for the current dates already exist.');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to create batches.');
+    }
+
+    setIsAi1Processing(false);
+  };
 
   // Render Stats Card with Progress Bar
   const StatCard = ({ title, value, target, progress }: { title: string, value: number, target: number, progress: number }) => (
@@ -1216,742 +1576,58 @@ export default function NewRegistrationPage() {
   );
 
 
-  const renderWorkshopForm = () => {
-    return (
-                <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <button 
-                      onClick={() => setIsFormSetupCollapsed(!isFormSetupCollapsed)}
-                      className="w-full text-left px-6 py-4 border-b border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-colors flex items-center justify-between"
-                    >
-                      <div>
-                        <h2 className="text-lg font-bold text-slate-800">Workshop Registration Form</h2>
-                        <p className="text-sm text-slate-500">Connect a form to capture leads for this workshop.</p>
-                      </div>
-                      <div className="text-slate-400">
-                        {isFormSetupCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
-                      </div>
-                    </button>
-                    
-                    {!isFormSetupCollapsed && (
-                      <>
-                        <div className="p-6 space-y-6">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <label className="text-sm font-bold text-slate-700">Workshop Registration Form</label>
-                          <span className="text-xs text-slate-500 font-medium">Data Source Selection</span>
-                        </div>
-                        
-                        <div className="flex items-center gap-6 mb-2 bg-slate-100 p-2 rounded-lg inline-flex">
-                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white transition-colors">
-                            <input 
-                              type="radio" 
-                              name="formSource" 
-                              value="internal" 
-                              checked={formSource === 'internal'} 
-                              onChange={() => setFormSource('internal')}
-                              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm font-bold text-slate-700">Add leads form - CRM</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white transition-colors">
-                            <input 
-                              type="radio" 
-                              name="formSource" 
-                              value="google" 
-                              checked={formSource === 'google'} 
-                              onChange={() => setFormSource('google')}
-                              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm font-bold text-slate-700">Upload leads form - Google Form</span>
-                          </label>
-                        </div>
-
-                        {formSource === 'internal' ? (
-                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                            <label className="text-sm font-bold text-slate-700">Select CRM Form</label>
-                            <p className="text-xs text-slate-500 mb-2">Create forms in <a href="/admin/crm/form-questions" className="text-indigo-600 hover:underline" target="_blank">Settings &gt; Forms Setup</a></p>
-                            <select 
-                              className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                              value={selectedFormId}
-                              onChange={(e) => setSelectedFormId(e.target.value)}
-                            >
-                              <option value="">Select a form to fetch data fields...</option>
-                            {isLoadingForms ? (
-                              <option disabled>Loading forms...</option>
-                            ) : (
-                              fetchedForms.map((f: any) => (
-                                <option key={f.formId} value={f.formId}>{f.workshopName || f.formId}</option>
-                              ))
-                            )}
-                          </select>
-                          </div>
-                        ) : (
-                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                            <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                              Select Google Form
-                              {googleFormsList.length > 0 && (
-                                <span className="text-xs font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                  ✓ {googleFormsList.length} forms loaded
-                                </span>
-                              )}
-                            </label>
-
-                            {/* Status Banner */}
-                            {needsGoogleAuth && (
-                              <div className="bg-orange-50 border border-orange-300 rounded-xl p-4 flex items-center justify-between gap-4">
-                                <div>
-                                  <p className="font-bold text-orange-800 text-sm">⚠ Google not connected</p>
-                                  <p className="text-xs text-orange-700 mt-0.5">Click the button to connect your Google account and load all your forms automatically.</p>
-                                </div>
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const origin = window.location.origin;
-                                      const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
-                                      const data = await res.json();
-                                      if (data.authUrl) window.location.href = data.authUrl;
-                                      else toast.error(data.error || 'Failed to start Google login');
-                                    } catch { toast.error('Failed to initiate Google Login'); }
-                                  }}
-                                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-md whitespace-nowrap flex-shrink-0"
-                                >
-                                  🔗 Connect Google Account
-                                </button>
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-2">
-                              <select
-                                className={`w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white ${isManualFormId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                value={googleFormUrl}
-                                onChange={(e) => setGoogleFormUrl(e.target.value)}
-                                disabled={isManualFormId}
-                              >
-                                <option value="">Select a form from your Google Drive...</option>
-                                {isLoadingGoogleForms ? (
-                                  <option disabled>Loading Google forms...</option>
-                                ) : googleFormsList.length === 0 && !needsGoogleAuth ? (
-                                  <option disabled>No forms found — click Refresh or Connect Google</option>
-                                ) : (
-                                  googleFormsList.map((f: any) => (
-                                    <option key={f.id} value={f.id}>{f.name}</option>
-                                  ))
-                                )}
-                              </select>
-
-                              {/* Refresh button — reloads forms without re-auth */}
-                              <button
-                                onClick={async () => {
-                                  setIsLoadingGoogleForms(true);
-                                  try {
-                                    const res = await fetch('/api/admin/google-forms/list', {
-                                      headers: token ? { Authorization: `Bearer ${token}` } : {}
-                                    });
-                                    const data = await res.json();
-                                    if (res.ok && data.forms) {
-                                      setGoogleFormsList(data.forms);
-                                      setNeedsGoogleAuth(false);
-                                      toast.success(`Loaded ${data.forms.length} forms from Google Drive!`);
-                                    } else if (data.needsAuth) {
-                                      setNeedsGoogleAuth(true);
-                                      toast.error('Please connect your Google account first');
-                                    } else {
-                                      toast.error(data.error || 'Failed to load forms');
-                                    }
-                                  } catch { toast.error('Failed to refresh forms'); }
-                                  finally { setIsLoadingGoogleForms(false); }
-                                }}
-                                disabled={isLoadingGoogleForms}
-                                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
-                                title="Reload forms from Google Drive"
-                              >
-                                {isLoadingGoogleForms ? '⏳' : '🔄'} Refresh
-                              </button>
-                              
-                              {/* Reconnect button */}
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const origin = window.location.origin;
-                                    const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
-                                    const data = await res.json();
-                                    if (data.authUrl) window.location.href = data.authUrl;
-                                    else toast.error(data.error || 'Failed to start Google login');
-                                  } catch { toast.error('Failed to initiate Google Login'); }
-                                }}
-                                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
-                                title="Reconnect Google Account"
-                              >
-                                🔗 Reconnect
-                              </button>
-                              
-                              {/* Open Google Form Button */}
-                              {googleFormUrl && (
-                                <a
-                                  href={googleFormUrl.includes('docs.google.com') ? googleFormUrl : `https://docs.google.com/forms/d/${googleFormUrl}/edit#responses`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-3 rounded-lg text-xs transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
-                                  title="Open form responses in Google Forms"
-                                >
-                                  <ExternalLink size={14} /> Open
-                                </a>
-                              )}
-                            </div>
-                            
-                            <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
-                              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
-                                <input type="checkbox" checked={isManualFormId} onChange={(e) => setIsManualFormId(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-                                I want to map fields manually (e.g. if the form cannot be fetched via API)
-                              </label>
-                              {isManualFormId && (
-                                <div className="flex items-center gap-2">
-                                  <input 
-                                    type="text" 
-                                    value={googleFormUrl} 
-                                    onChange={(e) => setGoogleFormUrl(e.target.value)}
-                                    placeholder="Enter Google Form ID"
-                                    className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-800 bg-white outline-none focus:ring-2 focus:ring-indigo-500"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Mapping UI will be rendered below when a form is selected and its fields are fetched */}
-                            {(Object.keys(googleFormQuestionMap).length > 0 || isManualFormId) && formSource === 'google' && (
-                              <div className="mt-6 pt-4 border-t border-slate-200">
-                                <div className="flex items-center justify-between mb-3">
-                                  <h4 className="font-bold text-slate-800 text-sm">Map Google Form Fields to CRM</h4>
-                                  <div className="flex gap-2">
-                                    <button onClick={saveWorkshopSettings} className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1 rounded font-bold transition-colors">
-                                      Save Mapping
-                                    </button>
-                                    <button onClick={() => {
-                                    const id = prompt('Enter new field name (e.g., Age, Profession):');
-                                    if (id && id.trim()) {
-                                      setCrmFields(prev => [...prev, { id: id.trim(), label: id.trim().toUpperCase() }]);
-                                    }
-                                  }} className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded font-bold transition-colors">
-                                    + Add Field
-                                  </button>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                  {crmFields.map(field => (
-                                    <div key={field.id} className="space-y-1 group">
-                                      <div className="flex items-center justify-between h-5">
-                                        <label className="text-xs font-bold text-slate-500 uppercase">{field.label}</label>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                                          <button onClick={() => {
-                                            const newName = prompt('Edit field name:', field.id);
-                                            if (newName && newName.trim()) {
-                                              setCrmFields(prev => prev.map(f => f.id === field.id ? { id: newName.trim(), label: newName.trim().toUpperCase() } : f));
-                                              if (fieldMapping[field.id]) {
-                                                const newMapping = { ...fieldMapping };
-                                                newMapping[newName.trim()] = newMapping[field.id];
-                                                delete newMapping[field.id];
-                                                setFieldMapping(newMapping);
-                                              }
-                                            }
-                                          }} className="text-slate-400 hover:text-indigo-600 transition-colors" title="Edit Field">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                          </button>
-                                          <button onClick={() => {
-                                            if (confirm(`Delete the "${field.id}" field?`)) {
-                                              setCrmFields(prev => prev.filter(f => f.id !== field.id));
-                                              const newMapping = { ...fieldMapping };
-                                              delete newMapping[field.id];
-                                              setFieldMapping(newMapping);
-                                            }
-                                          }} className="text-slate-400 hover:text-red-600 transition-colors" title="Delete Field">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                          </button>
-                                        </div>
-                                      </div>
-                                      {isManualFormId ? (
-                                        <input
-                                          type="text"
-                                          placeholder="Exact form question"
-                                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
-                                          value={fieldMapping[field.id] || ''}
-                                          onChange={(e) => setFieldMapping({...fieldMapping, [field.id]: e.target.value})}
-                                        />
-                                      ) : (
-                                        <select
-                                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
-                                          value={fieldMapping[field.id] || ''}
-                                          onChange={(e) => setFieldMapping({...fieldMapping, [field.id]: e.target.value})}
-                                        >
-                                          <option value="">-- Ignore --</option>
-                                          {Object.entries(googleFormQuestionMap).map(([qId, qTitle]) => (
-                                            <option key={qId} value={qTitle}>{qTitle}</option>
-                                          ))}
-                                        </select>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {needsGoogleAuth && (
-                          <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center justify-between">
-                            <div>
-                              <h4 className="font-bold text-orange-800">Google Authentication Required</h4>
-                              <p className="text-sm text-orange-700 mt-1">To pull your private Google Form responses securely, please sign in with Google.</p>
-                            </div>
-                            <button 
-                              onClick={async () => {
-                                try {
-                                  const origin = window.location.origin;
-                                  const res = await fetch(`/api/admin/google-form-oauth?token=${token}&origin=${encodeURIComponent(origin)}`);
-                                  const data = await res.json();
-                                  if (data.authUrl) {
-                                    window.location.href = data.authUrl;
-                                  } else if (data.error) {
-                                    toast.error(data.error);
-                                  }
-                                } catch (e) {
-                                  toast.error('Failed to initiate Google Login');
-                                }
-                              }}
-                              className="bg-white border border-orange-300 hover:bg-orange-100 text-orange-800 font-bold px-4 py-2 rounded-lg transition-colors shadow-sm"
-                            >
-                              Sign in with Google
-                            </button>
-                          </div>
-                        )}
-                        {googleAuthError && (
-                          <div className="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">
-                            <strong>Google API Error:</strong> {googleAuthError}
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Fetched Fields Section */}
-                      <div className="mt-8 pt-6 border-t border-slate-100">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-4">
-                            <button 
-                              onClick={() => setIsMapDataCollapsed(!isMapDataCollapsed)}
-                              className="flex items-center gap-2 font-bold text-slate-800 hover:text-indigo-600 transition-colors"
-                            >
-                              {isMapDataCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                              Map Data to Leads
-                            </button>
-                            {!isMapDataCollapsed && (
-                              <button 
-                                onClick={() => setShowDynamicColumns(!showDynamicColumns)}
-                                className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${showDynamicColumns ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                              >
-                                {showDynamicColumns ? 'Hide Custom Answers' : 'Show Custom Answers'}
-                              </button>
-                            )}
-                          </div>
-                          
-                          {!isMapDataCollapsed && (
-                            <div className="flex items-center gap-4">
-                              <label className="flex items-center gap-2 text-sm text-indigo-600 font-bold cursor-pointer">
-                                <input type="checkbox" defaultChecked className="rounded text-indigo-600" />
-                                Select All
-                              </label>
-                              <button onClick={() => {
-                                const newField = prompt('Enter new field name:');
-                                if (newField && newField.trim() && !mapDataFields.includes(newField.trim())) {
-                                  setMapDataFields(prev => [...prev, newField.trim()]);
-                                }
-                              }} className="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded font-bold transition-colors">
-                                + Add Field
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {!isMapDataCollapsed && (
-                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 gap-3 animate-fade-in">
-                            {mapDataFields.map((field) => (
-                              <div key={field} className="group flex items-center justify-between p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200">
-                                <label className="flex items-center gap-3 cursor-pointer">
-                                  <input type="checkbox" defaultChecked className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" />
-                                  <span className="text-sm font-bold text-slate-700">{field}</span>
-                                </label>
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                                  <button onClick={(e) => {
-                                    e.preventDefault();
-                                    const newName = prompt('Edit field name:', field);
-                                    if (newName && newName.trim() && newName.trim() !== field) {
-                                      setMapDataFields(prev => prev.map(f => f === field ? newName.trim() : f));
-                                    }
-                                  }} className="text-slate-400 hover:text-indigo-600 transition-colors" title="Edit Field">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                  </button>
-                                  <button onClick={(e) => {
-                                    e.preventDefault();
-                                    if (confirm(`Delete "${field}"?`)) {
-                                      setMapDataFields(prev => prev.filter(f => f !== field));
-                                    }
-                                  }} className="text-slate-400 hover:text-red-600 transition-colors" title="Delete Field">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    </>
-                    )}
-                    
-                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end shadow-inner z-10">
-                      <button 
-                        onClick={() => {
-                          if (formSource === 'internal' && !selectedFormId) {
-                            toast.error('Please select a form first');
-                            return;
-                          }
-                          if (formSource === 'google' && !googleFormUrl) {
-                            toast.error('Please enter a Google Form URL');
-                            return;
-                          }
-                          
-                          if (selectedWorkshop) {
-                            const updated = { 
-                              ...selectedWorkshop, 
-                              formId: formSource === 'google' ? googleFormUrl : selectedFormId,
-                              googleFormMapping: formSource === 'google' ? fieldMapping : undefined
-                            };
-                            setSelectedWorkshop(updated);
-                            setWorkshops(workshops.map(w => w.id === updated.id ? updated : w));
-                          }
-                          
-                          setLinkedFormId(formSource === 'google' ? googleFormUrl : selectedFormId);
-                          toast.success('Form saved! Mapping fields and fetching leads...');
-                        }}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-lg transition-colors flex items-center gap-2 shadow-md transform hover:scale-105 active:scale-95 duration-200"
-                      >
-                        <Users size={18} /> Save & Map Data
-                      </button>
-                    </div>
-                    
-                    
-                    {/* Render Fetched Leads Inline in Forms Tab */}
-                    {linkedFormId && (
-                      <div className="border-t border-slate-200">
-                        <div className="px-6 py-4 bg-slate-50 flex items-center justify-between border-b border-slate-200">
-                          <div className="flex items-center gap-4">
-                            <h3 className="font-bold text-slate-800">
-                              Linked Leads {leadsData.length > 0 && <span className="text-sm font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full ml-2">{leadsData.length} leads</span>}
-                            </h3>
-                            {linkedFormId && (
-                              <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-                                <button
-                                  onClick={() => {
-                                    setRefreshLeadsCounter(prev => prev + 1);
-                                    toast.success('Retrying lead fetch...');
-                                  }}
-                                  disabled={isLoadingLeads}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 rounded-lg text-xs font-bold transition-colors shadow-sm mr-2"
-                                  title="Manually retry fetching leads from the form"
-                                >
-                                  {isLoadingLeads ? '⏳' : '🔄'} Retry
-                                </button>
-                                <span className="text-xs font-bold text-slate-500">AI-4</span>
-                                <button 
-                                  onClick={async () => {
-                                    const newState = !isAi4Active;
-                                    setIsAi4Active(newState);
-                                    localStorage.setItem('crm_ai_4_active', String(newState));
-                                    try {
-                                      await fetch('/api/admin/crm/new-registration/state', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                        body: JSON.stringify({ crm_ai_4_active: String(newState) })
-                                      });
-                                    } catch (e) {}
-                                    if (newState) toast.success(`🤖 AI-4 activated! Following your instructions on every fetch.`);
-                                  }}
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAi4Active ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                                >
-                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAi4Active ? 'translate-x-6' : 'translate-x-1'}`} />
-                                </button>
-                                <button 
-                                  onClick={() => setIsAi4RulesOpen(true)}
-                                  className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition-colors ml-1"
-                                  title="AI-4 Instructions & Rules"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          {selectedRowIds.length > 0 && (
-                            <div className="flex items-center gap-3">
-                              {renderBulkActions()}
-                              <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                              <button 
-                                onClick={handleApproveBulk}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm"
-                              >
-                                Move to CRM ({selectedRowIds.length})
-                              </button>
-                            </div>
-                          )}
-                          </div>
-                        <div className="px-6 py-3 bg-white border-b border-slate-200 space-y-2">
-                          {/* Filter Row */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {/* Level 1 — Main: Workshop / Form */}
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1">Main Filter</span>
-                              <input
-                                type="text"
-                                placeholder="Any word, city, batch..."
-                                value={leadsFilter}
-                                onChange={e => setLeadsFilter(e.target.value)}
-                                className="w-[180px] border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                              />
-                            </div>
-
-                            <div className="text-slate-300 text-lg">›</div>
-
-                            {/* Level 2 — Sub: Gender / Country */}
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1">Sub Filter</span>
-                              <input
-                                type="text"
-                                placeholder="Gender, country, month..."
-                                value={leadsSubFilter}
-                                onChange={e => setLeadsSubFilter(e.target.value)}
-                                className="w-[160px] border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                              />
-                            </div>
-
-                            <div className="text-slate-300 text-lg">›</div>
-
-                            {/* Level 3 — Sub-Sub: Free text search */}
-                            <div className="flex flex-col gap-0.5 flex-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1">Search (Name / Email / Phone)</span>
-                              <input
-                                type="text"
-                                placeholder="Type name, email, phone..."
-                                value={leadsSubSubFilter}
-                                onChange={e => setLeadsSubSubFilter(e.target.value)}
-                                className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                              />
-                            </div>
-
-                            {/* Clear all */}
-                            {(leadsFilter || leadsSubFilter || leadsSubSubFilter) && (
-                              <button
-                                onClick={() => { setLeadsFilter(''); setLeadsSubFilter(''); setLeadsSubSubFilter(''); }}
-                                className="mt-4 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
-                              >
-                                ✕ Clear
-                              </button>
-                            )}
-                            <button onClick={saveWorkshopSettings} className="mt-4 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-bold transition-colors whitespace-nowrap border border-indigo-200" title="AI-4 will only automatically process leads that match these saved filters">
-                                💾 Save AI-4 Filters
-                            </button>
-
-                            {/* Result count */}
-                            {(leadsFilter || leadsSubFilter || leadsSubSubFilter) && (
-                              <span className="mt-4 text-xs text-slate-500 whitespace-nowrap">
-                                {leadsData.filter(lead => {
-                                  const f1 = !leadsFilter || JSON.stringify(lead).toLowerCase().includes(leadsFilter.toLowerCase());
-                                  const f2 = !leadsSubFilter || JSON.stringify(lead).toLowerCase().includes(leadsSubFilter.toLowerCase());
-                                  const f3 = !leadsSubSubFilter || JSON.stringify(lead).toLowerCase().includes(leadsSubSubFilter.toLowerCase());
-                                  return f1 && f2 && f3;
-                                }).length} results
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="overflow-x-auto min-h-[300px] bg-white">
-                          {(() => {
-                            let tab2Leads = leadsData.map((lead, index) => ({ ...lead, originalIndex: index }));
-                            
-                            if (leadsFilter || leadsSubFilter || leadsSubSubFilter) {
-                              tab2Leads = tab2Leads.filter(lead => {
-                                // Level 1, 2, 3: Full string search across all fields
-                                const f1 = !leadsFilter || JSON.stringify(lead).toLowerCase().includes(leadsFilter.toLowerCase());
-                                const f2 = !leadsSubFilter || JSON.stringify(lead).toLowerCase().includes(leadsSubFilter.toLowerCase());
-                                const f3 = !leadsSubSubFilter || JSON.stringify(lead).toLowerCase().includes(leadsSubSubFilter.toLowerCase());
-                                return f1 && f2 && f3;
-                              });
-                            }
-                            
-                            tab2Leads.sort((a, b) => {
-                              const aProcessed = crmLeadIds.includes(a.id);
-                              const bProcessed = crmLeadIds.includes(b.id);
-                              
-                              if (aProcessed !== bProcessed) return aProcessed ? 1 : -1;
-                              
-                              return tab2SortOrder === 'asc' 
-                                ? a.originalIndex - b.originalIndex 
-                                : b.originalIndex - a.originalIndex;
-                            });
-                            
-                            return (
-                              <table className="min-w-full text-left text-sm text-slate-600">
-                                <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
-                                  <tr className="divide-x divide-slate-200">
-                                    <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50">
-                                      <input 
-                                        type="checkbox" 
-                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        checked={tab2Leads.length > 0 && selectedRowIds.length === tab2Leads.length}
-                                        onChange={(e) => {
-                                          if (e.target.checked) setSelectedRowIds(tab2Leads.map(l => l.id));
-                                          else setSelectedRowIds([]);
-                                        }}
-                                      />
-                                    </th>
-                                <th className="px-4 py-3 font-bold text-slate-500 w-[150px] min-w-[150px] sticky left-[50px] z-30 bg-slate-50">Name</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 w-[110px] min-w-[110px] sticky left-[200px] z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">WhatsApp</th>
-                                {showDynamicColumns && dynamicColumns.map(col => {
-                                  const width = colWidths[`t2_${col}`] || 150;
-                                  return (
-                                  <th key={col} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} className="px-4 py-3 font-bold text-slate-500 whitespace-normal break-words leading-tight relative group">
-                                    <div className="line-clamp-4" title={col}>{col}</div>
-                                    <div className="absolute right-0 top-0 bottom-0 w-1 hover:w-2 bg-transparent hover:bg-indigo-400 cursor-col-resize z-50 transition-colors" onMouseDown={(e) => {
-                                      e.preventDefault();
-                                      const startX = e.pageX;
-                                      const onMouseMove = (moveEvent: MouseEvent) => {
-                                        setColWidths(prev => ({ ...prev, [`t2_${col}`]: Math.max(50, width + moveEvent.pageX - startX) }));
-                                      };
-                                      const onMouseUp = () => {
-                                        document.removeEventListener('mousemove', onMouseMove);
-                                        document.removeEventListener('mouseup', onMouseUp);
-                                      };
-                                      document.addEventListener('mousemove', onMouseMove);
-                                      document.addEventListener('mouseup', onMouseUp);
-                                    }} />
-                                  </th>
-                                )})}
-                                <th className="px-4 py-3 font-bold text-slate-500 w-[200px] min-w-[200px]">Email</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Age</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">City</th>
-                                <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Country</th>
-                                <th className="px-4 py-3 font-bold text-slate-500">
-                                  <button onClick={() => setTab2SortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-indigo-600 transition-colors">
-                                    Submitted At
-                                    <ChevronDown size={14} className={`transform transition-transform ${tab2SortOrder === 'asc' ? 'rotate-180' : ''}`} />
-                                  </button>
-                                </th>
-                                <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                              {isLoadingLeads ? (
-                                <tr>
-                                  <td colSpan={10 + dynamicColumns.length} className="p-8 text-center text-slate-500">Loading leads...</td>
-                                </tr>
-                              ) : tab2Leads.length === 0 ? (
-                                <tr>
-                                  <td colSpan={10 + dynamicColumns.length} className="p-12 text-center text-slate-500">
-                                    <h3 className="font-bold text-slate-700">No new forms found</h3>
-                                    <p className="text-sm text-slate-500 mt-1">All available forms have been moved to Leads Management.</p>
-                                  </td>
-                                </tr>
-                              ) : (
-                                tab2Leads.map((lead, i) => {
-                                  const isProcessed = crmLeadIds.includes(lead.id);
-                                  const isSelected = selectedRowIds.includes(lead.id);
-                                  const bgClass = isProcessed ? 'bg-slate-50 opacity-60' : isSelected ? 'bg-indigo-50 group-hover:bg-indigo-100' : 'bg-white group-hover:bg-slate-50';
-                                  
-                                  return (
-                                    <tr key={lead.id || i} className={`group transition-colors ${bgClass} divide-x divide-slate-200`}>
-                                      <td className={`px-4 py-3 text-center w-[50px] min-w-[50px] sticky left-0 z-20 ${bgClass} transition-colors`}>
-                                        <input 
-                                          type="checkbox" 
-                                          className={`rounded border-slate-300 focus:ring-indigo-500 ${isProcessed ? 'text-slate-400 cursor-not-allowed' : 'text-indigo-600'}`}
-                                          checked={isProcessed || isSelected}
-                                          disabled={isProcessed}
-                                          onChange={(e) => {
-                                            if (e.target.checked) {
-                                              setSelectedRowIds(prev => [...prev, lead.id]);
-                                            } else {
-                                              setSelectedRowIds(prev => prev.filter(id => id !== lead.id));
-                                            }
-                                          }}
-                                        />
-                                      </td>
-                                      <td className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap w-[150px] min-w-[150px] sticky left-[50px] z-20 ${bgClass} transition-colors`}>
-                                        <div className="truncate w-full" title={lead.name}>{lead.name || '-'}</div>
-                                      </td>
-                                      <td className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] sticky left-[200px] z-20 ${bgClass} transition-colors shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]`}>
-                                        <div className="truncate w-full" title={lead.mobile || lead.phoneNumber}>{lead.mobile || lead.phoneNumber || '-'}</div>
-                                      </td>
-                                    {showDynamicColumns && dynamicColumns.map(col => {
-                                      const val = (lead.dynamicAnswers && lead.dynamicAnswers[col]) || (lead._rawRecord && lead._rawRecord[col]) || '-';
-                                      const width = colWidths[`t2_${col}`] || 150;
-                                      return (
-                                      <td key={col} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} className="px-4 py-3 whitespace-normal break-words text-slate-500 text-xs">
-                                        <div 
-                                          className="line-clamp-2 outline-none hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1 -mx-1" 
-                                          title={val}
-                                          contentEditable
-                                          suppressContentEditableWarning
-                                          onBlur={(e) => {
-                                            const newValue = e.currentTarget.textContent || '';
-                                            if (newValue !== val && newValue !== '-') {
-                                              setLeadsData(prev => prev.map(l => {
-                                                if (l.id === lead.id) {
-                                                  const updated = { ...l };
-                                                  if (updated.dynamicAnswers && col in updated.dynamicAnswers) updated.dynamicAnswers = { ...updated.dynamicAnswers, [col]: newValue };
-                                                  if (updated._rawRecord) updated._rawRecord = { ...updated._rawRecord, [col]: newValue };
-                                                  return updated;
-                                                }
-                                                return l;
-                                              }));
-                                            }
-                                          }}
-                                        >{val}</div>
-                                      </td>
-                                    )})}
-                                      <td className={`px-4 py-3 whitespace-nowrap w-[200px] min-w-[200px] ${bgClass} transition-colors`}>
-                                        <div className="truncate w-full" title={lead.email}>{lead.email || '-'}</div>
-                                      </td>
-                                      <td className="px-4 py-3 capitalize whitespace-nowrap min-w-[100px]">{lead.gender || '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap min-w-[100px]">{lead.age || '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap min-w-[150px]">{lead.city || '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap min-w-[150px]">{lead.country || '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap">{lead.submittedAt ? new Date(lead.submittedAt).toLocaleDateString() : '-'}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-right">
-                                      <button 
-                                        onClick={() => handleApprove(lead.id)}
-                                        disabled={isProcessed}
-                                        className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isProcessed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100'}`}
-                                      >
-                                        {isProcessed ? 'Moved' : 'Move to CRM'}
-                                      </button>
-                                    </td>
-                                    </tr>
-                                  );
-                                })
-                              )}
-                             </tbody>
-                           </table>
-                           );
-                         })()}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-    );
-  };
+  const renderWorkshopForm = () => (
+    <WorkshopFormTab
+      activeTab={activeTab} setActiveTab={setActiveTab}
+      selectedWorkshop={selectedWorkshop} setSelectedWorkshop={setSelectedWorkshop}
+      workshops={workshops} setWorkshops={setWorkshops}
+      linkedFormId={linkedFormId} setLinkedFormId={setLinkedFormId}
+      selectedFormId={selectedFormId} setSelectedFormId={setSelectedFormId}
+      googleFormUrl={googleFormUrl} setGoogleFormUrl={setGoogleFormUrl}
+      formSource={formSource} setFormSource={setFormSource}
+      isManualFormId={isManualFormId} setIsManualFormId={setIsManualFormId}
+      fetchedForms={fetchedForms} isLoadingForms={isLoadingForms}
+      isLoadingGoogleForms={isLoadingGoogleForms} googleFormsList={googleFormsList}
+      googleFormQuestionMap={googleFormQuestionMap} setGoogleFormQuestionMap={setGoogleFormQuestionMap}
+      fieldMapping={fieldMapping} setFieldMapping={setFieldMapping}
+      needsGoogleAuth={needsGoogleAuth} googleAuthError={googleAuthError}
+      isFormSetupCollapsed={isFormSetupCollapsed} setIsFormSetupCollapsed={setIsFormSetupCollapsed}
+      crmFields={crmFields} setCrmFields={setCrmFields}
+      mapDataFields={mapDataFields}
+      isMapDataCollapsed={isMapDataCollapsed} setIsMapDataCollapsed={setIsMapDataCollapsed}
+      saveWorkshopSettings={saveWorkshopSettings} handleDetailChange={handleDetailChange}
+      token={token} toast={toast}
+      isAi4Active={isAi4Active} setIsAi4Active={setIsAi4Active}
+      isAi7Active={isAi7Active} setIsAi7Active={setIsAi7Active}
+      handleAi1BatchCreate={handleAi1BatchCreate} isAi1Processing={isAi1Processing}
+      ai1ColumnInput={ai1ColumnInput} setAi1ColumnInput={setAi1ColumnInput} saveAi1Column={saveAi1Column}
+      ai4FormatRules={ai4FormatRules} setAi4FormatRules={setAi4FormatRules}
+      ai4Interval={ai4Interval} setAi4Interval={setAi4Interval}
+      isAi4RulesOpen={isAi4RulesOpen} setIsAi4RulesOpen={setIsAi4RulesOpen}
+      isWebhookModalOpen={isWebhookModalOpen} setIsWebhookModalOpen={setIsWebhookModalOpen}
+      leadsFilter={leadsFilter} leadsSubFilter={leadsSubFilter}
+      leadsSubSubFilter={leadsSubSubFilter}
+      refreshLeadsCounter={refreshLeadsCounter} setRefreshLeadsCounter={setRefreshLeadsCounter}
+      setIsLoadingGoogleForms={setIsLoadingGoogleForms} setGoogleFormsList={setGoogleFormsList}
+      setNeedsGoogleAuth={setNeedsGoogleAuth} setActiveTab={setActiveTab}
+      setLeadsFilter={setLeadsFilter} setLeadsSubFilter={setLeadsSubFilter} setLeadsSubSubFilter={setLeadsSubSubFilter}
+      Users={Users} leadsData={leadsData} isLoadingLeads={isLoadingLeads}
+      selectedRowIds={selectedRowIds} renderBulkActions={renderBulkActions}
+      handleAi7Categorize={handleAi7Categorize} isAi7Processing={isAi7Processing}
+      handleApproveBulk={handleApproveBulk} filterOptions={filterOptions}
+      crmLeadIds={crmLeadIds} tab2SortOrder={tab2SortOrder} setSelectedRowIds={setSelectedRowIds}
+      showDynamicColumns={showDynamicColumns} dynamicColumns={dynamicColumns}
+      colWidths={colWidths} setColWidths={setColWidths} setTab2SortOrder={setTab2SortOrder}
+      setLeadsData={setLeadsData} handleApprove={handleApprove}
+    />
+  );
 
   return (
     <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
-      
+
       {/* Global Sidebar for Batch Selection */}
-      <aside className={`bg-white flex flex-col flex-shrink-0 z-20 transition-all duration-300 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
+      {activeTab !== 'leads_management' && (
+        <aside className={`bg-white flex flex-col flex-shrink-0 z-20 transition-all duration-300 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             {!isSidebarCollapsed && (
@@ -1960,14 +1636,14 @@ export default function NewRegistrationPage() {
               </h2>
             )}
             <div className={`flex items-center gap-1 ${isSidebarCollapsed ? 'w-full justify-center flex-col' : ''}`}>
-              <button 
+              <button
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
                 title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
                 {isSidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
               </button>
-              <button 
+              <button
                 onClick={() => setSidebarPosition(p => p === 'left' ? 'right' : 'left')}
                 className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
                 title={`Move sidebar to ${sidebarPosition === 'left' ? 'right' : 'left'}`}
@@ -1976,16 +1652,16 @@ export default function NewRegistrationPage() {
               </button>
             </div>
           </div>
-          
+
           {!isSidebarCollapsed ? (
-            <button 
+            <button
               onClick={() => setIsAddBatchModalOpen(true)}
               className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
             >
               <Plus size={16} /> Add Folder +
             </button>
           ) : (
-            <button 
+            <button
               onClick={() => setIsAddBatchModalOpen(true)}
               className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
               title="Add Folder +"
@@ -1994,114 +1670,178 @@ export default function NewRegistrationPage() {
             </button>
           )}
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {activeTab === 'all_leads' && (
+          {/* Languages Sidebar (Always visible) */}
+          {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches') && (
             <>
               {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Languages</div>}
-              {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
-                <div
-                  key={lang}
-                  onClick={() => {
-                    setSelectedDashboardLang(lang);
-                    setSelectedWorkshop(null); // Clear selected workshop when clicking a language
-                    setActiveTab('all_leads'); // Route to All Leads Data
-                  }}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                    selectedDashboardLang === lang
-                      ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
-                      : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-                  } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                  title={isSidebarCollapsed ? lang : undefined}
-                >
-                  {isSidebarCollapsed ? (
-                    <div className="font-bold text-sm">{lang.substring(0, 2)}</div>
-                  ) : (
-                    <h3 className={`font-bold text-sm ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>{lang}</h3>
-                  )}
+
+              {/* Stacked list for All Leads / My Data */}
+              {(activeTab === 'all_leads' || activeTab === 'my_data') && (
+                <div className="space-y-2">
+                  {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
+                    <div
+                      key={lang}
+                      onClick={() => {
+                        setSelectedDashboardLang(lang);
+                        const masterWorkshop = workshops.find((w: any) =>
+                          !w.id.startsWith('batch_') &&
+                          (w.language?.toLowerCase() === lang.toLowerCase() ||
+                            (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
+                            w.id.toLowerCase().includes(lang.toLowerCase()))
+                        ) || workshops.find((w: any) =>
+                          !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
+                        );
+                        setSelectedWorkshop(masterWorkshop || null);
+                        if (activeTab !== 'my_data') setActiveTab('all_leads'); // Route to All Leads Data if not in my_data
+                      }}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedDashboardLang === lang
+                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
+                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
+                        } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                      title={isSidebarCollapsed ? lang : undefined}
+                    >
+                      {isSidebarCollapsed ? (
+                        <div className="font-bold text-sm">{lang.substring(0, 2)}</div>
+                      ) : (
+                        <h3 className={`font-bold text-sm ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>{lang}</h3>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+
+              {/* 2x2 grid for My Batches */}
+              {activeTab === 'my_batches' && (
+                <div className="grid grid-cols-2 gap-2 animate-fade-in">
+                  {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
+                    <div
+                      key={lang}
+                      onClick={() => {
+                        setSelectedDashboardLang(lang);
+                        const masterWorkshop = workshops.find((w: any) =>
+                          !w.id.startsWith('batch_') &&
+                          (w.language?.toLowerCase() === lang.toLowerCase() ||
+                            (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
+                            w.id.toLowerCase().includes(lang.toLowerCase()))
+                        ) || workshops.find((w: any) =>
+                          !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
+                        );
+                        setSelectedWorkshop(masterWorkshop || null);
+                      }}
+                      className={`p-2 rounded-xl border cursor-pointer transition-all flex items-center justify-center text-center ${selectedDashboardLang === lang
+                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
+                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      title={lang}
+                    >
+                      <div className={`font-bold text-xs ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>
+                        {isSidebarCollapsed ? lang.substring(0, 2) : lang}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Batches list only for My Batches */}
+              {activeTab === 'my_batches' && !isSidebarCollapsed && (
+                <div className="mt-6 animate-fade-in">
+                  <div className="flex items-center justify-between mb-2 px-2 border-t pt-4">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      {selectedDashboardLang} Batches
+                    </div>
+                    {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
+                            setWorkshops(prev => prev.filter(w => !((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_'))));
+                            if (selectedWorkshop?.id?.startsWith('batch_')) setSelectedWorkshop(null);
+                          }
+                        }}
+                        className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
+                      >
+                        <Trash2 size={10} /> Clear All
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length === 0 && (
+                      <div className="px-2 py-3 text-xs text-slate-400 italic">No batches created yet. Go to My Data and click AI-1.</div>
+                    )}
+                    {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).map(batch => (
+                      <div
+                        key={batch.id}
+                        onClick={() => {
+                          setSelectedWorkshop(batch);
+                          setActiveTab('my_batches');
+                        }}
+                        className={`p-2 rounded-lg border cursor-pointer transition-all text-xs flex justify-between items-center ${selectedWorkshop?.id === batch.id
+                            ? 'border-indigo-300 bg-indigo-50 text-indigo-800 font-bold shadow-sm'
+                            : 'border-transparent hover:bg-slate-100 text-slate-600'
+                          }`}
+                      >
+                        <span className="break-words w-full pr-2 leading-tight" title={batch.name}>{batch.name}</span>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{batch.leads || 0}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the other batch:", batch.name);
+                              if (newName && newName !== batch.name) {
+                                const targetBatch = workshops.find((w: any) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === (batch.language || "English").toLowerCase() && w.name === newName);
+                                if (targetBatch) {
+                                  if (window.confirm(`Merge "${batch.name}" into "${targetBatch.name}"?`)) {
+                                    setWorkshops(prev => prev.map((w: any) => {
+                                      if (w.id === targetBatch.id) {
+                                        const newFilters = Array.from(new Set([...(w.formFilterKeyword || '').split('|'), ...(batch.formFilterKeyword || '').split('|')])).filter(Boolean).join('|');
+                                        return { ...w, formFilterKeyword: newFilters, leads: (w.leads || 0) + (batch.leads || 0) };
+                                      }
+                                      return w;
+                                    }).filter((w: any) => w.id !== batch.id));
+                                    if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(targetBatch);
+                                  }
+                                } else {
+                                  setWorkshops(prev => prev.map((w: any) => w.id === batch.id ? { ...w, name: newName } : w));
+                                  if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(prev => prev ? { ...prev, name: newName } : prev);
+                                }
+                              }
+                            }}
+                            className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
+                            title="Rename or Merge Batch"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
+                                setWorkshops(prev => prev.filter(w => w.id !== batch.id));
+                                if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
+                              }
+                            }}
+                            className="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-50"
+                            title="Delete Batch"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
-          {activeTab !== 'all_leads' && (
-            <>
-              {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Your Batches ({selectedDashboardLang})</div>}
-          {workshops.filter((w) => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase()).map((w) => (
-            <div 
-              key={w.id}
-              onClick={() => {
-                setSelectedWorkshop(w);
-                setActiveTab('my_data'); // Route to My Data
-                toast.success(`Selected ${w.name}`);
-              }}
-              className={`p-3 rounded-xl border cursor-pointer transition-all relative group flex items-center ${
-                selectedWorkshop?.id === w.id 
-                  ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20' 
-                  : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-              } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-              title={isSidebarCollapsed ? w.name : undefined}
-            >
-              {isSidebarCollapsed ? (
-                <div className="w-10 h-10 flex items-center justify-center bg-indigo-100 text-indigo-700 font-bold rounded-lg text-lg">
-                  {w.name.charAt(0)}
-                </div>
-              ) : (
-                <>
-                  <div className="flex-1 pr-12">
-                    <h3 className={`font-bold text-sm mb-1 line-clamp-1 ${selectedWorkshop?.id === w.id ? 'text-indigo-900' : 'text-slate-800'}`}>{w.name}</h3>
-                    <p className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                      <Users size={12}/> {w.leads} Leads
-                    </p>
-                  </div>
-                  
-                  {/* Hover Actions */}
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white/90 p-1 rounded-lg border border-slate-100 shadow-sm">
-                    {workshops.findIndex(wx => wx.id === w.id) > 0 && (
-                      <button 
-                        onClick={(e) => handleMoveBatchUp(e, workshops.findIndex(wx => wx.id === w.id))}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="Move Up"
-                      >
-                        <ChevronUp size={14} />
-                      </button>
-                    )}
-                    {workshops.findIndex(wx => wx.id === w.id) < workshops.length - 1 && (
-                      <button 
-                        onClick={(e) => handleMoveBatchDown(e, workshops.findIndex(wx => wx.id === w.id))}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="Move Down"
-                      >
-                        <ChevronDown size={14} />
-                      </button>
-                    )}
-                    <button 
-                      onClick={(e) => handleEditBatch(e, w)}
-                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Edit"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button 
-                      onClick={(e) => handleDeleteBatch(e, w.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-            </>
-          )}
         </div>
       </aside>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        
+
         {/* Header for Tabs */}
         <header className="bg-white px-6 pt-5 pb-0 border-b border-slate-200 flex-shrink-0 z-10 shadow-sm">
           <div className="flex items-center gap-3 mb-6">
@@ -2122,1138 +1862,44 @@ export default function NewRegistrationPage() {
           <div className="flex gap-6 overflow-x-auto no-scrollbar border-b-2 border-transparent">
             {TopTabs.map(tab => {
               let count = null;
-              if (selectedWorkshop) {
-                switch (tab.id) {
-                  case 'forms': count = leadsData.length; break;
-                  case 'leads': count = leadsData.filter(l => pendingLeadIds.includes(l.id)).length; break;
-                  case 'approval': count = leadsData.filter(l => approvedLeadIds.includes(l.id) || registeredLeadIds.includes(l.id)).length; break;
-                  case 'closing': count = leadsData.filter(l => registeredLeadIds.includes(l.id)).length; break;
-                }
-              }
-              
+
               return (
-              <button
-                key={tab.id}
-                disabled={!canAccessTab(tab.id)}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  if (tab.id === 'all_leads') setSelectedWorkshop(null);
-                }}
-                className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${
-                  activeTab === tab.id 
-                    ? 'border-indigo-600 text-indigo-700' 
-                    : canAccessTab(tab.id)
-                      ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                      : 'border-transparent text-slate-300 cursor-not-allowed'
-                }`}
-              >
-                <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
-                {tab.label} {count !== null && `- ${count}`}
-              </button>
-            )})}
+                <button
+                  key={tab.id}
+                  disabled={!canAccessTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                  }}
+                  className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id
+                      ? 'border-indigo-600 text-indigo-700'
+                      : canAccessTab(tab.id)
+                        ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                        : 'border-transparent text-slate-300 cursor-not-allowed'
+                    }`}
+                >
+                  <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
+                  {tab.label} {count !== null && `- ${count}`}
+                </button>
+              )
+            })}
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          
-          {!selectedWorkshop && activeTab === "all_leads" && (
+          {(activeTab === "all_leads" || activeTab === "my_data" || activeTab === "my_batches") && (
             <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6">
-                  <div className="mb-6 flex justify-between items-start">
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800">
-                        {selectedDashboardLang} Dashboard
-                      </h2>
-                      <p className="text-sm text-slate-500 mt-1">
-                        View active batches for this language.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {renderWorkshopForm()}
-                  {/* Grid of Batch Cards */}
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Active Batches</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    {workshops
-                      .filter((w) => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase())
-                      .map((w) => (
-                        <div key={w.id} onClick={() => { setSelectedWorkshop(w); setActiveTab("my_data" as any); }} className="border p-6 rounded-xl cursor-pointer hover:shadow-lg transition-all bg-white group">
-                          <div className="flex justify-between items-start mb-4">
-                            <h3 className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{w.name}</h3>
-                            <div className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-1 rounded">
-                              {w.leads || 0} Leads
-                            </div>
-                          </div>
-                          <div className="text-sm text-slate-500 space-y-1">
-                            <p><strong>Start:</strong> {w.startDate ? new Date(w.startDate).toLocaleDateString() : 'N/A'}</p>
-                            <p><strong>Duration:</strong> {w.duration || 'N/A'}</p>
-                          </div>
-                        </div>
-                      ))}
-                    {workshops.filter((w) => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase()).length === 0 && (
-                      <div className="col-span-full text-center py-8 text-slate-500">No batches found for this language.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
+              {renderWorkshopForm()}
             </div>
           )}
-
-          {/* We use !selectedWorkshop ? <> ... </> : <> ... </> */}
-          {!selectedWorkshop ? (
-            <>
-              {/* My Data Table for Master View */}
-              {activeTab === 'my_data' && (
-                <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="p-6">
-                      <div className="mb-6 flex justify-between items-start">
-                        <div>
-                          <h2 className="text-xl font-bold text-slate-800">
-                            {selectedDashboardLang} Leads
-                          </h2>
-                          <p className="text-sm text-slate-500 mt-1">
-                            All leads for this language across all batches.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50 border-y border-slate-200">
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Lead details
-                              </th>
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Contact
-                              </th>
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Language
-                              </th>
-                              <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Date
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {masterViewLanguageFilteredLeads.map((lead: any) => (
-                              <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-4 py-4">
-                                  <div className="font-medium text-slate-900">{lead.name || "N/A"}</div>
-                                  <div className="text-xs text-slate-500 mt-0.5">{lead.city || "Unknown City"}</div>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <div className="text-sm text-slate-700">{lead.email || "N/A"}</div>
-                                  <div className="text-xs text-slate-500">{lead.phoneNumber || "N/A"}</div>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700">
-                                    {lead.language || selectedDashboardLang}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-4 text-sm text-slate-500">
-                                  {new Date(lead.createdAt || Date.now()).toLocaleDateString()}
-                                </td>
-                              </tr>
-                            ))}
-                            {masterViewLanguageFilteredLeads.length === 0 && (
-                              <tr>
-                                <td colSpan={4} className="px-4 py-8 text-center text-slate-500 text-sm">
-                                  No leads found for {selectedDashboardLang}.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* TAB 1: Workshop Details (Now on its own tab) */}
-              {activeTab === 'workshop_details' && (
-                <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                      <h2 className="text-lg font-bold text-slate-800">Workshop Details</h2>
-                    </div>
-                    <div className="p-6 grid grid-cols-2 gap-6">
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Workshop Name</label>
-                        <input type="text" value={selectedWorkshop.name || ''} onChange={(e) => handleDetailChange('name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Language</label>
-                        <input type="text" value={selectedWorkshop.language || ''} onChange={(e) => handleDetailChange('language', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Start Date</label>
-                        <input type="date" value={selectedWorkshop.startDate || ''} onChange={(e) => handleDetailChange('startDate', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">End Date</label>
-                        <input type="date" value={selectedWorkshop.endDate || ''} onChange={(e) => handleDetailChange('endDate', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
-                        <input type="time" value={selectedWorkshop.startTime || ''} onChange={(e) => handleDetailChange('startTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">End Time</label>
-                        <input type="time" value={selectedWorkshop.endTime || ''} onChange={(e) => handleDetailChange('endTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Duration</label>
-                        <input type="text" value={selectedWorkshop.duration || ''} onChange={(e) => handleDetailChange('duration', e.target.value)} placeholder="e.g. 2 hours" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">WhatsApp Link</label>
-                        <input type="url" value={selectedWorkshop.whatsappLink || ''} onChange={(e) => handleDetailChange('whatsappLink', e.target.value)} placeholder="https://chat.whatsapp.com/..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Zoom Link</label>
-                        <input type="url" value={selectedWorkshop.zoomLink || ''} onChange={(e) => handleDetailChange('zoomLink', e.target.value)} placeholder="https://zoom.us/j/..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">Registration Link</label>
-                        <input type="url" value={selectedWorkshop.registrationLink || ''} onChange={(e) => handleDetailChange('registrationLink', e.target.value)} placeholder="https://..." className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                      <div className="space-y-1 col-span-2 bg-slate-100 p-4 rounded-xl border border-slate-200 mt-2">
-                        <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                          Form Filter Keyword (Optional)
-                          <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px]">Important</span>
-                        </label>
-                        <p className="text-xs text-slate-500 mb-2">If multiple batches share the same Google Form, enter a keyword here (e.g. "Morning" or "Evening"). The CRM will only import leads whose form answers contain this keyword.</p>
-                        <input type="text" value={selectedWorkshop.formFilterKeyword || ''} onChange={(e) => handleDetailChange('formFilterKeyword', e.target.value)} placeholder="e.g. Morning Batch" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                      </div>
-                    </div>
-                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                      {renderBulkActions()}
-                      <button 
-                        onClick={saveWorkshopSettings}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
-                      >
-                        Save Workshop Details
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: My Data (Now renders the Workshop Registration Form) */}
-              {activeTab === 'my_data' && renderWorkshopForm()}
-
-        {/* TAB 3: Leads Management */}
-        {activeTab === 'leads' && (
-          <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
-            
-            {/* Stats Grid Section */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <button 
-                onClick={() => setIsStatsCollapsed(!isStatsCollapsed)}
-                className="w-full text-left px-6 py-4 bg-slate-50/50 hover:bg-slate-100 transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800">Dashboard Overview</h2>
-                  <p className="text-sm text-slate-500">View real-time statistics and funnel progress.</p>
-                </div>
-                <div className="text-slate-400">
-                  {isStatsCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
-                </div>
-              </button>
-              
-              {!isStatsCollapsed && (
-                <div className="p-6 border-t border-slate-100">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {(() => {
-                      const totalLeads = workshops.reduce((sum, w) => sum + (w.leads || 0), 0);
-                const targetLeads = 2000;
-                const progress = totalLeads > 0 ? Math.min(100, Math.round((totalLeads / targetLeads) * 100)) : 0;
-                
-                const todayLeads = Math.floor(totalLeads * 0.1);
-                const weekLeads = Math.floor(totalLeads * 0.4);
-                const monthLeads = Math.floor(totalLeads * 0.8);
-                
-                return (
-                  <>
-                    <StatCard title="Total Leads" value={totalLeads} target={targetLeads} progress={progress} />
-                    <StatCard title="Today" value={todayLeads} target={100} progress={Math.min(100, Math.round((todayLeads/100)*100))} />
-                    <StatCard title="This Week" value={weekLeads} target={500} progress={Math.min(100, Math.round((weekLeads/500)*100))} />
-                    <StatCard title="This Month" value={monthLeads} target={1500} progress={Math.min(100, Math.round((monthLeads/1500)*100))} />
-                    
-                    <StatCard 
-                      title="New Forms" 
-                      value={segmentCounts.new} 
-                      target={totalLeads} 
-                      progress={0} 
-                    />
-                    <StatCard 
-                      title="Approved" 
-                      value={segmentCounts.approved} 
-                      target={totalLeads} 
-                      progress={0} 
-                    />
-                    <StatCard 
-                      title="Pending" 
-                      value={segmentCounts.pending} 
-                      target={totalLeads} 
-                      progress={0} 
-                    />
-                    <StatCard 
-                      title="Registered" 
-                      value={segmentCounts.registered} 
-                      target={totalLeads} 
-                      progress={0} 
-                    />
-                    </>
-                  );
-                })()}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex h-[600px] ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
-              
-              {/* Inner Sidebar */}
-              <div className={`w-64 bg-slate-50 flex flex-col flex-shrink-0 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'}`}>
-                <div className="p-4 border-b border-slate-200">
-                  <h3 className="font-bold text-slate-800">Leads Segments</h3>
-                </div>
-                <div className="flex-1 p-3 space-y-1 overflow-y-auto">
-                  {LeadSubTabs.map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setLeadSubTab(tab.id as any)}
-                      className={`w-full text-left px-4 py-2.5 text-sm font-bold rounded-xl transition-all flex items-center justify-between ${
-                        leadSubTab === tab.id 
-                          ? 'bg-indigo-100 text-indigo-700 shadow-sm' 
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                      }`}
-                    >
-                      <span>{tab.label}</span>
-                      <span className="opacity-60 text-xs px-2 py-0.5 bg-black/5 rounded-full">{segmentCounts[tab.id as keyof typeof segmentCounts]}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Data Area */}
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white">
-                  <h3 className="font-bold text-slate-800 text-lg">{LeadSubTabs.find(t => t.id === leadSubTab)?.label}</h3>
-                  <div className="flex items-center gap-2">
-                    {renderBulkActions()}
-                    <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
-                      <div className="flex bg-slate-100 rounded-lg p-0.5">
-                        <button onClick={() => setRowDensity('compact')} className={`px-2 py-1 text-xs font-bold rounded-md transition-colors ${rowDensity === 'compact' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`} title="Compact View">≡</button>
-                        <button onClick={() => setRowDensity('normal')} className={`px-2 py-1 text-xs font-bold rounded-md transition-colors ${rowDensity === 'normal' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`} title="Normal View">≣</button>
-                      </div>
-                      <button 
-                        onClick={() => setShowDynamicColumns(!showDynamicColumns)}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${showDynamicColumns ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                      >
-                        {showDynamicColumns ? 'Hide Custom Answers' : 'Show Custom Answers'}
-                      </button>
-                    </div>
-                    {leadSubTab === 'new' && (
-                      <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
-                        <span className="text-xs font-bold text-slate-500">AI WORKER</span>
-                        <button 
-                          onClick={() => {
-                            setIsAiWorkerActive(!isAiWorkerActive);
-                            if (!isAiWorkerActive) toast.success('AI Worker activated! Checking every 5 mins.');
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAiWorkerActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAiWorkerActive ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                      </div>
-                    )}
-                    {leadSubTab === 'approved' && (
-                      <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
-                        <span className="text-xs font-bold text-slate-500">AI WORKER</span>
-                        <button 
-                          onClick={() => {
-                            setIsApprovedAiWorkerActive(!isApprovedAiWorkerActive);
-                            if (!isApprovedAiWorkerActive) toast.success('Approved AI Worker activated! Checking eligibility.');
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isApprovedAiWorkerActive ? 'bg-emerald-600' : 'bg-slate-300'}`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isApprovedAiWorkerActive ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                      </div>
-                    )}
-                    {leadSubTab === 'registered' && (
-                      <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
-                        <span className="text-xs font-bold text-slate-500">AI WORKER</span>
-                        <button 
-                          onClick={() => {
-                            setIsRegisteredAiWorkerActive(!isRegisteredAiWorkerActive);
-                            if (!isRegisteredAiWorkerActive) toast.success('Registered AI Worker activated! Running final audit.');
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isRegisteredAiWorkerActive ? 'bg-purple-600' : 'bg-slate-300'}`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isRegisteredAiWorkerActive ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-x-auto min-h-[300px] bg-white">
-                  {(() => {
-                    let filteredLeads = leadsData.filter(lead => {
-                      if (!crmLeadIds.includes(lead.id)) return false;
-                      if (leadSubTab === 'new') return true;
-                      if (leadSubTab === 'approved') return approvedLeadIds.includes(lead.id) || registeredLeadIds.includes(lead.id);
-                      if (leadSubTab === 'pending') return pendingLeadIds.includes(lead.id) && !approvedLeadIds.includes(lead.id) && !registeredLeadIds.includes(lead.id);
-                      if (leadSubTab === 'pending2') return pending2LeadIds.includes(lead.id);
-                      if (leadSubTab === 'registered') return registeredLeadIds.includes(lead.id);
-                      if (leadSubTab === 'student_kota') return studentKotaLeadIds.includes(lead.id);
-                      return false;
-                    });
-                    
-                    filteredLeads = [...filteredLeads].sort((a, b) => {
-                      const aRejected = rejectedLeadIds.includes(a.id);
-                      const bRejected = rejectedLeadIds.includes(b.id);
-                      
-                      if (leadSubTab === 'pending') {
-                        if (aRejected !== bRejected) return aRejected ? 1 : -1;
-                      }
-                      
-                      if (leadSubTab === 'new') {
-                        const getStatus = (id: string) => registeredLeadIds.includes(id) ? 4 : approvedLeadIds.includes(id) ? 3 : pending2LeadIds.includes(id) ? 2 : pendingLeadIds.includes(id) ? 1 : 0;
-                        return getStatus(a.id) - getStatus(b.id);
-                      }
-                      
-                      return 0;
-                    });
-                    
-                    const moveColumn = (colId: string, direction: 'left' | 'right') => {
-                      const idx = columnOrder.indexOf(colId);
-                      if (direction === 'left' && idx > 0) {
-                        const newOrder = [...columnOrder];
-                        [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
-                        setColumnOrder(newOrder);
-                      } else if (direction === 'right' && idx < columnOrder.length - 1) {
-                        const newOrder = [...columnOrder];
-                        [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
-                        setColumnOrder(newOrder);
-                      }
-                    };
-
-                    const handleColResize = (e: React.MouseEvent, colId: string, currentWidth: number) => {
-                      e.preventDefault();
-                      const startX = e.pageX;
-                      const onMouseMove = (moveEvent: MouseEvent) => {
-                        setColWidths(prev => ({ ...prev, [colId]: Math.max(50, currentWidth + moveEvent.pageX - startX) }));
-                      };
-                      const onMouseUp = () => {
-                        document.removeEventListener('mousemove', onMouseMove);
-                        document.removeEventListener('mouseup', onMouseUp);
-                      };
-                      document.addEventListener('mousemove', onMouseMove);
-                      document.addEventListener('mouseup', onMouseUp);
-                    };
-
-                    const handleRowResize = (e: React.MouseEvent, rowId: string, currentHeight: number) => {
-                      e.preventDefault();
-                      const startY = e.pageY;
-                      const onMouseMove = (moveEvent: MouseEvent) => {
-                        setRowHeights(prev => ({ ...prev, [rowId]: Math.max(30, currentHeight + moveEvent.pageY - startY) }));
-                      };
-                      const onMouseUp = () => {
-                        document.removeEventListener('mousemove', onMouseMove);
-                        document.removeEventListener('mouseup', onMouseUp);
-                      };
-                      document.addEventListener('mousemove', onMouseMove);
-                      document.addEventListener('mouseup', onMouseUp);
-                    };
-
-                    return (
-                      <table className="min-w-full text-left text-sm text-slate-600">
-                        <thead className="bg-slate-50 sticky top-0 z-30 border-b border-slate-200 uppercase text-xs shadow-sm">
-                          <tr className="divide-x divide-slate-200">
-                            <th className="px-4 py-3 font-bold text-slate-500 text-center w-[50px] min-w-[50px] sticky left-0 z-30 bg-slate-50 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
-                              <input 
-                                type="checkbox" 
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                checked={filteredLeads.length > 0 && selectedRowIds.length === filteredLeads.length}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedRowIds(filteredLeads.map(l => l.id));
-                                  else setSelectedRowIds([]);
-                                }}
-                              />
-                            </th>
-                            {columnOrder.map((col, idx) => {
-                              let label = col;
-                              let baseWidth = 150;
-                              if (col === 'whatsapp') baseWidth = 120;
-                              else if (col === 'email') baseWidth = 180;
-                              else if (col === 'city' || col === 'gender') baseWidth = 120;
-                              else if (col === 'payment' || col === 'submittedAt') baseWidth = 120;
-                              
-                              const width = colWidths[col] || baseWidth;
-                              
-                              if (col === 'name') { label = 'Name'; }
-                              else if (col === 'whatsapp') { label = 'WhatsApp'; }
-                              else if (col === 'email') { label = 'Email'; }
-                              else if (col === 'gender') { label = 'Gender'; }
-                              else if (col === 'city') { label = 'City'; }
-                              else if (col === 'payment') { label = 'Payment'; }
-                              else if (col === 'submittedAt') { label = 'Submitted At'; }
-                              
-                              return (
-                                <th key={col} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} className={`px-4 py-3 font-bold text-slate-500 group relative`}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="truncate">{label}</span>
-                                    <div className="opacity-0 group-hover:opacity-100 flex items-center bg-slate-100 rounded px-1 -ml-1 transition-opacity">
-                                      <button onClick={() => moveColumn(col, 'left')} className="p-0.5 hover:text-indigo-600" disabled={idx === 0}>‹</button>
-                                      <button onClick={() => moveColumn(col, 'right')} className="p-0.5 hover:text-indigo-600" disabled={idx === columnOrder.length - 1}>›</button>
-                                    </div>
-                                  </div>
-                                  <div 
-                                    className="absolute right-0 top-0 bottom-0 w-1 hover:w-2 bg-transparent hover:bg-indigo-400 cursor-col-resize z-50 transition-colors"
-                                    onMouseDown={(e) => handleColResize(e, col, width)}
-                                  />
-                                </th>
-                              );
-                            })}
-                            {showDynamicColumns && dynamicColumns.map(col => (
-                              <th key={col} className="px-4 py-3 font-bold text-slate-500 whitespace-normal min-w-[150px] max-w-[200px] break-words leading-tight">
-                                <div className="line-clamp-4" title={col}>{col}</div>
-                              </th>
-                            ))}
-                            <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {isLoadingLeads ? (
-                            <tr>
-                              <td colSpan={10 + dynamicColumns.length} className="p-8 text-center text-slate-500">Loading leads...</td>
-                            </tr>
-                          ) : !linkedFormId ? (
-                            <tr>
-                              <td colSpan={10 + dynamicColumns.length} className="p-12 text-center">
-                                <div className="text-slate-300 mb-2 flex justify-center"><Users size={32} /></div>
-                                <h3 className="font-bold text-slate-700">No form linked</h3>
-                                <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1">Go to the Workshop Forms tab and link a form to see its leads here.</p>
-                              </td>
-                            </tr>
-                          ) : filteredLeads.length === 0 ? (
-                            <tr>
-                              <td colSpan={10 + dynamicColumns.length} className="p-12 text-center text-slate-500">
-                                <h3 className="font-bold text-slate-700">No leads found</h3>
-                                <p className="text-sm text-slate-500 mt-1">There are no leads in this section.</p>
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredLeads.map((lead, i) => {
-                              const isSelected = selectedRowIds.includes(lead.id);
-                              const isApproved = approvedLeadIds.includes(lead.id);
-                              const isPending = pendingLeadIds.includes(lead.id);
-                              const isPending2 = pending2LeadIds.includes(lead.id);
-                              const isRegistered = registeredLeadIds.includes(lead.id);
-                              const isRejected = rejectedLeadIds.includes(lead.id);
-                              const isClosed = closedLeadIds.includes(lead.id);
-                              
-                              let baseBgClass = 'bg-white hover:bg-slate-50';
-                              
-                              if (leadSubTab === 'new') {
-                                if (isRegistered || isApproved) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
-                                else if (isPending || isPending2) baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
-                              } else if (leadSubTab === 'approved') {
-                                if (isRegistered) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
-                                else if (isPending2) baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
-                              } else if (leadSubTab === 'pending' || leadSubTab === 'pending2') {
-                                if (isRejected) baseBgClass = 'bg-red-50 hover:bg-red-100';
-                                else baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
-                              } else if (leadSubTab === 'registered' || leadSubTab === 'student_kota') {
-                                if (isClosed) baseBgClass = 'bg-emerald-50 hover:bg-emerald-100';
-                                else if (registeredAiInsights[lead.id]) baseBgClass = 'bg-yellow-50 hover:bg-yellow-100';
-                              }
-
-                              if (isSelected) baseBgClass = 'bg-indigo-50 hover:bg-indigo-100';
-
-                              let cellBgClass = 'bg-white group-hover:bg-slate-50';
-                              const pyClass = rowDensity === 'compact' ? 'py-1' : rowDensity === 'normal' ? 'py-3' : 'py-5';
-                              const pxClass = rowDensity === 'compact' ? 'px-2' : rowDensity === 'normal' ? 'px-4' : 'px-6';
-                              const textClass = rowDensity === 'compact' ? 'text-xs' : 'text-sm';
-                              const spacingClass = `${pxClass} ${pyClass} ${textClass}`;
-
-                              if (leadSubTab === 'new') {
-                                if (isRegistered || isApproved) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
-                                else if (isPending || isPending2) cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
-                              } else if (leadSubTab === 'approved') {
-                                if (isRegistered) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
-                                else if (isPending2) cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
-                              } else if (leadSubTab === 'pending' || leadSubTab === 'pending2') {
-                                if (isRejected) cellBgClass = 'bg-red-50 group-hover:bg-red-100';
-                                else cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
-                              } else if (leadSubTab === 'registered') {
-                                if (isClosed) cellBgClass = 'bg-emerald-50 group-hover:bg-emerald-100';
-                                else if (registeredAiInsights[lead.id]) cellBgClass = 'bg-yellow-50 group-hover:bg-yellow-100';
-                              }
-                              if (isSelected) cellBgClass = 'bg-indigo-50 group-hover:bg-indigo-100';
-
-                              const height = rowHeights[lead.id] || (rowDensity === 'compact' ? 40 : rowDensity === 'normal' ? 56 : 72);
-                              return (
-                                <tr key={lead.id || i} style={{ height: `${height}px` }} className={`group transition-colors relative ${baseBgClass} divide-x divide-slate-200`}>
-                                  <td className={`px-4 py-3 text-center w-[50px] min-w-[50px] sticky left-0 z-20 ${cellBgClass} transition-colors`}>
-                                    <input 
-                                      type="checkbox" 
-                                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                      checked={isSelected}
-                                      onChange={(e) => {
-                                        if (e.target.checked) setSelectedRowIds(prev => [...prev, lead.id]);
-                                        else setSelectedRowIds(prev => prev.filter(id => id !== lead.id));
-                                      }}
-                                    />
-                                  </td>
-                                  {columnOrder.map(col => {
-                                    if (col === 'name') {
-                                      return (
-                                        <td key={col} className={`px-4 py-3 font-medium text-slate-800 whitespace-nowrap w-[150px] min-w-[150px] ${cellBgClass} transition-colors`}>
-                                          <div className="truncate w-full max-w-[140px]" title={lead.name || ''}>{lead.name || '-'}</div>
-                                        </td>
-                                      );
-                                    } else if (col === 'whatsapp') {
-                                      return (
-                                        <td key={col} className={`px-4 py-3 whitespace-nowrap w-[110px] min-w-[110px] max-w-[120px] ${cellBgClass} transition-colors`}>
-                                          <div className="truncate w-full max-w-[110px]" title={lead.mobile || lead.phoneNumber || ''}>{lead.mobile || lead.phoneNumber || '-'}</div>
-                                        </td>
-                                      );
-                                    } else if (col === 'email') {
-                                      return <td key={col} className={`px-4 py-3 whitespace-nowrap max-w-[180px] ${cellBgClass}`}><div className="truncate w-full" title={lead.email || ''}>{lead.email || '-'}</div></td>;
-                                    } else if (col === 'gender') {
-                                      return <td key={col} className={`px-4 py-3 capitalize whitespace-nowrap ${cellBgClass}`}>{lead.gender || '-'}</td>;
-                                    } else if (col === 'city') {
-                                      return <td key={col} className={`px-4 py-3 whitespace-nowrap max-w-[120px] ${cellBgClass}`}><div className="truncate w-full" title={lead.city || ''}>{lead.city || '-'}</div></td>;
-                                    } else if (col === 'payment') {
-                                      return (
-                                        <td key={col} className={`px-4 py-3 ${cellBgClass}`}>
-                                          {lead.payment?.status ? (
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.payment.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                              {lead.payment.status}
-                                            </span>
-                                          ) : '-'}
-                                        </td>
-                                      );
-                                    } else if (col === 'submittedAt') {
-                                      return <td key={col} className={`px-4 py-3 whitespace-nowrap ${cellBgClass}`}>{lead.submittedAt ? new Date(lead.submittedAt).toLocaleDateString() : '-'}</td>;
-                                    } else {
-                                      return (
-                                        <td key={col} className={`px-4 py-3 whitespace-normal min-w-[100px] max-w-[150px] break-words text-slate-500 text-xs ${cellBgClass}`}>
-                                          <div className="line-clamp-2" title={lead.dynamicAnswers?.[col]}>{lead.dynamicAnswers?.[col] || '-'}</div>
-                                        </td>
-                                      );
-                                    }
-                                  })}
-                                  {showDynamicColumns && dynamicColumns.map(col => {
-                                    const val = (lead.dynamicAnswers && lead.dynamicAnswers[col]) || (lead._rawRecord && lead._rawRecord[col]) || '-';
-                                    return (
-                                      <td key={col} className={`px-4 py-3 whitespace-normal min-w-[150px] max-w-[200px] break-words text-slate-500 text-xs ${cellBgClass}`}>
-                                        <div className="line-clamp-2" title={val}>{val}</div>
-                                      </td>
-                                    );
-                                  })}
-                                  <td className="px-4 py-3 whitespace-nowrap text-right">
-                                    {leadSubTab === 'pending' && !isRejected && (
-                                      <div className="flex flex-col items-end gap-2">
-                                        {(() => {
-                                          let insight = pendingAiInsights[lead.id];
-                                          if (!insight) {
-                                            // Fallback computation for leads that were manually moved or moved before the AI logic update
-                                            let has14Days = false;
-                                            let hasVideo = false;
-                                            let hasOffer = false;
-                                            if (lead.dynamicAnswers) {
-                                              Object.entries(lead.dynamicAnswers).forEach(([q, a]) => {
-                                                const qLower = q.toLowerCase();
-                                                const aLower = String(a).toLowerCase().trim();
-                                                const isNegative = aLower === 'no' || aLower === 'n' || aLower.startsWith('no ');
-                                                const isPositive = !isNegative && (aLower.includes('yes') || aLower.includes('ready') || aLower.includes('noted') || aLower.includes('will') || aLower.includes('agree') || aLower.includes('ok') || aLower === 'y');
-                                                if ((qLower.includes('14 days') || qLower.includes('attend_all')) && isPositive) has14Days = true;
-                                                if ((qLower.includes('video') || qLower.includes('video_on')) && isPositive) hasVideo = true;
-                                                if ((qLower.includes('offer') || qLower.includes('commitment')) && isPositive) hasOffer = true;
-                                              });
-                                            }
-                                            let reason = '';
-                                            if (!has14Days) reason += 'Missed 14 Days commitment. ';
-                                            if (!hasVideo) reason += 'Missed Video On commitment. ';
-                                            if (!hasOffer) reason += 'Missed Offer commitment. ';
-                                            insight = reason.trim() || 'Manually moved to pending.';
-                                          }
-                                          return (
-                                            <div className="text-[10px] text-red-600 bg-red-50 border border-red-100 rounded p-1.5 max-w-[200px] text-left break-words">
-                                              <span className="font-bold block">AI Flagged:</span>
-                                              {insight}
-                                            </div>
-                                          );
-                                        })()}
-                                        <div className="flex items-center gap-2">
-                                          <button onClick={() => {
-                                            setPendingLeadIds(prev => prev.filter(id => id !== lead.id));
-                                            setApprovedLeadIds(prev => [...prev, lead.id]);
-                                          }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">Approve</button>
-                                          <button onClick={() => {
-                                            setRejectedLeadIds(prev => [...prev, lead.id]);
-                                          }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors">Reject</button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {leadSubTab === 'pending' && isRejected && (
-                                      <div className="flex items-center justify-end gap-2">
-                                        <button onClick={() => {
-                                          setPendingLeadIds(prev => prev.filter(id => id !== lead.id));
-                                          setRejectedLeadIds(prev => prev.filter(id => id !== lead.id));
-                                        }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">Archive</button>
-                                        <button onClick={() => {
-                                          setCrmLeadIds(prev => prev.filter(id => id !== lead.id));
-                                          setPendingLeadIds(prev => prev.filter(id => id !== lead.id));
-                                          setRejectedLeadIds(prev => prev.filter(id => id !== lead.id));
-                                        }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">Delete</button>
-                                      </div>
-                                    )}
-                                    {leadSubTab === 'approved' && !isRegistered && (
-                                      <div className="flex flex-col items-end gap-2">
-                                        {approvalAiInsights[lead.id] && (
-                                          <div className="text-[10px] text-red-600 bg-red-50 border border-red-100 rounded p-1.5 max-w-[200px] text-left break-words">
-                                            <span className="font-bold block">AI Flagged:</span>
-                                            {approvalAiInsights[lead.id]}
-                                          </div>
-                                        )}
-                                        <div className="flex items-center gap-2">
-                                          {approvalAiInsights[lead.id] && (
-                                            <button onClick={() => {
-                                              setApprovedLeadIds(prev => prev.filter(id => id !== lead.id));
-                                              setPendingLeadIds(prev => [...prev, lead.id]);
-                                              const newInsights = { ...approvalAiInsights };
-                                              delete newInsights[lead.id];
-                                              setApprovalAiInsights(newInsights);
-                                            }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors">Move to Pending</button>
-                                          )}
-                                          <button onClick={() => {
-                                            setApprovedLeadIds(prev => prev.filter(id => id !== lead.id));
-                                            setRegisteredLeadIds(prev => [...prev, lead.id]);
-                                            if (approvalAiInsights[lead.id]) {
-                                              const newInsights = { ...approvalAiInsights };
-                                              delete newInsights[lead.id];
-                                              setApprovalAiInsights(newInsights);
-                                            }
-                                          }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors">
-                                            {approvalAiInsights[lead.id] ? 'Force Register' : 'Register'}
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {leadSubTab === 'approved' && isRegistered && (
-                                      <div className="flex items-center justify-end">
-                                        <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-400">Registered</span>
-                                      </div>
-                                    )}
-                                    {leadSubTab === 'registered' && !isClosed && (
-                                      <div className="flex flex-col items-end gap-2">
-                                        {registeredAiInsights[lead.id] && (
-                                          <div className="text-[10px] text-red-600 bg-red-50 border border-red-100 rounded p-1.5 max-w-[200px] text-left break-words">
-                                            <span className="font-bold block">AI Flagged:</span>
-                                            {registeredAiInsights[lead.id]}
-                                          </div>
-                                        )}
-                                        <div className="flex items-center gap-2">
-                                          <button onClick={() => {
-                                            setClosedLeadIds(prev => [...prev, lead.id]);
-                                            if (registeredAiInsights[lead.id]) {
-                                              const newInsights = { ...registeredAiInsights };
-                                              delete newInsights[lead.id];
-                                              setRegisteredAiInsights(newInsights);
-                                            }
-                                          }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
-                                            Approve
-                                          </button>
-                                          <button onClick={() => {
-                                            setRegisteredLeadIds(prev => prev.filter(id => id !== lead.id));
-                                            setPendingLeadIds(prev => [...prev, lead.id]);
-                                            if (registeredAiInsights[lead.id]) {
-                                              const newInsights = { ...registeredAiInsights };
-                                              delete newInsights[lead.id];
-                                              setRegisteredAiInsights(newInsights);
-                                            }
-                                          }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
-                                            Reject
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {leadSubTab === 'registered' && isClosed && (
-                                      <div className="flex items-center justify-end">
-                                        <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-400">Closed</span>
-                                      </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: Leads Closing */}
-        {activeTab === 'closing' && (
-          <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[700px]">
-              
-              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <Handshake size={18} className="text-emerald-500" />
-                  Approved Leads Closing
-                </h2>
-                {renderBulkActions()}
-              </div>
-
-              {/* Data Table (5 Limited Columns) */}
-              <div className="flex-1 overflow-auto bg-white">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 shadow-sm">
-                    <tr>
-                      <th className="px-4 py-3 font-bold text-slate-500 w-12">
-                        <input 
-                          type="checkbox"
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                          checked={leadsData.filter(l => registeredLeadIds.includes(l.id)).length > 0 && selectedRowIds.length === leadsData.filter(l => registeredLeadIds.includes(l.id)).length}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedRowIds(leadsData.filter(l => registeredLeadIds.includes(l.id)).map(l => l.id));
-                            } else {
-                              setSelectedRowIds([]);
-                            }
-                          }}
-                        />
-                      </th>
-                      <th className="px-4 py-3 font-bold text-slate-500">Name</th>
-                      <th className="px-4 py-3 font-bold text-slate-500">WhatsApp</th>
-                      <th className="px-4 py-3 font-bold text-slate-500">Email</th>
-                      <th className="px-4 py-3 font-bold text-slate-500">Country</th>
-                      <th className="px-4 py-3 font-bold text-slate-500">City</th>
-                      <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {leadsData.filter(l => registeredLeadIds.includes(l.id)).length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-12 text-center text-slate-500">
-                          <h3 className="font-bold text-slate-700">No registered leads</h3>
-                          <p className="text-sm text-slate-500 mt-1">Move leads to the Registered stage to see them here.</p>
-                        </td>
-                      </tr>
-                    ) : (
-                      leadsData.filter(l => registeredLeadIds.includes(l.id)).map(lead => {
-                        const isClosed = closedLeadIds.includes(lead.id);
-                        return (
-                          <tr key={lead.id} className={`transition-colors ${isClosed ? 'bg-emerald-50 hover:bg-emerald-100' : 'bg-white hover:bg-slate-50'}`}>
-                            <td className="px-4 py-4">
-                              <input 
-                                type="checkbox"
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                checked={selectedRowIds.includes(lead.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedRowIds(prev => [...prev, lead.id]);
-                                  } else {
-                                    setSelectedRowIds(prev => prev.filter(id => id !== lead.id));
-                                  }
-                                }}
-                              />
-                            </td>
-                            <td className="px-4 py-4 font-bold text-slate-800">{lead.name || '-'}</td>
-                            <td className="px-4 py-4 text-slate-600">{lead.mobile || lead.phoneNumber || '-'}</td>
-                            <td className="px-4 py-4 text-slate-600">{lead.email || '-'}</td>
-                            <td className="px-4 py-4 text-slate-600">{lead.country || '-'}</td>
-                            <td className="px-4 py-4 text-slate-600">{lead.city || '-'}</td>
-                            <td className="px-4 py-4 text-right">
-                              <div className="flex flex-col items-end gap-2">
-                                <input
-                                  type="datetime-local"
-                                  className="rounded border px-2 py-1 text-sm bg-white"
-                                  value={meetingSchedule[lead.id] || ''}
-                                  onChange={e => setMeetingSchedule(prev => ({ ...prev, [lead.id]: e.target.value }))}
-                                  placeholder="Zoom Date & Time"
-                                />
-                                <div className="flex items-center gap-2 w-full justify-end">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    className="w-16 rounded border px-2 py-1.5 text-xs bg-white"
-                                    value={messageNumber[lead.id] ?? ''}
-                                    onChange={e => setMessageNumber(prev => ({ ...prev, [lead.id]: Number(e.target.value) }))}
-                                    placeholder="Msg #"
-                                  />
-                                  <button onClick={() => handleZoomRegister([lead.id])} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">Zoom Reg</button>
-                                  <button onClick={() => {
-                                    setRegisteredLeadIds(prev => prev.filter(id => id !== lead.id));
-                                    setPendingLeadIds(prev => [...prev, lead.id]);
-                                    setClosedLeadIds(prev => prev.filter(id => id !== lead.id));
-                                  }} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors">Pending</button>
-                                  <button onClick={() => {
-                                    if (isClosed) {
-                                      setClosedLeadIds(prev => prev.filter(id => id !== lead.id));
-                                    } else {
-                                      if (!meetingSchedule[lead.id]) {
-                                        toast.error("Please add a Zoom meeting date & time before closing.");
-                                        return;
-                                      }
-                                      setClosedLeadIds(prev => [...prev, lead.id]);
-                                    }
-                                  }} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isClosed ? 'bg-slate-100 text-slate-400 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
-                                    {isClosed ? 'Unclose' : 'Close'}
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: Message Templates */}
-        {activeTab === 'templates' && (
-          <div className="max-w-5xl mx-auto h-[600px] animate-fade-in">
-            <TemplatesTab token={token} provider="crm_registration" title="Create & Save Messages" />
-          </div>
-        )}
-
-            </>
+          {activeTab === 'leads_management' && (
+            <LeadsManagementTab 
+              workshops={workshops} 
+              selectedDashboardLang={selectedDashboardLang}
+              selectedWorkshop={selectedWorkshop}
+            />
           )}
         </main>
       </div>
-      
-      {/* Add New Batch Modal */}
-      {isAddBatchModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden animate-fade-in">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">Add New Batch</h2>
-              <button onClick={() => setIsAddBatchModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase">Batch Name</label>
-                <input 
-                  type="text" 
-                  value={newBatchName}
-                  onChange={e => setNewBatchName(e.target.value)}
-                  placeholder="e.g. Advanced Yoga Oct 2026" 
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Language</label>
-                  <input type="text" placeholder="e.g. English" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Workshop Name</label>
-                  <input type="text" placeholder="e.g. Morning Flow" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Start Date</label>
-                  <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Start Time</label>
-                  <input type="time" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase">Duration</label>
-                <input type="text" placeholder="e.g. 21 Days, 1 Month" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-              </div>
-            </div>
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button onClick={() => setIsAddBatchModalOpen(false)} className="px-4 py-2 font-bold text-slate-500 hover:text-slate-700">
-                Cancel
-              </button>
-              <button 
-                onClick={() => {
-                  if (!newBatchName.trim()) {
-                    toast.error('Please enter a batch name');
-                    return;
-                  }
-                  const newBatch = {
-                    id: `w${Date.now()}`,
-                    name: newBatchName,
-                    formId: '',
-                    leads: 0
-                  };
-                  setWorkshops([newBatch, ...workshops]);
-                  setNewBatchName('');
-                  toast.success('New batch created successfully!');
-                  setIsAddBatchModalOpen(false);
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
-              >
-                Create Batch
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Webhook Setup Modal */}
-      {isWebhookModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800">Google Form Webhook Setup</h3>
-                <p className="text-sm text-slate-500 mt-1">Get real-time submissions instantly.</p>
-              </div>
-              <button onClick={() => setIsWebhookModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                <X size={20} className="text-slate-500" />
-              </button>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-800">Step 1: Open Google Form Script Editor</h4>
-                <p className="text-sm text-slate-600">Open your Google Form. Click the three dots (More) in the top right, and select <strong>Script editor</strong>.</p>
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-800">Step 2: Paste this code</h4>
-                <p className="text-sm text-slate-600">Replace the default code with this snippet. Be sure to replace the `WORKSHOP_ID` placeholder with your actual form ID (e.g. {linkedFormId || 'YOUR_FORM_ID'}).</p>
-                <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl text-xs overflow-x-auto">
-{`function onFormSubmit(e) {
-  var form = FormApp.getActiveForm();
-  var responses = form.getResponses();
-  var latestResponse = responses[responses.length - 1];
-  var itemResponses = latestResponse.getItemResponses();
-  
-  var payload = {
-    email: latestResponse.getRespondentEmail()
-  };
-  
-  for (var i = 0; i < itemResponses.length; i++) {
-    var title = itemResponses[i].getItem().getTitle();
-    var response = itemResponses[i].getResponse();
-    payload[title] = response;
-  }
-  
-  var options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload)
-  };
-  
-  // Update with your live server domain when deploying
-  var webhookUrl = "https://app.swaryoga.com/api/admin/webhooks/google-form?workshopId=${encodeURIComponent(linkedFormId || 'YOUR_FORM_ID')}";
-  UrlFetchApp.fetch(webhookUrl, options);
-}`}
-                </pre>
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-800">Step 3: Set up the Trigger</h4>
-                <p className="text-sm text-slate-600">Click the clock icon (Triggers) on the left sidebar. Click <strong>Add Trigger</strong>. Choose <code>onFormSubmit</code> for the function, and <code>On form submit</code> for the event type. Save and grant permissions.</p>
-              </div>
-            </div>
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <button 
-                onClick={() => setIsWebhookModalOpen(false)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* AI-4 Instructions Modal */}
-      {isAi4RulesOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsAi4RulesOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800">🤖 AI-4 Instructions</h3>
-                <p className="text-sm text-slate-500 mt-1">Tell AI-4 what to do when processing leads</p>
-              </div>
-              <button onClick={() => setIsAi4RulesOpen(false)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
-                <X size={20} className="text-slate-500" />
-              </button>
-            </div>
-            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">⏱ Auto-Fetch Interval</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    value={ai4Interval}
-                    onChange={(e) => setAi4Interval(Number(e.target.value))}
-                    className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                    min={1}
-                  />
-                  <span className="text-sm text-slate-500">seconds between each fetch</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">📋 Instructions for AI-4</label>
-                <p className="text-xs text-slate-400">Write your rules here. AI-4 will follow these instructions when processing incoming leads.</p>
-                <textarea 
-                  value={ai4FormatRules}
-                  onChange={(e) => setAi4FormatRules(e.target.value)}
-                  placeholder={"Example instructions:\n• Ignore leads without phone numbers\n• Capitalize all names\n• Mark leads from India as priority\n• Auto-reject if age < 18\n• Add tag 'VIP' if profession is Doctor\n• Send WhatsApp welcome message to new leads"}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[180px] font-mono"
-                />
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                <strong>💡 Tip:</strong> Be specific! Write each rule on a new line. AI-4 will apply these rules every time it fetches or processes leads.
-              </div>
-            </div>
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-              <button 
-                onClick={() => {
-                  setAi4FormatRules('');
-                  toast.success('Instructions cleared');
-                }}
-                className="text-sm text-slate-500 hover:text-red-600 transition-colors"
-              >
-                Clear All
-              </button>
-              <button 
-                onClick={() => {
-                  toast.success('✅ AI-4 Instructions saved!');
-                  setIsAi4RulesOpen(false);
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg transition-colors"
-              >
-                Save Instructions
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
