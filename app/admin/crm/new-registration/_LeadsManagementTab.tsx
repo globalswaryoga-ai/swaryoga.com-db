@@ -18,11 +18,13 @@ const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Kannada'];
 export function LeadsManagementTab({ 
   workshops,
   selectedDashboardLang = 'English',
-  selectedWorkshop = null
+  selectedWorkshop = null,
+  leadsData = []
 }: { 
   workshops: any[];
   selectedDashboardLang?: string;
   selectedWorkshop?: any;
+  leadsData?: any[];
 }) {
   const toast = useToast();
   
@@ -31,9 +33,11 @@ export function LeadsManagementTab({
   const [activeBatchId, setActiveBatchId] = useState('');
   const [activeTab, setActiveTab] = useState('new_leads');
 
-  // Filter batches by language to populate the dropdown
+  // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
   const filteredBatches = (workshops || []).filter(
-    (w) => w.id.startsWith('batch_') && (w.language || 'English').toLowerCase() === selectedLanguage.toLowerCase()
+    (w) => w.id.startsWith('batch_') && 
+           (w.language || 'English').toLowerCase() === selectedLanguage.toLowerCase() &&
+           w.isMovedToLeadsManagement
   );
 
   const handleSubmit = () => {
@@ -45,7 +49,22 @@ export function LeadsManagementTab({
     toast.success('Batch selected. Ready to load leads...');
   };
 
-  const activeBatchName = workshops?.find(w => w.id === activeBatchId)?.name || '';
+  const activeBatch = workshops?.find(w => w.id === activeBatchId);
+  const activeBatchName = activeBatch?.name || '';
+
+  // Calculate leads for this batch based on the same exact logic used in WorkshopFormTab
+  const activeBatchLeads = React.useMemo(() => {
+    if (!activeBatch || !activeBatch.formFilterKeyword || !leadsData) return [];
+    
+    const languageFiltered = leadsData.filter(l => (l.language || "English").toLowerCase() === (activeBatch.language || 'English').toLowerCase());
+    const keywords = activeBatch.formFilterKeyword.split('|').map((k: string) => k.trim().toLowerCase());
+    const formField = activeBatch.metadata?.googleFormMapping?.workshopDate || 'Workshop / Session Date';
+    
+    return languageFiltered.filter(l => {
+      const rowVal = String(l._rawRecord ? l._rawRecord[formField] : (l[formField] || '')).trim().toLowerCase();
+      return keywords.includes(rowVal);
+    });
+  }, [activeBatch, leadsData]);
 
   return (
     <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[calc(100vh-140px)] animate-fade-in">
@@ -135,27 +154,65 @@ export function LeadsManagementTab({
               </div>
               
               <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                <table className="min-w-full text-left text-sm text-slate-600">
-                  <thead className="bg-slate-50 border-b border-slate-200 uppercase text-[10px] tracking-wider">
-                    <tr>
-                      <th className="px-4 py-3 font-bold text-slate-500">Name</th>
-                      <th className="px-4 py-3 font-bold text-slate-500">WhatsApp</th>
-                      <th className="px-4 py-3 font-bold text-slate-500">Language</th>
-                      <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td colSpan={4} className="px-4 py-12 text-center text-slate-500">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Users size={32} className="text-slate-300" />
-                          <p>Logic for displaying and managing {SIDEBAR_TABS.find(t => t.id === activeTab)?.label} leads goes here.</p>
-                          <p className="text-xs text-slate-400">Data is completely private to this batch and will not mix with others.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm text-slate-600">
+                    <thead className="bg-slate-50 border-b border-slate-200 uppercase text-[10px] tracking-wider">
+                      <tr>
+                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">City</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">Submitted At</th>
+                        <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {activeTab === 'new_leads' ? (
+                        activeBatchLeads.length > 0 ? (
+                          activeBatchLeads.map((lead, i) => (
+                            <tr key={lead.id || i} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
+                              <td className="px-4 py-3">
+                                {lead.phone && (
+                                  <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
+                                    {lead.phone}
+                                  </a>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">{lead.gender || '-'}</td>
+                              <td className="px-4 py-3">{lead.city || '-'}</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">{lead._rawRecord?.['Timestamp'] || '-'}</td>
+                              <td className="px-4 py-3 text-right">
+                                <button className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded hover:bg-indigo-100 transition-colors">
+                                  View
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <Users size={32} className="text-slate-300" />
+                                <p>No leads found for this batch.</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <Users size={32} className="text-slate-300" />
+                              <p>Logic for displaying and managing {SIDEBAR_TABS.find(t => t.id === activeTab)?.label} leads goes here.</p>
+                              <p className="text-xs text-slate-400">Data is completely private to this batch and will not mix with others.</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ) : (

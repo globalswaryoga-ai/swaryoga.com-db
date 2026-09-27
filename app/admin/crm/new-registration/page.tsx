@@ -576,6 +576,15 @@ export default function NewRegistrationPage() {
 
   const [refreshLeadsCounter, setRefreshLeadsCounter] = useState(0);
 
+  // Auto-sync leads from Google Form / CRM every 10 minutes
+  useEffect(() => {
+    if (!linkedFormId) return;
+    const interval = setInterval(() => {
+      setRefreshLeadsCounter(prev => prev + 1);
+    }, 10 * 60 * 1000); // 10 minutes
+    return () => clearInterval(interval);
+  }, [linkedFormId]);
+
   useEffect(() => {
     async function loadLeads() {
       if (!linkedFormId) return;
@@ -1785,6 +1794,46 @@ export default function NewRegistrationPage() {
                         <span className="break-words w-full pr-2 leading-tight" title={batch.name}>{batch.name}</span>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{batch.leads || 0}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setWorkshops(prev => {
+                                const copy = [...prev];
+                                const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
+                                const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
+                                if (currentI > 0) {
+                                  const prevIdx = batchIndices[currentI - 1];
+                                  const currIdx = batchIndices[currentI];
+                                  [copy[prevIdx], copy[currIdx]] = [copy[currIdx], copy[prevIdx]];
+                                }
+                                return copy;
+                              });
+                            }}
+                            className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
+                            title="Move Up"
+                          >
+                            <ChevronUp size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setWorkshops(prev => {
+                                const copy = [...prev];
+                                const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
+                                const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
+                                if (currentI < batchIndices.length - 1) {
+                                  const nextIdx = batchIndices[currentI + 1];
+                                  const currIdx = batchIndices[currentI];
+                                  [copy[nextIdx], copy[currIdx]] = [copy[currIdx], copy[nextIdx]];
+                                }
+                                return copy;
+                              });
+                            }}
+                            className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
+                            title="Move Down"
+                          >
+                            <ChevronDown size={12} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

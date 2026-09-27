@@ -537,47 +537,6 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 <h3 className="font-bold text-slate-800">
                   Linked Leads {effectiveLeads.length > 0 && <span className="text-sm font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full ml-2">{effectiveLeads.length} leads</span>}
                 </h3>
-                {linkedFormId && p.activeTab !== 'my_batches' && (
-                  <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-                    <button
-                      onClick={() => {
-                        setRefreshLeadsCounter(prev => prev + 1);
-                        toast.success('Retrying lead fetch...');
-                      }}
-                      disabled={isLoadingLeads}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 rounded-lg text-xs font-bold transition-colors shadow-sm mr-2"
-                      title="Manually retry fetching leads from the form"
-                    >
-                      {isLoadingLeads ? '⏳' : '🔄'} Retry
-                    </button>
-                    <span className="text-xs font-bold text-slate-500">AI-4</span>
-                    <button
-                      onClick={async () => {
-                        const newState = !isAi4Active;
-                        setIsAi4Active(newState);
-                        localStorage.setItem('crm_ai_4_active', String(newState));
-                        try {
-                          await fetch('/api/admin/crm/new-registration/state', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                            body: JSON.stringify({ crm_ai_4_active: String(newState) })
-                          });
-                        } catch (e) { }
-                        if (newState) toast.success(`🤖 AI-4 activated! Following your instructions on every fetch.`);
-                      }}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAi4Active ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAi4Active ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
-                    <button
-                      onClick={() => setIsAi4RulesOpen(true)}
-                      className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-500 transition-colors ml-1"
-                      title="AI-4 Instructions & Rules"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                  </div>
-                )}
               </div>
 
               <div className="flex items-center gap-3">
@@ -590,7 +549,12 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                       <ArrowLeftRight size={14} /> Merge Data
                     </button>
                     <button
-                      onClick={() => toast.success('AI-2 Categorization coming soon!')}
+                      onClick={() => {
+                        if (setWorkshops) {
+                          setWorkshops((prev: any[]) => prev.map(w => w.id.startsWith('batch_') ? { ...w, isMovedToLeadsManagement: true } : w));
+                          toast.success('🤖 AI-2: Successfully processed! All batches are now available in Leads Management.');
+                        }
+                      }}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
                     >
                       🤖 AI-2
@@ -635,36 +599,6 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         title="Automatically create batches from mapped dates"
                       >
                         {p.isAi1Processing ? '⏳ Generating...' : 'Create Batches'}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100">
-                      <span className="text-xs font-bold text-purple-700">AI-7 Auto</span>
-                      <button
-                        onClick={async () => {
-                          const newState = !isAi7Active;
-                          setIsAi7Active(newState);
-                          localStorage.setItem('crm_ai_7_active', String(newState));
-                          try {
-                            await fetch('/api/admin/crm/new-registration/state', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                              body: JSON.stringify({ crm_ai_7_active: String(newState) })
-                            });
-                          } catch (e) { }
-                          if (newState) toast.success(`🤖 AI-7 Auto-Categorization enabled!`);
-                        }}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAi7Active ? 'bg-purple-600' : 'bg-slate-300'}`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAi7Active ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
-                      <button
-                        onClick={handleAi7Categorize}
-                        disabled={isAi7Processing}
-                        className="ml-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-3 py-1 rounded text-xs font-bold transition-colors shadow-sm"
-                        title="Run AI-7 manually now"
-                      >
-                        {isAi7Processing ? '⏳...' : 'Run Now'}
                       </button>
                     </div>
                   </>
