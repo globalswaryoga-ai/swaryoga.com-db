@@ -561,8 +561,8 @@ function SocialMediaSetupContent() {
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{platformConfig?.icon || '📱'}</span>
                         <div>
-                          <p className="text-white font-medium">{account.accountName}</p>
-                          <p className="text-slate-400 text-sm">{account.accountHandle}</p>
+                          <p className="text-white font-medium">{account.accountName || account.platform || 'Unknown Account'}</p>
+                          <p className="text-slate-400 text-sm">{account.accountHandle || 'No handle'}</p>
                           {account.metadata?.autoConnectedVia === 'facebook' && (
                             <p className="text-emerald-400 text-xs mt-1">
                               Auto-linked from Facebook Page{account.metadata?.linkedPageName ? `: ${account.metadata.linkedPageName}` : ''}
