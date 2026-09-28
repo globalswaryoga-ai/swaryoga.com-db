@@ -1837,12 +1837,27 @@ export default function WorkshopManagementPage() {
                 
                 {/* === ANALYTICS TAB === */}
                 {activeTab === 'analytics' && (() => {
-                  const uniqueDates = Array.from(new Set(attendance.map(a => a.classDate)))
+                  const mappedDates = Object.keys(selected?.metadata?.dateDayMap || {});
+                  const uniqueDates = Array.from(new Set([
+                    ...attendance.map(a => a.classDate),
+                    ...recordings.map(r => r.classDate),
+                    ...mappedDates,
+                  ]))
                     .filter(d => Boolean(d) && !cohortHolidaySet.has(toDateKey(d) || String(d).slice(0, 10)))
                     .sort();
                   const visibleStudents = analyticsSearch.trim()
                     ? students.filter(s => s.name.toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.email || '').toLowerCase().includes(analyticsSearch.toLowerCase()) || (s.phone || '').includes(analyticsSearch) || (s.whatsappNumber || '').includes(analyticsSearch))
                     : students;
+                  const attendanceByStudent = students.map(student => {
+                    const rows = uniqueDates.map(date => attendance.find(a => String(a.studentId) === String(student._id) && a.classDate === date)).filter(Boolean) as Attendance[];
+                    const attended = rows.filter(row => row.joined).length;
+                    const percent = uniqueDates.length ? Math.round((attended / uniqueDates.length) * 100) : 0;
+                    const grade = percent >= 90 ? 'A' : percent >= 70 ? 'B' : percent >= 50 ? 'C' : percent >= 30 ? 'D' : 'E';
+                    return { student, attended, percent, grade };
+                  });
+                  const gradeDistribution = attendanceByStudent.reduce<Record<string, number>>((acc, row) => { acc[row.grade] = (acc[row.grade] || 0) + 1; return acc; }, {});
+                  const averageAttendance = attendanceByStudent.length ? Math.round(attendanceByStudent.reduce((sum, row) => sum + row.percent, 0) / attendanceByStudent.length) : 0;
+                  const totalPresent = attendance.filter(row => uniqueDates.includes(row.classDate) && row.joined).length;
 
                   return (
                     <div className="max-w-6xl mx-auto space-y-6">
@@ -1922,6 +1937,28 @@ export default function WorkshopManagementPage() {
                               Download CSV
                             </button>
                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-6 bg-white border-b border-slate-100">
+                          {[
+                            ['Students', students.length, 'text-indigo-700 bg-indigo-50'],
+                            ['Class dates', uniqueDates.length, 'text-blue-700 bg-blue-50'],
+                            ['Present records', totalPresent, 'text-emerald-700 bg-emerald-50'],
+                            ['Average attendance', `${averageAttendance}%`, 'text-violet-700 bg-violet-50'],
+                            ['Grade A', gradeDistribution.A || 0, 'text-amber-700 bg-amber-50'],
+                          ].map(([label, value, classes]) => (
+                            <div key={String(label)} className={`rounded-xl px-4 py-3 ${classes}`}>
+                              <div className="text-2xl font-black">{value}</div>
+                              <div className="text-[11px] font-bold uppercase tracking-wide opacity-75">{label}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="px-6 pb-5 flex flex-wrap items-center gap-2 border-b border-slate-100">
+                          <span className="text-xs font-bold text-slate-500 uppercase mr-2">Grades</span>
+                          {(['A', 'B', 'C', 'D', 'E'] as const).map((grade) => (
+                            <span key={grade} className={`px-3 py-1 rounded-full text-xs font-black ${grade === 'A' ? 'bg-emerald-100 text-emerald-700' : grade === 'B' ? 'bg-blue-100 text-blue-700' : grade === 'C' ? 'bg-amber-100 text-amber-700' : grade === 'D' ? 'bg-orange-100 text-orange-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {grade}: {gradeDistribution[grade] || 0}
+                            </span>
+                          ))}
                         </div>
                         <div className="overflow-x-auto print:overflow-visible">
                           <table className="w-full text-left text-sm text-slate-600">

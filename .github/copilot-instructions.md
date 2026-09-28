@@ -171,6 +171,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Workshop Attendance Analytics Zoom-Style Summary (Session: September 28, 2026) — Commit `pending`
+
+- Added Zoom Analytics-style summary cards and A–E grade distribution to the Workshop Students Attendance Analytics tab.
+- Analytics dates now combine Bunny attendance, recording sync, and workshop date mappings so missing attendance remains visible for investigation.
+
 ### YouTube Upload Worker OAuth and Schedule Alignment (Session: September 28, 2026) — Commit `pending`
 
 - The legacy Zoom Settings page remains the mapping UI; large YouTube/Bunny uploads run on the external worker, not Vercel.
