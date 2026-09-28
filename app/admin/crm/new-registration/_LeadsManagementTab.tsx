@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle } from 'lucide-react';
+import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 const SIDEBAR_TABS = [
@@ -11,6 +11,7 @@ const SIDEBAR_TABS = [
   { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle },
   { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle },
   { id: 'registered_leads', label: 'Registerd leads', icon: UserCheck },
+  { id: 'take_zoom_meeting', label: 'Take Zoom Meeting', icon: Video },
   { id: 'rejected_leads', label: 'Rejected leads', icon: XCircle },
 ];
 
@@ -152,7 +153,7 @@ export function LeadsManagementTab({
     if (type === 'AI-4') { targetApprove = 'approval_1'; targetPending = 'pending_leads_1'; }
     if (type === 'AI-4A') { targetApprove = 'approval_2'; targetPending = 'pending_leads_2'; }
     if (type === 'AI-4B') { targetApprove = 'registered'; targetPending = 'pending_leads_3'; }
-    if (type === 'AI-4C') { targetApprove = 'pending_leads_3'; targetPending = 'pending_leads_3'; }
+    if (type === 'AI-4C') { targetApprove = 'new_leads'; targetPending = 'pending_leads_3'; }
 
     const targetLeads = activeBatchLeads.filter(lead => {
       const currentStatus = batchDecisions[lead.id]?.status || 'new_leads';
@@ -163,7 +164,7 @@ export function LeadsManagementTab({
       if (type === 'AI-4') return ['new_leads', 'approval_1', 'pending_leads_1'].includes(currentStatus);
       if (type === 'AI-4A') return ['approval_1', 'approval_2', 'pending_leads_2'].includes(currentStatus);
       if (type === 'AI-4B') return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
-      if (type === 'AI-4C') return currentStatus === 'pending_leads_3';
+      if (type === 'AI-4C') return ['new_leads', 'pending_leads_3'].includes(currentStatus);
       return false;
     });
 
@@ -218,7 +219,7 @@ export function LeadsManagementTab({
           if (type === 'AI-4B') {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
           } else if (type === 'AI-4C') {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRejected: false, reason: 'Passed filters' };
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'new_leads', isRejected: false, reason: 'Passed filters' };
           } else {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
           }
@@ -363,6 +364,9 @@ export function LeadsManagementTab({
 
 
   const currentTabLeads = React.useMemo(() => {
+    if (activeTab === 'take_zoom_meeting') {
+      return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
+    }
     if (activeTab === 'new_leads') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
@@ -405,6 +409,44 @@ export function LeadsManagementTab({
       return dec.status === activeTab && !dec.isRejected && !dec.isRegistered;
     });
   }, [activeBatchLeads, activeTab, batchDecisions]);
+
+  const getEmail = (raw: any) => {
+    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('email'));
+    return key ? raw[key] : '-';
+  };
+  const getCountry = (raw: any) => {
+    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('country'));
+    return key ? raw[key] : '-';
+  };
+  const getAge = (raw: any) => {
+    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('age'));
+    return key ? raw[key] : '-';
+  };
+  const getProfession = (raw: any) => {
+    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('profession') || k.toLowerCase().includes('occupation'));
+    return key ? raw[key] : '-';
+  };
+
+  const updateZoomField = (leadId: string, field: string, val: string) => {
+    setBatchDecisions(prev => {
+      const nd = { ...prev, [leadId]: { ...(prev[leadId] || {}), [field]: val } };
+      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(nd));
+      return nd;
+    });
+  };
+
+  const markZoomStatus = (leadId: string, status: string) => {
+    setBatchDecisions(prev => {
+      const nd = { ...prev, [leadId]: { ...(prev[leadId] || {}), zoomStatus: status } };
+      if (status === 'rejected') {
+        nd[leadId].isRejected = true;
+        nd[leadId].isRegistered = false;
+      }
+      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(nd));
+      return nd;
+    });
+    toast.success(`Zoom Meeting Status: ${status}`);
+  };
 
   return (
     <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[calc(100vh-140px)] animate-fade-in">
@@ -492,12 +534,20 @@ export function LeadsManagementTab({
                   </p>
                 </div>
                 {activeTab === 'new_leads' && (
-                  <button
-                    onClick={() => openAiModal('AI-4')}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
-                  >
-                    🤖 {(aiSettings['AI-4'] || []).some(c => c.keyword) ? `AI-4 Active` : 'Configure AI-4'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openAiModal('AI-4')}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                    >
+                      🤖 {(aiSettings['AI-4'] || []).some(c => c.keyword) ? `AI-4 Active` : 'Configure AI-4'}
+                    </button>
+                    <button
+                      onClick={() => openAiModal('AI-4C')}
+                      className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                    >
+                      🤖 {(aiSettings['AI-4C'] || []).some(c => c.keyword) ? `AI-4C Active` : 'Configure AI-4C'}
+                    </button>
+                  </div>
                 )}
                 {activeTab === 'approval_1' && (
                   <button
@@ -529,14 +579,25 @@ export function LeadsManagementTab({
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-sm text-slate-600">
                     <thead className="bg-slate-50 border-b border-slate-200 uppercase text-[10px] tracking-wider">
-                      <tr>
-                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">City</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">Submitted At</th>
-                        <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
-                      </tr>
+                      {activeTab === 'take_zoom_meeting' ? (
+                        <tr>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
+                          <th className="px-4 py-3 font-bold text-slate-500">Email</th>
+                          <th className="px-4 py-3 font-bold text-slate-500">City / Country</th>
+                          <th className="px-4 py-3 font-bold text-slate-500">Gender / Age</th>
+                          <th className="px-4 py-3 font-bold text-slate-500">Profession</th>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">City</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">Submitted At</th>
+                          <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
+                        </tr>
+                      )}
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {currentTabLeads.length > 0 ? (
@@ -551,6 +612,51 @@ export function LeadsManagementTab({
                             : leadStatus.includes('pending')
                             ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
                             : 'hover:bg-slate-50 transition-colors';
+
+                          if (activeTab === 'take_zoom_meeting') {
+                            const zd = batchDecisions[lead.id] || {};
+                            return (
+                              <React.Fragment key={lead.id || i}>
+                                <tr className="hover:bg-slate-50 transition-colors">
+                                  <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
+                                  <td className="px-4 py-3">
+                                    {lead.phone && (
+                                      <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
+                                        {lead.phone}
+                                      </a>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 truncate max-w-[150px]" title={getEmail(lead._rawRecord)}>{getEmail(lead._rawRecord)}</td>
+                                  <td className="px-4 py-3">{lead.city || '-'} / {getCountry(lead._rawRecord)}</td>
+                                  <td className="px-4 py-3">{lead.gender || '-'} / {getAge(lead._rawRecord)}</td>
+                                  <td className="px-4 py-3 truncate max-w-[150px]" title={getProfession(lead._rawRecord)}>{getProfession(lead._rawRecord)}</td>
+                                </tr>
+                                <tr>
+                                  <td colSpan={6} className="px-4 py-2 border-b-4 border-slate-100 bg-slate-50/50">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-slate-500">Date:</span>
+                                        <input type="date" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomDate || ''} onChange={(e) => updateZoomField(lead.id, 'zoomDate', e.target.value)} />
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-slate-500">Time:</span>
+                                        <input type="time" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomTime || ''} onChange={(e) => updateZoomField(lead.id, 'zoomTime', e.target.value)} />
+                                      </div>
+                                      <div className="flex flex-1 items-center gap-1 min-w-[200px]">
+                                        <input type="text" placeholder="Paste Zoom Link here" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm flex-1 focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomLink || ''} onChange={(e) => updateZoomField(lead.id, 'zoomLink', e.target.value)} />
+                                        <button onClick={() => { navigator.clipboard.writeText(zd.zoomLink || ''); toast.success('Link copied'); }} className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded shadow-sm transition-colors flex items-center gap-1"><Copy size={12}/> Copy</button>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button onClick={() => markZoomStatus(lead.id, 'meeting_done')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'meeting_done' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>Meeting Done</button>
+                                        <button onClick={() => markZoomStatus(lead.id, 'pending')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'pending' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>Pending</button>
+                                        <button onClick={() => markZoomStatus(lead.id, 'rejected')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>Form Rejected</button>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              </React.Fragment>
+                            );
+                          }
 
                           return (
                             <tr key={lead.id || i} className={rowBg}>
