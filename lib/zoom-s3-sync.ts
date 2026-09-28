@@ -289,7 +289,9 @@ export async function syncZoomToBunny(
              });
              console.log(`[Zoom→YouTube] Uploaded to YouTube successfully: ${ytResult.url}`);
           } catch (ytErr: any) {
+             const ytErrMsg = `YouTube upload failed for ${recording.recording_type}: ${ytErr?.message || ytErr}`;
              console.error('[Zoom→YouTube] Error uploading:', ytErr);
+             result.errors.push(ytErrMsg); // surface the error so it appears in sync result
           }
         }
 
@@ -306,14 +308,15 @@ export async function syncZoomToBunny(
           s3Url: '', // deprecated
         });
 
+        const uploadedTo = [bunnyResult ? `Bunny(${bunnyResult.embedUrl})` : null, ytResult ? `YouTube(${ytResult.url})` : null].filter(Boolean).join(', ');
         emit({
           type: 'done', fileIndex: i, totalFiles,
           recordingType: recording.recording_type, dayNumber, fileSizeMB: sizeMB,
-          message: `✅ Day ${dayNumber} ${typeName} uploaded successfully`,
+          message: `✅ Day ${dayNumber} ${typeName} uploaded: ${uploadedTo || 'no destinations'}`,
           percent: Math.round(fileBasePercent + fileStepPercent),
         });
 
-        console.log(`[Zoom→Bunny] ✅ Day ${dayNumber} ${recording.recording_type} → ${bunnyResult.embedUrl}`);
+        console.log(`[Zoom→Bunny] ✅ Day ${dayNumber} ${recording.recording_type} → ${bunnyResult?.embedUrl || 'no bunny'} | YouTube: ${ytResult?.url || 'none'}`);
       } catch (err: any) {
         result.errors.push(`Failed to sync ${recording.recording_type}: ${err.message}`);
         console.error(`[Zoom→Bunny] ❌ Error syncing ${recording.recording_type}:`, err);
