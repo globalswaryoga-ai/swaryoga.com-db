@@ -34,6 +34,38 @@ export function LeadsManagementTab({
   const [activeBatchId, setActiveBatchId] = useState('');
   const [activeTab, setActiveTab] = useState('new_leads');
 
+  const activeBatch = workshops?.find(w => w.id === activeBatchId);
+  const activeBatchName = activeBatch?.name || '';
+
+  // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
+  const activeBatchLeads = React.useMemo(() => {
+    if (!activeBatch || !activeBatch.formFilterKeyword || !leadsData) return [];
+    
+    const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
+    const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
+    
+    return leadsData.filter(lead => {
+      if (lead._rawRecord) {
+        if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+          return keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+        } else {
+          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+        }
+      }
+      return true;
+    });
+  }, [activeBatch, leadsData]);
+
+  const availableQuestions = React.useMemo(() => {
+    const questions = new Set<string>();
+    (leadsData || []).forEach(lead => {
+      if (lead._rawRecord) {
+        Object.keys(lead._rawRecord).forEach(k => questions.add(k));
+      }
+    });
+    return Array.from(questions);
+  }, [leadsData]);
+
   type FilterCondition = { question: string; keyword: string };
   const [aiSettings, setAiSettings] = useState<Record<string, FilterCondition[]>>(() => {
     if (typeof window !== 'undefined') {
@@ -72,6 +104,15 @@ export function LeadsManagementTab({
     const newSettings = { ...aiSettings, [type]: conditions };
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
+    
+    if (activeBatchId) {
+      const metadata = { ...(activeBatch?.metadata || {}), aiSettings: newSettings };
+      fetch('/api/admin/crm/workshop-management', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cohortId: activeBatchId, metadata })
+      }).catch(console.error);
+    }
     
     const hasValidCondition = conditions.some(c => c.keyword.trim() || c.question.toLowerCase().includes('age'));
     
@@ -184,6 +225,106 @@ export function LeadsManagementTab({
     setActiveModal(null);
   };
 
+  React.useEffect(() => {
+    if (activeBatch?.metadata?.aiSettings) {
+      setAiSettings(activeBatch.metadata.aiSettings);
+    }
+  }, [activeBatch]);
+
+  // AI-4B Background Worker (Runs every 10 minutes)
+  React.useEffect(() => {
+    if (!activeBatchId || !activeBatchLeads || activeBatchLeads.length === 0) return;
+    
+    const conditions = aiSettings['AI-4B'];
+    if (!conditions) return;
+    
+    const hasValidCondition = conditions.some(c => c.keyword.trim() || c.question.toLowerCase().includes('age'));
+    if (!hasValidCondition) return;
+
+    const intervalId = setInterval(() => {
+      setBatchDecisions(prev => {
+        const newDecisions = { ...prev };
+        let hasChanges = false;
+        let approvedCount = 0;
+        let pendingCount = 0;
+
+        const targetLeads = activeBatchLeads.filter(lead => {
+          const dec = prev[lead.id] || {};
+          const currentStatus = dec.status || 'new_leads';
+          if (dec.isRejected) return false;
+          if (dec.status === 'approval_2' && dec.isRegistered) return false;
+          if (dec.status === 'pending_leads_3') return false; 
+          return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_1', 'pending_leads_2'].includes(currentStatus);
+        });
+
+        if (targetLeads.length === 0) return prev;
+
+        targetLeads.forEach(lead => {
+          const raw = lead._rawRecord || {};
+          const allText = JSON.stringify(raw).toLowerCase();
+          
+          const reasons: string[] = [];
+          let passed = true;
+
+          conditions.forEach(c => {
+            const isAge = c.question.toLowerCase().includes('age');
+            if (!c.keyword.trim() && !isAge) return;
+
+            const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
+            
+            if (isAge) {
+              const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
+              if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
+                // passes background check
+              } else {
+                passed = false;
+                reasons.push(`Age not 30-64 (Found: ${textToSearch || 'None'})`);
+              }
+              return;
+            }
+
+            const kw = c.keyword.toLowerCase().trim();
+            const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
+            
+            const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
+            
+            if (!matchedAny) {
+              passed = false;
+              const shortQ = c.question ? c.question.substring(0, 35) + '...' : `Keyword "${c.keyword}"`;
+              reasons.push(`Failed: ${shortQ}`);
+            }
+          });
+
+          const currentStatus = newDecisions[lead.id]?.status || 'new_leads';
+          const isCurrentlyRegistered = newDecisions[lead.id]?.isRegistered;
+
+          if (passed) {
+            if (currentStatus !== 'approval_2' || !isCurrentlyRegistered) {
+              newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
+              approvedCount++;
+              hasChanges = true;
+            }
+          } else {
+            if (currentStatus !== 'pending_leads_3') {
+              newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+              pendingCount++;
+              hasChanges = true;
+            }
+          }
+        });
+        
+        if (hasChanges) {
+           if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+           setTimeout(() => toast.info(`🤖 AI-4B Auto-Worker processed ${approvedCount + pendingCount} new leads!`), 0);
+           return newDecisions;
+        }
+        return prev;
+      });
+    }, 10 * 60 * 1000); // 10 minutes
+
+    return () => clearInterval(intervalId);
+  }, [activeBatchId, activeBatchLeads, aiSettings, toast]);
+
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
   const filteredBatches = (workshops || []).filter(
     (w) => w.id.startsWith('batch_') && 
@@ -200,43 +341,16 @@ export function LeadsManagementTab({
     toast.success('Batch selected. Ready to load leads...');
   };
 
-  const activeBatch = workshops?.find(w => w.id === activeBatchId);
-  const activeBatchName = activeBatch?.name || '';
 
-  // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
-  const activeBatchLeads = React.useMemo(() => {
-    if (!activeBatch || !activeBatch.formFilterKeyword || !leadsData) return [];
-    
-    const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-    const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
-    
-    return leadsData.filter(lead => {
-      if (lead._rawRecord) {
-        if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-          return keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
-        } else {
-          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
-        }
-      }
-      return true;
-    });
-  }, [activeBatch, leadsData]);
-
-  const availableQuestions = React.useMemo(() => {
-    const questions = new Set<string>();
-    (leadsData || []).forEach(lead => {
-      if (lead._rawRecord) {
-        Object.keys(lead._rawRecord).forEach(k => questions.add(k));
-      }
-    });
-    return Array.from(questions);
-  }, [leadsData]);
 
 
 
   const currentTabLeads = React.useMemo(() => {
     if (activeTab === 'new_leads' || activeTab === 'approval_1') {
       return activeBatchLeads.filter(l => !batchDecisions[l.id]?.isRejected);
+    }
+    if (activeTab === 'approval_2') {
+      return activeBatchLeads.filter(l => ['approval_2', 'pending_leads_3'].includes(batchDecisions[l.id]?.status) && !batchDecisions[l.id]?.isRejected);
     }
     if (activeTab === 'registered_leads') {
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
@@ -374,8 +488,12 @@ export function LeadsManagementTab({
                     <tbody className="divide-y divide-slate-100">
                       {currentTabLeads.length > 0 ? (
                         currentTabLeads.map((lead, i) => {
-                          const leadStatus = batchDecisions[lead.id]?.status || '';
-                          const rowBg = leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
+                          const leadDec = batchDecisions[lead.id] || {};
+                          const leadStatus = leadDec.status || '';
+                          const isRegistered = leadDec.isRegistered;
+                          const isRejected = leadDec.isRejected;
+                          
+                          const rowBg = isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
                             ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
                             : leadStatus.includes('pending')
                             ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
