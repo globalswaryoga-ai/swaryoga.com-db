@@ -161,7 +161,7 @@ export function LeadsManagementTab({
       
       if (type === 'AI-4') return ['new_leads', 'approval_1', 'pending_leads_1'].includes(currentStatus);
       if (type === 'AI-4A') return ['approval_1', 'approval_2', 'pending_leads_2'].includes(currentStatus);
-      if (type === 'AI-4B') return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_1', 'pending_leads_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
+      if (type === 'AI-4B') return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
       return false;
     });
 
@@ -254,7 +254,7 @@ export function LeadsManagementTab({
           if (dec.isRejected) return false;
           if (dec.status === 'approval_2' && dec.isRegistered) return false;
           if (dec.status === 'pending_leads_3') return false; 
-          return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_1', 'pending_leads_2'].includes(currentStatus);
+          return ['new_leads', 'approval_1', 'approval_2'].includes(currentStatus);
         });
 
         if (targetLeads.length === 0) return prev;
