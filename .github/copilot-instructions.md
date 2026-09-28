@@ -171,6 +171,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Broadcast Reports Cancel Action (Session: September 29, 2026) — Commit `pending`
+
+- Added a visible Cancel button for scheduled/running/draft broadcasts in the Reports list.
+- Broadcast cancellation now handles Bunny SQL runs and marks pending messages cancelled before legacy detail actions.
+
 ### Meta Inbox Template Image History Fix (Session: September 29, 2026) — Commit `7179eb14`
 
 - Preserved template header media metadata in Bunny Meta message records from `app/api/admin/crm/whatsapp/send-template/route.ts`.

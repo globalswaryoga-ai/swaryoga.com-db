@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { handleCrmError, tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
+import { handleCrmError, tenantFilter, getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastRun, BroadcastRunMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { broadcastRunFindOne, broadcastRunMessageUpdateMany, broadcastRunUpdateOne } from '@/lib/bunnyBroadcastRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,12 +130,31 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     const tf = tenantFilter(decoded);
     const { id } = await ctx.params;
 
+    // Bunny SQL is the active runtime for new broadcasts. Handle cancellation
+    // before the legacy Mongo detail path so scheduled Bunny runs can always
+    // be stopped from Reports.
+    const body = await request.json().catch(() => ({}));
+    if (String(body.action || '') === 'cancel') {
+      const bunnyRun = await broadcastRunFindOne(id);
+      if (bunnyRun) {
+        const viewerId = String(getViewerUserId(decoded) || decoded?.userId || '');
+        if (!isSuperAdmin(decoded) && String(bunnyRun.createdByUserId || '') !== viewerId) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+        await broadcastRunUpdateOne(id, { status: 'cancelled', lastError: 'Cancelled by admin' });
+        await broadcastRunMessageUpdateMany(
+          { runId: id, status: ['pending', 'sending', 'retrying'] },
+          { status: 'cancelled', failureReason: 'Parent run cancelled by admin' },
+        );
+        return NextResponse.json({ success: true, message: 'Broadcast cancelled' }, { status: 200 });
+      }
+    }
+
     await connectDB();
 
     const run = await BroadcastRun.findOne({ _id: id, ...tf });
     if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const body = await request.json().catch(() => ({}));
     const action = String(body.action || '');
 
     const now = new Date();

@@ -240,6 +240,14 @@ export default function BroadcastReportsPage() {
     setTimeout(() => setSuccess(null), 3000);
   };
 
+  const cancelListedBroadcast = async (run: BroadcastRun) => {
+    if (!['scheduled', 'running', 'draft'].includes(run.status)) return;
+    if (!confirm(`Cancel “${run.name}”? Pending messages will not be sent.`)) return;
+    await patchAction(run._id, { action: 'cancel' });
+    setSuccess('Broadcast cancelled');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
   const restartBroadcast = async () => {
     if (!selectedRun) return;
     if (!confirm('Restart broadcast? All failed/pending messages will be retried.')) return;
@@ -546,14 +554,23 @@ export default function BroadcastReportsPage() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-center">
-                          <button
-                            onClick={() => {
-                              router.push(`/admin/crm/broadcast/reports?runId=${run._id}`);
-                            }}
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold"
-                          >
-                            View Report
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => router.push(`/admin/crm/broadcast/reports?runId=${run._id}`)}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold"
+                            >
+                              View Report
+                            </button>
+                            {['scheduled', 'running', 'draft'].includes(run.status) && (
+                              <button
+                                onClick={() => cancelListedBroadcast(run)}
+                                disabled={actioning}
+                                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
