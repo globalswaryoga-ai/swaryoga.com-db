@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Workshop Attendance Analytics Zoom-Style Summary (Session: September 28, 2026) — Commit `pending`
+### Workshop Attendance Analytics Zoom-Style Summary (Session: September 28, 2026) — Commit `5a3e0f1f`
 
 - Added Zoom Analytics-style summary cards and A–E grade distribution to the Workshop Students Attendance Analytics tab.
 - Analytics dates now combine Bunny attendance, recording sync, and workshop date mappings so missing attendance remains visible for investigation.
