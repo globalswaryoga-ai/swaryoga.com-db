@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { decryptCredential } from '@/lib/encryption';
 import { verifyToken, type TokenPayload } from '@/lib/auth';
-import { buildSocialMediaScopeFilter, resolveSocialMediaScope, type SocialMediaScope } from '@/lib/socialMediaScope';
+import { resolveSocialMediaScope, type SocialMediaScope } from '@/lib/socialMediaScope';
 import { getSocialInboxConversation, getSocialInboxMessage } from '@/lib/schemas/enterpriseSchemas';
+import { listBunnySocialAccounts } from '@/lib/bunnySocialInboxRepository';
 
 const META_GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';
 const META_INBOX_WEBHOOK_VERIFY_TOKEN =
@@ -139,29 +139,17 @@ async function resolveGraphNodeId(account: any, platform: SocialInboxPlatform): 
   const fromMetadata = cleanString(account.metadata?.linkedPageId);
   if (fromMetadata) return fromMetadata;
 
-  const page = await SocialMediaAccount.findOne({
-    isConnected: true,
-    platform: 'facebook',
-    scopeType: account.scopeType,
-    scopeKey: account.scopeKey,
-  })
-    .sort({ connectedAt: -1, updatedAt: -1 })
-    .lean<any>();
+  const page = (await listBunnySocialAccounts({ scopeType: account.scopeType, scopeKey: account.scopeKey }))
+    .find((candidate: any) => candidate.platform === 'facebook');
 
   return cleanString(page?.accountId) || ownId;
 }
 
 export async function resolveSocialInboxAccount(decoded: TokenPayload | null | undefined, platform: SocialInboxPlatform): Promise<ResolvedSocialInboxAccount | null> {
-  await connectDB();
   const scope = await resolveSocialMediaScope(decoded);
   const accountPlatform = getConnectedPlatform(platform);
-  const account = await SocialMediaAccount.findOne({
-    isConnected: true,
-    platform: accountPlatform,
-    ...buildSocialMediaScopeFilter(scope),
-  })
-    .sort({ connectedAt: -1, updatedAt: -1 })
-    .lean<any>();
+  const account = (await listBunnySocialAccounts({ scopeType: scope.scopeType, scopeKey: scope.scopeKey }))
+    .find((candidate: any) => candidate.platform === accountPlatform);
 
   if (!account?.accountId || !account?.accessToken) {
     return null;
@@ -190,15 +178,9 @@ export async function resolveSocialInboxAccount(decoded: TokenPayload | null | u
 }
 
 export async function resolveSocialInboxAccountByAccountId(platform: SocialInboxPlatform, accountId: string): Promise<(ResolvedSocialInboxAccount & { ownerUserId?: string }) | null> {
-  await connectDB();
   const accountPlatform = getConnectedPlatform(platform);
-  const account = await SocialMediaAccount.findOne({
-    isConnected: true,
-    platform: accountPlatform,
-    accountId: String(accountId),
-  })
-    .sort({ connectedAt: -1, updatedAt: -1 })
-    .lean<any>();
+  const account = (await listBunnySocialAccounts())
+    .find((candidate: any) => candidate.platform === accountPlatform && String(candidate.accountId) === String(accountId));
 
   if (!account?.accountId || !account?.accessToken) {
     return null;
@@ -242,11 +224,7 @@ export async function resolveSocialInboxAccountByAccountId(platform: SocialInbox
  * subscription + Live mode + permissions setup.
  */
 export async function getAllConnectedSocialInboxAccounts(): Promise<(ResolvedSocialInboxAccount & { ownerUserId?: string })[]> {
-  await connectDB();
-  const accounts = await SocialMediaAccount.find({
-    isConnected: true,
-    platform: { $in: ['facebook', 'instagram'] },
-  }).lean<any[]>();
+  const accounts = await listBunnySocialAccounts();
 
   const resolved: (ResolvedSocialInboxAccount & { ownerUserId?: string })[] = [];
   for (const account of accounts) {

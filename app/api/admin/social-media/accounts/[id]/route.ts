@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
+import { listBunnySocialAccounts, updateBunnySocialAccount } from '@/lib/bunnySocialInboxRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,57 +21,18 @@ export async function DELETE(
     const scope = await resolveSocialMediaScope(decoded);
     const { id } = params;
 
-    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
-    const existingRes = await bunnyExecute({
-      sql: "SELECT document_json FROM mongo_documents WHERE document_id = ? AND collection_name = 'socialmediaaccounts'",
-      args: [id]
-    });
-
-    if (existingRes.rows.length === 0) {
+    const account = (await listBunnySocialAccounts({ scopeType: scope.scopeType, scopeKey: scope.scopeKey, connectedOnly: false }))
+      .find((row: any) => String(row._id) === id);
+    if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
-
-    const account = cleanMongoJson(JSON.parse(String(existingRes.rows[0].document_json || '{}')));
-    
-    // Verify scope
-    if (scope.scopeType !== 'super_admin' && (account.scopeType !== 'tenant' || account.scopeKey !== scope.scopeKey)) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
-    }
-
-    account.isConnected = false;
-    account.disconnectedAt = new Date().toISOString();
-    account.updatedAt = new Date().toISOString();
-
-    await bunnyExecute({
-      sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
-      args: [JSON.stringify(account), id]
-    });
+    await updateBunnySocialAccount(id, { isConnected: false, disconnectedAt: new Date().toISOString() });
 
     if (account.platform === 'facebook' && account.accountId) {
       // Disconnect auto-connected instagram accounts
-      const allRes = await bunnyExecute({
-        sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
-      });
-      for (const row of allRes.rows) {
-        try {
-          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-          if (
-            parsed.platform === 'instagram' &&
-            parsed.metadata?.autoConnectedVia === 'facebook' &&
-            parsed.metadata?.linkedPageId === account.accountId &&
-            parsed.isConnected === true &&
-            (scope.scopeType === 'super_admin' ? (parsed.scopeType === 'super_admin' || !parsed.scopeType) : (parsed.scopeType === 'tenant' && parsed.scopeKey === scope.scopeKey))
-          ) {
-            parsed.isConnected = false;
-            parsed.disconnectedAt = new Date().toISOString();
-            parsed.updatedAt = new Date().toISOString();
-            await bunnyExecute({
-              sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
-              args: [JSON.stringify(parsed), String(row.id)]
-            });
-          }
-        } catch {}
-      }
+      const linked = (await listBunnySocialAccounts({ scopeType: scope.scopeType, scopeKey: scope.scopeKey, connectedOnly: true }))
+        .filter((row: any) => row.platform === 'instagram' && row.metadata?.autoConnectedVia === 'facebook' && row.metadata?.linkedPageId === account.accountId);
+      await Promise.all(linked.map((row: any) => updateBunnySocialAccount(String(row._id), { isConnected: false, disconnectedAt: new Date().toISOString() })));
     }
 
     return NextResponse.json({

@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Social Media Connection State Bunny SQL Fix (Session: September 28, 2026) — Commit `pending`
+
+- Fixed social account status, connect, and disconnect paths to use `social_media_accounts_sql` instead of the legacy `mongo_documents` archive.
+- Updated Messenger and Instagram account resolution to read encrypted credentials from Bunny SQL.
+- Production route checks pass; Bunny currently contains zero Facebook/Instagram account rows, and MongoDB recovery is blocked by the existing Atlas `ReplicaSetNoPrimary` outage, so affected pages require reconnecting once.
+
 ### Meta Inbox and Bunny Meta Broadcast Runtime Fix (Session: September 28, 2026) — Commit `6b9c24a7`
 
 - Updated `app/api/admin/crm/conversations/route.ts` so tenant Meta conversations are read from Bunny SQL and filtered by Bunny lead ownership instead of being hidden for non-Super Admin users.

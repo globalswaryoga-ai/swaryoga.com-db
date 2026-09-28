@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { encryptCredential } from '@/lib/encryption';
 import { resolveSocialMediaScope } from '@/lib/socialMediaScope';
 import { fetchFacebookConnectionInfo, upsertConnectedAccount } from '@/lib/socialMediaConnect';
+import { listBunnySocialAccounts, upsertBunnySocialAccount } from '@/lib/bunnySocialInboxRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,25 +17,8 @@ export async function GET(request: NextRequest) {
     }
 
     const scope = await resolveSocialMediaScope(decoded);
-    let accounts: any[] = [];
-    try {
-      const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
-      const res = await bunnyExecute({
-        sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
-      });
-      for (const row of res.rows) {
-        try {
-          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-          if (parsed.isConnected && (scope.scopeType === 'super_admin' || (parsed.scopeType === 'tenant' && parsed.scopeKey === scope.scopeKey))) {
-            const { accessToken: _at, refreshToken: _rt, ...safe } = parsed;
-            if (!safe._id) safe._id = String(row.id);
-            accounts.push(safe);
-          }
-        } catch {}
-      }
-    } catch (bunnyErr: any) {
-      console.error('[SocialMedia] Bunny DB error:', bunnyErr.message);
-    }
+    const accounts = (await listBunnySocialAccounts({ scopeType: scope.scopeType, scopeKey: scope.scopeKey }))
+      .map(({ accessToken: _at, refreshToken: _rt, ...safe }) => safe);
 
     return NextResponse.json({
       success: true,
@@ -158,34 +142,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if account already exists
-    const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
-    const res = await bunnyExecute({
-      sql: "SELECT document_id as id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
-    });
-    
-    let existingAccount: any = null;
-    for (const row of res.rows) {
-      try {
-        const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-        if (
-          parsed.platform === platform &&
-          parsed.accountId === resolvedAccountId &&
-          (scope.scopeType === 'super_admin' ? (parsed.scopeType === 'super_admin' || !parsed.scopeType) : (parsed.scopeType === 'tenant' && parsed.scopeKey === scope.scopeKey))
-        ) {
-          existingAccount = parsed;
-          break;
-        }
-      } catch {}
-    }
-
-    if (existingAccount) {
-      return NextResponse.json(
-        { error: 'Account already connected' },
-        { status: 400 }
-      );
-    }
-
     // Encrypt sensitive tokens
     const encryptedAccessToken = encryptCredential(accessToken);
     const encryptedRefreshToken = refreshToken ? encryptCredential(refreshToken) : '';
@@ -214,10 +170,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
 
-    await bunnyExecute({
-      sql: "INSERT INTO mongo_documents (document_id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-      args: [newId, JSON.stringify(newAccount)]
-    });
+    await upsertBunnySocialAccount(newAccount);
 
     return NextResponse.json(
       {

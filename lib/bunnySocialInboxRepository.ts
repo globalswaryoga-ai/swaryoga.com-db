@@ -1,4 +1,5 @@
 import { bunnyExecute } from '@/lib/bunnyDatabase';
+import crypto from 'node:crypto';
 
 export type BunnySocialInboxCounts = {
   accounts: number;
@@ -34,6 +35,65 @@ export async function ensureBunnySocialInboxSchema() {
   // checks availability so request handlers never silently mutate schema.
   const result = await bunnyExecute("SELECT name FROM sqlite_master WHERE type='table' AND name='social_inbox_messages_sql'");
   if (!result.rows.length) throw new Error('Bunny social inbox schema is not applied (migration 0024)');
+}
+
+function parseJson(value: unknown): any {
+  try { return value ? JSON.parse(String(value)) : {}; } catch { return {}; }
+}
+
+function accountFromRow(row: any): any {
+  const account = parseJson(row.data_json);
+  return {
+    ...account,
+    _id: String(account._id || row.document_id),
+    scopeType: account.scopeType || row.scope_type,
+    scopeKey: account.scopeKey || row.scope_key,
+    ownerUserId: account.ownerUserId || row.owner_user_id || '',
+    tenantSlug: account.tenantSlug || row.tenant_slug || undefined,
+    platform: account.platform || row.platform,
+    accountId: account.accountId || row.account_id,
+    isConnected: Number(row.is_connected) !== 0,
+  };
+}
+
+export async function listBunnySocialAccounts(input?: { scopeType?: string; scopeKey?: string; connectedOnly?: boolean }): Promise<any[]> {
+  await ensureBunnySocialInboxSchema();
+  const clauses: string[] = [];
+  const args: any[] = [];
+  if (input?.scopeType) { clauses.push('scope_type = ?'); args.push(input.scopeType); }
+  if (input?.scopeKey) { clauses.push('scope_key = ?'); args.push(input.scopeKey); }
+  if (input?.connectedOnly !== false) clauses.push('is_connected = 1');
+  const result = await bunnyExecute({
+    sql: `SELECT * FROM social_media_accounts_sql${clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''} ORDER BY COALESCE(updated_at, connected_at) DESC`,
+    args,
+  });
+  return result.rows.map(accountFromRow);
+}
+
+export async function upsertBunnySocialAccount(account: any): Promise<any> {
+  await ensureBunnySocialInboxSchema();
+  const documentId = id(account._id || crypto.randomUUID());
+  const updated = { ...account, _id: documentId, updatedAt: new Date().toISOString() };
+  await bunnyExecute({
+    sql: `INSERT INTO social_media_accounts_sql
+      (document_id,scope_type,scope_key,owner_user_id,tenant_slug,platform,account_id,account_name,account_handle,is_connected,connected_at,updated_at,data_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(scope_type,scope_key,platform,account_id) DO UPDATE SET
+        document_id=excluded.document_id,owner_user_id=excluded.owner_user_id,tenant_slug=excluded.tenant_slug,
+        account_name=excluded.account_name,account_handle=excluded.account_handle,is_connected=excluded.is_connected,
+        connected_at=COALESCE(social_media_accounts_sql.connected_at, excluded.connected_at),updated_at=excluded.updated_at,data_json=excluded.data_json`,
+    args: [documentId, account.scopeType || 'super_admin', account.scopeKey || 'super_admin', account.ownerUserId || null, account.tenantSlug || null, account.platform || '', account.accountId || '', account.accountName || null, account.accountHandle || null, account.isConnected === false ? 0 : 1, iso(account.connectedAt) || new Date().toISOString(), updated.updatedAt, JSON.stringify(updated)],
+  });
+  const rows = await listBunnySocialAccounts({ scopeType: account.scopeType || 'super_admin', scopeKey: account.scopeKey || 'super_admin', connectedOnly: false });
+  return rows.find((row) => row.platform === account.platform && row.accountId === account.accountId) || updated;
+}
+
+export async function updateBunnySocialAccount(documentId: string, updates: Record<string, any>): Promise<any | null> {
+  await ensureBunnySocialInboxSchema();
+  const result = await bunnyExecute({ sql: 'SELECT * FROM social_media_accounts_sql WHERE document_id = ?', args: [documentId] });
+  if (!result.rows[0]) return null;
+  const current = accountFromRow(result.rows[0]);
+  return upsertBunnySocialAccount({ ...current, ...updates, _id: documentId });
 }
 
 export async function getBunnySocialInboxCounts(): Promise<BunnySocialInboxCounts> {
