@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### YouTube OAuth Redirect URI and Bunny Credential Fix (Session: September 28, 2026) — Commit `pending`
+### YouTube OAuth Redirect URI and Bunny Credential Fix (Session: September 28, 2026) — Commit `d8cbe572`
 
 - Added one canonical YouTube OAuth redirect resolver shared by authorization and callback handlers.
 - Replaced the legacy mixed Mongo/Bunny callback save with Bunny SQL account persistence and encrypted refresh-token preservation.
