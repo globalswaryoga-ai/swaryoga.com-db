@@ -83,10 +83,10 @@ export function LeadsManagementTab({
     return { 'AI-4': [{ question: '', keyword: '' }, { question: '', keyword: '' }] };
   });
 
-  const [activeModal, setActiveModal] = useState<'AI-4' | 'AI-4A' | 'AI-4B' | null>(null);
+  const [activeModal, setActiveModal] = useState<'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C' | null>(null);
   const [modalConditions, setModalConditions] = useState<FilterCondition[]>([]);
 
-  const openAiModal = (type: 'AI-4' | 'AI-4A' | 'AI-4B') => {
+  const openAiModal = (type: 'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C') => {
     const current = aiSettings[type] || [{ question: '', keyword: '' }];
     setModalConditions(current.map(c => ({...c})));
     setActiveModal(type);
@@ -152,6 +152,7 @@ export function LeadsManagementTab({
     if (type === 'AI-4') { targetApprove = 'approval_1'; targetPending = 'pending_leads_1'; }
     if (type === 'AI-4A') { targetApprove = 'approval_2'; targetPending = 'pending_leads_2'; }
     if (type === 'AI-4B') { targetApprove = 'registered'; targetPending = 'pending_leads_3'; }
+    if (type === 'AI-4C') { targetApprove = 'pending_leads_3'; targetPending = 'pending_leads_3'; }
 
     const targetLeads = activeBatchLeads.filter(lead => {
       const currentStatus = batchDecisions[lead.id]?.status || 'new_leads';
@@ -162,6 +163,7 @@ export function LeadsManagementTab({
       if (type === 'AI-4') return ['new_leads', 'approval_1', 'pending_leads_1'].includes(currentStatus);
       if (type === 'AI-4A') return ['approval_1', 'approval_2', 'pending_leads_2'].includes(currentStatus);
       if (type === 'AI-4B') return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
+      if (type === 'AI-4C') return currentStatus === 'pending_leads_3';
       return false;
     });
 
@@ -171,10 +173,13 @@ export function LeadsManagementTab({
         
         const reasons: string[] = [];
         let passed = true;
+        let hasAnyMatch = false;
+        let evaluatedCount = 0;
 
         conditions.forEach(c => {
           const isAge = c.question.toLowerCase().includes('age');
           if (!c.keyword.trim() && !isAge) return;
+          evaluatedCount++;
 
           const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
           
@@ -182,6 +187,7 @@ export function LeadsManagementTab({
             const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
             if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
               // passes background check
+              hasAnyMatch = true;
             } else {
               passed = false;
               reasons.push(`Age not 30-64 (Found: ${textToSearch || 'None'})`);
@@ -194,16 +200,25 @@ export function LeadsManagementTab({
           
           const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
           
-          if (!matchedAny) {
+          if (matchedAny) {
+            hasAnyMatch = true;
+          } else {
             passed = false;
             const shortQ = c.question ? c.question.substring(0, 35) + '...' : `Keyword "${c.keyword}"`;
             reasons.push(`Failed: ${shortQ}`);
           }
         });
 
+        if (type === 'AI-4C' && evaluatedCount > 0) {
+          // For AI-4C, if ANY condition passes, the overall result passes. (OR logic)
+          passed = hasAnyMatch;
+        }
+
         if (passed) {
           if (type === 'AI-4B') {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
+          } else if (type === 'AI-4C') {
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRejected: false, reason: 'Passed filters' };
           } else {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
           }
@@ -211,6 +226,8 @@ export function LeadsManagementTab({
         } else {
           if (type === 'AI-4B') {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+          } else if (type === 'AI-4C') {
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRejected: true, reason: '100% Failed: ' + reasons.join(' | ') };
           } else {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
           }
@@ -346,11 +363,30 @@ export function LeadsManagementTab({
 
 
   const currentTabLeads = React.useMemo(() => {
-    if (activeTab === 'new_leads' || activeTab === 'approval_1') {
-      return activeBatchLeads.filter(l => !batchDecisions[l.id]?.isRejected);
+    if (activeTab === 'new_leads') {
+      return activeBatchLeads.filter(l => {
+        const dec = batchDecisions[l.id] || {};
+        return (!dec.status || dec.status === 'new_leads') && !dec.isRejected && !dec.isRegistered;
+      });
+    }
+    if (activeTab === 'pending_leads') {
+      return activeBatchLeads.filter(l => {
+        const dec = batchDecisions[l.id] || {};
+        return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
+      });
+    }
+    if (activeTab === 'approval_1') {
+      return activeBatchLeads.filter(l => {
+        const dec = batchDecisions[l.id] || {};
+        return dec.status === 'approval_1' && !dec.isRejected && !dec.isRegistered;
+      });
     }
     if (activeTab === 'approval_2') {
-      return activeBatchLeads.filter(l => ['approval_2', 'pending_leads_3'].includes(batchDecisions[l.id]?.status) && !batchDecisions[l.id]?.isRejected);
+      return activeBatchLeads.filter(l => {
+        const dec = batchDecisions[l.id] || {};
+        // The user specifically requested pending-3 to be shown in approval-2
+        return ['approval_2', 'pending_leads_3'].includes(dec.status) && !dec.isRejected;
+      });
     }
     if (activeTab === 'registered_leads') {
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
@@ -358,7 +394,16 @@ export function LeadsManagementTab({
     if (activeTab === 'rejected_leads') {
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRejected);
     }
-    return activeBatchLeads.filter(l => batchDecisions[l.id]?.status === activeTab && !batchDecisions[l.id]?.isRejected);
+    if (activeTab === 'pending_leads_3') {
+      return activeBatchLeads.filter(l => {
+        const dec = batchDecisions[l.id] || {};
+        return dec.status === 'pending_leads_3' && !dec.isRegistered;
+      });
+    }
+    return activeBatchLeads.filter(l => {
+      const dec = batchDecisions[l.id] || {};
+      return dec.status === activeTab && !dec.isRejected && !dec.isRegistered;
+    });
   }, [activeBatchLeads, activeTab, batchDecisions]);
 
   return (
@@ -468,6 +513,14 @@ export function LeadsManagementTab({
                     className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
                   >
                     🤖 {(aiSettings['AI-4B'] || []).some(c => c.keyword) ? `AI-4B Active` : 'Configure AI-4B'}
+                  </button>
+                )}
+                {activeTab === 'pending_leads_3' && (
+                  <button
+                    onClick={() => openAiModal('AI-4C')}
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                  >
+                    🤖 {(aiSettings['AI-4C'] || []).some(c => c.keyword) ? `AI-4C Active` : 'Configure AI-4C'}
                   </button>
                 )}
               </div>
