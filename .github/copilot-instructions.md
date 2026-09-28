@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Broadcast Quota Contract and Render Crash Fix (Session: September 28, 2026) — Commit `pending`
+### Broadcast Quota Contract and Render Crash Fix (Session: September 28, 2026) — Commit `ef00f175`
 
 - Restored the Bunny `/api/admin/crm/bulk-status` response shape expected by `BroadcastPage`, including `quota.status`, `sent`, `limit`, `remaining`, and `percentage`.
 - Guarded the Broadcast quota dashboard against incomplete legacy responses so it cannot crash during deployment/API transitions.
