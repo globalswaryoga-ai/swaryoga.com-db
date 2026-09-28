@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Bunny Broadcast Constraint and Helper API Fix (Session: September 28, 2026) — Commit `pending`
+### Bunny Broadcast Constraint and Helper API Fix (Session: September 28, 2026) — Commit `c5ea4098`
 
 - Fixed `broadcast_runs_sql` inserts to provide the required `broadcast_run_key`, resolving the SQLite `NOT NULL` error shown on the Broadcast page.
 - Replaced MongoDB-dependent bulk validation/progress, lead source counts, and latest delivery status APIs with Bunny SQL implementations.
