@@ -120,7 +120,7 @@ export function LeadsManagementTab({
       
       if (type === 'AI-4') return ['new_leads', 'approval_1', 'pending_leads_1'].includes(currentStatus);
       if (type === 'AI-4A') return ['approval_1', 'approval_2', 'pending_leads_2'].includes(currentStatus);
-      if (type === 'AI-4B') return ['approval_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
+      if (type === 'AI-4B') return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_1', 'pending_leads_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
       return false;
     });
 
@@ -162,13 +162,17 @@ export function LeadsManagementTab({
 
         if (passed) {
           if (type === 'AI-4B') {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), isRegistered: true, reason: 'Passed filters' };
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
           } else {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
           }
           approvedCount++;
         } else {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
+          if (type === 'AI-4B') {
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+          } else {
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
+          }
           pendingCount++;
         }
       });
