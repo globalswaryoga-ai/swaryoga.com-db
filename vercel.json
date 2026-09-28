@@ -5,6 +5,9 @@
     "app/api/cron/workshop-zoom-attendance/route.ts": {
       "maxDuration": 300
     },
+    "app/api/admin/crm/workshop-management/attendance/zoom/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/admin/media/upload/route.ts": {
       "maxDuration": 60
     },
@@ -105,7 +108,7 @@
     },
     {
       "path": "/api/cron/workshop-zoom-attendance",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 */3 * * *"
     },
     {
       "path": "/api/crm-site/capacity",

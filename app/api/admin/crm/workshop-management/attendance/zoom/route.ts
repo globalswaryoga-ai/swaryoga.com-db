@@ -3,7 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { syncWorkshopZoomAttendance } from '@/lib/workshop-zoom-attendance';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';

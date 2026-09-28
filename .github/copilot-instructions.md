@@ -172,6 +172,17 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Workshop Attendance Manual Sync Timeout Fix (Session: September 28, 2026) — Commit `pending`
+
+- Increased `app/api/admin/crm/workshop-management/attendance/zoom/route.ts` from 60 to 300 seconds.
+- Added the same five-minute function limit to `vercel.json`; the manual button can now scan a full cohort without the previous 504 Gateway Timeout.
+
+### Workshop Attendance Analytics Three-Hour Sync (Session: September 28, 2026) — Commit `pending`
+
+- Changed `/api/cron/workshop-zoom-attendance` from every six hours to every three hours in `vercel.json`.
+- Verified Bunny SQL currently contains 110 workshop students and 327 attendance rows with Hindi/Marathi daily attendance percentages.
+- Attendance remains Bunny SQL-backed; Zoom reports are imported after Zoom makes completed participant data available.
+
 ### Zoom Recording Bunny/YouTube and Trash Recovery Fix (Session: September 28, 2026) — Commit `53b83eb2`
 
 - Updated `scripts/zoom-recording-uploader.mjs` to load the canonical Bunny SQL YouTube account and Zoom mappings instead of relying on the legacy archive.
