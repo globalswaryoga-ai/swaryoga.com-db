@@ -496,7 +496,7 @@ export default function SocialMediaAdmin() {
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
-                              <span className="text-2xl">{platformConfig[account.platform].icon}</span>
+                              <span className="text-2xl">{platformConfig[account.platform as keyof typeof platformConfig]?.icon ?? '📱'}</span>
                               <div>
                                 <h4 className="text-white font-bold capitalize">{account.platform}</h4>
                                 <p className="text-slate-400">@{account.accountHandle.replace(/^@/, '')}</p>
@@ -1018,7 +1018,7 @@ export default function SocialMediaAdmin() {
                 {accounts.map(account => (
                   <div key={account._id} className="bg-slate-800 rounded-lg p-6 border border-slate-700">
                     <div className="flex items-center gap-3 mb-4">
-                      <span className="text-2xl">{platformConfig[account.platform].icon}</span>
+                      <span className="text-2xl">{platformConfig[account.platform as keyof typeof platformConfig]?.icon ?? '📱'}</span>
                       <div>
                         <h3 className="text-white font-bold capitalize">{account.platform}</h3>
                         <p className="text-slate-400 text-xs">@{account.accountHandle.replace(/^@/, '')}</p>
