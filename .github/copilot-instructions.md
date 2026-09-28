@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Social Media Connection State Bunny SQL Fix (Session: September 28, 2026) — Commit `pending`
+### Social Media Connection State Bunny SQL Fix (Session: September 28, 2026) — Commit `45e9c441`
 
 - Fixed social account status, connect, and disconnect paths to use `social_media_accounts_sql` instead of the legacy `mongo_documents` archive.
 - Updated Messenger and Instagram account resolution to read encrypted credentials from Bunny SQL.
