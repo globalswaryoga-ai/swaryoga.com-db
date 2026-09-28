@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Broadcast Reports Cancel Action (Session: September 29, 2026) — Commit `pending`
+### Broadcast Reports Cancel Action (Session: September 29, 2026) — Commit `43e14f45`
 
 - Added a visible Cancel button for scheduled/running/draft broadcasts in the Reports list.
 - Broadcast cancellation now handles Bunny SQL runs and marks pending messages cancelled before legacy detail actions.
