@@ -171,6 +171,15 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Broadcast Recipient Selection Crash Fix (Session: September 28, 2026) — Commit `pending`
+
+- Normalized Bunny broadcast validation responses before storing them in `BroadcastPage` state.
+- Guarded `validation.warnings` rendering so selecting a lead cannot crash on a missing warnings array.
+
+### Broadcast Selection Crash Guard (Session: September 28, 2026) — Commit `pending`
+
+- Normalized old/new bulk-status responses in `app/admin/crm/broadcast/page.tsx` so selecting leads cannot render an undefined quota object during local Fast Refresh or rolling deployments.
+
 ### Broadcast Quota Contract and Render Crash Fix (Session: September 28, 2026) — Commit `ef00f175`
 
 - Restored the Bunny `/api/admin/crm/bulk-status` response shape expected by `BroadcastPage`, including `quota.status`, `sent`, `limit`, `remaining`, and `percentage`.

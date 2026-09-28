@@ -458,7 +458,23 @@ export default function BroadcastPage(props: any) {
       setLeads(loadedLeads);
       setTemplates(templatesData.data?.templates || templatesData.templates || []);
       setRecentRuns(runsData.data?.runs || runsData.runs || []);
-      if (bulkData.success) setBulkStats(bulkData.data);
+      if (bulkData.success) {
+        const rawBulk = bulkData.data || {};
+        const rawQuota = rawBulk.quota || {};
+        const quotaLimit = Number(rawQuota.limit || rawBulk.dailyLimit || 10000);
+        const quotaSent = Number(rawQuota.sent ?? rawBulk.sentToday ?? 0);
+        const quotaRemaining = Number(rawQuota.remaining ?? Math.max(0, quotaLimit - quotaSent));
+        const quotaPercentage = Number(rawQuota.percentage ?? (quotaLimit ? Math.round((quotaSent / quotaLimit) * 100) : 0));
+        const quotaStatus = rawQuota.status || (quotaSent >= quotaLimit ? 'exhausted' : quotaPercentage >= 90 ? 'critical' : quotaPercentage >= 75 ? 'warning' : 'normal');
+        setBulkStats({
+          ...rawBulk,
+          today: rawBulk.today || { sent: quotaSent, failed: 0, pending: 0 },
+          thisWeek: rawBulk.thisWeek || { sent: quotaSent, failed: 0 },
+          thisMonth: rawBulk.thisMonth || { sent: quotaSent, failed: 0 },
+          activeRuns: Number(rawBulk.activeRuns || 0),
+          quota: { date: rawQuota.date || new Date().toISOString().slice(0, 10), sent: quotaSent, limit: quotaLimit, remaining: quotaRemaining, percentage: quotaPercentage, status: quotaStatus, canSend: rawQuota.canSend !== false && quotaRemaining > 0 },
+        });
+      }
 
       // Merge in each lead's most recent Meta message status (delivered/read/
       // failed/blocked) so the recipient panel can filter by it. Non-fatal —
@@ -547,7 +563,18 @@ export default function BroadcastPage(props: any) {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.success) setValidation(data.data);
+      if (data.success) {
+        const raw = data.data || {};
+        const warnings = Array.isArray(raw.warnings) ? raw.warnings : [];
+        const errors = Array.isArray(raw.errors) ? raw.errors : [];
+        setValidation({
+          valid: raw.valid ?? raw.allowed ?? true,
+          errors,
+          warnings,
+          estimatedTime: raw.estimatedTime || '',
+          quotaAfterSend: Number(raw.quotaAfterSend ?? raw.remaining ?? 0),
+        });
+      }
     } catch (err) {
       console.error('[Broadcast] Validation failed:', err);
     }
@@ -1442,7 +1469,7 @@ export default function BroadcastPage(props: any) {
             )}
 
             {/* Validation Warnings */}
-            {validation && validation.warnings.length > 0 && selectedLeads.size > 0 && (
+            {validation && validation.warnings?.length > 0 && selectedLeads.size > 0 && (
               <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-3">
                 <div className="flex items-start gap-2">
                   <span>⚠️</span>
