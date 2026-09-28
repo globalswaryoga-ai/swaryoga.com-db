@@ -171,12 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Workshop Schema Attendance Column Repair (Session: September 28, 2026) — Commit `pending`
+### Workshop Schema Attendance Column Repair (Session: September 28, 2026) — Commit `046da78d`
 
 - Added idempotent Bunny SQL migrations for `zoom_attendance_last_sync_at` and related workshop metadata columns.
 - Prevents the recording/attendance worker from stopping with `SQLITE_UNKNOWN: no such column` before processing uploads.
 
-### YouTube Upload Retry and Recording Resume Fix (Session: September 28, 2026) — Commit `pending`
+### YouTube Upload Retry and Recording Resume Fix (Session: September 28, 2026) — Commit `046da78d`
 
 - Added retry/backoff for transient YouTube 429/5xx upload responses.
 - Recording uploads now resume per view and reuse existing Bunny/YouTube URLs, preventing duplicate uploads after partial failures.
