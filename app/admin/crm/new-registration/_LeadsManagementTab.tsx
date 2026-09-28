@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Clock, CheckCircle, UserCheck, Users } from 'lucide-react';
+import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 const SIDEBAR_TABS = [
@@ -11,6 +11,7 @@ const SIDEBAR_TABS = [
   { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle },
   { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle },
   { id: 'registered_leads', label: 'Registerd leads', icon: UserCheck },
+  { id: 'rejected_leads', label: 'Rejected leads', icon: XCircle },
 ];
 
 const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Kannada'];
@@ -214,12 +215,15 @@ export function LeadsManagementTab({
 
   const currentTabLeads = React.useMemo(() => {
     if (activeTab === 'new_leads' || activeTab === 'approval_1') {
-      return activeBatchLeads;
+      return activeBatchLeads.filter(l => !batchDecisions[l.id]?.isRejected);
     }
     if (activeTab === 'registered_leads') {
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
     }
-    return activeBatchLeads.filter(l => batchDecisions[l.id]?.status === activeTab);
+    if (activeTab === 'rejected_leads') {
+      return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRejected);
+    }
+    return activeBatchLeads.filter(l => batchDecisions[l.id]?.status === activeTab && !batchDecisions[l.id]?.isRejected);
   }, [activeBatchLeads, activeTab, batchDecisions]);
 
   return (
@@ -370,23 +374,42 @@ export function LeadsManagementTab({
                               )}
                             </td>
                             <td className="px-4 py-3 text-right flex justify-end gap-2">
-                              {!batchDecisions[lead.id]?.isRegistered && (
-                                <button
-                                  onClick={() => {
-                                    const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
-                                    const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true } };
-                                    setBatchDecisions(newDecisions);
-                                    if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-                                    toast.success('Lead marked as Registered!');
-                                  }}
-                                  className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
-                                >
-                                  Register
-                                </button>
+                              {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
+                                      const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
+                                      setBatchDecisions(newDecisions);
+                                      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                      toast.success('Lead marked as Registered!');
+                                    }}
+                                    className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
+                                  >
+                                    Register
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
+                                      const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
+                                      setBatchDecisions(newDecisions);
+                                      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                      toast.success('Lead marked as Rejected!');
+                                    }}
+                                    className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
                               )}
                               {batchDecisions[lead.id]?.isRegistered && (
                                 <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded flex items-center gap-1">
                                   <CheckCircle size={12} /> Registered
+                                </span>
+                              )}
+                              {batchDecisions[lead.id]?.isRejected && (
+                                <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-1 rounded flex items-center gap-1">
+                                  <XCircle size={12} /> Rejected
                                 </span>
                               )}
                               <button className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded hover:bg-indigo-100 transition-colors">
