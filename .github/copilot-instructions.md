@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Broadcast Recipient Selection Crash Fix (Session: September 28, 2026) — Commit `pending`
+### Broadcast Recipient Selection Crash Fix (Session: September 28, 2026) — Commit `02533472`
 
 - Normalized Bunny broadcast validation responses before storing them in `BroadcastPage` state.
 - Guarded `validation.warnings` rendering so selecting a lead cannot crash on a missing warnings array.
