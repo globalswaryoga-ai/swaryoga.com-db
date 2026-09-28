@@ -499,7 +499,7 @@ export default function SocialMediaAdmin() {
                               <span className="text-2xl">{platformConfig[account.platform as keyof typeof platformConfig]?.icon ?? '📱'}</span>
                               <div>
                                 <h4 className="text-white font-bold capitalize">{account.platform}</h4>
-                                <p className="text-slate-400">@{account.accountHandle.replace(/^@/, '')}</p>
+                                <p className="text-slate-400">@{(account.accountHandle || '').replace(/^@/, '')}</p>
                               </div>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -1021,7 +1021,7 @@ export default function SocialMediaAdmin() {
                       <span className="text-2xl">{platformConfig[account.platform as keyof typeof platformConfig]?.icon ?? '📱'}</span>
                       <div>
                         <h3 className="text-white font-bold capitalize">{account.platform}</h3>
-                        <p className="text-slate-400 text-xs">@{account.accountHandle.replace(/^@/, '')}</p>
+                        <p className="text-slate-400 text-xs">@{(account.accountHandle || '').replace(/^@/, '')}</p>
                       </div>
                     </div>
                     <div className="space-y-3">
