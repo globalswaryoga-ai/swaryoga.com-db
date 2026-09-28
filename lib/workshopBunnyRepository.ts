@@ -23,7 +23,14 @@ function attendance(row: any): BunnyWorkshopAttendance { if (!row) return null a
 function recording(row: any): BunnyWorkshopRecording { if (!row) return null as any; return { ...row, _id: String(row.id), cohortId: row.cohort_id, classDate: row.class_date, dayNumber: row.day_number, zoomMeetingId: row.zoom_meeting_id, zoomMeetingUuid: row.zoom_meeting_uuid, youtubeSpeakerId: row.youtube_speaker_id, youtubeGalleryId: row.youtube_gallery_id, youtubeSpeakerUrl: row.youtube_speaker_url, youtubeGalleryUrl: row.youtube_gallery_url, bunnySpeakerUrl: row.bunny_speaker_url, bunnyGalleryUrl: row.bunny_gallery_url, deliveredStudentIds: parse(row.delivered_student_ids_json, []), metadata: parse(row.metadata_json, {}) }; }
 
 export async function initWorkshopBunnySchema() {
-  try { await bunnyExecute('ALTER TABLE workshop_cohorts_sql ADD COLUMN auto_recover_zoom_trash INTEGER NOT NULL DEFAULT 0'); } catch(e) {}
+  const additiveColumns = [
+    'ALTER TABLE workshop_cohorts_sql ADD COLUMN auto_recover_zoom_trash INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE workshop_cohorts_sql ADD COLUMN zoom_attendance_last_sync_at TEXT',
+    'ALTER TABLE workshop_cohorts_sql ADD COLUMN worker_last_run_at TEXT',
+  ];
+  for (const statement of additiveColumns) {
+    try { await bunnyExecute(statement); } catch (e) { /* column already exists */ }
+  }
   await bunnyBatch([
     { sql: `CREATE TABLE IF NOT EXISTS workshop_cohorts_sql (id TEXT PRIMARY KEY,name TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT,holiday_dates_json TEXT NOT NULL DEFAULT '[]',class_start_time TEXT,class_end_time TEXT,timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',zoom_meeting_id TEXT,zoom_join_url TEXT,whatsapp_group_link TEXT,google_form_link TEXT,youtube_playlist_name TEXT,thumbnail_url TEXT,day_subjects_json TEXT NOT NULL DEFAULT '[]',ai_worker_enabled INTEGER NOT NULL DEFAULT 1,auto_sync_whatsapp_group INTEGER NOT NULL DEFAULT 0,auto_send_recordings INTEGER NOT NULL DEFAULT 0,auto_sync_zoom_attendance INTEGER NOT NULL DEFAULT 1,auto_recover_zoom_trash INTEGER NOT NULL DEFAULT 0,zoom_attendance_last_sync_at TEXT,worker_last_run_at TEXT,whatsapp_group_id TEXT,community_id TEXT,recording_policy TEXT NOT NULL DEFAULT 'speaker_and_gallery',created_by_user_id TEXT,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)` , args: [] },
     { sql: `CREATE TABLE IF NOT EXISTS workshop_students_sql (id TEXT PRIMARY KEY,cohort_id TEXT NOT NULL,name TEXT NOT NULL,email TEXT,phone TEXT,whatsapp_jid TEXT,whatsapp_number TEXT,lead_id TEXT,lead_number TEXT,source TEXT NOT NULL DEFAULT 'manual',active INTEGER NOT NULL DEFAULT 1,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`, args: [] },

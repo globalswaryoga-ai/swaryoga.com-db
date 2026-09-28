@@ -97,20 +97,38 @@ async function getYouTubeAccessToken(account) {
 }
 
 async function ytUpload(access, srcUrl, size, title, desc) {
-  const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(size), 'X-Upload-Content-Type': 'video/mp4' },
-    body: JSON.stringify({ snippet: { title: title.slice(0, 99), description: desc, categoryId: '22' }, status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false } }),
-  });
-  if (!init.ok) throw new Error('yt init ' + init.status + ' ' + await init.text());
-  const loc = init.headers.get('location');
-  if (!loc) throw new Error('no upload url');
-  const src = await fetch(srcUrl);
-  if (!src.ok) throw new Error('zoom dl ' + src.status);
-  const put = await fetch(loc, { method: 'PUT', headers: { 'Content-Length': String(size), 'Content-Type': 'video/mp4' }, body: src.body, duplex: 'half' });
-  const j = await put.json();
-  if (!put.ok) throw new Error('yt put ' + put.status + ' ' + JSON.stringify(j));
-  return j.id;
+  let lastError = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(size), 'X-Upload-Content-Type': 'video/mp4' },
+      body: JSON.stringify({ snippet: { title: title.slice(0, 99), description: desc, categoryId: '22' }, status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false } }),
+    });
+    if (!init.ok) {
+      lastError = `yt init ${init.status} ${await init.text()}`;
+    } else {
+      const loc = init.headers.get('location');
+      if (!loc) lastError = 'no upload url';
+      else {
+        const src = await fetch(srcUrl);
+        if (!src.ok) throw new Error('zoom dl ' + src.status);
+        const put = await fetch(loc, { method: 'PUT', headers: { 'Content-Length': String(size), 'Content-Type': 'video/mp4' }, body: src.body, duplex: 'half' });
+        const responseText = await put.text();
+        let j = {};
+        try { j = responseText ? JSON.parse(responseText) : {}; } catch { j = {}; }
+        if (put.ok && j.id) return j.id;
+        lastError = `yt put ${put.status} ${responseText || JSON.stringify(j)}`;
+      }
+    }
+    if (attempt < 3 && /\b(429|500|502|503|504)\b/.test(lastError)) {
+      const delayMs = attempt * 15000;
+      log(`  YouTube transient upload error; retrying in ${delayMs / 1000}s (attempt ${attempt + 1}/3)`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
+    }
+    break;
+  }
+  throw new Error(lastError || 'YouTube upload failed');
 }
 
 // Find a playlist owned by this channel with an exact title match, or create
@@ -401,6 +419,8 @@ async function bunnyStorageSave(srcUrl, size, fileName) {
   if (!key) { log('Bunny Storage: missing BUNNY_ZOOM_STORAGE_KEY, skip'); return null; }
   const safe = fileName.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 180);
   const dest = `zoom-videos/${safe}`;
+  const existing = await fetch(`https://${process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net'}/${encodeURI(dest)}`, { method: 'HEAD' }).catch(() => null);
+  if (existing?.ok) return dest;
   const src = await fetch(srcUrl);
   if (!src.ok) throw new Error('zoom dl ' + src.status);
   const put = await fetch(`https://storage.bunnycdn.com/${zone}/${encodeURI(dest)}`, {
@@ -501,8 +521,6 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
   const from = new Date(Date.now() - LOOKBACK * 86400000);
   const fmt = (d) => d.toISOString().slice(0, 10);
   const meetings = await listZoomRecordings(host, zt, fmt(from), fmt(to));
-  if (TARGET_MEETING_ID) log('target meeting filter:', TARGET_MEETING_ID, 'matched', selectedMeetings.length);
-  log('found', selectedMeetings.length, 'recorded meeting(s) in window');
 
   // Connect to Bunny Database (LibSQL) — sole database for this script
   const dbUrl = process.env.BUNNY_DATABASE_URL?.trim();
@@ -533,6 +551,8 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
   const selectedMeetings = TARGET_MEETING_ID
     ? [...meetingMap.values()].filter((meeting) => String(meeting.id) === TARGET_MEETING_ID)
     : [...meetingMap.values()];
+  if (TARGET_MEETING_ID) log('target meeting filter:', TARGET_MEETING_ID, 'matched', selectedMeetings.length);
+  log('found', selectedMeetings.length, 'recorded meeting(s) in window');
 
   // Load YouTube account from Bunny Database
   let ytDoc = null;
@@ -577,6 +597,15 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
   let processed = 0;
   for (const m of selectedMeetings) {
     if (done.has(m.uuid)) continue; // already uploaded
+    const existingRecording = await bunnyClient.execute({
+      sql: 'SELECT youtube_speaker_url, youtube_gallery_url, bunny_speaker_url, bunny_gallery_url FROM workshop_recordings_sql WHERE zoom_meeting_uuid = ? LIMIT 1',
+      args: [String(m.uuid)],
+    }).catch(() => ({ rows: [] }));
+    const existing = existingRecording.rows[0];
+    if (existing?.youtube_speaker_url && existing?.youtube_gallery_url && existing?.bunny_speaker_url && existing?.bunny_gallery_url) {
+      log(`→ ${m.topic}: already has complete YouTube/Bunny URLs; skipping duplicate upload`);
+      continue;
+    }
     const ageMinutes = (Date.now() - new Date(m.start_time).getTime()) / 60000;
     if (Number.isFinite(ageMinutes) && ageMinutes < MIN_AGE_MINUTES) {
       log(`→ ${m.topic}: waiting ${Math.ceil(MIN_AGE_MINUTES - ageMinutes)} more minute(s) for Zoom processing`);
@@ -609,11 +638,17 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
     const dl = (f) => `${f.download_url}?access_token=${zt}`;
     const dateLabel = m.start_time.slice(0, 10);
     const result = { _id: m.uuid, topic: m.topic, startTime: m.start_time, youtube: {}, youtubeUrls: {}, bunny: {}, uploadedAt: new Date() };
+    const prior = existing || {};
+    const youtubeId = (url) => String(url || '').match(/youtu\.be\/([^?/#]+)/)?.[1] || String(url || '').match(/[?&]v=([^&#]+)/)?.[1] || null;
+    if (prior.youtube_speaker_url) { result.youtube.speaker = youtubeId(prior.youtube_speaker_url); result.youtubeUrls.speaker = prior.youtube_speaker_url; }
+    if (prior.youtube_gallery_url) { result.youtube.gallery = youtubeId(prior.youtube_gallery_url); result.youtubeUrls.gallery = prior.youtube_gallery_url; }
+    if (prior.bunny_speaker_url) result.bunny.speaker = String(prior.bunny_speaker_url).split('/zoom-videos/')[1] || null;
+    if (prior.bunny_gallery_url) result.bunny.gallery = String(prior.bunny_gallery_url).split('/zoom-videos/')[1] || null;
     log(`→ ${m.topic} (${dateLabel}) speaker=${speaker?.recording_type || 'none'} gallery=${gallery?.recording_type || 'none'}`);
 
     // YouTube: 1 speaker view (with or without screen sharing) and same one gallery view
     for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
-      if (!f) continue;
+      if (!f || result.youtube[key]) continue;
       try {
         const id = await ytUpload(yt, dl(f), f.file_size, `${m.topic} — ${view} — ${dateLabel}`, `${m.topic}\nRecorded ${m.start_time}\n${view} (${f.recording_type})`);
         result.youtube[key] = id;
@@ -632,7 +667,7 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
 
     // Bunny: preserve both speaker and gallery views, matching YouTube output.
     for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
-      if (!f) continue;
+      if (!f || result.bunny[key]) continue;
       try {
         const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.topic} (${key}).mp4`);
         result.bunny[key] = bunnyPath;
