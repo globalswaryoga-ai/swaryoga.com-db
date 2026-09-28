@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const state = searchParams.get('state'); // Contains adminToken for auth
 
-    const baseUrl = getRequestBaseUrl(request) || 'https://swaryoga.com';
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      getRequestBaseUrl(request) ||
+      'https://swaryoga.com';
 
     // Handle OAuth errors
     if (error) {
@@ -50,12 +54,7 @@ export async function GET(request: NextRequest) {
     // Get OAuth credentials from environment
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    // Prefer explicit env var to avoid request-header mismatches in local dev
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.APP_URL ||
-      getRequestBaseUrl(request) ||
-      'https://swaryoga.com';
+
     const redirectUri = `${baseUrl}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId || !clientSecret) {
