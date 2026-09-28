@@ -344,7 +344,16 @@ export default function BroadcastPage() {
   const [deliveryFilterOpen, setDeliveryFilterOpen] = useState(false);
   const deliveryFilterRef = useRef<HTMLDivElement>(null);
   const [templateSearch, setTemplateSearch] = useState('');
-  
+
+  // Quick Filters (Language / Batch / System Data toggle)
+  const [showSystemData, setShowSystemData] = useState(false);
+  const [quickLanguages, setQuickLanguages] = useState<string[]>([]);
+  const [quickBatches, setQuickBatches] = useState<string[]>([]);
+  const [filterLabels, setFilterLabels] = useState<string[]>([]);
+  const [filterWorkshops, setFilterWorkshops] = useState<string[]>([]);
+  const autoSelectOnLoad = useRef(false);
+
+
   // CSV Upload State
   const [csvContacts, setCSVContacts] = useState<CSVContact[]>([]);
   const [csvFileName, setCSVFileName] = useState('');
