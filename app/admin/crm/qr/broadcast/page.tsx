@@ -181,7 +181,6 @@ export default function QRBroadcastWizard() {
   const [showSystemData, setShowSystemData] = useState(false);
   const [quickLanguages, setQuickLanguages] = useState<string[]>([]);
   const [quickBatches, setQuickBatches] = useState<string[]>([]);
-  const autoSelectOnLoad = useRef(false);
 
   // Step 3 — schedule
   const [runName, setRunName] = useState('');
