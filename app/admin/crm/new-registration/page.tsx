@@ -61,15 +61,11 @@ export default function NewRegistrationPage() {
   const [googleFormUrl, setGoogleFormUrl] = useState('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [isApprovedAiWorkerActive, setIsApprovedAiWorkerActive] = useState(false);
   const [isRegisteredAiWorkerActive, setIsRegisteredAiWorkerActive] = useState(false);
-  const [isAi4Active, setIsAi4Active] = useState(false);
   const [isAi7Active, setIsAi7Active] = useState(false);
   const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
-  const [isAi4RulesOpen, setIsAi4RulesOpen] = useState(false);
-  const [ai4Interval, setAi4Interval] = useState(10);
   const [isAi7Processing, setIsAi7Processing] = useState(false);
   const [isAi1Processing, setIsAi1Processing] = useState(false);
   const [ai1ColumnInput, setAi1ColumnInput] = useState('');
-  const [ai4FormatRules, setAi4FormatRules] = useState('');
   const [needsGoogleAuth, setNeedsGoogleAuth] = useState(false);
   const [showDynamicColumns, setShowDynamicColumns] = useState(true);
   const [googleAuthError, setGoogleAuthError] = useState('');
@@ -878,38 +874,6 @@ export default function NewRegistrationPage() {
     return () => clearInterval(interval);
   }, [isAi7Active, linkedFormId, token, formSource, leadsFilter, leadsSubFilter, leadsSubSubFilter, workshops]);
 
-  // AI-4: Auto-reconnect Google every 2 minutes to keep token fresh and reload forms
-  useEffect(() => {
-    if (!isAi4Active) return;
-
-    const refreshGoogleForms = async () => {
-      try {
-        const res = await fetch('/api/admin/google-forms/list', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        const data = await res.json();
-        if (res.ok && data.forms && data.forms.length > 0) {
-          setGoogleFormsList(data.forms);
-          setNeedsGoogleAuth(false);
-          toast.info(`🔗 AI-4: Google reconnected. ${data.forms.length} forms ready.`);
-          console.log(`[AI-4] Google reconnect: ${data.forms.length} forms refreshed`);
-        } else if (data.needsAuth) {
-          setNeedsGoogleAuth(true);
-          toast.warning('⚠️ AI-4: Google connection lost. Reconnect required.');
-          console.warn('[AI-4] Google token expired, needs reconnect');
-        }
-      } catch (err) {
-        console.error('[AI-4] Google refresh error:', err);
-      }
-    };
-
-    // Refresh immediately when AI-4 is turned on
-    refreshGoogleForms();
-
-    // Then refresh every 2 minutes
-    const googleRefreshInterval = setInterval(refreshGoogleForms, 10 * 60 * 1000);
-    return () => clearInterval(googleRefreshInterval);
-  }, [isAi4Active, token]);
 
   useEffect(() => {
     const defaultBatch = {
@@ -946,8 +910,6 @@ export default function NewRegistrationPage() {
     const savedRegisteredAiState = localStorage.getItem('crm_registered_ai_active');
     if (savedRegisteredAiState) setIsRegisteredAiWorkerActive(savedRegisteredAiState === 'true');
 
-    const savedAi4State = localStorage.getItem('crm_ai_4_active');
-    if (savedAi4State) setIsAi4Active(savedAi4State === 'true');
     const savedAi7State = localStorage.getItem('crm_ai_7_active');
     if (savedAi7State) setIsAi7Active(savedAi7State === 'true');
 
@@ -962,7 +924,6 @@ export default function NewRegistrationPage() {
               if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
               if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
-              if (data.crm_ai_4_active) setIsAi4Active(data.crm_ai_4_active === 'true');
               if (data.crm_ai_7_active) setIsAi7Active(data.crm_ai_7_active === 'true');
               // We also save to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
@@ -983,7 +944,7 @@ export default function NewRegistrationPage() {
     try {
       if (typeof window !== 'undefined') {
         const searchParams = new URLSearchParams(window.location.search);
-        if (searchParams.get('success') === 'google_forms_connected') {
+        if (searchParams?.get('success') === 'google_forms_connected') {
           const defaultUrl = 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit';
           toast.success('🎉 Google Account connected! Swar Yoga Form saved & data loaded automatically.');
           setFormSource('google');
@@ -992,8 +953,8 @@ export default function NewRegistrationPage() {
           setActiveTab('forms');
           setIsFormSetupCollapsed(false);
           window.history.replaceState({}, document.title, window.location.pathname);
-        } else if (searchParams.get('error')) {
-          toast.error(`Google Login: ${searchParams.get('error')}`);
+        } else if (searchParams?.get('error')) {
+          toast.error(`Google Login: ${searchParams?.get('error')}`);
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       }
@@ -1606,13 +1567,9 @@ export default function NewRegistrationPage() {
       isMapDataCollapsed={isMapDataCollapsed} setIsMapDataCollapsed={setIsMapDataCollapsed}
       saveWorkshopSettings={saveWorkshopSettings} handleDetailChange={handleDetailChange}
       token={token} toast={toast}
-      isAi4Active={isAi4Active} setIsAi4Active={setIsAi4Active}
       isAi7Active={isAi7Active} setIsAi7Active={setIsAi7Active}
       handleAi1BatchCreate={handleAi1BatchCreate} isAi1Processing={isAi1Processing}
       ai1ColumnInput={ai1ColumnInput} setAi1ColumnInput={setAi1ColumnInput} saveAi1Column={saveAi1Column}
-      ai4FormatRules={ai4FormatRules} setAi4FormatRules={setAi4FormatRules}
-      ai4Interval={ai4Interval} setAi4Interval={setAi4Interval}
-      isAi4RulesOpen={isAi4RulesOpen} setIsAi4RulesOpen={setIsAi4RulesOpen}
       isWebhookModalOpen={isWebhookModalOpen} setIsWebhookModalOpen={setIsWebhookModalOpen}
       leadsFilter={leadsFilter} leadsSubFilter={leadsSubFilter}
       leadsSubSubFilter={leadsSubSubFilter}
@@ -1945,6 +1902,7 @@ export default function NewRegistrationPage() {
               workshops={workshops} 
               selectedDashboardLang={selectedDashboardLang}
               selectedWorkshop={selectedWorkshop}
+              leadsData={leadsData}
             />
           )}
         </main>

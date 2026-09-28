@@ -19,9 +19,8 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
     googleAuthError, isFormSetupCollapsed, setIsFormSetupCollapsed,
     crmFields, setCrmFields, mapDataFields, isMapDataCollapsed, setIsMapDataCollapsed,
     saveWorkshopSettings, handleDetailChange, token, toast,
-    isAi4Active, setIsAi4Active, isAi7Active, setIsAi7Active,
-    ai4FormatRules, setAi4FormatRules, ai4Interval, setAi4Interval,
-    isAi4RulesOpen, setIsAi4RulesOpen, isWebhookModalOpen, setIsWebhookModalOpen,
+    isAi7Active, setIsAi7Active,
+    isWebhookModalOpen, setIsWebhookModalOpen,
     leadsFilter, leadsSubFilter, leadsSubSubFilter, refreshLeadsCounter, setRefreshLeadsCounter,
     setIsLoadingGoogleForms, setGoogleFormsList, setNeedsGoogleAuth, setActiveTab, Users, leadsData, isLoadingLeads, selectedRowIds, renderBulkActions, handleAi7Categorize, isAi7Processing, handleApproveBulk, filterOptions, crmLeadIds, tab2SortOrder, setSelectedRowIds, showDynamicColumns, dynamicColumns, colWidths, setColWidths, setTab2SortOrder, setLeadsData, handleApprove,
     setLeadsFilter, setLeadsSubFilter, setLeadsSubSubFilter,
@@ -47,6 +46,21 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
       return true;
     });
   }
+
+  React.useEffect(() => {
+    // Auto-run AI-2 on load and every 5 minutes
+    if (setWorkshops) {
+      // Sync immediately on mount
+      setWorkshops((prev: any[]) => prev.map(w => w.id.startsWith('batch_') ? { ...w, isMovedToLeadsManagement: true } : w));
+      
+      // And sync every 5 minutes
+      const interval = setInterval(() => {
+        setWorkshops((prev: any[]) => prev.map(w => w.id.startsWith('batch_') ? { ...w, isMovedToLeadsManagement: true } : w));
+      }, 5 * 60 * 1000); 
+      
+      return () => clearInterval(interval);
+    }
+  }, [setWorkshops]);
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in">
