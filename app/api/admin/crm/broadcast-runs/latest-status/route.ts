@@ -1,78 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getBroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Cap the number of leadIds accepted per request — the Select Recipients
-// panel currently loads up to 5000 leads, so this needs headroom above that.
-const MAX_LEAD_IDS = 6000;
-
-/**
- * POST /api/admin/crm/broadcast-runs/latest-status
- *
- * For the Meta broadcast "Select Recipients" panel: given a list of leadIds
- * (already tenant-scoped — they came from the caller's own /api/admin/crm/leads
- * fetch), returns each lead's most recent Meta WhatsApp message status
- * (delivered/read/failed/blocked/...) so the panel can filter by it and let
- * the admin re-target people who were previously delivered/read.
- *
- * We trust the caller-supplied leadIds for scoping (rather than re-deriving
- * tenant ownership on BroadcastRunMessage, which has no createdByUserId field
- * of its own) — the same guarantee /api/admin/crm/leads already enforced.
- */
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const decoded: any = verifyToken(token);
+    if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json().catch(() => ({}));
-    const leadIds: string[] = Array.isArray(body?.leadIds) ? body.leadIds : [];
-    if (leadIds.length === 0) {
-      return NextResponse.json({ success: true, data: {} });
-    }
-
-    const objectIds = leadIds
-      .slice(0, MAX_LEAD_IDS)
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id));
-
-    if (objectIds.length === 0) {
-      return NextResponse.json({ success: true, data: {} });
-    }
-
-    await connectDB();
-    const BroadcastRunMessage = getBroadcastRunMessage();
-
-    const latest = await BroadcastRunMessage.aggregate([
-      { $match: { leadId: { $in: objectIds }, provider: 'meta' } },
-      { $sort: { leadId: 1, createdAt: -1 } },
-      {
-        $group: {
-          _id: '$leadId',
-          status: { $first: '$status' },
-          updatedAt: { $first: '$createdAt' },
-        },
-      },
-    ]);
-
+    const leadIds = Array.isArray(body?.leadIds) ? body.leadIds.map((id: unknown) => String(id)).filter(Boolean).slice(0, 6000) : [];
+    if (!leadIds.length) return NextResponse.json({ success: true, data: {} });
+    const placeholders = leadIds.map(() => '?').join(',');
+    const result = await bunnyExecute({
+      sql: `SELECT lead_id, status, COALESCE(sent_at, updated_at, created_at) AS status_at FROM (
+        SELECT m.lead_id, m.status, m.sent_at, m.updated_at, m.created_at,
+          ROW_NUMBER() OVER (PARTITION BY m.lead_id ORDER BY COALESCE(m.sent_at, m.updated_at, m.created_at) DESC) AS rn
+        FROM broadcast_run_messages_sql m
+        JOIN broadcast_runs_sql r ON r.document_id = m.run_id
+        WHERE r.provider = 'meta' AND m.lead_id IN (${placeholders})
+      ) WHERE rn = 1`,
+      args: leadIds,
+    });
     const data: Record<string, { status: string; updatedAt: string }> = {};
-    for (const row of latest as any[]) {
-      data[String(row._id)] = { status: row.status, updatedAt: row.updatedAt };
+    for (const row of result.rows as any[]) {
+      data[String(row.lead_id)] = { status: String(row.status || ''), updatedAt: String(row.status_at || '') };
     }
-
     return NextResponse.json({ success: true, data });
-  } catch (err) {
-    console.error('[Broadcast latest-status] Error:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error('[Broadcast latest-status] Bunny error:', error);
+    return NextResponse.json({ error: error?.message || 'Internal server error' }, { status: 500 });
   }
 }

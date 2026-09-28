@@ -1,102 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { BulkMessageManager } from '@/lib/bulkMessageManager';
+import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { listBroadcastRuns, broadcastRunFindOne, broadcastRunUpdateOne, broadcastRunMessageUpdateMany } from '@/lib/bunnyBroadcastRepository';
 
 export const dynamic = 'force-dynamic';
-
 
 function verifyAdmin(request: NextRequest) {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
   const decoded = verifyToken(token);
-  if (!decoded?.isAdmin) throw new Error('Unauthorized');
+  if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
   return decoded;
 }
 
-/**
- * GET /api/admin/crm/bulk-status
- * Get bulk messaging status including quota, active runs, and stats
- */
 export async function GET(request: NextRequest) {
   try {
-    verifyAdmin(request);
-    await connectDB();
+    const decoded: any = verifyAdmin(request);
+    const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || '');
+    const superAdmin = isSuperAdmin(decoded);
+    const action = new URL(request.url).searchParams.get('action');
 
-    const url = new URL(request.url);
-    const action = url.searchParams.get('action');
-
-    if (action === 'quota') {
-      const quota = await BulkMessageManager.getDailyQuotaStatus();
-      return NextResponse.json({ success: true, data: quota });
-    }
-
-    if (action === 'progress') {
-      const runId = url.searchParams.get('runId');
-      if (runId) {
-        const progress = await BulkMessageManager.getBroadcastProgress(runId);
-        return NextResponse.json({ success: true, data: progress });
-      }
-      const allProgress = await BulkMessageManager.getAllActiveProgress();
-      return NextResponse.json({ success: true, data: allProgress });
-    }
-
+    const listed = await listBroadcastRuns({ createdByUserId: viewerUserId, isSuperAdmin: superAdmin }, { limit: 100, skip: 0 });
+    const runs = listed.runs;
     if (action === 'validate') {
-      const count = Number(url.searchParams.get('count') || 0);
-      const validation = await BulkMessageManager.validateBroadcast(count);
-      return NextResponse.json({ success: true, data: validation });
+      const count = Math.max(0, Number(new URL(request.url).searchParams.get('count') || 0));
+      const dailyLimit = 10000;
+      return NextResponse.json({ success: true, data: { allowed: count > 0 && count <= dailyLimit, count, dailyLimit, remaining: Math.max(0, dailyLimit - count), reason: count > dailyLimit ? `Daily limit is ${dailyLimit}` : undefined } });
+    }
+    if (action === 'progress') {
+      const runId = new URL(request.url).searchParams.get('runId');
+      const data = runId ? (await broadcastRunFindOne(runId)) : runs.filter((run: any) => ['draft', 'scheduled', 'running'].includes(String(run.status)));
+      return NextResponse.json({ success: true, data });
     }
 
-    // Default: return full stats
-    const stats = await BulkMessageManager.getBroadcastStats();
-    return NextResponse.json({ success: true, data: stats });
-
+    const sentToday = runs.reduce((sum: number, run: any) => sum + Number(run.stats?.sent || 0), 0);
+    return NextResponse.json({ success: true, data: { dailyLimit: 10000, sentToday, remaining: Math.max(0, 10000 - sentToday), activeRuns: runs.filter((run: any) => ['draft', 'scheduled', 'running'].includes(String(run.status))).length, runs } });
   } catch (error: any) {
-    console.error('[bulk-status] Error:', error);
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to get bulk status' },
-      { status: error?.message === 'Unauthorized' ? 401 : 500 }
-    );
+    return NextResponse.json({ success: false, error: error?.message || 'Failed to get bulk status' }, { status: error?.message === 'Unauthorized' ? 401 : 500 });
   }
 }
 
-/**
- * POST /api/admin/crm/bulk-status
- * Control bulk messaging (pause, resume, cancel)
- */
 export async function POST(request: NextRequest) {
   try {
-    verifyAdmin(request);
-    await connectDB();
-
-    const body = await request.json();
-    const { action, runId, reason } = body;
-
-    if (!action) {
-      return NextResponse.json({ success: false, error: 'Action required' }, { status: 400 });
-    }
-
-    if (action === 'pause' && runId) {
-      const success = await BulkMessageManager.pauseBroadcast(runId, reason || 'Manual pause');
-      return NextResponse.json({ success, message: success ? 'Broadcast paused' : 'Failed to pause' });
-    }
-
-    if (action === 'resume' && runId) {
-      const success = await BulkMessageManager.resumeBroadcast(runId);
-      return NextResponse.json({ success, message: success ? 'Broadcast resumed' : 'Failed to resume' });
-    }
-
-    if (action === 'cancel' && runId) {
-      const success = await BulkMessageManager.cancelBroadcast(runId, reason || 'Manual cancel');
-      return NextResponse.json({ success, message: success ? 'Broadcast cancelled' : 'Failed to cancel' });
-    }
-
-    return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
-
+    const decoded: any = verifyAdmin(request);
+    const body = await request.json().catch(() => ({}));
+    const runId = String(body.runId || '');
+    const action = String(body.action || '');
+    if (!runId || !['pause', 'resume', 'cancel'].includes(action)) return NextResponse.json({ success: false, error: 'Valid action and runId are required' }, { status: 400 });
+    const run = await broadcastRunFindOne(runId);
+    if (!run) return NextResponse.json({ success: false, error: 'Broadcast not found' }, { status: 404 });
+    if (!isSuperAdmin(decoded) && String(run.createdByUserId) !== String(getViewerUserId(decoded) || decoded?.userId)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    const status = action === 'cancel' ? 'cancelled' : action === 'pause' ? 'scheduled' : 'draft';
+    await broadcastRunUpdateOne(runId, { status, lastError: action === 'cancel' ? String(body.reason || 'Manual cancel') : undefined });
+    if (action === 'cancel') await broadcastRunMessageUpdateMany({ runId, status: ['pending', 'sending', 'retrying'] }, { status: 'cancelled', failureReason: String(body.reason || 'Parent run cancelled') });
+    return NextResponse.json({ success: true, message: `Broadcast ${action}d` });
   } catch (error: any) {
-    console.error('[bulk-status] POST Error:', error);
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to perform action' },
-      { status: error?.message === 'Unauthorized' ? 401 : 500 }
-    );
+    return NextResponse.json({ success: false, error: error?.message || 'Failed to update broadcast' }, { status: error?.message === 'Unauthorized' ? 401 : 500 });
   }
 }

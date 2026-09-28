@@ -144,9 +144,10 @@ export async function broadcastRunFindOne(runId: string): Promise<any | null> {
 export async function broadcastRunCreate(doc: any): Promise<any> {
   await ensureBroadcastSchema();
   const id = doc._id || crypto.randomUUID();
+  const broadcastRunKey = String(doc.broadcastRunKey || id);
   const n = nowIso();
   const dataJson = JSON.stringify({ templateSnapshot: doc.templateSnapshot || null, messageInterval: doc.messageInterval || null, target: doc.target || null, stats: doc.stats || { total: 0, pending: 0, sent: 0, failed: 0, skipped: 0 }, lastError: null });
-  await bunnyExecute({ sql: `INSERT INTO broadcast_runs_sql (document_id, name, created_by_user_id, created_by_label, mode, provider, status, template_id, scheduled_at, data_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: [id, doc.name || '', doc.createdByUserId || '', doc.createdByLabel || '', doc.mode || 'now', doc.provider || 'meta', doc.status || 'draft', doc.templateId || '', doc.scheduledAt ? new Date(doc.scheduledAt).toISOString() : null, dataJson, n, n] });
+  await bunnyExecute({ sql: `INSERT INTO broadcast_runs_sql (document_id, broadcast_run_key, name, created_by_user_id, created_by_label, mode, provider, status, template_id, scheduled_at, data_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: [id, broadcastRunKey, doc.name || '', doc.createdByUserId || '', doc.createdByLabel || '', doc.mode || 'now', doc.provider || 'meta', doc.status || 'draft', doc.templateId || '', doc.scheduledAt ? new Date(doc.scheduledAt).toISOString() : null, dataJson, n, n] });
   return { ...doc, _id: id, createdAt: new Date(n), updatedAt: new Date(n) };
 }
 
