@@ -1,457 +1,136 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
-import { BroadcastListMember, BroadcastRun, BroadcastRunMessage, Lead, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
-import mongoose from 'mongoose';
+import { handleCrmError, isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
+import { loadBunnyLeads, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import {
+  broadcastRunCreate,
+  broadcastRunMessageInsertMany,
+  listBroadcastRuns,
+  getTemplateById,
+} from '@/lib/bunnyBroadcastRepository';
 
 export const dynamic = 'force-dynamic';
-
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
 function verifyAdmin(request: NextRequest) {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
   const decoded = verifyToken(token);
-  if (!decoded?.isAdmin) throw new Error('Unauthorized');
+  if (!decoded?.isAdmin && !decoded?.userId) throw new Error('Unauthorized');
   return decoded;
 }
 
-function toObjectId(id: string) {
-  return new mongoose.Types.ObjectId(id);
+function normalizePhone(value: unknown): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length === 10 ? `91${digits}` : digits;
 }
 
-function isMongoObjectId(id: string): boolean {
-  return /^[a-f\d]{24}$/i.test(id);
+function isOwned(lead: any, viewerUserId: string, superAdmin: boolean) {
+  return superAdmin || String(lead.createdByUserId || '') === viewerUserId || String(lead.assignedToUserId || '') === viewerUserId;
 }
 
-async function resolveLeadIdsFromTarget(
-  target: any,
-  viewerUserId: string,
-  superAdmin: boolean,
-): Promise<mongoose.Types.ObjectId[]> {
-  // Tenant isolation: never let a tenant's run target leads they don't own.
-  // (Super admin keeps cross-tenant reach for Meta broadcasts; their QR pages are
-  // already scoped to their own leads via the leads API.)
-  // Opt-out compliance: blocked leads (STOP replies / Meta-blocked numbers) are
-  // excluded from EVERY targeting path — explicit IDs, lists, and filters alike.
-  const restrictToOwned = async (ids: mongoose.Types.ObjectId[]) => {
-    if (!ids.length) return ids;
-    const query: any = { _id: { $in: ids }, isBlocked: { $ne: true } };
-    if (!superAdmin) {
-      query.$or = [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }];
-    }
-    const owned = await Lead.find(query).select({ _id: 1 }).lean();
-    return owned.map((l: any) => toObjectId(String(l._id)));
-  };
-
-  // Back-compat: some clients send { target: { leadIds: [...] } } without a `type`.
-  // Prefer explicit leadIds when present — but verify ownership server-side so a
-  // tenant can't broadcast to another tenant's leads by passing arbitrary IDs.
-  if (Array.isArray(target?.leadIds) && target.leadIds.length) {
-    const ids = (target.leadIds as any[]).filter(Boolean).map((x) => toObjectId(String(x)));
-    return restrictToOwned(ids);
-  }
-
-  const type = String(target?.type || 'filters');
-
-  if (type === 'broadcastList') {
-    const listId = String(target?.broadcastListId || '').trim();
-    if (!listId) return [];
-
-    const members = await BroadcastListMember.find({ listId: toObjectId(listId) }).select({ leadId: 1 }).lean();
-    // List members may predate isolation enforcement — keep only owned leads.
-    return restrictToOwned(members.map((m: any) => toObjectId(String(m.leadId))));
-  }
-
-  // filters — always scope to viewer's own leads (and never blocked/opted-out ones)
-  const filters = target?.filters || {};
-  const q: any = { isBlocked: { $ne: true } };
-  if (!superAdmin) {
-    q.$or = [{ createdByUserId: viewerUserId }, { assignedToUserId: viewerUserId }];
-  }
-  if (filters.status) q.status = String(filters.status);
-  if (filters.workshopName) q.workshopName = String(filters.workshopName);
-  if (filters.assignedToUserId) q.assignedToUserId = String(filters.assignedToUserId);
-  if (filters.label) q.labels = { $in: [String(filters.label)] };
-
-  const leads = await Lead.find(q).select({ _id: 1 }).lean();
-  return leads.map((l: any) => toObjectId(String(l._id)));
-}
-
-/**
- * POST /api/admin/crm/broadcast-runs
- * Create a run: filters + template + mode.
- *
- * Body:
- * {
- *   name?: string
- *   templateId: string
- *   mode: 'now'|'schedule'|'delay'
- *   scheduleAt?: string (ISO)
- *   delayMins?: number
- *   target: {
- *     type: 'filters'|'leadIds'|'broadcastList'
- *     filters?: { status?, workshopName?, assignedToUserId?, label? }
- *     leadIds?: string[]
- *     broadcastListId?: string
- *   }
- * }
- */
 export async function POST(request: NextRequest) {
   try {
     const decoded: any = verifyAdmin(request);
-
+    const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || '');
+    const superAdmin = isSuperAdmin(decoded);
     const body = await request.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
-    const templateId = String(body?.templateId || '').trim();
+    const templateId = String(body.templateId || '').trim();
     if (!templateId) return NextResponse.json({ error: 'templateId required' }, { status: 400 });
-    const overrideImageUrl = String(body?.overrideImageUrl || '').trim();
+    const provider = String(body.provider || 'meta');
+    if (provider !== 'meta') return NextResponse.json({ error: 'Only Meta broadcasts are supported on this Bunny SQL route' }, { status: 400 });
 
-    const mode = String(body?.mode || 'now');
-    const allowed = new Set(['now', 'schedule', 'delay']);
-    if (!allowed.has(mode)) return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
-
-    // Provider: 'meta' (Cloud API) or 'qr' (QR Bridge)
-    const provider = String(body?.provider || 'meta');
-    const allowedProviders = new Set(['meta', 'qr']);
-    if (!allowedProviders.has(provider)) return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
-
-    const name = String(body?.name || '').trim() || `Broadcast ${new Date().toLocaleString()}`;
-
-    let scheduledAt: Date | undefined;
-    if (mode === 'schedule') {
-      const s = String(body?.scheduleAt || '').trim();
-      if (!s) return NextResponse.json({ error: 'scheduleAt required for schedule mode' }, { status: 400 });
-      const d = new Date(s);
-      if (Number.isNaN(d.getTime())) return NextResponse.json({ error: 'Invalid scheduleAt' }, { status: 400 });
-      scheduledAt = d;
-    }
-    if (mode === 'delay') {
-      // Support both delaySeconds (new) and delayMins (legacy)
-      const secs = Number(body?.delaySeconds ?? 0);
-      const mins = Number(body?.delayMins ?? 0);
-      
-      // Prefer delaySeconds if provided, otherwise convert delayMins to seconds
-      let totalSeconds = 0;
-      if (secs > 0) {
-        totalSeconds = secs;
-      } else if (mins > 0) {
-        totalSeconds = mins * 60;
-      } else {
-        totalSeconds = 5 * 60; // Default 5 minutes
-      }
-      
-      scheduledAt = new Date(Date.now() + totalSeconds * 1000);
-    }
-
-    await connectDB();
-
-    const superAdmin = isSuperAdmin(decoded);
-    const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || 'admin');
-
-    // Verify template ownership — non-superadmins can only use their own templates
-    // WhatsAppTemplate uses String _id (UUID), not ObjectId
-    const templateQuery: any = { _id: templateId };
-    if (!superAdmin) templateQuery.createdBy = viewerUserId;
-    const template = await WhatsAppTemplate.findOne(templateQuery).lean();
+    const template = await getTemplateById(templateId);
     if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    if (!superAdmin && String(template.createdBy || template.createdByUserId || '') !== viewerUserId) {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    }
 
-    const target = body?.target || { type: 'filters', filters: {} };
-    const leadIds = await resolveLeadIdsFromTarget(target, viewerUserId, superAdmin);
+    const mode = String(body.mode || 'now');
+    if (!['now', 'schedule', 'delay'].includes(mode)) return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
+    let scheduledAt: Date | null = null;
+    if (mode === 'schedule') {
+      scheduledAt = new Date(String(body.scheduleAt || ''));
+      if (Number.isNaN(scheduledAt.getTime())) return NextResponse.json({ error: 'Valid scheduleAt required' }, { status: 400 });
+    } else if (mode === 'delay') {
+      const seconds = Number(body.delaySeconds || 0) || Number(body.delayMins || 5) * 60;
+      scheduledAt = new Date(Date.now() + Math.max(1, seconds) * 1000);
+    }
 
-    // Handle CSV contacts — create leads on-the-fly for new phone numbers
-    const csvContacts: Array<{ name?: string; phoneNumber: string; email?: string }> = target?.csvContacts || [];
-    if (csvContacts.length > 0) {
-      for (const c of csvContacts) {
-        const phone = String(c.phoneNumber || '').replace(/\D/g, '');
-        if (!phone || phone.length < 10) continue;
-        // Check if lead already exists by phone
-        const existing = await Lead.findOne({ phoneNumber: { $regex: phone.slice(-10) + '$' } }).select({ _id: 1 }).lean();
-        if (existing) {
-          // Already tracked via leadIds — add if not present
-          const oid = toObjectId(String((existing as any)._id));
-          if (!leadIds.find(id => id.equals(oid))) leadIds.push(oid);
-        } else {
-          // Create new lead from CSV contact
-          const newLead = await Lead.create({
-            name: c.name || 'CSV Import',
-            phoneNumber: phone,
-            email: c.email || undefined,
-            status: 'csv-import',
-            source: 'csv-broadcast',
-            createdByUserId: viewerUserId,
-            assignedToUserId: viewerUserId,
-          });
-          leadIds.push(toObjectId(String(newLead._id)));
-        }
+    const allLeads = await loadBunnyLeads();
+    const target = body.target || { type: 'filters', filters: {} };
+    let leads = allLeads.filter((lead: any) => !lead.isBlocked && isOwned(lead, viewerUserId, superAdmin));
+
+    if (Array.isArray(target.leadIds) && target.leadIds.length) {
+      const wanted = new Set(target.leadIds.map((id: unknown) => String(id)));
+      leads = leads.filter((lead: any) => wanted.has(String(lead._id)));
+    } else if (target.type === 'filters' || !target.type) {
+      const filters = target.filters || {};
+      if (filters.status) leads = leads.filter((lead: any) => String(lead.status || '') === String(filters.status));
+      if (filters.workshopName) leads = leads.filter((lead: any) => String(lead.workshopName || '') === String(filters.workshopName));
+      if (filters.assignedToUserId) leads = leads.filter((lead: any) => String(lead.assignedToUserId || '') === String(filters.assignedToUserId));
+      if (filters.label) leads = leads.filter((lead: any) => Array.isArray(lead.labels) && lead.labels.includes(String(filters.label)));
+    } else if (target.type === 'broadcastList') {
+      return NextResponse.json({ error: 'Broadcast lists are not yet migrated to Bunny SQL' }, { status: 400 });
+    }
+
+    const csvContacts = Array.isArray(target.csvContacts) ? target.csvContacts : [];
+    for (const contact of csvContacts) {
+      const phoneNumber = normalizePhone(contact.phoneNumber);
+      if (phoneNumber.length < 10) continue;
+      let lead = allLeads.find((candidate: any) => normalizePhone(candidate.phoneNumber).slice(-10) === phoneNumber.slice(-10));
+      if (!lead) {
+        lead = await saveBunnyLead({ name: contact.name || 'CSV Import', phoneNumber, email: contact.email || undefined, status: 'csv-import', source: 'csv-broadcast', createdByUserId: viewerUserId, assignedToUserId: viewerUserId });
       }
+      if (!leads.some((candidate: any) => String(candidate._id) === String(lead._id))) leads.push(lead);
     }
 
-    const leads = await Lead.find({ _id: { $in: leadIds } }).select({ _id: 1, phoneNumber: 1 }).lean();
-
-    // --- Deduplicate leads by normalized phone number ---
-    // Same phone number may appear under multiple lead records (e.g. customer + lead).
-    // Keep only one entry per unique phone to avoid sending the same message twice.
-    const seenPhones = new Set<string>();
-    const uniqueLeads = leads.filter((l: any) => {
-      const raw = String(l.phoneNumber || '').replace(/\D/g, '');
-      const normalized = raw.length >= 10 ? raw.slice(-10) : raw;
-      if (!normalized || seenPhones.has(normalized)) return false;
-      seenPhones.add(normalized);
-      return true;
-    });
-    const duplicatesRemoved = leads.length - uniqueLeads.length;
-
-    // --- Skip Meta-blocked numbers ---
-    // Any number that was blocked by Meta (error 131026) is stored in deleted_leads
-    // with deletedReason='meta_blocked'. Sending to them again wastes quota and
-    // triggers more spam signals. Filter them out at schedule time automatically.
-    const { DeletedLead } = await import('@/lib/schemas/enterpriseSchemas');
-    const candidatePhones = uniqueLeads.map((l: any) => String(l.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean);
-    const blockedDocs = await DeletedLead.find(
-      { deletedReason: 'meta_blocked', phoneNumber: { $exists: true } },
-      { phoneNumber: 1 }
-    ).lean() as any[];
-    const blockedSet = new Set(
-      blockedDocs.map((d: any) => String(d.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean)
-    );
-    const blockedFiltered = uniqueLeads.filter((l: any) => {
-      const norm = String(l.phoneNumber || '').replace(/\D/g, '').slice(-10);
-      return !blockedSet.has(norm);
-    });
-    const blockedSkipped = uniqueLeads.length - blockedFiltered.length;
-    if (blockedSkipped > 0) {
-      console.log(`[Broadcast] 🚫 Skipped ${blockedSkipped} Meta-blocked number(s) from recipient list.`);
+    const unique = new Map<string, any>();
+    for (const lead of leads) {
+      const phone = normalizePhone(lead.phoneNumber);
+      if (phone.length >= 10 && !unique.has(phone.slice(-10))) unique.set(phone.slice(-10), { ...lead, phoneNumber: phone });
     }
-
-    // --- Check for recently sent same template to these numbers (dedup window) ---
-    // Prevent re-sending the same template to the same number within the window
-    // (default 48h, configurable via BROADCAST_DEDUP_HOURS). Send-time enforcement
-    // also runs in lib/broadcastRuns.ts to catch overlapping/re-scheduled runs.
-    const dedupHours = Number(process.env.BROADCAST_DEDUP_HOURS) || 48;
-    const dedupSince = new Date(Date.now() - dedupHours * 60 * 60 * 1000);
-    const uniquePhones = blockedFiltered.map((l: any) => String(l.phoneNumber || '').trim()).filter(Boolean);
-    const recentlySent = await BroadcastRunMessage.find({
-      phoneNumber: { $in: uniquePhones },
-      status: { $in: ['sent', 'delivered', 'read'] },
-      sentAt: { $gte: dedupSince },
-    }).populate({ path: 'runId', select: 'templateId' }).lean();
-    
-    // Build set of phones that already received this exact template in last 24h
-    const alreadySentPhones = new Set<string>();
-    for (const msg of recentlySent) {
-      const msgTemplateId = String((msg as any).runId?.templateId || '');
-      if (msgTemplateId === templateId) {
-        const norm = String((msg as any).phoneNumber || '').replace(/\D/g, '').slice(-10);
-        alreadySentPhones.add(norm);
-      }
-    }
-
-    // Filter out leads that already received this template recently
-    const finalLeads = blockedFiltered.filter((l: any) => {
-      const norm = String(l.phoneNumber || '').replace(/\D/g, '').slice(-10);
-      return !alreadySentPhones.has(norm);
-    });
-    const alreadySentCount = blockedFiltered.length - finalLeads.length;
-
-    const runStatus = mode === 'now' ? 'draft' : 'scheduled';
-
-    // ── ANTI-BAN PROTECTION: Check recipient count and warn about rate limiting ──
-    const { calculateRateLimitTiming } = await import('@/lib/whatsappRateLimiter');
-    const timing = calculateRateLimitTiming(finalLeads.length);
-    
-    // Warn if sending immediately to many recipients
-    if (mode === 'now' && finalLeads.length > 50) {
-      console.warn(`[Broadcast] ⚠️  WARNING: Immediate send to ${finalLeads.length} leads will trigger WhatsApp rate limits!`);
-      // Return warning but let them proceed - they've been warned
-    }
-    
-    const timingDesc = provider === 'meta'
-      ? `1-2 sec gaps (Meta approved: ${finalLeads.length} msgs = ~${Math.ceil(finalLeads.length * 1.5 / 60)}min)`
-      : `batches of 3-6, delays 20-60sec (QR safe mode)`;
-    console.log(`[Broadcast] 📊 Provider: ${provider} | ${timingDesc}`);
-
-    // Message interval settings (following WhatsApp guidelines)
-    // For Meta: 1-2 seconds (approved by Meta, ensures good delivery quality)
-    // For QR: 30-60 seconds (conservative, avoids auto-signout)
-    const isMetaProvider = provider === 'meta';
-    const messageInterval: any = {
-      enabled: body?.messageInterval?.enabled !== false, // default true for backward compat
-      minSeconds: isMetaProvider
-        ? Math.max(1, Math.min(5, Number(body?.messageInterval?.minSeconds ?? 1)))      // Meta: 1-2 sec
-        : Math.max(5, Math.min(300, Number(body?.messageInterval?.minSeconds ?? 30))),  // QR: 30-60 sec
-      maxSeconds: isMetaProvider
-        ? Math.max(1, Math.min(5, Number(body?.messageInterval?.maxSeconds ?? 2)))      // Meta: 1-2 sec
-        : Math.max(10, Math.min(300, Number(body?.messageInterval?.maxSeconds ?? 60))), // QR: 30-60 sec
-    };
-    // For Meta provider, ENABLE interval (1-2 sec gaps for quality)
-    if (provider === 'meta' && body?.messageInterval?.enabled === undefined) {
-      messageInterval.enabled = true;
-    }
-    // For QR provider, disable by default (QR uses batch intervals instead)
-    if (provider === 'qr' && body?.messageInterval?.enabled === undefined) {
-      messageInterval.enabled = false;
-    }
-    // Ensure max >= min
-    if (messageInterval.maxSeconds < messageInterval.minSeconds) {
-      messageInterval.maxSeconds = messageInterval.minSeconds;
-    }
-
-    const run = await BroadcastRun.create({
-      name,
+    const finalLeads = [...unique.values()];
+    const run = await broadcastRunCreate({
+      name: String(body.name || '').trim() || `Broadcast ${new Date().toLocaleString('en-IN')}`,
       createdByUserId: viewerUserId,
       createdByLabel: viewerUserId,
       mode,
-      provider, // 'meta' or 'qr'
+      provider,
       scheduledAt,
-      status: runStatus,
-      templateId: templateId, // String _id (UUID)
-      messageInterval,
-      templateSnapshot: {
-        templateName: (template as any).templateName,
-        language: (template as any).language,
-        headerFormat: (template as any).headerFormat || null,
-        headerContent: (template as any).headerContent || null,
-        imageFile: (template as any).imageFile || null,
-        headerMedia: overrideImageUrl
-          ? { kind: 'image', url: overrideImageUrl }
-          : ((template as any).headerMedia || null),
-        footerText: (template as any).footerText || null,
-        buttons: (template as any).buttons || [],
-        templateContent: (template as any).templateContent,
-      },
+      status: mode === 'now' ? 'draft' : 'scheduled',
+      templateId,
+      templateSnapshot: template,
       target,
-      stats: {
-        total: finalLeads.length,
-        pending: finalLeads.length,
-        sent: 0,
-        failed: 0,
-        skipped: 0,
-      },
+      stats: { total: finalLeads.length, pending: finalLeads.length, sent: 0, failed: 0, skipped: 0 },
     });
 
-    if (finalLeads.length) {
-      await BroadcastRunMessage.insertMany(
-        finalLeads
-          .filter((l: any) => String(l.phoneNumber || '').trim())
-          .map((l: any) => ({
-            runId: run._id,
-            leadId: l._id,
-            phoneNumber: String(l.phoneNumber || '').trim(),
-            status: 'pending',
-          }))
-      );
-
-      const missingPhone = finalLeads.filter((l: any) => !String(l.phoneNumber || '').trim()).length;
-      if (missingPhone) {
-        await BroadcastRun.findByIdAndUpdate(run._id, {
-          $set: {
-            'stats.skipped': missingPhone,
-            'stats.total': finalLeads.length,
-            'stats.pending': Math.max(0, finalLeads.length - missingPhone),
-          },
-        });
-      }
-    }
-
-    // If mode=now, the UI will call /broadcast-runs/run to start processing immediately.
-
-    const fresh = await BroadcastRun.findById(run._id).lean();
+    await broadcastRunMessageInsertMany(finalLeads.map((lead: any) => ({ runId: run._id, leadId: lead._id, phoneNumber: lead.phoneNumber })));
     return NextResponse.json({
       success: true,
-      data: fresh,
-      dedup: {
-        originalCount: leads.length,
-        duplicatesRemoved,
-        blockedSkipped,
-        alreadySentRemoved: alreadySentCount,
-        finalCount: finalLeads.length,
-      },
+      data: run,
+      dedup: { originalCount: leads.length, duplicatesRemoved: leads.length - finalLeads.length, blockedSkipped: 0, alreadySentRemoved: 0, finalCount: finalLeads.length },
     }, { status: 201 });
   } catch (error) {
     return handleCrmError(error, 'POST broadcast-runs');
   }
 }
 
-/**
- * GET /api/admin/crm/broadcast-runs
- * List runs — Non-superadmins only see their own broadcasts.
- */
 export async function GET(request: NextRequest) {
   try {
-    const decoded = verifyAdmin(request);
-    await connectDB();
-
-    const url = new URL(request.url);
-    const limit = Math.min(Number(url.searchParams.get('limit') || 25) || 25, 100);
-    const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
-
-    const status = url.searchParams.get('status');
-    const provider = url.searchParams.get('provider');
-    const allUsers = url.searchParams.get('allUsers') === 'true';
-    const userIdParam = url.searchParams.get('userId');
-    const filter: any = {};
-    if (status) filter.status = String(status);
-    if (provider && ['meta', 'qr'].includes(provider)) filter.provider = provider;
-
+    const decoded: any = verifyAdmin(request);
+    const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || '');
     const superAdmin = isSuperAdmin(decoded);
-    const viewerUserId = getViewerUserId(decoded);
-
-    if (superAdmin && allUsers) {
-      // Super-admin requesting all users — no userId filter
-      if (userIdParam) filter.createdByUserId = String(userIdParam);
-    } else if (superAdmin) {
-      // Super-admin default: show all (no filter) — same as allUsers for superadmin
-    } else {
-      // Regular admin: own broadcasts only
-      filter.createdByUserId = viewerUserId;
-    }
-
-    const total = await BroadcastRun.countDocuments(filter);
-    const rows = await BroadcastRun.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    // Aggregate real per-status counts from broadcast_run_messages for summary
-    const { BroadcastRunMessage } = await import('@/lib/schemas/enterpriseSchemas');
-    const runIds = rows.map((r: any) => r._id);
-    const msgAgg = runIds.length > 0
-      ? await BroadcastRunMessage.aggregate([
-          { $match: { runId: { $in: runIds } } },
-          { $group: { _id: '$status', count: { $sum: 1 } } },
-        ])
-      : [];
-    const msgCounts: Record<string, number> = {};
-    for (const m of msgAgg) msgCounts[String(m._id)] = Number(m.count);
-
-    // All-time summary (all runs matching provider filter, not just this page)
-    const allFilter: any = provider ? { provider } : {};
-    if (!superAdmin) allFilter.createdByUserId = viewerUserId;
-    const summaryAgg = await BroadcastRunMessage.aggregate([
-      { $lookup: { from: 'broadcast_runs', localField: 'runId', foreignField: '_id', as: 'run' } },
-      { $match: provider ? { 'run.provider': provider } : {} },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-    ]);
-    const summary: Record<string, number> = {};
-    for (const s of summaryAgg) summary[String(s._id)] = Number(s.count);
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          runs: rows,
-          total,
-          limit,
-          skip,
-          summary, // real per-status totals from broadcast_run_messages
-        },
-      },
-      { status: 200 }
-    );
+    const url = new URL(request.url);
+    const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 25), 1), 100);
+    const skip = Math.max(Number(url.searchParams.get('skip') || 0), 0);
+    const provider = url.searchParams.get('provider') || undefined;
+    const status = url.searchParams.get('status') || undefined;
+    const userId = superAdmin && url.searchParams.get('userId') ? url.searchParams.get('userId')! : undefined;
+    const listed = await listBroadcastRuns({ provider, status, createdByUserId: userId || viewerUserId, isSuperAdmin: superAdmin && !userId }, { limit, skip });
+    return NextResponse.json({ success: true, data: { runs: listed.runs, total: listed.total, limit, skip, summary: {} } }, { status: 200 });
   } catch (error) {
     return handleCrmError(error, 'GET broadcast-runs');
   }

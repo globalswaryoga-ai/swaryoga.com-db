@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { processDueBroadcastRuns, processSpecificBroadcastRun } from '@/lib/broadcastRuns';
+import { processDueBunnyMetaBroadcasts } from '@/lib/bunnyMetaBroadcastProcessor';
 import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -78,10 +79,10 @@ export async function POST(request: NextRequest) {
     let data;
     if (runId) {
       // Process a specific run by ID (for manual "Run Now" button)
-      data = await processSpecificBroadcastRun(runId, { perRunMessageLimit });
+      data = await processDueBunnyMetaBroadcasts({ runId, perRunMessageLimit });
     } else {
       // Process all due runs (for cron)
-      data = await processDueBroadcastRuns({ runLimit, perRunMessageLimit });
+      data = await processDueBunnyMetaBroadcasts({ runLimit, perRunMessageLimit });
     }
     
     console.log('[Broadcast Run] Result:', JSON.stringify(data));

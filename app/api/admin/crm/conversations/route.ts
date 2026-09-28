@@ -12,6 +12,7 @@ import {
 export const dynamic = 'force-dynamic';
 import { verifyToken } from '@/lib/auth';
 import { listBunnyMetaConversations } from '@/lib/bunnyMetaWhatsAppRepository';
+import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
 
 export const revalidate = 0;
 
@@ -35,15 +36,28 @@ export async function GET(request: NextRequest) {
       return formatCrmSuccess({ conversations: [], total: 0, note: 'Use dedicated QR WhatsApp APIs for QR conversations.' }, buildMetadata(0, limit, skip));
     }
 
-    // The Meta WhatsApp Cloud API channel is a single shared WABA owned by the
-    // platform. Tenants who don't own this channel
-    // have no Meta conversations of their own.
-    if (providerParam !== 'all' && !superAdmin) {
-      return formatCrmSuccess({ conversations: [], total: 0 }, buildMetadata(0, limit, skip));
+    // Bunny SQL is the new runtime source.
+    const allRows = await listBunnyMetaConversations(5000);
+    let bunnyRows = allRows;
+
+    // Meta accounts and message ownership are now tenant-scoped in Bunny SQL.
+    // Do not hide every tenant's inbox merely because the client requested the
+    // normal `meta` provider (the Meta page does not use `provider=all`).
+    if (!superAdmin) {
+      const leads = await loadBunnyLeads();
+      const visibleLeads = leads.filter((lead: any) =>
+        String(lead.assignedToUserId || '') === viewerUserId ||
+        String(lead.createdByUserId || '') === viewerUserId
+      );
+      const visibleLeadIds = new Set(visibleLeads.map((lead: any) => String(lead._id)));
+      const visiblePhones = new Set(visibleLeads.map((lead: any) => String(lead.phoneNumber || '').replace(/\D/g, '').slice(-10)).filter(Boolean));
+      bunnyRows = bunnyRows.filter((row: any) => {
+        const leadId = String(row.leadId || '');
+        const phone = String(row.phoneNumber || '').replace(/\D/g, '').slice(-10);
+        return (leadId && visibleLeadIds.has(leadId)) || (phone && visiblePhones.has(phone));
+      });
     }
 
-    // Bunny SQL is the new runtime source.
-    const bunnyRows = await listBunnyMetaConversations(limit + skip);
     return formatCrmSuccess(
         { conversations: bunnyRows.slice(skip, skip + limit), total: bunnyRows.length },
         buildMetadata(bunnyRows.length, limit, skip),

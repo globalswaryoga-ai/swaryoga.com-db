@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
 import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
+import { getMetaCredentialsForTenant } from '@/lib/whatsappAccounts';
 import { 
   listBunnyMetaMessages, 
   countBunnyMetaMessages, 
@@ -202,10 +203,11 @@ export async function POST(request: NextRequest) {
 
     try {
       let apiResult;
+      const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
       if (mediaUrl) {
-         apiResult = await sendWhatsAppMedia(normalizedPhone, mediaUrl, (providedMediaType as any) || 'image', messageWithAdmin);
+        apiResult = await sendWhatsAppMedia(normalizedPhone, mediaUrl, (providedMediaType as any) || 'image', messageWithAdmin, tenantCreds);
       } else {
-         apiResult = await sendWhatsAppText(normalizedPhone, messageWithAdmin);
+        apiResult = await sendWhatsAppText(normalizedPhone, messageWithAdmin, tenantCreds);
       }
 
       await updateBunnyMetaMessage(messageId, {
@@ -276,7 +278,8 @@ export async function PUT(request: NextRequest) {
       }
 
       try {
-        const apiResult = await sendWhatsAppText(to, String(message.messageContent).trim());
+        const tenantCreds = (await getMetaCredentialsForTenant(userId)) || undefined;
+        const apiResult = await sendWhatsAppText(to, String(message.messageContent).trim(), tenantCreds);
         const updated = await updateBunnyMetaMessage(messageId, { status: 'sent', waMessageId: apiResult.waMessageId, retryCount: (message.retryCount || 0) + 1, failureReason: null });
         return formatCrmSuccess(updated || message);
       } catch (err) {

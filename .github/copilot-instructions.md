@@ -172,6 +172,13 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Meta Inbox and Bunny Meta Broadcast Runtime Fix (Session: September 28, 2026) — Commit `pending`
+
+- Updated `app/api/admin/crm/conversations/route.ts` so tenant Meta conversations are read from Bunny SQL and filtered by Bunny lead ownership instead of being hidden for non-Super Admin users.
+- Updated `app/api/admin/crm/messages/route.ts` so outbound sends and retries resolve tenant Meta credentials from Bunny SQL.
+- Replaced the MongoDB-backed `broadcast-runs` create/list API with Bunny SQL and added a Bunny-only Meta scheduled broadcast processor.
+- Focused diagnostics, TypeScript checks, `git diff --check`, and production route smoke checks pass; changes are local and pending deployment.
+
 ### QR Bridge Startup Diagnostics (Session: September 19, 2026) — Commit `pending`
 
 - Updated `deploy/wa-baileys/index.js` to expose `lastStartError` in `/status` and `/qr` when a session cannot initialize.
