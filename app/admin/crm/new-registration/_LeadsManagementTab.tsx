@@ -51,10 +51,10 @@ export function LeadsManagementTab({
     return { 'AI-4': [{ question: '', keyword: '' }, { question: '', keyword: '' }] };
   });
 
-  const [activeModal, setActiveModal] = useState<'AI-4' | 'AI-4A' | null>(null);
+  const [activeModal, setActiveModal] = useState<'AI-4' | 'AI-4A' | 'AI-4B' | null>(null);
   const [modalConditions, setModalConditions] = useState<FilterCondition[]>([]);
 
-  const openAiModal = (type: 'AI-4' | 'AI-4A') => {
+  const openAiModal = (type: 'AI-4' | 'AI-4A' | 'AI-4B') => {
     const current = aiSettings[type] || [{ question: '', keyword: '' }];
     setModalConditions(current.map(c => ({...c})));
     setActiveModal(type);
@@ -68,7 +68,7 @@ export function LeadsManagementTab({
     return {};
   });
 
-  const saveAiFilter = (type: 'AI-4' | 'AI-4A', conditions: FilterCondition[]) => {
+  const saveAiFilter = (type: 'AI-4' | 'AI-4A' | 'AI-4B', conditions: FilterCondition[]) => {
     const newSettings = { ...aiSettings, [type]: conditions };
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
@@ -91,6 +91,9 @@ export function LeadsManagementTab({
         if (type === 'AI-4A' && ['approval_2', 'pending_leads_2'].includes(currentStatus)) {
           newDecisions[lead.id] = { ...currentDec, status: 'approval_1', reason: 'Reset' };
         }
+        if (type === 'AI-4B' && (currentDec.isRegistered || currentStatus === 'pending_leads_3')) {
+          newDecisions[lead.id] = { ...currentDec, isRegistered: false, status: 'approval_2', reason: 'Reset' };
+        }
       });
       setBatchDecisions(newDecisions);
       if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
@@ -103,13 +106,21 @@ export function LeadsManagementTab({
     let approvedCount = 0;
     let pendingCount = 0;
     
-    const targetApprove = type === 'AI-4' ? 'approval_1' : 'approval_2';
-    const targetPending = type === 'AI-4' ? 'pending_leads_1' : 'pending_leads_2';
+    let targetApprove = '';
+    let targetPending = '';
+    if (type === 'AI-4') { targetApprove = 'approval_1'; targetPending = 'pending_leads_1'; }
+    if (type === 'AI-4A') { targetApprove = 'approval_2'; targetPending = 'pending_leads_2'; }
+    if (type === 'AI-4B') { targetApprove = 'registered'; targetPending = 'pending_leads_3'; }
 
     const targetLeads = activeBatchLeads.filter(lead => {
       const currentStatus = batchDecisions[lead.id]?.status || 'new_leads';
+      const dec = batchDecisions[lead.id] || {};
+      if (dec.isRejected) return false; // Ignore rejected
+      if (type !== 'AI-4B' && dec.isRegistered) return false; // Already registered
+      
       if (type === 'AI-4') return ['new_leads', 'approval_1', 'pending_leads_1'].includes(currentStatus);
       if (type === 'AI-4A') return ['approval_1', 'approval_2', 'pending_leads_2'].includes(currentStatus);
+      if (type === 'AI-4B') return ['approval_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
       return false;
     });
 
@@ -150,10 +161,14 @@ export function LeadsManagementTab({
         });
 
         if (passed) {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
+          if (type === 'AI-4B') {
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), isRegistered: true, reason: 'Passed filters' };
+          } else {
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
+          }
           approvedCount++;
         } else {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, reason: reasons.join(' | ') };
+          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
           pendingCount++;
         }
       });
@@ -376,6 +391,14 @@ export function LeadsManagementTab({
                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
                   >
                     🤖 {(aiSettings['AI-4A'] || []).some(c => c.keyword) ? `AI-4A Active` : 'Configure AI-4A'}
+                  </button>
+                )}
+                {activeTab === 'approval_2' && (
+                  <button
+                    onClick={() => openAiModal('AI-4B')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                  >
+                    🤖 {(aiSettings['AI-4B'] || []).some(c => c.keyword) ? `AI-4B Active` : 'Configure AI-4B'}
                   </button>
                 )}
               </div>
