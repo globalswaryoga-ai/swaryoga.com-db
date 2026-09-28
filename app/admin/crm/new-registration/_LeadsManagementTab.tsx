@@ -86,6 +86,7 @@ export function LeadsManagementTab({
 
   const [activeModal, setActiveModal] = useState<'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C' | null>(null);
   const [modalConditions, setModalConditions] = useState<FilterCondition[]>([]);
+  const [selectedQueryLeadId, setSelectedQueryLeadId] = useState<string | null>(null);
 
   const openAiModal = (type: 'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C') => {
     const current = aiSettings[type] || [{ question: '', keyword: '' }];
@@ -164,7 +165,7 @@ export function LeadsManagementTab({
       if (type === 'AI-4') return ['new_leads', 'approval_1', 'pending_leads_1'].includes(currentStatus);
       if (type === 'AI-4A') return ['approval_1', 'approval_2', 'pending_leads_2'].includes(currentStatus);
       if (type === 'AI-4B') return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
-      if (type === 'AI-4C') return ['new_leads', 'pending_leads_3'].includes(currentStatus);
+      if (type === 'AI-4C') return ['pending_leads_1', 'pending_leads_2'].includes(currentStatus);
       return false;
     });
 
@@ -219,7 +220,7 @@ export function LeadsManagementTab({
           if (type === 'AI-4B') {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
           } else if (type === 'AI-4C') {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'new_leads', isRejected: false, reason: 'Passed filters' };
+            // Keep their current pending status if they pass
           } else {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
           }
@@ -228,7 +229,7 @@ export function LeadsManagementTab({
           if (type === 'AI-4B') {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
           } else if (type === 'AI-4C') {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRejected: true, reason: '100% Failed: ' + reasons.join(' | ') };
+            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'rejected_leads', isRejected: true, reason: '100% Failed: ' + reasons.join(' | ') };
           } else {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
           }
@@ -368,10 +369,7 @@ export function LeadsManagementTab({
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
     }
     if (activeTab === 'new_leads') {
-      return activeBatchLeads.filter(l => {
-        const dec = batchDecisions[l.id] || {};
-        return (!dec.status || dec.status === 'new_leads') && !dec.isRejected && !dec.isRegistered;
-      });
+      return activeBatchLeads; // Show ALL forms here
     }
     if (activeTab === 'pending_leads') {
       return activeBatchLeads.filter(l => {
@@ -382,7 +380,8 @@ export function LeadsManagementTab({
     if (activeTab === 'approval_1') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return dec.status === 'approval_1' && !dec.isRejected && !dec.isRegistered;
+        // Keep a copy in approval_1 if it ever reached there (meaning it's not pending_leads_1)
+        return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
       });
     }
     if (activeTab === 'approval_2') {
@@ -541,12 +540,6 @@ export function LeadsManagementTab({
                     >
                       🤖 {(aiSettings['AI-4'] || []).some(c => c.keyword) ? `AI-4 Active` : 'Configure AI-4'}
                     </button>
-                    <button
-                      onClick={() => openAiModal('AI-4C')}
-                      className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
-                    >
-                      🤖 {(aiSettings['AI-4C'] || []).some(c => c.keyword) ? `AI-4C Active` : 'Configure AI-4C'}
-                    </button>
                   </div>
                 )}
                 {activeTab === 'approval_1' && (
@@ -607,9 +600,13 @@ export function LeadsManagementTab({
                           const isRegistered = leadDec.isRegistered;
                           const isRejected = leadDec.isRejected;
                           
-                          const rowBg = isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
+                          const isPending = leadStatus.includes('pending');
+                          
+                          const rowBg = isRejected 
+                            ? 'bg-purple-100/70 hover:bg-purple-200/70'
+                            : isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
                             ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
-                            : leadStatus.includes('pending')
+                            : isPending
                             ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
                             : 'hover:bg-slate-50 transition-colors';
 
@@ -680,6 +677,14 @@ export function LeadsManagementTab({
                               )}
                             </td>
                             <td className="px-4 py-3 text-right flex justify-end gap-2">
+                              {leadStatus.includes('pending') && (
+                                <button
+                                  onClick={() => setSelectedQueryLeadId(lead.id)}
+                                  className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded hover:bg-yellow-200 transition-colors"
+                                >
+                                  Query
+                                </button>
+                              )}
                               {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
                                 <>
                                   <button
@@ -836,6 +841,34 @@ export function LeadsManagementTab({
                 className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors"
               >
                 Save & Run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedQueryLeadId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-yellow-500" /> Pending Reason
+              </h2>
+              <button onClick={() => setSelectedQueryLeadId(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm font-medium text-slate-700 bg-yellow-50/50 p-4 rounded-xl border border-yellow-100">
+                {batchDecisions[selectedQueryLeadId]?.reason || 'No reason specified'}
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setSelectedQueryLeadId(null)}
+                className="px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300 transition-colors text-sm"
+              >
+                Close
               </button>
             </div>
           </div>
