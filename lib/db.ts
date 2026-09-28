@@ -33,18 +33,37 @@ declare global {
 }
 
 export const connectDB = async () => {
-  // BYPASS MONGODB CONNECTION
-  // The user requested to remove MongoDB and use Bunny Database exclusively
-  // to avoid IP whitelisting errors.
-  console.log('✅ MongoDB connection bypassed. Using Bunny Database exclusively.');
+  if (mongoose.connection.readyState >= 1) {
+    return mongoose.connection;
+  }
   
-  // Disable Mongoose buffering so that any accidental MongoDB queries fail fast
-  // instead of hanging the application indefinitely.
-  mongoose.set('bufferCommands', false);
+  if (!MONGODB_URI) {
+    console.warn('⚠️ MONGODB_URI is not set. Database operations will fail.');
+    return mongoose.connection;
+  }
+
+  if (!global.__mongooseConnectionPromise) {
+    console.log('🔄 Establishing new MongoDB connection...');
+    // We disable bufferCommands so that if the connection fails, queries fail fast.
+    mongoose.set('bufferCommands', false);
+    global.__mongooseConnectionPromise = mongoose.connect(MONGODB_URI, { 
+      dbName: MAIN_DB_NAME,
+      maxPoolSize: 10, // Recommended for serverless
+    });
+  }
   
-  lastConnectionStatus = 'Bypassed (Using Bunny DB)';
+  try {
+    await global.__mongooseConnectionPromise;
+    isConnecting = false;
+    lastConnectionStatus = 'Connected';
+    console.log('✅ MongoDB connected successfully');
+  } catch (error) {
+    global.__mongooseConnectionPromise = undefined;
+    lastConnectionStatus = 'Error: ' + String(error);
+    console.error('❌ MongoDB connection error:', error);
+    throw error;
+  }
   
-  // Return a mock connection object to satisfy any callers expecting one
   return mongoose.connection;
 };
 

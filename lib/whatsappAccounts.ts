@@ -36,6 +36,15 @@ export async function getMetaCredentialsForTenant(tenantUserId: string): Promise
   } catch (error) {
     console.warn('[whatsappAccounts] Bunny tenant lookup failed:', error instanceof Error ? error.message : error);
   }
+  
+  try {
+    await connectDB();
+    const account = await WhatsAppAccount.findOne({ tenantUserId, isActive: true }).lean();
+    if (account) return toCredentials(account);
+  } catch (error) {
+    console.warn('[whatsappAccounts] Mongo tenant lookup failed:', error);
+  }
+
   return null;
 }
 
@@ -53,5 +62,19 @@ export async function getMetaCredentialsByPhoneNumberId(
   } catch (error) {
     console.warn('[whatsappAccounts] Bunny phone lookup failed:', error instanceof Error ? error.message : error);
   }
+  
+  try {
+    await connectDB();
+    const account = await WhatsAppAccount.findOne({ metaPhoneNumberId: phoneNumberId, isActive: true }).lean();
+    if (account) {
+      const creds = toCredentials(account);
+      if (creds && account.tenantUserId) {
+        return { tenantUserId: account.tenantUserId, creds };
+      }
+    }
+  } catch (error) {
+    console.warn('[whatsappAccounts] Mongo phone lookup failed:', error);
+  }
+  
   return null;
 }
