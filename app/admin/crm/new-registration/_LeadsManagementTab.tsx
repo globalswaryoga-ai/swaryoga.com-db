@@ -232,56 +232,7 @@ export function LeadsManagementTab({
     return Array.from(questions);
   }, [leadsData]);
 
-  // AI-4 Background Worker for Auto-Reject
-  React.useEffect(() => {
-    if (!activeBatchLeads || activeBatchLeads.length === 0) return;
-    
-    setBatchDecisions(prev => {
-      let hasChanges = false;
-      const newDecisions = { ...prev };
 
-      activeBatchLeads.forEach(lead => {
-        const currentDec = newDecisions[lead.id] || { status: 'new_leads', reason: '' };
-        
-        if (!currentDec.isRejected && !currentDec.isRegistered && currentDec.status === 'new_leads') {
-          let has14DaysNo = false;
-          let hasVideoNo = false;
-          let hasDonationNo = false;
-          
-          const raw = lead._rawRecord || lead.dynamicAnswers || {};
-          
-          Object.entries(raw).forEach(([q, a]) => {
-            const qLower = q.toLowerCase();
-            const aLower = String(a).toLowerCase().trim();
-            
-            const isNegative = aLower === 'no' || aLower === 'n' || aLower.startsWith('no ') || aLower.includes('not ready') || aLower.includes('cannot') || aLower === 'none';
-            
-            if (qLower.includes('14 day') || qLower.includes('attend_all')) {
-               if (isNegative) has14DaysNo = true;
-            }
-            if (qLower.includes('video') || qLower.includes('video_on')) {
-               if (isNegative) hasVideoNo = true;
-            }
-            if (qLower.includes('donation') || qLower.includes('contribute')) {
-               if (isNegative || aLower === '0' || aLower === 'zero' || aLower.includes('nil')) hasDonationNo = true;
-            }
-          });
-          
-          if (has14DaysNo && hasVideoNo && hasDonationNo) {
-            newDecisions[lead.id] = { ...currentDec, isRejected: true, reason: 'Auto-Rejected by AI: Said NO to 14 days, Video, and Contribution' };
-            hasChanges = true;
-          }
-        }
-      });
-
-      if (hasChanges) {
-        if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-        setTimeout(() => toast.info('🤖 AI Worker: Auto-rejected leads that denied all 3 conditions'), 0);
-        return newDecisions;
-      }
-      return prev;
-    });
-  }, [activeBatchLeads, toast]);
 
   const currentTabLeads = React.useMemo(() => {
     if (activeTab === 'new_leads' || activeTab === 'approval_1') {
