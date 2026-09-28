@@ -172,6 +172,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### Workshop Attendance Sync JSON and Gateway Timeout Fix (Session: September 28, 2026) — Commit `pending`
+
+- Made the Workshop Management attendance sync client safely parse plain-text/HTML gateway errors instead of throwing `Unexpected token 'A'` from `response.json()`.
+- Manual sync now requests only the current date by default; historical reconciliation remains handled by the three-hour cron and avoids long serverless requests.
+
 ### Workshop Attendance Manual Sync Timeout Fix (Session: September 28, 2026) — Commit `1d4cc185`
 
 - Increased `app/api/admin/crm/workshop-management/attendance/zoom/route.ts` from 60 to 300 seconds.

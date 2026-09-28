@@ -686,8 +686,16 @@ export default function WorkshopManagementPage() {
         headers,
         body: JSON.stringify({ cohortId: selected._id }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not sync Zoom attendance');
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        data = { error: responseText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() };
+      }
+      if (!res.ok) {
+        throw new Error(data.error || `Zoom attendance sync failed (${res.status})`);
+      }
       await load(selected._id);
       const result = data.result || {};
       alert(result.skipped
