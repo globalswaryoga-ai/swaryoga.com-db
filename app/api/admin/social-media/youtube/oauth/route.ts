@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,12 +28,8 @@ export async function GET(request: NextRequest) {
 
     // Get OAuth credentials
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
-    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
-    const host = rawHost.split(':')[0]; // Strip any port
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const redirectUri = `${protocol}://${host}/api/admin/social-media/youtube/oauth/callback`;
+    const baseUrl = getRequestBaseUrl(request) || 'https://swaryoga.com';
+    const redirectUri = `${baseUrl}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId) {
       return NextResponse.json(

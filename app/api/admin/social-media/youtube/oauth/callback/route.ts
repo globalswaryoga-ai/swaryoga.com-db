@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { encryptCredential } from '@/lib/encryption';
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,12 +30,7 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const state = searchParams.get('state'); // Contains adminToken for auth
 
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    const cleanForwardedHost = forwardedHost ? forwardedHost.split(',')[0].trim() : null;
-    const rawHost = cleanForwardedHost || request.headers.get("host") || request.nextUrl.host;
-    const host = rawHost.split(':')[0]; // Strip any port
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const baseUrl = `${protocol}://${host}`;
+    const baseUrl = getRequestBaseUrl(request) || 'https://swaryoga.com';
 
     // Handle OAuth errors
     if (error) {
