@@ -1,13 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, QrCode, FileText, MessagesSquare, BarChart3, Plus, X, RefreshCw, Trash2, Edit2, ArrowRightLeft, Radio } from 'lucide-react';
+import { MessageSquare, QrCode, FileText, MessagesSquare, BarChart3, Plus, X, RefreshCw, Trash2, Edit2, ArrowRightLeft, Radio, Users } from 'lucide-react';
 import CreateTemplatePage from '@/app/admin/crm/templates/builder/page';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { BroadcastNRTab } from './_BroadcastNRTab';
+import dynamic from 'next/dynamic';
+
+// Dynamically import heavy broadcast pages to avoid SSR issues
+const MetaBroadcastPage = dynamic(
+  () => import('@/app/admin/crm/broadcast/page'),
+  { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-slate-400"><RefreshCw className="animate-spin" /></div> }
+);
+const QRBroadcastPage = dynamic(
+  () => import('@/app/admin/crm/qr/broadcast/page'),
+  { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-slate-400"><RefreshCw className="animate-spin" /></div> }
+);
+const GroupSchedulerPage = dynamic(
+  () => import('@/app/admin/crm/qr/group-scheduler/page'),
+  { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-slate-400"><RefreshCw className="animate-spin" /></div> }
+);
 
 const WhatsAppTabs = [
   { id: 'meta_whatsapp', label: 'Meta WhatsApp', icon: MessageSquare },
   { id: 'qr_whatsapp', label: 'QR WhatsApp', icon: QrCode },
+  { id: 'group_message', label: 'Group Message', icon: Users },
   { id: 'template', label: 'Template', icon: FileText },
   { id: 'all_messages', label: 'All Messages', icon: MessagesSquare },
   { id: 'broadcast_nr', label: 'Broadcast-NR', icon: Radio },
@@ -345,15 +361,32 @@ export function WhatsAppMessengerTab({
           </div>
         )}
 
-        {['meta_whatsapp', 'qr_whatsapp', 'reports'].includes(activeSubTab) && (
+        {/* Meta WhatsApp — full broadcast page embedded */}
+        {activeSubTab === 'meta_whatsapp' && (
+          <div className="flex-1 overflow-auto">
+            <MetaBroadcastPage />
+          </div>
+        )}
+
+        {/* QR WhatsApp — full QR broadcast wizard embedded */}
+        {activeSubTab === 'qr_whatsapp' && (
+          <div className="flex-1 overflow-auto">
+            <QRBroadcastPage />
+          </div>
+        )}
+
+        {/* Group Message — full group scheduler embedded */}
+        {activeSubTab === 'group_message' && (
+          <div className="flex-1 overflow-auto">
+            <GroupSchedulerPage />
+          </div>
+        )}
+
+        {activeSubTab === 'reports' && (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-slate-500">
-            <MessageSquare className="w-16 h-16 mb-4 text-slate-300" />
-            <h2 className="text-xl font-bold text-slate-700 capitalize">
-              {activeSubTab.replace('_', ' ')}
-            </h2>
-            <p className="mt-2 text-sm text-center max-w-md">
-              This space is reserved for the {activeSubTab.replace('_', ' ')} details. Please provide the implementation details for this section!
-            </p>
+            <BarChart3 className="w-16 h-16 mb-4 text-slate-300" />
+            <h2 className="text-xl font-bold text-slate-700">Reports</h2>
+            <p className="mt-2 text-sm text-center max-w-md">Broadcast reports coming soon.</p>
           </div>
         )}
 
