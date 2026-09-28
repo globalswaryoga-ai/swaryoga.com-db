@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Broadcast Page and CRM Request Stability Fix (Session: September 28, 2026) — Commit `pending`
+### Broadcast Page and CRM Request Stability Fix (Session: September 28, 2026) — Commit `4afadfc9`
 
 - Hardened `hooks/useCRM.ts` so interrupted/network responses no longer crash pages with `Cannot read properties of undefined (reading 'status')`.
 - Fixed the legacy Zoom Settings POST/PATCH/DELETE auth bug caused by an undefined `admin()` helper.
