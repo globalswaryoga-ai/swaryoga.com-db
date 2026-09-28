@@ -227,7 +227,11 @@ export function LeadsManagementTab({
           approvedCount++;
         } else {
           if (type === 'AI-4B') {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+            if (!hasAnyMatch && evaluatedCount > 0) {
+              newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'rejected_leads', isRejected: true, isRegistered: false, reason: '100% Failed: ' + reasons.join(' | ') };
+            } else {
+              newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+            }
           } else if (type === 'AI-4C') {
             newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'rejected_leads', isRejected: true, reason: '100% Failed: ' + reasons.join(' | ') };
           } else {
@@ -284,10 +288,13 @@ export function LeadsManagementTab({
           
           const reasons: string[] = [];
           let passed = true;
+          let hasAnyMatch = false;
+          let evaluatedCount = 0;
 
           conditions.forEach(c => {
             const isAge = c.question.toLowerCase().includes('age');
             if (!c.keyword.trim() && !isAge) return;
+            evaluatedCount++;
 
             const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
             
@@ -295,6 +302,7 @@ export function LeadsManagementTab({
               const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
               if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
                 // passes background check
+                hasAnyMatch = true;
               } else {
                 passed = false;
                 reasons.push(`Age not 30-64 (Found: ${textToSearch || 'None'})`);
@@ -307,7 +315,9 @@ export function LeadsManagementTab({
             
             const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
             
-            if (!matchedAny) {
+            if (matchedAny) {
+              hasAnyMatch = true;
+            } else {
               passed = false;
               const shortQ = c.question ? c.question.substring(0, 35) + '...' : `Keyword "${c.keyword}"`;
               reasons.push(`Failed: ${shortQ}`);
@@ -324,10 +334,18 @@ export function LeadsManagementTab({
               hasChanges = true;
             }
           } else {
-            if (currentStatus !== 'pending_leads_3') {
-              newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
-              pendingCount++;
-              hasChanges = true;
+            if (!hasAnyMatch && evaluatedCount > 0) {
+              if (currentStatus !== 'rejected_leads') {
+                newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'rejected_leads', isRejected: true, isRegistered: false, reason: '100% Failed: ' + reasons.join(' | ') };
+                pendingCount++;
+                hasChanges = true;
+              }
+            } else {
+              if (currentStatus !== 'pending_leads_3') {
+                newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+                pendingCount++;
+                hasChanges = true;
+              }
             }
           }
         });
@@ -602,10 +620,10 @@ export function LeadsManagementTab({
                           
                           const isPending = leadStatus.includes('pending');
                           
-                          const rowBg = isRejected 
-                            ? 'bg-purple-100/70 hover:bg-purple-200/70'
-                            : isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
+                          const rowBg = activeTab.includes('approval') || isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
                             ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
+                            : isRejected 
+                            ? 'bg-purple-100/70 hover:bg-purple-200/70'
                             : isPending
                             ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
                             : 'hover:bg-slate-50 transition-colors';
@@ -668,21 +686,15 @@ export function LeadsManagementTab({
                             <td className="px-4 py-3">{lead.gender || '-'}</td>
                             <td className="px-4 py-3">{lead.city || '-'}</td>
                             <td className="px-4 py-3 text-xs text-slate-500">
-                              {activeTab !== 'new_leads' && batchDecisions[lead.id]?.reason ? (
-                                <span className={batchDecisions[lead.id]?.status.includes('pending') ? 'text-red-500 font-medium' : 'text-emerald-600 font-medium'}>
-                                  {batchDecisions[lead.id]?.reason}
-                                </span>
-                              ) : (
-                                lead._rawRecord?.['Timestamp'] || '-'
-                              )}
+                              {lead._rawRecord?.['Timestamp'] || '-'}
                             </td>
                             <td className="px-4 py-3 text-right flex justify-end gap-2">
-                              {leadStatus.includes('pending') && (
+                              {leadStatus.includes('pending') && batchDecisions[lead.id]?.reason && (
                                 <button
                                   onClick={() => setSelectedQueryLeadId(lead.id)}
-                                  className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded hover:bg-yellow-200 transition-colors"
+                                  className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded hover:bg-yellow-200 transition-colors whitespace-nowrap"
                                 >
-                                  Query
+                                  Query-{batchDecisions[lead.id].reason.split(' | ').length}
                                 </button>
                               )}
                               {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
