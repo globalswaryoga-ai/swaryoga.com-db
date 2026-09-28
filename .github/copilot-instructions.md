@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Zoom Recording Bunny/YouTube and Trash Recovery Fix (Session: September 28, 2026) — Commit `pending`
+### Zoom Recording Bunny/YouTube and Trash Recovery Fix (Session: September 28, 2026) — Commit `53b83eb2`
 
 - Updated `scripts/zoom-recording-uploader.mjs` to load the canonical Bunny SQL YouTube account and Zoom mappings instead of relying on the legacy archive.
 - Bunny now stores both Speaker and Gallery MP4 URLs, matching the YouTube two-view workflow and the workshop UI.
