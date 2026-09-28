@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Broadcast Page and CRM Request Stability Fix (Session: September 28, 2026) — Commit `pending`
+
+- Hardened `hooks/useCRM.ts` so interrupted/network responses no longer crash pages with `Cannot read properties of undefined (reading 'status')`.
+- Fixed the legacy Zoom Settings POST/PATCH/DELETE auth bug caused by an undefined `admin()` helper.
+- Broadcast APIs remain Bunny SQL-backed; initial page status/validation requests now fail with readable errors instead of taking down the page shell.
+
 ### Workshop Attendance Analytics Zoom-Style Summary (Session: September 28, 2026) — Commit `5a3e0f1f`
 
 - Added Zoom Analytics-style summary cards and A–E grade distribution to the Workshop Students Attendance Analytics tab.

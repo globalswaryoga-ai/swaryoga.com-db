@@ -6,6 +6,12 @@ export const dynamic = 'force-dynamic';
 
 const MAPPINGS_FILE_KEY = 'config/zoom-mappings.json';
 
+function verifyAdminRequest(request: NextRequest) {
+  const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
+  const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
+  return verifyToken(token);
+}
+
 // Helper to get mappings from Bunny Storage
 async function getMappings() {
   try {
@@ -52,7 +58,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!admin(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!verifyAdminRequest(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     const body = await request.json();
     const { zoomMeetingId, communityId, zoomTopic, thumbnailUrl, googleFormUrl, crmFormId } = body;
 
@@ -106,7 +112,7 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    if (!admin(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!verifyAdminRequest(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     const body = await request.json();
     const { id, zoomTopic, thumbnailUrl, youtubePlaylistName, googleFormUrl, crmFormId } = body;
     if (!id) {
@@ -142,7 +148,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    if (!admin(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!verifyAdminRequest(request)?.isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     const id = request.nextUrl.searchParams.get('id');
     if (!id) {
       return NextResponse.json({ error: 'id parameter required' }, { status: 400 });

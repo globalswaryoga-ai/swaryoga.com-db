@@ -17,7 +17,8 @@ interface FetchOptions {
   silent?: boolean; // NEW: option to bypass loading state
 }
 
-async function getHttpErrorMessage(response: Response, fallbackPrefix = 'API error') {
+async function getHttpErrorMessage(response: Response | null | undefined, fallbackPrefix = 'API error') {
+  if (!response) return `${fallbackPrefix}: Network request failed or was interrupted.`;
   const errorData = await response.json().catch(() => ({} as any));
   const serverMessage = errorData?.error || errorData?.message || '';
 
@@ -151,7 +152,7 @@ export function useCRM(options: UseCRMOptions = {}) {
         });
 
         // Treat 2xx status codes as success (200, 201, 202 Accepted, etc.)
-        if (response.status < 200 || response.status >= 300) {
+        if (!response || response.status < 200 || response.status >= 300) {
           if (response.status === 401) {
             // Token missing/expired/invalid. Clear local storage and redirect.
             handleUnauthorized();
