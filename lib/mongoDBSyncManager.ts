@@ -20,31 +20,9 @@ if (!cached) {
 }
 
 export const connectDB = async () => {
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-      dbName: MAIN_DB_NAME,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      console.log('✅ Connected to MongoDB');
-      return mongoose;
-    });
-  }
-
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    console.error('❌ MongoDB connection failed:', e);
-    throw e;
-  }
-
-  return cached.conn;
+  console.log('✅ MongoDB connection bypassed in SyncManager. Using Bunny Database exclusively.');
+  mongoose.set('bufferCommands', false);
+  return mongoose;
 };
 
 // Backup Schema

@@ -33,121 +33,19 @@ declare global {
 }
 
 export const connectDB = async () => {
-  const connectOnce = async () => {
-    // Safe because we always guard for missing MONGODB_URI before calling connectOnce().
-    console.log(`📡 Connecting to MongoDB: ${MONGODB_URI?.split('@')[1] || 'URI hidden'}...`);
-    const conn = await mongoose.connect(MONGODB_URI as string, {
-      dbName: MAIN_DB_NAME,
-      serverSelectionTimeoutMS: 8000,
-      socketTimeoutMS: 30000,
-      retryWrites: true,
-      // Serverless: many concurrent instances each open their own pool, so keep
-      // per-instance pools small and let idle ones fully release — avoids piling
-      // up connections on Atlas (which then refuses TLS handshakes / SSL alert 80).
-      maxPoolSize: 10,
-      minPoolSize: 0,
-      connectTimeoutMS: 8000,
-      maxIdleTimeMS: 30000,
-      waitQueueTimeoutMS: 5000,
-      family: 4,
-    });
-    return conn;
-  };
-
-  try {
-    if (!MONGODB_URI) {
-      const msg = 'MongoDB URI is not configured (set MONGODB_URI_MAIN or MONGODB_URI)';
-      console.error('❌ ' + msg);
-      lastConnectionStatus = 'Not Configured';
-      throw new Error(msg);
-    }
-
-    if ((mongoose.connection.readyState as number) === 1) {
-      // Trust an already-established connection. The driver's own heartbeat
-      // (heartbeatFrequencyMS) + pool manage liveness and replace dead sockets.
-      // NOTE: we deliberately do NOT ping+disconnect on every request — under
-      // concurrent load that caused reconnect storms and Atlas refusing TLS
-      // handshakes ("SSL routines ... SSL alert number 80"). A rare stale socket
-      // will surface on the query and be retried by the pool, which is far
-      // cheaper than tearing down the whole connection on every call.
-      lastConnectionStatus = 'Connected';
-      return mongoose.connection;
-    }
-
-    // Prefer a global singleton promise so concurrent requests don't create
-    // multiple pools/connections.
-    if (globalThis.__mongooseConnectionPromise) {
-      console.log('⏳ MongoDB connection already in progress (global)...');
-      await globalThis.__mongooseConnectionPromise;
-      // After awaiting, verify the connection is actually usable
-      if (mongoose.connection.readyState === 1) {
-        lastConnectionStatus = 'Connected';
-        return mongoose.connection;
-      }
-      // Promise resolved but connection dropped — clear stale promise and reconnect
-      console.warn('⚠️  Global promise resolved but connection not ready (state:', mongoose.connection.readyState, '), reconnecting...');
-      globalThis.__mongooseConnectionPromise = undefined;
-    }
-
-    if (isConnecting) {
-      console.log('⏳ MongoDB connection already in progress (local), waiting...');
-      // Wait briefly for the connection to establish rather than returning immediately
-      for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        if (mongoose.connection.readyState === 1) {
-          lastConnectionStatus = 'Connected';
-          return mongoose.connection;
-        }
-      }
-      // If still not connected after waiting, fall through to reconnect
-      console.warn('⚠️  Waited 10s but connection still not ready, forcing reconnect...');
-      isConnecting = false;
-    }
-
-    isConnecting = true;
-    lastConnectionStatus = 'Connecting...';
-    console.log('🔄 Attempting to connect to MongoDB...');
-
-    globalThis.__mongooseConnectionPromise = (async () => {
-      let conn;
-      try {
-        conn = await connectOnce();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        // We've observed intermittent TLS/pool-reset errors on some networks.
-        // A single retry (after resetting the pool) often succeeds.
-        const isTlsLike = /tlsv1 alert internal error|ERR_SSL|SSL routines/i.test(msg);
-        console.warn('⚠️  MongoDB first connect attempt failed:', msg);
-        if (!isTlsLike) throw err;
-
-        try {
-          await mongoose.disconnect();
-        } catch (_e) {
-          // ignore
-        }
-        console.log('🔁 Retrying MongoDB connection once...');
-        conn = await connectOnce();
-      }
-      return conn;
-    })();
-
-    const conn = await globalThis.__mongooseConnectionPromise;
-    // Clear the promise after successful connection so future calls re-check readyState
-    globalThis.__mongooseConnectionPromise = undefined;
-    const actualDbName = conn.connection?.db?.databaseName;
-    console.log(`✅ Successfully connected to MongoDB (db: ${actualDbName || 'unknown'})`);
-    lastConnectionStatus = 'Connected';
-    return conn.connection;
-  } catch (error) {
-    isConnecting = false;
-    globalThis.__mongooseConnectionPromise = undefined;
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('❌ MongoDB connection error:', errorMsg);
-    lastConnectionStatus = `Error: ${errorMsg}`;
-    throw error;
-  } finally {
-    isConnecting = false;
-  }
+  // BYPASS MONGODB CONNECTION
+  // The user requested to remove MongoDB and use Bunny Database exclusively
+  // to avoid IP whitelisting errors.
+  console.log('✅ MongoDB connection bypassed. Using Bunny Database exclusively.');
+  
+  // Disable Mongoose buffering so that any accidental MongoDB queries fail fast
+  // instead of hanging the application indefinitely.
+  mongoose.set('bufferCommands', false);
+  
+  lastConnectionStatus = 'Bypassed (Using Bunny DB)';
+  
+  // Return a mock connection object to satisfy any callers expecting one
+  return mongoose.connection;
 };
 
 // Export connection status for API
