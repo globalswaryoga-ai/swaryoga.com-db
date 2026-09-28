@@ -505,11 +505,11 @@ export default function SocialMediaAdmin() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                               <div className="bg-slate-700 p-3 rounded">
                                 <p className="text-slate-400 text-sm">Followers</p>
-                                <p className="text-white font-bold text-lg">{account.metadata.followers || 0}</p>
+                                <p className="text-white font-bold text-lg">{account.metadata?.followers || 0}</p>
                               </div>
                               <div className="bg-slate-700 p-3 rounded">
                                 <p className="text-slate-400 text-sm">Posts</p>
-                                <p className="text-white font-bold text-lg">{account.metadata.postsCount || 0}</p>
+                                <p className="text-white font-bold text-lg">{account.metadata?.postsCount || 0}</p>
                               </div>
                               <div className="bg-slate-700 p-3 rounded">
                                 <p className="text-slate-400 text-sm">Status</p>
@@ -1027,16 +1027,16 @@ export default function SocialMediaAdmin() {
                     <div className="space-y-3">
                       <div>
                         <p className="text-slate-400 text-sm">Followers</p>
-                        <p className="text-white text-2xl font-bold">{account.metadata.followers || 0}</p>
+                        <p className="text-white text-2xl font-bold">{account.metadata?.followers || 0}</p>
                       </div>
                       <div>
                         <p className="text-slate-400 text-sm">Posts</p>
-                        <p className="text-white text-2xl font-bold">{account.metadata.postsCount || 0}</p>
+                        <p className="text-white text-2xl font-bold">{account.metadata?.postsCount || 0}</p>
                       </div>
                       <div>
                         <p className="text-slate-400 text-sm">Last Synced</p>
                         <p className="text-slate-200 text-sm">
-                          {account.metadata.lastSyncedAt ? new Date(account.metadata.lastSyncedAt).toLocaleString() : '—'}
+                          {account.metadata?.lastSyncedAt ? new Date(account.metadata.lastSyncedAt).toLocaleString() : '—'}
                         </p>
                       </div>
                     </div>
