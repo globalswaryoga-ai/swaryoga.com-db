@@ -171,6 +171,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Meta Inbox Template Image History Fix (Session: September 29, 2026) — Commit `pending`
+
+- Preserved template header media metadata in Bunny Meta message records from `app/api/admin/crm/whatsapp/send-template/route.ts`.
+- Image/video templates sent to students now render in the CRM inbox without resending or duplicating the message.
+
 ### Broadcast Recurring Availability Fix (Session: September 28, 2026) — Commit `2371ae30`
 
 - Made `GET /api/admin/crm/broadcast-recurring` degrade to an empty schedule list when the legacy recurring schedule store is unavailable.

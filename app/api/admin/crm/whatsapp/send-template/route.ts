@@ -116,6 +116,15 @@ export async function POST(request: NextRequest) {
         cost: cost,
         category: templateCategory,
         channel: 'meta',
+        // Preserve the rendered template header so the Bunny-backed inbox can
+        // display image/video templates after delivery. This is metadata only;
+        // it does not trigger another send.
+        template: {
+          templateName: t.templateName || t.name,
+          headerFormat: t.headerFormat || undefined,
+          headerContent: t.headerContent || undefined,
+          headerMedia: cloudInput.headerMedia || undefined,
+        },
       },
       messageContent: String(t.templateContent || '').trim() || '(template)',
       direction: 'outbound',
