@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, QrCode, FileText, MessagesSquare, BarChart3, Plus, X, RefreshCw, Trash2, Edit2, ArrowRightLeft } from 'lucide-react';
+import { MessageSquare, QrCode, FileText, MessagesSquare, BarChart3, Plus, X, RefreshCw, Trash2, Edit2, ArrowRightLeft, Radio } from 'lucide-react';
 import CreateTemplatePage from '@/app/admin/crm/templates/builder/page';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
+import { BroadcastNRTab } from './_BroadcastNRTab';
 
 const WhatsAppTabs = [
   { id: 'meta_whatsapp', label: 'Meta WhatsApp', icon: MessageSquare },
   { id: 'qr_whatsapp', label: 'QR WhatsApp', icon: QrCode },
   { id: 'template', label: 'Template', icon: FileText },
   { id: 'all_messages', label: 'All Messages', icon: MessagesSquare },
+  { id: 'broadcast_nr', label: 'Broadcast-NR', icon: Radio },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ] as const;
 
@@ -29,7 +31,13 @@ function getProxiedMediaUrl(url: string, authToken: string | null): string {
   return url;
 }
 
-export function WhatsAppMessengerTab() {
+export function WhatsAppMessengerTab({
+  workshops = [],
+  leadsData = [],
+}: {
+  workshops?: any[];
+  leadsData?: any[];
+}) {
   const [activeSubTab, setActiveSubTab] = useState<string>('meta_whatsapp');
   
   // Template Creation State
@@ -347,6 +355,10 @@ export function WhatsAppMessengerTab() {
               This space is reserved for the {activeSubTab.replace('_', ' ')} details. Please provide the implementation details for this section!
             </p>
           </div>
+        )}
+
+        {activeSubTab === 'broadcast_nr' && (
+          <BroadcastNRTab workshops={workshops} leadsData={leadsData} />
         )}
       </div>
 
