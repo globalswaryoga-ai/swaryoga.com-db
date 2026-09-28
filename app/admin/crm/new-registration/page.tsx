@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkshopFormTab } from './_WorkshopFormTab';
 import { LeadsManagementTab } from './_LeadsManagementTab';
+import { WhatsAppMessengerTab } from './_WhatsAppMessengerTab';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import {
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
@@ -14,7 +15,7 @@ export default function NewRegistrationPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'my_batches' | 'leads_management' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
+  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'my_batches' | 'leads_management' | 'whatsapp_messenger' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
   const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
@@ -1281,6 +1282,7 @@ export default function NewRegistrationPage() {
     { id: 'my_data', label: 'My Data', icon: Database },
     { id: 'my_batches', label: 'My Batches', icon: Folder },
     { id: 'leads_management', label: 'Leads Management', icon: Users },
+    { id: 'whatsapp_messenger', label: 'WhatsApp Messenger', icon: MessageSquare },
   ] as const;
 
   const LeadSubTabs = [
@@ -1592,257 +1594,257 @@ export default function NewRegistrationPage() {
     <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
 
       {/* Global Sidebar for Batch Selection */}
-      {activeTab !== 'leads_management' && (
+      {(activeTab !== 'leads_management' && activeTab !== 'whatsapp_messenger') && (
         <aside className={`bg-white flex flex-col flex-shrink-0 z-20 transition-all duration-300 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            {!isSidebarCollapsed && (
-              <h2 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                Workshops
-              </h2>
-            )}
-            <div className={`flex items-center gap-1 ${isSidebarCollapsed ? 'w-full justify-center flex-col' : ''}`}>
-              <button
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
-                title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {isSidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-              </button>
-              <button
-                onClick={() => setSidebarPosition(p => p === 'left' ? 'right' : 'left')}
-                className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
-                title={`Move sidebar to ${sidebarPosition === 'left' ? 'right' : 'left'}`}
-              >
-                <ArrowLeftRight size={16} />
-              </button>
+          <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              {!isSidebarCollapsed && (
+                <h2 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                  Workshops
+                </h2>
+              )}
+              <div className={`flex items-center gap-1 ${isSidebarCollapsed ? 'w-full justify-center flex-col' : ''}`}>
+                <button
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                  title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                  {isSidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+                </button>
+                <button
+                  onClick={() => setSidebarPosition(p => p === 'left' ? 'right' : 'left')}
+                  className="p-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                  title={`Move sidebar to ${sidebarPosition === 'left' ? 'right' : 'left'}`}
+                >
+                  <ArrowLeftRight size={16} />
+                </button>
+              </div>
             </div>
+
+            {!isSidebarCollapsed ? (
+              <button
+                onClick={() => setIsAddBatchModalOpen(true)}
+                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
+              >
+                <Plus size={16} /> Add Folder +
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsAddBatchModalOpen(true)}
+                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
+                title="Add Folder +"
+              >
+                <Plus size={16} />
+              </button>
+            )}
           </div>
 
-          {!isSidebarCollapsed ? (
-            <button
-              onClick={() => setIsAddBatchModalOpen(true)}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 shadow-sm w-full"
-            >
-              <Plus size={16} /> Add Folder +
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsAddBatchModalOpen(true)}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:scale-105 transition-transform text-white font-bold p-2.5 rounded-lg flex items-center justify-center shadow-sm w-full"
-              title="Add Folder +"
-            >
-              <Plus size={16} />
-            </button>
-          )}
-        </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {/* Languages Sidebar (Always visible) */}
+            {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches') && (
+              <>
+                {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Languages</div>}
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {/* Languages Sidebar (Always visible) */}
-          {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches') && (
-            <>
-              {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Languages</div>}
-
-              {/* Stacked list for All Leads / My Data */}
-              {(activeTab === 'all_leads' || activeTab === 'my_data') && (
-                <div className="space-y-2">
-                  {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
-                    <div
-                      key={lang}
-                      onClick={() => {
-                        setSelectedDashboardLang(lang);
-                        const masterWorkshop = workshops.find((w: any) =>
-                          !w.id.startsWith('batch_') &&
-                          (w.language?.toLowerCase() === lang.toLowerCase() ||
-                            (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
-                            w.id.toLowerCase().includes(lang.toLowerCase()))
-                        ) || workshops.find((w: any) =>
-                          !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
-                        );
-                        setSelectedWorkshop(masterWorkshop || null);
-                        if (activeTab !== 'my_data') setActiveTab('all_leads'); // Route to All Leads Data if not in my_data
-                      }}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedDashboardLang === lang
-                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
-                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-                        } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                      title={isSidebarCollapsed ? lang : undefined}
-                    >
-                      {isSidebarCollapsed ? (
-                        <div className="font-bold text-sm">{lang.substring(0, 2)}</div>
-                      ) : (
-                        <h3 className={`font-bold text-sm ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>{lang}</h3>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 2x2 grid for My Batches */}
-              {activeTab === 'my_batches' && (
-                <div className="grid grid-cols-2 gap-2 animate-fade-in">
-                  {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
-                    <div
-                      key={lang}
-                      onClick={() => {
-                        setSelectedDashboardLang(lang);
-                        const masterWorkshop = workshops.find((w: any) =>
-                          !w.id.startsWith('batch_') &&
-                          (w.language?.toLowerCase() === lang.toLowerCase() ||
-                            (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
-                            w.id.toLowerCase().includes(lang.toLowerCase()))
-                        ) || workshops.find((w: any) =>
-                          !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
-                        );
-                        setSelectedWorkshop(masterWorkshop || null);
-                      }}
-                      className={`p-2 rounded-xl border cursor-pointer transition-all flex items-center justify-center text-center ${selectedDashboardLang === lang
-                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
-                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-                        }`}
-                      title={lang}
-                    >
-                      <div className={`font-bold text-xs ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>
-                        {isSidebarCollapsed ? lang.substring(0, 2) : lang}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Batches list only for My Batches */}
-              {activeTab === 'my_batches' && !isSidebarCollapsed && (
-                <div className="mt-6 animate-fade-in">
-                  <div className="flex items-center justify-between mb-2 px-2 border-t pt-4">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      {selectedDashboardLang} Batches
-                    </div>
-                    {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
-                            setWorkshops(prev => prev.filter(w => !((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_'))));
-                            if (selectedWorkshop?.id?.startsWith('batch_')) setSelectedWorkshop(null);
-                          }
-                        }}
-                        className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
-                      >
-                        <Trash2 size={10} /> Clear All
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length === 0 && (
-                      <div className="px-2 py-3 text-xs text-slate-400 italic">No batches created yet. Go to My Data and click AI-1.</div>
-                    )}
-                    {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).map(batch => (
+                {/* Stacked list for All Leads / My Data */}
+                {(activeTab === 'all_leads' || activeTab === 'my_data') && (
+                  <div className="space-y-2">
+                    {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
                       <div
-                        key={batch.id}
+                        key={lang}
                         onClick={() => {
-                          setSelectedWorkshop(batch);
-                          setActiveTab('my_batches');
+                          setSelectedDashboardLang(lang);
+                          const masterWorkshop = workshops.find((w: any) =>
+                            !w.id.startsWith('batch_') &&
+                            (w.language?.toLowerCase() === lang.toLowerCase() ||
+                              (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
+                              w.id.toLowerCase().includes(lang.toLowerCase()))
+                          ) || workshops.find((w: any) =>
+                            !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
+                          );
+                          setSelectedWorkshop(masterWorkshop || null);
+                          if (activeTab !== 'my_data') setActiveTab('all_leads'); // Route to All Leads Data if not in my_data
                         }}
-                        className={`p-2 rounded-lg border cursor-pointer transition-all text-xs flex justify-between items-center ${selectedWorkshop?.id === batch.id
-                            ? 'border-indigo-300 bg-indigo-50 text-indigo-800 font-bold shadow-sm'
-                            : 'border-transparent hover:bg-slate-100 text-slate-600'
-                          }`}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedDashboardLang === lang
+                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
+                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
+                          } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                        title={isSidebarCollapsed ? lang : undefined}
                       >
-                        <span className="break-words w-full pr-2 leading-tight" title={batch.name}>{batch.name}</span>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{batch.leads || 0}</span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setWorkshops(prev => {
-                                const copy = [...prev];
-                                const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
-                                const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
-                                if (currentI > 0) {
-                                  const prevIdx = batchIndices[currentI - 1];
-                                  const currIdx = batchIndices[currentI];
-                                  [copy[prevIdx], copy[currIdx]] = [copy[currIdx], copy[prevIdx]];
-                                }
-                                return copy;
-                              });
-                            }}
-                            className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
-                            title="Move Up"
-                          >
-                            <ChevronUp size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setWorkshops(prev => {
-                                const copy = [...prev];
-                                const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
-                                const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
-                                if (currentI < batchIndices.length - 1) {
-                                  const nextIdx = batchIndices[currentI + 1];
-                                  const currIdx = batchIndices[currentI];
-                                  [copy[nextIdx], copy[currIdx]] = [copy[currIdx], copy[nextIdx]];
-                                }
-                                return copy;
-                              });
-                            }}
-                            className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
-                            title="Move Down"
-                          >
-                            <ChevronDown size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the other batch:", batch.name);
-                              if (newName && newName !== batch.name) {
-                                const targetBatch = workshops.find((w: any) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === (batch.language || "English").toLowerCase() && w.name === newName);
-                                if (targetBatch) {
-                                  if (window.confirm(`Merge "${batch.name}" into "${targetBatch.name}"?`)) {
-                                    setWorkshops(prev => prev.map((w: any) => {
-                                      if (w.id === targetBatch.id) {
-                                        const newFilters = Array.from(new Set([...(w.formFilterKeyword || '').split('|'), ...(batch.formFilterKeyword || '').split('|')])).filter(Boolean).join('|');
-                                        return { ...w, formFilterKeyword: newFilters, leads: (w.leads || 0) + (batch.leads || 0) };
-                                      }
-                                      return w;
-                                    }).filter((w: any) => w.id !== batch.id));
-                                    if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(targetBatch);
-                                  }
-                                } else {
-                                  setWorkshops(prev => prev.map((w: any) => w.id === batch.id ? { ...w, name: newName } : w));
-                                  if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(prev => prev ? { ...prev, name: newName } : prev);
-                                }
-                              }
-                            }}
-                            className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
-                            title="Rename or Merge Batch"
-                          >
-                            <Edit2 size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
-                                setWorkshops(prev => prev.filter(w => w.id !== batch.id));
-                                if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
-                              }
-                            }}
-                            className="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-50"
-                            title="Delete Batch"
-                          >
-                            <X size={12} />
-                          </button>
+                        {isSidebarCollapsed ? (
+                          <div className="font-bold text-sm">{lang.substring(0, 2)}</div>
+                        ) : (
+                          <h3 className={`font-bold text-sm ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>{lang}</h3>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 2x2 grid for My Batches */}
+                {activeTab === 'my_batches' && (
+                  <div className="grid grid-cols-2 gap-2 animate-fade-in">
+                    {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
+                      <div
+                        key={lang}
+                        onClick={() => {
+                          setSelectedDashboardLang(lang);
+                          const masterWorkshop = workshops.find((w: any) =>
+                            !w.id.startsWith('batch_') &&
+                            (w.language?.toLowerCase() === lang.toLowerCase() ||
+                              (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
+                              w.id.toLowerCase().includes(lang.toLowerCase()))
+                          ) || workshops.find((w: any) =>
+                            !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
+                          );
+                          setSelectedWorkshop(masterWorkshop || null);
+                        }}
+                        className={`p-2 rounded-xl border cursor-pointer transition-all flex items-center justify-center text-center ${selectedDashboardLang === lang
+                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
+                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        title={lang}
+                      >
+                        <div className={`font-bold text-xs ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>
+                          {isSidebarCollapsed ? lang.substring(0, 2) : lang}
                         </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-            </>
-          )}
+                )}
 
-        </div>
-      </aside>
+                {/* Batches list only for My Batches */}
+                {activeTab === 'my_batches' && !isSidebarCollapsed && (
+                  <div className="mt-6 animate-fade-in">
+                    <div className="flex items-center justify-between mb-2 px-2 border-t pt-4">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        {selectedDashboardLang} Batches
+                      </div>
+                      {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
+                              setWorkshops(prev => prev.filter(w => !((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_'))));
+                              if (selectedWorkshop?.id?.startsWith('batch_')) setSelectedWorkshop(null);
+                            }
+                          }}
+                          className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
+                        >
+                          <Trash2 size={10} /> Clear All
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length === 0 && (
+                        <div className="px-2 py-3 text-xs text-slate-400 italic">No batches created yet. Go to My Data and click AI-1.</div>
+                      )}
+                      {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).map(batch => (
+                        <div
+                          key={batch.id}
+                          onClick={() => {
+                            setSelectedWorkshop(batch);
+                            setActiveTab('my_batches');
+                          }}
+                          className={`p-2 rounded-lg border cursor-pointer transition-all text-xs flex justify-between items-center ${selectedWorkshop?.id === batch.id
+                            ? 'border-indigo-300 bg-indigo-50 text-indigo-800 font-bold shadow-sm'
+                            : 'border-transparent hover:bg-slate-100 text-slate-600'
+                            }`}
+                        >
+                          <span className="break-words w-full pr-2 leading-tight" title={batch.name}>{batch.name}</span>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{batch.leads || 0}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setWorkshops(prev => {
+                                  const copy = [...prev];
+                                  const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
+                                  const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
+                                  if (currentI > 0) {
+                                    const prevIdx = batchIndices[currentI - 1];
+                                    const currIdx = batchIndices[currentI];
+                                    [copy[prevIdx], copy[currIdx]] = [copy[currIdx], copy[prevIdx]];
+                                  }
+                                  return copy;
+                                });
+                              }}
+                              className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
+                              title="Move Up"
+                            >
+                              <ChevronUp size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setWorkshops(prev => {
+                                  const copy = [...prev];
+                                  const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
+                                  const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
+                                  if (currentI < batchIndices.length - 1) {
+                                    const nextIdx = batchIndices[currentI + 1];
+                                    const currIdx = batchIndices[currentI];
+                                    [copy[nextIdx], copy[currIdx]] = [copy[currIdx], copy[nextIdx]];
+                                  }
+                                  return copy;
+                                });
+                              }}
+                              className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
+                              title="Move Down"
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the other batch:", batch.name);
+                                if (newName && newName !== batch.name) {
+                                  const targetBatch = workshops.find((w: any) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === (batch.language || "English").toLowerCase() && w.name === newName);
+                                  if (targetBatch) {
+                                    if (window.confirm(`Merge "${batch.name}" into "${targetBatch.name}"?`)) {
+                                      setWorkshops(prev => prev.map((w: any) => {
+                                        if (w.id === targetBatch.id) {
+                                          const newFilters = Array.from(new Set([...(w.formFilterKeyword || '').split('|'), ...(batch.formFilterKeyword || '').split('|')])).filter(Boolean).join('|');
+                                          return { ...w, formFilterKeyword: newFilters, leads: (w.leads || 0) + (batch.leads || 0) };
+                                        }
+                                        return w;
+                                      }).filter((w: any) => w.id !== batch.id));
+                                      if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(targetBatch);
+                                    }
+                                  } else {
+                                    setWorkshops(prev => prev.map((w: any) => w.id === batch.id ? { ...w, name: newName } : w));
+                                    if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(prev => prev ? { ...prev, name: newName } : prev);
+                                  }
+                                }
+                              }}
+                              className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
+                              title="Rename or Merge Batch"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
+                                  setWorkshops(prev => prev.filter(w => w.id !== batch.id));
+                                  if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
+                                }
+                              }}
+                              className="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-50"
+                              title="Delete Batch"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+          </div>
+        </aside>
       )}
 
       {/* Main Content Area */}
@@ -1877,10 +1879,10 @@ export default function NewRegistrationPage() {
                     setActiveTab(tab.id as any);
                   }}
                   className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id
-                      ? 'border-indigo-600 text-indigo-700'
-                      : canAccessTab(tab.id)
-                        ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                        : 'border-transparent text-slate-300 cursor-not-allowed'
+                    ? 'border-indigo-600 text-indigo-700'
+                    : canAccessTab(tab.id)
+                      ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                      : 'border-transparent text-slate-300 cursor-not-allowed'
                     }`}
                 >
                   <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
@@ -1898,12 +1900,15 @@ export default function NewRegistrationPage() {
             </div>
           )}
           {activeTab === 'leads_management' && (
-            <LeadsManagementTab 
-              workshops={workshops} 
+            <LeadsManagementTab
+              workshops={workshops}
               selectedDashboardLang={selectedDashboardLang}
               selectedWorkshop={selectedWorkshop}
               leadsData={leadsData}
             />
+          )}
+          {activeTab === 'whatsapp_messenger' && (
+            <WhatsAppMessengerTab />
           )}
         </main>
       </div>

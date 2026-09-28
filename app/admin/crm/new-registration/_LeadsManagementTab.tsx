@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 
 const SIDEBAR_TABS = [
   { id: 'new_leads', label: 'New Leads', icon: FileText },
@@ -11,29 +12,31 @@ const SIDEBAR_TABS = [
   { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle },
   { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle },
   { id: 'registered_leads', label: 'Registerd leads', icon: UserCheck },
+  { id: 'set_zoom_meeting', label: 'Set zoom meeting', icon: Calendar },
   { id: 'take_zoom_meeting', label: 'Take Zoom Meeting', icon: Video },
   { id: 'rejected_leads', label: 'Rejected leads', icon: XCircle },
 ];
 
 const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Kannada'];
 
-export function LeadsManagementTab({ 
+export function LeadsManagementTab({
   workshops,
   selectedDashboardLang = 'English',
   selectedWorkshop = null,
   leadsData = []
-}: { 
+}: {
   workshops: any[];
   selectedDashboardLang?: string;
   selectedWorkshop?: any;
   leadsData?: any[];
 }) {
   const toast = useToast();
-  
+
   const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
   const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id?.startsWith('batch_') ? selectedWorkshop.id : '');
   const [activeBatchId, setActiveBatchId] = useState('');
   const [activeTab, setActiveTab] = useState('new_leads');
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 
   const activeBatch = workshops?.find(w => w.id === activeBatchId);
   const activeBatchName = activeBatch?.name || '';
@@ -41,10 +44,10 @@ export function LeadsManagementTab({
   // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
   const activeBatchLeads = React.useMemo(() => {
     if (!activeBatch || !activeBatch.formFilterKeyword || !leadsData) return [];
-    
+
     const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
     const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
-    
+
     return leadsData.filter(lead => {
       if (lead._rawRecord) {
         if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
@@ -56,6 +59,71 @@ export function LeadsManagementTab({
       return true;
     });
   }, [activeBatch, leadsData]);
+
+  // Sync public zoom bookings automatically
+  useEffect(() => {
+    if (!leadsData || leadsData.length === 0) return;
+    
+    const interval = setInterval(() => {
+      const publicBookingsStr = localStorage.getItem('crm_public_zoom_bookings');
+      if (!publicBookingsStr) return;
+      
+      try {
+        let publicBookings = JSON.parse(publicBookingsStr);
+        if (!Array.isArray(publicBookings) || publicBookings.length === 0) return;
+        
+        let changed = false;
+        
+        setBatchDecisions(prev => {
+          const newDecisions = { ...prev };
+          
+          // Try to match each booking to a lead
+          const remainingBookings = publicBookings.filter(booking => {
+            // Find lead by email or exact whatsapp match
+            const matchingLead = leadsData.find(lead => {
+              const leadEmail = (lead.email || '').toLowerCase().trim();
+              const leadRawEmail = (lead._rawRecord?.['Email Address'] || '').toLowerCase().trim();
+              const leadPhone = String(lead.phone || '').replace(/\D/g, '');
+              const leadRawPhone = String(lead._rawRecord?.['WhatsApp Number'] || lead._rawRecord?.['Mobile'] || '').replace(/\D/g, '');
+              
+              return (
+                (booking.email && (booking.email === leadEmail || booking.email === leadRawEmail)) ||
+                (booking.whatsapp && (booking.whatsapp === leadPhone || booking.whatsapp === leadRawPhone))
+              );
+            });
+            
+            if (matchingLead) {
+              // Update zoom details for this lead
+              newDecisions[matchingLead.id] = {
+                ...(newDecisions[matchingLead.id] || {}),
+                zoomDate: booking.date,
+                zoomTime: booking.time,
+                zoomLink: booking.link,
+                zoomStatus: 'pending',
+              };
+              changed = true;
+              return false; // Remove from queue
+            }
+            return true; // Keep in queue
+          });
+          
+          if (changed) {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+              localStorage.setItem('crm_public_zoom_bookings', JSON.stringify(remainingBookings));
+            }
+            toast.success('New public Zoom bookings synced successfully!');
+            return newDecisions;
+          }
+          return prev;
+        });
+      } catch (e) {
+        console.error('Error syncing public bookings', e);
+      }
+    }, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(interval);
+  }, [leadsData]);
 
   const availableQuestions = React.useMemo(() => {
     const questions = new Set<string>();
@@ -74,11 +142,13 @@ export function LeadsManagementTab({
       if (saved) return JSON.parse(saved);
       const oldSettings = localStorage.getItem('crm_ai4_settings');
       if (oldSettings) {
-         const parsed = JSON.parse(oldSettings);
-         return { 'AI-4': [
+        const parsed = JSON.parse(oldSettings);
+        return {
+          'AI-4': [
             { question: parsed.q1 || '', keyword: parsed.f1 || parsed.filter1 || '' },
             { question: parsed.q2 || '', keyword: parsed.f2 || parsed.filter2 || '' }
-         ] };
+          ]
+        };
       }
     }
     return { 'AI-4': [{ question: '', keyword: '' }, { question: '', keyword: '' }] };
@@ -90,7 +160,7 @@ export function LeadsManagementTab({
 
   const openAiModal = (type: 'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C') => {
     const current = aiSettings[type] || [{ question: '', keyword: '' }];
-    setModalConditions(current.map(c => ({...c})));
+    setModalConditions(current.map(c => ({ ...c })));
     setActiveModal(type);
   };
 
@@ -106,7 +176,7 @@ export function LeadsManagementTab({
     const newSettings = { ...aiSettings, [type]: conditions };
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
-    
+
     if (activeBatchId) {
       const metadata = { ...(activeBatch?.metadata || {}), aiSettings: newSettings };
       fetch('/api/admin/crm/workshop-management', {
@@ -115,9 +185,9 @@ export function LeadsManagementTab({
         body: JSON.stringify({ cohortId: activeBatchId, metadata })
       }).catch(console.error);
     }
-    
+
     const hasValidCondition = conditions.some(c => c.keyword.trim() || c.question.toLowerCase().includes('age'));
-    
+
     if (!hasValidCondition) {
       const newDecisions = { ...batchDecisions };
       activeBatchLeads.forEach(lead => {
@@ -148,7 +218,7 @@ export function LeadsManagementTab({
     const newDecisions = { ...batchDecisions };
     let approvedCount = 0;
     let pendingCount = 0;
-    
+
     let targetApprove = '';
     let targetPending = '';
     if (type === 'AI-4') { targetApprove = 'approval_1'; targetPending = 'pending_leads_1'; }
@@ -161,7 +231,7 @@ export function LeadsManagementTab({
       const dec = batchDecisions[lead.id] || {};
       if (dec.isRejected) return false; // Ignore rejected
       if (type !== 'AI-4B' && dec.isRegistered) return false; // Already registered
-      
+
       if (type === 'AI-4') return ['new_leads', 'approval_1', 'pending_leads_1'].includes(currentStatus);
       if (type === 'AI-4A') return ['approval_1', 'approval_2', 'pending_leads_2'].includes(currentStatus);
       if (type === 'AI-4B') return ['new_leads', 'approval_1', 'approval_2', 'pending_leads_3'].includes(currentStatus) || dec.isRegistered;
@@ -169,82 +239,78 @@ export function LeadsManagementTab({
       return false;
     });
 
-      targetLeads.forEach(lead => {
-        const raw = lead._rawRecord || {};
-        const allText = JSON.stringify(raw).toLowerCase();
-        
-        const reasons: string[] = [];
-        let passed = true;
-        let hasAnyMatch = false;
-        let evaluatedCount = 0;
+    targetLeads.forEach(lead => {
+      const raw = lead._rawRecord || {};
+      const allText = JSON.stringify(raw).toLowerCase();
 
-        conditions.forEach(c => {
-          const isAge = c.question.toLowerCase().includes('age');
-          if (!c.keyword.trim() && !isAge) return;
-          evaluatedCount++;
+      const reasons: string[] = [];
+      let passed = true;
+      let hasAnyMatch = false;
+      let evaluatedCount = 0;
 
-          const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
-          
-          if (isAge) {
-            const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
-            if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
-              // passes background check
-              hasAnyMatch = true;
-            } else {
-              passed = false;
-              reasons.push(`Age not 30-64 (Found: ${textToSearch || 'None'})`);
-            }
-            return;
-          }
+      conditions.forEach(c => {
+        const isAge = c.question.toLowerCase().includes('age');
+        if (!c.keyword.trim() && !isAge) return;
+        evaluatedCount++;
 
-          const kw = c.keyword.toLowerCase().trim();
-          const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
-          
-          const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
-          
-          if (matchedAny) {
+        const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
+
+        if (isAge) {
+          const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
+          if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
+            // passes background check
             hasAnyMatch = true;
           } else {
             passed = false;
-            const shortQ = c.question ? c.question.substring(0, 35) + '...' : `Keyword "${c.keyword}"`;
-            reasons.push(`Failed: ${shortQ}`);
+            reasons.push(`Age not 30-64 (Found: ${textToSearch || 'None'})`);
           }
-        });
-
-        if (type === 'AI-4C' && evaluatedCount > 0) {
-          // For AI-4C, if ANY condition passes, the overall result passes. (OR logic)
-          passed = hasAnyMatch;
+          return;
         }
 
-        if (passed) {
-          if (type === 'AI-4B') {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
-          } else if (type === 'AI-4C') {
-            // Keep their current pending status if they pass
-          } else {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
-          }
-          approvedCount++;
+        const kw = c.keyword.toLowerCase().trim();
+        const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
+
+        const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
+
+        if (matchedAny) {
+          hasAnyMatch = true;
         } else {
-          if (type === 'AI-4B') {
-            if (!hasAnyMatch && evaluatedCount > 0) {
-              newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'rejected_leads', isRejected: true, isRegistered: false, reason: '100% Failed: ' + reasons.join(' | ') };
-            } else {
-              newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
-            }
-          } else if (type === 'AI-4C') {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'rejected_leads', isRejected: true, reason: '100% Failed: ' + reasons.join(' | ') };
-          } else {
-            newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
-          }
-          pendingCount++;
+          passed = false;
+          const shortQ = c.question ? c.question.substring(0, 35) + '...' : `Keyword "${c.keyword}"`;
+          reasons.push(`Failed: ${shortQ}`);
         }
       });
-      
-      setBatchDecisions(newDecisions);
-      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-      toast.success(`🤖 ${type} Evaluated! ${approvedCount} Approved, ${pendingCount} Pending.`);
-    
+
+      if (type === 'AI-4C' && evaluatedCount > 0) {
+        // For AI-4C, if ANY condition passes, the overall result passes. (OR logic)
+        passed = hasAnyMatch;
+      }
+
+      if (passed) {
+        if (type === 'AI-4B') {
+          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
+        } else if (type === 'AI-4C') {
+          // Keep their current pending status if they pass
+        } else {
+          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
+        }
+        approvedCount++;
+      } else {
+        if (type === 'AI-4B') {
+          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+        } else if (type === 'AI-4C') {
+          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'rejected_leads', isRejected: true, reason: '100% Failed: ' + reasons.join(' | ') };
+        } else {
+          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
+        }
+        pendingCount++;
+      }
+    });
+
+    setBatchDecisions(newDecisions);
+    if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+    toast.success(`🤖 ${type} Evaluated! ${approvedCount} Approved, ${pendingCount} Pending.`);
+
     setActiveModal(null);
   };
 
@@ -257,10 +323,10 @@ export function LeadsManagementTab({
   // AI-4B Background Worker (Runs every 10 minutes)
   React.useEffect(() => {
     if (!activeBatchId || !activeBatchLeads || activeBatchLeads.length === 0) return;
-    
+
     const conditions = aiSettings['AI-4B'];
     if (!conditions) return;
-    
+
     const hasValidCondition = conditions.some(c => c.keyword.trim() || c.question.toLowerCase().includes('age'));
     if (!hasValidCondition) return;
 
@@ -276,7 +342,7 @@ export function LeadsManagementTab({
           const currentStatus = dec.status || 'new_leads';
           if (dec.isRejected) return false;
           if (dec.status === 'approval_2' && dec.isRegistered) return false;
-          if (dec.status === 'pending_leads_3') return false; 
+          if (dec.status === 'pending_leads_3') return false;
           return ['new_leads', 'approval_1', 'approval_2'].includes(currentStatus);
         });
 
@@ -285,24 +351,20 @@ export function LeadsManagementTab({
         targetLeads.forEach(lead => {
           const raw = lead._rawRecord || {};
           const allText = JSON.stringify(raw).toLowerCase();
-          
+
           const reasons: string[] = [];
           let passed = true;
-          let hasAnyMatch = false;
-          let evaluatedCount = 0;
 
           conditions.forEach(c => {
             const isAge = c.question.toLowerCase().includes('age');
             if (!c.keyword.trim() && !isAge) return;
-            evaluatedCount++;
 
             const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
-            
+
             if (isAge) {
               const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
               if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
                 // passes background check
-                hasAnyMatch = true;
               } else {
                 passed = false;
                 reasons.push(`Age not 30-64 (Found: ${textToSearch || 'None'})`);
@@ -312,12 +374,10 @@ export function LeadsManagementTab({
 
             const kw = c.keyword.toLowerCase().trim();
             const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
-            
+
             const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
-            
-            if (matchedAny) {
-              hasAnyMatch = true;
-            } else {
+
+            if (!matchedAny) {
               passed = false;
               const shortQ = c.question ? c.question.substring(0, 35) + '...' : `Keyword "${c.keyword}"`;
               reasons.push(`Failed: ${shortQ}`);
@@ -334,26 +394,18 @@ export function LeadsManagementTab({
               hasChanges = true;
             }
           } else {
-            if (!hasAnyMatch && evaluatedCount > 0) {
-              if (currentStatus !== 'rejected_leads') {
-                newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'rejected_leads', isRejected: true, isRegistered: false, reason: '100% Failed: ' + reasons.join(' | ') };
-                pendingCount++;
-                hasChanges = true;
-              }
-            } else {
-              if (currentStatus !== 'pending_leads_3') {
-                newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
-                pendingCount++;
-                hasChanges = true;
-              }
+            if (currentStatus !== 'pending_leads_3') {
+              newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+              pendingCount++;
+              hasChanges = true;
             }
           }
         });
-        
+
         if (hasChanges) {
-           if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-           setTimeout(() => toast.info(`🤖 AI-4B Auto-Worker processed ${approvedCount + pendingCount} new leads!`), 0);
-           return newDecisions;
+          if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+          setTimeout(() => toast.info(`🤖 AI-4B Auto-Worker processed ${approvedCount + pendingCount} new leads!`), 0);
+          return newDecisions;
         }
         return prev;
       });
@@ -364,9 +416,9 @@ export function LeadsManagementTab({
 
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
   const filteredBatches = (workshops || []).filter(
-    (w) => w.id.startsWith('batch_') && 
-           (w.language || 'English').toLowerCase() === selectedLanguage.toLowerCase() &&
-           w.isMovedToLeadsManagement
+    (w) => w.id.startsWith('batch_') &&
+      (w.language || 'English').toLowerCase() === selectedLanguage.toLowerCase() &&
+      w.isMovedToLeadsManagement
   );
 
   const handleSubmit = () => {
@@ -427,6 +479,29 @@ export function LeadsManagementTab({
     });
   }, [activeBatchLeads, activeTab, batchDecisions]);
 
+  const toggleLeadSelection = (leadId: string) => {
+    setSelectedLeads(prev =>
+      prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLeads.length === currentTabLeads.length && currentTabLeads.length > 0) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(currentTabLeads.map(l => l.id));
+    }
+  };
+
+  const handleWhatsAppMessengerClick = () => {
+    if (selectedLeads.length === 0) {
+      toast.error('Please select at least one lead');
+      return;
+    }
+    // Details will be provided later
+    toast.success(`Opening WhatsApp Messenger for ${selectedLeads.length} leads...`);
+  };
+
   const getEmail = (raw: any) => {
     const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('email'));
     return key ? raw[key] : '-';
@@ -467,7 +542,7 @@ export function LeadsManagementTab({
 
   return (
     <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[calc(100vh-140px)] animate-fade-in">
-      
+
       {/* Sidebar Section */}
       <aside className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col z-10 flex-shrink-0">
         <div className="p-4 border-b border-slate-200">
@@ -480,11 +555,10 @@ export function LeadsManagementTab({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 transition-all ${
-                activeTab === tab.id
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 transition-all ${activeTab === tab.id
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-              }`}
+                }`}
             >
               <tab.icon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
               {tab.label}
@@ -495,14 +569,14 @@ export function LeadsManagementTab({
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        
+
         {/* Header Section */}
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
             <Users className="text-indigo-600" size={24} />
             Leads Management
           </h2>
-          
+
           <div className="flex items-center gap-3">
             <select
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -568,6 +642,14 @@ export function LeadsManagementTab({
                     🤖 {(aiSettings['AI-4A'] || []).some(c => c.keyword) ? `AI-4A Active` : 'Configure AI-4A'}
                   </button>
                 )}
+                {activeTab === 'take_zoom_meeting' && (
+                  <button
+                    onClick={handleWhatsAppMessengerClick}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                  >
+                    💬 WhatsApp Messenger
+                  </button>
+                )}
                 {activeTab === 'approval_2' && (
                   <button
                     onClick={() => openAiModal('AI-4B')}
@@ -586,12 +668,25 @@ export function LeadsManagementTab({
                 )}
               </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm text-slate-600">
+              {activeTab === 'set_zoom_meeting' ? (
+                <div className="mt-4">
+                  <ZoomMeetingSetupCalendar batchId={activeBatchId} />
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm text-slate-600">
                     <thead className="bg-slate-50 border-b border-slate-200 uppercase text-[10px] tracking-wider">
                       {activeTab === 'take_zoom_meeting' ? (
                         <tr>
+                          <th className="px-4 py-3 min-w-[50px]">
+                            <input 
+                              type="checkbox" 
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              checked={selectedLeads.length > 0 && selectedLeads.length === currentTabLeads.length}
+                              onChange={toggleSelectAll}
+                            />
+                          </th>
                           <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
                           <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
                           <th className="px-4 py-3 font-bold text-slate-500">Email</th>
@@ -617,22 +712,30 @@ export function LeadsManagementTab({
                           const leadStatus = leadDec.status || '';
                           const isRegistered = leadDec.isRegistered;
                           const isRejected = leadDec.isRejected;
-                          
+
                           const isPending = leadStatus.includes('pending');
-                          
+
                           const rowBg = activeTab.includes('approval') || isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
                             ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
-                            : isRejected 
-                            ? 'bg-purple-100/70 hover:bg-purple-200/70'
-                            : isPending
-                            ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
-                            : 'hover:bg-slate-50 transition-colors';
+                            : isRejected
+                              ? 'bg-purple-100/70 hover:bg-purple-200/70'
+                              : isPending
+                                ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
+                                : 'hover:bg-slate-50 transition-colors';
 
                           if (activeTab === 'take_zoom_meeting') {
                             const zd = batchDecisions[lead.id] || {};
                             return (
                               <React.Fragment key={lead.id || i}>
                                 <tr className="hover:bg-slate-50 transition-colors">
+                                  <td className="px-4 py-3">
+                                    <input 
+                                      type="checkbox" 
+                                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                      checked={selectedLeads.includes(lead.id)}
+                                      onChange={() => toggleLeadSelection(lead.id)}
+                                    />
+                                  </td>
                                   <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
                                   <td className="px-4 py-3">
                                     {lead.phone && (
@@ -647,7 +750,7 @@ export function LeadsManagementTab({
                                   <td className="px-4 py-3 truncate max-w-[150px]" title={getProfession(lead._rawRecord)}>{getProfession(lead._rawRecord)}</td>
                                 </tr>
                                 <tr>
-                                  <td colSpan={6} className="px-4 py-2 border-b-4 border-slate-100 bg-slate-50/50">
+                                  <td colSpan={7} className="px-4 py-2 border-b-4 border-slate-100 bg-slate-50/50">
                                     <div className="flex flex-wrap items-center gap-3">
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs font-medium text-slate-500">Date:</span>
@@ -659,7 +762,7 @@ export function LeadsManagementTab({
                                       </div>
                                       <div className="flex flex-1 items-center gap-1 min-w-[200px]">
                                         <input type="text" placeholder="Paste Zoom Link here" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm flex-1 focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomLink || ''} onChange={(e) => updateZoomField(lead.id, 'zoomLink', e.target.value)} />
-                                        <button onClick={() => { navigator.clipboard.writeText(zd.zoomLink || ''); toast.success('Link copied'); }} className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded shadow-sm transition-colors flex items-center gap-1"><Copy size={12}/> Copy</button>
+                                        <button onClick={() => { navigator.clipboard.writeText(zd.zoomLink || ''); toast.success('Link copied'); }} className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded shadow-sm transition-colors flex items-center gap-1"><Copy size={12} /> Copy</button>
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <button onClick={() => markZoomStatus(lead.id, 'meeting_done')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'meeting_done' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>Meeting Done</button>
@@ -676,72 +779,72 @@ export function LeadsManagementTab({
                           return (
                             <tr key={lead.id || i} className={rowBg}>
                               <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
-                            <td className="px-4 py-3">
-                              {lead.phone && (
-                                <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
-                                  {lead.phone}
-                                </a>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">{lead.gender || '-'}</td>
-                            <td className="px-4 py-3">{lead.city || '-'}</td>
-                            <td className="px-4 py-3 text-xs text-slate-500">
-                              {lead._rawRecord?.['Timestamp'] || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-right flex justify-end gap-2">
-                              {leadStatus.includes('pending') && batchDecisions[lead.id]?.reason && (
-                                <button
-                                  onClick={() => setSelectedQueryLeadId(lead.id)}
-                                  className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded hover:bg-yellow-200 transition-colors whitespace-nowrap"
-                                >
-                                  Query-{batchDecisions[lead.id].reason.split(' | ').length}
+                              <td className="px-4 py-3">
+                                {lead.phone && (
+                                  <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
+                                    {lead.phone}
+                                  </a>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">{lead.gender || '-'}</td>
+                              <td className="px-4 py-3">{lead.city || '-'}</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">
+                                {lead._rawRecord?.['Timestamp'] || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right flex justify-end gap-2">
+                                {leadStatus.includes('pending') && batchDecisions[lead.id]?.reason && (
+                                  <button
+                                    onClick={() => setSelectedQueryLeadId(lead.id)}
+                                    className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded hover:bg-yellow-200 transition-colors whitespace-nowrap"
+                                  >
+                                    Query-{batchDecisions[lead.id].reason.split(' | ').length}
+                                  </button>
+                                )}
+                                {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
+                                        const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
+                                        setBatchDecisions(newDecisions);
+                                        if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                        toast.success('Lead marked as Registered!');
+                                      }}
+                                      className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
+                                    >
+                                      Register
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
+                                        const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
+                                        setBatchDecisions(newDecisions);
+                                        if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                        toast.success('Lead marked as Rejected!');
+                                      }}
+                                      className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
+                                {batchDecisions[lead.id]?.isRegistered && (
+                                  <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded flex items-center gap-1">
+                                    <CheckCircle size={12} /> Registered
+                                  </span>
+                                )}
+                                {batchDecisions[lead.id]?.isRejected && (
+                                  <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-1 rounded flex items-center gap-1">
+                                    <XCircle size={12} /> Rejected
+                                  </span>
+                                )}
+                                <button className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded hover:bg-indigo-100 transition-colors">
+                                  View
                                 </button>
-                              )}
-                              {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
-                                      const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
-                                      setBatchDecisions(newDecisions);
-                                      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-                                      toast.success('Lead marked as Registered!');
-                                    }}
-                                    className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
-                                  >
-                                    Register
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
-                                      const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
-                                      setBatchDecisions(newDecisions);
-                                      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-                                      toast.success('Lead marked as Rejected!');
-                                    }}
-                                    className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              )}
-                              {batchDecisions[lead.id]?.isRegistered && (
-                                <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded flex items-center gap-1">
-                                  <CheckCircle size={12} /> Registered
-                                </span>
-                              )}
-                              {batchDecisions[lead.id]?.isRejected && (
-                                <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-1 rounded flex items-center gap-1">
-                                  <XCircle size={12} /> Rejected
-                                </span>
-                              )}
-                              <button className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded hover:bg-indigo-100 transition-colors">
-                                View
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
@@ -755,7 +858,8 @@ export function LeadsManagementTab({
                     </tbody>
                   </table>
                 </div>
-              </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="h-full flex items-center justify-center text-slate-400 flex-col gap-3">
@@ -777,14 +881,14 @@ export function LeadsManagementTab({
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
                 🤖 {activeModal} Configurable Filter
               </h2>
-              <button 
+              <button
                 onClick={() => setActiveModal(null)}
                 className="text-slate-400 hover:text-slate-600 transition-colors p-1"
               >
                 &times;
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto space-y-4 bg-slate-50 flex-1">
               <div className="text-sm text-slate-500 mb-4 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
                 <strong className="text-indigo-600">Tip:</strong> Use commas to match multiple keywords (e.g. <code>job, business, housewife</code>). It acts as an <strong>OR</strong> filter!
@@ -797,7 +901,7 @@ export function LeadsManagementTab({
                       Filter {idx + 1}
                     </label>
                     {modalConditions.length > 1 && (
-                      <button 
+                      <button
                         onClick={() => setModalConditions(modalConditions.filter((_, i) => i !== idx))}
                         className="text-red-500 hover:text-red-700 font-bold text-xs bg-red-50 hover:bg-red-100 transition-colors px-2 py-1 rounded"
                       >
@@ -805,12 +909,12 @@ export function LeadsManagementTab({
                       </button>
                     )}
                   </div>
-                  <select 
+                  <select
                     value={condition.question}
                     onChange={(e) => {
-                       const updated = [...modalConditions];
-                       updated[idx].question = e.target.value;
-                       setModalConditions(updated);
+                      const updated = [...modalConditions];
+                      updated[idx].question = e.target.value;
+                      setModalConditions(updated);
                     }}
                     className="w-full text-sm font-medium border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
                   >
@@ -819,16 +923,16 @@ export function LeadsManagementTab({
                       <option key={q} value={q}>{q}</option>
                     ))}
                   </select>
-                  <input 
-                    type="text" 
-                    placeholder="Keyword(s) to match (e.g. 14 days OR yes, sure, okay)" 
+                  <input
+                    type="text"
+                    placeholder="Keyword(s) to match (e.g. 14 days OR yes, sure, okay)"
                     value={condition.keyword}
                     onChange={(e) => {
-                       const updated = [...modalConditions];
-                       updated[idx].keyword = e.target.value;
-                       setModalConditions(updated);
+                      const updated = [...modalConditions];
+                      updated[idx].keyword = e.target.value;
+                      setModalConditions(updated);
                     }}
-                    className="w-full text-sm font-medium border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                    className="w-full text-sm font-medium border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
                 </div>
               ))}

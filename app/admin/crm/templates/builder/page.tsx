@@ -130,7 +130,13 @@ function formatPreviewMessage(text: string): string {
     .replace(/_(.+?)_/g, '<em>$1</em>');
 }
 
-export default function CreateTemplatePage() {
+export default function CreateTemplatePage({ 
+  embeddedLanguage,
+  onSaveSuccess
+}: { 
+  embeddedLanguage?: string;
+  onSaveSuccess?: () => void;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
@@ -148,7 +154,7 @@ export default function CreateTemplatePage() {
   const [showGuidelines, setShowGuidelines] = useState(false);
 
   const [templateName, setTemplateName] = useState('');
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState(embeddedLanguage || 'en');
   const [category, setCategory] = useState('MARKETING');
   const [headerText, setHeaderText] = useState('');
   const [bodyText, setBodyText] = useState('');
@@ -472,7 +478,11 @@ export default function CreateTemplatePage() {
           variables: [],
         },
       });
-      router.push(`/admin/crm/templates?success=created&provider=${provider}`);
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      } else {
+        router.push(`/admin/crm/templates?success=created&provider=${provider}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create template');
     } finally {
