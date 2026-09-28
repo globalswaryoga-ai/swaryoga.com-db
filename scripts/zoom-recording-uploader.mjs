@@ -34,12 +34,14 @@ import { createClient } from '@libsql/client';
 
 import dotenv from 'dotenv';
 
-// Load env from .env.zoom-uploader, .env.local, or .env at repo root
-for (const envName of ['.env.zoom-uploader', '.env.local', '.env']) {
+// Load worker/base settings first, then let the local production connection
+// config override stale YouTube client values. A refresh token must be
+// exchanged by the same OAuth client that created it.
+for (const envName of ['.env.zoom-uploader', '.env', '.env.local']) {
   try {
     const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', envName);
     if (fs.existsSync(envPath)) {
-      dotenv.config({ path: envPath });
+      dotenv.config({ path: envPath, override: envName === '.env.local' });
     }
   } catch { /* ignore missing env file */ }
 }

@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### YouTube Upload Worker OAuth and Schedule Alignment (Session: September 28, 2026) — Commit `pending`
+
+- The legacy Zoom Settings page remains the mapping UI; large YouTube/Bunny uploads run on the external worker, not Vercel.
+- Worker environment loading now lets the active production OAuth client override stale `.env.zoom-uploader` values, preventing `unauthorized_client`.
+- Changed the worker cron from four fixed daily times to every three hours; install the updated crontab on the worker host.
+
 ### Workshop Schema Attendance Column Repair (Session: September 28, 2026) — Commit `046da78d`
 
 - Added idempotent Bunny SQL migrations for `zoom_attendance_last_sync_at` and related workshop metadata columns.
