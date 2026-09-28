@@ -171,6 +171,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Broadcast Recurring Availability Fix (Session: September 28, 2026) — Commit `pending`
+
+- Made `GET /api/admin/crm/broadcast-recurring` degrade to an empty schedule list when the legacy recurring schedule store is unavailable.
+- Prevents optional recurring-schedule loading from crashing the Bunny-backed Broadcast page with HTTP 500.
+
 ### Broadcast Recipient Selection Crash Fix (Session: September 28, 2026) — Commit `02533472`
 
 - Normalized Bunny broadcast validation responses before storing them in `BroadcastPage` state.

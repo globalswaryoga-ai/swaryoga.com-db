@@ -135,7 +135,15 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const decoded = verifyAdmin(request);
-    await connectDB();
+    // Recurring schedules are a legacy settings-embedded feature. Keep the
+    // Broadcast page available during Atlas outages; normal one-time/scheduled
+    // broadcasts are Bunny SQL-backed and do not depend on this optional list.
+    try {
+      await connectDB();
+    } catch (connectionError) {
+      console.warn('[broadcast-recurring] Legacy schedule store unavailable:', connectionError);
+      return NextResponse.json({ success: true, data: { schedules: [], warning: 'Recurring schedules are temporarily unavailable.' } }, { status: 200 });
+    }
 
     const superAdmin = isSuperAdmin(decoded);
     const viewerUserId = String(getViewerUserId(decoded) || '');
