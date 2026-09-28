@@ -33,7 +33,18 @@ export async function GET(request: NextRequest) {
     }
 
     const sentToday = runs.reduce((sum: number, run: any) => sum + Number(run.stats?.sent || 0), 0);
-    return NextResponse.json({ success: true, data: { dailyLimit: 10000, sentToday, remaining: Math.max(0, 10000 - sentToday), activeRuns: runs.filter((run: any) => ['draft', 'scheduled', 'running'].includes(String(run.status))).length, runs } });
+    const dailyLimit = 10000;
+    const remaining = Math.max(0, dailyLimit - sentToday);
+    const percentage = dailyLimit ? Math.round((sentToday / dailyLimit) * 100) : 0;
+    const status = sentToday >= dailyLimit ? 'exhausted' : percentage >= 90 ? 'critical' : percentage >= 75 ? 'warning' : 'normal';
+    const activeRuns = runs.filter((run: any) => ['draft', 'scheduled', 'running'].includes(String(run.status))).length;
+    return NextResponse.json({ success: true, data: {
+      today: { sent: sentToday, failed: 0, pending: runs.reduce((sum: number, run: any) => sum + Number(run.stats?.pending || 0), 0) },
+      thisWeek: { sent: sentToday, failed: 0 },
+      thisMonth: { sent: sentToday, failed: 0 },
+      quota: { date: new Date().toISOString().slice(0, 10), sent: sentToday, limit: dailyLimit, remaining, percentage, status, canSend: remaining > 0 },
+      dailyLimit, sentToday, remaining, activeRuns, runs,
+    } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || 'Failed to get bulk status' }, { status: error?.message === 'Unauthorized' ? 401 : 500 });
   }

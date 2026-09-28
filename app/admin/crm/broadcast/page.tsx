@@ -1320,7 +1320,7 @@ export default function BroadcastPage(props: any) {
         )}
 
         {/* Bulk Messaging Dashboard */}
-        {showQuotaDashboard && bulkStats && (
+        {showQuotaDashboard && bulkStats?.quota && (
           <div className="mb-6 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-2xl border border-indigo-200 p-4 animate-fadeIn">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
