@@ -172,7 +172,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
-### Workshop Attendance Manual Sync Timeout Fix (Session: September 28, 2026) — Commit `pending`
+### Workshop Attendance Manual Sync Timeout Fix (Session: September 28, 2026) — Commit `1d4cc185`
 
 - Increased `app/api/admin/crm/workshop-management/attendance/zoom/route.ts` from 60 to 300 seconds.
 - Added the same five-minute function limit to `vercel.json`; the manual button can now scan a full cohort without the previous 504 Gateway Timeout.
