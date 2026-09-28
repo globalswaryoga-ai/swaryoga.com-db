@@ -261,6 +261,7 @@ function SocialMediaSetupContent() {
       const errorMessages: Record<string, string> = {
         'access_denied': 'Authorization was denied. Please try again.',
         'missing_code': 'No authorization code received from Google.',
+        'redirect_uri_mismatch': 'Google OAuth redirect URI is not registered. Add https://swaryoga.com/api/admin/social-media/youtube/oauth/callback to the OAuth client in Google Cloud Console, then try again.',
         'missing_credentials': 'Server misconfiguration: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set.',
         'token_exchange_failed': 'Failed to exchange authorization code. Please try again.',
         'no_channel_found': 'No YouTube channel found for this Google account.',

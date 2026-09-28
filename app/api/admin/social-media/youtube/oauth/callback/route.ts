@@ -1,242 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, SocialMediaAccount } from '@/lib/db';
 import { encryptCredential } from '@/lib/encryption';
-import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
+import { getYouTubeOAuthRedirectUri } from '@/lib/youtubeOAuth';
+import { listBunnySocialAccounts, upsertBunnySocialAccount } from '@/lib/bunnySocialInboxRepository';
 
 export const dynamic = 'force-dynamic';
-
-
-/**
- * YouTube OAuth 2.0 Callback Handler
- * 
- * This endpoint receives the authorization code from Google OAuth
- * and exchanges it for access/refresh tokens.
- * 
- * Flow:
- * 1. User clicks "Connect YouTube" in setup page
- * 2. Redirects to Google OAuth consent screen
- * 3. After consent, Google redirects here with ?code=...
- * 4. We exchange code for tokens and save to DB
- * 5. Redirect back to setup page with success/error
- */
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_CHANNEL_URL = 'https://www.googleapis.com/youtube/v3/channels';
 
 export async function GET(request: NextRequest) {
+  const redirectUri = getYouTubeOAuthRedirectUri(request);
+  const baseUrl = new URL(redirectUri).origin;
+  const redirectError = (value: string) => NextResponse.redirect(new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(value)}`, baseUrl));
+
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const code = searchParams.get('code');
-    const error = searchParams.get('error');
-    const state = searchParams.get('state'); // Contains adminToken for auth
+    const params = request.nextUrl.searchParams;
+    const providerError = params.get('error');
+    const code = params.get('code');
+    if (providerError) return redirectError(providerError);
+    if (!code) return redirectError('missing_code');
 
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.APP_URL ||
-      getRequestBaseUrl(request) ||
-      'https://swaryoga.com';
+    const clientId = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+    const clientSecret = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
+    if (!clientId || !clientSecret) return redirectError('missing_credentials');
 
-    // Handle OAuth errors
-    if (error) {
-      console.error('[YouTube OAuth] Error from Google:', error);
-      return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(error)}`, baseUrl)
-      );
-    }
-
-    if (!code) {
-      const allParams = Array.from(searchParams.entries()).map(([k, v]) => `${k}=${v}`).join("&");
-      return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=missing_code&debug=${encodeURIComponent(allParams)}`, baseUrl)
-      );
-    }
-
-    // Get OAuth credentials from environment
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-    const redirectUri = `${baseUrl}/api/admin/social-media/youtube/oauth/callback`;
-
-    if (!clientId || !clientSecret) {
-      console.error('[YouTube OAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
-      return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=missing_credentials', baseUrl)
-      );
-    }
-
-    // Exchange authorization code for tokens
     const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ code, client_id: clientId, client_secret: clientSecret, redirect_uri: redirectUri, grant_type: 'authorization_code' }),
+      cache: 'no-store',
     });
-
-    const tokenData = await tokenResponse.json();
-
+    const tokenData: any = await tokenResponse.json().catch(() => ({}));
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error('[YouTube OAuth] Token exchange failed:', tokenData);
-      return NextResponse.redirect(
-        new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`, baseUrl)
-      );
+      return redirectError(tokenData.error || 'token_exchange_failed');
     }
 
-    const { access_token, refresh_token, expires_in } = tokenData;
-
-    // Fetch channel info to get channel ID and name
-    const channelResponse = await fetch(
-      `${YOUTUBE_CHANNEL_URL}?part=snippet,statistics&mine=true`,
-      {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-        },
-      }
-    );
-
-    const channelData = await channelResponse.json();
-
+    const channelResponse = await fetch(`${YOUTUBE_CHANNEL_URL}?part=snippet,statistics&mine=true`, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      cache: 'no-store',
+    });
+    const channelData: any = await channelResponse.json().catch(() => ({}));
     if (!channelResponse.ok || !channelData.items?.length) {
-      console.error('[YouTube OAuth] Failed to fetch channel:', channelData);
-      return NextResponse.redirect(
-        new URL('/admin/social-media-setup?platform=youtube&error=no_channel_found', baseUrl)
-      );
+      console.error('[YouTube OAuth] Channel lookup failed:', channelData);
+      return redirectError('no_channel_found');
     }
 
     const channel = channelData.items[0];
-    const channelId = channel.id;
-    const channelName = channel.snippet?.title || 'YouTube Channel';
-    const channelHandle = channel.snippet?.customUrl || channelId;
-    const subscribers = parseInt(channel.statistics?.subscriberCount || '0', 10);
-    const videoCount = parseInt(channel.statistics?.videoCount || '0', 10);
+    const channelName = String(channel.snippet?.title || 'YouTube Channel');
+    const channelHandle = String(channel.snippet?.customUrl || channel.id);
+    const now = new Date().toISOString();
+    const existing = (await listBunnySocialAccounts({ scopeType: 'super_admin', scopeKey: 'super_admin', connectedOnly: false }))
+      .find((account: any) => account.platform === 'youtube');
+    const refreshToken = tokenData.refresh_token
+      ? encryptCredential(String(tokenData.refresh_token))
+      : String(existing?.refreshToken || '');
 
-    const encryptedAccessToken = encryptCredential(access_token);
-    const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000);
+    await upsertBunnySocialAccount({
+      ...(existing || {}),
+      _id: existing?._id,
+      scopeType: 'super_admin',
+      scopeKey: 'super_admin',
+      ownerUserId: 'admincrm',
+      platform: 'youtube',
+      accountName: channelName,
+      accountHandle: channelHandle,
+      accountId: String(channel.id),
+      accessToken: encryptCredential(String(tokenData.access_token)),
+      refreshToken,
+      tokenExpiresAt: new Date(Date.now() + Number(tokenData.expires_in || 3600) * 1000).toISOString(),
+      isConnected: true,
+      connectedAt: existing?.connectedAt || now,
+      metadata: {
+        ...(existing?.metadata || {}),
+        followers: Number(channel.statistics?.subscriberCount || 0),
+        postsCount: Number(channel.statistics?.videoCount || 0),
+        lastSyncedAt: now,
+      },
+      grantedScopes: ['youtube.upload', 'youtube.readonly'],
+    });
 
-    // ── PRIMARY SAVE: Bunny Database ──
-    // Save to Bunny DB first (works regardless of MongoDB availability)
-    let encryptedRefreshToken = refresh_token ? encryptCredential(refresh_token) : '';
-    try {
-      const { bunnyExecute, cleanMongoJson } = await import('@/lib/bunnyDatabase');
-      const existingDocRes = await bunnyExecute({
-        sql: "SELECT id, document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'"
-      });
-      let matchedRow: any = null;
-      let matchedId: string | null = null;
-      for (const row of existingDocRes.rows) {
-        try {
-          const parsed = cleanMongoJson(JSON.parse(String(row.document_json || '{}')));
-          if (parsed.platform === 'youtube') {
-            matchedRow = parsed;
-            matchedId = String(row.id);
-            // Preserve old refresh token if new one not provided
-            if (!encryptedRefreshToken && matchedRow.refreshToken) {
-              encryptedRefreshToken = matchedRow.refreshToken;
-            }
-            break;
-          }
-        } catch {}
-      }
-
-      const finalRefresh = encryptedRefreshToken || matchedRow?.refreshToken || '';
-      const updatedDoc = {
-        ...(matchedRow || {}),
-        platform: 'youtube',
-        accountName: channelName,
-        accountHandle: channelHandle,
-        accountId: channelId,
-        accessToken: encryptedAccessToken,
-        refreshToken: finalRefresh,
-        tokenExpiresAt: tokenExpiresAt.toISOString(),
-        isConnected: true,
-        connectedAt: new Date().toISOString(),
-        metadata: {
-          ...(matchedRow?.metadata || {}),
-          followers: subscribers,
-          postsCount: videoCount,
-          lastSyncedAt: new Date().toISOString(),
-        },
-        grantedScopes: ['youtube.upload', 'youtube.readonly'],
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (matchedId) {
-        await bunnyExecute({
-          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-          args: [JSON.stringify(updatedDoc), matchedId]
-        });
-      } else {
-        await bunnyExecute({
-          sql: "INSERT INTO mongo_documents (id, collection_name, document_json, created_at, updated_at) VALUES (?, 'socialmediaaccounts', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-          args: [crypto.randomUUID(), JSON.stringify(updatedDoc)]
-        });
-      }
-      console.log('[YouTube OAuth] Saved YouTube account to Bunny Database (primary storage).');
-    } catch (bunnySaveErr: any) {
-      console.error('[YouTube OAuth] Failed to save to Bunny Database:', bunnySaveErr.message);
-    }
-
-    // ── SECONDARY SAVE: MongoDB (best-effort) ──
-    try {
-      await connectDB();
-      const existingMongo = await SocialMediaAccount.findOne({ platform: 'youtube', accountId: channelId });
-      const finalRefresh = encryptedRefreshToken || existingMongo?.refreshToken || '';
-      if (existingMongo) {
-        await SocialMediaAccount.updateOne(
-          { _id: existingMongo._id },
-          {
-            $set: {
-              accessToken: encryptedAccessToken,
-              ...(finalRefresh ? { refreshToken: finalRefresh } : {}),
-              tokenExpiresAt,
-              isConnected: true,
-              connectedAt: new Date(),
-              accountName: channelName,
-              accountHandle: channelHandle,
-              metadata: { followers: subscribers, postsCount: videoCount, lastSyncedAt: new Date() },
-              grantedScopes: ['youtube.upload', 'youtube.readonly'],
-              updatedAt: new Date(),
-            },
-          }
-        );
-      } else {
-        const newAccount = new SocialMediaAccount({
-          platform: 'youtube',
-          accountName: channelName,
-          accountHandle: channelHandle,
-          accountId: channelId,
-          accessToken: encryptedAccessToken,
-          refreshToken: finalRefresh,
-          tokenExpiresAt,
-          isConnected: true,
-          connectedAt: new Date(),
-          metadata: { followers: subscribers, postsCount: videoCount, lastSyncedAt: new Date() },
-          grantedScopes: ['youtube.upload', 'youtube.readonly'],
-        });
-        await newAccount.save();
-      }
-      console.log('[YouTube OAuth] Also mirrored to MongoDB.');
-    } catch (mongoSaveErr: any) {
-      console.warn('[YouTube OAuth] Could not mirror to MongoDB (non-critical):', mongoSaveErr.message);
-    }
-
-    console.log(`[YouTube OAuth] Successfully connected channel: ${channelName} (${channelId})`);
-
-
-    // Redirect back to setup page with success
-    return NextResponse.redirect(
-      new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, baseUrl)
-    );
+    return NextResponse.redirect(new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, baseUrl));
   } catch (error) {
-    console.error('[YouTube OAuth] Error:', error);
-    return NextResponse.redirect(
-      new URL(`/admin/social-media-setup?platform=youtube&error=${encodeURIComponent('internal_error')}`, baseUrl)
-    );
+    console.error('[YouTube OAuth] Callback error:', error);
+    return redirectError('internal_error');
   }
 }

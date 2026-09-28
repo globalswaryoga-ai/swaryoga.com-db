@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
+import { getYouTubeOAuthRedirectUri } from '@/lib/youtubeOAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,13 +28,7 @@ export async function GET(request: NextRequest) {
 
     // Get OAuth credentials
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    // Prefer explicit env var to avoid request-header mismatches in local dev
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.APP_URL ||
-      getRequestBaseUrl(request) ||
-      'https://swaryoga.com';
-    const redirectUri = `${baseUrl}/api/admin/social-media/youtube/oauth/callback`;
+    const redirectUri = getYouTubeOAuthRedirectUri(request);
 
     if (!clientId) {
       return NextResponse.json(
@@ -63,6 +57,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       authUrl: authUrl.toString(),
+      redirectUri,
     });
   } catch (error) {
     console.error('[YouTube OAuth] Error initiating auth:', error);

@@ -172,6 +172,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 
 ## 📋 Recent Changes Log
 
+### YouTube OAuth Redirect URI and Bunny Credential Fix (Session: September 28, 2026) — Commit `pending`
+
+- Added one canonical YouTube OAuth redirect resolver shared by authorization and callback handlers.
+- Replaced the legacy mixed Mongo/Bunny callback save with Bunny SQL account persistence and encrypted refresh-token preservation.
+- Set Vercel Production `GOOGLE_OAUTH_REDIRECT_URI` to `https://swaryoga.com/api/admin/social-media/youtube/oauth/callback`; Google Cloud must register the same URI for the configured OAuth client.
+
 ### Bunny Broadcast Constraint and Helper API Fix (Session: September 28, 2026) — Commit `c5ea4098`
 
 - Fixed `broadcast_runs_sql` inserts to provide the required `broadcast_run_key`, resolving the SQLite `NOT NULL` error shown on the Broadcast page.
