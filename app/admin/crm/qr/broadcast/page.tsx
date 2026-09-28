@@ -155,6 +155,7 @@ export default function QRBroadcastWizard() {
   const searchParams = useSearchParams();
 
   const [step, setStep] = useState(0);
+  const autoSelectOnLoad = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -175,6 +176,12 @@ export default function QRBroadcastWizard() {
   const [filterWorkshops, setFilterWorkshops] = useState<string[]>([]);
   const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
   const [labelOptions, setLabelOptions] = useState<string[]>([]);
+
+  // Quick Filters
+  const [showSystemData, setShowSystemData] = useState(false);
+  const [quickLanguages, setQuickLanguages] = useState<string[]>([]);
+  const [quickBatches, setQuickBatches] = useState<string[]>([]);
+  const autoSelectOnLoad = useRef(false);
 
   // Step 3 — schedule
   const [runName, setRunName] = useState('');
@@ -259,6 +266,15 @@ export default function QRBroadcastWizard() {
       : (Array.isArray(res?.data?.leads) ? res.data.leads : []);
     setLeads(items);
     setLeadsLoading(false);
+
+    if (autoSelectOnLoad.current) {
+      const filtered = items.filter(l =>
+        !leadSearch || l.name?.toLowerCase().includes(leadSearch.toLowerCase()) ||
+        l.phoneNumber?.includes(leadSearch)
+      );
+      setSelectedLeadIds(new Set(filtered.map(l => l._id)));
+      autoSelectOnLoad.current = false;
+    }
   }, [token, filterStatuses, filterLabels, filterWorkshops, leadSearch]);
 
   // Load workshop/label filter options (own-tenant scoped, like loadLeads)
@@ -319,6 +335,14 @@ export default function QRBroadcastWizard() {
 
   function selectAll() { setSelectedLeadIds(new Set(filteredLeads.map(l => l._id))); }
   function clearAll() { setSelectedLeadIds(new Set()); }
+
+  function handleQuickSubmit() {
+    autoSelectOnLoad.current = true;
+    setFilterLabels([...quickLanguages]);
+    setFilterWorkshops([...quickBatches]);
+    setFilterStatuses([]);
+    setLeadSearch('');
+  }
 
   // ── Submit ──────────────────────────────────────────────────────────────────
   async function handleSubmit() {
@@ -543,45 +567,83 @@ export default function QRBroadcastWizard() {
         {/* ── Step 1: Recipients ── */}
         {step === 1 && (
           <div className="bg-white rounded-xl border shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Users className="w-5 h-5 text-green-500" /> Select Recipients
-            </h2>
-
-            {/* Filters row */}
-            <div className="flex gap-3 mb-4 flex-wrap">
-              <div className="relative flex-1 min-w-48">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search name / phone..."
-                  value={leadSearch}
-                  onChange={e => { setLeadSearch(e.target.value); loadLeads(); }}
-                  className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                />
-              </div>
-              <MultiSelectDropdown
-                allLabel="All Statuses"
-                options={STATUS_OPTIONS}
-                selected={filterStatuses}
-                onChange={setFilterStatuses}
-              />
-              <MultiSelectDropdown
-                allLabel="All Workshops"
-                options={workshopOptions.map(w => ({ value: w, label: w }))}
-                selected={filterWorkshops}
-                onChange={setFilterWorkshops}
-              />
-              <MultiSelectDropdown
-                allLabel="All Groups"
-                options={labelOptions.map(l => ({ value: l, label: l }))}
-                selected={filterLabels}
-                onChange={setFilterLabels}
-              />
-              <button onClick={loadLeads}
-                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">
-                Refresh
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-green-500" /> Select Recipients
+              </h2>
+              <button
+                onClick={() => setShowSystemData(!showSystemData)}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                {showSystemData ? 'Hide System Data' : 'Show System Data'}
               </button>
             </div>
+
+            {/* Quick Filters */}
+            <div className="flex gap-3 mb-6 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Select Language</label>
+                <MultiSelectDropdown
+                  allLabel="Any Language"
+                  options={labelOptions.map(l => ({ value: l, label: l }))}
+                  selected={quickLanguages}
+                  onChange={setQuickLanguages}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Select Batches</label>
+                <MultiSelectDropdown
+                  allLabel="Any Batch"
+                  options={workshopOptions.map(w => ({ value: w, label: w }))}
+                  selected={quickBatches}
+                  onChange={setQuickBatches}
+                />
+              </div>
+              <button 
+                onClick={handleQuickSubmit}
+                className="h-[38px] px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm transition"
+              >
+                Submit
+              </button>
+            </div>
+
+            {/* Filters row */}
+            {showSystemData && (
+              <div className="flex gap-3 mb-4 flex-wrap p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="relative flex-1 min-w-48">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search name / phone..."
+                    value={leadSearch}
+                    onChange={e => { setLeadSearch(e.target.value); loadLeads(); }}
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+                  />
+                </div>
+                <MultiSelectDropdown
+                  allLabel="All Statuses"
+                  options={STATUS_OPTIONS}
+                  selected={filterStatuses}
+                  onChange={setFilterStatuses}
+                />
+                <MultiSelectDropdown
+                  allLabel="All Workshops"
+                  options={workshopOptions.map(w => ({ value: w, label: w }))}
+                  selected={filterWorkshops}
+                  onChange={setFilterWorkshops}
+                />
+                <MultiSelectDropdown
+                  allLabel="All Groups"
+                  options={labelOptions.map(l => ({ value: l, label: l }))}
+                  selected={filterLabels}
+                  onChange={setFilterLabels}
+                />
+                <button onClick={loadLeads}
+                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">
+                  Refresh
+                </button>
+              </div>
+            )}
 
             {/* Select all / clear */}
             <div className="flex items-center gap-3 mb-3">

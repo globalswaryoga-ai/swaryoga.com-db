@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { checkIsSuperAdmin } from '@/lib/client-auth';
+import { ChevronDown } from 'lucide-react';
 import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 
 // ============================================================================
@@ -187,6 +188,76 @@ function ProgressBar({ value, max, color = 'blue' }: { value: number; max: numbe
 }
 
 // ============================================================================
+
+// ── Multi-select checkbox dropdown ───────────────────────────────────────────
+function MultiSelectDropdown({
+  allLabel, options, selected, onChange,
+}: {
+  allLabel: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  function toggle(value: string) {
+    onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value]);
+  }
+
+  const displayText = selected.length === 0
+    ? allLabel
+    : selected.length === 1
+      ? (options.find(o => o.value === selected[0])?.label || selected[0])
+      : `${selected.length} selected`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white min-w-40 flex items-center justify-between gap-2"
+      >
+        <span className="truncate">{displayText}</span>
+        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto bg-white border rounded-lg shadow-lg py-1">
+          <label className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer font-medium border-b">
+            <input
+              type="checkbox"
+              checked={selected.length === 0}
+              onChange={() => onChange([])}
+              className="rounded border-gray-300"
+            />
+            {allLabel}
+          </label>
+          {options.map(o => (
+            <label key={o.value} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.includes(o.value)}
+                onChange={() => toggle(o.value)}
+                className="rounded border-gray-300"
+              />
+              <span className="truncate">{o.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // MAIN COMPONENT
 // ============================================================================
 export default function BroadcastPage() {
@@ -626,11 +697,13 @@ export default function BroadcastPage() {
         lead.phoneNumber.includes(searchQuery);
       const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
       const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
+      const matchesMultiWorkshop = filterWorkshops.length === 0 || filterWorkshops.includes(lead.workshopName || '');
+      const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
       const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
-      return matchesSearch && matchesStatus && matchesWorkshop && matchesUser && matchesDeliveryStatus;
+      return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus;
     });
-  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus]);
+  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -639,6 +712,15 @@ export default function BroadcastPage() {
       t.templateContent.toLowerCase().includes(templateSearch.toLowerCase())
     );
   }, [templates, templateSearch]);
+
+
+  const uniqueLabels = useMemo(() => {
+    const labels = new Set<string>();
+    leads.forEach(l => {
+      if (Array.isArray(l.labels)) l.labels.forEach(lb => { if (lb) labels.add(String(lb).trim()); });
+    });
+    return Array.from(labels).sort();
+  }, [leads]);
 
   const uniqueStatuses = useMemo(() => {
     const statuses = new Set(leads.map(l => l.status || 'lead'));
