@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Meta Inbox Template Image History Fix (Session: September 29, 2026) — Commit `pending`
+### Meta Inbox Template Image History Fix (Session: September 29, 2026) — Commit `7179eb14`
 
 - Preserved template header media metadata in Bunny Meta message records from `app/api/admin/crm/whatsapp/send-template/route.ts`.
 - Image/video templates sent to students now render in the CRM inbox without resending or duplicating the message.
