@@ -1,7 +1,10 @@
-import { bunnyExecute } from './lib/db';
+import { connectDB, SocialMediaAccount } from './lib/db';
+import mongoose from 'mongoose';
 
-async function test() {
-  const result = await bunnyExecute({ sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'communities' ORDER BY created_at DESC LIMIT 1", args: [] });
-  console.log(result.rows[0].document_json);
+async function run() {
+  await connectDB();
+  const accounts = await SocialMediaAccount.find({}).lean();
+  console.log(JSON.stringify(accounts.map(a => ({ platform: a.platform, name: a.accountName, handle: a.accountHandle })), null, 2));
+  mongoose.disconnect();
 }
-test();
+run();

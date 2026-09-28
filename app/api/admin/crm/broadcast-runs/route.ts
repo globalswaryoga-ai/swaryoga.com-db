@@ -21,6 +21,10 @@ function toObjectId(id: string) {
   return new mongoose.Types.ObjectId(id);
 }
 
+function isMongoObjectId(id: string): boolean {
+  return /^[a-f\d]{24}$/i.test(id);
+}
+
 async function resolveLeadIdsFromTarget(
   target: any,
   viewerUserId: string,
@@ -148,7 +152,8 @@ export async function POST(request: NextRequest) {
     const viewerUserId = String(getViewerUserId(decoded) || decoded?.userId || 'admin');
 
     // Verify template ownership — non-superadmins can only use their own templates
-    const templateQuery: any = { _id: toObjectId(templateId) };
+    // WhatsAppTemplate uses String _id (UUID), not ObjectId
+    const templateQuery: any = { _id: templateId };
     if (!superAdmin) templateQuery.createdBy = viewerUserId;
     const template = await WhatsAppTemplate.findOne(templateQuery).lean();
     if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
@@ -302,7 +307,7 @@ export async function POST(request: NextRequest) {
       provider, // 'meta' or 'qr'
       scheduledAt,
       status: runStatus,
-      templateId: toObjectId(templateId),
+      templateId: templateId, // String _id (UUID)
       messageInterval,
       templateSnapshot: {
         templateName: (template as any).templateName,

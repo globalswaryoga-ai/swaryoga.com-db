@@ -364,7 +364,9 @@ export function WhatsAppMessengerTab({
         {/* Meta WhatsApp — full broadcast page embedded */}
         {activeSubTab === 'meta_whatsapp' && (
           <div className="flex-1 overflow-auto">
-            <MetaBroadcastPage />
+            <React.Suspense fallback={<div className="flex items-center justify-center h-full text-slate-400">Loading broadcast...</div>}>
+              <MetaBroadcastPage isEmbedded={true} />
+            </React.Suspense>
           </div>
         )}
 

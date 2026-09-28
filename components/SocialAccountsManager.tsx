@@ -46,12 +46,22 @@ export default function SocialAccountsManager({ token }: AccountManagerProps) {
   }, [fetchAccounts]);
 
   async function handleConnect() {
-    // In production, this would use OAuth redirect
-    // For now, we show a placeholder
     setIsConnecting(true);
 
     try {
-      // Simulated OAuth flow
+      if (platform === 'youtube') {
+        const response = await fetch(`/api/admin/social-media/youtube/oauth?token=${token}`);
+        const data = await response.json();
+        
+        if (response.ok && data.authUrl) {
+          window.location.href = data.authUrl;
+          return; // Stop here and let the browser redirect
+        } else {
+          throw new Error(data.error || 'Failed to initiate YouTube auth');
+        }
+      }
+
+      // Simulated OAuth flow for other platforms
       const mockToken = `oauth_token_${Date.now()}`;
       const mockHandle = `@user_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -74,8 +84,8 @@ export default function SocialAccountsManager({ token }: AccountManagerProps) {
         setShowConnect(false);
         alert(`✅ ${platform} account connected!`);
       }
-    } catch (error) {
-      alert('Failed to connect account');
+    } catch (error: any) {
+      alert(`Failed to connect account: ${error.message || 'Unknown error'}`);
     } finally {
       setIsConnecting(false);
     }

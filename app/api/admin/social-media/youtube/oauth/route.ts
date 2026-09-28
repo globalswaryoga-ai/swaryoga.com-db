@@ -28,7 +28,12 @@ export async function GET(request: NextRequest) {
 
     // Get OAuth credentials
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const baseUrl = getRequestBaseUrl(request) || 'https://swaryoga.com';
+    // Prefer explicit env var to avoid request-header mismatches in local dev
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      getRequestBaseUrl(request) ||
+      'https://swaryoga.com';
     const redirectUri = `${baseUrl}/api/admin/social-media/youtube/oauth/callback`;
 
     if (!clientId) {

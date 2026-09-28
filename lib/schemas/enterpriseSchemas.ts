@@ -1566,7 +1566,7 @@ const BroadcastRunSchema = new mongoose.Schema(
       index: true,
     },
 
-    templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate', required: true, index: true },
+    templateId: { type: String, ref: 'WhatsAppTemplate', required: true, index: true },
     templateSnapshot: mongoose.Schema.Types.Mixed,
 
     // Filter + targeting inputs used to create this run.

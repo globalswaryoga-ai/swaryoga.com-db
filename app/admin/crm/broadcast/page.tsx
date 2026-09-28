@@ -260,7 +260,8 @@ function MultiSelectDropdown({
 
 // MAIN COMPONENT
 // ============================================================================
-export default function BroadcastPage() {
+export default function BroadcastPage(props: any) {
+  const isEmbedded = typeof props?.isEmbedded === 'boolean' ? props.isEmbedded : false;
   const token = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -274,12 +275,12 @@ export default function BroadcastPage() {
       ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
       : null;
     if (!storedToken) {
-      router.replace('/admin/login');
+      if (!isEmbedded) router.replace('/admin/login');
       return;
     }
     const isAdmin = checkIsSuperAdmin(); // sync — reads localStorage directly
     if (!isAdmin) {
-      router.replace('/admin/crm');
+      if (!isEmbedded) router.replace('/admin/crm');
       return;
     }
     setIsSuperAdmin(true);
@@ -1233,7 +1234,7 @@ export default function BroadcastPage() {
   // ============================================================================
   if (token === null || isChecking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center">
+      <div className={isEmbedded ? "bg-slate-50/50 flex items-center justify-center p-12" : "min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center"}>
         <div className="animate-spin text-4xl">⏳</div>
       </div>
     );
@@ -1241,7 +1242,7 @@ export default function BroadcastPage() {
 
   if (!isSuperAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center">
+      <div className={isEmbedded ? "bg-slate-50/50 flex items-center justify-center p-12" : "min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center"}>
         <div className="text-center text-red-600">
           <div className="text-4xl mb-4">🔒</div>
           <p className="font-medium">This feature is for super admins only</p>
@@ -1251,8 +1252,9 @@ export default function BroadcastPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50">
+    <div className={isEmbedded ? "bg-slate-50/50" : "min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50"}>
       {/* Header */}
+      {!isEmbedded && (
       <header className="bg-white/90 backdrop-blur-lg border-b shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -1292,8 +1294,9 @@ export default function BroadcastPage() {
           </div>
         </div>
       </header>
+      )}
 
-      <main className="max-w-7xl mx-auto p-4 sm:p-6">
+      <main className={isEmbedded ? "p-4 sm:p-6" : "max-w-7xl mx-auto p-4 sm:p-6"}>
         {/* Result Alert */}
         {result && (
           <div className={`mb-6 p-4 rounded-xl border-2 flex items-center justify-between ${
