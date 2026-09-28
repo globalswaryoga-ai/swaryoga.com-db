@@ -902,6 +902,28 @@ export default function NewRegistrationPage() {
       setWorkshops([defaultBatch]);
     }
 
+    // Restore last selected workshop/form
+    const savedWorkshop = localStorage.getItem('crm_selected_workshop');
+    if (savedWorkshop) {
+      try {
+        const sw = JSON.parse(savedWorkshop);
+        if (sw?.id) setSelectedWorkshop(sw);
+      } catch (_) {}
+    }
+    const savedFormSource = localStorage.getItem('crm_form_source');
+    if (savedFormSource === 'internal' || savedFormSource === 'google') {
+      setFormSource(savedFormSource as 'internal' | 'google');
+    }
+    const savedGoogleFormUrl = localStorage.getItem('crm_google_form_url');
+    if (savedGoogleFormUrl) {
+      setGoogleFormUrl(savedGoogleFormUrl);
+      setLinkedFormId(savedGoogleFormUrl);
+    }
+    const savedSelectedFormId = localStorage.getItem('crm_selected_form_id');
+    if (savedSelectedFormId) {
+      setSelectedFormId(savedSelectedFormId);
+    }
+
     const savedAiState = localStorage.getItem('crm_ai_worker_active');
     if (savedAiState) setIsAiWorkerActive(savedAiState === 'true');
 
@@ -926,7 +948,24 @@ export default function NewRegistrationPage() {
               if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
               if (data.crm_ai_7_active) setIsAi7Active(data.crm_ai_7_active === 'true');
-              // We also save to localStorage so the rest of the app doesn't break
+              // Restore selected form/workshop from DB (overrides localStorage if present)
+              if (data.crm_selected_workshop) {
+                try {
+                  const sw = JSON.parse(data.crm_selected_workshop);
+                  if (sw?.id) setSelectedWorkshop(sw);
+                } catch (_) {}
+              }
+              if (data.crm_form_source === 'internal' || data.crm_form_source === 'google') {
+                setFormSource(data.crm_form_source as 'internal' | 'google');
+              }
+              if (data.crm_google_form_url) {
+                setGoogleFormUrl(data.crm_google_form_url);
+                setLinkedFormId(data.crm_google_form_url);
+              }
+              if (data.crm_selected_form_id) {
+                setSelectedFormId(data.crm_selected_form_id);
+              }
+              // Sync all keys back to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'string') localStorage.setItem(k, v);
               }
@@ -977,6 +1016,11 @@ export default function NewRegistrationPage() {
       setAndCollect('crm_ai_worker_active', String(isAiWorkerActive));
       setAndCollect('crm_approved_ai_active', String(isApprovedAiWorkerActive));
       setAndCollect('crm_registered_ai_active', String(isRegisteredAiWorkerActive));
+      // Persist selected form/workshop to BOTH localStorage AND DB (via stateObj → API)
+      if (selectedWorkshop) setAndCollect('crm_selected_workshop', JSON.stringify(selectedWorkshop));
+      if (googleFormUrl) setAndCollect('crm_google_form_url', googleFormUrl);
+      if (formSource) setAndCollect('crm_form_source', formSource);
+      if (selectedFormId) setAndCollect('crm_selected_form_id', selectedFormId);
 
       if (selectedWorkshop) {
         const suffix = `_${selectedWorkshop?.id}`;
@@ -1012,7 +1056,7 @@ export default function NewRegistrationPage() {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded]);
+  }, [workshops, isAiWorkerActive, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, rejectedLeadIds, studentKotaLeadIds, closedLeadIds, sentCongratsLeadIds, isApprovedAiWorkerActive, isRegisteredAiWorkerActive, approvalAiInsights, pendingAiInsights, registeredAiInsights, isLoaded, selectedWorkshop, googleFormUrl, formSource, selectedFormId]);
 
   useEffect(() => {
     if (selectedWorkshop?.formId) {

@@ -272,14 +272,27 @@ export function BroadcastNRTab({
             </div>
           )}
 
-          {/* Selected Template Info */}
-          {selectedTemplate && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-              <p className="text-xs font-bold text-green-700 mb-1">Template Selected</p>
-              <p className="text-xs text-green-600 truncate">{selectedTemplate.templateName || selectedTemplate.name}</p>
-              <button onClick={() => setSelectedTemplate(null)} className="text-xs text-red-500 mt-1 hover:underline">Remove</button>
-            </div>
-          )}
+          {/* Template Selector */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Template</label>
+            <select
+              value={selectedTemplate?._id || ''}
+              onChange={e => {
+                const t = filteredTemplates.find(t => t._id === e.target.value) || null;
+                setSelectedTemplate(t);
+              }}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">-- Choose a template --</option>
+              {filteredTemplates.map(t => (
+                <option key={t._id} value={t._id}>{t.templateName || t.name}</option>
+              ))}
+            </select>
+            {filteredTemplates.length === 0 && (
+              <p className="text-xs text-slate-400 mt-1">No templates. Change language/provider or create one in Template tab.</p>
+            )}
+          </div>
+
 
           {/* Send Mode */}
           <div>
@@ -385,54 +398,6 @@ export function BroadcastNRTab({
             </div>
           )}
 
-          {/* Templates Grid */}
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-black text-slate-700">
-                Select Template
-                <span className="ml-2 text-xs font-medium text-slate-400 capitalize">
-                  ({providerMode} · {LANGUAGES.find(l => l.code === selectedLang)?.name})
-                </span>
-              </h3>
-              <button onClick={fetchTemplates} className="text-xs font-bold text-slate-500 hover:text-green-600 flex items-center gap-1">
-                <RefreshCw size={12} /> Refresh
-              </button>
-            </div>
-
-            {filteredTemplates.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400">
-                <MessageSquare className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-                <p className="font-bold">No templates found</p>
-                <p className="text-xs mt-1">Create templates in the Template tab, or change language/provider filter</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredTemplates.map(t => (
-                  <div key={t._id} onClick={() => setSelectedTemplate(t._id === selectedTemplate?._id ? null : t)}
-                    className={`bg-white border-2 rounded-2xl p-4 cursor-pointer transition-all hover:shadow-md ${
-                      selectedTemplate?._id === t._id ? 'border-green-500 ring-2 ring-green-100 shadow-md' : 'border-slate-200 hover:border-slate-300'
-                    }`}>
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-slate-800 text-sm pr-2 line-clamp-1">{t.templateName || t.name}</h4>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${
-                        t.status === 'approved' ? 'bg-green-100 text-green-700'
-                        : t.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-slate-100 text-slate-600'
-                      }`}>{t.status}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 line-clamp-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                      {t.templateContent || t.bodyText}
-                    </p>
-                    {selectedTemplate?._id === t._id && (
-                      <div className="mt-2 text-xs font-bold text-green-600 flex items-center gap-1">
-                        <CheckCircle size={12} /> Selected
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Broadcast Summary */}
           {selectedTemplate && selectedBatchId && (
