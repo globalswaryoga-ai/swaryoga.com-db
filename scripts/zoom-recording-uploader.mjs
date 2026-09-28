@@ -152,6 +152,21 @@ async function ytPlaylistAddVideo(access, playlistId, videoId) {
 // Look up the Zoom meeting → community/playlist mapping from Bunny Database.
 async function getZoomMapping(zoomMeetingId, bunnyClient) {
   try {
+    const sqlMapping = await bunnyClient.execute({
+      sql: 'SELECT * FROM zoom_community_mappings_sql WHERE zoom_meeting_id = ? LIMIT 1',
+      args: [zoomMeetingId],
+    });
+    if (sqlMapping.rows[0]) {
+      const row = sqlMapping.rows[0];
+      return {
+        zoomMeetingId: String(row.zoom_meeting_id),
+        communityId: String(row.community_id),
+        communityName: row.community_name || undefined,
+        zoomTopic: row.zoom_topic || undefined,
+        thumbnailUrl: row.thumbnail_url || undefined,
+        youtubePlaylistName: row.youtube_playlist_name || undefined,
+      };
+    }
     const rows = await bunnyClient.execute({
       sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
     });
@@ -193,6 +208,17 @@ async function autoAddToConfiguredCommunity(videoUrl, topic, dateLabel, zoomMeet
 
   // Look up the zoom meeting ID in socialmediaaccounts.metadata.zoomMappings
   try {
+    const sqlMapping = await bunnyClient.execute({
+      sql: 'SELECT * FROM zoom_community_mappings_sql WHERE zoom_meeting_id = ? LIMIT 1',
+      args: [zoomMeetingId],
+    });
+    if (sqlMapping.rows[0]) {
+      const row = sqlMapping.rows[0];
+      communityId = String(row.community_id || communityId);
+      communityName = row.community_name || communityId;
+      batchName = row.zoom_topic || null;
+      if (row.thumbnail_url) thumb = row.thumbnail_url;
+    }
     const rows = await bunnyClient.execute({
       sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
     });
@@ -265,6 +291,17 @@ async function autoAddYoutubeToConfiguredCommunity(youtubeVideoId, topic, dateLa
   let configuredThumbnail = thumbnailUrl || null;
 
   try {
+    const sqlMapping = await bunnyClient.execute({
+      sql: 'SELECT * FROM zoom_community_mappings_sql WHERE zoom_meeting_id = ? LIMIT 1',
+      args: [zoomMeetingId],
+    });
+    if (sqlMapping.rows[0]) {
+      const row = sqlMapping.rows[0];
+      communityId = String(row.community_id || communityId);
+      communityName = row.community_name || communityId;
+      playlistName = row.zoom_topic || dateLabel;
+      configuredThumbnail = row.thumbnail_url || configuredThumbnail;
+    }
     const rows = await bunnyClient.execute({
       sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
     });
@@ -376,6 +413,15 @@ async function bunnyStorageSave(srcUrl, size, fileName) {
   return dest;
 }
 
+async function listZoomRecordings(host, token, from, to, includeTrash = false) {
+  const query = new URLSearchParams({ from, to, page_size: '100' });
+  if (includeTrash) query.set('trash', 'true');
+  const r = await fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(host)}/recordings?${query}`, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`zoom recordings ${r.status} ${JSON.stringify(data)}`);
+  return Array.isArray(data.meetings) ? data.meetings : [];
+}
+
 // Public CDN URL for a Bunny Storage path (storage zone is fronted by this pull zone).
 function bunnyCdnUrl(dest) {
   const host = process.env.BUNNY_STORAGE_CDN_HOST || 'swaryogacrm.b-cdn.net';
@@ -408,6 +454,7 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
     const ytGalleryId = ytResults?.gallery || null;
     const ytGalleryUrl = ytUrls?.gallery || (ytGalleryId ? `https://youtu.be/${ytGalleryId}` : null);
     const bunnySpeakerUrl = bunnyResults?.speaker ? bunnyCdnUrl(bunnyResults.speaker) : null;
+    const bunnyGalleryUrl = bunnyResults?.gallery ? bunnyCdnUrl(bunnyResults.gallery) : null;
 
     const existingRec = await bunnyClient.execute({
       sql: 'SELECT id, day_number FROM workshop_recordings_sql WHERE cohort_id = ? AND class_date = ?',
@@ -422,7 +469,7 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
         id, cohort_id, class_date, day_number, zoom_meeting_id, zoom_meeting_uuid,
         youtube_speaker_id, youtube_gallery_id, youtube_speaker_url, youtube_gallery_url,
         bunny_speaker_url, bunny_gallery_url, delivered_student_ids_json, metadata_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '[]', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT(id) DO UPDATE SET
         day_number = COALESCE(workshop_recordings_sql.day_number, excluded.day_number),
         zoom_meeting_id = excluded.zoom_meeting_id,
@@ -432,11 +479,12 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
         youtube_speaker_url = COALESCE(excluded.youtube_speaker_url, workshop_recordings_sql.youtube_speaker_url),
         youtube_gallery_url = COALESCE(excluded.youtube_gallery_url, workshop_recordings_sql.youtube_gallery_url),
         bunny_speaker_url = COALESCE(excluded.bunny_speaker_url, workshop_recordings_sql.bunny_speaker_url),
+        bunny_gallery_url = COALESCE(excluded.bunny_gallery_url, workshop_recordings_sql.bunny_gallery_url),
         updated_at = CURRENT_TIMESTAMP`,
       args: [
         recId, cohortId, dateLabel, finalDayNumber, zoomMeetingId, zoomUuid,
         ytSpeakerId, ytGalleryId, ytSpeakerUrl, ytGalleryUrl,
-        bunnySpeakerUrl
+        bunnySpeakerUrl, bunnyGalleryUrl
       ]
     });
     log(`  Workshop sync OK: updated workshop_recordings_sql for cohort ${cohortId} date ${dateLabel}`);
@@ -452,11 +500,7 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
   const to = new Date();
   const from = new Date(Date.now() - LOOKBACK * 86400000);
   const fmt = (d) => d.toISOString().slice(0, 10);
-  const r = await fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(host)}/recordings?from=${fmt(from)}&to=${fmt(to)}&page_size=100`, { headers: { Authorization: `Bearer ${zt}` } });
-  const meetings = (await r.json()).meetings || [];
-  const selectedMeetings = TARGET_MEETING_ID
-    ? meetings.filter((meeting) => String(meeting.id) === TARGET_MEETING_ID)
-    : meetings;
+  const meetings = await listZoomRecordings(host, zt, fmt(from), fmt(to));
   if (TARGET_MEETING_ID) log('target meeting filter:', TARGET_MEETING_ID, 'matched', selectedMeetings.length);
   log('found', selectedMeetings.length, 'recorded meeting(s) in window');
 
@@ -469,21 +513,42 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
   }
   const bunnyClient = createClient({ url: dbUrl, authToken: dbToken });
 
+  const trashEnabled = await bunnyClient.execute({
+    sql: 'SELECT zoom_meeting_id FROM workshop_cohorts_sql WHERE auto_recover_zoom_trash = 1 AND zoom_meeting_id IS NOT NULL',
+  }).then((r) => new Set(r.rows.map((row) => String(row.zoom_meeting_id)))).catch(() => new Set());
+  const trashedMeetings = [];
+  for (const zoomMeetingId of trashEnabled) {
+    try {
+      const trashed = await listZoomRecordings(host, zt, fmt(from), fmt(to), true);
+      trashedMeetings.push(...trashed.filter((meeting) => String(meeting.id) === zoomMeetingId).map((meeting) => ({ ...meeting, fromZoomTrash: true })));
+    } catch (error) {
+      log(`Zoom trash lookup failed for meeting ${zoomMeetingId}:`, error.message);
+    }
+  }
+  const meetingMap = new Map();
+  for (const meeting of [...meetings, ...trashedMeetings]) {
+    const key = String(meeting.uuid || `${meeting.id}:${meeting.start_time}`);
+    meetingMap.set(key, meeting);
+  }
+  const selectedMeetings = TARGET_MEETING_ID
+    ? [...meetingMap.values()].filter((meeting) => String(meeting.id) === TARGET_MEETING_ID)
+    : [...meetingMap.values()];
+
   // Load YouTube account from Bunny Database
   let ytDoc = null;
   try {
     const rows = await bunnyClient.execute({
-      sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'",
+      sql: "SELECT data_json FROM social_media_accounts_sql WHERE platform = 'youtube' AND is_connected = 1 ORDER BY updated_at DESC LIMIT 1",
     });
-    for (const row of rows.rows) {
-      try {
-        const p = JSON.parse(String(row.document_json || '{}'));
-        if (p.platform === 'youtube') {
-          ytDoc = p;
-          log('Loaded YouTube account configuration from Bunny Database');
-          break;
-        }
-      } catch {}
+    if (rows.rows[0]) {
+      ytDoc = JSON.parse(String(rows.rows[0].data_json || '{}'));
+      log('Loaded YouTube account configuration from Bunny Database');
+    }
+    if (!ytDoc) {
+      const legacyRows = await bunnyClient.execute({ sql: "SELECT document_json FROM mongo_documents WHERE collection_name = 'socialmediaaccounts'" });
+      for (const row of legacyRows.rows) {
+        try { const p = JSON.parse(String(row.document_json || '{}')); if (p.platform === 'youtube') { ytDoc = p; break; } } catch {}
+      }
     }
   } catch (bErr) {
     log('Bunny Database lookup error:', bErr.message);
@@ -565,8 +630,8 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
       } catch (e) { log(`  YT FAIL ${view}:`, e.message); }
     }
 
-    // Bunny: ONLY speaker view (with or without screen sharing)
-    for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker']]) {
+    // Bunny: preserve both speaker and gallery views, matching YouTube output.
+    for (const [f, view, key] of [[speaker, 'Speaker View', 'speaker'], [gallery, 'Gallery View', 'gallery']]) {
       if (!f) continue;
       try {
         const bunnyPath = await bunnyStorageSave(dl(f), f.file_size, `${dateLabel} ${m.topic} (${key}).mp4`);
@@ -576,7 +641,7 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
         const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
         await autoAddToConfiguredCommunity(
           bunnyCdnUrl(bunnyPath), m.topic, dateLabel, String(m.id),
-          bunnyClient, thumb, 'speaker_view'
+          bunnyClient, thumb, key === 'speaker' ? 'speaker_view' : 'gallery_view'
         );
       } catch (e) { log(`  Bunny FAIL ${view}:`, e.message); }
     }
@@ -602,11 +667,11 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
     // Mark done: YouTube speaker + gallery (if present) and Bunny speaker (if present)
     const expectedYoutubeKeys = [speaker && 'speaker', gallery && 'gallery'].filter(Boolean);
     const allYoutubeUploaded = expectedYoutubeKeys.length > 0 && expectedYoutubeKeys.every((key) => result.youtube[key]);
-    const allBunnyStored = !speaker || !!result.bunny.speaker;
+    const allBunnyStored = expectedYoutubeKeys.every((key) => result.bunny[key]);
 
     if (allYoutubeUploaded && allBunnyStored) {
       // Move the cloud recording to Zoom trash
-      if ((process.env.DELETE_AFTER_UPLOAD || 'trash') !== 'off') {
+      if (!m.fromZoomTrash && (process.env.DELETE_AFTER_UPLOAD || 'trash') !== 'off') {
         try { await trashRecording(m.uuid, zt); result.trashed = true; log('  Zoom recording → trash ✓'); }
         catch (e) { log('  Zoom trash FAIL:', e.message); }
       }
@@ -615,10 +680,16 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
         const uploadedMeetings = ytDoc.metadata?.uploadedMeetings || [];
         uploadedMeetings.push({ uuid: m.uuid, zoomMeetingId: String(m.id), topic: m.topic, startTime: m.start_time, youtube: result.youtube, youtubeUrls: result.youtubeUrls, bunny: result.bunny, trashed: !!result.trashed, at: new Date().toISOString() });
         ytDoc.metadata = { ...(ytDoc.metadata || {}), uploadedMeetings };
-        await bunnyClient.execute({
-          sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND document_json LIKE '%\"platform\":\"youtube\"%'",
-          args: [JSON.stringify(ytDoc)],
+        const canonicalUpdate = await bunnyClient.execute({
+          sql: "UPDATE social_media_accounts_sql SET data_json = ?, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
+          args: [JSON.stringify(ytDoc), String(ytDoc._id || '')],
         });
+        if (!Number(canonicalUpdate.rowsAffected || 0)) {
+          await bunnyClient.execute({
+            sql: "UPDATE mongo_documents SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE collection_name = 'socialmediaaccounts' AND document_json LIKE '%\"platform\":\"youtube\"%'",
+            args: [JSON.stringify(ytDoc)],
+          });
+        }
         log('  Bunny DB: uploadedMeetings updated');
       } catch (e) {
         log('  Bunny uploadedMeetings update warning:', e.message);
