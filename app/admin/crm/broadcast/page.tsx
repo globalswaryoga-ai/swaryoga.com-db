@@ -370,8 +370,7 @@ export default function BroadcastPage(props: any) {
   const [result, setResult] = useState<{ success: boolean; message: string; runId?: string } | null>(null);
   const [showRecentRuns, setShowRecentRuns] = useState(false);
   const [showQuotaDashboard, setShowQuotaDashboard] = useState(false);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [showLeadsList, setShowLeadsList] = useState(false);
+  const [showRecipientsControls, setShowRecipientsControls] = useState(false);
   
   // Bulk Messaging State
   const [bulkStats, setBulkStats] = useState<BulkStats | null>(null);
@@ -1520,14 +1519,14 @@ export default function BroadcastPage(props: any) {
 
             <div className="flex justify-between items-center mb-4">
               <button
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                onClick={() => setShowRecipientsControls(!showRecipientsControls)}
                 className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
               >
-                {showAdvancedFilters ? '− Hide Advanced Filters & Upload' : '+ Open Advanced Filters & Upload'}
+                {showRecipientsControls ? '− Hide Upload, Filters & Leads' : '+ Show Upload, Filters & Leads'}
               </button>
             </div>
 
-            {showAdvancedFilters && (
+            {showRecipientsControls && (
               <>
                 {/* CSV Upload Section */}
                 <div className="mb-4">
@@ -1764,22 +1763,8 @@ export default function BroadcastPage(props: any) {
                 </button>
               )}
             </div>
-            </>
-          )}
 
-          {/* Toggle for Leads List */}
-          <div className="flex justify-between items-center mb-4">
-            <button
-              onClick={() => setShowLeadsList(!showLeadsList)}
-              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
-            >
-              {showLeadsList ? '− Hide Leads List' : `+ Show Leads List`}
-            </button>
-          </div>
-
-          {showLeadsList && (
-            <>
-              {/* Selection Bar */}
+            {/* Selection Bar */}
               <div className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-xl mb-4">
                 <label className="flex items-center gap-3 cursor-pointer group">
                 <input
