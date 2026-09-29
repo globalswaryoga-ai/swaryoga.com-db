@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
@@ -17,8 +17,37 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
   const [scheduleTime, setScheduleTime] = useState('10:00');
   const [repeatMode, setRepeatMode] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('monthly');
 
+  // Templates State
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
   // Trigger List
   const [triggers, setTriggers] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const url = new URL('/api/admin/crm/templates', typeof window !== 'undefined' ? window.location.origin : '');
+      url.searchParams.append('limit', '100');
+      
+      const token = localStorage.getItem('token') || '';
+      const response = await fetch(url.toString(), {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.templates) setTemplates(data.templates);
+      }
+    } catch (err) {
+      console.error('Failed to fetch templates:', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
 
   const toggleDate = (date: number) => {
     setSelectedDates(prev => 
@@ -107,12 +136,13 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                   onChange={e => setTemplate(e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
                 >
-                  <option value="">Select Template</option>
-                  <option value="welcome_message">welcome_message</option>
-                  <option value="workshop_reminder">workshop_reminder</option>
-                  <option value="follow_up_1">follow_up_1</option>
-                  <option value="payment_link">payment_link</option>
-                  <option value="custom_message">custom_message</option>
+                  <option value="">{loadingTemplates ? 'Loading templates...' : 'Select Template'}</option>
+                  {templates.map(t => (
+                    <option key={t._id || t.id || t.name} value={t.name}>
+                      {t.name} ({t.language || 'en'})
+                    </option>
+                  ))}
+                  <option value="custom_message">custom_message (Manual)</option>
                 </select>
               </div>
 
