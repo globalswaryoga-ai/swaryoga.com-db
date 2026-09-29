@@ -1996,9 +1996,7 @@ export default function NewRegistrationPage() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
-              </>
+              </div>
             )}
 
           </div>

@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import {
-  verifyAdminAccess,
-  handleCrmError,
-  formatCrmSuccess,
-  isValidObjectId,
-  toObjectId,
-} from '@/lib/crm-handlers';
+import { verifyAdminAccess, handleCrmError, formatCrmSuccess } from '@/lib/crm-handlers';
+import { getBunnyChatbotFlow, saveBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
 
 export const dynamic = 'force-dynamic';
-import { ChatbotFlow } from '@/lib/schemas/enterpriseSchemas';
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const userId = verifyAdminAccess(request);
+    const ownerId = String(verifyAdminAccess(request));
     const id = String(context?.params?.id || '').trim();
-    if (!isValidObjectId(id)) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
 
-    await connectDB();
-
-    const original = await ChatbotFlow.findOne({ _id: toObjectId(id), createdByUserId: String(userId), provider: 'qr' }).lean();
+    const original = await getBunnyChatbotFlow(id, ownerId);
     if (!original) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
 
     let customName: string | undefined;
@@ -28,10 +20,10 @@ export async function POST(request: NextRequest, context: { params: { id: string
       if (body?.name) customName = String(body.name).trim();
     } catch { /* no body is fine */ }
 
-    const newName = customName || `${(original as any).name} (Copy)`;
+    const newName = customName || `${original.name || 'Flow'} (Copy)`;
 
     const nodeIdMap: Record<string, string> = {};
-    const originalNodes: any[] = Array.isArray((original as any).nodes) ? (original as any).nodes : [];
+    const originalNodes: any[] = Array.isArray(original.nodes) ? original.nodes : [];
     originalNodes.forEach((node: any) => {
       const oldId = node.id || node._id;
       nodeIdMap[oldId] = `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -73,10 +65,10 @@ export async function POST(request: NextRequest, context: { params: { id: string
       return newNode;
     });
 
-    const oldStart = String((original as any).startNodeId || '');
+    const oldStart = String(original.startNodeId || '');
     const newStartNodeId = nodeIdMap[oldStart] || oldStart;
 
-    let newMetadata = (original as any).metadata ? JSON.parse(JSON.stringify((original as any).metadata)) : undefined;
+    let newMetadata = original.metadata ? JSON.parse(JSON.stringify(original.metadata)) : undefined;
     if (newMetadata?.connections && Array.isArray(newMetadata.connections)) {
       newMetadata.connections = newMetadata.connections.map((conn: any) => ({
         ...conn,
@@ -85,17 +77,16 @@ export async function POST(request: NextRequest, context: { params: { id: string
       }));
     }
 
-    const created = await ChatbotFlow.create({
+    const created = await saveBunnyChatbotFlow({
       name: newName,
-      description: (original as any).description || '',
+      description: original.description || '',
       enabled: false,
-      createdByUserId: String(userId),
       provider: 'qr',
       nodes: clonedNodes,
       startNodeId: newStartNodeId,
-      triggerKeywords: (original as any).triggerKeywords || [],
+      triggerKeywords: original.triggerKeywords || [],
       metadata: newMetadata,
-    });
+    }, ownerId);
 
     return formatCrmSuccess(created);
   } catch (error) {

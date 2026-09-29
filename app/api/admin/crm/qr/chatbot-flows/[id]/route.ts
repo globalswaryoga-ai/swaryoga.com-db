@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import {
   verifyAdminAccess,
   handleCrmError,
   formatCrmSuccess,
-  isValidObjectId,
-  toObjectId,
 } from '@/lib/crm-handlers';
+import { getBunnyChatbotFlow, saveBunnyChatbotFlow, deleteBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
 
 export const dynamic = 'force-dynamic';
-import { ChatbotFlow } from '@/lib/schemas/enterpriseSchemas';
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const userId = verifyAdminAccess(request);
+    const ownerId = String(verifyAdminAccess(request));
     const id = String(context?.params?.id || '').trim();
-    if (!isValidObjectId(id)) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
 
-    await connectDB();
-
-    const flow = await ChatbotFlow.findOne({ _id: toObjectId(id), createdByUserId: String(userId), provider: 'qr' }).lean();
+    const flow = await getBunnyChatbotFlow(id, ownerId);
     if (!flow) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
 
     return formatCrmSuccess(flow);
@@ -30,32 +26,17 @@ export async function GET(request: NextRequest, context: { params: { id: string 
 
 export async function PUT(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const userId = verifyAdminAccess(request);
+    const ownerId = String(verifyAdminAccess(request));
     const id = String(context?.params?.id || '').trim();
-    if (!isValidObjectId(id)) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
 
     const body = await request.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
-    await connectDB();
+    const existing = await getBunnyChatbotFlow(id, ownerId);
+    if (!existing) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
 
-    const allowed = {
-      name: body?.name,
-      description: body?.description,
-      enabled: body?.enabled,
-      nodes: body?.nodes,
-      startNodeId: body?.startNodeId,
-      triggerKeywords: Array.isArray(body?.triggerKeywords) ? body.triggerKeywords : undefined,
-      metadata: body?.metadata,
-    };
-
-    const updated = await ChatbotFlow.findOneAndUpdate(
-      { _id: toObjectId(id), createdByUserId: String(userId), provider: 'qr' },
-      { $set: Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined)) },
-      { new: true }
-    ).lean();
-
-    if (!updated) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
+    const updated = await saveBunnyChatbotFlow({ ...existing, ...body, provider: 'qr' }, ownerId, id);
     return formatCrmSuccess(updated);
   } catch (error) {
     return handleCrmError(error, 'PUT qr/chatbot-flows/[id]');
@@ -64,16 +45,14 @@ export async function PUT(request: NextRequest, context: { params: { id: string 
 
 export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const userId = verifyAdminAccess(request);
+    const ownerId = String(verifyAdminAccess(request));
     const id = String(context?.params?.id || '').trim();
-    if (!isValidObjectId(id)) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
 
-    await connectDB();
+    const deletedCount = await deleteBunnyChatbotFlow(id, ownerId);
+    if (!deletedCount) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
 
-    const res = await ChatbotFlow.deleteOne({ _id: toObjectId(id), createdByUserId: String(userId), provider: 'qr' });
-    if (!res.deletedCount) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
-
-    return formatCrmSuccess({ deletedCount: res.deletedCount });
+    return formatCrmSuccess({ deletedCount });
   } catch (error) {
     return handleCrmError(error, 'DELETE qr/chatbot-flows/[id]');
   }

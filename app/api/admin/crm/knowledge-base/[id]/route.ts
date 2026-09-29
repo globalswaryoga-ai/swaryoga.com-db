@@ -1,7 +1,11 @@
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { verifyAdminAccess, handleCrmError } from '@/lib/crm-handlers';
+import { verifyAdminAccess } from '@/lib/crm-handlers';
+import {
+  getBunnyKnowledgeBaseArticle,
+  saveBunnyKnowledgeBaseArticle,
+  deleteBunnyKnowledgeBaseArticle,
+} from '@/lib/bunnyKnowledgeBaseRepository';
 
 // GET - Get single article by ID
 export async function GET(
@@ -15,11 +19,7 @@ export async function GET(
     const { id } = await params;
     if (!id) return apiError('BAD_REQUEST', 'Article ID is required');
 
-    await connectDB();
-    const { getKnowledgeBaseArticle } = await import('@/lib/schemas/enterpriseSchemas');
-    const KnowledgeBaseArticle = getKnowledgeBaseArticle();
-
-    const article = await KnowledgeBaseArticle.findById(id).lean();
+    const article = await getBunnyKnowledgeBaseArticle(id);
     if (!article) {
       return apiError('NOT_FOUND', 'Article not found');
     }
@@ -46,39 +46,17 @@ export async function PUT(
     const { id } = await params;
     if (!id) return apiError('BAD_REQUEST', 'Article ID is required');
 
-    await connectDB();
-    const { getKnowledgeBaseArticle } = await import('@/lib/schemas/enterpriseSchemas');
-    const KnowledgeBaseArticle = getKnowledgeBaseArticle();
-
-    const body = await req.json();
-    const updates: any = {};
-
-    if (body.title !== undefined) updates.title = body.title.trim();
-    if (body.content !== undefined) updates.content = body.content.trim();
-    if (body.shortAnswer !== undefined) updates.shortAnswer = body.shortAnswer?.trim() || null;
-    if (body.category !== undefined) updates.category = body.category;
-    if (body.subcategory !== undefined) updates.subcategory = body.subcategory?.trim() || null;
-    if (body.keywords !== undefined) {
-      updates.keywords = Array.isArray(body.keywords) 
-        ? body.keywords.map((k: string) => k.trim().toLowerCase()).filter(Boolean) 
-        : [];
-    }
-    if (body.triggerPhrases !== undefined) {
-      updates.triggerPhrases = Array.isArray(body.triggerPhrases) ? body.triggerPhrases.filter(Boolean) : [];
-    }
-    if (body.language !== undefined) updates.language = body.language;
-    if (body.priority !== undefined) updates.priority = Number(body.priority) || 0;
-    if (body.enabled !== undefined) updates.enabled = body.enabled;
-
-    const updated = await KnowledgeBaseArticle.findByIdAndUpdate(
-      id,
-      { $set: updates },
-      { new: true }
-    ).lean();
-
-    if (!updated) {
+    const existing = await getBunnyKnowledgeBaseArticle(id);
+    if (!existing) {
       return apiError('NOT_FOUND', 'Article not found');
     }
+
+    const body = await req.json();
+    const updated = await saveBunnyKnowledgeBaseArticle(
+      { ...existing, ...body },
+      String(userId),
+      id
+    );
 
     return apiSuccess(updated);
   } catch (err) {
@@ -102,12 +80,8 @@ export async function DELETE(
     const { id } = await params;
     if (!id) return apiError('BAD_REQUEST', 'Article ID is required');
 
-    await connectDB();
-    const { getKnowledgeBaseArticle } = await import('@/lib/schemas/enterpriseSchemas');
-    const KnowledgeBaseArticle = getKnowledgeBaseArticle();
-
-    const deleted = await KnowledgeBaseArticle.findByIdAndDelete(id);
-    if (!deleted) {
+    const deletedCount = await deleteBunnyKnowledgeBaseArticle(id);
+    if (!deletedCount) {
       return apiError('NOT_FOUND', 'Article not found');
     }
 
