@@ -325,39 +325,57 @@ async function sendOutboundInteractiveButtons(
 
 async function sendOutboundTemplate(lead: any, to: string, templateId: string, templateVariables?: any, metadata?: any, creds?: WhatsAppCredentials) {
   const TemplateModel = getWhatsAppTemplate();
-  const [template, compliance] = await Promise.all([
-    TemplateModel.findById(templateId).lean(),
-    ConsentManager.validateCompliance(to),
-  ]);
-  if (!template) return;
+  let template: any = null;
+  try {
+    if (templateId && templateId.length === 24) {
+      template = await TemplateModel.findById(templateId).lean();
+    }
+    if (!template && templateId) {
+      template = await TemplateModel.findOne({ templateName: templateId }).lean();
+    }
+  } catch {}
+
+  const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
 
   const now = new Date();
   const env = creds || getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
-  const message = await WhatsAppMessage.create({
-    leadId: lead._id,
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const messageData = {
+    _id: messageId,
+    documentId: messageId,
+    leadId: String(lead._id),
     phoneNumber: to,
     direction: 'outbound',
     messageType: 'template',
     templateId,
     templateVariables,
     status: 'queued',
-    sentAt: now,
+    sentAt: now.toISOString(),
+    createdAt: now.toISOString(),
     metadata,
     provider: env ? 'meta' : 'whatsapp_web_bridge',
     senderNumber,
-  });
+  };
+
+  await upsertBunnyMetaMessage(messageData).catch(() => {});
+  WhatsAppMessage.create(messageData).catch(() => {});
 
   try {
-    // Call Meta Graph API DIRECTLY — bypass circuit breaker to prevent cascading failures
     if (!env?.accessToken || !env?.phoneNumberId) {
       throw new Error('Meta API not configured (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID required)');
     }
 
-    // Build the template send input (handles headerMedia, buttons, bodyParams)
-    const cloudInput = buildCloudTemplateSendInput(template, to);
+    const templateName = template?.templateName || templateId;
+    const cloudInput = template ? buildCloudTemplateSendInput(template, to) : {
+      templateName,
+      language: 'en',
+      bodyParams: [],
+      headerMedia: null,
+      buttons: []
+    };
 
     // Process header media URL (convert S3/Bunny URLs to publicly accessible URLs)
     let processedHeaderMedia = cloudInput.headerMedia;
@@ -439,19 +457,17 @@ async function sendOutboundTemplate(lead: any, to: string, templateId: string, t
       throw new Error('Meta API returned 200 but no message ID');
     }
 
-    await WhatsAppMessage.updateOne(
-      { _id: message._id },
-      { $set: { status: 'sent', waMessageId, provider: 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
-    );
+    const updates = { status: 'sent', waMessageId, provider: 'meta', senderNumber, updatedAt: new Date().toISOString() };
+    await updateBunnyMetaMessage(messageId, updates).catch(() => {});
+    WhatsAppMessage.updateOne({ _id: messageId }, { $set: updates, $unset: { failureReason: 1 } }).catch(() => {});
 
     console.log(`[Chatbot Template] Sent OK: ${processedInput.templateName} waId=${waMessageId}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'WhatsApp template send failed';
     console.error(`[Chatbot Template] FAILED: ${msg}`);
-    await WhatsAppMessage.updateOne(
-      { _id: message._id },
-      { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
-    );
+    const failureUpdates = { status: 'failed', failureReason: String(msg), updatedAt: new Date().toISOString() };
+    await updateBunnyMetaMessage(messageId, failureUpdates).catch(() => {});
+    WhatsAppMessage.updateOne({ _id: messageId }, { $set: failureUpdates }).catch(() => {});
   }
 }
 
@@ -587,13 +603,17 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
     // No reply delay - advance immediately
     nextNodeId = currentNode.nextNodeId;
     if (nextNodeId) {
-      // Clear waiting state and continue
-      await Lead.updateOne(
+      const updatedLead = await saveBunnyLead({
+        ...lead,
+        metadata: {
+          ...(lead?.metadata || {}),
+          chatbotFlowState: { flowId: state.flowId, nodeId: nextNodeId, updatedAt: ctx.now }
+        }
+      });
+      Lead.updateOne(
         { _id: lead._id },
         { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNodeId, updatedAt: ctx.now } } }
-      );
-      // Fetch updated lead and continue with next node
-      const updatedLead = await Lead.findById(lead._id).lean();
+      ).catch(() => {});
       return advanceChatbotFlow(updatedLead, { ...ctx, body: '' }, flow);
     }
   }
@@ -759,13 +779,19 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
     if (delaySec <= 30) {
       await sleep(delaySec * 1000);
       
-      // Auto-advance past delay node
       if (nextNode.nextNodeId) {
-        await Lead.updateOne(
+        const updatedLead = await saveBunnyLead({
+          ...lead,
+          metadata: {
+            ...(lead?.metadata || {}),
+            chatbotFlowState: { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now }
+          }
+        });
+        Lead.updateOne(
           { _id: lead._id },
           { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
-        );
-        return advanceChatbotFlow(lead, { ...ctx, body: '' }, flow);
+        ).catch(() => {});
+        return advanceChatbotFlow(updatedLead, { ...ctx, body: '' }, flow);
       }
     } else {
       // For long delays, schedule an action to execute later (bunny)
@@ -1445,7 +1471,67 @@ export async function handleInboundWhatsAppAutomations(input: {
   } catch (chatbotConfigErr) {
     console.error('[Automation] Chatbot config error:', chatbotConfigErr);
   }
-  // ===== END CHATBOT CONFIG KEYWORDS =====
+  // ===== AUTOMATIC CHATBOT FLOW EXECUTION (BUNNY DB) =====
+  try {
+    const trigOwnerId = String(ctx.tenantUserId || (lead as any)?.createdByUserId || 'admincrm');
+    let activeFlow: any = null;
+
+    // 1) If lead has an active flow in progress, load it
+    const existingFlowId = lead?.metadata?.chatbotFlowState?.flowId;
+    if (existingFlowId) {
+      activeFlow = await getBunnyChatbotFlow(existingFlowId, trigOwnerId);
+    }
+
+    // 2) If no active flow in progress, find enabled flows for tenant/admin
+    if (!activeFlow || activeFlow.enabled === false) {
+      const { flows: trigFlows } = await listBunnyChatbotFlows(trigOwnerId, { limit: 10 });
+      activeFlow = trigFlows.find((f: any) => f.enabled !== false) || null;
+    }
+
+    // 3) Fallback: check admincrm / admin default enabled flow
+    if (!activeFlow || activeFlow.enabled === false) {
+      const { flows: adminFlows } = await listBunnyChatbotFlows('admincrm', { limit: 10 });
+      activeFlow = adminFlows.find((f: any) => f.enabled !== false) || null;
+    }
+
+    if (activeFlow && activeFlow.enabled !== false) {
+      console.log(`[Automation] Triggering Bunny Chatbot Flow "${activeFlow.name}" (${activeFlow._id}) for ${fromPhone}`);
+      const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
+
+      if (reply) {
+        lead = await saveBunnyLead({
+          ...lead,
+          metadata: {
+            ...(lead.metadata || {}),
+            _chatbot_last_reply_at: now.toISOString()
+          }
+        });
+
+        if (reply.isTemplate && reply.templateId) {
+          await sendOutboundTemplate(lead, fromPhone, reply.templateId, [], {
+            chatbot: { flowId: String(activeFlow._id) }
+          }, ctx.creds);
+        } else if (reply.interactiveButtons?.length > 0) {
+          await sendOutboundInteractiveButtons(lead, fromPhone, reply.text || 'Please choose:', reply.interactiveButtons, {
+            chatbot: { flowId: String(activeFlow._id), presenceType: reply.presenceType, presenceDelay: reply.presenceDelay }
+          }, ctx.creds);
+        } else if (reply.text) {
+          await sendOutboundText(lead, fromPhone, reply.text, {
+            chatbot: {
+              flowId: String(activeFlow._id),
+              spintaxEnabled: reply.spintaxEnabled,
+              presenceType: reply.presenceType,
+              presenceDelay: reply.presenceDelay
+            }
+          }, ctx.creds);
+        }
+      }
+      return; // Handled by active chatbot flow
+    }
+  } catch (chatbotErr) {
+    console.error('[Automation] Automatic Chatbot Flow execution failed:', chatbotErr);
+  }
+  // ===== END AUTOMATIC CHATBOT FLOW EXECUTION =====
 
   const rules = await WhatsAppAutomationRule.find({
     enabled: true,
@@ -1453,7 +1539,8 @@ export async function handleInboundWhatsAppAutomations(input: {
     ...(ctx.tenantUserId ? { createdByUserId: ctx.tenantUserId } : {}),
   })
     .sort({ createdAt: 1 })
-    .lean();
+    .lean()
+    .catch(() => []);
 
   console.log(`[Automation] Processing ${rules.length} rules for ${fromPhone}`);
 
