@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       'https://www.googleapis.com/auth/youtube.upload',
       'https://www.googleapis.com/auth/youtube.readonly',
       'https://www.googleapis.com/auth/youtube.force-ssl',
+      'https://www.googleapis.com/auth/youtube',
     ];
 
     const authUrl = new URL(GOOGLE_AUTH_URL);
