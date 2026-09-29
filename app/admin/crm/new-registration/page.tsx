@@ -419,11 +419,11 @@ export default function NewRegistrationPage() {
         let addedCount = 0;
 
         uniqueDates.forEach(date => {
-          // Check if a batch for this exact date and language already exists
+          // Check if a batch for this exact date and language already exists (or is part of a merged batch)
           const exists = newWorkshops.some(w =>
             w.id.startsWith('batch_') &&
             (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
-            w.formFilterKeyword === date
+            (w.formFilterKeyword === date || (w.formFilterKeyword || '').split('|').includes(date))
           );
 
           if (!exists) {
@@ -447,7 +447,7 @@ export default function NewRegistrationPage() {
             const batchIndex = newWorkshops.findIndex(w => 
               w.id.startsWith('batch_') &&
               (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
-              w.formFilterKeyword === date
+              (w.formFilterKeyword === date || (w.formFilterKeyword || '').split('|').includes(date))
             );
             if (batchIndex !== -1) {
               const currentLeadsCount = leadsData.filter((l: any) => l._rawRecord && String(l._rawRecord[formField]).trim() === date).length;
@@ -1658,11 +1658,11 @@ export default function NewRegistrationPage() {
       let addedCount = 0;
 
       uniqueDates.forEach(date => {
-        // Check if a batch for this exact date and language already exists
+        // Check if a batch for this exact date and language already exists (or is part of a merged batch)
         const exists = newWorkshops.some(w =>
           w.id.startsWith('batch_') &&
           (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
-          w.formFilterKeyword === date
+          (w.formFilterKeyword === date || (w.formFilterKeyword || '').split('|').includes(date))
         );
 
         if (!exists) {
