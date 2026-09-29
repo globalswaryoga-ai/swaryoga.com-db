@@ -719,9 +719,13 @@ export default function BroadcastPage(props: any) {
       const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
       const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
-      return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus;
+      const matchesLanguage = filterLanguage === 'all' || 
+        lead.workshopName?.toLowerCase().includes(filterLanguage) || 
+        (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage)));
+      
+      return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && matchesLanguage;
     });
-  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops]);
+  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -739,6 +743,21 @@ export default function BroadcastPage(props: any) {
     });
     return Array.from(labels).sort();
   }, [leads]);
+
+  const STATUS_LABELS: Record<string, string> = {
+    'lead': 'New Leads',
+    'new_leads': 'New Leads',
+    'pending_leads': 'Pending Leads',
+    'pending_leads_1': 'Pending Leads-1',
+    'pending_leads_2': 'Pending Leads-2',
+    'pending_leads_3': 'Pending Leads-3',
+    'approval_1': 'Aprovel-1',
+    'approval_2': 'Aprovel-2',
+    'registered_leads': 'Registerd leads',
+    'set_zoom_meeting': 'Set zoom meeting',
+    'take_zoom_meeting': 'Take Zoom Meeting',
+    'rejected_leads': 'Rejected leads'
+  };
 
   const uniqueStatuses = useMemo(() => {
     const statuses = new Set(leads.map(l => l.status || 'lead'));
@@ -1547,10 +1566,10 @@ export default function BroadcastPage(props: any) {
                   className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[120px]"
                 >
                   <option value="all">All Languages</option>
-                  <option value="en">English</option>
-                  <option value="hi">Hindi</option>
-                  <option value="mr">Marathi</option>
-                  <option value="kn">Kannada</option>
+                  <option value="english">English</option>
+                  <option value="hindi">Hindi</option>
+                  <option value="marathi">Marathi</option>
+                  <option value="kannada">Kannada</option>
                 </select>
 
                 <select
@@ -1568,7 +1587,7 @@ export default function BroadcastPage(props: any) {
                   className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[180px]"
                 >
                   <option value="all">Leads Management (All)</option>
-                  {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                  {uniqueStatuses.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
                 </select>
               </div>
 
