@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Meta Broadcast Template Image History Fix (Session: September 29, 2026) — Commit `pending`
+### Meta Broadcast Template Image History Fix (Session: September 29, 2026) — Commit `0dc75e58`
 
 - Broadcast template messages now preserve header media metadata when written to Bunny SQL.
 - Existing broadcast inbox messages enrich their image/video header from the stored Bunny template definition by `templateId`; no resend or duplicate message is required.
