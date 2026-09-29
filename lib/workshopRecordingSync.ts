@@ -77,7 +77,50 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
 
   const meetingInstances: ZoomMeetingRecord[] = [];
 
-  // A. Fetch from users/me/recordings
+  // A. Fetch from past_meetings/{meetingId}/instances
+  try {
+    const instancesRes = await fetch(
+      `https://api.zoom.us/v2/past_meetings/${encodeURIComponent(zoomMeetingId)}/instances`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      }
+    );
+    const instancesData = await instancesRes.json();
+    debugLogs.push(`instances status=${instancesRes.status}`);
+    
+    if (instancesRes.ok && instancesData && instancesData.meetings) {
+      for (const instance of instancesData.meetings) {
+        if (!instance.uuid) continue;
+        let uuid = instance.uuid;
+        // Zoom requires double URL encoding for UUIDs that start with / or contain //
+        if (uuid.startsWith('/') || uuid.includes('//')) {
+          uuid = encodeURIComponent(encodeURIComponent(uuid));
+        } else {
+          uuid = encodeURIComponent(uuid);
+        }
+        try {
+          const recRes = await fetch(`https://api.zoom.us/v2/meetings/${uuid}/recordings`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            cache: 'no-store',
+          });
+          if (recRes.ok) {
+            const recData = await recRes.json();
+            if (recData && recData.uuid && !meetingInstances.some((m) => m.uuid === recData.uuid)) {
+              meetingInstances.push(recData);
+            }
+          }
+        } catch (e) {
+          // ignore individual fetch errors
+        }
+      }
+      debugLogs.push(`instances fetched=${meetingInstances.length}`);
+    }
+  } catch (err: any) {
+    debugLogs.push(`instances exception: ${err.message}`);
+  }
+
+  // B. Fetch from users/me/recordings just in case (fallback)
   try {
     const listRes = await fetch(
       `https://api.zoom.us/v2/users/me/recordings?from=${fromDate}&to=${today}&page_size=100`,
@@ -87,21 +130,21 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
       }
     );
     const listData = await listRes.json();
-    debugLogs.push(`users/me status=${listRes.status}, total=${listData.total_records || 0}`);
     if (listRes.ok) {
       const matched = (listData.meetings || []).filter(
         (m: any) => String(m.id).trim() === zoomMeetingId
       );
-      debugLogs.push(`matched=${matched.length} of ${listData.meetings?.length || 0}`);
-      meetingInstances.push(...matched);
-    } else {
-      debugLogs.push(`users/me error: ${JSON.stringify(listData)}`);
+      for (const match of matched) {
+        if (!meetingInstances.some((m) => m.uuid === match.uuid)) {
+          meetingInstances.push(match);
+        }
+      }
     }
   } catch (err: any) {
     debugLogs.push(`users/me exception: ${err.message}`);
   }
 
-  // B. Also fetch directly from meetings/{meetingId}/recordings to ensure the latest instance is present
+  // C. Also fetch directly from meetings/{meetingId}/recordings to ensure the latest instance is present
   try {
     const directRes = await fetch(
       `https://api.zoom.us/v2/meetings/${encodeURIComponent(zoomMeetingId)}/recordings`,
@@ -111,12 +154,9 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
       }
     );
     const directData = await directRes.json();
-    debugLogs.push(`meetings/${zoomMeetingId} status=${directRes.status}`);
     if (directRes.ok && directData && directData.uuid) {
-      const exists = meetingInstances.some((m) => m.uuid === directData.uuid);
-      if (!exists) {
+      if (!meetingInstances.some((m) => m.uuid === directData.uuid)) {
         meetingInstances.push(directData);
-        debugLogs.push(`added direct meeting uuid=${directData.uuid}`);
       }
     } else if (!directRes.ok) {
       debugLogs.push(`meetings/${zoomMeetingId} error: ${JSON.stringify(directData)}`);
