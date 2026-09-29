@@ -139,9 +139,9 @@ export async function deleteTemplate(id: string) {
   await bunnyExecute({ sql: 'DELETE FROM whatsapp_templates_sql WHERE document_id = ?', args: [id] });
 }
 
-export async function findMetaTemplate(metaId: string, name: string) {
-  const sql = `SELECT * FROM whatsapp_templates_sql WHERE meta_template_id = ? OR template_name = ? LIMIT 1`;
-  const res = await bunnyExecute({ sql, args: [metaId, name] });
+export async function findMetaTemplate(metaId: string, name: string, language: string) {
+  const sql = `SELECT * FROM whatsapp_templates_sql WHERE meta_template_id = ? OR (template_name = ? AND language = ?) LIMIT 1`;
+  const res = await bunnyExecute({ sql, args: [metaId, name, language] });
   if (res.rows.length === 0) return null;
   
   return {

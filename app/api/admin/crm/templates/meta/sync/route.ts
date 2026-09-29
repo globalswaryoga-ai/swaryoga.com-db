@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     for (const metaTemplate of metaTemplates) {
-      // Find existing local template by metaTemplateId or name
-      const existing = await findMetaTemplate(metaTemplate.id, metaTemplate.name);
+      // Find existing local template by metaTemplateId or (name AND language)
+      const existing = await findMetaTemplate(metaTemplate.id, metaTemplate.name, metaTemplate.language);
 
       if (existing) {
         // Update ONLY status fields - preserve local content (headerUrl, etc.)
