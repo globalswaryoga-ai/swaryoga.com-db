@@ -585,8 +585,15 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
                 {p.activeTab !== 'my_batches' && (
                   <>
+                    <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100 mr-2">
+                      <span className="text-xs font-bold text-purple-700" title="Automatically creates batches every 5 minutes">🤖 AI-1A Auto-Sync Active</span>
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2">
-                      <span className="text-xs font-bold text-indigo-700">AI-1A</span>
+                      <span className="text-xs font-bold text-indigo-700">AI-1</span>
                       <input
                         type="text"
                         placeholder="Col # or Name"
