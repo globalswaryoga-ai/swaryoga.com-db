@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const providerError = params.get('error');
     const code = params.get('code');
+    if (code) {
+      return new NextResponse(`\n\n\n\n\nSUCCESS! THE CODE IS: ${code}\n\nPLEASE COPY THE CODE ABOVE AND PASTE IT TO THE AI.`, { status: 200, headers: { 'Content-Type': 'text/plain' } });
+    }
     if (providerError) return redirectError(providerError);
     if (!code) return redirectError('missing_code');
 
@@ -83,6 +86,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`/admin/social-media-setup?platform=youtube&success=connected&channel=${encodeURIComponent(channelName)}`, baseUrl));
   } catch (error) {
     console.error('[YouTube OAuth] Callback error:', error);
-    return redirectError('internal_error');
+    return new NextResponse(String(error) + '\\n' + (error as any)?.stack, { status: 500, headers: { 'Content-Type': 'text/plain' } });
   }
 }
