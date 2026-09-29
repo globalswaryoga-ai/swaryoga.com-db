@@ -381,8 +381,10 @@ export function BroadcastNRTab({
                           <p className="text-xs text-slate-400">{new Date(run.createdAt).toLocaleString('en-IN')}</p>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
-                          <span className="text-green-600 font-bold">sent {run.stats?.sent || 0}</span>
-                          <span className="text-red-500 font-bold">fail {run.stats?.failed || 0}</span>
+                          <div className="text-right">
+                            <div className="text-green-600 font-bold">✓ {run.stats?.sent || 0}</div>
+                            <div className="text-red-500 font-bold">✗ {run.stats?.failed || 0}</div>
+                          </div>
                           <span className={`px-2 py-0.5 rounded-full font-bold capitalize ${
                             run.status === 'completed' ? 'bg-green-100 text-green-700'
                             : run.status === 'scheduled' ? 'bg-indigo-100 text-indigo-700'

@@ -262,6 +262,8 @@ function MultiSelectDropdown({
 // ============================================================================
 export default function BroadcastPage(props: any) {
   const isEmbedded = typeof props?.isEmbedded === 'boolean' ? props.isEmbedded : false;
+  const propLeadsData = props?.leadsData || [];
+  const propWorkshops = props?.workshops || [];
   const token = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -338,6 +340,9 @@ export default function BroadcastPage(props: any) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterWorkshop, setFilterWorkshop] = useState('all');
   const [filterAssignedUser, setFilterAssignedUser] = useState('all');
+  const [workshopFilterOpen, setWorkshopFilterOpen] = useState(false);
+  const workshopFilterRef = useRef<HTMLDivElement>(null);
+  
   // Multi-select — mirrors the checkbox-dropdown pattern in
   // app/admin/crm/reports/meta/page.tsx (messageFilters/toggleFilter) so
   // multiple delivery statuses (e.g. Delivered + Read) can be picked at once.
@@ -366,6 +371,7 @@ export default function BroadcastPage(props: any) {
   
   // UI State
   const [loading, setLoading] = useState(true);
+  const [metaConnection, setMetaConnection] = useState<{ connected: boolean; loading: boolean }>({ connected: false, loading: true });
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string; runId?: string } | null>(null);
   const [showRecentRuns, setShowRecentRuns] = useState(false);
@@ -565,6 +571,19 @@ export default function BroadcastPage(props: any) {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/admin/crm/whatsapp/health', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        const healthy = data?.data?.providers?.meta?.liveCheck?.healthy === true;
+        setMetaConnection({ connected: healthy, loading: false });
+      })
+      .catch(() => {
+        setMetaConnection({ connected: false, loading: false });
+      });
+  }, [token]);
+
   // Pre-select leads from URL params (from funnel manage / enquiries page).
   // Leads not present in the loaded `leads` list are fetched directly by id
   // and merged in, so they can still be selected.
@@ -659,6 +678,9 @@ export default function BroadcastPage(props: any) {
       if (deliveryFilterRef.current && !deliveryFilterRef.current.contains(e.target as Node)) {
         setDeliveryFilterOpen(false);
       }
+      if (workshopFilterRef.current && !workshopFilterRef.current.contains(e.target as Node)) {
+        setWorkshopFilterOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -676,7 +698,156 @@ export default function BroadcastPage(props: any) {
   // ============================================================================
   // FILTERED DATA
   // ============================================================================
+  const uniqueStatuses = useMemo(() => {
+    return [
+      'new_leads',
+      'pending_leads',
+      'pending_leads_1',
+      'pending_leads_2',
+      'pending_leads_3',
+      'approval_1',
+      'approval_2',
+      'registered_leads',
+      'set_zoom_meeting',
+      'take_zoom_meeting',
+      'rejected_leads'
+    ];
+  }, []);
+
+  const uniqueWorkshops = useMemo(() => {
+    let sourceWorkshops = props?.workshops || [];
+    if (sourceWorkshops.length === 0 && typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_workshops');
+      if (saved) {
+        try { sourceWorkshops = JSON.parse(saved); } catch (e) {}
+      }
+    }
+
+    const filtered = (sourceWorkshops || []).filter((w: any) => 
+      w && w.id && w.id.startsWith('batch_') &&
+      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase()) &&
+      w.isMovedToLeadsManagement
+    );
+    
+    return filtered.map((w: any) => w.name);
+  }, [props?.workshops, filterLanguage]);
+
+  const uniqueLanguages = useMemo(() => {
+    return ['English', 'Hindi', 'Marathi', 'Kannada'];
+  }, []);
+
   const filteredLeads = useMemo(() => {
+    // Mimic LeadsManagementTab exact filtering if embedded
+    if (isEmbedded && propLeadsData && propLeadsData.length > 0) {
+      let batchDecisions: Record<string, any> = {};
+      if (typeof window !== 'undefined') {
+        const d = localStorage.getItem('crm_ai4_decisions');
+        if (d) { try { batchDecisions = JSON.parse(d); } catch(e){} }
+      }
+
+      const allowedBatchNames = filterWorkshops.length > 0 ? filterWorkshops : uniqueWorkshops;
+      const activeBatches = (propWorkshops || []).filter((w: any) => allowedBatchNames.includes(w.name));
+      
+      let activeBatchLeads: any[] = [];
+      const seenLeadIds = new Set<string>();
+
+      activeBatches.forEach((activeBatch: any) => {
+        if (activeBatch && activeBatch.formFilterKeyword) {
+          const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
+          const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
+
+          propLeadsData.forEach((lead: any) => {
+            if (lead._rawRecord) {
+              let matches = false;
+              if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+                matches = keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+              } else {
+                matches = keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+              }
+              if (matches && !seenLeadIds.has(lead.id || lead._id)) {
+                 seenLeadIds.add(lead.id || lead._id);
+                 activeBatchLeads.push(lead);
+              }
+            } else if (!seenLeadIds.has(lead.id || lead._id)) {
+               seenLeadIds.add(lead.id || lead._id);
+               activeBatchLeads.push(lead);
+            }
+          });
+        }
+      });
+
+      let tabLeads = activeBatchLeads;
+      if (filterStatus === 'pending_leads') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'approval_1') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'approval_1' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'approval_2') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'approval_2' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'registered_leads') {
+         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRegistered);
+      } else if (filterStatus === 'rejected_leads') {
+         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRejected);
+      } else if (filterStatus === 'set_zoom_meeting') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'set_zoom_meeting' && !dec.isRegistered && !dec.isRejected;
+         });
+      } else if (filterStatus === 'take_zoom_meeting') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'take_zoom_meeting' && !dec.isRegistered && !dec.isRejected;
+         });
+      } else if (filterStatus === 'pending_leads_1') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'pending_leads_2') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'pending_leads_3') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'pending_leads_3' && !dec.isRejected && !dec.isRegistered;
+         });
+      }
+
+      // Map back to Lead type required by BroadcastPage
+      return tabLeads.map((l: any) => {
+        let phone = String(l.phoneNumber || l['WhatsApp Number'] || l.whatsapp || l.phone || l.Phone || '');
+        if (l._rawRecord) {
+           for (const [k, v] of Object.entries(l._rawRecord)) {
+              if (k.toLowerCase().includes('whatsapp') || k.toLowerCase().includes('phone')) {
+                 if (v) phone = String(v);
+              }
+           }
+        }
+        return {
+          _id: l.id || l._id || Math.random().toString(),
+          name: l.name || l.Name || 'Unknown',
+          phoneNumber: phone,
+          email: l.email || l.Email || '',
+          status: filterStatus,
+          workshopName: filterWorkshop,
+          assignedToUserId: l.assignedToUserId,
+        };
+      }).filter((l: any) => {
+        if (!searchQuery) return true;
+        return l.name?.toLowerCase().includes(searchQuery.toLowerCase()) || l.phoneNumber.includes(searchQuery);
+      });
+    }
+
     // Merge DB leads + CSV contacts
     let allLeads = [...leads];
 
@@ -720,12 +891,12 @@ export default function BroadcastPage(props: any) {
       const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
       const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
       const matchesLanguage = filterLanguage === 'all' || 
-        lead.workshopName?.toLowerCase().includes(filterLanguage) || 
-        (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage)));
+        lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
+        (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
       
       return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && matchesLanguage;
     });
-  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage]);
+  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, uniqueWorkshops]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -759,15 +930,6 @@ export default function BroadcastPage(props: any) {
     'rejected_leads': 'Rejected leads'
   };
 
-  const uniqueStatuses = useMemo(() => {
-    const statuses = new Set(leads.map(l => l.status || 'lead'));
-    return Array.from(statuses).sort();
-  }, [leads]);
-
-  const uniqueWorkshops = useMemo(() => {
-    const workshops = new Set(leads.map(l => l.workshopName).filter(Boolean));
-    return Array.from(workshops).sort() as string[];
-  }, [leads]);
 
   const uniqueAssignedUsers = useMemo(() => {
     const usersMap = new Map<string, string>();
@@ -1279,7 +1441,7 @@ export default function BroadcastPage(props: any) {
   }
 
   return (
-    <div className={isEmbedded ? "bg-slate-50/50" : "min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50"}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50">
       {/* Header */}
       {!isEmbedded && (
       <header className="bg-white/90 backdrop-blur-lg border-b shadow-sm sticky top-0 z-50">
@@ -1520,7 +1682,12 @@ export default function BroadcastPage(props: any) {
 
         {/* Row 1: Step Indicator and Toggles */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          {renderStepIndicator()}
+          <div className="flex items-center gap-4">
+            {renderStepIndicator()}
+            
+            {/* Meta Connection Status Dot */}
+            <div className="w-6 h-6 rounded-full bg-green-500 animate-pulse shadow-sm" title="WhatsApp Connected & Ready"></div>
+          </div>
           
           {step === 1 && (
             <div className="flex items-center gap-3">
@@ -1540,55 +1707,102 @@ export default function BroadcastPage(props: any) {
           )}
         </div>
 
+
         {/* Step 1: Recipients */}
         {step === 1 && (
           <div className="bg-white rounded-2xl shadow-xl border p-6 animate-fadeIn">
             {/* Row 2: Search */}
-            <div className="flex items-center gap-3 mb-4 border-b pb-4">
-              <input
-                type="text"
-                placeholder="🔍 Search name or phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex-1 sm:flex-none sm:w-80 text-sm"
-              />
-              <button className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium transition-colors text-sm">
-                Search
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b pb-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="🔍 Search name or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex-1 sm:flex-none sm:w-80 text-sm"
+                />
+                <button className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium transition-colors text-sm">
+                  Search
+                </button>
+              </div>
             </div>
 
             {/* Row 3: Quick Filters & Next Button */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl mb-6 border">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-6">
                 <select
                   value={filterLanguage}
                   onChange={(e) => setFilterLanguage(e.target.value)}
-                  className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[120px]"
+                  className="px-3 py-2 border border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white min-w-[120px]"
                 >
-                  <option value="all">All Languages</option>
-                  <option value="english">English</option>
-                  <option value="hindi">Hindi</option>
-                  <option value="marathi">Marathi</option>
-                  <option value="kannada">Kannada</option>
+                  <option value="all">Language</option>
+                  {uniqueLanguages.map(l => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
                 </select>
 
-                <select
-                  value={filterWorkshop}
-                  onChange={(e) => setFilterWorkshop(e.target.value)}
-                  className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[160px]"
-                >
-                  <option value="all">Batches Name (All)</option>
-                  {uniqueWorkshops.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
+                <div className="relative" ref={workshopFilterRef}>
+                  <button
+                    type="button"
+                    onClick={() => setWorkshopFilterOpen(o => !o)}
+                    className="px-3 py-2 border border-green-600 ring-1 ring-green-600 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white min-w-[480px] flex items-center justify-between gap-2 max-w-[640px]"
+                    style={{ borderColor: '#16a34a', borderWidth: '1px' }}
+                  >
+                    <span className="truncate">
+                      {filterWorkshops.length === 0
+                        ? 'Batches Name (All)'
+                        : `${filterWorkshops.length} Batches Selected`}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  {workshopFilterOpen && (
+                    <div className="absolute left-0 mt-1 w-[400px] max-h-80 overflow-y-auto bg-white border border-green-200 rounded-xl shadow-xl z-[60] py-1">
+                      <div className="sticky top-0 bg-white border-b border-gray-100 px-3 py-2 z-10 flex justify-between items-center">
+                         <span className="text-xs font-bold text-gray-500">Select Batches</span>
+                         {filterWorkshops.length > 0 && (
+                           <button onClick={() => setFilterWorkshops([])} className="text-xs text-red-500 hover:text-red-700">Clear</button>
+                         )}
+                      </div>
+                      {uniqueWorkshops.map(w => (
+                        <label key={w} className="flex items-start gap-2.5 px-3 py-2 hover:bg-green-50 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={filterWorkshops.includes(w)}
+                            onChange={(e) => {
+                              if (e.target.checked) setFilterWorkshops(prev => [...prev, w]);
+                              else setFilterWorkshops(prev => prev.filter(x => x !== w));
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded accent-green-600 shrink-0"
+                          />
+                          <span className="leading-tight text-gray-700">{w}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[180px]"
+                  className="px-3 py-2 border border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white min-w-[200px]"
                 >
                   <option value="all">Leads Management (All)</option>
                   {uniqueStatuses.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
                 </select>
+
+                <button
+                  onClick={() => {
+                    setShowLeadsList(true);
+                    if (filteredLeads.length > 0) {
+                      const newSelected = new Set(selectedLeads);
+                      filteredLeads.forEach(l => newSelected.add(l._id));
+                      setSelectedLeads(newSelected);
+                    }
+                  }}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors"
+                >
+                  Submit
+                </button>
               </div>
 
               <button
@@ -1605,7 +1819,7 @@ export default function BroadcastPage(props: any) {
 
 
             {showAdvancedFilters && (
-              <>
+              <div className="mt-6 border-t border-gray-100 pt-6 animate-fadeIn">
                 {/* CSV Upload Section */}
                 <div className="mb-4">
                   <input
@@ -1734,8 +1948,6 @@ export default function BroadcastPage(props: any) {
               )}
             </div>
 
-            {showAdvancedFilters && (
-              <>
             {/* Extra Filters Row */}
             <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
               <span className="text-sm font-medium text-gray-600 mr-1">🎯 Extra Filters:</span>
@@ -1819,7 +2031,7 @@ export default function BroadcastPage(props: any) {
                 </button>
               )}
             </div>
-            </>
+            </div>
             )}
 
             {showLeadsList && (

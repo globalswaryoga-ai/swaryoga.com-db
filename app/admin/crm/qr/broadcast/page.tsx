@@ -1,57 +1,193 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { useCRM } from '@/hooks/useCRM';
-import {
-  Send, ChevronRight, ChevronLeft, ChevronDown, MessageSquare, Users, Calendar,
-  Check, Search, X, Loader2, AlertCircle, FileText, Image, Video, File,
-} from 'lucide-react';
+import { checkIsSuperAdmin } from '@/lib/client-auth';
+import { ChevronDown } from 'lucide-react';
+import LeadSourceBadge from '@/components/admin/crm/LeadSourceBadge';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-interface Template {
-  _id: string;
-  templateName: string;
-  category: string;
-  templateContent: string;
-  headerType?: string;
-  headerText?: string;
-  headerMedia?: { type: string; url?: string };
-  footer?: string;
-  buttons?: Array<{ type: string; text: string }>;
-  provider: string;
-}
-
+// ============================================================================
+// TYPES
+// ============================================================================
 interface Lead {
   _id: string;
-  name: string;
+  name?: string;
   phoneNumber: string;
   status?: string;
   labels?: string[];
+  workshopName?: string;
+  assignedToUserId?: string;
+  userName?: string;
+  isCSV?: boolean; // Flag for CSV-imported contacts
+  email?: string;
+  // Most recent Meta WhatsApp message status for this lead (delivered/read/
+  // failed/blocked/...), merged in from broadcast-runs/latest-status — lets
+  // the recipient panel filter by it to re-target previously-delivered/read
+  // people directly.
+  deliveryStatus?: string;
+  deliveryStatusAt?: string;
 }
 
-
-const STEPS = ['Template', 'Recipients', 'Schedule'];
-
-const STATUS_OPTIONS = [
-  { value: 'new_lead', label: 'New Lead' },
-  { value: 'contacted', label: 'Contacted' },
-  { value: 'interested', label: 'Interested' },
-  { value: 'enrolled', label: 'Enrolled' },
-  { value: 'hot', label: 'Hot' },
-  { value: 'prospect', label: 'Prospect' },
-  { value: 'customer', label: 'Customer' },
-  { value: 'lead', label: 'Lead' },
-];
-
-// ── Header icon ───────────────────────────────────────────────────────────────
-function HeaderIcon({ type }: { type?: string }) {
-  if (type === 'IMAGE') return <Image className="w-4 h-4 text-blue-500" />;
-  if (type === 'VIDEO') return <Video className="w-4 h-4 text-purple-500" />;
-  if (type === 'DOCUMENT') return <File className="w-4 h-4 text-orange-500" />;
-  return null;
+interface CSVContact {
+  name?: string;
+  phoneNumber: string;
+  email?: string;
+  raw: Record<string, string>;
 }
+
+interface Template {
+  _id: string;
+  templateName: string;
+  templateContent: string;
+  headerFormat?: string;
+  headerMedia?: { kind: string; url: string };
+  buttons?: { kind: string; title: string; url?: string }[];
+  language?: string;
+  status?: string;
+  metaTemplateId?: string;
+  metaStatus?: string;
+}
+
+interface BroadcastRun {
+  _id: string;
+  name: string;
+  status: string;
+  provider: string;
+  stats: {
+    total: number;
+    pending: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+  };
+  templateSnapshot?: {
+    templateName?: string;
+  };
+  createdAt: string;
+  completedAt?: string;
+}
+
+interface QuotaStatus {
+  date: string;
+  sent: number;
+  limit: number;
+  remaining: number;
+  percentage: number;
+  status: 'normal' | 'warning' | 'critical' | 'exhausted';
+  canSend: boolean;
+  estimatedDeliveryTime?: string;
+}
+
+interface BulkStats {
+  today: { sent: number; failed: number; pending: number };
+  thisWeek: { sent: number; failed: number };
+  thisMonth: { sent: number; failed: number };
+  quota: QuotaStatus;
+  activeRuns: number;
+}
+
+interface BroadcastValidation {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  estimatedTime: string;
+  quotaAfterSend: number;
+}
+
+type SendMode = 'now' | 'schedule' | 'delay' | 'repeat';
+type Provider = 'meta';
+type Step = 1 | 2 | 3;
+
+// ── "Repeat on these days" helpers (mirrors QR Group Scheduler) ────────────────
+function tomorrowDateStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function genDates(start: string, count: number): string[] {
+  const dates: string[] = [];
+  const [y, m, d] = start.split('-').map(Number);
+  const base = new Date(y, (m || 1) - 1, d || 1);
+  for (let i = 0; i < count; i++) {
+    const dt = new Date(base);
+    dt.setDate(base.getDate() + i);
+    dates.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
+  }
+  return dates;
+}
+function fmtDayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+// ============================================================================
+// UTILITY COMPONENTS
+// ============================================================================
+function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'sm' | 'md' }) {
+  const configs: Record<string, { bg: string; text: string; icon: string }> = {
+    draft: { bg: 'bg-gray-100', text: 'text-gray-700', icon: '📝' },
+    scheduled: { bg: 'bg-indigo-100', text: 'text-indigo-700', icon: '📅' },
+    running: { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: '🔄' },
+    completed: { bg: 'bg-green-100', text: 'text-green-700', icon: '✅' },
+    failed: { bg: 'bg-red-100', text: 'text-red-700', icon: '❌' },
+    pending: { bg: 'bg-gray-100', text: 'text-gray-600', icon: '⏳' },
+    sent: { bg: 'bg-green-100', text: 'text-green-700', icon: '✓' },
+    skipped: { bg: 'bg-orange-100', text: 'text-orange-700', icon: '⏭️' },
+  };
+  const config = configs[status] || { bg: 'bg-gray-100', text: 'text-gray-600', icon: '•' };
+  const sizeClasses = size === 'md' ? 'px-3 py-1.5 text-sm' : 'px-2 py-0.5 text-xs';
+  
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full font-medium ${config.bg} ${config.text} ${sizeClasses}`}>
+      <span>{config.icon}</span>
+      <span className="capitalize">{status}</span>
+    </span>
+  );
+}
+
+// Shows a lead's most recent Meta message status (delivered/read/failed/
+// blocked/...) — distinct from StatusBadge above, which is the CRM lead
+// status, not a WhatsApp delivery state.
+function DeliveryStatusBadge({ status }: { status: string }) {
+  const configs: Record<string, { bg: string; text: string; icon: string }> = {
+    delivered: { bg: 'bg-blue-100', text: 'text-blue-700', icon: '📨' },
+    read: { bg: 'bg-emerald-100', text: 'text-emerald-700', icon: '👁️' },
+    failed: { bg: 'bg-red-100', text: 'text-red-700', icon: '❌' },
+    blocked: { bg: 'bg-rose-100', text: 'text-rose-700', icon: '🚫' },
+    sent: { bg: 'bg-gray-100', text: 'text-gray-600', icon: '✓' },
+    pending: { bg: 'bg-gray-100', text: 'text-gray-500', icon: '⏳' },
+  };
+  const config = configs[status] || { bg: 'bg-gray-100', text: 'text-gray-500', icon: '•' };
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full font-medium px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>
+      <span>{config.icon}</span>
+      <span className="capitalize">{status}</span>
+    </span>
+  );
+}
+
+function ProgressBar({ value, max, color = 'blue' }: { value: number; max: number; color?: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const colorMap: Record<string, string> = {
+    blue: 'bg-indigo-500',
+    green: 'bg-green-500',
+    red: 'bg-red-500',
+    yellow: 'bg-yellow-500',
+  };
+  return (
+    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+      <div
+        className={`h-full transition-all duration-500 ${colorMap[color] || 'bg-indigo-500'}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+// ============================================================================
 
 // ── Multi-select checkbox dropdown ───────────────────────────────────────────
 function MultiSelectDropdown({
@@ -89,7 +225,7 @@ function MultiSelectDropdown({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white min-w-40 flex items-center justify-between gap-2"
+        className="px-3 py-2 border rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white min-w-40 flex items-center justify-between gap-2"
       >
         <span className="truncate">{displayText}</span>
         <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -122,87 +258,70 @@ function MultiSelectDropdown({
   );
 }
 
-// ── "Repeat on these days" helpers (mirrors QR Group Scheduler) ────────────────
-function tomorrowDateStr(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// MAIN COMPONENT
+// ============================================================================
+interface BroadcastPageProps {
+  isEmbedded?: boolean;
+  workshops?: any[];
+  leadsData?: any[];
 }
-
-function genDates(start: string, count: number): string[] {
-  const dates: string[] = [];
-  const [y, m, d] = start.split('-').map(Number);
-  const base = new Date(y, (m || 1) - 1, d || 1);
-  for (let i = 0; i < count; i++) {
-    const dt = new Date(base);
-    dt.setDate(base.getDate() + i);
-    dates.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
-  }
-  return dates;
-}
-
-function fmtDayLabel(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, (m || 1) - 1, d || 1);
-  return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-export default function QRBroadcastWizard() {
+export default function BroadcastPage(props: BroadcastPageProps) {
+  const isEmbedded = typeof props?.isEmbedded === 'boolean' ? props.isEmbedded : false;
+  const propLeadsData = props?.leadsData || [];
+  const propWorkshops = props?.workshops || [];
   const token = useAuth();
-  const { fetch: crmFetch } = useCRM({ token });
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
-  const [step, setStep] = useState(0);
-  const autoSelectOnLoad = useRef(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  // Check superAdmin access — read localStorage directly so we don't
+  // redirect before useAuth() has set the token state (it starts null).
+  useEffect(() => {
+    const storedToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('crm_token') || localStorage.getItem('adminToken') || localStorage.getItem('admin_token'))
+      : null;
+    if (!storedToken) {
+      if (!isEmbedded) router.replace('/admin/login');
+      return;
+    }
+    const isAdmin = checkIsSuperAdmin(); // sync — reads localStorage directly
+    if (!isAdmin) {
+      if (!isEmbedded) router.replace('/admin/crm');
+      return;
+    }
+    setIsSuperAdmin(true);
+    setIsChecking(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount — no dependency on token state
 
-  // Step 1 — template
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [templatesLoading, setTemplatesLoading] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-  const [templateSearch, setTemplateSearch] = useState('');
-
-  // Step 2 — recipients
+  // Step management
+  const [step, setStep] = useState<Step>(1);
+  
+  // Data
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [leadsLoading, setLeadsLoading] = useState(false);
-  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
-  const [leadSearch, setLeadSearch] = useState('');
-  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
-  const [filterLabels, setFilterLabels] = useState<string[]>([]);
-  const [filterWorkshops, setFilterWorkshops] = useState<string[]>([]);
-  const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
-  const [labelOptions, setLabelOptions] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [recentRuns, setRecentRuns] = useState<BroadcastRun[]>([]);
+  
+  // Selection
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  
+  // Options
+  const [sendMode, setSendMode] = useState<SendMode>('now');
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [delayMinutes, setDelayMinutes] = useState(5);
+  const [delayBetweenSeconds, setDelayBetweenSeconds] = useState(2);
+  const [provider] = useState<Provider>('meta');
+  const [broadcastName, setBroadcastName] = useState('');
 
-  // Quick Filters
-  const [showSystemData, setShowSystemData] = useState(false);
-  const [quickLanguages, setQuickLanguages] = useState<string[]>([]);
-  const [quickBatches, setQuickBatches] = useState<string[]>([]);
-
-  // Step 3 — schedule
-  const [runName, setRunName] = useState('');
-  const [mode, setMode] = useState<'now' | 'schedule' | 'delay'>('now');
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [delayDays, setDelayDays] = useState(0);
-  const [delayHours, setDelayHours] = useState(0);
-  const [delayMinutes, setDelayMinutes] = useState(10);
-
-  // Step 3 — repeat (recurring) schedule
-  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  // Repeat (recurring) schedule
   const [repeatStartDate, setRepeatStartDate] = useState(tomorrowDateStr());
   const [repeatNumDays, setRepeatNumDays] = useState(15);
   const [repeatUnselectedDates, setRepeatUnselectedDates] = useState<Set<string>>(new Set());
-  const [repeatTime, setRepeatTime] = useState('18:00');
+  const [repeatTime, setRepeatTime] = useState('10:00');
   const [repeatScheduleName, setRepeatScheduleName] = useState('');
-
-  // Live 15/hr · 150/day send quota usage (lib/qrSendRateLimit.ts)
-  const [rateStatus, setRateStatus] = useState<{
-    dailyLimit: number; hourlyLimit: number;
-    daySent: number; hourSent: number; dayRemaining: number; hourRemaining: number;
-  } | null>(null);
 
   const repeatDateList = useMemo(() => genDates(repeatStartDate, repeatNumDays), [repeatStartDate, repeatNumDays]);
   const isRepeatDayChecked = useCallback((d: string) => !repeatUnselectedDates.has(d), [repeatUnselectedDates]);
@@ -221,750 +340,2403 @@ export default function QRBroadcastWizard() {
     [repeatDateList, isRepeatDayChecked]
   );
 
-  // Pre-select template from URL param (from "Use in Broadcast" button)
-  useEffect(() => {
-    const tid = searchParams.get('templateId');
-    if (tid && templates.length) {
-      const t = templates.find(t => t._id === tid);
-      if (t) { setSelectedTemplate(t); setStep(1); }
-    }
-  }, [searchParams, templates]);
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterWorkshop, setFilterWorkshop] = useState('all');
+  const [filterAssignedUser, setFilterAssignedUser] = useState('all');
+  const [workshopFilterOpen, setWorkshopFilterOpen] = useState(false);
+  const workshopFilterRef = useRef<HTMLDivElement>(null);
+  
+  // Multi-select — mirrors the checkbox-dropdown pattern in
+  // app/admin/crm/reports/meta/page.tsx (messageFilters/toggleFilter) so
+  // multiple delivery statuses (e.g. Delivered + Read) can be picked at once.
+  const [filterDeliveryStatus, setFilterDeliveryStatus] = useState<Set<string>>(new Set());
+  const [deliveryFilterOpen, setDeliveryFilterOpen] = useState(false);
+  const deliveryFilterRef = useRef<HTMLDivElement>(null);
+  const [templateSearch, setTemplateSearch] = useState('');
 
-  // Load QR templates
-  useEffect(() => {
+  // Quick Filters (Language / Batch / System Data toggle)
+  const [showSystemData, setShowSystemData] = useState(false);
+  const [quickLanguages, setQuickLanguages] = useState<string[]>([]);
+  const [quickBatches, setQuickBatches] = useState<string[]>([]);
+  const [filterLabels, setFilterLabels] = useState<string[]>([]);
+  const [filterWorkshops, setFilterWorkshops] = useState<string[]>([]);
+  const autoSelectOnLoad = useRef(false);
+
+
+  // CSV Upload State
+  const [csvContacts, setCSVContacts] = useState<CSVContact[]>([]);
+  const [csvFileName, setCSVFileName] = useState('');
+  const [csvParsing, setCSVParsing] = useState(false);
+  const [csvError, setCSVError] = useState<string | null>(null);
+  const [csvColumnMap, setCSVColumnMap] = useState<{ name?: string; phone?: string; email?: string } | null>(null);
+  const [showCSVPreview, setShowCSVPreview] = useState(false);
+  const csvFileRef = useRef<HTMLInputElement>(null);
+  
+  // UI State
+  const [loading, setLoading] = useState(true);
+  const [qrConnection, setQrConnection] = useState<{ connected: boolean; phone: string | null; loading: boolean }>({ connected: false, phone: null, loading: true });
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; message: string; runId?: string } | null>(null);
+  const [showRecentRuns, setShowRecentRuns] = useState(false);
+  const [showQuotaDashboard, setShowQuotaDashboard] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showLeadsList, setShowLeadsList] = useState(false);
+  const [filterLanguage, setFilterLanguage] = useState('all');
+  
+  // Bulk Messaging State
+  const [bulkStats, setBulkStats] = useState<BulkStats | null>(null);
+  const [validation, setValidation] = useState<BroadcastValidation | null>(null);
+  const [processingRuns, setProcessingRuns] = useState<any[]>([]);
+  
+  // Meta submission state
+  const [metaSubmitting, setMetaSubmitting] = useState<string | null>(null);
+  const [overrideImageUrl, setOverrideImageUrl] = useState('');
+
+  // Submit template to Meta for approval
+  const submitToMeta = useCallback(async (templateId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent template selection
     if (!token) return;
-    setTemplatesLoading(true);
-    crmFetch('/api/admin/crm/templates?provider=qr&limit=100')
-      // API shape: { success, templates, data: { templates, ... } }. The list
-      // lives at res.data.templates (or res.templates) — NOT res.data itself.
-      .then((res: any) => setTemplates(res?.data?.templates ?? res?.templates ?? []))
-      .catch(() => setTemplates([]))
-      .finally(() => setTemplatesLoading(false));
+    setMetaSubmitting(templateId);
+    try {
+      const res = await fetch('/api/admin/crm/templates/meta/submit', {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ templateId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit');
+      setResult({ success: true, message: data.message || 'Template submitted to Meta for approval' });
+      // Refresh templates to get updated status
+      const templatesRes = await fetch('/api/admin/crm/templates?provider=qr', { headers: { Authorization: `Bearer ${token}` } });
+      const templatesData = await templatesRes.json();
+      setTemplates(templatesData.data?.templates || templatesData.templates || []);
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : 'Failed to submit to Meta' });
+    } finally {
+      setMetaSubmitting(null);
+      setTimeout(() => setResult(null), 5000);
+    }
   }, [token]);
 
-  // Load leads when entering step 2
-  const loadLeads = useCallback(async () => {
+  // Sync template statuses from Meta
+  const syncTemplatesFromMeta = useCallback(async () => {
     if (!token) return;
-    setLeadsLoading(true);
-    // scope=own: QR broadcast is tenant-isolated — only the viewer's own leads,
-    // even for the super admin.
-    // selectAll=true + limit=5000: the leads API caps at 200 by default, which
-    // hid most of a tenant's leads from the recipient picker. selectAll raises
-    // that cap to 5000.
-    const params = new URLSearchParams({ limit: '5000', selectAll: 'true', scope: 'own' });
-    if (filterStatuses.length) params.set('status', filterStatuses.join(','));
-    if (filterLabels.length) params.set('label', filterLabels.join(','));
-    if (filterWorkshops.length) params.set('workshop', filterWorkshops.join(','));
-    if (leadSearch) params.set('search', leadSearch);
-    // Unified lead pool: QR broadcast can target ALL of the tenant's leads (not
-    // only source=qr_whatsapp). Still tenant-scoped server-side.
-    const res = await crmFetch(`/api/admin/crm/leads?${params}`).catch(() => null);
-    // crmFetch unwraps the { success, data } envelope, so leads arrive at res.leads
-    // (res.data.leads is only there if it didn't unwrap). Handle both shapes.
-    const items: Lead[] = Array.isArray(res?.leads) ? res.leads
-      : (Array.isArray(res?.data?.leads) ? res.data.leads : []);
-    setLeads(items);
-    setLeadsLoading(false);
-
-    if (autoSelectOnLoad.current) {
-      const filtered = items.filter(l =>
-        !leadSearch || l.name?.toLowerCase().includes(leadSearch.toLowerCase()) ||
-        l.phoneNumber?.includes(leadSearch)
-      );
-      setSelectedLeadIds(new Set(filtered.map(l => l._id)));
-      autoSelectOnLoad.current = false;
+    setMetaSubmitting('sync');
+    try {
+      const res = await fetch('/api/admin/crm/templates/meta/sync', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to sync');
+      setResult({ success: true, message: `Synced ${data.updated || 0} templates from Meta` });
+      // Refresh templates to get updated statuses
+      const templatesRes = await fetch('/api/admin/crm/templates?provider=qr', { headers: { Authorization: `Bearer ${token}` } });
+      const templatesData = await templatesRes.json();
+      setTemplates(templatesData.data?.templates || templatesData.templates || []);
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : 'Failed to sync templates' });
+    } finally {
+      setMetaSubmitting(null);
+      setTimeout(() => setResult(null), 5000);
     }
-  }, [token, filterStatuses, filterLabels, filterWorkshops, leadSearch]);
+  }, [token]);
 
-  // Load workshop/label filter options (own-tenant scoped, like loadLeads)
+  // ============================================================================
+  // DATA FETCHING
+  // ============================================================================
+  const fetchData = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const [leadsRes, templatesRes, runsRes, bulkRes] = await Promise.all([
+        fetch('/api/admin/crm/leads?limit=5000&selectAll=true&fields=name,phoneNumber,status,workshopName,assignedToUserId,userName,labels', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/templates?provider=qr', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/broadcast-runs?limit=10', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/bulk-status', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      
+      const [leadsData, templatesData, runsData, bulkData] = await Promise.all([
+        leadsRes.json(),
+        templatesRes.json(),
+        runsRes.json(),
+        bulkRes.json(),
+      ]);
+      
+      const loadedLeads: Lead[] = leadsData.data?.leads || leadsData.leads || [];
+      setLeads(loadedLeads);
+      setTemplates(templatesData.data?.templates || templatesData.templates || []);
+      setRecentRuns(runsData.data?.runs || runsData.runs || []);
+      if (bulkData.success) {
+        const rawBulk = bulkData.data || {};
+        const rawQuota = rawBulk.quota || {};
+        const quotaLimit = Number(rawQuota.limit || rawBulk.dailyLimit || 10000);
+        const quotaSent = Number(rawQuota.sent ?? rawBulk.sentToday ?? 0);
+        const quotaRemaining = Number(rawQuota.remaining ?? Math.max(0, quotaLimit - quotaSent));
+        const quotaPercentage = Number(rawQuota.percentage ?? (quotaLimit ? Math.round((quotaSent / quotaLimit) * 100) : 0));
+        const quotaStatus = rawQuota.status || (quotaSent >= quotaLimit ? 'exhausted' : quotaPercentage >= 90 ? 'critical' : quotaPercentage >= 75 ? 'warning' : 'normal');
+        setBulkStats({
+          ...rawBulk,
+          today: rawBulk.today || { sent: quotaSent, failed: 0, pending: 0 },
+          thisWeek: rawBulk.thisWeek || { sent: quotaSent, failed: 0 },
+          thisMonth: rawBulk.thisMonth || { sent: quotaSent, failed: 0 },
+          activeRuns: Number(rawBulk.activeRuns || 0),
+          quota: { date: rawQuota.date || new Date().toISOString().slice(0, 10), sent: quotaSent, limit: quotaLimit, remaining: quotaRemaining, percentage: quotaPercentage, status: quotaStatus, canSend: rawQuota.canSend !== false && quotaRemaining > 0 },
+        });
+      }
+
+      // Delivery status is intentionally lazy. Loading status for thousands of
+      // leads here made the Broadcast page wait on a second large SQL query;
+      // the inbox/status filters remain non-blocking instead of delaying the UI.
+    } catch (err) {
+      console.error('[Broadcast] Failed to fetch data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  // Process scheduled broadcasts now (for testing/manual trigger)
+  const processScheduledBroadcasts = useCallback(async () => {
+    if (!token) return;
+    setMetaSubmitting('process-scheduled');
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-runs/run', {
+        method: 'POST',
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ runLimit: 10 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to process');
+      const stats = data.data;
+      setResult({ 
+        success: true, 
+        message: `Processed scheduled broadcasts - Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Scanned: ${stats.scannedRuns || 0}` 
+      });
+      // Refresh data
+      fetchData();
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : 'Failed to process scheduled broadcasts' });
+    } finally {
+      setMetaSubmitting(null);
+      setTimeout(() => setResult(null), 5000);
+    }
+  }, [token, fetchData]);
+
+  // Fetch active processing runs
+  const fetchActiveProgress = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/crm/bulk-status?action=progress', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setProcessingRuns(data.data || []);
+    } catch (err) {
+      console.error('[Broadcast] Failed to fetch progress:', err);
+    }
+  }, [token]);
+
+  // Validate broadcast when selection changes
+  const validateSelection = useCallback(async () => {
+    if (!token || selectedLeads.size === 0) {
+      setValidation(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/crm/bulk-status?action=validate&count=${selectedLeads.size}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        const raw = data.data || {};
+        const warnings = Array.isArray(raw.warnings) ? raw.warnings : [];
+        const errors = Array.isArray(raw.errors) ? raw.errors : [];
+        setValidation({
+          valid: raw.valid ?? raw.allowed ?? true,
+          errors,
+          warnings,
+          estimatedTime: raw.estimatedTime || '',
+          quotaAfterSend: Number(raw.quotaAfterSend ?? raw.remaining ?? 0),
+        });
+      }
+    } catch (err) {
+      console.error('[Broadcast] Validation failed:', err);
+    }
+  }, [token, selectedLeads.size]);
+
   useEffect(() => {
-    if (!token || step !== 1) return;
-    crmFetch('/api/admin/crm/leads/metadata?scope=own')
-      .then((res: any) => {
-        const data = res?.data ?? res;
-        setWorkshopOptions(Array.isArray(data?.workshops) ? data.workshops : []);
-        setLabelOptions(Array.isArray(data?.labels) ? data.labels : []);
-      })
-      .catch(() => { setWorkshopOptions([]); setLabelOptions([]); });
-  }, [token, step]);
+    fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
-    if (step === 1) loadLeads();
-  }, [step, filterStatuses, filterLabels, filterWorkshops]);
+    if (!token) return;
+    Promise.all([
+      fetch('/api/admin/crm/settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch('/api/admin/crm/qr/health-check', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+    ]).then(([settingsData, healthData]) => {
+      const phone = settingsData?.data?.qrConnectedPhoneNumber || settingsData?.qrConnectedPhoneNumber || null;
+      const connected = healthData?.health?.overallStatus === 'healthy' || healthData?.health?.overallStatus === 'warning';
+      setQrConnection({ connected, phone, loading: false });
+    }).catch(() => {
+      setQrConnection(prev => ({ ...prev, loading: false }));
+    });
+  }, [token]);
 
-  // Load current 15/hr · 150/day quota usage when reaching the Schedule step
+  // Pre-select leads from URL params (from funnel manage / enquiries page).
+  // Leads not present in the loaded `leads` list are fetched directly by id
+  // and merged in, so they can still be selected.
+  const preselectDoneRef = useRef(false);
   useEffect(() => {
-    if (!token || step !== 2) return;
-    crmFetch('/api/admin/crm/qr-rate-status')
-      .then((res: any) => {
-        const data = res?.data ?? res;
-        if (data?.success !== false) setRateStatus(data);
-      })
-      .catch(() => {});
-  }, [token, step]);
+    const preselect = searchParams.get('leadIds');
+    if (!preselect || loading || preselectDoneRef.current) return;
+    preselectDoneRef.current = true;
 
-  // ── Filtered lists ─────────────────────────────────────────────────────────
-  const filteredTemplates = templates.filter(t =>
-    !templateSearch || t.templateName.toLowerCase().includes(templateSearch.toLowerCase()) ||
-    t.templateContent.toLowerCase().includes(templateSearch.toLowerCase())
-  );
+    const ids = preselect.split(',').filter(Boolean);
+    const present = ids.filter(id => leads.some(l => l._id === id));
+    const missing = ids.filter(id => !leads.some(l => l._id === id));
 
-  const filteredLeads = leads.filter(l =>
-    !leadSearch || l.name?.toLowerCase().includes(leadSearch.toLowerCase()) ||
-    l.phoneNumber?.includes(leadSearch)
-  );
+    const applySelection = (extra: Lead[] = []) => {
+      if (extra.length > 0) {
+        setLeads(prev => {
+          const existingIds = new Set(prev.map(l => l._id));
+          return [...prev, ...extra.filter(l => !existingIds.has(l._id))];
+        });
+      }
+      const allIds = [...present, ...extra.map(l => l._id)];
+      if (allIds.length > 0) {
+        setSelectedLeads(new Set(allIds));
+        setStep(2); // Jump to template selection step
+      }
+    };
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
-  function nextStep() {
-    if (step === 0 && !selectedTemplate) { setError('Please select a template'); return; }
-    if (step === 1 && selectedLeadIds.size === 0) { setError('Please select at least one recipient'); return; }
-    setError(null);
-    setStep(s => s + 1);
-  }
+    if (missing.length === 0) {
+      applySelection();
+      return;
+    }
 
-  function prevStep() { setError(null); setStep(s => s - 1); }
+    fetch(`/api/admin/crm/leads?ids=${missing.join(',')}&fields=name,phoneNumber,status,workshopName,labels`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => applySelection(data?.data?.leads || []))
+      .catch(() => applySelection());
+  }, [searchParams, leads, loading, token]);
 
-  function toggleLead(id: string) {
-    setSelectedLeadIds(prev => {
+  // Pre-load contacts from sessionStorage (from Reports page "Schedule Broadcast")
+  useEffect(() => {
+    if (leads.length === 0) return; // wait until leads are loaded
+    const raw = sessionStorage.getItem('broadcast_preload_contacts');
+    if (!raw) return;
+    sessionStorage.removeItem('broadcast_preload_contacts');
+    try {
+      const contacts: { phoneNumber: string; name?: string }[] = JSON.parse(raw);
+      if (!Array.isArray(contacts) || contacts.length === 0) return;
+      const csvList: CSVContact[] = contacts.map(c => ({
+        phoneNumber: c.phoneNumber,
+        name: c.name || '',
+        raw: { phone: c.phoneNumber, name: c.name || '' },
+      }));
+      setCSVContacts(csvList);
+      setShowCSVPreview(true);
+      // Auto-select each contact (match DB lead if exists, else use CSV virtual ID)
+      setSelectedLeads(prev => {
+        const next = new Set(prev);
+        csvList.forEach((c, idx) => {
+          const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
+          const dbLead = leads.find(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+          if (dbLead) next.add(dbLead._id);
+          else next.add(`csv_${idx}_${last10}`);
+        });
+        return next;
+      });
+      setStep(2); // Jump to template selection
+    } catch {
+      // ignore malformed data
+    }
+  }, [leads]);
+
+  // Refresh progress every 5 seconds when there are active runs
+  useEffect(() => {
+    fetchActiveProgress();
+    const interval = setInterval(() => {
+      if (processingRuns.some(r => r.status === 'processing')) {
+        fetchActiveProgress();
+        fetchData();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchActiveProgress, fetchData, processingRuns]);
+
+  // Validate when selection changes
+  useEffect(() => {
+    validateSelection();
+  }, [validateSelection]);
+
+  // Close the delivery-status filter dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (deliveryFilterRef.current && !deliveryFilterRef.current.contains(e.target as Node)) {
+        setDeliveryFilterOpen(false);
+      }
+      if (workshopFilterRef.current && !workshopFilterRef.current.contains(e.target as Node)) {
+        setWorkshopFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggleDeliveryFilter = (status: string) => {
+    setFilterDeliveryStatus(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
       return next;
     });
-  }
+  };
 
-  function selectAll() { setSelectedLeadIds(new Set(filteredLeads.map(l => l._id))); }
-  function clearAll() { setSelectedLeadIds(new Set()); }
+  // ============================================================================
+  // FILTERED DATA
+  // ============================================================================
+  const uniqueStatuses = useMemo(() => {
+    return [
+      'new_leads',
+      'pending_leads',
+      'pending_leads_1',
+      'pending_leads_2',
+      'pending_leads_3',
+      'approval_1',
+      'approval_2',
+      'registered_leads',
+      'set_zoom_meeting',
+      'take_zoom_meeting',
+      'rejected_leads'
+    ];
+  }, []);
 
-  function handleQuickSubmit() {
-    autoSelectOnLoad.current = true;
-    setFilterLabels([...quickLanguages]);
-    setFilterWorkshops([...quickBatches]);
-    setFilterStatuses([]);
-    setLeadSearch('');
-  }
+  const uniqueWorkshops = useMemo(() => {
+    let sourceWorkshops = props?.workshops || [];
+    if (sourceWorkshops.length === 0 && typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_workshops');
+      if (saved) {
+        try { sourceWorkshops = JSON.parse(saved); } catch (e) {}
+      }
+    }
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
-  async function handleSubmit() {
-    if (!selectedTemplate) return;
+    const filtered = (sourceWorkshops || []).filter((w: any) => 
+      w && w.id && w.id.startsWith('batch_') &&
+      (!filterLanguage || filterLanguage === 'all' || (w.language || 'English').toLowerCase() === filterLanguage.toLowerCase()) &&
+      w.isMovedToLeadsManagement
+    );
+    
+    return filtered.map((w: any) => w.name);
+  }, [props?.workshops, filterLanguage]);
 
-    if (repeatEnabled) {
-      if (repeatSelectedDates.length === 0) { setError('Select at least one day to repeat on'); return; }
-      setSubmitting(true);
-      setError(null);
-      setResult(null);
+  const uniqueLanguages = useMemo(() => {
+    return ['English', 'Hindi', 'Marathi', 'Kannada'];
+  }, []);
+
+  const filteredLeads = useMemo(() => {
+    // Mimic LeadsManagementTab exact filtering if embedded
+    if (isEmbedded && propLeadsData && propLeadsData.length > 0) {
+      let batchDecisions: Record<string, any> = {};
+      if (typeof window !== 'undefined') {
+        const d = localStorage.getItem('crm_ai4_decisions');
+        if (d) { try { batchDecisions = JSON.parse(d); } catch(e){} }
+      }
+
+      const allowedBatchNames = filterWorkshops.length > 0 ? filterWorkshops : uniqueWorkshops;
+      const activeBatches = (propWorkshops || []).filter((w: any) => allowedBatchNames.includes(w.name));
+      
+      let activeBatchLeads: any[] = [];
+      const seenLeadIds = new Set<string>();
+
+      activeBatches.forEach((activeBatch: any) => {
+        if (activeBatch && activeBatch.formFilterKeyword) {
+          const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
+          const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
+
+          propLeadsData.forEach((lead: any) => {
+            if (lead._rawRecord) {
+              let matches = false;
+              if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
+                matches = keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+              } else {
+                matches = keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+              }
+              if (matches && !seenLeadIds.has(lead.id || lead._id)) {
+                 seenLeadIds.add(lead.id || lead._id);
+                 activeBatchLeads.push(lead);
+              }
+            } else if (!seenLeadIds.has(lead.id || lead._id)) {
+               seenLeadIds.add(lead.id || lead._id);
+               activeBatchLeads.push(lead);
+            }
+          });
+        }
+      });
+
+      let tabLeads = activeBatchLeads;
+      if (filterStatus === 'pending_leads') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'approval_1') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'approval_1' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'approval_2') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'approval_2' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'registered_leads') {
+         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRegistered);
+      } else if (filterStatus === 'rejected_leads') {
+         tabLeads = activeBatchLeads.filter((l: any) => batchDecisions[l.id || l._id]?.isRejected);
+      } else if (filterStatus === 'set_zoom_meeting') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'set_zoom_meeting' && !dec.isRegistered && !dec.isRejected;
+         });
+      } else if (filterStatus === 'take_zoom_meeting') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'take_zoom_meeting' && !dec.isRegistered && !dec.isRejected;
+         });
+      } else if (filterStatus === 'pending_leads_1') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'pending_leads_2') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
+         });
+      } else if (filterStatus === 'pending_leads_3') {
+         tabLeads = activeBatchLeads.filter((l: any) => {
+            const dec = batchDecisions[l.id || l._id] || {};
+            return dec.status === 'pending_leads_3' && !dec.isRejected && !dec.isRegistered;
+         });
+      }
+
+      // Map back to Lead type required by BroadcastPage
+      return tabLeads.map((l: any) => {
+        let phone = String(l.phoneNumber || l['WhatsApp Number'] || l.whatsapp || l.phone || l.Phone || '');
+        if (l._rawRecord) {
+           for (const [k, v] of Object.entries(l._rawRecord)) {
+              if (k.toLowerCase().includes('whatsapp') || k.toLowerCase().includes('phone')) {
+                 if (v) phone = String(v);
+              }
+           }
+        }
+        return {
+          _id: l.id || l._id || Math.random().toString(),
+          name: l.name || l.Name || 'Unknown',
+          phoneNumber: phone,
+          email: l.email || l.Email || '',
+          status: filterStatus,
+          workshopName: filterWorkshop,
+          assignedToUserId: l.assignedToUserId,
+        };
+      }).filter((l: any) => {
+        if (!searchQuery) return true;
+        return l.name?.toLowerCase().includes(searchQuery.toLowerCase()) || l.phoneNumber.includes(searchQuery);
+      });
+    }
+
+    // Merge DB leads + CSV contacts
+    let allLeads = [...leads];
+
+    // Add CSV contacts as virtual leads (if not already in DB by phone)
+    if (csvContacts.length > 0) {
+      const existingPhones = new Set(leads.map(l => l.phoneNumber.replace(/\D/g, '').slice(-10)));
+      csvContacts.forEach((c, idx) => {
+        const normalPhone = c.phoneNumber.replace(/\D/g, '').slice(-10);
+        if (!existingPhones.has(normalPhone)) {
+          allLeads.push({
+            _id: `csv_${idx}_${normalPhone}`,
+            name: c.name || '',
+            phoneNumber: c.phoneNumber,
+            email: c.email,
+            status: 'csv',
+            isCSV: true,
+          });
+        }
+      });
+    }
+
+    // Deduplicate by phone number (keep first occurrence)
+    const seenPhones = new Set<string>();
+    const dedupedLeads = allLeads.filter(lead => {
+      const normalPhone = lead.phoneNumber.replace(/\D/g, '').slice(-10);
+      if (seenPhones.has(normalPhone)) {
+        return false;
+      }
+      seenPhones.add(normalPhone);
+      return true;
+    });
+
+    return dedupedLeads.filter(lead => {
+      const matchesSearch = !searchQuery ||
+        lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lead.phoneNumber.includes(searchQuery);
+      const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
+      const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
+      const matchesMultiWorkshop = filterWorkshops.length === 0 || filterWorkshops.includes(lead.workshopName || '');
+      const matchesLabels = filterLabels.length === 0 || filterLabels.some(l => Array.isArray(lead.labels) && lead.labels.includes(l));
+      const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
+      const matchesDeliveryStatus = filterDeliveryStatus.size === 0 || (lead.deliveryStatus ? filterDeliveryStatus.has(lead.deliveryStatus) : false);
+      const matchesLanguage = filterLanguage === 'all' || 
+        lead.workshopName?.toLowerCase().includes(filterLanguage.toLowerCase()) || 
+        (Array.isArray(lead.labels) && lead.labels.some(l => String(l).toLowerCase().includes(filterLanguage.toLowerCase())));
+      
+      return matchesSearch && matchesStatus && matchesWorkshop && matchesMultiWorkshop && matchesLabels && matchesUser && matchesDeliveryStatus && matchesLanguage;
+    });
+  }, [leads, csvContacts, searchQuery, filterStatus, filterWorkshop, filterAssignedUser, filterDeliveryStatus, filterLabels, filterWorkshops, filterLanguage, propLeadsData, propWorkshops, isEmbedded, uniqueWorkshops]);
+
+  const filteredTemplates = useMemo(() => {
+    if (!templateSearch) return templates;
+    return templates.filter(t => 
+      t.templateName.toLowerCase().includes(templateSearch.toLowerCase()) ||
+      t.templateContent.toLowerCase().includes(templateSearch.toLowerCase())
+    );
+  }, [templates, templateSearch]);
+
+
+  const uniqueLabels = useMemo(() => {
+    const labels = new Set<string>();
+    leads.forEach(l => {
+      if (Array.isArray(l.labels)) l.labels.forEach(lb => { if (lb) labels.add(String(lb).trim()); });
+    });
+    return Array.from(labels).sort();
+  }, [leads]);
+
+  const STATUS_LABELS: Record<string, string> = {
+    'lead': 'New Leads',
+    'new_leads': 'New Leads',
+    'pending_leads': 'Pending Leads',
+    'pending_leads_1': 'Pending Leads-1',
+    'pending_leads_2': 'Pending Leads-2',
+    'pending_leads_3': 'Pending Leads-3',
+    'approval_1': 'Aprovel-1',
+    'approval_2': 'Aprovel-2',
+    'registered_leads': 'Registerd leads',
+    'set_zoom_meeting': 'Set zoom meeting',
+    'take_zoom_meeting': 'Take Zoom Meeting',
+    'rejected_leads': 'Rejected leads'
+  };
+
+
+  const uniqueAssignedUsers = useMemo(() => {
+    const usersMap = new Map<string, string>();
+    leads.forEach(l => {
+      if (l.assignedToUserId) {
+        // Use userName if available, otherwise use assignedToUserId
+        usersMap.set(l.assignedToUserId, l.userName || l.assignedToUserId);
+      }
+    });
+    return Array.from(usersMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [leads]);
+
+  // ============================================================================
+  // SELECTION HANDLERS
+  // ============================================================================
+  const toggleLead = useCallback((id: string) => {
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAllFiltered = useCallback(() => {
+    setSelectedLeads(prev => {
+      if (prev.size === filteredLeads.length) {
+        return new Set();
+      }
+      return new Set(filteredLeads.map(l => l._id));
+    });
+  }, [filteredLeads]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedLeads(new Set());
+  }, []);
+
+  // ============================================================================
+  // CSV UPLOAD & AUTO-DETECT
+  // ============================================================================
+  const autoDetectColumns = useCallback((headers: string[]): { name?: string; phone?: string; email?: string } => {
+    const map: { name?: string; phone?: string; email?: string } = {};
+    const lower = headers.map(h => h.toLowerCase().replace(/[\s_\-]/g, ''));
+
+    // Phone detection (most important)
+    const phoneKeys = ['phone', 'phonenumber', 'mobile', 'mobilenumber', 'contact', 'number', 'whatsapp', 'wanumber', 'wa', 'cell', 'tel', 'telephone'];
+    for (const p of phoneKeys) {
+      const idx = lower.findIndex(h => h === p);
+      if (idx !== -1) { map.phone = headers[idx]; break; }
+    }
+    if (!map.phone) {
+      const idx = lower.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('number') || h.includes('whatsapp'));
+      if (idx !== -1) map.phone = headers[idx];
+    }
+
+    // Name detection
+    const nameKeys = ['name', 'fullname', 'firstname', 'customername', 'leadname', 'contactname'];
+    for (const p of nameKeys) {
+      const idx = lower.findIndex(h => h === p);
+      if (idx !== -1) { map.name = headers[idx]; break; }
+    }
+    if (!map.name) {
+      const idx = lower.findIndex(h => h.includes('name') && !h.includes('file'));
+      if (idx !== -1) map.name = headers[idx];
+    }
+
+    // Email detection
+    const emailKeys = ['email', 'emailaddress', 'mail'];
+    for (const p of emailKeys) {
+      const idx = lower.findIndex(h => h === p);
+      if (idx !== -1) { map.email = headers[idx]; break; }
+    }
+    if (!map.email) {
+      const idx = lower.findIndex(h => h.includes('email') || h.includes('mail'));
+      if (idx !== -1) map.email = headers[idx];
+    }
+
+    return map;
+  }, []);
+
+  const parseCSVText = useCallback((text: string): { headers: string[]; rows: Record<string, string>[] } => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return { headers: [], rows: [] };
+
+    // Detect delimiter
+    const first = lines[0];
+    let delim = ',';
+    if (first.includes('\t')) delim = '\t';
+    else if (first.split(';').length > first.split(',').length) delim = ';';
+
+    const parseRow = (line: string): string[] => {
+      const result: string[] = [];
+      let cur = '';
+      let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQ && i + 1 < line.length && line[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = !inQ;
+        } else if (ch === delim && !inQ) {
+          result.push(cur.trim()); cur = '';
+        } else cur += ch;
+      }
+      result.push(cur.trim());
+      return result;
+    };
+
+    const headers = parseRow(lines[0]);
+    const rows = lines.slice(1).map(line => {
+      const vals = parseRow(line);
+      const row: Record<string, string> = {};
+      headers.forEach((h, i) => { row[h] = vals[i] || ''; });
+      return row;
+    }).filter(row => Object.values(row).some(v => v.trim()));
+    return { headers, rows };
+  }, []);
+
+  const normalizePhoneCSV = useCallback((raw: string): string => {
+    if (!raw) return '';
+    let d = raw.replace(/[^0-9+]/g, '').replace(/^\+/, '');
+    if (d.length === 10) d = '91' + d;
+    return d;
+  }, []);
+
+  const handleCSVUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCSVParsing(true);
+    setCSVError(null);
+    setCSVFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
       try {
-        const leadIds = Array.from(selectedLeadIds);
-        if (leadIds.length === 0) throw new Error('Selected recipients have no valid phone numbers');
+        const text = ev.target?.result as string;
+        const { headers, rows } = parseCSVText(text);
+        if (headers.length === 0 || rows.length === 0) {
+          setCSVError('No data found in CSV file');
+          setCSVParsing(false);
+          return;
+        }
 
-        const name = repeatScheduleName.trim()
-          || runName.trim()
-          || `${selectedTemplate.templateName} @ ${repeatTime} (${repeatSelectedDates.length} days)`;
-        const body: any = {
-          name,
+        const colMap = autoDetectColumns(headers);
+
+        // Fallback: check data content for phone-like values
+        if (!colMap.phone) {
+          for (const h of headers) {
+            const sample = rows.slice(0, 10).map(r => r[h]).filter(Boolean);
+            if (sample.some(v => /^\+?\d[\d\s\-()]{6,}$/.test(v.trim()))) {
+              colMap.phone = h;
+              break;
+            }
+          }
+        }
+
+        setCSVColumnMap(colMap);
+
+        if (!colMap.phone) {
+          setCSVError(`Could not detect phone column. Found columns: ${headers.join(', ')}`);
+          setCSVParsing(false);
+          return;
+        }
+
+        // Parse and deduplicate contacts
+        const contacts: CSVContact[] = [];
+        const seen = new Set<string>();
+        for (const row of rows) {
+          const rawPhone = row[colMap.phone!] || '';
+          const phone = normalizePhoneCSV(rawPhone);
+          if (!phone || phone.length < 10 || seen.has(phone)) continue;
+          seen.add(phone);
+          contacts.push({
+            name: colMap.name ? row[colMap.name]?.trim() : undefined,
+            phoneNumber: phone,
+            email: colMap.email ? row[colMap.email]?.trim() : undefined,
+            raw: row,
+          });
+        }
+
+        if (contacts.length === 0) {
+          setCSVError('No valid phone numbers found in CSV');
+          setCSVParsing(false);
+          return;
+        }
+
+        setCSVContacts(contacts);
+        setShowCSVPreview(true);
+
+        // Auto-select all CSV contacts
+        setSelectedLeads(prev => {
+          const next = new Set(prev);
+          const existingPhones = new Set(leads.map(l => l.phoneNumber.replace(/\D/g, '').slice(-10)));
+          contacts.forEach((c, idx) => {
+            const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
+            const dbLead = leads.find(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+            if (dbLead) next.add(dbLead._id);
+            else next.add(`csv_${idx}_${last10}`);
+          });
+          return next;
+        });
+      } catch (err) {
+        setCSVError(err instanceof Error ? err.message : 'Failed to parse CSV');
+      } finally {
+        setCSVParsing(false);
+      }
+    };
+    reader.onerror = () => {
+      setCSVError('Failed to read file');
+      setCSVParsing(false);
+    };
+    reader.readAsText(file);
+    if (csvFileRef.current) csvFileRef.current.value = '';
+  }, [parseCSVText, autoDetectColumns, normalizePhoneCSV, leads]);
+
+  const removeCSV = useCallback(() => {
+    // Remove CSV virtual IDs from selection
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (typeof id === 'string' && id.startsWith('csv_')) next.delete(id);
+      }
+      return next;
+    });
+    setCSVContacts([]);
+    setCSVFileName('');
+    setCSVColumnMap(null);
+    setCSVError(null);
+    setShowCSVPreview(false);
+  }, []);
+
+  // ============================================================================
+  // VALIDATION
+  // ============================================================================
+  const canProceedToStep2 = selectedLeads.size > 0;
+  // Gate on the schema-backed `status` field (draft|pending_approval|approved|
+  // rejected|disabled) — `metaStatus` is written by the sync/submit routes but
+  // isn't declared on WhatsAppTemplateSchema, so Mongoose's strict mode silently
+  // drops it on every save; it's always undefined regardless of real Meta status.
+  const canProceedToStep3 = selectedTemplate !== null && selectedTemplate.status === 'approved';
+  
+  const realLeadCount = useMemo(
+    () => Array.from(selectedLeads).filter(id => !id.startsWith('csv_')).length,
+    [selectedLeads]
+  );
+
+  const canSend = useMemo(() => {
+    if (!selectedTemplate || selectedLeads.size === 0) return false;
+    if (sendMode === 'schedule' && (!scheduleDate || !scheduleTime)) return false;
+    if (sendMode === 'repeat' && (repeatSelectedDates.length === 0 || realLeadCount === 0)) return false;
+    // Templates are chargeable and can be sent anytime - no approval check required
+    return true;
+  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime, repeatSelectedDates, realLeadCount]);
+
+  // ============================================================================
+  // SEND BROADCAST
+  // ============================================================================
+  const handleSend = async () => {
+    if (!canSend || !selectedTemplate) return;
+
+    setSending(true);
+    setResult(null);
+
+    if (sendMode === 'repeat') {
+      try {
+        const realLeadIds = Array.from(selectedLeads).filter(id => !id.startsWith('csv_'));
+        if (realLeadIds.length === 0) throw new Error('Repeat requires recipients with saved lead records (CSV-only contacts are not supported)');
+        if (repeatSelectedDates.length === 0) throw new Error('Select at least one day to repeat on');
+
+        const payload: Record<string, unknown> = {
+          name: repeatScheduleName.trim() || broadcastName.trim() || `${selectedTemplate.templateName} repeat`,
           templateId: selectedTemplate._id,
-          provider: 'qr',
-          leadIds,
+          leadIds: realLeadIds,
           occurrenceDates: repeatSelectedDates,
           sendTime: repeatTime,
         };
-        await crmFetch('/api/admin/crm/broadcast-recurring', { method: 'POST', body });
+        if (overrideImageUrl.trim()) payload.overrideImageUrl = overrideImageUrl.trim();
+
+        const res = await fetch('/api/admin/crm/broadcast-recurring', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to create repeat schedule');
 
         setResult({
           success: true,
-          message: `✅ Repeat schedule created! ${leadIds.length} recipient(s) across ${repeatSelectedDates.length} occurrence(s). Occurrences after the 1st only resend to delivered/read recipients.`,
+          message: `✅ Repeat schedule created! ${realLeadIds.length} recipients across ${repeatSelectedDates.length} occurrence(s). Later occurrences only resend to delivered/read recipients.`,
         });
-        setSelectedLeadIds(new Set());
+        setSelectedLeads(new Set());
         setSelectedTemplate(null);
-        setRunName('');
+        setBroadcastName('');
         setRepeatScheduleName('');
-        setStep(0);
-      } catch (err) {
-        setResult({ success: false, message: `❌ ${err instanceof Error ? err.message : 'Failed to create repeat schedule'}` });
+        setStep(1);
+        fetchData();
+      } catch (err: any) {
+        console.error('[Broadcast] Repeat error:', err);
+        setResult({ success: false, message: `❌ ${err.message || 'Failed to create repeat schedule'}` });
       } finally {
-        setSubmitting(false);
+        setSending(false);
       }
       return;
     }
 
-    if (mode === 'schedule' && !scheduledAt) { setError('Please set a scheduled time'); return; }
-    const delayMs = ((delayDays * 24 + delayHours) * 60 + delayMinutes) * 60 * 1000;
-    if (mode === 'delay' && delayMs <= 0) { setError('Please set a delay greater than 0'); return; }
-    setSubmitting(true);
-    setError(null);
     try {
-      // 'delay' is sent to the server as a normal scheduled run (now + delay).
-      const effectiveMode = mode === 'delay' ? 'schedule' : mode;
-      const body: any = {
-        name: runName.trim() || `QR Broadcast – ${selectedTemplate.templateName} – ${new Date().toLocaleDateString('en-IN')}`,
-        templateId: selectedTemplate._id,
-        provider: 'qr',
-        mode: effectiveMode,
-        target: { type: 'leadIds', leadIds: Array.from(selectedLeadIds) },
-        // Fixed anti-ban pacing: ~15 messages/hour (mean 240s gap). The server
-        // also hard-caps at 15/hr and 150/day (qrSendRateLimit) and auto-shifts
-        // any overflow to the next day.
-        messageInterval: { enabled: true, minSeconds: 120, maxSeconds: 360 },
-      };
-      if (mode === 'schedule') body.scheduleAt = new Date(scheduledAt).toISOString();
-      if (mode === 'delay') body.scheduleAt = new Date(Date.now() + delayMs).toISOString();
+      // Prepare payload
+      let mode = sendMode;
+      let scheduleAt: string | undefined;
+      let delayMins: number | undefined;
 
-      // crmFetch stringifies the body itself and unwraps the { success, data }
-      // envelope (returning the created run), and throws on any non-2xx — so we
-      // pass the raw object and read the run id off the result.
-      const run = await crmFetch('/api/admin/crm/broadcast-runs', { method: 'POST', body });
-      const runId = run?._id || run?.data?._id;
-
-      // If mode=now, trigger immediate processing
-      if (mode === 'now' && runId) {
-        await crmFetch('/api/admin/crm/broadcast-runs/run', {
-          method: 'POST',
-          body: { runId },
-        }).catch(() => null);
+      if (sendMode === 'schedule') {
+        if (!scheduleDate || !scheduleTime) {
+          throw new Error('Please select date and time for scheduling');
+        }
+        // Create date in local timezone (not UTC)
+        // scheduleDate is "YYYY-MM-DD", scheduleTime is "HH:mm"
+        const [year, month, day] = scheduleDate.split('-').map(Number);
+        const [hours, minutes] = scheduleTime.split(':').map(Number);
+        const localDate = new Date(year, month - 1, day, hours, minutes, 0);
+        scheduleAt = localDate.toISOString();
+        console.log('[Broadcast] Schedule - local:', localDate.toString(), 'ISO:', scheduleAt);
+      } else if (sendMode === 'delay') {
+        delayMins = delayMinutes;
       }
 
-      router.push('/admin/crm/qr/broadcast-schedule');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create broadcast');
+      // Split real leadIds from CSV virtual IDs
+      const allIds = Array.from(selectedLeads);
+      const realLeadIds = allIds.filter(id => !id.startsWith('csv_'));
+      const csvIds = allIds.filter(id => id.startsWith('csv_'));
+      const csvPhoneNumbers = csvIds.map(id => {
+        // csv_${idx}_${last10digits} — extract the full phone from csvContacts
+        const parts = id.split('_');
+        const idx = parseInt(parts[1], 10);
+        return csvContacts[idx]?.phoneNumber || parts.slice(2).join('_');
+      }).filter(Boolean);
+
+      // Build target — include both leadIds and csvPhoneNumbers
+      const target: Record<string, unknown> = { type: 'leadIds', leadIds: realLeadIds };
+      if (csvPhoneNumbers.length > 0) {
+        target.csvPhoneNumbers = csvPhoneNumbers;
+        // Include CSV contact details for lead creation
+        target.csvContacts = csvIds.map(id => {
+          const idx = parseInt(id.split('_')[1], 10);
+          const c = csvContacts[idx];
+          return c ? { name: c.name, phoneNumber: c.phoneNumber, email: c.email } : null;
+        }).filter(Boolean);
+      }
+
+      const payload: Record<string, unknown> = {
+        name: broadcastName.trim() || `Broadcast - ${new Date().toLocaleString('en-IN')}`,
+        templateId: selectedTemplate._id,
+        mode,
+        provider: 'qr',
+        scheduleAt,
+        delayMins,
+        target,
+        messageInterval: { enabled: true, minSeconds: 120, maxSeconds: 360 },
+      };
+      // Pass override image URL for IMAGE-header templates
+      if (overrideImageUrl.trim()) {
+        payload.overrideImageUrl = overrideImageUrl.trim();
+      }
+
+      console.log('[Broadcast] Creating run with payload:', payload);
+
+      // Create broadcast run
+      const createRes = await fetch('/api/admin/crm/broadcast-runs', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const createData = await createRes.json();
+      
+      if (!createRes.ok || !createData.success) {
+        throw new Error(createData.error || 'Failed to create broadcast run');
+      }
+
+      const runId = createData.data?._id;
+      const blockedSkipped = createData.dedup?.blockedSkipped || 0;
+      if (blockedSkipped > 0) {
+        console.log(`[Broadcast] 🚫 ${blockedSkipped} blocked number(s) auto-removed from recipient list.`);
+      }
+      console.log('[Broadcast] Created run:', runId);
+
+      // If sending now, trigger the run processor
+      if (mode === 'now' && runId) {
+        console.log('[Broadcast] Triggering immediate run...');
+        
+        const runRes = await fetch('/api/admin/crm/broadcast-runs/run', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ runLimit: 1 }),
+        });
+
+        const runData = await runRes.json();
+        console.log('[Broadcast] Run result:', runData);
+
+        if (runData.success) {
+          const stats = runData.data;
+          setResult({
+            success: true,
+            message: `✅ Broadcast started! Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Skipped: ${stats.skipped || 0}`,
+            runId,
+          });
+        } else {
+          setResult({
+            success: true,
+            message: `✅ Broadcast created and queued for processing.`,
+            runId,
+          });
+        }
+      } else {
+        const blockedNote = blockedSkipped > 0 ? ` (${blockedSkipped} blocked number${blockedSkipped > 1 ? 's' : ''} auto-skipped)` : '';
+        setResult({
+          success: true,
+          message: `✅ Broadcast ${mode === 'schedule' ? 'scheduled' : 'created'}! ${createData.dedup?.finalCount ?? selectedLeads.size} recipients${blockedNote}.`,
+          runId,
+        });
+      }
+
+      // Reset form
+      setSelectedLeads(new Set());
+      setSelectedTemplate(null);
+      setBroadcastName('');
+      setStep(1);
+      
+      // Refresh runs list
+      fetchData();
+
+    } catch (err: any) {
+      console.error('[Broadcast] Error:', err);
+      setResult({
+        success: false,
+        message: `❌ ${err.message || 'Failed to send broadcast'}`,
+      });
     } finally {
-      setSubmitting(false);
+      setSending(false);
     }
+  };
+
+  // ============================================================================
+  // RENDER HELPERS
+  // ============================================================================
+  const renderStepIndicator = () => (
+    <div className="flex items-center justify-start gap-2 mb-0">
+      {[
+        { num: 1, label: 'Recipients', icon: '👥' },
+        { num: 2, label: 'Template', icon: '📋' },
+        { num: 3, label: 'Send', icon: '🚀' },
+      ].map((s, i) => (
+        <div key={s.num} className="flex items-center">
+          <button
+            onClick={() => {
+              if (s.num === 1 || (s.num === 2 && canProceedToStep2) || (s.num === 3 && canProceedToStep2 && canProceedToStep3)) {
+                setStep(s.num as Step);
+              }
+            }}
+            disabled={s.num === 2 && !canProceedToStep2 || s.num === 3 && (!canProceedToStep2 || !canProceedToStep3)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 font-medium ${
+              step === s.num
+                ? 'bg-gradient-to-r from-indigo-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105'
+                : step > s.num
+                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                : 'bg-white text-gray-400 border border-gray-200 hover:border-gray-300'
+            } ${(s.num === 2 && !canProceedToStep2) || (s.num === 3 && (!canProceedToStep2 || !canProceedToStep3)) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span className="text-lg">{s.icon}</span>
+            <span className="hidden sm:inline">{s.label}</span>
+            {step > s.num && <span className="text-green-600 font-bold">✓</span>}
+          </button>
+          {i < 2 && (
+            <div className={`w-8 sm:w-12 h-0.5 mx-1 transition-colors ${step > s.num ? 'bg-green-400' : 'bg-gray-200'}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+  if (token === null || isChecking) {
+    return (
+      <div className={isEmbedded ? "bg-slate-50/50 flex items-center justify-center p-12" : "min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center"}>
+        <div className="animate-spin text-4xl">⏳</div>
+      </div>
+    );
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  if (!isSuperAdmin) {
+    return (
+      <div className={isEmbedded ? "bg-slate-50/50 flex items-center justify-center p-12" : "min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50 flex items-center justify-center"}>
+        <div className="text-center text-red-600">
+          <div className="text-4xl mb-4">🔒</div>
+          <p className="font-medium">This feature is for super admins only</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
-
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Send className="w-6 h-6 text-green-600" />
-              New QR Broadcast
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">Send WhatsApp messages via QR bridge</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-50">
+      {/* Header */}
+      {!isEmbedded && (
+      <header className="bg-white/90 backdrop-blur-lg border-b shadow-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/admin/crm" className="text-gray-500 hover:text-gray-700 transition-all hover:-translate-x-1 flex items-center gap-1">
+                <span>←</span> <span className="hidden sm:inline">CRM</span>
+              </Link>
+              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                📢 Broadcast Center
+              </h1>
+              <LeadSourceBadge token={token} variant="light" />
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => setShowQuotaDashboard(!showQuotaDashboard)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
+              >
+                📈 <span className="hidden sm:inline">{showQuotaDashboard ? 'Hide Dashboard' : 'Open Dashboard'}</span>
+              </button>
+              <Link href="/admin/crm/send-template" className="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-all text-sm font-medium hidden sm:flex items-center gap-1">
+                📨 Single
+              </Link>
+              <Link href="/admin/crm/reports/meta" className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-all text-sm font-medium flex items-center gap-1">
+                🟢 <span className="hidden sm:inline">Reports</span>
+              </Link>
+              <button
+                onClick={() => setShowRecentRuns(!showRecentRuns)}
+                className={`px-3 py-2 rounded-lg transition-all text-sm font-medium flex items-center gap-1 ${
+                  showRecentRuns ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                }`}
+              >
+                📊 <span className="hidden sm:inline">History</span>
+              </button>
+            </div>
           </div>
-          <button onClick={() => router.push('/admin/crm/qr/broadcast-schedule')}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-            <X className="w-4 h-4" /> Cancel
-          </button>
         </div>
+      </header>
+      )}
 
-        {/* Step indicator */}
-        <div className="flex items-center gap-0 mb-8">
-          {STEPS.map((label, i) => (
-            <React.Fragment key={i}>
-              <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
-                  ${i < step ? 'bg-green-500 text-white' : i === step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                  {i < step ? <Check className="w-4 h-4" /> : i + 1}
-                </div>
-                <span className={`text-sm font-medium ${i === step ? 'text-blue-600' : i < step ? 'text-green-600' : 'text-gray-400'}`}>
-                  {label}
-                </span>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-3 ${i < step ? 'bg-green-400' : 'bg-gray-200'}`} />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {error}
-          </div>
-        )}
-
-        {/* Result */}
+      <main className={isEmbedded ? "p-4 sm:p-6" : "max-w-7xl mx-auto p-4 sm:p-6"}>
+        {/* Result Alert */}
         {result && (
-          <div className={`mb-4 p-3 rounded-lg border flex items-center justify-between gap-2 text-sm ${
-            result.success ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'
+          <div className={`mb-6 p-4 rounded-xl border-2 flex items-center justify-between ${
+            result.success 
+              ? 'bg-green-50 border-green-300 text-green-800' 
+              : 'bg-red-50 border-red-300 text-red-800'
           }`}>
             <span className="font-medium">{result.message}</span>
-            <button onClick={() => setResult(null)} className="text-lg hover:opacity-70">×</button>
+            <div className="flex items-center gap-2">
+              {result.runId && (
+                <Link
+                  href={`/admin/crm/reports/meta?runId=${result.runId}`}
+                  className="text-sm underline hover:no-underline"
+                >
+                  View Details →
+                </Link>
+              )}
+              <button onClick={() => setResult(null)} className="text-lg hover:opacity-70">×</button>
+            </div>
           </div>
         )}
 
-        {/* ── Step 0: Template ── */}
-        {step === 0 && (
-          <div className="bg-white rounded-xl border shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-blue-500" /> Select Template
-            </h2>
-
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search templates..."
-                value={templateSearch}
-                onChange={e => setTemplateSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
+        {/* Bulk Messaging Dashboard */}
+        {showQuotaDashboard && bulkStats?.quota && (
+          <div className="mb-6 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-2xl border border-indigo-200 p-4 animate-fadeIn">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                📊 Bulk Messaging Dashboard
+                <span className="text-xs font-normal text-gray-500">10,000 msgs/day capacity</span>
+              </h3>
+              <button
+                onClick={() => setShowQuotaDashboard(false)}
+                className="text-gray-400 hover:text-gray-600 text-lg"
+              >×</button>
             </div>
-
-            {templatesLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            
+            {/* Quota Bar */}
+            <div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-gray-700">Daily Quota</span>
+                <span className={`text-sm font-bold ${
+                  bulkStats.quota.status === 'exhausted' ? 'text-red-600' :
+                  bulkStats.quota.status === 'critical' ? 'text-orange-600' :
+                  bulkStats.quota.status === 'warning' ? 'text-yellow-600' :
+                  'text-green-600'
+                }`}>
+                  {bulkStats.quota.sent.toLocaleString()} / {bulkStats.quota.limit.toLocaleString()}
+                </span>
               </div>
-            ) : filteredTemplates.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <FileText className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p>No QR templates found.</p>
-                <a href="/admin/crm/qr/templates" className="text-blue-500 text-sm mt-1 inline-block hover:underline">
-                  Create a template →
-                </a>
+              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    bulkStats.quota.status === 'exhausted' ? 'bg-red-500' :
+                    bulkStats.quota.status === 'critical' ? 'bg-orange-500' :
+                    bulkStats.quota.status === 'warning' ? 'bg-yellow-500' :
+                    'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(100, bulkStats.quota.percentage)}%` }}
+                />
               </div>
-            ) : (
-              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                {filteredTemplates.map(t => (
-                  <button
-                    key={t._id}
-                    onClick={() => { setSelectedTemplate(t); setError(null); }}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition ${
-                      selectedTemplate?._id === t._id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <HeaderIcon type={t.headerType} />
-                          <span className="font-semibold text-gray-900 text-sm">{t.templateName}</span>
-                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">{t.category}</span>
-                        </div>
-                        <p className="text-xs text-gray-600 line-clamp-2">{t.templateContent}</p>
-                        {t.buttons && t.buttons.length > 0 && (
-                          <div className="flex gap-1 mt-2 flex-wrap">
-                            {t.buttons.map((b, bi) => (
-                              <span key={bi} className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
-                                {b.text}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+              <div className="flex items-center justify-between mt-2 text-sm">
+                <span className="text-gray-500">
+                  {bulkStats.quota.remaining.toLocaleString()} remaining
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  bulkStats.quota.status === 'exhausted' ? 'bg-red-100 text-red-700' :
+                  bulkStats.quota.status === 'critical' ? 'bg-orange-100 text-orange-700' :
+                  bulkStats.quota.status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-green-100 text-green-700'
+                }`}>
+                  {bulkStats.quota.status === 'exhausted' ? '⛔ Exhausted' :
+                   bulkStats.quota.status === 'critical' ? '⚠️ Critical' :
+                   bulkStats.quota.status === 'warning' ? '⚡ Warning' :
+                   '✅ Normal'}
+                </span>
+              </div>
+            </div>
+            
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-green-600">{bulkStats.today.sent.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Sent Today</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-red-600">{bulkStats.today.failed.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Failed Today</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-indigo-600">{bulkStats.today.pending.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Pending</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm text-center">
+                <div className="text-2xl font-bold text-purple-600">{bulkStats.activeRuns}</div>
+                <div className="text-xs text-gray-500">Active Runs</div>
+              </div>
+            </div>
+            
+            {/* Active Processing Runs */}
+            {processingRuns.length > 0 && processingRuns.some(r => r.status === 'processing') && (
+              <div className="mt-4 bg-white rounded-xl p-4 shadow-sm">
+                <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <span className="animate-pulse">🔄</span> Active Broadcasts
+                </h4>
+                <div className="space-y-3">
+                  {processingRuns.filter(r => r.status === 'processing').map(run => (
+                    <div key={run.runId} className="bg-gray-50 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-gray-800 text-sm">Batch {run.currentBatch}/{run.totalBatches}</span>
+                        <span className="text-sm text-indigo-600 font-medium">{run.percentage}%</span>
                       </div>
-                      <span className={`shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold mt-0.5 ${
-                        selectedTemplate?._id === t._id
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-blue-50 text-blue-600 border border-blue-200'
-                      }`}>
-                        {selectedTemplate?._id === t._id ? <><Check className="w-3 h-3" /> Selected</> : '+ Select'}
-                      </span>
+                      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-2">
+                        <div
+                          className="h-full bg-indigo-500 transition-all duration-500"
+                          style={{ width: `${run.percentage}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>✓ {run.sent} sent • ✗ {run.failed} failed</span>
+                        <span>⏱️ ~{run.estimatedTimeRemaining} left</span>
+                      </div>
                     </div>
-                  </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Meta WhatsApp Timing Info */}
+            {selectedLeads.size > 0 && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <div className="flex items-start gap-2">
+                  <span>⏱️</span>
+                  <div className="text-sm text-blue-800">
+                    <strong>QR Broadcast Timing:</strong> 1-2 seconds between messages
+                    <br />
+                    <span className="text-xs text-blue-700">
+                      {selectedLeads.size} messages = ~{Math.ceil(selectedLeads.size * 1.5 / 60)} minutes
+                      (e.g., 100 messages ≈ 2.5 minutes)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Validation Warnings */}
+            {validation && validation.warnings?.length > 0 && selectedLeads.size > 0 && (
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                <div className="flex items-start gap-2">
+                  <span>⚠️</span>
+                  <div className="text-sm text-yellow-800">
+                    {validation.warnings.map((w, i) => <div key={i}>{w}</div>)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recent Runs Panel */}
+        {showRecentRuns && (
+          <div className="mb-6 bg-white rounded-2xl shadow-lg border p-4 animate-fadeIn">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+              📊 Recent Broadcasts
+              <button onClick={fetchData} className="text-indigo-600 hover:text-indigo-700 text-sm font-normal">
+                ↻ Refresh
+              </button>
+            </h3>
+            {recentRuns.length === 0 ? (
+              <p className="text-gray-500 text-sm">No broadcasts yet</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {recentRuns.map(run => (
+                  <div key={run._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{run.provider === 'meta' ? '🟢' : '💚'}</span>
+                      <div>
+                        <div className="font-medium text-gray-800 text-sm">{run.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {run.templateSnapshot?.templateName || 'Template'} • {new Date(run.createdAt).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right text-xs">
+                        <div className="text-green-600">✓ {run.stats.sent}</div>
+                        <div className="text-red-600">✗ {run.stats.failed}</div>
+                      </div>
+                      <StatusBadge status={run.status} />
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Step 1: Recipients ── */}
-        {step === 1 && (
-          <div className="bg-white rounded-xl border shadow-sm p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Users className="w-5 h-5 text-green-500" /> Select Recipients
-              </h2>
+        {/* QR Connection Status Header */}
+        <div className="mb-4 flex items-center">
+          {qrConnection.loading ? (
+            <span className="text-sm text-gray-500 animate-pulse">Checking QR connection...</span>
+          ) : qrConnection.connected ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-green-100 text-green-700 text-sm font-medium border border-green-200">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              QR Number connected - ({qrConnection.phone || 'Unknown'})
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-red-100 text-red-700 text-sm font-medium border border-red-200">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              QR Number disconnected - ({qrConnection.phone || 'Unknown'})
+            </span>
+          )}
+        </div>
+
+        {/* Row 1: Step Indicator and Toggles */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          {renderStepIndicator()}
+          
+          {step === 1 && (
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowSystemData(!showSystemData)}
-                className="text-xs text-blue-600 hover:underline"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium shadow-sm"
               >
-                {showSystemData ? 'Hide System Data' : 'Show System Data'}
+                {showAdvancedFilters ? '− Hide CSV & Extra Filters' : '+ Show CSV & Extra Filters'}
+              </button>
+              <button
+                onClick={() => setShowLeadsList(!showLeadsList)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium shadow-sm"
+              >
+                {showLeadsList ? '− Hide Leads' : '+ Show Leads'}
               </button>
             </div>
+          )}
+        </div>
 
-            {/* Quick Filters */}
-            <div className="flex gap-3 mb-6 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-slate-500 mb-1">Select Language</label>
-                <MultiSelectDropdown
-                  allLabel="Any Language"
-                  options={labelOptions.map(l => ({ value: l, label: l }))}
-                  selected={quickLanguages}
-                  onChange={setQuickLanguages}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-slate-500 mb-1">Select Batches</label>
-                <MultiSelectDropdown
-                  allLabel="Any Batch"
-                  options={workshopOptions.map(w => ({ value: w, label: w }))}
-                  selected={quickBatches}
-                  onChange={setQuickBatches}
-                />
-              </div>
-              <button 
-                onClick={handleQuickSubmit}
-                className="h-[38px] px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm transition"
-              >
-                Submit
-              </button>
-            </div>
 
-            {/* Filters row */}
-            {showSystemData && (
-              <div className="flex gap-3 mb-4 flex-wrap p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="relative flex-1 min-w-48">
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search name / phone..."
-                    value={leadSearch}
-                    onChange={e => { setLeadSearch(e.target.value); loadLeads(); }}
-                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-                  />
-                </div>
-                <MultiSelectDropdown
-                  allLabel="All Statuses"
-                  options={STATUS_OPTIONS}
-                  selected={filterStatuses}
-                  onChange={setFilterStatuses}
+        {/* Step 1: Recipients */}
+        {step === 1 && (
+          <div className="bg-white rounded-2xl shadow-xl border p-6 animate-fadeIn">
+            {/* Row 2: Search */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b pb-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="🔍 Search name or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex-1 sm:flex-none sm:w-80 text-sm"
                 />
-                <MultiSelectDropdown
-                  allLabel="All Workshops"
-                  options={workshopOptions.map(w => ({ value: w, label: w }))}
-                  selected={filterWorkshops}
-                  onChange={setFilterWorkshops}
-                />
-                <MultiSelectDropdown
-                  allLabel="All Groups"
-                  options={labelOptions.map(l => ({ value: l, label: l }))}
-                  selected={filterLabels}
-                  onChange={setFilterLabels}
-                />
-                <button onClick={loadLeads}
-                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">
-                  Refresh
+                <button className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium transition-colors text-sm">
+                  Search
                 </button>
               </div>
-            )}
-
-            {/* Select all / clear */}
-            <div className="flex items-center gap-3 mb-3">
-              <button onClick={selectAll}
-                className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs rounded font-semibold">
-                Select All ({filteredLeads.length})
-              </button>
-              <button onClick={clearAll}
-                className="px-3 py-1.5 bg-gray-400 hover:bg-gray-500 text-white text-xs rounded font-semibold">
-                Clear All
-              </button>
-              <span className="text-sm text-gray-500 ml-auto">
-                {selectedLeadIds.size} selected
-              </span>
             </div>
 
-            {leadsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-              </div>
-            ) : filteredLeads.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p>No leads found with current filters.</p>
-              </div>
-            ) : (
-              <div className="max-h-[50vh] overflow-y-auto border rounded-lg divide-y">
-                {filteredLeads.map(lead => {
-                  const selected = selectedLeadIds.has(lead._id);
-                  return (
-                    <button
-                      key={lead._id}
-                      onClick={() => toggleLead(lead._id)}
-                      className={`w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition ${selected ? 'bg-green-50' : ''}`}
-                    >
-                      <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
-                        selected ? 'bg-green-500 border-green-500' : 'border-gray-300'
-                      }`}>
-                        {selected && <Check className="w-3 h-3 text-white" />}
+            {/* Row 3: Quick Filters & Next Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl mb-6 border">
+              <div className="flex flex-wrap items-center gap-6">
+                <select
+                  value={filterLanguage}
+                  onChange={(e) => setFilterLanguage(e.target.value)}
+                  className="px-3 py-2 border border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white min-w-[120px]"
+                >
+                  <option value="all">Language</option>
+                  {uniqueLanguages.map(l => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+
+                <div className="relative" ref={workshopFilterRef}>
+                  <button
+                    type="button"
+                    onClick={() => setWorkshopFilterOpen(o => !o)}
+                    className="px-3 py-2 border border-green-600 ring-1 ring-green-600 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white min-w-[480px] flex items-center justify-between gap-2 max-w-[640px]"
+                    style={{ borderColor: '#16a34a', borderWidth: '1px' }}
+                  >
+                    <span className="truncate">
+                      {filterWorkshops.length === 0
+                        ? 'Batches Name (All)'
+                        : `${filterWorkshops.length} Batches Selected`}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  {workshopFilterOpen && (
+                    <div className="absolute left-0 mt-1 w-[400px] max-h-80 overflow-y-auto bg-white border border-green-200 rounded-xl shadow-xl z-[60] py-1">
+                      <div className="sticky top-0 bg-white border-b border-gray-100 px-3 py-2 z-10 flex justify-between items-center">
+                         <span className="text-xs font-bold text-gray-500">Select Batches</span>
+                         {filterWorkshops.length > 0 && (
+                           <button onClick={() => setFilterWorkshops([])} className="text-xs text-red-500 hover:text-red-700">Clear</button>
+                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-gray-900 truncate">{lead.name || 'Unknown'}</div>
-                        <div className="text-xs text-gray-400">{lead.phoneNumber}</div>
-                      </div>
-                      {lead.status && (
-                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full flex-shrink-0">
-                          {lead.status}
+                      {uniqueWorkshops.map(w => (
+                        <label key={w} className="flex items-start gap-2.5 px-3 py-2 hover:bg-green-50 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={filterWorkshops.includes(w)}
+                            onChange={(e) => {
+                              if (e.target.checked) setFilterWorkshops(prev => [...prev, w]);
+                              else setFilterWorkshops(prev => prev.filter(x => x !== w));
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded accent-green-600 shrink-0"
+                          />
+                          <span className="leading-tight text-gray-700">{w}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="px-3 py-2 border border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white min-w-[200px]"
+                >
+                  <option value="all">Leads Management (All)</option>
+                  {uniqueStatuses.map(s => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
+                </select>
+
+                <button
+                  onClick={() => {
+                    setShowLeadsList(true);
+                    if (filteredLeads.length > 0) {
+                      const newSelected = new Set(selectedLeads);
+                      filteredLeads.forEach(l => newSelected.add(l._id));
+                      setSelectedLeads(newSelected);
+                    }
+                  }}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors"
+                >
+                  Submit
+                </button>
+              </div>
+
+              <button
+                onClick={() => setStep(2)}
+                disabled={!canProceedToStep2}
+                className={`px-6 py-2 rounded-lg font-bold transition-all duration-300 shadow-sm whitespace-nowrap ${
+                  canProceedToStep2 ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Next: Choose Template →
+              </button>
+            </div>
+
+
+
+            {showAdvancedFilters && (
+              <div className="mt-6 border-t border-gray-100 pt-6 animate-fadeIn">
+                {/* CSV Upload Section */}
+                <div className="mb-4">
+                  <input
+                ref={csvFileRef}
+                type="file"
+                accept=".csv,.txt,.tsv"
+                onChange={handleCSVUpload}
+                className="hidden"
+              />
+              {csvContacts.length === 0 ? (
+                <button
+                  onClick={() => csvFileRef.current?.click()}
+                  disabled={csvParsing}
+                  className="w-full border-2 border-dashed border-gray-300 hover:border-indigo-400 rounded-xl p-4 flex items-center justify-center gap-3 text-gray-500 hover:text-indigo-600 transition-all duration-200 hover:bg-indigo-50/30 group"
+                >
+                  {csvParsing ? (
+                    <span className="animate-spin text-xl">⏳</span>
+                  ) : (
+                    <span className="text-2xl group-hover:scale-110 transition-transform">📄</span>
+                  )}
+                  <span className="font-medium">
+                    {csvParsing ? 'Parsing CSV...' : 'Upload CSV — Auto-detect Name, Phone, Email'}
+                  </span>
+                </button>
+              ) : (
+                <div className="border-2 border-green-200 bg-green-50/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">✅</span>
+                      <span className="font-semibold text-green-800">{csvFileName}</span>
+                      <span className="text-sm text-green-600">— {csvContacts.length} contacts loaded</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowCSVPreview(!showCSVPreview)}
+                        className="px-3 py-1 text-sm bg-white border border-green-300 rounded-lg hover:bg-green-50 text-green-700 font-medium transition-colors"
+                      >
+                        {showCSVPreview ? 'Hide Preview' : 'Preview'}
+                      </button>
+                      <button
+                        onClick={removeCSV}
+                        className="px-3 py-1 text-sm bg-white border border-red-300 rounded-lg hover:bg-red-50 text-red-600 font-medium transition-colors"
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Column mapping info */}
+                  {csvColumnMap && (
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                      {csvColumnMap.phone && (
+                        <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+                          📱 Phone → {csvColumnMap.phone}
                         </span>
                       )}
-                    </button>
-                  );
-                })}
+                      {csvColumnMap.name && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                          👤 Name → {csvColumnMap.name}
+                        </span>
+                      )}
+                      {csvColumnMap.email && (
+                        <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
+                          ✉️ Email → {csvColumnMap.email}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Preview table */}
+                  {showCSVPreview && (
+                    <div className="mt-3 max-h-[200px] overflow-auto rounded-lg border border-green-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-green-100 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">#</th>
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">Name</th>
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">Phone</th>
+                            {csvColumnMap?.email && (
+                              <th className="px-3 py-2 text-left text-green-800 font-semibold">Email</th>
+                            )}
+                            <th className="px-3 py-2 text-left text-green-800 font-semibold">In DB?</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {csvContacts.slice(0, 50).map((c, i) => {
+                            const last10 = c.phoneNumber.replace(/\D/g, '').slice(-10);
+                            const existsInDB = leads.some(l => l.phoneNumber.replace(/\D/g, '').slice(-10) === last10);
+                            return (
+                              <tr key={i} className={`border-t border-green-100 ${existsInDB ? 'bg-indigo-50/40' : ''}`}>
+                                <td className="px-3 py-1.5 text-gray-500">{i + 1}</td>
+                                <td className="px-3 py-1.5 text-gray-800">{c.name || '—'}</td>
+                                <td className="px-3 py-1.5 text-gray-700 font-mono text-xs">{c.phoneNumber}</td>
+                                {csvColumnMap?.email && (
+                                  <td className="px-3 py-1.5 text-gray-600 text-xs">{c.email || '—'}</td>
+                                )}
+                                <td className="px-3 py-1.5">
+                                  {existsInDB ? (
+                                    <span className="text-indigo-600 text-xs font-medium">✓ Exists</span>
+                                  ) : (
+                                    <span className="text-orange-500 text-xs font-medium">New</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {csvContacts.length > 50 && (
+                        <div className="text-center py-2 text-xs text-gray-500 bg-green-50">
+                          ... and {csvContacts.length - 50} more contacts
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CSV Error */}
+              {csvError && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{csvError}</span>
+                  <button onClick={() => setCSVError(null)} className="ml-auto text-red-400 hover:text-red-600">×</button>
+                </div>
+              )}
+            </div>
+
+            {/* Extra Filters Row */}
+            <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
+              <span className="text-sm font-medium text-gray-600 mr-1">🎯 Extra Filters:</span>
+
+              {/* Delivery Status Filter — from each lead's most recent Meta
+                  message (see broadcast-runs/latest-status), not the CRM lead
+                  status above. Lets you re-target people who were previously
+                  delivered/read directly. Multi-select checkboxes so e.g.
+                  Delivered + Read can both be picked at once. */}
+              <div className="relative" ref={deliveryFilterRef}>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryFilterOpen(o => !o)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[150px] flex items-center gap-2"
+                >
+                  <span className="flex-1 text-left truncate">
+                    {filterDeliveryStatus.size === 0
+                      ? 'All Delivery Status'
+                      : Array.from(filterDeliveryStatus).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}
+                  </span>
+                  <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {deliveryFilterOpen && (
+                  <div className="absolute left-0 mt-1 w-44 bg-white border rounded-xl shadow-lg z-50 py-1">
+                    {([
+                      ['delivered', '📨 Delivered'],
+                      ['read', '👁️ Read'],
+                      ['failed', '❌ Failed'],
+                      ['blocked', '🚫 Blocked'],
+                    ] as const).map(([value, label]) => (
+                      <label key={value} className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={filterDeliveryStatus.has(value)}
+                          onChange={() => toggleDeliveryFilter(value)}
+                          className="w-4 h-4 rounded accent-indigo-600"
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                    {filterDeliveryStatus.size > 0 && (
+                      <button
+                        onClick={() => setFilterDeliveryStatus(new Set())}
+                        className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-t mt-1"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
+
+
+
+              {/* Assigned User Filter */}
+              {uniqueAssignedUsers.length > 0 && (
+                <select
+                  value={filterAssignedUser}
+                  onChange={(e) => setFilterAssignedUser(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[140px]"
+                >
+                  <option value="all">All Users</option>
+                  {uniqueAssignedUsers.map(([id, name]) => (
+                    <option key={id} value={id}>{name}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* Clear Filters */}
+              {(filterStatus !== 'all' || filterWorkshop !== 'all' || filterAssignedUser !== 'all' || filterDeliveryStatus.size > 0) && (
+                <button
+                  onClick={() => {
+                    setFilterStatus('all');
+                    setFilterWorkshop('all');
+                    setFilterAssignedUser('all');
+                    setFilterDeliveryStatus(new Set());
+                  }}
+                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+            </div>
             )}
+
+            {showLeadsList && (
+              <>
+            {/* Selection Bar */}
+              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-xl mb-4">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedLeads.size === filteredLeads.length && filteredLeads.length > 0}
+                  onChange={selectAllFiltered}
+                  className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="font-medium text-indigo-800 group-hover:text-indigo-600 transition-colors">
+                  Select All ({filteredLeads.length})
+                </span>
+              </label>
+              <div className="flex items-center gap-4">
+                {selectedLeads.size > 0 && (
+                  <button
+                    onClick={clearSelection}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Clear
+                  </button>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl font-bold text-indigo-600">{selectedLeads.size}</span>
+                  <span className="text-indigo-700 text-sm">selected</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Leads List */}
+            <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1">
+              {loading ? (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="animate-spin text-4xl mb-2">⏳</div>
+                  Loading leads...
+                </div>
+              ) : filteredLeads.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <span className="text-4xl">👤</span>
+                  <p className="mt-2">No leads found</p>
+                </div>
+              ) : (
+                filteredLeads.map((lead) => (
+                  <label
+                    key={lead._id}
+                    className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all duration-200 group ${
+                      selectedLeads.has(lead._id)
+                        ? 'bg-indigo-50 border-2 border-indigo-400 shadow-sm'
+                        : 'bg-gray-50/50 border-2 border-transparent hover:bg-white hover:shadow-sm hover:border-gray-200'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.has(lead._id)}
+                      onChange={() => toggleLead(lead._id)}
+                      className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-800 truncate group-hover:text-indigo-700 transition-colors">
+                        {lead.name || 'Unknown'}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <span>{lead.phoneNumber}</span>
+                        {lead.isCSV && (
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-600 rounded text-xs font-medium">
+                            📄 CSV
+                          </span>
+                        )}
+                        {lead.workshopName && (
+                          <span className="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-xs">
+                            {lead.workshopName}
+                          </span>
+                        )}
+                        {lead.userName && (
+                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-xs">
+                            👤 {lead.userName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <StatusBadge status={lead.status || 'lead'} />
+                      {lead.deliveryStatus && <DeliveryStatusBadge status={lead.deliveryStatus} />}
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+            </>
+          )}
           </div>
         )}
 
-        {/* ── Step 2: Schedule ── */}
+        {/* Step 2: Template */}
         {step === 2 && (
-          <div className="bg-white rounded-xl border shadow-sm p-6 space-y-6">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-purple-500" /> Schedule Broadcast
-            </h2>
-
-            {/* Summary */}
-            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Template</span>
-                <span className="font-medium text-gray-900">{selectedTemplate?.templateName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Recipients</span>
-                <span className="font-medium text-gray-900">{selectedLeadIds.size} leads</span>
-              </div>
-            </div>
-
-            {/* Run name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Broadcast Name <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={runName}
-                onChange={e => setRunName(e.target.value)}
-                placeholder={`QR Broadcast – ${selectedTemplate?.templateName}`}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
-              />
-            </div>
-
-            {/* Repeat message toggle */}
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
+          <div className="bg-white rounded-2xl shadow-xl border p-6 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                📋 Choose Template
+                <span className="text-sm font-normal text-gray-500">({templates.length} available)</span>
+              </h2>
+              <div className="flex items-center gap-2">
                 <input
-                  type="checkbox"
-                  checked={repeatEnabled}
-                  onChange={e => setRepeatEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 accent-blue-600"
+                  type="text"
+                  placeholder="🔍 Search templates..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48 text-sm"
                 />
-                <span className="text-sm font-medium text-gray-700">🔁 Repeat message</span>
-              </label>
-              <p className="text-xs text-gray-400 mt-1 ml-6">
-                Resend on chosen days — only to delivered/read recipients after the 1st send.
-              </p>
+                <button
+                  onClick={syncTemplatesFromMeta}
+                  disabled={metaSubmitting === 'sync'}
+                  className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                >
+                  {metaSubmitting === 'sync' ? '🔄 Syncing...' : '🔄 Sync Meta'}
+                </button>
+                <button
+                  onClick={processScheduledBroadcasts}
+                  disabled={metaSubmitting === 'process-scheduled'}
+                  className="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                  title="Manually trigger processing of scheduled broadcasts (for testing)"
+                >
+                  {metaSubmitting === 'process-scheduled' ? '⏱️ Processing...' : '⏱️ Run Scheduled'}
+                </button>
+                <Link href="/admin/crm/templates" className="text-indigo-600 hover:text-indigo-700 text-sm font-medium whitespace-nowrap">
+                  + New
+                </Link>
+              </div>
             </div>
 
-            {/* When to send */}
-            {!repeatEnabled && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">When to Send</label>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setMode('now')}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
-                      mode === 'now' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    ⚡ Send Now
-                  </button>
-                  <button
-                    onClick={() => setMode('schedule')}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
-                      mode === 'schedule' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    🕐 Schedule Later
-                  </button>
-                  <button
-                    onClick={() => setMode('delay')}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-medium transition ${
-                      mode === 'delay' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    ⏳ Send After Delay
-                  </button>
+            {/* Templates Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-1">
+              {templates.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-gray-500">
+                  <span className="text-4xl">📝</span>
+                  <p className="mt-2">No templates found. Create one first.</p>
                 </div>
-                {mode === 'schedule' && (
-                  <input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={e => setScheduledAt(e.target.value)}
-                    min={new Date().toISOString().slice(0, 16)}
-                    className="mt-3 w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                )}
-                {mode === 'delay' && (
-                  <div className="mt-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { label: 'Days', value: delayDays, set: setDelayDays, max: 60 },
-                        { label: 'Hours', value: delayHours, set: setDelayHours, max: 23 },
-                        { label: 'Minutes', value: delayMinutes, set: setDelayMinutes, max: 59 },
-                      ].map(f => (
-                        <div key={f.label}>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                          <input
-                            type="number"
-                            min={0}
-                            max={f.max}
-                            value={f.value}
-                            onChange={e => f.set(Math.max(0, Math.min(f.max, Number(e.target.value) || 0)))}
-                            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Will send around{' '}
-                      <span className="font-semibold text-amber-700">
-                        {new Date(Date.now() + ((delayDays * 24 + delayHours) * 60 + delayMinutes) * 60000).toLocaleString('en-IN')}
+              ) : (
+                filteredTemplates.map((t) => {
+                  const isApproved = t.status === 'approved';
+                  return (
+                  <div
+                    key={t._id}
+                    onClick={() => { if (isApproved) setSelectedTemplate(t); }}
+                    className={`group p-4 rounded-xl transition-all duration-300 border-2 ${
+                      !isApproved
+                        ? 'bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed'
+                        : selectedTemplate?._id === t._id
+                        ? 'bg-indigo-50 border-indigo-400 shadow-lg scale-[1.02] cursor-pointer'
+                        : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-lg cursor-pointer'
+                    }`}
+                  >
+                    {t.headerMedia?.url && (
+                      <img
+                        src={t.headerMedia.url}
+                        alt=""
+                        className="w-full h-28 object-cover rounded-lg mb-3"
+                      />
+                    )}
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="font-bold text-gray-800 group-hover:text-indigo-700 transition-colors">
+                        {t.templateName}
                       </span>
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Repeat on these days */}
-            {repeatEnabled && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Send Time (IST)</label>
-                  <input
-                    type="time"
-                    value={repeatTime}
-                    onChange={e => setRepeatTime(e.target.value)}
-                    className="px-3 py-2 border-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    The message will be sent automatically around this time on each selected day, at the
-                    same safe ~15 msgs/hour pace shown below.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2">📅 Repeat on these days</label>
-                  <div className="flex gap-2 mb-2 flex-wrap items-center">
-                    <span className="text-xs text-gray-500">Start date</span>
-                    <input
-                      type="date"
-                      value={repeatStartDate}
-                      onChange={e => setRepeatStartDate(e.target.value)}
-                      className="px-2 py-1.5 border-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                    <span className="text-xs text-gray-500">Block size</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={60}
-                      value={repeatNumDays}
-                      onChange={e => setRepeatNumDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
-                      className="w-20 px-2 py-1.5 border-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
-                    <span className="text-xs text-gray-500">days</span>
-                  </div>
-                  <div className="flex gap-2 mb-2 items-center">
-                    <button
-                      onClick={() => setAllRepeatDays(true)}
-                      className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200"
-                    >
-                      Select all
-                    </button>
-                    <button
-                      onClick={() => setAllRepeatDays(false)}
-                      className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded font-medium hover:bg-gray-200"
-                    >
-                      Clear all
-                    </button>
-                    <span className="text-xs text-gray-400 ml-auto">
-                      {repeatSelectedDates.length} of {repeatDateList.length} selected
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-48 overflow-y-auto border-2 rounded-lg p-2">
-                    {repeatDateList.map(d => (
-                      <label
-                        key={d}
-                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer ${
-                          isRepeatDayChecked(d) ? 'bg-blue-50 text-blue-800' : 'bg-gray-50 text-gray-400'
-                        }`}
+                      {t.headerFormat === 'IMAGE' && (
+                        <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">🖼️</span>
+                      )}
+                      {t.buttons?.length ? (
+                        <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">🔘 {t.buttons.length}</span>
+                      ) : null}
+                      {/* Meta Approval Status Badge — driven by the schema-backed `status`
+                          field (see canProceedToStep3 above for why, not `metaStatus`) */}
+                      {t.metaTemplateId ? (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          t.status === 'approved' ? 'bg-green-100 text-green-700' :
+                          t.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-700' :
+                          t.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {t.status === 'approved' ? '✅ Approved' :
+                           t.status === 'pending_approval' ? '⏳ Pending' :
+                           t.status === 'rejected' ? '❌ Rejected' :
+                           t.status === 'disabled' ? '🚫 Disabled' :
+                           `📋 ${t.status || 'Submitted'}`}
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                          🔸 Not Submitted
+                        </span>
+                      )}
+                    </div>
+                    {!isApproved && (
+                      <p className="text-xs text-gray-500 mb-1">Must be Meta-approved to use in a broadcast</p>
+                    )}
+                    <p className="text-sm text-gray-600 line-clamp-2">{t.templateContent}</p>
+                    {t.buttons && t.buttons.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {t.buttons.slice(0, 2).map((btn, i) => (
+                          <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                            {btn.title}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Submit to Meta Button */}
+                    {!t.metaTemplateId && (
+                      <button
+                        onClick={(e) => submitToMeta(t._id, e)}
+                        disabled={metaSubmitting === t._id}
+                        className="mt-3 w-full px-3 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 disabled:from-indigo-400 disabled:to-indigo-500 text-white rounded-lg text-sm font-medium transition-all"
                       >
-                        <input
-                          type="checkbox"
-                          checked={isRepeatDayChecked(d)}
-                          onChange={() => toggleRepeatDay(d)}
-                          className="accent-blue-600"
-                        />
-                        {fmtDayLabel(d)}
-                      </label>
-                    ))}
+                        {metaSubmitting === t._id ? '⏳ Submitting...' : '🚀 Submit for Meta Approval'}
+                      </button>
+                    )}
                   </div>
-                </div>
+                  );
+                })
+              )}
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Schedule Name <span className="text-gray-400 font-normal">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={repeatScheduleName}
-                    onChange={e => setRepeatScheduleName(e.target.value)}
-                    placeholder={`${selectedTemplate?.templateName} @ ${repeatTime} (${repeatSelectedDates.length} days)`}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+            {/* Navigation */}
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => setStep(1)}
+                className="px-5 py-2.5 border-2 rounded-xl font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2"
+              >
+                <span>←</span> Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                disabled={!canProceedToStep3}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  canProceedToStep3
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-indigo-500/30 hover:scale-105'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Next: Schedule & Send
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Schedule & Send */}
+        {step === 3 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn">
+            {/* Left: Options */}
+            <div className="space-y-6">
+              {/* Broadcast Name */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  ✏️ Broadcast Name
+                </h3>
+                <input
+                  type="text"
+                  value={broadcastName}
+                  onChange={(e) => setBroadcastName(e.target.value)}
+                  placeholder={`Broadcast - ${new Date().toLocaleDateString('en-IN')}`}
+                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Provider - Meta WhatsApp Only */}
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl shadow-xl border border-green-200 p-6">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🟢</span>
+                  <div>
+                    <div className="font-bold text-gray-800">Meta WhatsApp</div>
+                    <div className="text-xs text-green-600">✅ Native Buttons & Templates</div>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Send speed — fixed anti-ban policy (no other options) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Send Speed (Anti-ban Protection)
-              </label>
-              <div className="flex items-start gap-3 p-4 rounded-lg border-2 border-green-500 bg-green-50">
-                <span className="text-lg leading-none mt-0.5">🛡️</span>
-                <div>
-                  <div className="text-sm font-semibold text-gray-800">
-                    {rateStatus ? `${rateStatus.hourlyLimit} messages / hour · max ${rateStatus.dailyLimit} / day` : '15 messages / hour · max 150 / day'}
-                  </div>
-                  <div className="text-xs text-gray-600 mt-0.5">
-                    Safe drip pacing (~1 message every 2–6 min). The system auto-stops at the hourly/daily
-                    cap and continues the rest the next day — protecting your number from bans.
-                  </div>
-                  {rateStatus && (
-                    <div className="text-xs font-medium text-green-800 mt-2">
-                      Already used: {rateStatus.hourSent}/{rateStatus.hourlyLimit} this hour ·{' '}
-                      {rateStatus.daySent}/{rateStatus.dailyLimit} today
-                      {' '}({rateStatus.dayRemaining} remaining today)
+              {/* Send Mode */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  ⏰ When to Send
+                </h3>
+                <div className="space-y-3">
+                  {/* Now */}
+                  <button
+                    onClick={() => setSendMode('now')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'now' ? 'border-indigo-500 bg-indigo-50 shadow-md' : 'border-gray-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">⚡</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Send Now</div>
+                        <div className="text-sm text-gray-500">Start sending immediately</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Schedule */}
+                  <button
+                    onClick={() => setSendMode('schedule')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'schedule' ? 'border-purple-500 bg-purple-50 shadow-md' : 'border-gray-200 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">📅</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Schedule</div>
+                        <div className="text-sm text-gray-500">Send at specific date & time</div>
+                      </div>
+                    </div>
+                  </button>
+                  {sendMode === 'schedule' && (
+                    <div className="ml-10 grid grid-cols-2 gap-3 mt-2">
+                      <input
+                        type="date"
+                        value={scheduleDate}
+                        onChange={(e) => setScheduleDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="px-4 py-2.5 border-2 rounded-xl focus:border-purple-500"
+                      />
+                      <input
+                        type="time"
+                        value={scheduleTime}
+                        onChange={(e) => setScheduleTime(e.target.value)}
+                        className="px-4 py-2.5 border-2 rounded-xl focus:border-purple-500"
+                      />
+                    </div>
+                  )}
+
+                  {/* Delay */}
+                  <button
+                    onClick={() => setSendMode('delay')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'delay' ? 'border-orange-500 bg-orange-50 shadow-md' : 'border-gray-200 hover:border-orange-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">⏱️</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Delay</div>
+                        <div className="text-sm text-gray-500">Wait before sending</div>
+                      </div>
+                    </div>
+                  </button>
+                  {sendMode === 'delay' && (
+                    <div className="ml-10 flex items-center gap-3 mt-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="1440"
+                        value={delayMinutes}
+                        onChange={(e) => setDelayMinutes(Number(e.target.value))}
+                        className="w-20 px-3 py-2.5 border-2 rounded-xl focus:border-orange-500"
+                      />
+                      <span className="text-gray-600 font-medium">minutes from now</span>
+                    </div>
+                  )}
+
+                  {/* Repeat */}
+                  <button
+                    onClick={() => setSendMode('repeat')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'repeat' ? 'border-teal-500 bg-teal-50 shadow-md' : 'border-gray-200 hover:border-teal-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">🔁</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Repeat</div>
+                        <div className="text-sm text-gray-500">Resend on chosen days — only to delivered/read recipients after the 1st send</div>
+                      </div>
+                    </div>
+                  </button>
+                  {sendMode === 'repeat' && (
+                    <div className="ml-10 mt-2 space-y-4">
+                      {realLeadCount === 0 && (
+                        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+                          ⚠️ CSV-only contacts can&apos;t be used with Repeat — select recipients with saved lead records.
+                        </p>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Send Time (IST)</label>
+                        <input
+                          type="time"
+                          value={repeatTime}
+                          onChange={(e) => setRepeatTime(e.target.value)}
+                          className="px-4 py-2.5 border-2 rounded-xl focus:border-teal-500"
+                        />
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">📅 Repeat on these days</h4>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Start date</label>
+                            <input
+                              type="date"
+                              value={repeatStartDate}
+                              onChange={(e) => setRepeatStartDate(e.target.value)}
+                              className="w-full px-3 py-2 border-2 rounded-xl focus:border-teal-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Number of days (1-60)</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={60}
+                              value={repeatNumDays}
+                              onChange={(e) => setRepeatNumDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+                              className="w-full px-3 py-2 border-2 rounded-xl focus:border-teal-500 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAllRepeatDays(true)}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-teal-300 text-teal-700 hover:bg-teal-50"
+                            >
+                              Select all
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAllRepeatDays(false)}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {repeatSelectedDates.length} of {repeatDateList.length} selected
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 border rounded-xl">
+                          {repeatDateList.map((d) => (
+                            <label
+                              key={d}
+                              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs cursor-pointer ${
+                                isRepeatDayChecked(d) ? 'border-teal-400 bg-teal-50 text-teal-800' : 'border-gray-200 text-gray-500'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isRepeatDayChecked(d)}
+                                onChange={() => toggleRepeatDay(d)}
+                                className="w-3.5 h-3.5 rounded border-gray-300 accent-teal-600"
+                              />
+                              {fmtDayLabel(d)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Schedule Name (optional)</label>
+                        <input
+                          type="text"
+                          value={repeatScheduleName}
+                          onChange={(e) => setRepeatScheduleName(e.target.value)}
+                          placeholder={`${selectedTemplate?.templateName || 'Broadcast'} repeat`}
+                          className="w-full px-4 py-2.5 border-2 rounded-xl focus:border-teal-500"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             </div>
+
+            {/* Right: Preview & Summary */}
+            <div className="space-y-6">
+              {/* Summary */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  📊 Summary
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-indigo-600">{selectedLeads.size}</div>
+                    <div className="text-sm text-indigo-700">Recipients</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-purple-600">
+                      {sendMode === 'now' ? '⚡' : sendMode === 'schedule' ? '📅' : sendMode === 'repeat' ? '🔁' : '⏱️'}
+                    </div>
+                    <div className="text-sm text-purple-700 capitalize">{sendMode}</div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Template:</span>
+                    <span className="font-medium text-gray-800">{selectedTemplate?.templateName}</span>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-gray-600">Provider:</span>
+                    <span className="font-medium text-gray-800">🟢 Meta WhatsApp</span>
+                  </div>
+                  {sendMode === 'schedule' && scheduleDate && scheduleTime && (
+                    <div className="flex justify-between mt-1">
+                      <span className="text-gray-600">Scheduled:</span>
+                      <span className="font-medium text-gray-800">
+                        {new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  )}
+                  {sendMode === 'delay' && (
+                    <div className="flex justify-between mt-1">
+                      <span className="text-gray-600">Delay:</span>
+                      <span className="font-medium text-gray-800">{delayMinutes} minutes</span>
+                    </div>
+                  )}
+                  {sendMode === 'repeat' && (
+                    <div className="flex justify-between mt-1">
+                      <span className="text-gray-600">Occurrences:</span>
+                      <span className="font-medium text-gray-800">{repeatSelectedDates.length} day(s) @ {repeatTime} IST</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Preview */}
+              {selectedTemplate && (
+                <div className="bg-white rounded-2xl shadow-xl border p-6">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    👁️ Message Card Preview
+                  </h3>
+                  <div className="bg-[#0b141a] rounded-xl p-4">
+                    <p className="text-xs text-gray-400 mb-3 text-center">
+                      WhatsApp {provider === 'meta' ? 'Meta (Native)' : 'QR (Text)'}
+                    </p>
+
+                    {/* Image URL override for IMAGE-header templates */}
+                    {selectedTemplate.headerFormat === 'IMAGE' && (
+                      <div className="mb-3">
+                        <label className="block text-xs text-gray-400 mb-1">
+                          🖼️ Image URL {selectedTemplate.headerMedia?.url ? '(override optional)' : '(required for this template)'}
+                        </label>
+                        <input
+                          type="url"
+                          value={overrideImageUrl || selectedTemplate.headerMedia?.url || ''}
+                          onChange={e => setOverrideImageUrl(e.target.value)}
+                          placeholder="https://example.com/image.jpg"
+                          className="w-full px-3 py-2 bg-[#1a2933] border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                    )}
+
+                    {/* WhatsApp Card Style */}
+                    <div className="bg-[#025c4c] rounded-2xl overflow-hidden max-w-xs mx-auto shadow-xl">
+                      {/* Header Image */}
+                      {(overrideImageUrl || selectedTemplate.headerMedia?.url) ? (
+                        <div className="relative">
+                          <img
+                            src={overrideImageUrl || selectedTemplate.headerMedia!.url}
+                            alt=""
+                            className="w-full h-40 object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                          <div className="absolute bottom-2 right-2 bg-black/50 px-2 py-0.5 rounded text-xs text-white">
+                            📷 Image
+                          </div>
+                        </div>
+                      ) : selectedTemplate.headerFormat === 'IMAGE' ? (
+                        <div className="h-24 bg-gray-700 flex items-center justify-center text-gray-400 text-sm">
+                          🖼️ Image (enter URL above)
+                        </div>
+                      ) : null}
+                      
+                      {/* Body Content */}
+                      <div className="bg-[#005c4b] p-4">
+                        <p className="text-white text-sm whitespace-pre-wrap leading-relaxed">
+                          {selectedTemplate.templateContent}
+                        </p>
+                        
+                        {/* QR shows buttons as text */}
+                        {(provider as string) === 'qr' && selectedTemplate.buttons?.length ? (
+                          <div className="mt-3 pt-3 border-t border-white/20">
+                            {selectedTemplate.buttons.map((btn, i) => (
+                              <p key={i} className="text-white/90 text-sm py-1">
+                                📌 {btn.title}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                        
+                        {/* Timestamp */}
+                        <div className="flex justify-end mt-2">
+                          <span className="text-xs text-white/60">
+                            {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} ✓✓
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Meta shows native blue buttons */}
+                      {provider === 'meta' && selectedTemplate.buttons?.map((btn, i) => (
+                        <div key={i} className="border-t border-[#0a3a3a]">
+                          <button className="w-full py-3 text-[#53bdeb] text-sm font-medium text-center hover:bg-[#0a3a3a] transition-colors flex items-center justify-center gap-2">
+                            <span>↩️</span>
+                            {btn.title}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Provider Badge */}
+                    <div className="mt-4 text-center">
+                      <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
+                        provider === 'meta' 
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                          : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                      }`}>
+                        {provider === 'meta' ? '🟢 Meta Cloud API' : '💚 QR Bridge'}
+                      </span>
+                    </div>
+                    
+                    {/* Features */}
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      <div className={`p-2 rounded-lg ${selectedTemplate.headerMedia?.url ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
+                        <span className="text-lg">{selectedTemplate.headerMedia?.url ? '✅' : '➖'}</span>
+                        <p className="text-xs text-gray-300">Image</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-green-500/20">
+                        <span className="text-lg">✅</span>
+                        <p className="text-xs text-gray-300">Body</p>
+                      </div>
+                      <div className={`p-2 rounded-lg ${selectedTemplate.buttons?.length ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
+                        <span className="text-lg">{selectedTemplate.buttons?.length ? '✅' : '➖'}</span>
+                        <p className="text-xs text-gray-300">Button</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(2)}
+                  className="flex-1 px-5 py-3 border-2 rounded-xl font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
+                >
+                  <span>←</span> Back
+                </button>
+                <button
+                  onClick={handleSend}
+                  disabled={!canSend || sending}
+                  className={`flex-1 px-5 py-4 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                    canSend && !sending
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:shadow-green-500/30 hover:scale-[1.02]'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {sending ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      🚀 {sendMode === 'now' ? 'Send Now' : sendMode === 'schedule' ? 'Schedule' : sendMode === 'repeat' ? 'Create Repeat Schedule' : 'Queue'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
+      </main>
 
-        {/* Navigation buttons */}
-        <div className="flex items-center justify-between mt-6">
-          {step > 0 ? (
-            <button onClick={prevStep}
-              className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-2">
-              <ChevronLeft className="w-4 h-4" /> Back
-            </button>
-          ) : <div />}
-
-          {step < STEPS.length - 1 ? (
-            <button onClick={nextStep}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2">
-              Continue <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || (repeatEnabled && repeatSelectedDates.length === 0)}
-              className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold flex items-center gap-2"
-            >
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {repeatEnabled ? 'Create Repeat Schedule' : (mode === 'now' ? 'Send Broadcast' : 'Schedule Broadcast')}
-            </button>
-          )}
-        </div>
-
-      </div>
+      {/* Styles */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

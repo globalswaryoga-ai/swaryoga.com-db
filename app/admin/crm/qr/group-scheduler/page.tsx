@@ -129,6 +129,23 @@ export default function QRGroupSchedulerPage() {
   const token = useAuth();
   const { fetch: crmFetch } = useCRM({ token });
 
+  // ── Connection Status ──
+  const [qrConnection, setQrConnection] = useState<{ connected: boolean; phone: string | null; loading: boolean }>({ connected: false, phone: null, loading: true });
+
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([
+      fetch('/api/admin/crm/settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch('/api/admin/crm/qr/health-check', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+    ]).then(([settingsData, healthData]) => {
+      const phone = settingsData?.data?.qrConnectedPhoneNumber || settingsData?.qrConnectedPhoneNumber || null;
+      const connected = healthData?.health?.overallStatus === 'healthy' || healthData?.health?.overallStatus === 'warning';
+      setQrConnection({ connected, phone, loading: false });
+    }).catch(() => {
+      setQrConnection(prev => ({ ...prev, loading: false }));
+    });
+  }, [token]);
+
   // ── Groups (from bridge) ──
   const [chats, setChats] = useState<Chat[]>([]);
   const [chatsLoading, setChatsLoading] = useState(true);
@@ -467,6 +484,23 @@ export default function QRGroupSchedulerPage() {
         <p className="text-sm text-gray-500 mb-6">
           Send a message to a WhatsApp group automatically at a set time, repeated on the days you choose.
         </p>
+
+        {/* QR Connection Status Header */}
+        <div className="mb-6 flex items-center">
+          {qrConnection.loading ? (
+            <span className="text-sm text-gray-500 animate-pulse">Checking QR connection...</span>
+          ) : qrConnection.connected ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-green-100 text-green-700 text-sm font-medium border border-green-200">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              QR Number connected - ({qrConnection.phone || 'Unknown'})
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-red-100 text-red-700 text-sm font-medium border border-red-200">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              QR Number disconnected - ({qrConnection.phone || 'Unknown'})
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* ── Create form ── */}

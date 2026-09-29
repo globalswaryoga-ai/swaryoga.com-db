@@ -7,6 +7,7 @@ import { BroadcastNRTab } from './_BroadcastNRTab';
 import MetaBroadcastPage from '@/app/admin/crm/broadcast/page';
 import QRBroadcastPage from '@/app/admin/crm/qr/broadcast/page';
 import GroupSchedulerPage from '@/app/admin/crm/qr/group-scheduler/page';
+import ReportsTab from './_ReportsTab';
 
 const WhatsAppTabs = [
   { id: 'meta_whatsapp', label: 'Meta WhatsApp', icon: MessageSquare },
@@ -353,7 +354,7 @@ export function WhatsAppMessengerTab({
         {activeSubTab === 'meta_whatsapp' && (
           <div className="flex-1 overflow-auto">
             <React.Suspense fallback={<div className="flex items-center justify-center h-full text-slate-400">Loading broadcast...</div>}>
-              <MetaBroadcastPage isEmbedded={true} />
+              <MetaBroadcastPage isEmbedded={true} workshops={workshops} leadsData={leadsData} />
             </React.Suspense>
           </div>
         )}
@@ -361,7 +362,9 @@ export function WhatsAppMessengerTab({
         {/* QR WhatsApp — full QR broadcast wizard embedded */}
         {activeSubTab === 'qr_whatsapp' && (
           <div className="flex-1 overflow-auto">
-            <QRBroadcastPage />
+            <React.Suspense fallback={<div className="flex items-center justify-center h-full text-slate-400">Loading broadcast...</div>}>
+              <QRBroadcastPage isEmbedded={true} workshops={workshops} leadsData={leadsData} />
+            </React.Suspense>
           </div>
         )}
 
@@ -373,10 +376,8 @@ export function WhatsAppMessengerTab({
         )}
 
         {activeSubTab === 'reports' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-slate-500">
-            <BarChart3 className="w-16 h-16 mb-4 text-slate-300" />
-            <h2 className="text-xl font-bold text-slate-700">Reports</h2>
-            <p className="mt-2 text-sm text-center max-w-md">Broadcast reports coming soon.</p>
+          <div className="flex-1 overflow-auto">
+            <ReportsTab />
           </div>
         )}
 
