@@ -40,8 +40,24 @@ export default function NewRegistrationPage() {
   const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
   const [leadsData, setLeadsData] = useState<any[]>([]);
   const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
+  const getBaseLanguage = (langStr?: string): string => {
+    if (!langStr) return 'english';
+    const lower = langStr.toLowerCase();
+    if (lower.includes('hindi')) return 'hindi';
+    if (lower.includes('marathi')) return 'marathi';
+    if (lower.includes('kannada')) return 'kannada';
+    return 'english';
+  };
+
+  const matchesLanguage = (w: any, targetLang: string) => {
+    if (!w) return false;
+    const wLang = w.language || w.name || '';
+    return getBaseLanguage(wLang) === getBaseLanguage(targetLang);
+  };
+
   const masterViewLanguageFilteredLeads = useMemo(() => {
-    return leadsData.filter(l => (l.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase());
+    const currentBaseLang = getBaseLanguage(selectedDashboardLang);
+    return leadsData.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
   }, [leadsData, selectedDashboardLang]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -1768,7 +1784,7 @@ export default function NewRegistrationPage() {
       setIsLoadingGoogleForms={setIsLoadingGoogleForms} setGoogleFormsList={setGoogleFormsList}
       setNeedsGoogleAuth={setNeedsGoogleAuth} setActiveTab={setActiveTab}
       setLeadsFilter={setLeadsFilter} setLeadsSubFilter={setLeadsSubFilter} setLeadsSubSubFilter={setLeadsSubSubFilter}
-      Users={Users} leadsData={leadsData} isLoadingLeads={isLoadingLeads}
+      Users={Users} leadsData={masterViewLanguageFilteredLeads} isLoadingLeads={isLoadingLeads}
       selectedRowIds={selectedRowIds} renderBulkActions={renderBulkActions}
       handleAi7Categorize={handleAi7Categorize} isAi7Processing={isAi7Processing}
       handleApproveBulk={handleApproveBulk} filterOptions={filterOptions}
@@ -1838,30 +1854,13 @@ export default function NewRegistrationPage() {
                   onChange={(e) => {
                     const lang = e.target.value;
                     setSelectedDashboardLang(lang);
-                    const matchesLanguage = (w: any, targetLang: string) => {
-                      if (!w) return false;
-                      const wLang = (w.language || 'English').toLowerCase();
-                      const tLang = targetLang.toLowerCase();
-                      if (wLang === tLang) return true;
-                      const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
-                      const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
-                      const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
-                      if (wBase !== tBase) return false;
-                      const tIsOffer = tLang.includes('offer');
-                      const tIsWorkshop = tLang.includes('workshop');
-                      const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
-                      const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
-                      if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
-                      if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
-                      return true;
-                    };
                     const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
                     setSelectedWorkshop(masterWorkshop || null);
                   }}
                   className="w-full bg-white border border-indigo-200 text-slate-800 font-bold text-xs rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm cursor-pointer hover:border-indigo-400 transition-colors"
-                  title="Select Language / Offer"
+                  title="Select Language"
                 >
-                  {['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'].map((lang) => (
+                  {['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'].map((lang) => (
                     <option key={lang} value={lang}>
                       {isSidebarCollapsed ? lang.substring(0, 2) : lang}
                     </option>
@@ -1877,12 +1876,12 @@ export default function NewRegistrationPage() {
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         {selectedDashboardLang} Batches
                       </div>
-                      {workshops.filter(w => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))).length > 0 && (
+                      {workshops.filter(w => w && w.id && matchesLanguage(w, selectedDashboardLang)).length > 0 && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
-                              setWorkshops(prev => prev.filter(w => !((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))));
+                              setWorkshops(prev => prev.filter(w => !matchesLanguage(w, selectedDashboardLang)));
                               if (selectedWorkshop) setSelectedWorkshop(null);
                             }
                           }}
@@ -1893,10 +1892,10 @@ export default function NewRegistrationPage() {
                       )}
                     </div>
                     <div className="space-y-1">
-                      {workshops.filter(w => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))).length === 0 && (
+                      {workshops.filter(w => w && w.id && matchesLanguage(w, selectedDashboardLang)).length === 0 && (
                         <div className="px-2 py-3 text-xs text-slate-400 italic">No batches created yet. Go to My Data and click AI-1.</div>
                       )}
-                      {workshops.filter(w => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))).map(batch => (
+                      {workshops.filter(w => w && w.id && matchesLanguage(w, selectedDashboardLang)).map(batch => (
                         <div
                           key={batch.id}
                           onClick={() => {
@@ -1916,7 +1915,7 @@ export default function NewRegistrationPage() {
                                 e.stopPropagation();
                                 setWorkshops(prev => {
                                   const copy = [...prev];
-                                  const batchIndices = copy.map((w, i) => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer'))) ? i : -1).filter(i => i !== -1);
+                                  const batchIndices = copy.map((w, i) => w && w.id && matchesLanguage(w, selectedDashboardLang) ? i : -1).filter(i => i !== -1);
                                   const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
                                   if (currentI > 0) {
                                     const prevIdx = batchIndices[currentI - 1];
@@ -1936,7 +1935,7 @@ export default function NewRegistrationPage() {
                                 e.stopPropagation();
                                 setWorkshops(prev => {
                                   const copy = [...prev];
-                                  const batchIndices = copy.map((w, i) => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer'))) ? i : -1).filter(i => i !== -1);
+                                  const batchIndices = copy.map((w, i) => w && w.id && matchesLanguage(w, selectedDashboardLang) ? i : -1).filter(i => i !== -1);
                                   const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
                                   if (currentI < batchIndices.length - 1) {
                                     const nextIdx = batchIndices[currentI + 1];
@@ -2060,7 +2059,7 @@ export default function NewRegistrationPage() {
               workshops={workshops}
               selectedDashboardLang={selectedDashboardLang}
               selectedWorkshop={selectedWorkshop}
-              leadsData={leadsData}
+              leadsData={masterViewLanguageFilteredLeads}
             />
           )}
           {activeTab === 'whatsapp_messenger' && (

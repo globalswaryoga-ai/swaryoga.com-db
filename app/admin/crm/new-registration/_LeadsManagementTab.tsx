@@ -19,7 +19,22 @@ const SIDEBAR_TABS = [
   { id: 'ai_triggers', label: 'AI Triggers-WT', icon: Zap },
 ];
 
-const LANGUAGES = ['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'];
+const LANGUAGES = ['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'];
+
+const getBaseLanguage = (langStr?: string): string => {
+  if (!langStr) return 'english';
+  const lower = langStr.toLowerCase();
+  if (lower.includes('hindi')) return 'hindi';
+  if (lower.includes('marathi')) return 'marathi';
+  if (lower.includes('kannada')) return 'kannada';
+  return 'english';
+};
+
+const matchesLanguage = (w: any, targetLang: string) => {
+  if (!w) return false;
+  const wLang = w.language || w.name || '';
+  return getBaseLanguage(wLang) === getBaseLanguage(targetLang);
+};
 
 export function LeadsManagementTab({
   workshops,
@@ -33,31 +48,6 @@ export function LeadsManagementTab({
   leadsData?: any[];
 }) {
   const toast = useToast();
-
-  const matchesLanguage = (w: any, targetLang: string) => {
-    if (!w) return false;
-    const wLang = (w.language || 'English').toLowerCase();
-    const tLang = targetLang.toLowerCase();
-
-    if (wLang === tLang) return true;
-
-    const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
-    const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
-    const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
-
-    if (wBase !== tBase) return false;
-
-    const tIsOffer = tLang.includes('offer');
-    const tIsWorkshop = tLang.includes('workshop');
-
-    const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
-    const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
-
-    if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
-    if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
-
-    return true;
-  };
 
   const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
   const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id ? selectedWorkshop.id : '');
