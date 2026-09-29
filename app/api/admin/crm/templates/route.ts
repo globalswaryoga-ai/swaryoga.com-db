@@ -36,8 +36,13 @@ export async function GET(request: NextRequest) {
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
     const filter: any = {};
-    if (!superAdmin || provider === 'qr') {
-      filter.createdBy = viewerUserId;
+    if (!superAdmin) {
+      if (provider === 'qr') {
+        filter.createdBy = viewerUserId;
+      } else {
+        // Sub-admins should see their own templates + all Meta templates
+        filter.createdByOrMeta = viewerUserId;
+      }
     }
     if (category) filter.category = category;
     if (status) filter.status = status;
