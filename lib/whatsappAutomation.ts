@@ -1,12 +1,15 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
-import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
+import { Lead, WhatsAppAutomationRule, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons, getWhatsAppEnv, extractYouTubeVideoId, buildCloudTemplateSendInput, generateAppSecretProof, buildGraphMessagesUrl, getPublicMediaUrl } from '@/lib/whatsapp';
 import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
 import { loadAutoConfig, isWithinWorkingHours } from '@/lib/autoConfig';
 import { getMetaCredentialsForTenant, type WhatsAppCredentials } from '@/lib/whatsappAccounts';
 import { generateAIText } from '@/lib/ai/generateWithFallback';
+import { getBunnyChatbotFlow, listBunnyChatbotFlows } from '@/lib/bunnyChatbotRepository';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import { createBunnyScheduledAction, cancelBunnyScheduledActionsForLead } from '@/lib/bunnyChatbotScheduledActionRepository';
 
 type InboundContext = {
   leadId: string;
@@ -549,12 +552,8 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   if (state.waitingForReply && ctx.body.trim()) {
     console.log(`[Chatbot] User replied while waiting - cancelling timeout`);
     
-    // Cancel pending timeout action
-    const ChatbotScheduledAction = getChatbotScheduledAction();
-    await ChatbotScheduledAction.updateMany(
-      { leadId: lead._id, actionType: 'wait_reply_timeout', status: 'pending' },
-      { $set: { status: 'cancelled', executedAt: ctx.now } }
-    );
+    // Cancel pending timeout action (bunny)
+    await cancelBunnyScheduledActionsForLead(String(lead._id));
     
     // Handle reply delay if specified
     const replyDelayMin = state.replyDelayMinutes || currentNode.replyDelayMinutes || 0;
@@ -562,10 +561,10 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
       console.log(`[Chatbot] Reply delay: ${replyDelayMin} minutes before continuing`);
       
       const executeAt = new Date(ctx.now.getTime() + replyDelayMin * 60 * 1000);
-      await ChatbotScheduledAction.create({
-        leadId: lead._id,
+      await createBunnyScheduledAction({
+        leadId: String(lead._id),
         phoneNumber: ctx.fromPhone,
-        flowId: flow._id,
+        flowId: String(flow._id),
         actionType: 'delayed_message',
         status: 'pending',
         sourceNodeId: state.nodeId,
@@ -776,14 +775,13 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
         return advanceChatbotFlow(lead, { ...ctx, body: '' }, flow);
       }
     } else {
-      // For long delays, schedule an action to execute later
-      const ChatbotScheduledAction = getChatbotScheduledAction();
+      // For long delays, schedule an action to execute later (bunny)
       const executeAt = new Date(ctx.now.getTime() + delaySec * 1000);
       
-      await ChatbotScheduledAction.create({
-        leadId: lead._id,
+      await createBunnyScheduledAction({
+        leadId: String(lead._id),
         phoneNumber: ctx.fromPhone,
-        flowId: flow._id,
+        flowId: String(flow._id),
         actionType: 'delayed_message',
         status: 'pending',
         sourceNodeId: nextNodeId,
@@ -817,25 +815,21 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
     
     console.log(`[Chatbot] Wait for reply: timeout=${timeoutMinutes}m, replyDelay=${replyDelayMin}m`);
     
-    // Schedule a timeout action
-    const ChatbotScheduledAction = getChatbotScheduledAction();
+    // Schedule a timeout action (bunny)
     const timeoutAt = new Date(ctx.now.getTime() + timeoutMinutes * 60 * 1000);
     
     // Cancel any existing wait_reply timeouts for this lead
-    await ChatbotScheduledAction.updateMany(
-      { leadId: lead._id, actionType: 'wait_reply_timeout', status: 'pending' },
-      { $set: { status: 'cancelled' } }
-    );
+    await cancelBunnyScheduledActionsForLead(String(lead._id));
     
-    await ChatbotScheduledAction.create({
-      leadId: lead._id,
+    await createBunnyScheduledAction({
+      leadId: String(lead._id),
       phoneNumber: ctx.fromPhone,
-      flowId: flow._id,
+      flowId: String(flow._id),
       actionType: 'wait_reply_timeout',
       status: 'pending',
       sourceNodeId: nextNodeId,
-      targetNodeId: nextNode.nextNodeId, // Continue path if user replies in time
-      timeoutNodeId: nextNode.timeoutNodeId || nextNode.fallbackNodeId, // Timeout fallback
+      targetNodeId: nextNode.nextNodeId,
+      timeoutNodeId: nextNode.timeoutNodeId || nextNode.fallbackNodeId,
       executeAt: timeoutAt,
       waitingForReply: true,
       replyDelayMinutes: replyDelayMin,
@@ -888,11 +882,10 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
           // Short delay: set state to the node AFTER the delay (will process on next call)
           const afterDelayNodeId = afterMsgNode.nextNodeId;
           if (afterDelayNodeId) {
-            const ChatbotScheduledAction = getChatbotScheduledAction();
-            await ChatbotScheduledAction.create({
-              leadId: lead._id,
+            await createBunnyScheduledAction({
+              leadId: String(lead._id),
               phoneNumber: ctx.fromPhone,
-              flowId: flow._id,
+              flowId: String(flow._id),
               actionType: 'delayed_message',
               status: 'pending',
               sourceNodeId: afterMsgNode.nodeId,
@@ -907,12 +900,11 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
           }
         } else {
           // Long delay: schedule it
-          const ChatbotScheduledAction = getChatbotScheduledAction();
           const executeAt = new Date(ctx.now.getTime() + delaySec * 1000);
-          await ChatbotScheduledAction.create({
-            leadId: lead._id,
+          await createBunnyScheduledAction({
+            leadId: String(lead._id),
             phoneNumber: ctx.fromPhone,
-            flowId: flow._id,
+            flowId: String(flow._id),
             actionType: 'delayed_message',
             status: 'pending',
             sourceNodeId: afterMsgNode.nodeId,
@@ -1079,11 +1071,14 @@ export async function startChatbotFlowForLead(input: {
 }): Promise<{ success: boolean; message: string; firstReply?: any }> {
   await connectDB();
 
-  // Fetch flow and lead in parallel instead of sequentially
-  const [flow, lead] = await Promise.all([
-    ChatbotFlow.findById(input.flowId).lean() as any,
-    Lead.findById(input.leadId).lean() as any,
-  ]);
+  // Fetch lead from bunny, and flow from bunny
+  const lead = await getBunnyLeadById(input.leadId) as any;
+  if (!lead) {
+    return { success: false, message: 'Lead not found' };
+  }
+  // Try to find the flow from bunny — use lead's owner
+  const ownerId = String(lead.createdByUserId || lead.assignedTo || '');
+  const flow = await getBunnyChatbotFlow(input.flowId, ownerId) as any;
 
   if (!flow || !flow.enabled) {
     return { success: false, message: 'Flow not found or disabled' };
@@ -1092,10 +1087,6 @@ export async function startChatbotFlowForLead(input: {
   const startNodeId = flow.startNodeId;
   if (!startNodeId) {
     return { success: false, message: 'Flow has no start node' };
-  }
-
-  if (!lead) {
-    return { success: false, message: 'Lead not found' };
   }
 
   const to = normalizePhone(input.phoneNumber || String(lead.phoneNumber || ''));
@@ -1250,9 +1241,10 @@ export async function handleInboundWhatsAppAutomations(input: {
       });
 
       if (!keywordRuleMatched) {
-        // No keyword rule matches — continue the active chatbot flow
-        const activeFlow = await ChatbotFlow.findById(existingFlowState.flowId).lean();
-        if (activeFlow && (activeFlow as any).enabled) {
+        // No keyword rule matches — continue the active chatbot flow (from bunny)
+        const flowOwnerId = String((lead as any)?.createdByUserId || ctx.tenantUserId || '');
+        const activeFlow = await getBunnyChatbotFlow(existingFlowState.flowId, flowOwnerId);
+        if (activeFlow && (activeFlow as any).enabled !== false) {
           console.log(`[Automation] Continuing active flow "${(activeFlow as any).name}" for ${fromPhone}`);
           const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
           if (reply) {
@@ -1280,12 +1272,13 @@ export async function handleInboundWhatsAppAutomations(input: {
     
     // No active flow - check if any flow has trigger keywords matching this message
     const lowerBody = body.toLowerCase().trim();
-    const keywordFlows = await ChatbotFlow.find({
-      enabled: true,
-      triggerKeywords: { $exists: true, $not: { $size: 0 } },
-      provider: 'meta',
-      ...(ctx.tenantUserId ? { createdByUserId: ctx.tenantUserId } : {}),
-    }).lean();
+    const kwOwnerId = String(ctx.tenantUserId || (lead as any)?.createdByUserId || '');
+    const { flows: allBunnyFlows } = await listBunnyChatbotFlows(kwOwnerId, { limit: 200 });
+    const keywordFlows = allBunnyFlows.filter((f: any) => 
+      f.enabled !== false && 
+      Array.isArray(f.triggerKeywords) && 
+      f.triggerKeywords.length > 0
+    );
     
     for (const flow of keywordFlows) {
       const keywords = ((flow as any).triggerKeywords || []).map((k: string) => k.toLowerCase().trim()).filter(Boolean);
@@ -1336,13 +1329,15 @@ export async function handleInboundWhatsAppAutomations(input: {
   if (kbAutoReplyEnabled) {
     try {
       // Use AutoConfig working hours first, then fall back to chatbot_settings
+      const ownerId = String(ctx.tenantUserId || (lead as any)?.createdByUserId || '');
       const wh = await isWithinWorkingHours();
-      const adminStatus = wh.withinHours ? await isAdminAvailable() : { available: false, reason: 'outside_working_hours (auto-config)' };
+      const adminStatus = wh.withinHours ? await isAdminAvailable(ownerId) : { available: false, reason: 'outside_working_hours (auto-config)' };
       if (!adminStatus.available) {
         console.log(`[Automation] Admin unavailable (${adminStatus.reason}), checking knowledge base...`);
         const botResponse = await getBotResponse(body, {
           leadId: String(lead._id),
           phoneNumber: fromPhone,
+          ownerId,
         });
         
         if (botResponse.shouldRespond && botResponse.response) {
@@ -1493,12 +1488,10 @@ export async function handleInboundWhatsAppAutomations(input: {
 
     if (triggerType === 'chatbot') {
       console.log(`[Automation] Chatbot trigger active`);
-      // ChatbotFlow already imported at top level
-      const activeFlow = await ChatbotFlow.findOne({
-        enabled: true,
-        provider: 'meta',
-        ...(ctx.tenantUserId ? { createdByUserId: ctx.tenantUserId } : {}),
-      }).lean();
+      // Find first enabled flow from bunny for this tenant
+      const trigOwnerId = String(ctx.tenantUserId || (lead as any)?.createdByUserId || '');
+      const { flows: trigFlows } = await listBunnyChatbotFlows(trigOwnerId, { limit: 1 });
+      const activeFlow = trigFlows.find((f: any) => f.enabled !== false) || null;
       
       if (activeFlow) {
         // Throttle chatbot: prevent duplicate replies to same message within 10 seconds

@@ -350,10 +350,102 @@ export default function NewRegistrationPage() {
 
         toast.success(`🤖 AI-1 processed ${toProcess.length} forms: ${toApprove.length} Approved, ${toPending.length} Pending-1.`);
       }
-    }, 10000);
+    }, 5 * 60 * 1000); // 5 minutes (300000ms)
 
     return () => clearInterval(interval);
   }, [isAiWorkerActive, leadsData, approvedLeadIds, pendingLeadIds, crmLeadIds]);
+
+  // NEW RULE: AI-1 Automatic Lead Sync (Create/Sync batches every 5 minutes)
+  useEffect(() => {
+    if (!isAiWorkerActive || leadsData.length === 0 || !selectedWorkshop) return;
+
+    const interval = setInterval(async () => {
+      let formField = ai1MatchField;
+      if (!formField) {
+        // Find default field for mapping
+        const dateMappingKey = Object.keys(fieldMapping).find(k => k.toUpperCase().includes('DATE') || k.toUpperCase().includes('BATCH'));
+        if (dateMappingKey && fieldMapping[dateMappingKey]) {
+          formField = fieldMapping[dateMappingKey];
+        }
+      }
+      
+      if (!formField) return; // Cannot sync if field is unknown
+      
+      // Find all unique dates from the leads
+      const uniqueDates = new Set<string>();
+      leadsData.forEach((lead: any) => {
+        const raw = lead._rawRecord || {};
+        const dateVal = raw[formField];
+        if (dateVal && String(dateVal).trim() !== '') {
+          uniqueDates.add(String(dateVal).trim());
+        }
+      });
+
+      if (uniqueDates.size === 0) return;
+
+      setWorkshops(prevWorkshops => {
+        let newWorkshops = [...prevWorkshops];
+        let addedCount = 0;
+
+        uniqueDates.forEach(date => {
+          // Check if a batch for this exact date and language already exists
+          const exists = newWorkshops.some(w =>
+            w.id.startsWith('batch_') &&
+            (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
+            w.formFilterKeyword === date
+          );
+
+          if (!exists) {
+            const newBatch = {
+              id: `batch_${selectedDashboardLang.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              name: `${selectedDashboardLang} - ${date.substring(0, 30)}${date.length > 30 ? '...' : ''}`,
+              language: selectedDashboardLang,
+              formId: selectedWorkshop.formId,
+              formFilterKeyword: date,
+              metadata: {
+                batchDate: date,
+                googleFormMapping: selectedWorkshop.metadata?.googleFormMapping,
+                formSource: selectedWorkshop.metadata?.formSource
+              },
+              leads: leadsData.filter((l: any) => l._rawRecord && String(l._rawRecord[formField]).trim() === date).length
+            };
+            newWorkshops.push(newBatch);
+            addedCount++;
+          } else {
+            // Optional: Update leads count for existing batch
+            const batchIndex = newWorkshops.findIndex(w => 
+              w.id.startsWith('batch_') &&
+              (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
+              w.formFilterKeyword === date
+            );
+            if (batchIndex !== -1) {
+              const currentLeadsCount = leadsData.filter((l: any) => l._rawRecord && String(l._rawRecord[formField]).trim() === date).length;
+              if (newWorkshops[batchIndex].leads !== currentLeadsCount) {
+                newWorkshops[batchIndex] = { ...newWorkshops[batchIndex], leads: currentLeadsCount };
+                addedCount++; // Count as a change to trigger save
+              }
+            }
+          }
+        });
+
+        if (addedCount > 0) {
+          localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+          // Sync to backend
+          fetch('/api/admin/crm/new-registration/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+          }).catch(err => console.error('Auto-sync error:', err));
+          
+          toast.success(`🤖 AI-1 Auto-Sync: Created or updated batches from new leads!`);
+          return newWorkshops;
+        }
+        return prevWorkshops;
+      });
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [isAiWorkerActive, leadsData, selectedWorkshop, selectedDashboardLang, ai1MatchField, fieldMapping, token]);
 
   useEffect(() => {
     if (!isApprovedAiWorkerActive || leadsData.length === 0) return;
@@ -434,7 +526,7 @@ export default function NewRegistrationPage() {
           setApprovalAiInsights(prev => ({ ...prev, ...newInsights }));
         }
       }
-    }, 5000);
+    }, 5 * 60 * 1000); // 5 minutes (300000ms)
 
     return () => clearInterval(interval);
   }, [isApprovedAiWorkerActive, leadsData, approvedLeadIds, registeredLeadIds, approvalAiInsights]);
@@ -508,7 +600,7 @@ export default function NewRegistrationPage() {
         if (newClosed.length > 0) setClosedLeadIds(prev => [...prev, ...newClosed]);
         if (Object.keys(newInsights).length > 0) setRegisteredAiInsights(prev => ({ ...prev, ...newInsights }));
       }
-    }, 5000);
+    }, 5 * 60 * 1000); // 5 minutes (300000ms)
 
     return () => clearInterval(interval);
   }, [isRegisteredAiWorkerActive, leadsData, registeredLeadIds, closedLeadIds, registeredAiInsights]);

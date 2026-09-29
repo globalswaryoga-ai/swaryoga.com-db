@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
-import { getChatbotFlow, getChatbotConversationState } from '@/lib/schemas/enterpriseSchemas';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { listBunnyChatbotFlows, getBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { startChatbotFlowForLead } from '@/lib/whatsappAutomation';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +11,7 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/admin/crm/chatbot/flows?leadId=xxx
  * Returns all enabled chatbot flows + current active flow for the given lead.
+ * Now reads from bunny database instead of MongoDB.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,51 +20,33 @@ export async function GET(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tf = tenantFilter(decoded);
+    const ownerId = String(decoded.userId || decoded.username || '');
 
-    await connectDB();
-    const ChatbotFlow = getChatbotFlow();
-    const ChatbotState = getChatbotConversationState();
+    // Fetch all enabled flows from bunny
+    const { flows: allFlows } = await listBunnyChatbotFlows(ownerId, { limit: 200 });
+    const enabledFlows = allFlows.filter((f: any) => f.enabled !== false);
 
-    // Fetch all enabled flows (name, description, node count, status)
-    const flows = await ChatbotFlow.find(
-      { enabled: true, ...tf },
-      { name: 1, description: 1, enabled: 1, nodes: 1, startNodeId: 1, createdAt: 1 }
-    ).sort({ createdAt: -1 }).lean();
-
-    const flowList = flows.map((f: any) => ({
+    const flowList = enabledFlows.map((f: any) => ({
       _id: String(f._id),
       name: f.name,
       description: f.description || '',
       nodeCount: Array.isArray(f.nodes) ? f.nodes.length : 0,
-      enabled: f.enabled,
+      enabled: f.enabled !== false,
     }));
 
-    // If leadId provided, fetch the current active flow from lead.metadata.chatbotFlowState (canonical source)
+    // If leadId provided, fetch the current active flow from lead.metadata.chatbotFlowState
     let currentFlow: { flowId: string; flowName: string; startedAt: string | null } | null = null;
     const leadId = request.nextUrl.searchParams.get('leadId');
     if (leadId) {
-      // Primary: check lead.metadata.chatbotFlowState (used by automation engine)
-      const lead = await Lead.findOne({ _id: leadId, ...tf }).select({ 'metadata.chatbotFlowState': 1 }).lean() as any;
+      const lead = await getBunnyLeadById(leadId);
       const flowState = lead?.metadata?.chatbotFlowState;
       if (flowState?.flowId) {
-        const activeFlow = flows.find((f: any) => String(f._id) === String(flowState.flowId)) as any;
+        const activeFlow = enabledFlows.find((f: any) => String(f._id) === String(flowState.flowId));
         currentFlow = {
           flowId: String(flowState.flowId),
           flowName: activeFlow?.name || 'Unknown Flow',
           startedAt: flowState.updatedAt ? new Date(flowState.updatedAt).toISOString() : null,
         };
-      } else {
-        // Fallback: check ChatbotConversationState collection
-        const state = await ChatbotState.findOne({ leadId, ...tf }, { activeFlowId: 1, flowStartedAt: 1 }).lean() as any;
-        if (state?.activeFlowId) {
-          const activeFlow = flows.find((f: any) => String(f._id) === String(state.activeFlowId)) as any;
-          currentFlow = {
-            flowId: String(state.activeFlowId),
-            flowName: activeFlow?.name || 'Unknown Flow',
-            startedAt: state.flowStartedAt ? new Date(state.flowStartedAt).toISOString() : null,
-          };
-        }
       }
     }
 
@@ -93,14 +75,12 @@ export async function POST(request: NextRequest) {
     if (!leadId || !flowId) {
       return NextResponse.json({ error: 'leadId and flowId are required' }, { status: 400 });
     }
-    const tf = tenantFilter(decoded);
-
-    await connectDB();
+    const ownerId = String(decoded.userId || decoded.username || '');
 
     // Resolve phone number from lead if not provided
     let phone = phoneNumber;
     if (!phone) {
-      const lead = await Lead.findOne({ _id: leadId, ...tf }).select({ phoneNumber: 1 }).lean() as any;
+      const lead = await getBunnyLeadById(leadId);
       phone = lead?.phoneNumber || '';
     }
 
@@ -111,30 +91,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
-    // Fire-and-forget: Sync ChatbotConversationState for UI consistency (non-blocking)
-    // This is non-critical — the canonical state is lead.metadata.chatbotFlowState
-    const ChatbotState = getChatbotConversationState();
-    const syncNow = new Date();
-    ChatbotState.findOneAndUpdate(
-      { leadId, ...tf },
-      {
-        $set: {
-          activeFlowId: flowId,
-          currentNodeId: null,
-          flowStartedAt: syncNow,
-          mode: 'bot',
-          lastBotReplyAt: result.firstReply ? syncNow : undefined,
-        },
-        $setOnInsert: { phoneNumber: phone || '', messageCount: 0 },
-      },
-      { upsert: true, new: true }
-    ).catch((stateErr: any) => {
-      console.warn('[chatbot/flows POST] ChatbotConversationState sync error (non-critical):', stateErr);
-    });
-
-    // Resolve flow name for the UI
-    const ChatbotFlow = getChatbotFlow();
-    const startedFlow = await ChatbotFlow.findOne({ _id: flowId, ...tf }).select('name').lean() as any;
+    // Resolve flow name from bunny for the UI
+    const startedFlow = await getBunnyChatbotFlow(flowId, ownerId);
 
     return NextResponse.json({
       success: true,
@@ -142,7 +100,7 @@ export async function POST(request: NextRequest) {
       state: {
         flowId: String(flowId),
         flowName: startedFlow?.name || 'Flow',
-        startedAt: syncNow.toISOString(),
+        startedAt: new Date().toISOString(),
       },
       firstReply: result.firstReply ? {
         text: result.firstReply.text,
@@ -173,30 +131,15 @@ export async function DELETE(request: NextRequest) {
     if (!leadId) {
       return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
     }
-    const tf = tenantFilter(decoded);
 
-    await connectDB();
-    const ChatbotState = getChatbotConversationState();
-
-    await ChatbotState.findOneAndUpdate(
-      { leadId, ...tf },
-      {
-        $set: {
-          activeFlowId: null,
-          currentNodeId: null,
-          flowStartedAt: null,
-          mode: 'human',
-          collectedData: {},
-          previousResponses: [],
-        },
-      }
-    );
-
-    // Also clear lead.metadata.chatbotFlowState (canonical state used by automation engine)
-    await Lead.updateOne(
-      { _id: leadId, ...tf },
-      { $unset: { 'metadata.chatbotFlowState': 1, 'metadata.chatbotVariables': 1 } }
-    );
+    // Clear the chatbot flow state on the lead via bunny
+    const lead = await getBunnyLeadById(leadId);
+    if (lead) {
+      const metadata = lead.metadata || {};
+      delete metadata.chatbotFlowState;
+      delete metadata.chatbotVariables;
+      await saveBunnyLead({ ...lead, metadata }, String(lead._id));
+    }
 
     return NextResponse.json({ success: true, message: 'Flow removed from lead' });
   } catch (err: any) {

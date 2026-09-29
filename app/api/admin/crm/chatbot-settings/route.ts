@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyAdminAccess, handleCrmError, formatCrmSuccess } from '@/lib/crm-handlers';
-import { ChatbotSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getBunnyChatbotSettings, saveBunnyChatbotSettings } from '@/lib/bunnyChatbotSettingsRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,12 +8,17 @@ export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
-    await connectDB();
+    const userId = String(verifyAdminAccess(request));
 
-    let settings = await ChatbotSettings.findOne({ createdByUserId: String(userId) }).lean();
+    let settings = await getBunnyChatbotSettings(userId);
     if (!settings) {
-      settings = await ChatbotSettings.create({ createdByUserId: String(userId) });
+      settings = await saveBunnyChatbotSettings({
+        welcomeEnabled: true,
+        officeHoursEnabled: false,
+        officeHoursTimezone: 'Asia/Kolkata',
+        globalLabels: [],
+        aiEnabled: false,
+      }, userId);
     }
 
     return formatCrmSuccess(settings);
@@ -25,34 +29,23 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = verifyAdminAccess(request);
+    const userId = String(verifyAdminAccess(request));
     const body = await request.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
-    await connectDB();
+    const allowed: Record<string, any> = {};
+    const keys = [
+      'welcomeEnabled', 'welcomeMessage', 'officeHoursEnabled',
+      'officeHoursStart', 'officeHoursEnd', 'officeHoursTimezone',
+      'afterHoursMessage', 'escalateAfterMessages', 'escalateMessage',
+      'inactivityMinutes', 'inactivityMessage', 'globalLabels',
+      'defaultResponse', 'aiEnabled',
+    ];
+    for (const key of keys) {
+      if (body[key] !== undefined) allowed[key] = body[key];
+    }
 
-    const allowed = {
-      welcomeEnabled: body?.welcomeEnabled,
-      welcomeMessage: body?.welcomeMessage,
-      officeHoursEnabled: body?.officeHoursEnabled,
-      officeHoursStart: body?.officeHoursStart,
-      officeHoursEnd: body?.officeHoursEnd,
-      officeHoursTimezone: body?.officeHoursTimezone,
-      afterHoursMessage: body?.afterHoursMessage,
-      escalateAfterMessages: body?.escalateAfterMessages,
-      escalateMessage: body?.escalateMessage,
-      inactivityMinutes: body?.inactivityMinutes,
-      inactivityMessage: body?.inactivityMessage,
-      globalLabels: body?.globalLabels,
-      defaultResponse: body?.defaultResponse,
-      aiEnabled: body?.aiEnabled,
-    };
-
-    const updated = await ChatbotSettings.findOneAndUpdate(
-      { createdByUserId: String(userId) },
-      { $set: Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined)) },
-      { new: true, upsert: true }
-    ).lean();
+    const updated = await saveBunnyChatbotSettings(allowed, userId);
 
     return formatCrmSuccess(updated);
   } catch (error) {

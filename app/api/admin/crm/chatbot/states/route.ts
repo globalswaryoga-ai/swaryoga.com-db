@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getChatbotConversationState } from '@/lib/schemas/enterpriseSchemas';
+import { getBunnyLeadById } from '@/lib/bunnyLeadsRepository';
+import { bunnyExecute } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
  * GET /api/admin/crm/chatbot/states?leadIds=id1,id2,...
  * Returns chatbot conversation state for each lead (mode, activeFlowId, lastBotReplyAt).
  * Used by the manage page to show green/red/blue chatbot status indicators.
- * NOTE: Tenant isolation is handled by the caller — leadIds are already scoped to the admin's leads.
+ * 
+ * Now reads from bunny database — the canonical flow state is on lead.metadata.chatbotFlowState.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -27,22 +28,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, states: {} });
     }
 
-    await connectDB();
-    const ChatbotState = getChatbotConversationState();
-
-    const states = await ChatbotState.find(
-      { leadId: { $in: leadIds } },
-      { leadId: 1, mode: 1, activeFlowId: 1, lastBotReplyAt: 1, flowStartedAt: 1, updatedAt: 1 }
-    ).lean();
-
-    // Build a map: leadId -> status info
+    // Build states from lead metadata (canonical source) in bunny
     const stateMap: Record<string, { mode: string; hasActiveFlow: boolean; lastBotReplyAt: string | null }> = {};
-    for (const s of states) {
-      const st = s as any;
-      stateMap[String(st.leadId)] = {
-        mode: st.mode || 'bot',
-        hasActiveFlow: !!st.activeFlowId,
-        lastBotReplyAt: st.lastBotReplyAt ? new Date(st.lastBotReplyAt).toISOString() : (st.updatedAt ? new Date(st.updatedAt).toISOString() : null),
+
+    // Batch fetch leads from bunny
+    const placeholders = leadIds.map(() => '?').join(',');
+    let rows: any[] = [];
+    try {
+      const result = await bunnyExecute({
+        sql: `SELECT document_id, data_json FROM leads_sql WHERE document_id IN (${placeholders})`,
+        args: leadIds,
+      });
+      rows = result.rows;
+    } catch {
+      // If leads_sql doesn't exist or query fails, return empty states
+      return NextResponse.json({ success: true, states: {} });
+    }
+
+    for (const row of rows) {
+      const leadId = String((row as any).document_id);
+      let data: any = {};
+      try { data = JSON.parse(String((row as any).data_json || '{}')); } catch { data = {}; }
+      const flowState = data?.metadata?.chatbotFlowState;
+      stateMap[leadId] = {
+        mode: flowState ? 'bot' : 'human',
+        hasActiveFlow: !!flowState?.flowId,
+        lastBotReplyAt: flowState?.updatedAt ? new Date(flowState.updatedAt).toISOString() : null,
       };
     }
 

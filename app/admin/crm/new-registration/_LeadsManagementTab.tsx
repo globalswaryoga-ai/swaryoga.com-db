@@ -409,7 +409,7 @@ export function LeadsManagementTab({
         }
         return prev;
       });
-    }, 10 * 60 * 1000); // 10 minutes
+    }, 5 * 60 * 1000); // 5 minutes
 
     return () => clearInterval(intervalId);
   }, [activeBatchId, activeBatchLeads, aiSettings, toast]);

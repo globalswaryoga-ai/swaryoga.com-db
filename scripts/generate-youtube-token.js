@@ -121,14 +121,27 @@ const server = http.createServer(async (req, res) => {
 
       const refreshToken = tokenData.refresh_token;
 
+      const fs = require('fs');
+      const envLocalPath = path.join(process.cwd(), '.env.local');
+      let envContent = '';
+      if (fs.existsSync(envLocalPath)) {
+        envContent = fs.readFileSync(envLocalPath, 'utf8');
+      }
+      if (envContent.includes('YOUTUBE_REFRESH_TOKEN=')) {
+        envContent = envContent.replace(/YOUTUBE_REFRESH_TOKEN=.*/g, `YOUTUBE_REFRESH_TOKEN=${refreshToken}`);
+      } else {
+        envContent += `\nYOUTUBE_REFRESH_TOKEN=${refreshToken}\n`;
+      }
+      fs.writeFileSync(envLocalPath, envContent);
+
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(`
         <html>
-          <head><title>✅ Token Generated</title></head>
+          <head><title>✅ Token Generated & Saved</title></head>
           <body style="font-family: system-ui; padding: 40px; background: #f0f0f0;">
             <div style="background: white; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto;">
               <h2>✅ Refresh Token Generated!</h2>
-              <p>Copy the token below and add to <code>.env</code>:</p>
+              <p>The token has been automatically saved to your <code>.env.local</code> file.</p>
               <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto;">
 YOUTUBE_REFRESH_TOKEN=${refreshToken}
               </pre>

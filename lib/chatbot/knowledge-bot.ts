@@ -154,16 +154,13 @@ export async function searchKnowledgeBase(
 /**
  * Check if admin is currently available (within office hours & online)
  */
-export async function isAdminAvailable(): Promise<{
+export async function isAdminAvailable(ownerId: string = ''): Promise<{
   available: boolean;
   reason?: string;
 }> {
   try {
-    await connectDB();
-    const { getChatbotSettings } = await import('@/lib/schemas/enterpriseSchemas');
-    const ChatbotSettings = getChatbotSettings();
-
-    const settings = await ChatbotSettings.findOne({}).lean() as any;
+    const { getBunnyChatbotSettings } = await import('@/lib/bunnyChatbotSettingsRepository');
+    const settings = await getBunnyChatbotSettings(ownerId);
     if (!settings) {
       return { available: true }; // No settings = always available
     }
@@ -203,13 +200,10 @@ export async function isAdminAvailable(): Promise<{
 /**
  * Get after-hours message from settings
  */
-export async function getAfterHoursMessage(): Promise<string | null> {
+export async function getAfterHoursMessage(ownerId: string = ''): Promise<string | null> {
   try {
-    await connectDB();
-    const { getChatbotSettings } = await import('@/lib/schemas/enterpriseSchemas');
-    const ChatbotSettings = getChatbotSettings();
-
-    const settings = await ChatbotSettings.findOne({}).lean() as any;
+    const { getBunnyChatbotSettings } = await import('@/lib/bunnyChatbotSettingsRepository');
+    const settings = await getBunnyChatbotSettings(ownerId);
     return settings?.afterHoursMessage || null;
   } catch {
     return null;
@@ -219,13 +213,10 @@ export async function getAfterHoursMessage(): Promise<string | null> {
 /**
  * Get default response for unmatched queries
  */
-export async function getDefaultResponse(): Promise<string | null> {
+export async function getDefaultResponse(ownerId: string = ''): Promise<string | null> {
   try {
-    await connectDB();
-    const { getChatbotSettings } = await import('@/lib/schemas/enterpriseSchemas');
-    const ChatbotSettings = getChatbotSettings();
-
-    const settings = await ChatbotSettings.findOne({}).lean() as any;
+    const { getBunnyChatbotSettings } = await import('@/lib/bunnyChatbotSettingsRepository');
+    const settings = await getBunnyChatbotSettings(ownerId);
     return settings?.defaultResponse || null;
   } catch {
     return null;
@@ -243,6 +234,7 @@ export async function getBotResponse(
     phoneNumber?: string;
     forceBot?: boolean;
     language?: string;
+    ownerId?: string;
   } = {}
 ): Promise<{
   shouldRespond: boolean;
@@ -251,7 +243,7 @@ export async function getBotResponse(
   confidence: number;
 }> {
   // Check admin availability
-  const adminStatus = await isAdminAvailable();
+  const adminStatus = await isAdminAvailable(options.ownerId || '');
 
   // If admin is available and not forcing bot, don't auto-respond
   if (adminStatus.available && !options.forceBot) {
@@ -280,7 +272,7 @@ export async function getBotResponse(
 
   // If outside office hours, send after-hours message
   if (adminStatus.reason === 'outside_office_hours') {
-    const afterHoursMsg = await getAfterHoursMessage();
+    const afterHoursMsg = await getAfterHoursMessage(options.ownerId || '');
     if (afterHoursMsg) {
       return {
         shouldRespond: true,
@@ -292,7 +284,7 @@ export async function getBotResponse(
   }
 
   // Fall back to default response
-  const defaultResp = await getDefaultResponse();
+  const defaultResp = await getDefaultResponse(options.ownerId || '');
   if (defaultResp) {
     return {
       shouldRespond: true,

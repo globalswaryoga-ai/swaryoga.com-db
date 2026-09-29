@@ -3,11 +3,20 @@
  * 
  * Handles delayed messages and wait-for-reply timeouts in chatbot flows.
  * Called by a cron job to process due actions.
+ * 
+ * Migrated from MongoDB to bunny database.
  */
 
-import { connectDB } from '@/lib/db';
-import { getChatbotScheduledAction, getChatbotFlow, Lead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
+import {
+  listDueBunnyScheduledActions,
+  updateBunnyScheduledAction,
+  createBunnyScheduledAction,
+} from '@/lib/bunnyChatbotScheduledActionRepository';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence, sendWhatsAppInteractiveButtons } from '@/lib/whatsapp';
+import crypto from 'node:crypto';
 
 export type ChatbotSchedulerResult = {
   scannedActions: number;
@@ -41,23 +50,25 @@ function getNodeInteractiveButtons(node: any): Array<{ id: string; title: string
 }
 
 /**
- * Send a WhatsApp text message and log it to the database so it appears in Meta inbox
+ * Send a WhatsApp text message and log it to the bunny database so it appears in Meta inbox
  */
 async function sendAndLogMessage(lead: any, phone: string, text: string, flowId: string, nodeId?: string): Promise<void> {
-  const WhatsAppMessage = getWhatsAppMessage();
   const { getWhatsAppEnv } = await import('@/lib/whatsapp');
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
   const now = new Date();
 
-  const msg = await WhatsAppMessage.create({
-    leadId: lead._id,
+  const msgId = crypto.randomUUID();
+  await upsertBunnyMetaMessage({
+    _id: msgId,
+    documentId: msgId,
+    leadId: String(lead._id),
     phoneNumber: phone,
     direction: 'outbound',
     messageType: 'text',
     messageContent: text,
     status: 'queued',
-    sentAt: now,
+    sentAt: now.toISOString(),
     metadata: { chatbot: { flowId, nodeId, scheduled: true } },
     provider: 'meta',
     senderNumber,
@@ -65,22 +76,22 @@ async function sendAndLogMessage(lead: any, phone: string, text: string, flowId:
 
   try {
     const result = await sendWhatsAppText(phone, text);
-    await WhatsAppMessage.updateOne(
-      { _id: msg._id },
-      { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
-    );
+    await updateBunnyMetaMessage(msgId, {
+      status: 'sent',
+      waMessageId: result.waMessageId,
+    });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Send failed';
-    await WhatsAppMessage.updateOne(
-      { _id: msg._id },
-      { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
-    );
+    await updateBunnyMetaMessage(msgId, {
+      status: 'failed',
+      failureReason: errMsg,
+    });
     throw err;
   }
 }
 
 /**
- * Send interactive buttons via WhatsApp and log to database
+ * Send interactive buttons via WhatsApp and log to bunny database
  */
 async function sendAndLogInteractiveMessage(
   lead: any,
@@ -90,7 +101,6 @@ async function sendAndLogInteractiveMessage(
   flowId: string,
   nodeId?: string
 ): Promise<void> {
-  const WhatsAppMessage = getWhatsAppMessage();
   const { getWhatsAppEnv, extractYouTubeVideoId } = await import('@/lib/whatsapp');
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
@@ -104,14 +114,17 @@ async function sendAndLogInteractiveMessage(
   const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
   const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 
-  const msg = await WhatsAppMessage.create({
-    leadId: lead._id,
+  const msgId = crypto.randomUUID();
+  await upsertBunnyMetaMessage({
+    _id: msgId,
+    documentId: msgId,
+    leadId: String(lead._id),
     phoneNumber: phone,
     direction: 'outbound',
     messageType: 'interactive',
     messageContent: displayContent,
     status: 'queued',
-    sentAt: now,
+    sentAt: now.toISOString(),
     metadata: meta,
     provider: 'meta',
     senderNumber,
@@ -119,16 +132,16 @@ async function sendAndLogInteractiveMessage(
 
   try {
     const result = await sendWhatsAppInteractiveButtons(phone, bodyText, buttons, { headerImageUrl });
-    await WhatsAppMessage.updateOne(
-      { _id: msg._id },
-      { $set: { status: 'sent', waMessageId: result.waMessageId, updatedAt: new Date() } }
-    );
+    await updateBunnyMetaMessage(msgId, {
+      status: 'sent',
+      waMessageId: result.waMessageId,
+    });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Send failed';
-    await WhatsAppMessage.updateOne(
-      { _id: msg._id },
-      { $set: { status: 'failed', failureReason: errMsg, updatedAt: new Date() } }
-    );
+    await updateBunnyMetaMessage(msgId, {
+      status: 'failed',
+      failureReason: errMsg,
+    });
     throw err;
   }
 }
@@ -205,28 +218,28 @@ async function processNode(lead: any, node: any, flow: any): Promise<{
  * Execute a single scheduled action
  */
 async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; error?: string }> {
-  const ChatbotScheduledAction = getChatbotScheduledAction();
-  const ChatbotFlow = getChatbotFlow();
-  
   try {
-    const lead = await Lead.findById(action.leadId).lean();
+    const lead = await getBunnyLeadById(action.leadId);
     if (!lead) {
       return { status: 'error', error: 'Lead not found' };
     }
     
-    const flow = await ChatbotFlow.findById(action.flowId).lean();
+    // Try to find the flow - check with the lead's owner or try without owner
+    // The flow could have been created by any admin, so we need a way to find it
+    const ownerId = lead.createdByUserId || lead.assignedTo || '';
+    const flow = await getBunnyChatbotFlow(action.flowId, ownerId);
     if (!flow) {
       return { status: 'error', error: 'Flow not found' };
     }
     
-    const phone = normalizePhone((lead as any).phoneNumber);
+    const phone = normalizePhone(lead.phoneNumber);
     if (!phone) {
       return { status: 'error', error: 'Invalid phone number' };
     }
     
     if (action.actionType === 'delayed_message') {
       // Process the target node after delay
-      const targetNode = (flow as any).nodes?.find((n: any) => n.nodeId === action.targetNodeId);
+      const targetNode = flow.nodes?.find((n: any) => n.nodeId === action.targetNodeId);
       if (!targetNode) {
         return { status: 'error', error: 'Target node not found' };
       }
@@ -245,10 +258,10 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
         
         // Send the message — interactive buttons or plain text
         if (result.interactiveButtons?.length) {
-          await sendAndLogInteractiveMessage(lead, phone, result.text || 'Please choose:', result.interactiveButtons, String((flow as any)._id), action.targetNodeId);
+          await sendAndLogInteractiveMessage(lead, phone, result.text || 'Please choose:', result.interactiveButtons, String(flow._id), action.targetNodeId);
           console.log(`[ChatbotScheduler] Sent interactive buttons to ${phone}`);
         } else {
-          await sendAndLogMessage(lead, phone, result.text!, String((flow as any)._id), action.targetNodeId);
+          await sendAndLogMessage(lead, phone, result.text!, String(flow._id), action.targetNodeId);
           console.log(`[ChatbotScheduler] Sent delayed message to ${phone}`);
         }
         
@@ -256,17 +269,16 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
         const newNodeId = result.nextNodeId || action.targetNodeId;
         if (targetNode.type === 'question' || targetNode.type === 'buttons') {
           // Wait for user input
-          await Lead.updateOne(
-            { _id: action.leadId },
-            { $set: { 'metadata.chatbotFlowState': { 
-              flowId: String((flow as any)._id), 
-              nodeId: newNodeId, 
-              updatedAt: new Date() 
-            } } }
-          );
+          const metadata = lead.metadata || {};
+          metadata.chatbotFlowState = {
+            flowId: String(flow._id),
+            nodeId: newNodeId,
+            updatedAt: new Date(),
+          };
+          await saveBunnyLead({ ...lead, metadata }, String(lead._id));
         } else if (result.nextNodeId) {
           // Check if the next node is a delay — if so, schedule it
-          const afterNode = (flow as any).nodes?.find((n: any) => n.nodeId === result.nextNodeId);
+          const afterNode = flow.nodes?.find((n: any) => n.nodeId === result.nextNodeId);
           
           if (afterNode?.type === 'delay') {
             let delaySec = afterNode.delaySeconds || 0;
@@ -275,7 +287,7 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
             if (delaySec === 0) delaySec = 3;
             
             const executeAt = new Date(Date.now() + delaySec * 1000);
-            await ChatbotScheduledAction.create({
+            await createBunnyScheduledAction({
               leadId: action.leadId,
               phoneNumber: phone,
               flowId: action.flowId,
@@ -286,33 +298,31 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
               executeAt,
               metadata: { delaySec, chainedFromScheduler: true }
             });
-            await Lead.updateOne(
-              { _id: action.leadId },
-              { $set: { 'metadata.chatbotFlowState': { 
-                flowId: String((flow as any)._id), 
-                nodeId: afterNode.nodeId,
-                scheduledAt: executeAt,
-                updatedAt: new Date() 
-              } } }
-            );
+            const metadata = lead.metadata || {};
+            metadata.chatbotFlowState = {
+              flowId: String(flow._id),
+              nodeId: afterNode.nodeId,
+              scheduledAt: executeAt,
+              updatedAt: new Date(),
+            };
+            await saveBunnyLead({ ...lead, metadata }, String(lead._id));
             console.log(`[ChatbotScheduler] Chained delay: ${delaySec}s → execute at ${executeAt.toISOString()}`);
           } else {
             // Auto-advance to next node
-            await Lead.updateOne(
-              { _id: action.leadId },
-              { $set: { 'metadata.chatbotFlowState': { 
-                flowId: String((flow as any)._id), 
-                nodeId: result.nextNodeId, 
-                updatedAt: new Date() 
-              } } }
-            );
+            const metadata = lead.metadata || {};
+            metadata.chatbotFlowState = {
+              flowId: String(flow._id),
+              nodeId: result.nextNodeId,
+              updatedAt: new Date(),
+            };
+            await saveBunnyLead({ ...lead, metadata }, String(lead._id));
           }
         } else {
           // Flow ended
-          await Lead.updateOne(
-            { _id: action.leadId },
-            { $unset: { 'metadata.chatbotFlowState': 1, 'metadata.chatbotVariables': 1 } }
-          );
+          const metadata = lead.metadata || {};
+          delete metadata.chatbotFlowState;
+          delete metadata.chatbotVariables;
+          await saveBunnyLead({ ...lead, metadata }, String(lead._id));
         }
       }
       
@@ -321,7 +331,7 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
     
     if (action.actionType === 'wait_reply_timeout') {
       // Check if user already replied (action should be cancelled)
-      const currentState = (lead as any)?.metadata?.chatbotFlowState;
+      const currentState = lead?.metadata?.chatbotFlowState;
       if (!currentState?.waitingForReply) {
         console.log(`[ChatbotScheduler] Wait reply already handled for ${phone}`);
         return { status: 'ok' };
@@ -330,7 +340,7 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
       // User didn't reply in time - go to timeout path
       const timeoutNodeId = action.timeoutNodeId;
       if (timeoutNodeId) {
-        const timeoutNode = (flow as any).nodes?.find((n: any) => n.nodeId === timeoutNodeId);
+        const timeoutNode = flow.nodes?.find((n: any) => n.nodeId === timeoutNodeId);
         if (timeoutNode) {
           const result = await processNode(lead, timeoutNode, flow);
           if (result?.text || result?.interactiveButtons?.length) {
@@ -344,36 +354,35 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
             }
             
             if (result.interactiveButtons?.length) {
-              await sendAndLogInteractiveMessage(lead, phone, result.text || 'Please choose:', result.interactiveButtons, String((flow as any)._id), timeoutNodeId);
+              await sendAndLogInteractiveMessage(lead, phone, result.text || 'Please choose:', result.interactiveButtons, String(flow._id), timeoutNodeId);
             } else {
-              await sendAndLogMessage(lead, phone, result.text!, String((flow as any)._id), timeoutNodeId);
+              await sendAndLogMessage(lead, phone, result.text!, String(flow._id), timeoutNodeId);
             }
             console.log(`[ChatbotScheduler] Sent timeout message to ${phone}`);
           }
           
           // Update state
+          const metadata = lead.metadata || {};
           if (result?.nextNodeId) {
-            await Lead.updateOne(
-              { _id: action.leadId },
-              { $set: { 'metadata.chatbotFlowState': { 
-                flowId: String((flow as any)._id), 
-                nodeId: result.nextNodeId, 
-                updatedAt: new Date() 
-              } } }
-            );
+            metadata.chatbotFlowState = {
+              flowId: String(flow._id),
+              nodeId: result.nextNodeId,
+              updatedAt: new Date(),
+            };
           } else if (timeoutNode.type === 'end') {
-            await Lead.updateOne(
-              { _id: action.leadId },
-              { $unset: { 'metadata.chatbotFlowState': 1, 'metadata.chatbotVariables': 1 } }
-            );
+            delete metadata.chatbotFlowState;
+            delete metadata.chatbotVariables;
           }
+          await saveBunnyLead({ ...lead, metadata }, String(lead._id));
         }
       } else {
         // No timeout node - just end the waiting
-        await Lead.updateOne(
-          { _id: action.leadId },
-          { $set: { 'metadata.chatbotFlowState.waitingForReply': false, 'metadata.chatbotFlowState.timedOut': true } }
-        );
+        const metadata = lead.metadata || {};
+        if (metadata.chatbotFlowState) {
+          metadata.chatbotFlowState.waitingForReply = false;
+          metadata.chatbotFlowState.timedOut = true;
+        }
+        await saveBunnyLead({ ...lead, metadata }, String(lead._id));
       }
       
       return { status: 'ok' };
@@ -393,12 +402,8 @@ export async function runDueChatbotActions(options?: {
   now?: Date;
   limit?: number;
 }): Promise<ChatbotSchedulerResult> {
-  await connectDB();
-  
   const now = options?.now || new Date();
   const limit = options?.limit || 100;
-  
-  const ChatbotScheduledAction = getChatbotScheduledAction();
   
   const result: ChatbotSchedulerResult = {
     scannedActions: 0,
@@ -409,27 +414,18 @@ export async function runDueChatbotActions(options?: {
     actionResults: [],
   };
   
-  // Find due actions
-  const dueActions = await ChatbotScheduledAction.find({
-    status: 'pending',
-    executeAt: { $lte: now },
-  })
-    .sort({ executeAt: 1 })
-    .limit(limit)
-    .lean();
+  // Find due actions from bunny
+  const dueActions = await listDueBunnyScheduledActions({ now, limit });
   
   result.scannedActions = dueActions.length;
   console.log(`[ChatbotScheduler] Found ${dueActions.length} due actions`);
   
   for (const action of dueActions) {
-    const actionId = String((action as any)._id);
-    const actionType = (action as any).actionType;
+    const actionId = String(action._id);
+    const actionType = action.actionType;
     
     // Mark as processing
-    await ChatbotScheduledAction.updateOne(
-      { _id: actionId },
-      { $set: { status: 'processing' } }
-    );
+    await updateBunnyScheduledAction(actionId, { status: 'processing' });
     
     const execResult = await executeAction(action);
     
@@ -445,32 +441,25 @@ export async function runDueChatbotActions(options?: {
       if (actionType === 'delayed_message') result.delayedMessages++;
       if (actionType === 'wait_reply_timeout') result.timeoutActions++;
       
-      await ChatbotScheduledAction.updateOne(
-        { _id: actionId },
-        { $set: { status: 'completed', executedAt: now } }
-      );
+      await updateBunnyScheduledAction(actionId, { status: 'completed', executedAt: now.toISOString() });
     } else {
       result.failedActions++;
       
       // Retry up to 3 times
-      const retryCount = ((action as any).retryCount || 0) + 1;
+      const retryCount = (action.retryCount || 0) + 1;
       if (retryCount < 3) {
-        await ChatbotScheduledAction.updateOne(
-          { _id: actionId },
-          { 
-            $set: { 
-              status: 'pending', 
-              executeAt: new Date(now.getTime() + 60000), // Retry in 1 minute
-              lastError: execResult.error,
-              retryCount
-            } 
-          }
-        );
+        await updateBunnyScheduledAction(actionId, {
+          status: 'pending',
+          executeAt: new Date(now.getTime() + 60000).toISOString(), // Retry in 1 minute
+          lastError: execResult.error,
+          retryCount,
+        });
       } else {
-        await ChatbotScheduledAction.updateOne(
-          { _id: actionId },
-          { $set: { status: 'failed', lastError: execResult.error, executedAt: now } }
-        );
+        await updateBunnyScheduledAction(actionId, {
+          status: 'failed',
+          lastError: execResult.error,
+          executedAt: now.toISOString(),
+        });
       }
     }
   }
