@@ -165,6 +165,63 @@ export async function syncZoomRecordingsForCohort(cohortId: string): Promise<{
     debugLogs.push(`meetings/${zoomMeetingId} exception: ${err.message}`);
   }
 
+  // D. Fetch trashed recordings from Zoom trash (and auto-recover if enabled)
+  try {
+    const trashRes = await fetch(
+      `https://api.zoom.us/v2/users/me/recordings?trash=true&from=${fromDate}&to=${today}&page_size=300`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      }
+    );
+    const trashData = await trashRes.json();
+    debugLogs.push(`trash status=${trashRes.status}`);
+
+    if (trashRes.ok && trashData && trashData.meetings) {
+      const trashedMatches = trashData.meetings.filter(
+        (m: any) => String(m.id).trim() === zoomMeetingId
+      );
+      debugLogs.push(`trashed found=${trashedMatches.length}`);
+
+      for (const trashedMeeting of trashedMatches) {
+        if (cohort.autoRecoverZoomTrash && trashedMeeting.uuid) {
+          try {
+            let encUuid = trashedMeeting.uuid;
+            if (encUuid.startsWith('/') || encUuid.includes('//')) {
+              encUuid = encodeURIComponent(encodeURIComponent(encUuid));
+            } else {
+              encUuid = encodeURIComponent(encUuid);
+            }
+            const recoverRes = await fetch(
+              `https://api.zoom.us/v2/meetings/${encUuid}/recordings/status`,
+              {
+                method: 'PUT',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'recover' }),
+              }
+            );
+            if (recoverRes.ok) {
+              debugLogs.push(`recovered uuid=${trashedMeeting.uuid}`);
+            } else {
+              debugLogs.push(`recover failed uuid=${trashedMeeting.uuid} status=${recoverRes.status}`);
+            }
+          } catch (recErr: any) {
+            debugLogs.push(`recover err=${recErr.message}`);
+          }
+        }
+
+        if (!meetingInstances.some((m) => m.uuid === trashedMeeting.uuid)) {
+          meetingInstances.push(trashedMeeting);
+        }
+      }
+    }
+  } catch (err: any) {
+    debugLogs.push(`trash exception: ${err.message}`);
+  }
+
   if (meetingInstances.length === 0) {
     return {
       success: true,
