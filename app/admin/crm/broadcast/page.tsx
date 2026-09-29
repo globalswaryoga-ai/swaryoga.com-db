@@ -370,7 +370,8 @@ export default function BroadcastPage(props: any) {
   const [result, setResult] = useState<{ success: boolean; message: string; runId?: string } | null>(null);
   const [showRecentRuns, setShowRecentRuns] = useState(false);
   const [showQuotaDashboard, setShowQuotaDashboard] = useState(false);
-  const [showRecipientsControls, setShowRecipientsControls] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showLeadsList, setShowLeadsList] = useState(false);
   
   // Bulk Messaging State
   const [bulkStats, setBulkStats] = useState<BulkStats | null>(null);
@@ -1497,22 +1498,6 @@ export default function BroadcastPage(props: any) {
           </div>
         )}
 
-        {/* Global Controls */}
-        <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
-          <button
-            onClick={() => setShowQuotaDashboard(!showQuotaDashboard)}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
-          >
-            📈 <span>{showQuotaDashboard ? 'Hide Dashboard' : 'Open Dashboard'}</span>
-          </button>
-          <button
-            onClick={() => setShowRecipientsControls(!showRecipientsControls)}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
-          >
-            {showRecipientsControls ? '− Hide Upload, Filters & Leads' : '+ Show Upload, Filters & Leads'}
-          </button>
-        </div>
-
         {/* Step Indicator */}
         {renderStepIndicator()}
 
@@ -1533,9 +1518,22 @@ export default function BroadcastPage(props: any) {
               />
             </div>
 
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
+              >
+                {showAdvancedFilters ? '− Hide Filters & Upload' : '+ Show Filters & Upload'}
+              </button>
+              <button
+                onClick={() => setShowLeadsList(!showLeadsList)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
+              >
+                {showLeadsList ? '− Hide Leads' : '+ Show Leads'}
+              </button>
+            </div>
 
-
-            {showRecipientsControls && (
+            {showAdvancedFilters && (
               <>
                 {/* CSV Upload Section */}
                 <div className="mb-4">
@@ -1772,7 +1770,11 @@ export default function BroadcastPage(props: any) {
                 </button>
               )}
             </div>
+            </>
+            )}
 
+            {showLeadsList && (
+              <>
             {/* Selection Bar */}
               <div className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-xl mb-4">
                 <label className="flex items-center gap-3 cursor-pointer group">
