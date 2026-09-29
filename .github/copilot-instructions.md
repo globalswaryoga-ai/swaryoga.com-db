@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### YouTube Upload Limit and Recording Resume Fix (Session: September 29, 2026) — Commit `pending`
+
+- YouTube rejected the Marathi retry with `uploadLimitExceeded`; this is an account quota restriction, not a CRM upload-path error.
+- Bunny Speaker/Gallery files uploaded successfully and were saved to the workshop record despite the YouTube failure.
+- Recording sync now persists partial YouTube/Bunny results immediately so future retries do not hide successful destinations or duplicate them.
+
 ### Broadcast Reports Cancel Action (Session: September 29, 2026) — Commit `43e14f45`
 
 - Added a visible Cancel button for scheduled/running/draft broadcasts in the Reports list.

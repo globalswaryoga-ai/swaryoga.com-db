@@ -706,6 +706,13 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
     const allYoutubeUploaded = expectedYoutubeKeys.length > 0 && expectedYoutubeKeys.every((key) => result.youtube[key]);
     const allBunnyStored = expectedYoutubeKeys.every((key) => result.bunny[key]);
 
+    // Persist successful partial destinations immediately. A YouTube quota or
+    // transient API failure must not hide Bunny URLs that were uploaded
+    // successfully; the next worker run can retry only the missing YouTube view.
+    if (Object.keys(result.youtube).length || Object.keys(result.bunny).length) {
+      await syncToWorkshopDatabase(String(m.id), m.uuid, dateLabel, result.youtube, result.youtubeUrls, result.bunny, bunnyClient);
+    }
+
     if (allYoutubeUploaded && allBunnyStored) {
       // Move the cloud recording to Zoom trash
       if (!m.fromZoomTrash && (process.env.DELETE_AFTER_UPLOAD || 'trash') !== 'off') {
@@ -731,9 +738,6 @@ async function syncToWorkshopDatabase(zoomMeetingId, zoomUuid, dateLabel, ytResu
       } catch (e) {
         log('  Bunny uploadedMeetings update warning:', e.message);
       }
-
-      // Sync YouTube URLs and Bunny Speaker URL to workshop_recordings_sql
-      await syncToWorkshopDatabase(String(m.id), m.uuid, dateLabel, result.youtube, result.youtubeUrls, result.bunny, bunnyClient);
 
       processed++;
     }
