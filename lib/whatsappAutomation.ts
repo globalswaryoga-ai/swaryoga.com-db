@@ -1205,7 +1205,7 @@ export async function handleInboundWhatsAppAutomations(input: {
   const body = String(input.messageBody || '').trim();
   if (!fromPhone || !body) return;
 
-  const lead: any = await Lead.findById(input.leadId).lean();
+  let lead: any = await Lead.findById(input.leadId).lean();
   if (!lead || Array.isArray(lead)) return;
 
   // ===== GLOBAL DEDUP: Prevent processing same message twice =====
