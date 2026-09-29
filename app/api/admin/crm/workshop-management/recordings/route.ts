@@ -82,3 +82,13 @@ export async function PATCH(request: NextRequest) {
   
   return NextResponse.json({ success: true });
 }
+
+export async function DELETE(request: NextRequest) {
+  if (!isAdmin(request)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  if (!id) return NextResponse.json({ error: 'id parameter is required' }, { status: 400 });
+  const { deleteRecording } = await import('@/lib/workshopBunnyRepository');
+  await deleteRecording(id);
+  return NextResponse.json({ success: true });
+}

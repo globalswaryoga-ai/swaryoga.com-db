@@ -884,6 +884,21 @@ export default function WorkshopManagementPage() {
     });
   };
 
+  const handleDeleteRecording = async (recordingId: string) => {
+    if (!window.confirm('Are you sure you want to delete this recording day entry?')) return;
+    try {
+      const res = await fetch(`/api/admin/crm/workshop-management/recordings?id=${recordingId}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (!res.ok) throw new Error('Failed to delete recording');
+      addToast('Recording deleted successfully', 'success');
+      if (selected) await load(selected._id);
+    } catch (err: any) {
+      addToast(err.message || 'Error deleting recording', 'error');
+    }
+  };
+
   const performAutoSaveUrls = async (urls: {
     id: string;
     classDate: string;
@@ -1578,14 +1593,24 @@ export default function WorkshopManagementPage() {
                               <div className="flex-1">
                                 <div className="flex items-center justify-between gap-2 mb-1">
                                   <h4 className="font-bold text-slate-800 text-lg">{new Date(recording.classDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditUrlsModal(recording)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
-                                    title="Edit YouTube & Bunny URLs for this day"
-                                  >
-                                    <Edit2 size={12} /> Edit URLs
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditUrlsModal(recording)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
+                                      title="Edit YouTube & Bunny URLs for this day"
+                                    >
+                                      <Edit2 size={12} /> Edit URLs
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteRecording(recording._id)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold border border-rose-200 transition-colors cursor-pointer"
+                                      title="Delete this recording entry"
+                                    >
+                                      <Trash2 size={12} /> Delete
+                                    </button>
+                                  </div>
                                 </div>
                                 <input 
                                   type="text"

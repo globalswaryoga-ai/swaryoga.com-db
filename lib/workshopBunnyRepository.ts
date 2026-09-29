@@ -223,3 +223,4 @@ export async function upsertRecording(input: Record<string, any>, recordingId = 
   return rows.rows[0] ? recording(rows.rows[0]) : null as any;
 }
 export async function markRecordingDelivered(recordingId: string, studentIds: string[]) { const current=await bunnyExecute({sql:'SELECT delivered_student_ids_json FROM workshop_recordings_sql WHERE id=?',args:[recordingId]});const existing=parse<string[]>(current.rows[0]?.delivered_student_ids_json,[]);const merged=[...new Set([...existing,...studentIds])];await bunnyExecute({sql:'UPDATE workshop_recordings_sql SET delivered_student_ids_json=?,updated_at=? WHERE id=?',args:[JSON.stringify(merged),now(),recordingId]}); }
+export async function deleteRecording(recordingId: string) { await initWorkshopBunnySchema(); await bunnyExecute({ sql: 'DELETE FROM workshop_recordings_sql WHERE id = ?', args: [recordingId] }); }
