@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### YouTube Upload Limit and Recording Resume Fix (Session: September 29, 2026) — Commit `pending`
+### YouTube Upload Limit and Recording Resume Fix (Session: September 29, 2026) — Commit `ff46bd4a`
 
 - YouTube rejected the Marathi retry with `uploadLimitExceeded`; this is an account quota restriction, not a CRM upload-path error.
 - Bunny Speaker/Gallery files uploaded successfully and were saved to the workshop record despite the YouTube failure.
