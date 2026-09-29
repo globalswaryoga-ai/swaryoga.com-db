@@ -171,7 +171,7 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
-### Bunny Meta Broadcast Cron Trigger Fix (Session: September 29, 2026) — Commit `pending`
+### Bunny Meta Broadcast Cron Trigger Fix (Session: September 29, 2026) — Commit `8f4cf398`
 
 - Vercel cron GET now uses the Bunny-only Meta broadcast processor instead of the legacy Mongo processor.
 - Scheduled Bunny broadcast runs no longer remain pending because the cron method used a different storage path than the manual POST.
