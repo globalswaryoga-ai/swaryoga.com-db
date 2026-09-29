@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Bunny Meta Broadcast Cron Trigger Fix (Session: September 29, 2026) — Commit `pending`
+
+- Vercel cron GET now uses the Bunny-only Meta broadcast processor instead of the legacy Mongo processor.
+- Scheduled Bunny broadcast runs no longer remain pending because the cron method used a different storage path than the manual POST.
+- Meta receipt updates continue to update Bunny broadcast message states for report counts and blue ticks.
+
 ### Meta Broadcast Receipt and Report Stats Fix (Session: September 29, 2026) — Commit `6b236dba`
 
 - Meta webhook delivery receipts now update `broadcast_run_messages_sql` in Bunny SQL by WhatsApp message ID.

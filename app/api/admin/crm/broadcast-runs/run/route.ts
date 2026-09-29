@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { processDueBroadcastRuns, processSpecificBroadcastRun } from '@/lib/broadcastRuns';
 import { processDueBunnyMetaBroadcasts } from '@/lib/bunnyMetaBroadcastProcessor';
 import { verifyToken } from '@/lib/auth';
 
@@ -114,7 +113,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('[Broadcast Run GET] Processing all due runs...');
-    const data = await processDueBroadcastRuns();
+    const data = await processDueBunnyMetaBroadcasts();
     console.log('[Broadcast Run GET] Result:', JSON.stringify(data));
 
     return NextResponse.json({ success: true, data }, { status: 200 });
