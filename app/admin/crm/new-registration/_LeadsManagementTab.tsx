@@ -19,7 +19,7 @@ const SIDEBAR_TABS = [
   { id: 'ai_triggers', label: 'AI Triggers-WT', icon: Zap },
 ];
 
-const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Kannada'];
+const LANGUAGES = ['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'];
 
 export function LeadsManagementTab({
   workshops,
@@ -39,6 +39,18 @@ export function LeadsManagementTab({
   const [activeBatchId, setActiveBatchId] = useState('');
   const [activeTab, setActiveTab] = useState('new_leads');
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+
+  // Auto-select 1st English batch on mount
+  useEffect(() => {
+    if (!activeBatchId && workshops && workshops.length > 0) {
+      const firstEnglishBatch = workshops.find(w => w.id?.startsWith('batch_') && (!w.language || w.language.toLowerCase() === 'english workshop' || w.language.toLowerCase() === 'english'));
+      if (firstEnglishBatch) {
+        setSelectedLanguage('English Workshop');
+        setSelectedBatchId(firstEnglishBatch.id);
+        setActiveBatchId(firstEnglishBatch.id);
+      }
+    }
+  }, [activeBatchId, workshops]);
 
   const activeBatch = workshops?.find(w => w.id === activeBatchId);
   const activeBatchName = activeBatch?.name || '';
@@ -726,7 +738,13 @@ export function LeadsManagementTab({
                 </div>
               ) : activeTab === 'ai_triggers' ? (
                 <div className="mt-4">
-                  <AITriggersPanel workshops={workshops} leadsData={leadsData} />
+                  <AITriggersPanel 
+                    workshops={workshops} 
+                    leadsData={activeBatchLeads} 
+                    selectedLanguage={selectedLanguage}
+                    selectedBatchId={activeBatchId}
+                    batchDecisions={batchDecisions}
+                  />
                 </div>
               ) : (
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">

@@ -1,27 +1,72 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X, Users } from 'lucide-react';
+import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X, Users, Edit2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 
-export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; leadsData: any[] }) {
+export function AITriggersPanel({ 
+  workshops, 
+  leadsData,
+  selectedLanguage = 'English',
+  selectedBatchId = '',
+  batchDecisions = {}
+}: { 
+  workshops: any[]; 
+  leadsData: any[];
+  selectedLanguage?: string;
+  selectedBatchId?: string;
+  batchDecisions?: Record<string, any>;
+}) {
+  // If no batch is selected from the top header, show a blank or placeholder state as requested
+  if (!selectedBatchId) {
+    return <div className="p-6 text-center text-gray-500 mt-20">Please select a Language and Batch in the top header and click Submit.</div>;
+  }
   const toast = useToast();
   const token = useAuth();
   
   // Form State
   const [channel, setChannel] = useState<'meta' | 'qr' | 'group'>('meta');
-  const [template, setTemplate] = useState('');
-  const [targetLang, setTargetLang] = useState('English');
-  const [targetBatch, setTargetBatch] = useState('');
-  const [targetCategory, setTargetCategory] = useState('All Leads');
+  
+  const [template, setTemplate] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('crm_ai_draft_template') || '';
+    return '';
+  });
+  
+  const [targetCategory, setTargetCategory] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('crm_ai_draft_category') || 'All Leads';
+    return 'All Leads';
+  });
+  
+  // Group State
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
   
   // Preview Modal
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   
   // Schedule State
-  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [selectedDates, setSelectedDates] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_ai_draft_dates');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return [];
+  });
   const [scheduleTime, setScheduleTime] = useState('10:00');
-  const [repeatMode, setRepeatMode] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('monthly');
+  const [repeatMode, setRepeatMode] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  // Auto-save draft states
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crm_ai_draft_template', template);
+      localStorage.setItem('crm_ai_draft_category', targetCategory);
+      localStorage.setItem('crm_ai_draft_dates', JSON.stringify(selectedDates));
+    }
+  }, [template, targetCategory, selectedDates]);
 
   // Templates State
   const [templates, setTemplates] = useState<any[]>([]);
@@ -29,10 +74,31 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
   // Trigger List
-  const [triggers, setTriggers] = useState<any[]>([]);
+  const [triggers, setTriggers] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_ai_triggers');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+    return [];
+  });
 
   useEffect(() => {
-    if (token) fetchTemplates();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crm_ai_triggers', JSON.stringify(triggers));
+    }
+  }, [triggers]);
+
+  useEffect(() => {
+    if (token) {
+      fetchTemplates();
+      fetchGroups();
+    }
   }, [token]);
 
   const fetchTemplates = async () => {
@@ -55,6 +121,23 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
     }
   };
 
+  const fetchGroups = async () => {
+    setLoadingGroups(true);
+    try {
+      const response = await fetch('/api/admin/crm/whatsapp/groups', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setGroups(data.groups || data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch groups:', err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
   const toggleDate = (date: string) => {
     setSelectedDates(prev => 
       prev.includes(date) 
@@ -72,15 +155,28 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
       toast.error('Please select a template to send.');
       return;
     }
+    if (channel === 'group' && !selectedGroupId) {
+      toast.error('Please select a WhatsApp Group.');
+      return;
+    }
     
-    const batchName = targetBatch ? workshops?.find(w => w.id === targetBatch)?.name || targetBatch : 'All Batches';
-    const finalAudience = `${targetLang} | ${batchName} | ${targetCategory}`;
+    // For groups, we just need the group name. For individual broadcast, we use language + batch + category
+    let finalAudience = '';
+    if (channel === 'group') {
+      const gName = groups.find(g => (g.id || g._id) === selectedGroupId)?.subject || 'WhatsApp Group';
+      finalAudience = `Group: ${gName}`;
+    } else {
+      const batchName = selectedBatchId ? workshops?.find(w => w.id === selectedBatchId)?.name || selectedBatchId : 'All Batches';
+      finalAudience = `${selectedLanguage} | ${batchName} | ${targetCategory}`;
+    }
     
     const newTrigger = {
       id: Date.now().toString(),
       channel,
       template,
       audience: finalAudience,
+      targetGroupId: channel === 'group' ? selectedGroupId : undefined,
+      targetCategory,
       dates: selectedDates,
       time: scheduleTime,
       repeat: repeatMode,
@@ -89,44 +185,66 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
     
     setTriggers([newTrigger, ...triggers]);
     toast.success('AI Trigger scheduled successfully!');
-    
-    // Reset form
-    setSelectedDates([]);
-    setTemplate('');
+  };
+
+  const handleEditTrigger = (trigger: any) => {
+    setChannel(trigger.channel);
+    setTemplate(trigger.template);
+    setTargetCategory(trigger.targetCategory || 'All Leads');
+    if (trigger.channel === 'group' && trigger.targetGroupId) {
+      setSelectedGroupId(trigger.targetGroupId);
+    }
+    setSelectedDates(trigger.dates);
+    setScheduleTime(trigger.time);
+    setRepeatMode(trigger.repeat);
+    setTriggers(prev => prev.filter(t => t.id !== trigger.id));
+  };
+
+  const handleDeleteTrigger = (id: string) => {
+    setTriggers(prev => prev.filter(t => t.id !== id));
+    toast.success('Trigger deleted');
   };
 
   const filteredPreviewLeads = React.useMemo(() => {
-    return leadsData.filter(lead => {
-      // Match Language
-      if (targetLang && targetLang !== 'All') {
-        const langStr = String(lead.language || (lead.dynamicAnswers && lead.dynamicAnswers['Language']) || '').toLowerCase();
-        if (!langStr.includes(targetLang.toLowerCase())) return false;
-      }
-      // Match Batch
-      if (targetBatch) {
-        if (lead.workshopId !== targetBatch) return false;
-      }
-      // Category matching is complex without external state, skip for basic preview
-      return true;
+    if (!targetCategory || targetCategory === 'All Leads') return leadsData;
+    
+    return leadsData.filter(l => {
+      const dec = batchDecisions[l.id] || {};
+      const status = dec.status || 'new_leads';
+      
+      if (targetCategory === 'New Leads') return true; 
+      if (targetCategory === 'Pending Leads') return status.includes('pending') && !dec.isRejected && !dec.isRegistered;
+      if (targetCategory === 'Pending Leads-1') return status === 'pending_leads_1' && !dec.isRejected && !dec.isRegistered;
+      if (targetCategory === 'Pending Leads-2') return status === 'pending_leads_2' && !dec.isRejected && !dec.isRegistered;
+      if (targetCategory === 'Pending Leads-3') return status === 'pending_leads_3' && !dec.isRegistered;
+      if (targetCategory === 'Aprovel-1') return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
+      if (targetCategory === 'Aprovel-2') return ['approval_2', 'pending_leads_3'].includes(status) && !dec.isRejected;
+      if (targetCategory === 'Registerd leads') return dec.isRegistered;
+      if (targetCategory === 'Rejected leads') return dec.isRejected;
+      
+      return false;
     });
-  }, [leadsData, targetLang, targetBatch]);
+  }, [leadsData, targetCategory, batchDecisions]);
 
   const filteredWorkshops = React.useMemo(() => {
     if (!workshops) return [];
-    return workshops.filter(w => !w.language || w.language.toLowerCase() === targetLang.toLowerCase());
-  }, [workshops, targetLang]);
+    return workshops.filter(w => 
+      (!w.language || w.language.toLowerCase() === selectedLanguage.toLowerCase()) &&
+      w.id?.startsWith('batch_')
+    );
+  }, [workshops, selectedLanguage]);
 
   const filteredTemplates = React.useMemo(() => {
     if (!templates) return [];
     return templates.filter(t => {
       const tLang = (t.language || '').toLowerCase();
-      const target = targetLang.toLowerCase();
+      const target = selectedLanguage.toLowerCase();
       // Match exactly or if template language is 'en' and target is 'english'
       if (tLang === target) return true;
       if (target.startsWith(tLang) || tLang.startsWith(target)) return true;
       return false;
     });
-  }, [templates, targetLang]);
+  }, [templates, selectedLanguage]);
 
   return (
     <div className="p-6 bg-white min-h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6">
@@ -167,6 +285,27 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
 
             {/* Template & Target Selection (Two Rows) */}
             <div className="flex flex-col gap-4">
+              
+              {channel === 'group' && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">WhatsApp Group (QR Bridge)</label>
+                  <select 
+                    value={selectedGroupId}
+                    onChange={e => setSelectedGroupId(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
+                  >
+                    <option value="">-- Select a Group --</option>
+                    {loadingGroups ? (
+                      <option value="" disabled>Loading groups...</option>
+                    ) : (
+                      groups.map(g => (
+                        <option key={g.id || g._id} value={g.id || g._id}>{g.name || g.subject || 'Unnamed Group'}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              )}
+
               {/* Row 1: Template Name */}
               <div>
                 <label className="text-xs font-semibold text-gray-700 mb-1 block">Template Name</label>
@@ -184,55 +323,31 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
               </div>
 
               {/* Row 2: Target Audience Filters */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Language</label>
-                  <select 
-                    value={targetLang}
-                    onChange={e => setTargetLang(e.target.value)}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
-                  >
-                    <option value="English">English</option>
-                    <option value="Hindi">Hindi</option>
-                    <option value="Marathi">Marathi</option>
-                    <option value="Kannada">Kannada</option>
-                  </select>
+              {channel !== 'group' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="col-span-1">
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Category</label>
+                    <select 
+                      value={targetCategory}
+                      onChange={e => setTargetCategory(e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
+                    >
+                      <option value="All Leads">All Leads</option>
+                      <option value="New Leads">New Leads</option>
+                      <option value="Pending Leads">Pending Leads</option>
+                      <option value="Pending Leads-1">Pending Leads-1</option>
+                      <option value="Pending Leads-2">Pending Leads-2</option>
+                      <option value="Pending Leads-3">Pending Leads-3</option>
+                      <option value="Aprovel-1">Aprovel-1</option>
+                      <option value="Aprovel-2">Aprovel-2</option>
+                      <option value="Registerd leads">Registerd leads</option>
+                      <option value="Set zoom meeting">Set zoom meeting</option>
+                      <option value="Take Zoom Meeting">Take Zoom Meeting</option>
+                      <option value="Rejected leads">Rejected leads</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Batch</label>
-                  <select 
-                    value={targetBatch}
-                    onChange={e => setTargetBatch(e.target.value)}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
-                  >
-                    <option value="">All Batches</option>
-                    {filteredWorkshops.map(w => (
-                      <option key={w.id} value={w.id} title={w.name}>{w.name.length > 30 ? w.name.substring(0, 30) + '...' : w.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Category</label>
-                  <select 
-                    value={targetCategory}
-                    onChange={e => setTargetCategory(e.target.value)}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
-                  >
-                    <option value="All Leads">All Leads</option>
-                    <option value="New Leads">New Leads</option>
-                    <option value="Pending Leads">Pending Leads</option>
-                    <option value="Pending Leads-1">Pending Leads-1</option>
-                    <option value="Pending Leads-2">Pending Leads-2</option>
-                    <option value="Pending Leads-3">Pending Leads-3</option>
-                    <option value="Aprovel-1">Aprovel-1</option>
-                    <option value="Aprovel-2">Aprovel-2</option>
-                    <option value="Registerd leads">Registerd leads</option>
-                    <option value="Set zoom meeting">Set zoom meeting</option>
-                    <option value="Take Zoom Meeting">Take Zoom Meeting</option>
-                    <option value="Rejected leads">Rejected leads</option>
-                  </select>
-                </div>
-              </div>
+              )}
             </div>
 
               {/* Scheduling & Recurrence */}
@@ -246,6 +361,14 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                     >
                       <Users size={12} /> Preview ({filteredPreviewLeads.length})
                     </button>
+                    
+                    <button 
+                      onClick={handleSaveTrigger}
+                      className="text-xs font-semibold bg-violet-600 text-white px-3 py-1 rounded-lg border border-violet-600 hover:bg-violet-700 shadow-sm hover:shadow transition flex items-center gap-1 ml-1"
+                    >
+                      <Save size={12} /> Save
+                    </button>
+
                     <Repeat size={14} className="text-gray-400 ml-2" />
                     <select 
                       value={repeatMode}
@@ -317,12 +440,12 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                 />
               </div>
             </div>
-
+            
             <button 
               onClick={handleSaveTrigger}
-              className="w-full mt-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+              className="w-full mt-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
             >
-              <Save size={16} /> Save AI Trigger
+              <Save size={16} /> Submit Trigger
             </button>
           </div>
         </div>
@@ -360,7 +483,25 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-green-100 text-green-700 rounded-full">Active</span>
+                  <div className="flex flex-col gap-2 items-end">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-green-100 text-green-700 rounded-full">Active</span>
+                    <div className="flex gap-2 mt-1">
+                      <button 
+                        onClick={() => handleEditTrigger(trigger)}
+                        className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-md transition"
+                        title="Edit Trigger"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteTrigger(trigger.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition"
+                        title="Delete Trigger"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between text-xs font-semibold">
@@ -398,7 +539,7 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
               {loadingTemplates ? (
                 <div className="text-center py-10 text-gray-500 text-sm">Loading templates...</div>
               ) : filteredTemplates.length === 0 ? (
-                <div className="text-center py-10 text-gray-500 text-sm">No templates found for {targetLang}.</div>
+                <div className="text-center py-10 text-gray-500 text-sm">No templates found for {selectedLanguage}.</div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div 
@@ -412,22 +553,44 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                   </div>
                   {filteredTemplates.map(t => {
                     const tName = t.templateName || t.name;
+                    const tid = t._id || t.id || tName;
+                    const isExpanded = expandedTemplateId === tid;
+                    
                     return (
                       <div 
-                        key={t._id || t.id || tName}
-                        onClick={() => { setTemplate(tName); setIsTemplateModalOpen(false); }}
-                        className={`cursor-pointer border p-4 rounded-xl transition-all ${
+                        key={tid}
+                        className={`border p-4 rounded-xl transition-all flex flex-col ${
                           template === tName ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-white hover:border-violet-300'
                         }`}
                       >
-                        <h4 className="font-semibold text-gray-900 text-sm mb-1">{tName}</h4>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                        <div className="flex justify-between items-start mb-1 cursor-pointer" onClick={() => { setTemplate(tName); setIsTemplateModalOpen(false); }}>
+                          <h4 className="font-semibold text-gray-900 text-sm">{tName}</h4>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1 mb-2">
                           <span className="bg-gray-100 px-2 py-0.5 rounded-md">{t.language || 'en'}</span>
                           <span className="bg-gray-100 px-2 py-0.5 rounded-md capitalize">{t.provider || 'unknown'}</span>
                           <span className={`px-2 py-0.5 rounded-md ${t.status === 'APPROVED' || t.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                             {t.status || 'unknown'}
                           </span>
                         </div>
+                        
+                        <div className="mt-auto pt-2 border-t border-gray-100">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedTemplateId(isExpanded ? null : tid);
+                            }}
+                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                          >
+                            {isExpanded ? 'Hide Content ↑' : 'Show Full Content ↓'}
+                          </button>
+                        </div>
+                        
+                        {isExpanded && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded-lg text-xs text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                            {t.components?.find((c: any) => c.type === 'BODY')?.text || t.body || t.content || t.message || 'No content preview available.'}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

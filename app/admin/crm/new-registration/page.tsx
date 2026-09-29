@@ -1826,7 +1826,7 @@ export default function NewRegistrationPage() {
                 {/* Stacked list for All Leads / My Data */}
                 {(activeTab === 'all_leads' || activeTab === 'my_data') && (
                   <div className="space-y-2">
-                    {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
+                    {['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'].map((lang) => (
                       <div
                         key={lang}
                         onClick={() => {
@@ -1861,7 +1861,7 @@ export default function NewRegistrationPage() {
                 {/* 2x2 grid for My Batches */}
                 {activeTab === 'my_batches' && (
                   <div className="grid grid-cols-2 gap-2 animate-fade-in">
-                    {['English', 'Hindi', 'Marathi', 'Kannada'].map((lang) => (
+                    {['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'].map((lang) => (
                       <div
                         key={lang}
                         onClick={() => {
