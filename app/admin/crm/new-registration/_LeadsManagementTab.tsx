@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X } from 'lucide-react';
+import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
+import { AITriggersPanel } from './_AITriggersPanel';
 
 const SIDEBAR_TABS = [
   { id: 'new_leads', label: 'New Leads', icon: FileText },
@@ -15,6 +16,7 @@ const SIDEBAR_TABS = [
   { id: 'set_zoom_meeting', label: 'Set zoom meeting', icon: Calendar },
   { id: 'take_zoom_meeting', label: 'Take Zoom Meeting', icon: Video },
   { id: 'rejected_leads', label: 'Rejected leads', icon: XCircle },
+  { id: 'ai_triggers', label: 'AI Triggers-WT', icon: Zap },
 ];
 
 const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Kannada'];
@@ -721,6 +723,10 @@ export function LeadsManagementTab({
               {activeTab === 'set_zoom_meeting' ? (
                 <div className="mt-4">
                   <ZoomMeetingSetupCalendar batchId={activeBatchId} />
+                </div>
+              ) : activeTab === 'ai_triggers' ? (
+                <div className="mt-4">
+                  <AITriggersPanel workshops={workshops} leadsData={leadsData} />
                 </div>
               ) : (
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
