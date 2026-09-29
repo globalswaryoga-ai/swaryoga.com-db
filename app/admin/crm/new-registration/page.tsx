@@ -465,7 +465,7 @@ export default function NewRegistrationPage() {
     }, 5 * 60 * 1000); // 5 minutes
 
     return () => clearInterval(interval);
-  }, [isAiWorkerActive, leadsData, selectedWorkshop, selectedDashboardLang, ai1MatchField, fieldMapping, token]);
+  }, [isAiWorkerActive, leadsData, selectedWorkshop, selectedDashboardLang, fieldMapping, token]);
 
   useEffect(() => {
     if (!isApprovedAiWorkerActive || leadsData.length === 0) return;
