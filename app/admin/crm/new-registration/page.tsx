@@ -1565,8 +1565,19 @@ export default function NewRegistrationPage() {
     const updatedMetadata = { ...selectedWorkshop.metadata, ai1Column: ai1ColumnInput };
     const updatedWorkshop = { ...selectedWorkshop, metadata: updatedMetadata };
     setSelectedWorkshop(updatedWorkshop);
-    setWorkshops(prev => prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w));
-    toast.success('Column setting saved!');
+    setWorkshops(prev => {
+      const newWorkshops = prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+        fetch('/api/admin/crm/new-registration/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+        }).catch(console.error);
+      }
+      return newWorkshops;
+    });
+    toast.success('AI-1 Column setting saved permanently!');
   };
 
   const handleAi1BatchCreate = async () => {
