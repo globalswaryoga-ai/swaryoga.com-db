@@ -369,7 +369,7 @@ export default function BroadcastPage(props: any) {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string; runId?: string } | null>(null);
   const [showRecentRuns, setShowRecentRuns] = useState(false);
-  const [showQuotaDashboard, setShowQuotaDashboard] = useState(true);
+  const [showQuotaDashboard, setShowQuotaDashboard] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
   // Bulk Messaging State
@@ -1280,7 +1280,7 @@ export default function BroadcastPage(props: any) {
                   showQuotaDashboard ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
                 }`}
               >
-                📈 <span className="hidden sm:inline">Quota</span>
+                📈 <span className="hidden sm:inline">{showQuotaDashboard ? 'Hide Dashboard' : 'Show Dashboard'}</span>
               </button>
               <Link href="/admin/crm/send-template" className="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-all text-sm font-medium hidden sm:flex items-center gap-1">
                 📨 Single
