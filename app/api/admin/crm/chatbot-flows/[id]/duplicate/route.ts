@@ -1,116 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import {
-  verifyAdminAccess,
-  handleCrmError,
-  formatCrmSuccess,
-  isValidObjectId,
-  toObjectId,
-} from '@/lib/crm-handlers';
+import { verifyAdminAccess, handleCrmError, formatCrmSuccess } from '@/lib/crm-handlers';
+import { getBunnyChatbotFlow, saveBunnyChatbotFlow } from '@/lib/bunnyChatbotRepository';
 
 export const dynamic = 'force-dynamic';
-import { ChatbotFlow } from '@/lib/schemas/enterpriseSchemas';
+export const runtime = 'nodejs';
 
-
-/**
- * POST /api/admin/crm/chatbot-flows/[id]/duplicate
- * Duplicate an existing chatbot flow with all its nodes and connections.
- * The new flow gets "(Copy)" appended to the name and starts as disabled.
- */
 export async function POST(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const userId = verifyAdminAccess(request);
-    const id = String(context?.params?.id || '').trim();
-    if (!isValidObjectId(id)) return NextResponse.json({ error: 'Invalid flow id' }, { status: 400 });
-
-    await connectDB();
-
-    const original = await ChatbotFlow.findOne({ _id: toObjectId(id), createdByUserId: String(userId) }).lean();
+    const ownerId = String(verifyAdminAccess(request));
+    const original = await getBunnyChatbotFlow(String(context.params.id), ownerId);
     if (!original) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
-
-    // Optional: read custom name from body
-    let customName: string | undefined;
-    try {
-      const body = await request.json();
-      if (body?.name) customName = String(body.name).trim();
-    } catch { /* no body is fine */ }
-
-    const newName = customName || `${(original as any).name} (Copy)`;
-
-    // Generate new IDs for all nodes to avoid conflicts, and remap connections
-    const nodeIdMap: Record<string, string> = {};
-    const originalNodes: any[] = Array.isArray((original as any).nodes) ? (original as any).nodes : [];
-    
-    originalNodes.forEach((node: any) => {
-      const oldId = node.id || node._id;
-      nodeIdMap[oldId] = `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    });
-
-    const clonedNodes = originalNodes.map((node: any) => {
-      const oldId = node.id || node._id;
-      const newNode = { ...node, id: nodeIdMap[oldId] };
-      // Clean Mongo _id if present
-      delete newNode._id;
-
-      // Remap nextNodeId references in options, branchConditions, randomPaths, etc.
-      if (newNode.data) {
-        if (Array.isArray(newNode.data.options)) {
-          newNode.data.options = newNode.data.options.map((opt: any) => ({
-            ...opt,
-            nextNodeId: opt.nextNodeId ? (nodeIdMap[opt.nextNodeId] || opt.nextNodeId) : undefined,
-          }));
-        }
-        if (Array.isArray(newNode.data.templateButtons)) {
-          newNode.data.templateButtons = newNode.data.templateButtons.map((btn: any) => ({
-            ...btn,
-            nextNodeId: btn.nextNodeId ? (nodeIdMap[btn.nextNodeId] || btn.nextNodeId) : undefined,
-          }));
-        }
-        if (Array.isArray(newNode.data.branchConditions)) {
-          newNode.data.branchConditions = newNode.data.branchConditions.map((bc: any) => ({
-            ...bc,
-            nextNodeId: bc.nextNodeId ? (nodeIdMap[bc.nextNodeId] || bc.nextNodeId) : undefined,
-          }));
-        }
-        if (Array.isArray(newNode.data.randomPaths)) {
-          newNode.data.randomPaths = newNode.data.randomPaths.map((rp: any) => ({
-            ...rp,
-            nextNodeId: rp.nextNodeId ? (nodeIdMap[rp.nextNodeId] || rp.nextNodeId) : undefined,
-          }));
-        }
-        if (newNode.data.timeoutNodeId) {
-          newNode.data.timeoutNodeId = nodeIdMap[newNode.data.timeoutNodeId] || newNode.data.timeoutNodeId;
-        }
+    const body = await request.json().catch(() => ({}));
+    const idMap: Record<string, string> = {};
+    const nodes = Array.isArray(original.nodes) ? original.nodes : [];
+    for (const node of nodes) idMap[String(node.nodeId || node.id)] = `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const remap = (value: any) => value ? (idMap[String(value)] || value) : value;
+    const clonedNodes = JSON.parse(JSON.stringify(nodes)).map((node: any) => {
+      node.nodeId = remap(node.nodeId || node.id);
+      delete node.id; delete node._id;
+      const data = node.data || node;
+      for (const key of ['options', 'templateButtons', 'branchConditions', 'randomPaths']) {
+        if (Array.isArray(data[key])) data[key] = data[key].map((item: any) => ({ ...item, nextNodeId: remap(item.nextNodeId) }));
       }
-      return newNode;
+      for (const key of ['nextNodeId', 'timeoutNodeId', 'fallbackNodeId']) if (data[key]) data[key] = remap(data[key]);
+      return node;
     });
-
-    // Remap startNodeId
-    const oldStart = String((original as any).startNodeId || '');
-    const newStartNodeId = nodeIdMap[oldStart] || oldStart;
-
-    // Remap metadata connections if present
-    let newMetadata = (original as any).metadata ? JSON.parse(JSON.stringify((original as any).metadata)) : undefined;
-    if (newMetadata?.connections && Array.isArray(newMetadata.connections)) {
-      newMetadata.connections = newMetadata.connections.map((conn: any) => ({
-        ...conn,
-        fromId: nodeIdMap[conn.fromId] || conn.fromId,
-        toId: nodeIdMap[conn.toId] || conn.toId,
-      }));
-    }
-
-    const created = await ChatbotFlow.create({
-      name: newName,
-      description: (original as any).description || '',
-      enabled: false, // Duplicates start disabled for safety
-      createdByUserId: String(userId),
+    const metadata = original.metadata ? JSON.parse(JSON.stringify(original.metadata)) : {};
+    if (Array.isArray(metadata.canvas?.blocks)) metadata.canvas.blocks = metadata.canvas.blocks.map((b: any) => ({ ...b, id: remap(b.id) }));
+    if (Array.isArray(metadata.canvas?.connections)) metadata.canvas.connections = metadata.canvas.connections.map((c: any) => ({ ...c, fromId: remap(c.fromId), toId: remap(c.toId) }));
+    const created = await saveBunnyChatbotFlow({
+      ...original,
+      _id: undefined,
+      name: String(body.name || `${original.name} (Copy)`),
+      enabled: false,
       nodes: clonedNodes,
-      startNodeId: newStartNodeId,
-      metadata: newMetadata,
-    });
-
+      startNodeId: remap(original.startNodeId),
+      metadata,
+    }, ownerId);
     return formatCrmSuccess(created);
-  } catch (error) {
-    return handleCrmError(error, 'POST chatbot-flows/[id]/duplicate');
-  }
+  } catch (error) { return handleCrmError(error, 'POST duplicate chatbot flow'); }
 }

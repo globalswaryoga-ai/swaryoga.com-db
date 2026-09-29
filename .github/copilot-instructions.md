@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Chatbot Builder Bunny SQL CRUD Migration (Session: September 29, 2026) — Commit `pending`
+
+- Added `lib/bunnyChatbotRepository.ts` with Bunny SQL flow storage, ownership filtering, pagination, update, delete, and duplication support.
+- Moved chatbot builder flow create/list/load/update/delete/duplicate APIs off MongoDB and preserved the existing canvas/nodes response contract.
+- Builder CRUD diagnostics are clean; execution/settings/state routes remain a separate follow-up for full AI runtime migration.
+
 ### Meta Broadcast Template Image History Fix (Session: September 29, 2026) — Commit `0dc75e58`
 
 - Broadcast template messages now preserve header media metadata when written to Bunny SQL.
