@@ -1820,95 +1820,44 @@ export default function NewRegistrationPage() {
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {/* Languages Sidebar (Always visible) */}
             {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches') && (
-              <>
-                {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Languages</div>}
-
-                {/* Stacked list for All Leads / My Data */}
-                {(activeTab === 'all_leads' || activeTab === 'my_data') && (
-                  <div className="space-y-2">
-                    {['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'].map((lang) => (
-                      <div
-                        key={lang}
-                        onClick={() => {
-                          setSelectedDashboardLang(lang);
-                          const matchesLanguage = (w: any, targetLang: string) => {
-                            if (!w) return false;
-                            const wLang = (w.language || 'English').toLowerCase();
-                            const tLang = targetLang.toLowerCase();
-                            if (wLang === tLang) return true;
-                            const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
-                            const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
-                            const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
-                            if (wBase !== tBase) return false;
-                            const tIsOffer = tLang.includes('offer');
-                            const tIsWorkshop = tLang.includes('workshop');
-                            const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
-                            const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
-                            if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
-                            if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
-                            return true;
-                          };
-                          const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
-                          setSelectedWorkshop(masterWorkshop || null);
-                          if (activeTab !== 'my_data') setActiveTab('all_leads'); // Route to All Leads Data if not in my_data
-                        }}
-                        className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedDashboardLang === lang
-                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
-                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-                          } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                        title={isSidebarCollapsed ? lang : undefined}
-                      >
-                        {isSidebarCollapsed ? (
-                          <div className="font-bold text-sm">{lang.substring(0, 2)}</div>
-                        ) : (
-                          <h3 className={`font-bold text-sm ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>{lang}</h3>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 2x2 grid for My Batches */}
-                {activeTab === 'my_batches' && (
-                  <div className="grid grid-cols-2 gap-2 animate-fade-in">
-                    {['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'].map((lang) => (
-                      <div
-                        key={lang}
-                        onClick={() => {
-                          setSelectedDashboardLang(lang);
-                          const matchesLanguage = (w: any, targetLang: string) => {
-                            if (!w) return false;
-                            const wLang = (w.language || 'English').toLowerCase();
-                            const tLang = targetLang.toLowerCase();
-                            if (wLang === tLang) return true;
-                            const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
-                            const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
-                            const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
-                            if (wBase !== tBase) return false;
-                            const tIsOffer = tLang.includes('offer');
-                            const tIsWorkshop = tLang.includes('workshop');
-                            const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
-                            const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
-                            if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
-                            if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
-                            return true;
-                          };
-                          const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
-                          setSelectedWorkshop(masterWorkshop || null);
-                        }}
-                        className={`p-2 rounded-xl border cursor-pointer transition-all flex items-center justify-center text-center ${selectedDashboardLang === lang
-                          ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
-                          : 'border-transparent hover:border-slate-200 bg-white hover:bg-slate-50'
-                          }`}
-                        title={lang}
-                      >
-                        <div className={`font-bold text-xs ${selectedDashboardLang === lang ? 'text-indigo-900' : 'text-slate-800'}`}>
-                          {isSidebarCollapsed ? lang.substring(0, 2) : lang}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="mb-3 px-1">
+                {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">Languages</div>}
+                <select
+                  value={selectedDashboardLang}
+                  onChange={(e) => {
+                    const lang = e.target.value;
+                    setSelectedDashboardLang(lang);
+                    const matchesLanguage = (w: any, targetLang: string) => {
+                      if (!w) return false;
+                      const wLang = (w.language || 'English').toLowerCase();
+                      const tLang = targetLang.toLowerCase();
+                      if (wLang === tLang) return true;
+                      const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
+                      const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
+                      const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
+                      if (wBase !== tBase) return false;
+                      const tIsOffer = tLang.includes('offer');
+                      const tIsWorkshop = tLang.includes('workshop');
+                      const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
+                      const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
+                      if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
+                      if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
+                      return true;
+                    };
+                    const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
+                    setSelectedWorkshop(masterWorkshop || null);
+                  }}
+                  className="w-full bg-white border border-indigo-200 text-slate-800 font-bold text-xs rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm cursor-pointer hover:border-indigo-400 transition-colors"
+                  title="Select Language / Offer"
+                >
+                  {['English Workshop', 'English Offer', 'Hindi Workshop', 'Hindi Offer', 'Marathi Workshop', 'Marathi Offer', 'Kannada Workshop', 'Kannada Offer'].map((lang) => (
+                    <option key={lang} value={lang}>
+                      {isSidebarCollapsed ? lang.substring(0, 2) : lang}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
                 {/* Batches list only for My Batches */}
                 {activeTab === 'my_batches' && !isSidebarCollapsed && (
