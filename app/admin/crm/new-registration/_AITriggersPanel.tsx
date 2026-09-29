@@ -313,8 +313,6 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
           </div>
         )}
       </div>
-      
-    </div>
 
       {/* ── Template Selector Modal ── */}
       {isTemplateModalOpen && (
