@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Meta Inbox and Bunny Meta Broadcast Runtime Performance Fix (Session: September 29, 2026) — Commit `pending`
+
+- Reduced Meta conversation loading to the requested page size and removed the duplicate initial empty-search request.
+- Removed the blocking 5,000-lead delivery-status query from Broadcast initial load; lead/template/run data now renders without waiting for status enrichment.
+- Focused diagnostics and `git diff --check` pass.
+
 ### YouTube Upload Limit and Recording Resume Fix (Session: September 29, 2026) — Commit `ff46bd4a`
 
 - YouTube rejected the Marathi retry with `uploadLimitExceeded`; this is an account quota restriction, not a CRM upload-path error.

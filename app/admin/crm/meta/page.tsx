@@ -536,6 +536,7 @@ export default function MetaInboxPage() {
   // Search-triggered reload (debounced)
   useEffect(() => {
     if (!token) return;
+    if (!searchQuery.trim()) return;
     const t = setTimeout(() => {
       loadConversations(searchQuery);
     }, 350);

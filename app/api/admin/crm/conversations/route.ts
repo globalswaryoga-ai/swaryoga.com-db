@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Bunny SQL is the new runtime source.
-    const allRows = await listBunnyMetaConversations(5000);
+    const allRows = await listBunnyMetaConversations(Math.min(limit + skip, 500));
     let bunnyRows = allRows;
 
     // Meta accounts and message ownership are now tenant-scoped in Bunny SQL.

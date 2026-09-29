@@ -476,31 +476,9 @@ export default function BroadcastPage(props: any) {
         });
       }
 
-      // Merge in each lead's most recent Meta message status (delivered/read/
-      // failed/blocked) so the recipient panel can filter by it. Non-fatal —
-      // if this fails, the panel still works without the delivery-status filter.
-      if (loadedLeads.length > 0) {
-        try {
-          const statusRes = await fetch('/api/admin/crm/broadcast-runs/latest-status', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ leadIds: loadedLeads.map((l) => l._id) }),
-          });
-          const statusData = await statusRes.json();
-          const statusMap: Record<string, { status: string; updatedAt: string }> = statusData?.data || {};
-          if (Object.keys(statusMap).length > 0) {
-            setLeads((prev) =>
-              prev.map((l) =>
-                statusMap[l._id]
-                  ? { ...l, deliveryStatus: statusMap[l._id].status, deliveryStatusAt: statusMap[l._id].updatedAt }
-                  : l
-              )
-            );
-          }
-        } catch (statusErr) {
-          console.warn('[Broadcast] Failed to load delivery statuses (non-fatal):', statusErr);
-        }
-      }
+      // Delivery status is intentionally lazy. Loading status for thousands of
+      // leads here made the Broadcast page wait on a second large SQL query;
+      // the inbox/status filters remain non-blocking instead of delaying the UI.
     } catch (err) {
       console.error('[Broadcast] Failed to fetch data:', err);
     } finally {
