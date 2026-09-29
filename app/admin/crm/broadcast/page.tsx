@@ -1276,11 +1276,9 @@ export default function BroadcastPage(props: any) {
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setShowQuotaDashboard(!showQuotaDashboard)}
-                className={`px-3 py-2 rounded-lg transition-all text-sm font-medium flex items-center gap-1 ${
-                  showQuotaDashboard ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                }`}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
               >
-                📈 <span className="hidden sm:inline">{showQuotaDashboard ? 'Hide Dashboard' : 'Show Dashboard'}</span>
+                📈 <span className="hidden sm:inline">{showQuotaDashboard ? 'Hide Dashboard' : 'Open Dashboard'}</span>
               </button>
               <Link href="/admin/crm/send-template" className="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-all text-sm font-medium hidden sm:flex items-center gap-1">
                 📨 Single
@@ -1522,9 +1520,9 @@ export default function BroadcastPage(props: any) {
             <div className="flex justify-between items-center mb-4">
               <button
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
               >
-                {showAdvancedFilters ? '− Hide Advanced Filters & Upload' : '+ Show Advanced Filters & Upload'}
+                {showAdvancedFilters ? '− Hide Advanced Filters & Upload' : '+ Open Advanced Filters & Upload'}
               </button>
             </div>
 
