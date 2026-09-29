@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import mongoose from 'mongoose';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { tenantFilter } from '@/lib/crm-handlers';
-import { CrmReceipt, SalesReport } from '@/lib/schemas/enterpriseSchemas';
 import { formatPersonName } from '@/lib/formatName';
+import { getBunnyReceiptById, getBunnyReceiptBySaleId, getBunnyReceiptByLeadId } from '@/lib/bunnyReceiptRepository';
+import { getBunnySaleById, getBunnySaleByLeadId } from '@/lib/bunnySalesRepository';
 
 const PAYMENT_MODE_LABELS: Record<string, string> = {
   payu: 'PayU',
@@ -350,40 +349,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing id, leadId or saleId' }, { status: 400 });
     }
 
-    await connectDB();
-
     let rec: any = null;
 
     if (receiptId) {
-      if (!mongoose.Types.ObjectId.isValid(receiptId)) {
-        return NextResponse.json({ error: 'Invalid receipt id' }, { status: 400 });
+      rec = await getBunnyReceiptById(receiptId);
+      if (rec && tf.issuedByUserId && rec.issuedByUserId !== tf.issuedByUserId) {
+        rec = null;
       }
-      rec = await (CrmReceipt as any).findOne({ _id: receiptId, ...tf }).lean();
     } else if (saleId) {
-      if (!mongoose.Types.ObjectId.isValid(saleId)) {
-        return NextResponse.json({ error: 'Invalid sale id' }, { status: 400 });
-      }
-      rec = await (CrmReceipt as any).findOne({ saleId, ...tf }).sort({ issuedAt: -1 }).lean();
+      rec = await getBunnyReceiptBySaleId(saleId, tf);
       if (!rec) {
         // Older sales recorded before a CrmReceipt was generated for every sale —
         // build the same design straight from the sale record instead of 404ing.
-        const sale = await (SalesReport as any).findOne({ _id: saleId, ...saleTf }).lean();
-        if (sale) rec = receiptShapeFromSale(sale);
+        const sale = await getBunnySaleById(saleId);
+        if (sale && (!saleTf.reportedByUserId || sale.reportedByUserId === saleTf.reportedByUserId)) {
+          rec = receiptShapeFromSale(sale);
+        }
       }
     } else {
-      if (!mongoose.Types.ObjectId.isValid(leadId!)) {
-        return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
-      }
-      rec = await (CrmReceipt as any)
-        .findOne({ leadId: new mongoose.Types.ObjectId(leadId!), ...tf })
-        .sort({ issuedAt: -1 })
-        .lean();
+      rec = await getBunnyReceiptByLeadId(leadId!, tf);
       if (!rec) {
-        const sale = await (SalesReport as any)
-          .findOne({ leadId: new mongoose.Types.ObjectId(leadId!), ...saleTf })
-          .sort({ saleDate: -1 })
-          .lean();
-        if (sale) rec = receiptShapeFromSale(sale);
+        const sale = await getBunnySaleByLeadId(leadId!, saleTf);
+        if (sale) {
+          rec = receiptShapeFromSale(sale);
+        }
       }
     }
 

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isSuperAdmin, getViewerUserId, generateInvoiceNumber } from '@/lib/crm-handlers';
-import { Lead, CrmReceipt, getSalesReport } from '@/lib/schemas/enterpriseSchemas';
 import { formatPersonName } from '@/lib/formatName';
+import { getBunnyReceiptById, getBunnyReceiptBySaleId, getBunnyReceiptsByLeadId, getBunnyReceiptByLeadId, createBunnyReceipt, updateBunnyReceipt } from '@/lib/bunnyReceiptRepository';
+import { getBunnySaleById, getBunnySaleByLeadId, updateBunnySale } from '@/lib/bunnySalesRepository';
+import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 
 // Builds the payment/workshop snapshot for a receipt from the actual sale
 // record (SalesReport), which is the source of truth for amounts — the
@@ -42,42 +42,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing leadId or id' }, { status: 400 });
     }
 
-    await connectDB();
-
     if (receiptId) {
-      if (!mongoose.Types.ObjectId.isValid(receiptId)) {
-        return NextResponse.json({ error: 'Invalid receipt id' }, { status: 400 });
-      }
-      const rec = await (CrmReceipt as any).findById(receiptId).lean();
+      const rec = await getBunnyReceiptById(receiptId);
       if (!rec) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
       return NextResponse.json({ success: true, data: rec }, { status: 200 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(leadId!)) {
-      return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
+    if (!leadId) {
+      return NextResponse.json({ error: 'Missing lead id' }, { status: 400 });
     }
 
     // A lead can have multiple sales. When the caller knows which sale it's
     // previewing, only return that sale's own receipt -- never a sibling
     // sale's receipt under the same lead.
-    if (saleId && mongoose.Types.ObjectId.isValid(saleId)) {
-      const SalesReport = getSalesReport();
-      const sale: any = await SalesReport.findById(saleId).select('receiptId').lean();
+    if (saleId) {
+      const sale: any = await getBunnySaleById(saleId);
       let rec: any = null;
       if (sale?.receiptId) {
-        rec = await (CrmReceipt as any).findById(sale.receiptId).lean();
+        rec = await getBunnyReceiptById(sale.receiptId);
       }
       if (!rec) {
-        rec = await (CrmReceipt as any).findOne({ saleId: new mongoose.Types.ObjectId(saleId) }).sort({ issuedAt: -1 }).lean();
+        rec = await getBunnyReceiptBySaleId(saleId);
       }
       return NextResponse.json({ success: true, data: rec ? [rec] : [] }, { status: 200 });
     }
 
-    const receipts = await (CrmReceipt as any)
-      .find({ leadId: new mongoose.Types.ObjectId(leadId!) })
-      .sort({ issuedAt: -1 })
-      .limit(50)
-      .lean();
+    const receipts = await getBunnyReceiptsByLeadId(leadId!, 50);
 
     return NextResponse.json({ success: true, data: receipts }, { status: 200 });
   } catch (error) {
@@ -102,25 +92,22 @@ export async function POST(request: NextRequest) {
     const saleId = String(body?.saleId || '').trim();
     const force = Boolean(body?.force);
 
-    if (!mongoose.Types.ObjectId.isValid(leadId)) {
+    if (!leadId) {
       return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
 
-    await connectDB();
-
-    const lead: any = await (Lead as any).findById(leadId).lean();
+    const lead: any = await getBunnyLeadById(leadId);
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
     // The actual sale record (SalesReport) is the source of truth for amounts.
     // Prefer the exact sale the admin clicked from; otherwise fall back to the
     // most recent sale recorded against this lead.
-    const SalesReport = getSalesReport();
     let sale: any = null;
-    if (saleId && mongoose.Types.ObjectId.isValid(saleId)) {
-      sale = await SalesReport.findById(saleId).lean();
+    if (saleId) {
+      sale = await getBunnySaleById(saleId);
     }
     if (!sale) {
-      sale = await SalesReport.findOne({ leadId: new mongoose.Types.ObjectId(leadId) }).sort({ saleDate: -1 }).lean();
+      sale = await getBunnySaleByLeadId(leadId);
     }
 
     // If a receipt exists already for THIS specific sale, reuse it — unless
@@ -130,20 +117,20 @@ export async function POST(request: NextRequest) {
     // receipt when previewing a different sale of the same customer.
     let existing: any = null;
     if (sale?.receiptId) {
-      existing = await (CrmReceipt as any).findById(sale.receiptId).lean();
+      existing = await getBunnyReceiptById(sale.receiptId);
     }
     if (!existing && sale?._id) {
-      existing = await (CrmReceipt as any).findOne({ saleId: sale._id }).sort({ issuedAt: -1 }).lean();
+      existing = await getBunnyReceiptBySaleId(sale._id);
     }
     if (!existing && !sale) {
       // No sale at all (manual receipt, not tied to a SalesReport) -- fall
       // back to the lead's latest receipt, the old behavior.
-      existing = await (CrmReceipt as any).findOne({ leadId: new mongoose.Types.ObjectId(leadId) }).sort({ issuedAt: -1 }).lean();
+      existing = await getBunnyReceiptByLeadId(leadId);
     }
     // Backfill saleId on receipts created before this field existed, so
     // future lookups can match directly without going through sale.receiptId.
     if (existing && sale?._id && !existing.saleId) {
-      await (CrmReceipt as any).updateOne({ _id: existing._id }, { $set: { saleId: sale._id } });
+      await updateBunnyReceipt(existing._id, { saleId: sale._id });
     }
     // Receipt number, issue date and payment/financial data are an
     // immutable snapshot by design (audit trail — see below). Contact info
@@ -163,23 +150,19 @@ export async function POST(request: NextRequest) {
 
     let receipt: any;
     if (existing && existingIsStale) {
-      receipt = await (CrmReceipt as any).findByIdAndUpdate(
-        existing._id,
-        { $set: { workshopName, payment, customerName: currentName } },
-        { new: true }
-      ).lean();
+      receipt = await updateBunnyReceipt(existing._id, { workshopName, payment, customerName: currentName });
     } else {
       // Reuse the sale's own receipt number (YYMMSWNNN, assigned at creation)
       // instead of minting a different one — the sale record is the source
       // of truth for what receipt number a customer was already given.
       const receiptNumber = sale?.receiptNumber || await generateInvoiceNumber();
-      receipt = await (CrmReceipt as any).create({
-        leadId: new mongoose.Types.ObjectId(leadId),
+      receipt = await createBunnyReceipt({
+        leadId: leadId,
         leadNumber: lead.leadNumber,
         ...(sale?._id ? { saleId: sale._id } : {}),
         receiptNumber,
         issuedByUserId: viewerUserId,
-        issuedAt: new Date(),
+        issuedAt: new Date().toISOString(),
         customerName: currentName,
         customerPhone: sale?.customerPhone || lead.phoneNumber,
         customerEmail: sale?.customerEmail || lead.email,
@@ -196,17 +179,11 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await (Lead as any).updateOne(
-        { _id: new mongoose.Types.ObjectId(leadId) },
-        { $set: { lastReceiptId: receipt._id } }
-      );
+      await saveBunnyLead({ ...lead, lastReceiptId: receipt._id });
     }
 
     if (sale?._id) {
-      await SalesReport.updateOne(
-        { _id: sale._id },
-        { $set: { receiptId: receipt._id, receiptNumber: receipt.receiptNumber } }
-      );
+      await updateBunnySale(sale._id, { receiptId: receipt._id, receiptNumber: receipt.receiptNumber });
     }
 
     return NextResponse.json({ success: true, data: receipt }, { status: existing ? 200 : 201 });

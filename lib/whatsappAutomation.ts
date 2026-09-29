@@ -1091,7 +1091,7 @@ export async function startChatbotFlowForLead(input: {
   await connectDB();
 
   // Fetch lead from bunny, and flow from bunny
-  const lead = await getBunnyLeadById(input.leadId) as any;
+  let lead = await getBunnyLeadById(input.leadId) as any;
   if (!lead) {
     return { success: false, message: 'Lead not found' };
   }

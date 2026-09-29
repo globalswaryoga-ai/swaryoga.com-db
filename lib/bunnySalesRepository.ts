@@ -134,3 +134,17 @@ export async function deleteBunnySale(id: string) {
   });
   return result.rowsAffected > 0;
 }
+
+export async function getBunnySaleByLeadId(leadId: string, tenantFilter?: { [key: string]: any }) {
+  await initBunnySalesSchema();
+  const result = await bunnyExecute({
+    sql: 'SELECT document_id, data_json, sale_date, batch_date, created_at, updated_at FROM sales_reports_sql WHERE lead_id = ? ORDER BY sale_date DESC LIMIT 1',
+    args: [leadId]
+  });
+  if (!result.rows[0]) return null;
+  const sale = normalizeSale(result.rows[0]);
+  if (tenantFilter && tenantFilter.reportedByUserId && sale.reportedByUserId !== tenantFilter.reportedByUserId) {
+    return null;
+  }
+  return sale;
+}

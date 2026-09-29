@@ -1947,6 +1947,7 @@ export default function NewRegistrationPage() {
                               }}
                               className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
                               title="Move Down"
+                            >
                             </button>
                             <button
                               onClick={(e) => {
