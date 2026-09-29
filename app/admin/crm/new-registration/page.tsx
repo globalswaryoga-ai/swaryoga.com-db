@@ -549,7 +549,7 @@ export default function NewRegistrationPage() {
     }, 5 * 60 * 1000); // 5 minutes (300000ms)
 
     return () => clearInterval(interval);
-  }, [isApprovedAiWorkerActive, leadsData, approvedLeadIds, registeredLeadIds, approvalAiInsights]);
+  }, [isApprovedAiWorkerActive, leadsData, approvedLeadIds, registeredLeadIds, pending2LeadIds, closedLeadIds, approvalAiInsights]);
 
   useEffect(() => {
     if (!isRegisteredAiWorkerActive || leadsData.length === 0) return;
