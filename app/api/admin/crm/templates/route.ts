@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
-import { User } from '@/lib/db';
 import { listTemplates, createTemplate, updateTemplate, deleteTemplate, getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import { deleteTemplateFilesFromS3 } from '@/lib/bunny-storage';
-import mongoose from 'mongoose';
 import { isSuperAdmin, getViewerUserId } from '@/lib/crm-handlers';
 
 export const dynamic = 'force-dynamic';

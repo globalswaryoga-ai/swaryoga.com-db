@@ -4,11 +4,10 @@
  * and re-upload to Bunny CDN for permanent storage.
  */
 import { NextRequest } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { apiError, apiSuccess } from '@/lib/api-error';
-import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { ensurePermanentUrl, isMetaCdnUrl } from '@/lib/migrateMetaImageToBunny';
+import { listTemplates, updateTemplate } from '@/lib/bunnyTemplatesRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,41 +17,34 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return apiError('UNAUTHORIZED');
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
-
-    // Find all templates with Meta CDN URLs
-    const templates = await WhatsAppTemplate.find({
-      $or: [
-        { 'headerMedia.url': { $regex: 'scontent', $options: 'i' } },
-        { 'headerMedia.url': { $regex: 'fbcdn', $options: 'i' } },
-        { 'headerMedia.url': { $regex: 'whatsapp.net', $options: 'i' } },
-        { 'imageFile.url': { $regex: 'scontent', $options: 'i' } },
-      ],
-    }).lean() as any[];
+    // Fetch all templates (with a high limit) since we need to check in-memory
+    const { templates } = await listTemplates({}, 10000, 0);
 
     const results = { migrated: 0, failed: 0, skipped: 0, templates: [] as any[] };
 
     for (const t of templates) {
-      const url = t?.headerMedia?.url || t?.imageFile?.url || '';
+      const url = (t as any)?.headerMedia?.url || (t as any)?.imageFile?.url || '';
       if (!url || !isMetaCdnUrl(url)) { results.skipped++; continue; }
 
       try {
         const bunnyUrl = await ensurePermanentUrl(url);
         if (bunnyUrl === url) { results.skipped++; continue; }
 
-        await WhatsAppTemplate.findByIdAndUpdate(t._id, {
-          $set: {
-            'headerMedia.url': bunnyUrl,
-            ...(t?.imageFile?.url ? { 'imageFile.url': bunnyUrl } : {}),
-          },
-        });
+        const updates: any = {};
+        if ((t as any)?.headerMedia?.url) {
+            updates.headerMedia = { ...(t as any).headerMedia, url: bunnyUrl };
+        }
+        if ((t as any)?.imageFile?.url) {
+            updates.imageFile = { ...(t as any).imageFile, url: bunnyUrl };
+        }
+
+        await updateTemplate(t._id, updates);
 
         results.migrated++;
-        results.templates.push({ name: t.templateName, old: url.substring(0, 60), new: bunnyUrl.substring(0, 60) });
+        results.templates.push({ name: (t as any).templateName, old: url.substring(0, 60), new: bunnyUrl.substring(0, 60) });
       } catch (err: any) {
         results.failed++;
-        results.templates.push({ name: t.templateName, error: err.message });
+        results.templates.push({ name: (t as any).templateName, error: err.message });
       }
     }
 

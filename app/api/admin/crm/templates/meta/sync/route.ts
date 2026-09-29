@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
-import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { getViewerUserId } from '@/lib/crm-handlers';
 import { findMetaTemplate, createTemplate, updateTemplate, getTemplateById } from '@/lib/bunnyTemplatesRepository';
 import {
   fetchTemplatesFromMeta,
@@ -11,10 +9,6 @@ import {
   MetaTemplate,
 } from '@/lib/meta-templates';
 import { ensurePermanentUrl } from '@/lib/migrateMetaImageToBunny';
-
-export const dynamic = 'force-dynamic';
-import mongoose from 'mongoose';
-
 
 /**
  * GET /api/admin/crm/templates/meta/sync

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { getTemplateById, updateTemplate } from '@/lib/bunnyTemplatesRepository';
 import { verifyToken } from '@/lib/auth';
-import { tenantFilter, getViewerUserId } from '@/lib/crm-handlers';
-import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { getPublicMediaUrl } from '@/lib/whatsapp';
 import {
   submitTemplateToMeta,
   convertToMetaFormat,
@@ -12,9 +11,6 @@ import {
 } from '@/lib/meta-templates';
 
 export const dynamic = 'force-dynamic';
-import { getPublicMediaUrl } from '@/lib/whatsapp';
-import mongoose from 'mongoose';
-
 
 /**
  * POST /api/admin/crm/templates/meta/submit
@@ -27,7 +23,6 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin && !decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const tf = tenantFilter(decoded, 'createdBy');
 
     const body = await request.json().catch(() => null);
     if (!body?.templateId) {
@@ -36,14 +31,11 @@ export async function POST(request: NextRequest) {
 
     const { templateId } = body;
 
-    if (!mongoose.Types.ObjectId.isValid(templateId)) {
+    if (!templateId) {
       return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
     }
 
-    await connectDB();
-    const WhatsAppTemplate = getWhatsAppTemplate();
-
-    const template = await WhatsAppTemplate.findOne({ _id: templateId, ...tf }).lean();
+    const template = await getTemplateById(templateId);
     if (!template) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
@@ -59,14 +51,12 @@ export async function POST(request: NextRequest) {
       if (statusResult.success && statusResult.template) {
         const localStatus = mapMetaStatusToLocal(statusResult.template.status);
         
-        await WhatsAppTemplate.findOneAndUpdate({ _id: templateId, ...tf }, {
-          $set: {
+        await updateTemplate(templateId, {
             status: localStatus,
             metaStatus: statusResult.template.status,
             metaRejectionReason: statusResult.template.rejected_reason || null,
             metaQualityScore: statusResult.template.quality_score?.score || null,
             lastMetaSyncAt: new Date(),
-          },
         });
 
         return NextResponse.json({
@@ -159,15 +149,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Update local template with Meta info. Must persist the mapped
-    // language code (e.g. 'en' -> 'en_US') Meta actually approved the
-    // template under — leaving the old local `language` here means every
-    // future send uses a code that no longer matches the approved template
-    // and fails with an opaque "template does not exist" error from Meta.
-    const updated = await WhatsAppTemplate.findOneAndUpdate(
-      { _id: templateId, ...tf },
-      {
-        $set: {
+    // Update local template with Meta info
+    const updated = await updateTemplate(templateId, {
           metaTemplateId: result.metaTemplateId,
           metaTemplateName: metaFormat.name,
           language: metaFormat.language,
@@ -175,10 +158,7 @@ export async function POST(request: NextRequest) {
           metaStatus: result.status || 'PENDING',
           submittedToMetaAt: new Date(),
           submittedToMetaBy: decoded.userId,
-        },
-      },
-      { new: true }
-    );
+    });
 
     return NextResponse.json({
       success: true,
