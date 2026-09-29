@@ -16,6 +16,7 @@ import { getMetaCredentialsByPhoneNumberId } from '@/lib/whatsappAccounts';
 import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 import { getBunnyLeadByPhone, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { META_WHATSAPP_OWNER_IDS } from '@/lib/crm-handlers';
+import { broadcastRunMessageUpdateByWaMessageId } from '@/lib/bunnyBroadcastRepository';
 
 // Import media helpers
 import { 
@@ -221,6 +222,12 @@ async function handleWebhookPayload(payload: any) {
                 errorMessage: Array.isArray(st?.errors) ? (st.errors[0]?.title || st.errors[0]?.message) : 'Failed'
               } : {})
             });
+            await broadcastRunMessageUpdateByWaMessageId(waMessageId, {
+              status,
+              ...(status === 'delivered' ? { deliveredAt: now } : {}),
+              ...(status === 'read' ? { readAt: now, deliveredAt: now } : {}),
+              ...(status === 'failed' ? { failureReason: Array.isArray(st?.errors) ? (st.errors[0]?.title || st.errors[0]?.message) : 'Failed' } : {}),
+            }).catch((broadcastErr) => console.error('[WEBHOOK] Failed to update Bunny broadcast status:', broadcastErr));
           } catch (bunnyErr) {
             console.error('[WEBHOOK] Failed to update BunnyDB status:', bunnyErr);
           }

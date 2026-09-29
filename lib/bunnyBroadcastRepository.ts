@@ -211,6 +211,16 @@ export async function broadcastRunMessageUpdateOne(messageId: string, update: { 
   return Number((result as any).rowsAffected || (result as any).rows_affected || 0) > 0;
 }
 
+export async function broadcastRunMessageUpdateByWaMessageId(waMessageId: string, update: { status?: string; failureReason?: string; deliveredAt?: Date; readAt?: Date }) {
+  await ensureBroadcastSchema();
+  const found = await bunnyExecute({ sql: 'SELECT document_id, run_id FROM broadcast_run_messages_sql WHERE wa_message_id = ? LIMIT 1', args: [waMessageId] });
+  const row = found.rows[0];
+  if (!row) return null;
+  await broadcastRunMessageUpdateOne(String(row.document_id), update);
+  const stats = await markRunStatsBunny(String(row.run_id));
+  return { runId: String(row.run_id), stats };
+}
+
 export async function broadcastRunMessageUpdateMany(filter: { runId: string; status?: string | string[]; updatedAtLt?: Date }, update: { status: string; failureReason?: string }) {
   await ensureBroadcastSchema();
   const n = nowIso();

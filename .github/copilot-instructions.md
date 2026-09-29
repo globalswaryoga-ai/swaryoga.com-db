@@ -171,6 +171,12 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Meta Broadcast Receipt and Report Stats Fix (Session: September 29, 2026) — Commit `pending`
+
+- Meta webhook delivery receipts now update `broadcast_run_messages_sql` in Bunny SQL by WhatsApp message ID.
+- Broadcast reports recalculate sent, delivered, read, failed, and pending counts from Bunny message rows.
+- Broadcast report detail now reads Bunny runs/messages instead of failing through the legacy Mongo route.
+
 ### Meta Inbox and Bunny Meta Broadcast Runtime Performance Fix (Session: September 29, 2026) — Commit `8520eb29`
 
 - Reduced Meta conversation loading to the requested page size and removed the duplicate initial empty-search request.

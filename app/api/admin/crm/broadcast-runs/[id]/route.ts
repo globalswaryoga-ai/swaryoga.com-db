@@ -3,7 +3,7 @@ import { connectDB } from '@/lib/db';
 import { handleCrmError, tenantFilter, getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastRun, BroadcastRunMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
-import { broadcastRunFindOne, broadcastRunMessageUpdateMany, broadcastRunUpdateOne } from '@/lib/bunnyBroadcastRepository';
+import { broadcastRunFindOne, broadcastRunMessageFind, broadcastRunMessageUpdateMany, broadcastRunUpdateOne, getLeadsByIds, markRunStatsBunny } from '@/lib/bunnyBroadcastRepository';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +26,19 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const decoded = verifyAdmin(request);
     const tf = tenantFilter(decoded);
     const { id } = await ctx.params;
+
+    const bunnyRun = await broadcastRunFindOne(id);
+    if (bunnyRun) {
+      const stats = await markRunStatsBunny(id);
+      const url = new URL(request.url);
+      const limit = Math.min(Number(url.searchParams.get('limit') || 200) || 200, 500);
+      const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
+      const status = url.searchParams.get('status') || undefined;
+      const bunnyMessages = await broadcastRunMessageFind({ runId: id, status }, { limit: limit + skip });
+      const leads = await getLeadsByIds(bunnyMessages.map((message: any) => String(message.leadId || '')).filter(Boolean));
+      const leadMap = new Map(leads.map((lead: any) => [String(lead._id), lead]));
+      return NextResponse.json({ success: true, data: { run: { ...bunnyRun, stats }, messages: bunnyMessages.slice(skip, skip + limit).map((message: any) => ({ ...message, lead: leadMap.get(String(message.leadId)) || null })), total: bunnyMessages.length, limit, skip } }, { status: 200 });
+    }
 
     await connectDB();
 
