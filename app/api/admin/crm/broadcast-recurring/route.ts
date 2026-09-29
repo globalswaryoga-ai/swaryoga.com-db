@@ -172,7 +172,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { schedules: data } }, { status: 200 });
   } catch (error) {
-    return handleCrmError(error, 'GET broadcast-recurring');
+    // Recurring schedules are optional legacy metadata. Never let an Atlas or
+    // legacy-template lookup failure break the Bunny-backed Broadcast page.
+    console.warn('[broadcast-recurring] Returning empty schedule list after legacy-store error:', error);
+    return NextResponse.json({
+      success: true,
+      data: { schedules: [], warning: 'Recurring schedules are temporarily unavailable.' },
+    }, { status: 200 });
   }
 }
 
