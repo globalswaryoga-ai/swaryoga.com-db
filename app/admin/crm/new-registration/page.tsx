@@ -360,9 +360,29 @@ export default function NewRegistrationPage() {
     if (!isAiWorkerActive || leadsData.length === 0 || !selectedWorkshop) return;
 
     const interval = setInterval(async () => {
-      let formField = ai1MatchField;
+      let formField = '';
+      const manualCol = selectedWorkshop.metadata?.ai1Column;
+      if (manualCol) {
+        if (!isNaN(Number(manualCol)) && leadsData.length > 0) {
+          const firstLead = leadsData[0];
+          const rawAnswers = firstLead._rawRecord || firstLead.dynamicAnswers || {};
+          const keys = Object.keys(rawAnswers);
+          const idx = parseInt(manualCol) - 1;
+          if (idx >= 0 && idx < keys.length) formField = keys[idx];
+        } else {
+          const firstLead = leadsData[0] || {};
+          const rawAnswers = firstLead._rawRecord || firstLead.dynamicAnswers || {};
+          const keys = Object.keys(rawAnswers);
+          if (keys.includes(manualCol)) formField = manualCol;
+          else {
+            const partialMatch = keys.find(k => k.toLowerCase().includes(manualCol.toLowerCase()));
+            if (partialMatch) formField = partialMatch;
+            else formField = manualCol;
+          }
+        }
+      }
+
       if (!formField) {
-        // Find default field for mapping
         const dateMappingKey = Object.keys(fieldMapping).find(k => k.toUpperCase().includes('DATE') || k.toUpperCase().includes('BATCH'));
         if (dateMappingKey && fieldMapping[dateMappingKey]) {
           formField = fieldMapping[dateMappingKey];
