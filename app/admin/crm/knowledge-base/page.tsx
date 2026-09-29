@@ -86,10 +86,11 @@ export default function KnowledgeBasePage() {
       if (filterEnabled !== 'all') params.enabled = filterEnabled;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
-      const res = await crmFetch('/api/admin/crm/knowledge-base', { params });
+      const res = await crmFetch('/api/admin/crm/knowledge-base', { params }).catch(() => null);
       setArticles(Array.isArray(res?.articles) ? res.articles : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load articles');
+      console.error('KB fetch error:', err);
+      setArticles([]);
     } finally {
       setLoading(false);
     }
