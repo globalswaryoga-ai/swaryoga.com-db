@@ -129,12 +129,14 @@ export function WhatsAppMessengerTab({
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      
-      if (!response.ok) throw new Error('Failed to delete template');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to delete template (Status ${response.status})`);
+      }
       toast.success('Template deleted successfully!');
       fetchTemplates();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error deleting template');
+    } catch (err: any) {
+      toast.error(err.message || 'Error deleting template');
     }
   };
 

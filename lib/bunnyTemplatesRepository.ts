@@ -41,8 +41,8 @@ export async function listTemplates(filter: any, limit = 50, skip = 0) {
   ]);
   
   const templates = dataRes.rows.map(r => ({
-    _id: String(r.document_id),
     ...JSON.parse(String(r.data_json)),
+    _id: String(r.document_id),
     // Merge any override fields if necessary
     templateName: String(r.template_name),
     category: String(r.category),
@@ -60,8 +60,8 @@ export async function getTemplateById(id: string) {
   const res = await bunnyExecute({ sql: 'SELECT data_json FROM whatsapp_templates_sql WHERE document_id = ?', args: [id] });
   if (res.rows.length === 0) return null;
   return {
-    _id: id,
-    ...JSON.parse(String(res.rows[0].data_json))
+    ...JSON.parse(String(res.rows[0].data_json)),
+    _id: id
   };
 }
 
@@ -145,8 +145,8 @@ export async function findMetaTemplate(metaId: string, name: string) {
   if (res.rows.length === 0) return null;
   
   return {
-    _id: String(res.rows[0].document_id),
     ...JSON.parse(String(res.rows[0].data_json)),
+    _id: String(res.rows[0].document_id),
     templateName: String(res.rows[0].template_name),
     metaTemplateId: res.rows[0].meta_template_id ? String(res.rows[0].meta_template_id) : null,
   };
