@@ -171,6 +171,11 @@ Frontend (page.tsx) → bridgeCall('/chats') → /api/admin/crm/whatsapp/qr-brid
 ---
 
 ## 📋 Recent Changes Log
+### Meta Broadcast Template Image History Fix (Session: September 29, 2026) — Commit `pending`
+
+- Broadcast template messages now preserve header media metadata when written to Bunny SQL.
+- Existing broadcast inbox messages enrich their image/video header from the stored Bunny template definition by `templateId`; no resend or duplicate message is required.
+
 ### Bunny Meta Broadcast Cron Trigger Fix (Session: September 29, 2026) — Commit `8f4cf398`
 
 - Vercel cron GET now uses the Bunny-only Meta broadcast processor instead of the legacy Mongo processor.

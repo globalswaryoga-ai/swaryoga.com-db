@@ -75,6 +75,36 @@ export async function upsertBunnyMetaMessage(message: Record<string, any>) {
 }
 
 const templatePayloadCache = new Map<string, any>();
+const templateMetadataCache = new Map<string, any>();
+
+async function enrichTemplateMetadata(message: any) {
+  const templateId = message?.metadata?.templateId;
+  if (!templateId || message?.metadata?.template?.headerMedia?.url) return message;
+  if (!templateMetadataCache.has(String(templateId))) {
+    const result = await bunnyExecute({ sql: 'SELECT data_json FROM whatsapp_templates_sql WHERE document_id = ? LIMIT 1', args: [String(templateId)] });
+    const template = result.rows[0] ? parse<any>(result.rows[0].data_json, {}) : null;
+    templateMetadataCache.set(String(templateId), template || {});
+  }
+  const template = templateMetadataCache.get(String(templateId));
+  if (template && (template.headerMedia?.url || template.imageFile?.url || template.headerContent)) {
+    const headerMedia = template.headerMedia?.url
+      ? template.headerMedia
+      : template.imageFile?.url
+        ? { kind: 'image', url: template.imageFile.url }
+        : null;
+    message.metadata = {
+      ...(message.metadata || {}),
+      template: {
+        ...(message.metadata?.template || {}),
+        templateName: template.templateName,
+        headerFormat: template.headerFormat,
+        headerContent: template.headerContent,
+        headerMedia,
+      },
+    };
+  }
+  return message;
+}
 
 export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadId?: string; limit?: number; skip?: number; before?: string }) {
   await initBunnyMetaWhatsAppSchema();
@@ -115,6 +145,7 @@ export async function listBunnyMetaMessages(input: { phoneNumber?: string; leadI
   });
 
   for (const msg of messages) {
+    await enrichTemplateMetadata(msg);
     if (msg.templateHash) {
       if (!templatePayloadCache.has(msg.templateHash)) {
         const payloadRes = await bunnyExecute({ sql: `SELECT payload_json FROM meta_template_payloads_sql WHERE template_hash = ?`, args: [msg.templateHash] });
@@ -240,6 +271,7 @@ export async function getBunnyMetaMessage(messageId: string) {
     createdAt: rawMsg.createdAt?.$date ? new Date(Number(rawMsg.createdAt.$date.$numberLong || rawMsg.createdAt.$date)).toISOString() : (rawMsg.createdAt || result.rows[0].created_at),
     provider: 'meta'
   };
+  await enrichTemplateMetadata(msg);
   
   if (msg.templateHash) {
     if (!templatePayloadCache.has(msg.templateHash)) {

@@ -92,7 +92,16 @@ export async function processDueBunnyMetaBroadcasts(options?: {
             senderNumber: creds?.phoneNumber,
             provider: 'meta',
             sentByUserId: run.createdByUserId,
-            metadata: { broadcast: { runId }, templateId: run.templateId },
+            metadata: {
+              broadcast: { runId },
+              templateId: run.templateId,
+              template: {
+                templateName: template.templateName,
+                headerFormat: template.headerFormat,
+                headerContent: template.headerContent,
+                headerMedia: template.headerMedia || (template.imageFile?.url ? { kind: 'image', url: template.imageFile.url } : null),
+              },
+            },
           });
           await updateBunnyMetaMessage(metaMessage.documentId, { status: 'sent', waMessageId, provider: 'meta' });
           await broadcastRunMessageUpdateOne(messageId, { status: 'sent', waMessageId, sentAt: now });
