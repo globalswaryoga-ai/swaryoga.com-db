@@ -910,12 +910,11 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <button 
                 disabled={!mergeTargetId || mergeSourceIds.length === 0}
                 onClick={() => {
-                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} source item(s) into the destination batch/form? The source items will be kept intact as they are.`)) {
-                    let newWorkshops = [...workshops];
-                    const target = newWorkshops.find((w: any) => w.id === mergeTargetId);
-                    const sources = newWorkshops.filter((w: any) => mergeSourceIds.includes(w.id));
-                    if (!target || sources.length === 0) return;
-                    
+                  const target = workshops.find((w: any) => w.id === mergeTargetId);
+                  const sources = workshops.filter((w: any) => mergeSourceIds.includes(w.id));
+                  if (!target || sources.length === 0) return;
+
+                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} source item(s) into "${target.name}"? The source batch(es) will be merged into the target and removed.`)) {
                     let combinedKeywords = (target.formFilterKeyword || target.name || '').split('|');
                     let totalLeads = target.leads || 0;
                     
@@ -927,12 +926,14 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     
                     const finalKeywords = Array.from(new Set(combinedKeywords.map(k => k.trim()))).filter(Boolean).join('|');
 
-                    newWorkshops = newWorkshops.map((w: any) => {
-                      if (w.id === mergeTargetId) {
-                        return { ...w, formFilterKeyword: finalKeywords, leads: totalLeads };
-                      }
-                      return w;
-                    });
+                    const newWorkshops = workshops
+                      .filter((w: any) => !mergeSourceIds.includes(w.id))
+                      .map((w: any) => {
+                        if (w.id === mergeTargetId) {
+                          return { ...w, formFilterKeyword: finalKeywords, leads: totalLeads };
+                        }
+                        return w;
+                      });
                     
                     setWorkshops(newWorkshops);
                     
@@ -953,10 +954,10 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     setMergeSourceIds([]);
                     
                     if (mergeSourceIds.includes(selectedWorkshop?.id)) {
-                      setSelectedWorkshop(workshops.find((w: any) => w.id === mergeTargetId) || null);
+                      setSelectedWorkshop(newWorkshops.find((w: any) => w.id === mergeTargetId) || null);
                     }
                     
-                    toast.success('Data merged successfully!');
+                    toast.success('Batches merged successfully!');
                   }
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg shadow-sm transition-all"

@@ -438,7 +438,7 @@ export default function NewRegistrationPage() {
           // Check if a batch for this exact date and language already exists (or is part of a merged batch)
           const exists = newWorkshops.some(w =>
             w.id.startsWith('batch_') &&
-            (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
+            matchesLanguage(w, selectedDashboardLang) &&
             (w.formFilterKeyword === date || (w.formFilterKeyword || '').split('|').includes(date))
           );
 
@@ -462,7 +462,7 @@ export default function NewRegistrationPage() {
             // Optional: Update leads count for existing batch
             const batchIndex = newWorkshops.findIndex(w => 
               w.id.startsWith('batch_') &&
-              (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
+              matchesLanguage(w, selectedDashboardLang) &&
               (w.formFilterKeyword === date || (w.formFilterKeyword || '').split('|').includes(date))
             );
             if (batchIndex !== -1) {
@@ -1688,7 +1688,7 @@ export default function NewRegistrationPage() {
         // Check if a batch for this exact date and language already exists (or is part of a merged batch)
         const exists = newWorkshops.some(w =>
           w.id.startsWith('batch_') &&
-          (w.language || 'English').toLowerCase() === selectedDashboardLang.toLowerCase() &&
+          matchesLanguage(w, selectedDashboardLang) &&
           (w.formFilterKeyword === date || (w.formFilterKeyword || '').split('|').includes(date))
         );
 
@@ -1947,25 +1947,45 @@ export default function NewRegistrationPage() {
                               }}
                               className="text-slate-300 hover:text-indigo-500 transition-colors p-0.5 rounded hover:bg-indigo-50"
                               title="Move Down"
-                            >
-                              <ChevronDown size={12} />
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the other batch:", batch.name);
+                                const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the target batch:", batch.name);
                                 if (newName && newName !== batch.name) {
                                   const targetBatch = workshops.find((w: any) => w && w.id && w.name === newName);
                                   if (targetBatch) {
-                                    if (window.confirm(`Merge "${batch.name}" into "${targetBatch.name}"?`)) {
-                                      setWorkshops(prev => prev.map((w: any) => {
-                                        if (w.id === targetBatch.id) {
-                                          const newFilters = Array.from(new Set([...(w.formFilterKeyword || '').split('|'), ...(batch.formFilterKeyword || '').split('|')])).filter(Boolean).join('|');
-                                          return { ...w, formFilterKeyword: newFilters, leads: (w.leads || 0) + (batch.leads || 0) };
+                                    if (window.confirm(`Merge "${batch.name}" into "${targetBatch.name}"? The source batch "${batch.name}" will be merged and removed.`)) {
+                                      const newFilters = Array.from(new Set([
+                                        ...(targetBatch.formFilterKeyword || '').split('|'),
+                                        ...(batch.formFilterKeyword || '').split('|'),
+                                        batch.name || '',
+                                      ])).filter(Boolean).join('|');
+                                      
+                                      const newWorkshops = workshops
+                                        .filter((w: any) => w.id !== batch.id)
+                                        .map((w: any) => {
+                                          if (w.id === targetBatch.id) {
+                                            return { ...w, formFilterKeyword: newFilters, leads: (w.leads || 0) + (batch.leads || 0) };
+                                          }
+                                          return w;
+                                        });
+
+                                      setWorkshops(newWorkshops);
+                                      if (typeof window !== 'undefined') {
+                                        localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                                        const t = localStorage.getItem('crm_token');
+                                        if (t) {
+                                          fetch('/api/admin/crm/new-registration/state', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+                                            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                                          }).catch(console.error);
                                         }
-                                        return w;
-                                      }));
-                                      if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(targetBatch);
+                                      }
+                                      if (selectedWorkshop?.id === batch.id) {
+                                        setSelectedWorkshop(newWorkshops.find((w: any) => w.id === targetBatch.id) || null);
+                                      }
                                     }
                                   } else {
                                     setWorkshops(prev => prev.map((w: any) => w.id === batch.id ? { ...w, name: newName } : w));
