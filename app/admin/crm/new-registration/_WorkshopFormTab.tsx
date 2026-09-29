@@ -51,11 +51,11 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
     // Auto-run AI-2 on load and every 5 minutes
     if (setWorkshops) {
       // Sync immediately on mount
-      setWorkshops((prev: any[]) => prev.map(w => w.id.startsWith('batch_') ? { ...w, isMovedToLeadsManagement: true } : w));
+      setWorkshops((prev: any[]) => prev.map(w => w && w.id ? { ...w, isMovedToLeadsManagement: true } : w));
       
       // And sync every 5 minutes
       const interval = setInterval(() => {
-        setWorkshops((prev: any[]) => prev.map(w => w.id.startsWith('batch_') ? { ...w, isMovedToLeadsManagement: true } : w));
+        setWorkshops((prev: any[]) => prev.map(w => w && w.id ? { ...w, isMovedToLeadsManagement: true } : w));
       }, 5 * 60 * 1000); 
       
       return () => clearInterval(interval);
@@ -565,8 +565,8 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     <button
                       onClick={() => {
                         if (setWorkshops) {
-                          setWorkshops((prev: any[]) => prev.map(w => w.id.startsWith('batch_') ? { ...w, isMovedToLeadsManagement: true } : w));
-                          toast.success('🤖 AI-2: Successfully processed! All batches are now available in Leads Management.');
+                          setWorkshops((prev: any[]) => prev.map(w => w && w.id ? { ...w, isMovedToLeadsManagement: true } : w));
+                          toast.success('🤖 AI-2: Successfully processed! All batches and forms are now available in Leads Management.');
                         }
                       }}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
@@ -855,7 +855,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
             </div>
             <div className="p-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">1. Select Destination Batch (Keep this one)</label>
+                <label className="text-sm font-bold text-slate-700">1. Select Destination Batch / Form (Keep this one)</label>
                 <select 
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
                   value={mergeTargetId}
@@ -866,20 +866,20 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     }
                   }}
                 >
-                  <option value="">Select a batch...</option>
-                  {workshops.filter((w: any) => w.id.startsWith('batch_')).map((w: any) => (
+                  <option value="">Select destination form/batch...</option>
+                  {workshops.filter((w: any) => w && w.id).map((w: any) => (
                     <option key={w.id} value={w.id}>{w.name} ({w.leads || 0} leads)</option>
                   ))}
                 </select>
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">2. Select Source Batches (Move leads FROM these)</label>
+                <label className="text-sm font-bold text-slate-700">2. Select Source Batches / Forms (Move leads FROM these)</label>
                 <div className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white min-h-[120px] max-h-[200px] overflow-y-auto space-y-1">
-                  {workshops.filter((w: any) => w.id.startsWith('batch_') && w.id !== mergeTargetId).length === 0 ? (
-                    <div className="text-slate-400 p-2 text-center italic">No other batches available</div>
+                  {workshops.filter((w: any) => w && w.id && w.id !== mergeTargetId).length === 0 ? (
+                    <div className="text-slate-400 p-2 text-center italic">No other batches or forms available</div>
                   ) : (
-                    workshops.filter((w: any) => w.id.startsWith('batch_') && w.id !== mergeTargetId).map((w: any) => (
+                    workshops.filter((w: any) => w && w.id && w.id !== mergeTargetId).map((w: any) => (
                       <label key={w.id} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-colors">
                         <input
                           type="checkbox"
@@ -910,27 +910,29 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <button 
                 disabled={!mergeTargetId || mergeSourceIds.length === 0}
                 onClick={() => {
-                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} batch(es) into the destination batch? The source batches will be kept as they are.`)) {
+                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} source item(s) into the destination batch/form? The source items will be kept intact as they are.`)) {
                     let newWorkshops = [...workshops];
                     const target = newWorkshops.find((w: any) => w.id === mergeTargetId);
                     const sources = newWorkshops.filter((w: any) => mergeSourceIds.includes(w.id));
                     if (!target || sources.length === 0) return;
                     
-                    let combinedFilters = target.formFilterKeyword || '';
+                    let combinedKeywords = (target.formFilterKeyword || target.name || '').split('|');
                     let totalLeads = target.leads || 0;
                     
                     sources.forEach((src: any) => {
-                      combinedFilters = Array.from(new Set([...combinedFilters.split('|'), ...(src.formFilterKeyword || '').split('|')])).filter(Boolean).join('|');
+                      const srcKeywords = (src.formFilterKeyword || src.name || '').split('|');
+                      combinedKeywords = [...combinedKeywords, ...srcKeywords];
                       totalLeads += (src.leads || 0);
                     });
                     
+                    const finalKeywords = Array.from(new Set(combinedKeywords.map(k => k.trim()))).filter(Boolean).join('|');
+
                     newWorkshops = newWorkshops.map((w: any) => {
                       if (w.id === mergeTargetId) {
-                        return { ...w, formFilterKeyword: combinedFilters, leads: totalLeads };
+                        return { ...w, formFilterKeyword: finalKeywords, leads: totalLeads };
                       }
                       return w;
                     });
-                    // We intentionally DO NOT delete the source batches to "keep old as it is"
                     
                     setWorkshops(newWorkshops);
                     
@@ -954,7 +956,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                       setSelectedWorkshop(workshops.find((w: any) => w.id === mergeTargetId) || null);
                     }
                     
-                    toast.success('Batches merged successfully!');
+                    toast.success('Data merged successfully!');
                   }
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg shadow-sm transition-all"

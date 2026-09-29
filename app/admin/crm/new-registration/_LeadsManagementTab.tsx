@@ -34,23 +34,47 @@ export function LeadsManagementTab({
 }) {
   const toast = useToast();
 
+  const matchesLanguage = (w: any, targetLang: string) => {
+    if (!w) return false;
+    const wLang = (w.language || 'English').toLowerCase();
+    const tLang = targetLang.toLowerCase();
+
+    if (wLang === tLang) return true;
+
+    const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
+    const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
+    const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
+
+    if (wBase !== tBase) return false;
+
+    const tIsOffer = tLang.includes('offer');
+    const tIsWorkshop = tLang.includes('workshop');
+
+    const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
+    const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
+
+    if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
+    if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
+
+    return true;
+  };
+
   const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
-  const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id?.startsWith('batch_') ? selectedWorkshop.id : '');
+  const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id ? selectedWorkshop.id : '');
   const [activeBatchId, setActiveBatchId] = useState('');
   const [activeTab, setActiveTab] = useState('new_leads');
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 
-  // Auto-select 1st English batch on mount
+  // Auto-select 1st matching batch on mount
   useEffect(() => {
     if (!activeBatchId && workshops && workshops.length > 0) {
-      const firstEnglishBatch = workshops.find(w => w.id?.startsWith('batch_') && (!w.language || w.language.toLowerCase() === 'english workshop' || w.language.toLowerCase() === 'english'));
-      if (firstEnglishBatch) {
-        setSelectedLanguage('English Workshop');
-        setSelectedBatchId(firstEnglishBatch.id);
-        setActiveBatchId(firstEnglishBatch.id);
+      const firstBatch = workshops.find(w => w && w.id && matchesLanguage(w, selectedLanguage || 'English Workshop'));
+      if (firstBatch) {
+        setSelectedBatchId(firstBatch.id);
+        setActiveBatchId(firstBatch.id);
       }
     }
-  }, [activeBatchId, workshops]);
+  }, [activeBatchId, workshops, selectedLanguage]);
 
   const activeBatch = workshops?.find(w => w.id === activeBatchId);
   const activeBatchName = activeBatch?.name || '';
@@ -430,9 +454,7 @@ export function LeadsManagementTab({
 
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
   const filteredBatches = (workshops || []).filter(
-    (w) => w.id.startsWith('batch_') &&
-      (w.language || 'English').toLowerCase() === selectedLanguage.toLowerCase() &&
-      w.isMovedToLeadsManagement
+    (w) => w && w.id && matchesLanguage(w, selectedLanguage) && w.isMovedToLeadsManagement
   );
 
   const handleSubmit = () => {

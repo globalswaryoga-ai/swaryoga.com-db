@@ -1831,14 +1831,24 @@ export default function NewRegistrationPage() {
                         key={lang}
                         onClick={() => {
                           setSelectedDashboardLang(lang);
-                          const masterWorkshop = workshops.find((w: any) =>
-                            !w.id.startsWith('batch_') &&
-                            (w.language?.toLowerCase() === lang.toLowerCase() ||
-                              (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
-                              w.id.toLowerCase().includes(lang.toLowerCase()))
-                          ) || workshops.find((w: any) =>
-                            !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
-                          );
+                          const matchesLanguage = (w: any, targetLang: string) => {
+                            if (!w) return false;
+                            const wLang = (w.language || 'English').toLowerCase();
+                            const tLang = targetLang.toLowerCase();
+                            if (wLang === tLang) return true;
+                            const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
+                            const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
+                            const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
+                            if (wBase !== tBase) return false;
+                            const tIsOffer = tLang.includes('offer');
+                            const tIsWorkshop = tLang.includes('workshop');
+                            const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
+                            const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
+                            if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
+                            if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
+                            return true;
+                          };
+                          const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
                           setSelectedWorkshop(masterWorkshop || null);
                           if (activeTab !== 'my_data') setActiveTab('all_leads'); // Route to All Leads Data if not in my_data
                         }}
@@ -1866,14 +1876,24 @@ export default function NewRegistrationPage() {
                         key={lang}
                         onClick={() => {
                           setSelectedDashboardLang(lang);
-                          const masterWorkshop = workshops.find((w: any) =>
-                            !w.id.startsWith('batch_') &&
-                            (w.language?.toLowerCase() === lang.toLowerCase() ||
-                              (w.name && w.name.toLowerCase().includes(lang.toLowerCase())) ||
-                              w.id.toLowerCase().includes(lang.toLowerCase()))
-                          ) || workshops.find((w: any) =>
-                            !w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === lang.toLowerCase()
-                          );
+                          const matchesLanguage = (w: any, targetLang: string) => {
+                            if (!w) return false;
+                            const wLang = (w.language || 'English').toLowerCase();
+                            const tLang = targetLang.toLowerCase();
+                            if (wLang === tLang) return true;
+                            const baseLangs = ['english', 'hindi', 'marathi', 'kannada'];
+                            const wBase = baseLangs.find(b => wLang.includes(b)) || wLang;
+                            const tBase = baseLangs.find(b => tLang.includes(b)) || tLang;
+                            if (wBase !== tBase) return false;
+                            const tIsOffer = tLang.includes('offer');
+                            const tIsWorkshop = tLang.includes('workshop');
+                            const wIsOffer = wLang.includes('offer') || (w.name || '').toLowerCase().includes('offer');
+                            const wIsWorkshop = wLang.includes('workshop') || (w.name || '').toLowerCase().includes('workshop');
+                            if (tIsOffer) return wIsOffer || (!wIsWorkshop && !wIsOffer);
+                            if (tIsWorkshop) return wIsWorkshop || (!wIsWorkshop && !wIsOffer);
+                            return true;
+                          };
+                          const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
                           setSelectedWorkshop(masterWorkshop || null);
                         }}
                         className={`p-2 rounded-xl border cursor-pointer transition-all flex items-center justify-center text-center ${selectedDashboardLang === lang
@@ -1897,13 +1917,13 @@ export default function NewRegistrationPage() {
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         {selectedDashboardLang} Batches
                       </div>
-                      {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length > 0 && (
+                      {workshops.filter(w => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))).length > 0 && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
-                              setWorkshops(prev => prev.filter(w => !((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_'))));
-                              if (selectedWorkshop?.id?.startsWith('batch_')) setSelectedWorkshop(null);
+                              setWorkshops(prev => prev.filter(w => !((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))));
+                              if (selectedWorkshop) setSelectedWorkshop(null);
                             }
                           }}
                           className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
@@ -1913,10 +1933,10 @@ export default function NewRegistrationPage() {
                       )}
                     </div>
                     <div className="space-y-1">
-                      {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).length === 0 && (
+                      {workshops.filter(w => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))).length === 0 && (
                         <div className="px-2 py-3 text-xs text-slate-400 italic">No batches created yet. Go to My Data and click AI-1.</div>
                       )}
-                      {workshops.filter(w => (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() && w.id.startsWith('batch_')).map(batch => (
+                      {workshops.filter(w => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer')))).map(batch => (
                         <div
                           key={batch.id}
                           onClick={() => {
@@ -1936,7 +1956,7 @@ export default function NewRegistrationPage() {
                                 e.stopPropagation();
                                 setWorkshops(prev => {
                                   const copy = [...prev];
-                                  const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
+                                  const batchIndices = copy.map((w, i) => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer'))) ? i : -1).filter(i => i !== -1);
                                   const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
                                   if (currentI > 0) {
                                     const prevIdx = batchIndices[currentI - 1];
@@ -1956,7 +1976,7 @@ export default function NewRegistrationPage() {
                                 e.stopPropagation();
                                 setWorkshops(prev => {
                                   const copy = [...prev];
-                                  const batchIndices = copy.map((w, i) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() ? i : -1).filter(i => i !== -1);
+                                  const batchIndices = copy.map((w, i) => w && w.id && ((w.language || "English").toLowerCase() === selectedDashboardLang.toLowerCase() || (selectedDashboardLang.toLowerCase().includes('offer') && (w.name || '').toLowerCase().includes('offer'))) ? i : -1).filter(i => i !== -1);
                                   const currentI = batchIndices.findIndex(idx => copy[idx].id === batch.id);
                                   if (currentI < batchIndices.length - 1) {
                                     const nextIdx = batchIndices[currentI + 1];
@@ -1976,7 +1996,7 @@ export default function NewRegistrationPage() {
                                 e.stopPropagation();
                                 const newName = window.prompt("Rename Batch. To MERGE with another batch, type the exact name of the other batch:", batch.name);
                                 if (newName && newName !== batch.name) {
-                                  const targetBatch = workshops.find((w: any) => w.id.startsWith('batch_') && (w.language || "English").toLowerCase() === (batch.language || "English").toLowerCase() && w.name === newName);
+                                  const targetBatch = workshops.find((w: any) => w && w.id && w.name === newName);
                                   if (targetBatch) {
                                     if (window.confirm(`Merge "${batch.name}" into "${targetBatch.name}"?`)) {
                                       setWorkshops(prev => prev.map((w: any) => {
@@ -1985,7 +2005,7 @@ export default function NewRegistrationPage() {
                                           return { ...w, formFilterKeyword: newFilters, leads: (w.leads || 0) + (batch.leads || 0) };
                                         }
                                         return w;
-                                      }).filter((w: any) => w.id !== batch.id));
+                                      }));
                                       if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(targetBatch);
                                     }
                                   } else {
