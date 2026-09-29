@@ -153,9 +153,16 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                   >
                     <option value="All Leads">All Leads</option>
                     <option value="New Leads">New Leads</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Registered">Registered</option>
+                    <option value="Pending Leads">Pending Leads</option>
+                    <option value="Pending Leads-1">Pending Leads-1</option>
+                    <option value="Pending Leads-2">Pending Leads-2</option>
+                    <option value="Pending Leads-3">Pending Leads-3</option>
+                    <option value="Aprovel-1">Aprovel-1</option>
+                    <option value="Aprovel-2">Aprovel-2</option>
+                    <option value="Registerd leads">Registerd leads</option>
+                    <option value="Set zoom meeting">Set zoom meeting</option>
+                    <option value="Take Zoom Meeting">Take Zoom Meeting</option>
+                    <option value="Rejected leads">Rejected leads</option>
                   </select>
                 </div>
               </div>
