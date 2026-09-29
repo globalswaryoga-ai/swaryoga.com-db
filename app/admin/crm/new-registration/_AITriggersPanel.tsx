@@ -8,7 +8,9 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
   // Form State
   const [channel, setChannel] = useState<'meta' | 'qr' | 'group'>('meta');
   const [template, setTemplate] = useState('');
-  const [audience, setAudience] = useState('');
+  const [targetLang, setTargetLang] = useState('English');
+  const [targetBatch, setTargetBatch] = useState('');
+  const [targetCategory, setTargetCategory] = useState('All Leads');
   
   // Schedule State
   const [selectedDates, setSelectedDates] = useState<number[]>([]);
@@ -36,11 +38,14 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
       return;
     }
     
+    const batchName = targetBatch ? workshops?.find(w => w.id === targetBatch)?.name || targetBatch : 'All Batches';
+    const finalAudience = `${targetLang} | ${batchName} | ${targetCategory}`;
+    
     const newTrigger = {
       id: Date.now().toString(),
       channel,
       template,
-      audience: audience || 'All Leads',
+      audience: finalAudience,
       dates: selectedDates,
       time: scheduleTime,
       repeat: repeatMode,
@@ -92,27 +97,67 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
               </div>
             </div>
 
-            {/* Template & Audience */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Template & Target Selection (Two Rows) */}
+            <div className="flex flex-col gap-4">
+              {/* Row 1: Template Name */}
               <div>
                 <label className="text-xs font-semibold text-gray-700 mb-1 block">Template Name</label>
-                <input 
-                  type="text" 
+                <select 
                   value={template}
                   onChange={e => setTemplate(e.target.value)}
-                  placeholder="e.g. welcome_message"
                   className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
-                />
+                >
+                  <option value="">Select Template</option>
+                  <option value="welcome_message">welcome_message</option>
+                  <option value="workshop_reminder">workshop_reminder</option>
+                  <option value="follow_up_1">follow_up_1</option>
+                  <option value="payment_link">payment_link</option>
+                  <option value="custom_message">custom_message</option>
+                </select>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1 block">Target Audience</label>
-                <input 
-                  type="text" 
-                  value={audience}
-                  onChange={e => setAudience(e.target.value)}
-                  placeholder="e.g. Approved Leads"
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
-                />
+
+              {/* Row 2: Target Audience Filters */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Language</label>
+                  <select 
+                    value={targetLang}
+                    onChange={e => setTargetLang(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
+                  >
+                    <option value="English">English</option>
+                    <option value="Hindi">Hindi</option>
+                    <option value="Marathi">Marathi</option>
+                    <option value="Kannada">Kannada</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Batch</label>
+                  <select 
+                    value={targetBatch}
+                    onChange={e => setTargetBatch(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
+                  >
+                    <option value="">All Batches</option>
+                    {workshops?.map(w => (
+                      <option key={w.id} value={w.id} title={w.name}>{w.name.length > 20 ? w.name.substring(0, 20) + '...' : w.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Category</label>
+                  <select 
+                    value={targetCategory}
+                    onChange={e => setTargetCategory(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
+                  >
+                    <option value="All Leads">All Leads</option>
+                    <option value="New Leads">New Leads</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Registered">Registered</option>
+                  </select>
+                </div>
               </div>
             </div>
 
