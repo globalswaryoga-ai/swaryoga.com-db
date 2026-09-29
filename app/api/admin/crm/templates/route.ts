@@ -220,10 +220,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: templateId' }, { status: 400 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(String(templateId))) {
-      return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
-    }
-
     if (action === 'approve') {
       const template = await updateTemplate(templateId, { status: 'approved', approvedBy: decoded.userId, approvalDate: new Date() });
       if (!template) {
@@ -342,10 +338,6 @@ export async function DELETE(request: NextRequest) {
 
     if (!templateId) {
       return NextResponse.json({ error: 'templateId parameter required' }, { status: 400 });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(templateId)) {
-      return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
     }
 
     // Get template before deleting to clean up S3 files
