@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap } from 'lucide-react';
+import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; leadsData: any[] }) {
   const toast = useToast();
+  const token = useAuth();
   
   // Form State
   const [channel, setChannel] = useState<'meta' | 'qr' | 'group'>('meta');
@@ -20,13 +22,14 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
   // Templates State
   const [templates, setTemplates] = useState<any[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
   // Trigger List
   const [triggers, setTriggers] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchTemplates();
-  }, []);
+    if (token) fetchTemplates();
+  }, [token]);
 
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
@@ -34,7 +37,6 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
       const url = new URL('/api/admin/crm/templates', typeof window !== 'undefined' ? window.location.origin : '');
       url.searchParams.append('limit', '100');
       
-      const token = localStorage.getItem('token') || '';
       const response = await fetch(url.toString(), {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -131,22 +133,17 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
               {/* Row 1: Template Name */}
               <div>
                 <label className="text-xs font-semibold text-gray-700 mb-1 block">Template Name</label>
-                <select 
-                  value={template}
-                  onChange={e => setTemplate(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
-                >
-                  <option value="">{loadingTemplates ? 'Loading templates...' : 'Select Template'}</option>
-                  {templates.map(t => {
-                    const tName = t.templateName || t.name;
-                    return (
-                      <option key={t._id || t.id || tName} value={tName}>
-                        {tName} ({t.language || 'en'})
-                      </option>
-                    );
-                  })}
-                  <option value="custom_message">custom_message (Manual)</option>
-                </select>
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center">
+                    {template || 'No template selected'}
+                  </div>
+                  <button 
+                    onClick={() => setIsTemplateModalOpen(true)}
+                    className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Select Template
+                  </button>
+                </div>
               </div>
 
               {/* Row 2: Target Audience Filters */}
@@ -317,6 +314,63 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
         )}
       </div>
       
+    </div>
+
+      {/* ── Template Selector Modal ── */}
+      {isTemplateModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsTemplateModalOpen(false)}></div>
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="font-bold text-gray-900 text-lg">Select a Template</h3>
+              <button onClick={() => setIsTemplateModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto flex-1 bg-gray-50">
+              {loadingTemplates ? (
+                <div className="text-center py-10 text-gray-500 text-sm">Loading templates...</div>
+              ) : templates.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 text-sm">No templates found.</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div 
+                    onClick={() => { setTemplate('custom_message'); setIsTemplateModalOpen(false); }}
+                    className={`cursor-pointer border p-4 rounded-xl transition-all ${
+                      template === 'custom_message' ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-white hover:border-violet-300'
+                    }`}
+                  >
+                    <h4 className="font-semibold text-gray-900 text-sm mb-1">custom_message</h4>
+                    <p className="text-xs text-gray-500">(Manual)</p>
+                  </div>
+                  {templates.map(t => {
+                    const tName = t.templateName || t.name;
+                    return (
+                      <div 
+                        key={t._id || t.id || tName}
+                        onClick={() => { setTemplate(tName); setIsTemplateModalOpen(false); }}
+                        className={`cursor-pointer border p-4 rounded-xl transition-all ${
+                          template === tName ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-white hover:border-violet-300'
+                        }`}
+                      >
+                        <h4 className="font-semibold text-gray-900 text-sm mb-1">{tName}</h4>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                          <span className="bg-gray-100 px-2 py-0.5 rounded-md">{t.language || 'en'}</span>
+                          <span className="bg-gray-100 px-2 py-0.5 rounded-md capitalize">{t.provider || 'unknown'}</span>
+                          <span className={`px-2 py-0.5 rounded-md ${t.status === 'APPROVED' || t.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {t.status || 'unknown'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
