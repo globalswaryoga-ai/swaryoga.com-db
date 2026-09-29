@@ -4,21 +4,9 @@ import CreateTemplatePage from '@/app/admin/crm/templates/builder/page';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { BroadcastNRTab } from './_BroadcastNRTab';
-import dynamic from 'next/dynamic';
-
-// Dynamically import heavy broadcast pages to avoid SSR issues
-const MetaBroadcastPage = dynamic(
-  () => import('@/app/admin/crm/broadcast/page'),
-  { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-slate-400"><RefreshCw className="animate-spin" /></div> }
-);
-const QRBroadcastPage = dynamic(
-  () => import('@/app/admin/crm/qr/broadcast/page'),
-  { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-slate-400"><RefreshCw className="animate-spin" /></div> }
-);
-const GroupSchedulerPage = dynamic(
-  () => import('@/app/admin/crm/qr/group-scheduler/page'),
-  { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-slate-400"><RefreshCw className="animate-spin" /></div> }
-);
+import MetaBroadcastPage from '@/app/admin/crm/broadcast/page';
+import QRBroadcastPage from '@/app/admin/crm/qr/broadcast/page';
+import GroupSchedulerPage from '@/app/admin/crm/qr/group-scheduler/page';
 
 const WhatsAppTabs = [
   { id: 'meta_whatsapp', label: 'Meta WhatsApp', icon: MessageSquare },
