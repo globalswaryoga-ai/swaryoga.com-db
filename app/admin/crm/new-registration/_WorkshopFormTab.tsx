@@ -903,27 +903,41 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <button 
                 disabled={!mergeTargetId || mergeSourceIds.length === 0}
                 onClick={() => {
-                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} batch(es) into the destination batch? The source batches will be deleted.`)) {
-                    setWorkshops((prev: any) => {
-                      const target = prev.find((w: any) => w.id === mergeTargetId);
-                      const sources = prev.filter((w: any) => mergeSourceIds.includes(w.id));
-                      if (!target || sources.length === 0) return prev;
-                      
-                      let combinedFilters = target.formFilterKeyword || '';
-                      let totalLeads = target.leads || 0;
-                      
-                      sources.forEach((src: any) => {
-                        combinedFilters = Array.from(new Set([...combinedFilters.split('|'), ...(src.formFilterKeyword || '').split('|')])).filter(Boolean).join('|');
-                        totalLeads += (src.leads || 0);
-                      });
-                      
-                      return prev.map((w: any) => {
-                        if (w.id === mergeTargetId) {
-                          return { ...w, formFilterKeyword: combinedFilters, leads: totalLeads };
-                        }
-                        return w;
-                      }).filter((w: any) => !mergeSourceIds.includes(w.id));
+                  if (window.confirm(`Are you sure you want to merge ${mergeSourceIds.length} batch(es) into the destination batch? The source batches will be kept as they are.`)) {
+                    let newWorkshops = [...workshops];
+                    const target = newWorkshops.find((w: any) => w.id === mergeTargetId);
+                    const sources = newWorkshops.filter((w: any) => mergeSourceIds.includes(w.id));
+                    if (!target || sources.length === 0) return;
+                    
+                    let combinedFilters = target.formFilterKeyword || '';
+                    let totalLeads = target.leads || 0;
+                    
+                    sources.forEach((src: any) => {
+                      combinedFilters = Array.from(new Set([...combinedFilters.split('|'), ...(src.formFilterKeyword || '').split('|')])).filter(Boolean).join('|');
+                      totalLeads += (src.leads || 0);
                     });
+                    
+                    newWorkshops = newWorkshops.map((w: any) => {
+                      if (w.id === mergeTargetId) {
+                        return { ...w, formFilterKeyword: combinedFilters, leads: totalLeads };
+                      }
+                      return w;
+                    });
+                    // We intentionally DO NOT delete the source batches to "keep old as it is"
+                    
+                    setWorkshops(newWorkshops);
+                    
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                      const t = localStorage.getItem('crm_token');
+                      if (t) {
+                        fetch('/api/admin/crm/new-registration/state', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+                          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                        }).catch(console.error);
+                      }
+                    }
                     
                     setIsMergeModalOpen(false);
                     setMergeTargetId('');
