@@ -372,6 +372,7 @@ export default function BroadcastPage(props: any) {
   const [showQuotaDashboard, setShowQuotaDashboard] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showLeadsList, setShowLeadsList] = useState(false);
+  const [filterLanguage, setFilterLanguage] = useState('all');
   
   // Bulk Messaging State
   const [bulkStats, setBulkStats] = useState<BulkStats | null>(null);
@@ -1202,7 +1203,7 @@ export default function BroadcastPage(props: any) {
   // RENDER HELPERS
   // ============================================================================
   const renderStepIndicator = () => (
-    <div className="flex items-center justify-center gap-2 mb-8">
+    <div className="flex items-center justify-start gap-2 mb-0">
       {[
         { num: 1, label: 'Recipients', icon: '👥' },
         { num: 2, label: 'Template', icon: '📋' },
@@ -1498,40 +1499,91 @@ export default function BroadcastPage(props: any) {
           </div>
         )}
 
-        {/* Step Indicator */}
-        {renderStepIndicator()}
+        {/* Row 1: Step Indicator and Toggles */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          {renderStepIndicator()}
+          
+          {step === 1 && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium shadow-sm"
+              >
+                {showAdvancedFilters ? '− Hide CSV & Extra Filters' : '+ Show CSV & Extra Filters'}
+              </button>
+              <button
+                onClick={() => setShowLeadsList(!showLeadsList)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium shadow-sm"
+              >
+                {showLeadsList ? '− Hide Leads' : '+ Show Leads'}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Step 1: Recipients */}
         {step === 1 && (
           <div className="bg-white rounded-2xl shadow-xl border p-6 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                👥 Select Recipients
-                <span className="text-sm font-normal text-gray-500">({filteredLeads.length} available)</span>
-              </h2>
+            {/* Row 2: Search */}
+            <div className="flex items-center gap-3 mb-4 border-b pb-4">
               <input
                 type="text"
                 placeholder="🔍 Search name or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-56 text-sm"
+                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 flex-1 sm:flex-none sm:w-80 text-sm"
               />
+              <button className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium transition-colors text-sm">
+                Search
+              </button>
             </div>
 
-            <div className="flex items-center gap-3 mb-4">
+            {/* Row 3: Quick Filters & Next Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl mb-6 border">
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={filterLanguage}
+                  onChange={(e) => setFilterLanguage(e.target.value)}
+                  className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[120px]"
+                >
+                  <option value="all">All Languages</option>
+                  <option value="en">English</option>
+                  <option value="hi">Hindi</option>
+                  <option value="mr">Marathi</option>
+                  <option value="kn">Kannada</option>
+                </select>
+
+                <select
+                  value={filterWorkshop}
+                  onChange={(e) => setFilterWorkshop(e.target.value)}
+                  className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[160px]"
+                >
+                  <option value="all">Batches Name (All)</option>
+                  {uniqueWorkshops.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="px-3 py-2 border rounded-lg bg-white text-sm min-w-[180px]"
+                >
+                  <option value="all">Leads Management (All)</option>
+                  {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
               <button
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
+                onClick={() => setStep(2)}
+                disabled={!canProceedToStep2}
+                className={`px-6 py-2 rounded-lg font-bold transition-all duration-300 shadow-sm whitespace-nowrap ${
+                  canProceedToStep2 ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
               >
-                {showAdvancedFilters ? '− Hide Filters & Upload' : '+ Show Filters & Upload'}
-              </button>
-              <button
-                onClick={() => setShowLeadsList(!showLeadsList)}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
-              >
-                {showLeadsList ? '− Hide Leads' : '+ Show Leads'}
+                Next: Choose Template →
               </button>
             </div>
+
+
 
             {showAdvancedFilters && (
               <>
@@ -1663,21 +1715,11 @@ export default function BroadcastPage(props: any) {
               )}
             </div>
 
-            {/* Filters Row */}
+            {showAdvancedFilters && (
+              <>
+            {/* Extra Filters Row */}
             <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
-              <span className="text-sm font-medium text-gray-600 mr-1">🎯 Filter:</span>
-              
-              {/* Status Filter */}
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[120px]"
-              >
-                <option value="all">All Status</option>
-                {uniqueStatuses.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <span className="text-sm font-medium text-gray-600 mr-1">🎯 Extra Filters:</span>
 
               {/* Delivery Status Filter — from each lead's most recent Meta
                   message (see broadcast-runs/latest-status), not the CRM lead
@@ -1727,19 +1769,7 @@ export default function BroadcastPage(props: any) {
                 )}
               </div>
 
-              {/* Workshop Filter */}
-              {uniqueWorkshops.length > 0 && (
-                <select
-                  value={filterWorkshop}
-                  onChange={(e) => setFilterWorkshop(e.target.value)}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm bg-white min-w-[140px]"
-                >
-                  <option value="all">All Workshops</option>
-                  {uniqueWorkshops.map(w => (
-                    <option key={w} value={w}>{w}</option>
-                  ))}
-                </select>
-              )}
+
 
               {/* Assigned User Filter */}
               {uniqueAssignedUsers.length > 0 && (
@@ -1865,22 +1895,6 @@ export default function BroadcastPage(props: any) {
             </div>
             </>
           )}
-
-          {/* Next Button */}
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setStep(2)}
-                disabled={!canProceedToStep2}
-                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
-                  canProceedToStep2
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-indigo-500/30 hover:scale-105'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                Next: Choose Template
-                <span>→</span>
-              </button>
-            </div>
           </div>
         )}
 
