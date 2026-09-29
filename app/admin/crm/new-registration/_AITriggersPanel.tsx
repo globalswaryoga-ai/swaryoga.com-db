@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X } from 'lucide-react';
+import { Calendar, Repeat, MessageSquare, Send, CheckCircle, Clock, Save, Zap, X, Users } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -14,10 +14,14 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
   const [targetBatch, setTargetBatch] = useState('');
   const [targetCategory, setTargetCategory] = useState('All Leads');
   
+  // Preview Modal
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  
   // Schedule State
-  const [selectedDates, setSelectedDates] = useState<number[]>([]);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [scheduleTime, setScheduleTime] = useState('10:00');
   const [repeatMode, setRepeatMode] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('monthly');
+  const [currentDate, setCurrentDate] = useState(() => new Date());
 
   // Templates State
   const [templates, setTemplates] = useState<any[]>([]);
@@ -51,7 +55,7 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
     }
   };
 
-  const toggleDate = (date: number) => {
+  const toggleDate = (date: string) => {
     setSelectedDates(prev => 
       prev.includes(date) 
         ? prev.filter(d => d !== date)
@@ -90,6 +94,39 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
     setSelectedDates([]);
     setTemplate('');
   };
+
+  const filteredPreviewLeads = React.useMemo(() => {
+    return leadsData.filter(lead => {
+      // Match Language
+      if (targetLang && targetLang !== 'All') {
+        const langStr = String(lead.language || (lead.dynamicAnswers && lead.dynamicAnswers['Language']) || '').toLowerCase();
+        if (!langStr.includes(targetLang.toLowerCase())) return false;
+      }
+      // Match Batch
+      if (targetBatch) {
+        if (lead.workshopId !== targetBatch) return false;
+      }
+      // Category matching is complex without external state, skip for basic preview
+      return true;
+    });
+  }, [leadsData, targetLang, targetBatch]);
+
+  const filteredWorkshops = React.useMemo(() => {
+    if (!workshops) return [];
+    return workshops.filter(w => !w.language || w.language.toLowerCase() === targetLang.toLowerCase());
+  }, [workshops, targetLang]);
+
+  const filteredTemplates = React.useMemo(() => {
+    if (!templates) return [];
+    return templates.filter(t => {
+      const tLang = (t.language || '').toLowerCase();
+      const target = targetLang.toLowerCase();
+      // Match exactly or if template language is 'en' and target is 'english'
+      if (tLang === target) return true;
+      if (target.startsWith(tLang) || tLang.startsWith(target)) return true;
+      return false;
+    });
+  }, [templates, targetLang]);
 
   return (
     <div className="p-6 bg-white min-h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6">
@@ -169,8 +206,8 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                     className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none transition"
                   >
                     <option value="">All Batches</option>
-                    {workshops?.map(w => (
-                      <option key={w.id} value={w.id} title={w.name}>{w.name.length > 20 ? w.name.substring(0, 20) + '...' : w.name}</option>
+                    {filteredWorkshops.map(w => (
+                      <option key={w.id} value={w.id} title={w.name}>{w.name.length > 30 ? w.name.substring(0, 30) + '...' : w.name}</option>
                     ))}
                   </select>
                 </div>
@@ -198,33 +235,64 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
               </div>
             </div>
 
-            {/* Scheduling & Recurrence */}
-            <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm mt-2">
-              <div className="flex items-center justify-between mb-4">
-                <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5"><Calendar size={14} className="text-violet-500"/> Schedule Dates</label>
-                <div className="flex items-center gap-2">
-                  <Repeat size={14} className="text-gray-400" />
-                  <select 
-                    value={repeatMode}
-                    onChange={e => setRepeatMode(e.target.value as any)}
-                    className="text-xs font-semibold bg-gray-50 border-none rounded-lg px-2 py-1 text-gray-700 outline-none"
-                  >
-                    <option value="none">Does not repeat</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
+              {/* Scheduling & Recurrence */}
+              <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm mt-2">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5"><Calendar size={14} className="text-violet-500"/> Schedule Dates</label>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setIsPreviewModalOpen(true)}
+                      className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1 transition"
+                    >
+                      <Users size={12} /> Preview ({filteredPreviewLeads.length})
+                    </button>
+                    <Repeat size={14} className="text-gray-400 ml-2" />
+                    <select 
+                      value={repeatMode}
+                      onChange={e => setRepeatMode(e.target.value as any)}
+                      className="text-xs font-semibold bg-gray-50 border-none rounded-lg px-2 py-1 text-gray-700 outline-none"
+                    >
+                      <option value="none">Does not repeat</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
 
               {/* Mini Calendar Grid */}
+              <div className="flex justify-between items-center mb-2 px-1">
+                <button 
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+                  className="p-1 hover:bg-gray-100 rounded text-gray-500 font-bold text-sm transition"
+                >
+                  &lt;
+                </button>
+                <span className="text-sm font-bold text-gray-800">
+                  {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </span>
+                <button 
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+                  className="p-1 hover:bg-gray-100 rounded text-gray-500 font-bold text-sm transition"
+                >
+                  &gt;
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-400 mb-2">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => <div key={d}>{d}</div>)}
+              </div>
               <div className="grid grid-cols-7 gap-1.5 mb-4">
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(date => {
-                  const isSelected = selectedDates.includes(date);
+                {Array.from({ length: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay() }).map((_, i) => (
+                  <div key={`empty-${i}`} />
+                ))}
+                {Array.from({ length: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate() }, (_, i) => {
+                  const day = i + 1;
+                  const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const isSelected = selectedDates.includes(dateStr);
                   return (
                     <button
-                      key={date}
-                      onClick={() => toggleDate(date)}
+                      key={dateStr}
+                      onClick={() => toggleDate(dateStr)}
                       className={`
                         h-8 w-full rounded-md text-xs font-bold transition-all duration-200
                         ${isSelected 
@@ -233,7 +301,7 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                         }
                       `}
                     >
-                      {date}
+                      {day}
                     </button>
                   );
                 })}
@@ -297,8 +365,8 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                 
                 <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between text-xs font-semibold">
                   <div className="flex items-center gap-4">
-                    <span className="text-indigo-600 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md">
-                      <Calendar size={12} /> Dates: {trigger.dates.sort((a: number, b: number) => a - b).join(', ')}
+                    <span className="text-indigo-600 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md text-xs">
+                      <Calendar size={12} /> {trigger.dates.length} date(s)
                     </span>
                     <span className="text-gray-600 flex items-center gap-1">
                       <Clock size={12} /> {trigger.time}
@@ -329,8 +397,8 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
             <div className="p-4 overflow-y-auto flex-1 bg-gray-50">
               {loadingTemplates ? (
                 <div className="text-center py-10 text-gray-500 text-sm">Loading templates...</div>
-              ) : templates.length === 0 ? (
-                <div className="text-center py-10 text-gray-500 text-sm">No templates found.</div>
+              ) : filteredTemplates.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 text-sm">No templates found for {targetLang}.</div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div 
@@ -342,7 +410,7 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                     <h4 className="font-semibold text-gray-900 text-sm mb-1">custom_message</h4>
                     <p className="text-xs text-gray-500">(Manual)</p>
                   </div>
-                  {templates.map(t => {
+                  {filteredTemplates.map(t => {
                     const tName = t.templateName || t.name;
                     return (
                       <div 
@@ -360,6 +428,45 @@ export function AITriggersPanel({ workshops, leadsData }: { workshops: any[]; le
                             {t.status || 'unknown'}
                           </span>
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Preview Leads Modal ── */}
+      {isPreviewModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsPreviewModalOpen(false)}></div>
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                <Users size={18} className="text-indigo-500" /> 
+                Selected Leads ({filteredPreviewLeads.length})
+              </h3>
+              <button onClick={() => setIsPreviewModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto flex-1 bg-gray-50">
+              {filteredPreviewLeads.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 text-sm">No leads match the selected Language and Batch.</div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredPreviewLeads.map((lead, idx) => {
+                    const raw = lead._rawRecord || {};
+                    const name = lead.name || raw['Name'] || raw['NAME'] || 'Unknown';
+                    const mobile = lead.mobile || lead.phoneNumber || raw['Mobile'] || raw['MOBILE'] || 'No number';
+                    
+                    return (
+                      <div key={lead.id || idx} className="bg-white border border-gray-100 rounded-lg p-3 flex justify-between items-center shadow-sm">
+                        <div className="font-semibold text-sm text-gray-800">{name}</div>
+                        <div className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-mono font-medium">{mobile}</div>
                       </div>
                     );
                   })}
