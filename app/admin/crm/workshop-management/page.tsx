@@ -892,10 +892,12 @@ export default function WorkshopManagementPage() {
         headers,
       });
       if (!res.ok) throw new Error('Failed to delete recording');
-      addToast('Recording deleted successfully', 'success');
+      if (toast?.success) toast.success('Recording deleted successfully');
+      else alert('Recording deleted successfully');
       if (selected) await load(selected._id);
     } catch (err: any) {
-      addToast(err.message || 'Error deleting recording', 'error');
+      if (toast?.error) toast.error(err.message || 'Error deleting recording');
+      else alert(err.message || 'Error deleting recording');
     }
   };
 
