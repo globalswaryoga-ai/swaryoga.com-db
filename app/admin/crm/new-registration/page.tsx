@@ -394,7 +394,19 @@ export default function NewRegistrationPage() {
       // Find all unique dates from the leads
       const uniqueDates = new Set<string>();
       leadsData.forEach((lead: any) => {
-        const dateVal = (lead._rawRecord && lead._rawRecord[formField]) || (lead.dynamicAnswers && lead.dynamicAnswers[formField]);
+        let dateVal: any = undefined;
+        const searchCol = formField.toLowerCase();
+        
+        const findVal = (obj: any) => {
+          if (!obj) return undefined;
+          if (obj[formField] !== undefined) return obj[formField];
+          const key = Object.keys(obj).find(k => k.toLowerCase().includes(searchCol));
+          return key ? obj[key] : undefined;
+        };
+        
+        dateVal = findVal(lead._rawRecord);
+        if (dateVal === undefined) dateVal = findVal(lead.dynamicAnswers);
+
         if (dateVal && String(dateVal).trim() !== '') {
           uniqueDates.add(String(dateVal).trim());
         }
@@ -1618,7 +1630,19 @@ export default function NewRegistrationPage() {
       // Find all unique dates from the leads
       const uniqueDates = new Set<string>();
       leadsData.forEach((lead: any) => {
-        const dateVal = (lead._rawRecord && lead._rawRecord[formField]) || (lead.dynamicAnswers && lead.dynamicAnswers[formField]);
+        let dateVal: any = undefined;
+        const searchCol = formField.toLowerCase();
+        
+        const findVal = (obj: any) => {
+          if (!obj) return undefined;
+          if (obj[formField] !== undefined) return obj[formField];
+          const key = Object.keys(obj).find(k => k.toLowerCase().includes(searchCol));
+          return key ? obj[key] : undefined;
+        };
+        
+        dateVal = findVal(lead._rawRecord);
+        if (dateVal === undefined) dateVal = findVal(lead.dynamicAnswers);
+
         if (dateVal && String(dateVal).trim() !== '') {
           uniqueDates.add(String(dateVal).trim());
         }
