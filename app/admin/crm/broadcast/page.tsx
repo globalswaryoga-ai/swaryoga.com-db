@@ -370,6 +370,7 @@ export default function BroadcastPage(props: any) {
   const [result, setResult] = useState<{ success: boolean; message: string; runId?: string } | null>(null);
   const [showRecentRuns, setShowRecentRuns] = useState(false);
   const [showQuotaDashboard, setShowQuotaDashboard] = useState(true);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
   // Bulk Messaging State
   const [bulkStats, setBulkStats] = useState<BulkStats | null>(null);
@@ -1518,9 +1519,20 @@ export default function BroadcastPage(props: any) {
               />
             </div>
 
-            {/* CSV Upload Section */}
-            <div className="mb-4">
-              <input
+            <div className="flex justify-between items-center mb-4">
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
+              >
+                {showAdvancedFilters ? '− Hide Advanced Filters & Upload' : '+ Show Advanced Filters & Upload'}
+              </button>
+            </div>
+
+            {showAdvancedFilters && (
+              <>
+                {/* CSV Upload Section */}
+                <div className="mb-4">
+                  <input
                 ref={csvFileRef}
                 type="file"
                 accept=".csv,.txt,.tsv"
@@ -1753,8 +1765,10 @@ export default function BroadcastPage(props: any) {
                 </button>
               )}
             </div>
+            </>
+          )}
 
-            {/* Selection Bar */}
+          {/* Selection Bar */}
             <div className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-indigo-50 rounded-xl mb-4">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <input
