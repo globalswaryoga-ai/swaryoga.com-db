@@ -585,13 +585,20 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
                 {p.activeTab !== 'my_batches' && (
                   <>
-                    <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100 mr-2">
-                      <span className="text-xs font-bold text-purple-700" title="Automatically creates batches every 5 minutes">🤖 AI-1A Auto-Sync Active</span>
+                    <button 
+                      onClick={() => {
+                        if (p.handleAi1BatchCreate) p.handleAi1BatchCreate();
+                      }}
+                      disabled={p.isAi1Processing}
+                      className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100 transition-colors px-3 py-1.5 rounded-lg border border-purple-200 shadow-sm mr-2 cursor-pointer disabled:opacity-50"
+                      title="Click to instantly run Auto-Sync, or let it run every 5 minutes"
+                    >
+                      <span className="text-xs font-bold text-purple-700">🤖 AI-1A Auto-Sync {p.isAi1Processing ? '...' : ''}</span>
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
                       </span>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2">
                       <span className="text-xs font-bold text-indigo-700">AI-1</span>
                       <input
