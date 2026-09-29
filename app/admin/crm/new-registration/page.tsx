@@ -394,8 +394,7 @@ export default function NewRegistrationPage() {
       // Find all unique dates from the leads
       const uniqueDates = new Set<string>();
       leadsData.forEach((lead: any) => {
-        const raw = lead._rawRecord || {};
-        const dateVal = raw[formField];
+        const dateVal = (lead._rawRecord && lead._rawRecord[formField]) || (lead.dynamicAnswers && lead.dynamicAnswers[formField]);
         if (dateVal && String(dateVal).trim() !== '') {
           uniqueDates.add(String(dateVal).trim());
         }
@@ -457,7 +456,7 @@ export default function NewRegistrationPage() {
             body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
           }).catch(err => console.error('Auto-sync error:', err));
           
-          toast.success(`🤖 AI-1 Auto-Sync: Created or updated batches from new leads!`);
+          toast.success(`🤖 AI-1A Auto-Worker: Created or updated batches from new leads!`);
           return newWorkshops;
         }
         return prevWorkshops;
@@ -1619,8 +1618,7 @@ export default function NewRegistrationPage() {
       // Find all unique dates from the leads
       const uniqueDates = new Set<string>();
       leadsData.forEach((lead: any) => {
-        const raw = lead._rawRecord || {};
-        const dateVal = raw[formField];
+        const dateVal = (lead._rawRecord && lead._rawRecord[formField]) || (lead.dynamicAnswers && lead.dynamicAnswers[formField]);
         if (dateVal && String(dateVal).trim() !== '') {
           uniqueDates.add(String(dateVal).trim());
         }
@@ -1673,7 +1671,7 @@ export default function NewRegistrationPage() {
           body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
         });
 
-        toast.success(`AI-1 created ${addedCount} new batches successfully!`);
+        toast.success(`AI-1A created ${addedCount} new batches successfully!`);
       } else {
         toast.success('All batches for the current dates already exist.');
       }

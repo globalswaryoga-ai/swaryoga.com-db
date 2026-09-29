@@ -586,7 +586,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                 {p.activeTab !== 'my_batches' && (
                   <>
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2">
-                      <span className="text-xs font-bold text-indigo-700">AI-1</span>
+                      <span className="text-xs font-bold text-indigo-700">AI-1A</span>
                       <input
                         type="text"
                         placeholder="Col # or Name"
