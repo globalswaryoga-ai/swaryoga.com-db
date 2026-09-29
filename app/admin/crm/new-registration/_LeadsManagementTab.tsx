@@ -430,9 +430,50 @@ export function LeadsManagementTab({
     toast.success('Batch selected. Ready to load leads...');
   };
 
-
-
-
+  const tabCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!activeBatchLeads || activeBatchLeads.length === 0) return counts;
+    
+    SIDEBAR_TABS.forEach(tab => {
+      let count = 0;
+      if (tab.id === 'take_zoom_meeting') {
+        count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
+      } else if (tab.id === 'new_leads') {
+        count = activeBatchLeads.length;
+      } else if (tab.id === 'pending_leads') {
+        count = activeBatchLeads.filter(l => {
+          const dec = batchDecisions[l.id] || {};
+          return dec.status?.includes('pending') && !dec.isRejected && !dec.isRegistered;
+        }).length;
+      } else if (tab.id === 'approval_1') {
+        count = activeBatchLeads.filter(l => {
+          const dec = batchDecisions[l.id] || {};
+          return dec.status && !['new_leads', 'pending_leads_1'].includes(dec.status);
+        }).length;
+      } else if (tab.id === 'approval_2') {
+        count = activeBatchLeads.filter(l => {
+          const dec = batchDecisions[l.id] || {};
+          return ['approval_2', 'pending_leads_3'].includes(dec.status) && !dec.isRejected;
+        }).length;
+      } else if (tab.id === 'registered_leads') {
+        count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
+      } else if (tab.id === 'rejected_leads') {
+        count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRejected).length;
+      } else if (tab.id === 'pending_leads_3') {
+        count = activeBatchLeads.filter(l => {
+          const dec = batchDecisions[l.id] || {};
+          return dec.status === 'pending_leads_3' && !dec.isRegistered;
+        }).length;
+      } else {
+        count = activeBatchLeads.filter(l => {
+          const dec = batchDecisions[l.id] || {};
+          return dec.status === tab.id && !dec.isRejected && !dec.isRegistered;
+        }).length;
+      }
+      counts[tab.id] = count;
+    });
+    return counts;
+  }, [activeBatchLeads, batchDecisions]);
 
   const currentTabLeads = React.useMemo(() => {
     if (activeTab === 'take_zoom_meeting') {
@@ -561,7 +602,16 @@ export function LeadsManagementTab({
                 }`}
             >
               <tab.icon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
-              {tab.label}
+              <span className="flex-1">{tab.label}</span>
+              {activeBatchId && tabCounts[tab.id] !== undefined && (
+                <span className={`ml-auto text-[11px] font-black px-2 py-0.5 rounded-full ${
+                  activeTab === tab.id 
+                    ? 'bg-white/20 text-white' 
+                    : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {tabCounts[tab.id]}
+                </span>
+              )}
             </button>
           ))}
         </div>
