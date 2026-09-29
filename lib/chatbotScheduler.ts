@@ -248,11 +248,9 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
       if (result?.text || result?.interactiveButtons?.length) {
         // Send presence indicator first
         if (result.presenceType) {
-          try {
-            await sendWhatsAppPresence(phone, result.presenceType as any);
-            await sleep((result.presenceDelay || 1) * 1000);
-          } catch (e) {
-            console.warn('[ChatbotScheduler] Presence failed:', e);
+          sendWhatsAppPresence(phone, result.presenceType as any).catch(() => {});
+          if (result.presenceDelay && result.presenceDelay > 0) {
+            await sleep(Math.min(result.presenceDelay, 5) * 1000);
           }
         }
         
@@ -345,11 +343,9 @@ async function executeAction(action: any): Promise<{ status: 'ok' | 'error'; err
           const result = await processNode(lead, timeoutNode, flow);
           if (result?.text || result?.interactiveButtons?.length) {
             if (result.presenceType) {
-              try {
-                await sendWhatsAppPresence(phone, result.presenceType as any);
-                await sleep((result.presenceDelay || 1) * 1000);
-              } catch (e) {
-                console.warn('[ChatbotScheduler] Presence failed:', e);
+              sendWhatsAppPresence(phone, result.presenceType as any).catch(() => {});
+              if (result.presenceDelay && result.presenceDelay > 0) {
+                await sleep(Math.min(result.presenceDelay, 5) * 1000);
               }
             }
             

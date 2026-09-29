@@ -10,6 +10,7 @@ import { generateAIText } from '@/lib/ai/generateWithFallback';
 import { getBunnyChatbotFlow, listBunnyChatbotFlows } from '@/lib/bunnyChatbotRepository';
 import { getBunnyLeadById, saveBunnyLead } from '@/lib/bunnyLeadsRepository';
 import { createBunnyScheduledAction, cancelBunnyScheduledActionsForLead } from '@/lib/bunnyChatbotScheduledActionRepository';
+import { upsertBunnyMetaMessage, updateBunnyMetaMessage } from '@/lib/bunnyMetaWhatsAppRepository';
 
 type InboundContext = {
   leadId: string;
@@ -203,68 +204,57 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
   const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
 
-  // Persist outbound message
   const now = new Date();
   const env = creds || getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
   let finalContent = text;
-  // Apply spintax if enabled in metadata or flow node
   if (metadata?.automation?.spintaxEnabled || metadata?.chatbot?.spintaxEnabled) {
     finalContent = applySpintax(text);
   }
 
-  // Handle Presence Delay — skip for admin-initiated manual starts to save 1-10s
-  const isManualStart = metadata?.chatbot?.manualStart === true;
+  // Non-blocking presence signal (do not artificially sleep execution)
   const presenceType = metadata?.chatbot?.presenceType || metadata?.automation?.presenceType;
-  const presenceDelay = Number(metadata?.chatbot?.presenceDelay || metadata?.automation?.presenceDelay || 0);
-
-  if (!isManualStart && presenceType && presenceType !== 'none') {
-    try {
-      await sendWhatsAppPresence(to, presenceType as any);
-      if (presenceDelay > 0) {
-        // Cap delay at 10s to keep lambda/webhook responsive
-        await sleep(Math.min(presenceDelay, 10) * 1000);
-      }
-    } catch (err) {
-      console.warn('[Automation] Presence update failed:', err);
-    }
+  if (presenceType && presenceType !== 'none') {
+    sendWhatsAppPresence(to, presenceType as any).catch(() => {});
   }
 
-  const message = await WhatsAppMessage.create({
-    leadId: lead._id,
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const messageData = {
+    _id: messageId,
+    documentId: messageId,
+    leadId: String(lead._id),
     phoneNumber: to,
     direction: 'outbound',
     messageType: 'text',
     messageContent: finalContent,
     status: 'queued',
-    sentAt: now,
+    sentAt: now.toISOString(),
+    createdAt: now.toISOString(),
     metadata,
     provider: env ? 'meta' : 'whatsapp_web_bridge',
     senderNumber,
-  });
+  };
+
+  await upsertBunnyMetaMessage(messageData).catch(() => {});
+  WhatsAppMessage.create(messageData).catch(() => {});
 
   try {
     const apiResult = await sendWhatsAppText(to, finalContent, creds);
-    await WhatsAppMessage.updateOne(
-      { _id: message._id },
-      {
-        $set: {
-          status: 'sent',
-          waMessageId: apiResult.waMessageId,
-          provider: apiResult.raw?.provider || 'meta',
-          senderNumber,
-          updatedAt: new Date()
-        },
-        $unset: { failureReason: 1 }
-      }
-    );
+    const updates = {
+      status: 'sent',
+      waMessageId: apiResult.waMessageId,
+      provider: apiResult.raw?.provider || 'meta',
+      senderNumber,
+      updatedAt: new Date().toISOString()
+    };
+    await updateBunnyMetaMessage(messageId, updates).catch(() => {});
+    WhatsAppMessage.updateOne({ _id: messageId }, { $set: updates, $unset: { failureReason: 1 } }).catch(() => {});
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
-    await WhatsAppMessage.updateOne(
-      { _id: message._id },
-      { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
-    );
+    const failureUpdates = { status: 'failed', failureReason: String(msg), updatedAt: new Date().toISOString() };
+    await updateBunnyMetaMessage(messageId, failureUpdates).catch(() => {});
+    WhatsAppMessage.updateOne({ _id: messageId }, { $set: failureUpdates }).catch(() => {});
   }
 }
 
@@ -283,50 +273,53 @@ async function sendOutboundInteractiveButtons(
   const env = creds || getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
-  // Skip presence delay for admin-initiated manual starts
-  const isManualStart = metadata?.chatbot?.manualStart === true;
   const presenceType = metadata?.chatbot?.presenceType;
-  const presenceDelay = Number(metadata?.chatbot?.presenceDelay || 0);
-  if (!isManualStart && presenceType && presenceType !== 'none') {
-    try {
-      await sendWhatsAppPresence(to, presenceType as any);
-      if (presenceDelay > 0) await sleep(Math.min(presenceDelay, 10) * 1000);
-    } catch (err) { console.warn('[Automation] Presence failed:', err); }
+  if (presenceType && presenceType !== 'none') {
+    sendWhatsAppPresence(to, presenceType as any).catch(() => {});
   }
 
-  // Extract YouTube thumbnail if body contains a YouTube URL
   const ytId = extractYouTubeVideoId(bodyText);
   const headerImageUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : undefined;
 
-  // Log what will be sent
   const labels = buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n');
   const displayContent = bodyText ? `${bodyText}\n\n${labels}` : labels;
 
-  const message = await WhatsAppMessage.create({
-    leadId: lead._id,
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const messageData = {
+    _id: messageId,
+    documentId: messageId,
+    leadId: String(lead._id),
     phoneNumber: to,
     direction: 'outbound',
     messageType: 'interactive',
     messageContent: displayContent,
     status: 'queued',
-    sentAt: now,
+    sentAt: now.toISOString(),
+    createdAt: now.toISOString(),
     metadata,
     provider: env ? 'meta' : 'whatsapp_web_bridge',
     senderNumber,
-  });
+  };
+
+  await upsertBunnyMetaMessage(messageData).catch(() => {});
+  WhatsAppMessage.create(messageData).catch(() => {});
 
   try {
     const apiResult = await sendWhatsAppInteractiveButtons(to, bodyText, buttons, { headerImageUrl }, creds);
-    await WhatsAppMessage.updateOne(
-      { _id: message._id },
-      { $set: { status: 'sent', waMessageId: apiResult.waMessageId, provider: apiResult.raw?.provider || 'meta', senderNumber, updatedAt: new Date() }, $unset: { failureReason: 1 } }
-    );
+    const updates = {
+      status: 'sent',
+      waMessageId: apiResult.waMessageId,
+      provider: apiResult.raw?.provider || 'meta',
+      senderNumber,
+      updatedAt: new Date().toISOString()
+    };
+    await updateBunnyMetaMessage(messageId, updates).catch(() => {});
+    WhatsAppMessage.updateOne({ _id: messageId }, { $set: updates, $unset: { failureReason: 1 } }).catch(() => {});
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'WhatsApp interactive send failed';
-    await WhatsAppMessage.updateOne(
-      { _id: message._id },
-      { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
-    );
+    const failureUpdates = { status: 'failed', failureReason: String(msg), updatedAt: new Date().toISOString() };
+    await updateBunnyMetaMessage(messageId, failureUpdates).catch(() => {});
+    WhatsAppMessage.updateOne({ _id: messageId }, { $set: failureUpdates }).catch(() => {});
   }
 }
 

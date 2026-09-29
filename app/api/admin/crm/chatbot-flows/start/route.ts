@@ -100,14 +100,10 @@ export async function POST(request: NextRequest) {
       const env = getWhatsAppEnv();
       const senderNumber = env?.phoneNumber || '9779006820';
 
-      // Handle presence
+      // Handle presence (non-blocking)
       const presenceType = metadata?.presenceType || 'composing';
-      const presenceDelay = Number(metadata?.presenceDelay || 1);
       if (presenceType && presenceType !== 'none') {
-        try {
-          await sendWhatsAppPresence(phone, presenceType as any);
-          if (presenceDelay > 0) await sleep(Math.min(presenceDelay, 5) * 1000);
-        } catch (_) {}
+        sendWhatsAppPresence(phone, presenceType as any).catch(() => {});
       }
 
       let finalText = metadata?.spintaxEnabled ? applySpintax(text) : text;

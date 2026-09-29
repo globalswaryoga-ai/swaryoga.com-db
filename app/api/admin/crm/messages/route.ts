@@ -25,7 +25,7 @@ import {
   deleteBunnyMetaMessage,
   getBunnyMetaMessage
 } from '@/lib/bunnyMetaWhatsAppRepository';
-import { loadBunnyLeads } from '@/lib/bunnyLeadsRepository';
+import { loadBunnyLeads, getBunnyLeadById, getBunnyLeadByPhone } from '@/lib/bunnyLeadsRepository';
 import crypto from 'node:crypto';
 
 // Re-implement the GET endpoint using BunnyDB
@@ -155,8 +155,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const allLeads = await loadBunnyLeads();
-    const lead = allLeads.find(l => String(l._id) === String(leadId));
+    const lead = (await getBunnyLeadById(String(leadId))) || (await getBunnyLeadByPhone(normalizePhone(String(phoneNumber))));
     
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
