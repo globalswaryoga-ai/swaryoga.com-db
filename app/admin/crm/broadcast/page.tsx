@@ -1497,6 +1497,22 @@ export default function BroadcastPage(props: any) {
           </div>
         )}
 
+        {/* Global Controls */}
+        <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
+          <button
+            onClick={() => setShowQuotaDashboard(!showQuotaDashboard)}
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
+          >
+            📈 <span>{showQuotaDashboard ? 'Hide Dashboard' : 'Open Dashboard'}</span>
+          </button>
+          <button
+            onClick={() => setShowRecipientsControls(!showRecipientsControls)}
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
+          >
+            {showRecipientsControls ? '− Hide Upload, Filters & Leads' : '+ Show Upload, Filters & Leads'}
+          </button>
+        </div>
+
         {/* Step Indicator */}
         {renderStepIndicator()}
 
@@ -1517,14 +1533,7 @@ export default function BroadcastPage(props: any) {
               />
             </div>
 
-            <div className="flex justify-between items-center mb-4">
-              <button
-                onClick={() => setShowRecipientsControls(!showRecipientsControls)}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-medium flex items-center gap-2 shadow-sm"
-              >
-                {showRecipientsControls ? '− Hide Upload, Filters & Leads' : '+ Show Upload, Filters & Leads'}
-              </button>
-            </div>
+
 
             {showRecipientsControls && (
               <>
