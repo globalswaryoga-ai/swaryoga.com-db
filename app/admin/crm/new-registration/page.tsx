@@ -1960,8 +1960,17 @@ export default function NewRegistrationPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
-                                setWorkshops(prev => prev.filter(w => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_')));
+                                const newWorkshops = workshops.filter((w: any) => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_'));
+                                setWorkshops(newWorkshops);
+                                localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                                fetch('/api/admin/crm/new-registration/state', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                                }).catch(console.error);
+                                
                                 if (selectedWorkshop) setSelectedWorkshop(null);
+                                toast.success(`Cleared all ${selectedDashboardLang} batches!`);
                               }
                             }}
                             className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
@@ -2083,8 +2092,17 @@ export default function NewRegistrationPage() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (window.confirm(`Are you sure you want to delete ${batch.name}?`)) {
-                                  setWorkshops(prev => prev.filter(w => w.id !== batch.id));
+                                  const newWorkshops = workshops.filter((w: any) => w.id !== batch.id);
+                                  setWorkshops(newWorkshops);
+                                  localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                                  fetch('/api/admin/crm/new-registration/state', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                                  }).catch(console.error);
+                                  
                                   if (selectedWorkshop?.id === batch.id) setSelectedWorkshop(null);
+                                  toast.success(`Deleted batch ${batch.name}`);
                                 }
                               }}
                               className="text-slate-300 hover:text-red-500 transition-colors p-0.5 rounded hover:bg-red-50"
