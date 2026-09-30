@@ -870,6 +870,9 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                 <ArrowLeftRight className="text-indigo-500" />
                 Merge Batches
+                <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-xs ml-2 font-bold">
+                  {availableMergeBatches.reduce((acc, b) => acc + (b.leads || 0), 0)} Leads
+                </span>
               </h3>
               <button onClick={() => { setIsMergeModalOpen(false); setMergeTargetId(''); setMergeSourceIds([]); }} className="text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-200 rounded">
                 <X size={20} />
@@ -896,7 +899,14 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">2. Select Source Batches / Forms (Move leads FROM these)</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-bold text-slate-700">2. Select Source Batches / Forms (Move leads FROM these)</label>
+                  {mergeSourceIds.length > 0 && (
+                    <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-bold">
+                      {availableMergeBatches.filter((w: any) => mergeSourceIds.includes(w.id)).reduce((acc, b) => acc + (b.leads || 0), 0)} Leads Selected
+                    </span>
+                  )}
+                </div>
                 <div className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white min-h-[120px] max-h-[200px] overflow-y-auto space-y-1">
                   {availableMergeBatches.filter((w: any) => w.id !== mergeTargetId).length === 0 ? (
                     <div className="text-slate-400 p-2 text-center italic">No other batches or forms available</div>
