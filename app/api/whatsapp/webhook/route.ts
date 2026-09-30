@@ -259,7 +259,7 @@ async function handleWebhookPayload(payload: any) {
               
               if (mediaId) {
                 // Background async download & upload so chatbot flow responds in 1-2s
-                (async () => {
+                await (async () => {
                   try {
                     const metaMediaUrl = await getWhatsAppMediaUrl(mediaId, tenantCreds);
                     if (metaMediaUrl) {
@@ -386,7 +386,7 @@ async function handleWebhookPayload(payload: any) {
                   waBlockedAt: now.toISOString()
                 });
                 const { sendWhatsAppText } = await import('@/lib/whatsapp');
-                sendWhatsAppText(from, 'You have been unsubscribed. Reply START anytime to subscribe again. 🙏', tenantCreds).catch(()=>{});
+                await sendWhatsAppText(from, 'You have been unsubscribed. Reply START anytime to subscribe again. 🙏', tenantCreds).catch(()=>{});
                 continue;
               }
 
@@ -398,14 +398,14 @@ async function handleWebhookPayload(payload: any) {
                   waBlockedAt: null
                 });
                 const { sendWhatsAppText } = await import('@/lib/whatsapp');
-                sendWhatsAppText(from, 'Welcome back! You are subscribed again. 🙏', tenantCreds).catch(()=>{});
+                await sendWhatsAppText(from, 'Welcome back! You are subscribed again. 🙏', tenantCreds).catch(()=>{});
                 continue;
               }
             } catch (optErr: any) {}
 
             if (lead.isBlocked) continue;
 
-            handleInboundWhatsAppAutomations({
+            await handleInboundWhatsAppAutomations({
               leadId: lead._id,
               phoneNumber: from,
               messageBody: body,
