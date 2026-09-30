@@ -50,6 +50,7 @@ export default function NewRegistrationPage() {
 
   const [selectedFormId, setSelectedFormId] = useState<string>('');
   const [linkedFormId, setLinkedFormId] = useState<string>('https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit');
+  const [activeLinkedSheetId, setActiveLinkedSheetId] = useState<string>('');
   const [leadsData, setLeadsData] = useState<any[]>([]);
   const [isFormSetupCollapsed, setIsFormSetupCollapsed] = useState(true);
   const getBaseLanguage = (langStr?: string): string => {
@@ -81,6 +82,7 @@ export default function NewRegistrationPage() {
     return masterViewLanguageFilteredLeads.filter((l: any) => {
       const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v).toLowerCase().trim()) : [];
       const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v).toLowerCase().trim()) : [];
+      const allVals = [...rawVals, ...dynVals];
       return keywords.some(k => allVals.some(v => v.includes(k)));
     }).length;
   };
@@ -780,7 +782,8 @@ export default function NewRegistrationPage() {
             setWorkshops(prev => (prev || []).map(w => w?.formId === linkedFormId ? { ...w, leads: fetchedLeads.length } : w));
             setSelectedWorkshop(prev => prev && prev.formId === linkedFormId ? { ...prev, leads: fetchedLeads.length } : prev);
           } else {
-            toast.error('Failed to load Google Sheets CSV');
+            const errorData = await res.json().catch(() => null);
+            toast.error(errorData?.error || 'Failed to load Google Sheets CSV');
           }
         } else if (formSource === 'google' || linkedFormId === 'google-form-sync' || linkedFormId.includes('docs.google.com/forms')) {
           let fetchedLeads = [];
@@ -820,6 +823,7 @@ export default function NewRegistrationPage() {
               }
 
               fetchedLeads = mappedLeads;
+              if (json.linkedSheetId) setActiveLinkedSheetId(json.linkedSheetId);
               if (json.questionMap) setGoogleFormQuestionMap(json.questionMap);
               if (ws?.metadata?.googleFormMapping) setFieldMapping(ws.metadata.googleFormMapping);
             } else if (syncRes.status === 401) {
@@ -1882,6 +1886,7 @@ export default function NewRegistrationPage() {
       linkedFormId={linkedFormId} setLinkedFormId={setLinkedFormId}
       selectedFormId={selectedFormId} setSelectedFormId={setSelectedFormId}
       googleFormUrl={googleFormUrl} setGoogleFormUrl={setGoogleFormUrl}
+      activeLinkedSheetId={activeLinkedSheetId}
       formSource={formSource} setFormSource={setFormSource}
       isManualFormId={isManualFormId} setIsManualFormId={setIsManualFormId}
       fetchedForms={fetchedForms} isLoadingForms={isLoadingForms}

@@ -10,13 +10,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid Google Sheets CSV URL' }, { status: 400 });
     }
 
+    // Convert /edit URL to /export?format=csv
+    let fetchUrl = csvUrl;
+    if (fetchUrl.includes('/edit')) {
+      fetchUrl = fetchUrl.replace(/\/edit.*$/, '/export?format=csv');
+    } else if (!fetchUrl.includes('/export')) {
+      fetchUrl += '/export?format=csv';
+    }
+
     // Proxy the fetch to avoid any potential CORS issues on the client
-    const response = await fetch(csvUrl);
+    const response = await fetch(fetchUrl);
     if (!response.ok) {
       return NextResponse.json({ error: 'Failed to fetch CSV from Google Sheets' }, { status: response.status });
     }
 
     const csvText = await response.text();
+    
+    if (csvText.trim().toLowerCase().startsWith('<!doctype html>') || csvText.trim().toLowerCase().startsWith('<html')) {
+      return NextResponse.json({ error: 'Failed to load Sheet. Please ensure the Google Sheet access is set to "Anyone with the link can view".' }, { status: 403 });
+    }
     
     // Parse the CSV
     const records = parse(csvText, {
