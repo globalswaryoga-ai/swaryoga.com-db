@@ -1078,6 +1078,9 @@ export default function NewRegistrationPage() {
       formId: 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit',
       googleFormUrl: 'https://docs.google.com/forms/d/18NZAYl-2pLr3arpopo0hTxVi2Jyd8iKUY6YApscnhv0/edit',
       leads: 0,
+      language: 'English'
+    };
+
     const saved = localStorage.getItem('crm_workshops');
     if (saved) {
       try {
