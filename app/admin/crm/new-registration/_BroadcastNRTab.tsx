@@ -1,6 +1,18 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+
+
+// Helper to prevent double counting on long overlapping form answers
+const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
+  const v = String(valStr).toLowerCase().trim();
+  const k = String(keyword).toLowerCase().trim();
+  if (!v || !k) return false;
+  if (v === k) return true;
+  // If it's a short custom keyword (<= 3 words), allow substring matching
+  if (k.split(/\s+/).length <= 3) return v.includes(k);
+  return false;
+};
 import { 
   FileText, Clock, CheckCircle, UserCheck, Video,
   Send, RefreshCw, X, Zap, Calendar,
@@ -92,8 +104,8 @@ export function BroadcastNRTab({
     const ai7 = activeBatch?.metadata?.googleFormMapping?.['AI-7'];
     return leadsData.filter((lead: any) => {
       if (lead._rawRecord) {
-        if (ai7 && lead._rawRecord[ai7]) return keywords.some((k: string) => String(lead._rawRecord[ai7]).toLowerCase().includes(k));
-        return keywords.some((k: string) => Object.values(lead._rawRecord).some(v => String(v).toLowerCase().includes(k)));
+        if (ai7 && lead._rawRecord[ai7]) return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7], k));
+        return keywords.some((k: string) => Object.values(lead._rawRecord).some(v => isLeadMatchingKeyword(v as string, k)));
       }
       return true;
     });

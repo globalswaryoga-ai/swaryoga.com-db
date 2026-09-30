@@ -2,6 +2,18 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight } from 'lucide-react';
 
+
+// Helper to prevent double counting on long overlapping form answers
+const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
+  const v = String(valStr).toLowerCase().trim();
+  const k = String(keyword).toLowerCase().trim();
+  if (!v || !k) return false;
+  if (v === k) return true;
+  // If it's a short custom keyword (<= 3 words), allow substring matching
+  if (k.split(/\s+/).length <= 3) return v.includes(k);
+  return false;
+};
+
 export interface WorkshopFormTabProps {
   selectedDashboardLang: string;
   [key: string]: any;
@@ -40,9 +52,9 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
     effectiveLeads = effectiveLeads.filter((lead: any) => {
       if (lead._rawRecord) {
         if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-          return keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+          return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
         } else {
-          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
         }
       }
       return true;

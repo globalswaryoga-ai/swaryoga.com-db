@@ -4,6 +4,18 @@ import { WorkshopFormTab } from './_WorkshopFormTab';
 import { LeadsManagementTab } from './_LeadsManagementTab';
 import { WhatsAppMessengerTab } from './_WhatsAppMessengerTab';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+
+
+// Helper to prevent double counting on long overlapping form answers
+const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
+  const v = String(valStr).toLowerCase().trim();
+  const k = String(keyword).toLowerCase().trim();
+  if (!v || !k) return false;
+  if (v === k) return true;
+  // If it's a short custom keyword (<= 3 words), allow substring matching
+  if (k.split(/\s+/).length <= 3) return v.includes(k);
+  return false;
+};
 import {
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
   UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder
@@ -806,9 +818,9 @@ export default function NewRegistrationPage() {
                   const count = fetchedLeads.filter((lead: any) => {
                     if (lead._rawRecord) {
                       if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-                        return keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+                        return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
                       } else {
-                        return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+                        return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
                       }
                     }
                     return true;
@@ -1015,7 +1027,7 @@ export default function NewRegistrationPage() {
                         ].filter(Boolean).map((v: any) => String(v).toLowerCase());
                         
                         const keywords = f1.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-                        const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => v.includes(k)));
+                        const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => isLeadMatchingKeyword(v, k)));
                         const m2 = !f2 || vals.some((v: any) => v.includes(f2.toLowerCase()));
                         return m1 && m2;
                       });
@@ -1040,7 +1052,7 @@ export default function NewRegistrationPage() {
                       ].filter(Boolean).map((v: any) => String(v).toLowerCase());
                       
                       const keywords = f1.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
-                      const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => v.includes(k)));
+                      const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => isLeadMatchingKeyword(v, k)));
                       const m2 = !f2 || vals.some((v: any) => v.includes(f2.toLowerCase()));
                       return m1 && m2;
                     });

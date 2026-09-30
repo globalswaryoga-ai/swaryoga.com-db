@@ -4,6 +4,18 @@ import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
 
+
+// Helper to prevent double counting on long overlapping form answers
+const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
+  const v = String(valStr).toLowerCase().trim();
+  const k = String(keyword).toLowerCase().trim();
+  if (!v || !k) return false;
+  if (v === k) return true;
+  // If it's a short custom keyword (<= 3 words), allow substring matching
+  if (k.split(/\s+/).length <= 3) return v.includes(k);
+  return false;
+};
+
 const SIDEBAR_TABS = [
   { id: 'new_leads', label: 'New Leads', icon: FileText },
   { id: 'pending_leads', label: 'Pending Leads', icon: Clock },
@@ -71,14 +83,7 @@ export function LeadsManagementTab({
 
   // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
   const activeBatchLeads = React.useMemo(() => {
-    if (!activeBatch || !leadsData) return [];
-
-    if (String(activeBatch.id).startsWith('master_')) {
-      const currentBaseLang = getBaseLanguage(selectedLanguage);
-      return leadsData.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
-    }
-
-    if (!activeBatch.formFilterKeyword) return [];
+    if (!activeBatch || !activeBatch.formFilterKeyword || !leadsData) return [];
 
     const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
     const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
@@ -86,9 +91,9 @@ export function LeadsManagementTab({
     return leadsData.filter(lead => {
       if (lead._rawRecord) {
         if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
-          return keywords.some((k: string) => String(lead._rawRecord[ai7MappedQuestion]).toLowerCase().includes(k));
+          return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
         } else {
-          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => String(val).toLowerCase().includes(k)));
+          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
         }
       }
       return true;
@@ -98,20 +103,20 @@ export function LeadsManagementTab({
   // Sync public zoom bookings automatically
   useEffect(() => {
     if (!leadsData || leadsData.length === 0) return;
-    
+
     const interval = setInterval(() => {
       const publicBookingsStr = localStorage.getItem('crm_public_zoom_bookings');
       if (!publicBookingsStr) return;
-      
+
       try {
         let publicBookings = JSON.parse(publicBookingsStr);
         if (!Array.isArray(publicBookings) || publicBookings.length === 0) return;
-        
+
         let changed = false;
-        
+
         setBatchDecisions(prev => {
           const newDecisions = { ...prev };
-          
+
           // Try to match each booking to a lead
           const remainingBookings = publicBookings.filter(booking => {
             // Find lead by email or exact whatsapp match
@@ -120,13 +125,13 @@ export function LeadsManagementTab({
               const leadRawEmail = (lead._rawRecord?.['Email Address'] || '').toLowerCase().trim();
               const leadPhone = String(lead.phone || '').replace(/\D/g, '');
               const leadRawPhone = String(lead._rawRecord?.['WhatsApp Number'] || lead._rawRecord?.['Mobile'] || '').replace(/\D/g, '');
-              
+
               return (
                 (booking.email && (booking.email === leadEmail || booking.email === leadRawEmail)) ||
                 (booking.whatsapp && (booking.whatsapp === leadPhone || booking.whatsapp === leadRawPhone))
               );
             });
-            
+
             if (matchingLead) {
               // Update zoom details for this lead
               newDecisions[matchingLead.id] = {
@@ -141,7 +146,7 @@ export function LeadsManagementTab({
             }
             return true; // Keep in queue
           });
-          
+
           if (changed) {
             if (typeof window !== 'undefined') {
               localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
@@ -156,7 +161,7 @@ export function LeadsManagementTab({
         console.error('Error syncing public bookings', e);
       }
     }, 5000); // Check every 5 seconds
-    
+
     return () => clearInterval(interval);
   }, [leadsData]);
 
@@ -450,16 +455,9 @@ export function LeadsManagementTab({
   }, [activeBatchId, activeBatchLeads, aiSettings, toast]);
 
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
-  const filteredBatches = (workshops || [])
-    .filter((w) => w && w.id && matchesLanguage(w, selectedLanguage) && w.isMovedToLeadsManagement)
-    .reduce((acc, current) => {
-      const x = acc.find((item: any) => item.name === current.name);
-      if (!x) {
-        return acc.concat([current]);
-      } else {
-        return acc;
-      }
-    }, []);
+  const filteredBatches = (workshops || []).filter(
+    (w) => w && w.id && matchesLanguage(w, selectedLanguage) && w.isMovedToLeadsManagement
+  );
 
   const handleSubmit = () => {
     if (!selectedBatchId) {
@@ -473,7 +471,7 @@ export function LeadsManagementTab({
   const tabCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
     if (!activeBatchLeads || activeBatchLeads.length === 0) return counts;
-    
+
     SIDEBAR_TABS.forEach(tab => {
       let count = 0;
       if (tab.id === 'take_zoom_meeting') {
@@ -637,18 +635,17 @@ export function LeadsManagementTab({
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 transition-all ${activeTab === tab.id
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
                 }`}
             >
               <tab.icon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
               <span className="flex-1">{tab.label}</span>
               {activeBatchId && tabCounts[tab.id] !== undefined && (
-                <span className={`ml-auto text-[11px] font-black px-2 py-0.5 rounded-full ${
-                  activeTab === tab.id 
-                    ? 'bg-white/20 text-white' 
+                <span className={`ml-auto text-[11px] font-black px-2 py-0.5 rounded-full ${activeTab === tab.id
+                    ? 'bg-white/20 text-white'
                     : 'bg-slate-200 text-slate-600'
-                }`}>
+                  }`}>
                   {tabCounts[tab.id]}
                 </span>
               )}
@@ -764,9 +761,9 @@ export function LeadsManagementTab({
                 </div>
               ) : activeTab === 'ai_triggers' ? (
                 <div className="mt-4">
-                  <AITriggersPanel 
-                    workshops={workshops} 
-                    leadsData={activeBatchLeads} 
+                  <AITriggersPanel
+                    workshops={workshops}
+                    leadsData={activeBatchLeads}
                     selectedLanguage={selectedLanguage}
                     selectedBatchId={activeBatchId}
                     batchDecisions={batchDecisions}
@@ -776,188 +773,188 @@ export function LeadsManagementTab({
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-sm text-slate-600">
-                    <thead className="bg-slate-50 border-b border-slate-200 uppercase text-[10px] tracking-wider">
-                      {activeTab === 'take_zoom_meeting' ? (
-                        <tr>
-                          <th className="px-4 py-3 min-w-[50px]">
-                            <input 
-                              type="checkbox" 
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                              checked={selectedLeads.length > 0 && selectedLeads.length === currentTabLeads.length}
-                              onChange={toggleSelectAll}
-                            />
-                          </th>
-                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
-                          <th className="px-4 py-3 font-bold text-slate-500">Email</th>
-                          <th className="px-4 py-3 font-bold text-slate-500">City / Country</th>
-                          <th className="px-4 py-3 font-bold text-slate-500">Gender / Age</th>
-                          <th className="px-4 py-3 font-bold text-slate-500">Profession</th>
-                        </tr>
-                      ) : (
-                        <tr>
-                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">City</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">Submitted At</th>
-                          <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
-                        </tr>
-                      )}
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {currentTabLeads.length > 0 ? (
-                        currentTabLeads.map((lead, i) => {
-                          const leadDec = batchDecisions[lead.id] || {};
-                          const leadStatus = leadDec.status || '';
-                          const isRegistered = leadDec.isRegistered;
-                          const isRejected = leadDec.isRejected;
+                      <thead className="bg-slate-50 border-b border-slate-200 uppercase text-[10px] tracking-wider">
+                        {activeTab === 'take_zoom_meeting' ? (
+                          <tr>
+                            <th className="px-4 py-3 min-w-[50px]">
+                              <input
+                                type="checkbox"
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                checked={selectedLeads.length > 0 && selectedLeads.length === currentTabLeads.length}
+                                onChange={toggleSelectAll}
+                              />
+                            </th>
+                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
+                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
+                            <th className="px-4 py-3 font-bold text-slate-500">Email</th>
+                            <th className="px-4 py-3 font-bold text-slate-500">City / Country</th>
+                            <th className="px-4 py-3 font-bold text-slate-500">Gender / Age</th>
+                            <th className="px-4 py-3 font-bold text-slate-500">Profession</th>
+                          </tr>
+                        ) : (
+                          <tr>
+                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[150px]">Name</th>
+                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">WhatsApp</th>
+                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">Gender</th>
+                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[100px]">City</th>
+                            <th className="px-4 py-3 font-bold text-slate-500 min-w-[120px]">Submitted At</th>
+                            <th className="px-4 py-3 font-bold text-slate-500 text-right">Actions</th>
+                          </tr>
+                        )}
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {currentTabLeads.length > 0 ? (
+                          currentTabLeads.map((lead, i) => {
+                            const leadDec = batchDecisions[lead.id] || {};
+                            const leadStatus = leadDec.status || '';
+                            const isRegistered = leadDec.isRegistered;
+                            const isRejected = leadDec.isRejected;
 
-                          const isPending = leadStatus.includes('pending');
+                            const isPending = leadStatus.includes('pending');
 
-                          const rowBg = activeTab.includes('approval') || isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
-                            ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
-                            : isRejected
-                              ? 'bg-purple-100/70 hover:bg-purple-200/70'
-                              : isPending
-                                ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
-                                : 'hover:bg-slate-50 transition-colors';
+                            const rowBg = activeTab.includes('approval') || isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
+                              ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
+                              : isRejected
+                                ? 'bg-purple-100/70 hover:bg-purple-200/70'
+                                : isPending
+                                  ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
+                                  : 'hover:bg-slate-50 transition-colors';
 
-                          if (activeTab === 'take_zoom_meeting') {
-                            const zd = batchDecisions[lead.id] || {};
+                            if (activeTab === 'take_zoom_meeting') {
+                              const zd = batchDecisions[lead.id] || {};
+                              return (
+                                <React.Fragment key={lead.id || i}>
+                                  <tr className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-4 py-3">
+                                      <input
+                                        type="checkbox"
+                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={selectedLeads.includes(lead.id)}
+                                        onChange={() => toggleLeadSelection(lead.id)}
+                                      />
+                                    </td>
+                                    <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
+                                    <td className="px-4 py-3">
+                                      {lead.phone && (
+                                        <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
+                                          {lead.phone}
+                                        </a>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 truncate max-w-[150px]" title={getEmail(lead._rawRecord)}>{getEmail(lead._rawRecord)}</td>
+                                    <td className="px-4 py-3">{lead.city || '-'} / {getCountry(lead._rawRecord)}</td>
+                                    <td className="px-4 py-3">{lead.gender || '-'} / {getAge(lead._rawRecord)}</td>
+                                    <td className="px-4 py-3 truncate max-w-[150px]" title={getProfession(lead._rawRecord)}>{getProfession(lead._rawRecord)}</td>
+                                  </tr>
+                                  <tr>
+                                    <td colSpan={7} className="px-4 py-2 border-b-4 border-slate-100 bg-slate-50/50">
+                                      <div className="flex flex-wrap items-center gap-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-medium text-slate-500">Date:</span>
+                                          <input type="date" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomDate || ''} onChange={(e) => updateZoomField(lead.id, 'zoomDate', e.target.value)} />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-medium text-slate-500">Time:</span>
+                                          <input type="time" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomTime || ''} onChange={(e) => updateZoomField(lead.id, 'zoomTime', e.target.value)} />
+                                        </div>
+                                        <div className="flex flex-1 items-center gap-1 min-w-[200px]">
+                                          <input type="text" placeholder="Paste Zoom Link here" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm flex-1 focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomLink || ''} onChange={(e) => updateZoomField(lead.id, 'zoomLink', e.target.value)} />
+                                          <button onClick={() => { navigator.clipboard.writeText(zd.zoomLink || ''); toast.success('Link copied'); }} className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded shadow-sm transition-colors flex items-center gap-1"><Copy size={12} /> Copy</button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <button onClick={() => markZoomStatus(lead.id, 'meeting_done')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'meeting_done' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>Meeting Done</button>
+                                          <button onClick={() => markZoomStatus(lead.id, 'pending')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'pending' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>Pending</button>
+                                          <button onClick={() => markZoomStatus(lead.id, 'rejected')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>Form Rejected</button>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                </React.Fragment>
+                              );
+                            }
+
                             return (
-                              <React.Fragment key={lead.id || i}>
-                                <tr className="hover:bg-slate-50 transition-colors">
-                                  <td className="px-4 py-3">
-                                    <input 
-                                      type="checkbox" 
-                                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                      checked={selectedLeads.includes(lead.id)}
-                                      onChange={() => toggleLeadSelection(lead.id)}
-                                    />
-                                  </td>
-                                  <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
-                                  <td className="px-4 py-3">
-                                    {lead.phone && (
-                                      <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
-                                        {lead.phone}
-                                      </a>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3 truncate max-w-[150px]" title={getEmail(lead._rawRecord)}>{getEmail(lead._rawRecord)}</td>
-                                  <td className="px-4 py-3">{lead.city || '-'} / {getCountry(lead._rawRecord)}</td>
-                                  <td className="px-4 py-3">{lead.gender || '-'} / {getAge(lead._rawRecord)}</td>
-                                  <td className="px-4 py-3 truncate max-w-[150px]" title={getProfession(lead._rawRecord)}>{getProfession(lead._rawRecord)}</td>
-                                </tr>
-                                <tr>
-                                  <td colSpan={7} className="px-4 py-2 border-b-4 border-slate-100 bg-slate-50/50">
-                                    <div className="flex flex-wrap items-center gap-3">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-medium text-slate-500">Date:</span>
-                                        <input type="date" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomDate || ''} onChange={(e) => updateZoomField(lead.id, 'zoomDate', e.target.value)} />
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-medium text-slate-500">Time:</span>
-                                        <input type="time" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomTime || ''} onChange={(e) => updateZoomField(lead.id, 'zoomTime', e.target.value)} />
-                                      </div>
-                                      <div className="flex flex-1 items-center gap-1 min-w-[200px]">
-                                        <input type="text" placeholder="Paste Zoom Link here" className="border border-slate-200 px-2 py-1 text-xs rounded shadow-sm flex-1 focus:ring-1 focus:ring-indigo-500 outline-none" value={zd.zoomLink || ''} onChange={(e) => updateZoomField(lead.id, 'zoomLink', e.target.value)} />
-                                        <button onClick={() => { navigator.clipboard.writeText(zd.zoomLink || ''); toast.success('Link copied'); }} className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded shadow-sm transition-colors flex items-center gap-1"><Copy size={12} /> Copy</button>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button onClick={() => markZoomStatus(lead.id, 'meeting_done')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'meeting_done' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>Meeting Done</button>
-                                        <button onClick={() => markZoomStatus(lead.id, 'pending')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'pending' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>Pending</button>
-                                        <button onClick={() => markZoomStatus(lead.id, 'rejected')} className={`text-xs font-bold px-2 py-1 rounded shadow-sm transition-colors ${zd.zoomStatus === 'rejected' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>Form Rejected</button>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              </React.Fragment>
-                            );
-                          }
-
-                          return (
-                            <tr key={lead.id || i} className={rowBg}>
-                              <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
-                              <td className="px-4 py-3">
-                                {lead.phone && (
-                                  <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
-                                    {lead.phone}
-                                  </a>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">{lead.gender || '-'}</td>
-                              <td className="px-4 py-3">{lead.city || '-'}</td>
-                              <td className="px-4 py-3 text-xs text-slate-500">
-                                {lead._rawRecord?.['Timestamp'] || '-'}
-                              </td>
-                              <td className="px-4 py-3 text-right flex justify-end gap-2">
-                                {leadStatus.includes('pending') && batchDecisions[lead.id]?.reason && (
-                                  <button
-                                    onClick={() => setSelectedQueryLeadId(lead.id)}
-                                    className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded hover:bg-yellow-200 transition-colors whitespace-nowrap"
-                                  >
-                                    Query-{batchDecisions[lead.id].reason.split(' | ').length}
+                              <tr key={lead.id || i} className={rowBg}>
+                                <td className="px-4 py-3 font-medium text-slate-900">{lead.name || 'Unknown'}</td>
+                                <td className="px-4 py-3">
+                                  {lead.phone && (
+                                    <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1">
+                                      {lead.phone}
+                                    </a>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">{lead.gender || '-'}</td>
+                                <td className="px-4 py-3">{lead.city || '-'}</td>
+                                <td className="px-4 py-3 text-xs text-slate-500">
+                                  {lead._rawRecord?.['Timestamp'] || '-'}
+                                </td>
+                                <td className="px-4 py-3 text-right flex justify-end gap-2">
+                                  {leadStatus.includes('pending') && batchDecisions[lead.id]?.reason && (
+                                    <button
+                                      onClick={() => setSelectedQueryLeadId(lead.id)}
+                                      className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-1 rounded hover:bg-yellow-200 transition-colors whitespace-nowrap"
+                                    >
+                                      Query-{batchDecisions[lead.id].reason.split(' | ').length}
+                                    </button>
+                                  )}
+                                  {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
+                                          const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
+                                          setBatchDecisions(newDecisions);
+                                          if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                          toast.success('Lead marked as Registered!');
+                                        }}
+                                        className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
+                                      >
+                                        Register
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
+                                          const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
+                                          setBatchDecisions(newDecisions);
+                                          if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                          toast.success('Lead marked as Rejected!');
+                                        }}
+                                        className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
+                                  {batchDecisions[lead.id]?.isRegistered && (
+                                    <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded flex items-center gap-1">
+                                      <CheckCircle size={12} /> Registered
+                                    </span>
+                                  )}
+                                  {batchDecisions[lead.id]?.isRejected && (
+                                    <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-1 rounded flex items-center gap-1">
+                                      <XCircle size={12} /> Rejected
+                                    </span>
+                                  )}
+                                  <button className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded hover:bg-indigo-100 transition-colors">
+                                    View
                                   </button>
-                                )}
-                                {!batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
-                                  <>
-                                    <button
-                                      onClick={() => {
-                                        const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
-                                        const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
-                                        setBatchDecisions(newDecisions);
-                                        if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-                                        toast.success('Lead marked as Registered!');
-                                      }}
-                                      className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
-                                    >
-                                      Register
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
-                                        const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
-                                        setBatchDecisions(newDecisions);
-                                        if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-                                        toast.success('Lead marked as Rejected!');
-                                      }}
-                                      className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
-                                    >
-                                      Reject
-                                    </button>
-                                  </>
-                                )}
-                                {batchDecisions[lead.id]?.isRegistered && (
-                                  <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded flex items-center gap-1">
-                                    <CheckCircle size={12} /> Registered
-                                  </span>
-                                )}
-                                {batchDecisions[lead.id]?.isRejected && (
-                                  <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-1 rounded flex items-center gap-1">
-                                    <XCircle size={12} /> Rejected
-                                  </span>
-                                )}
-                                <button className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded hover:bg-indigo-100 transition-colors">
-                                  View
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Users size={32} className="text-slate-300" />
-                              <p>No leads found in {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}.</p>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <Users size={32} className="text-slate-300" />
+                                <p>No leads found in {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}.</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
