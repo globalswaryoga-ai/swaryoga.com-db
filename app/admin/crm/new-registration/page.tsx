@@ -81,8 +81,7 @@ export default function NewRegistrationPage() {
     return masterViewLanguageFilteredLeads.filter((l: any) => {
       const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v).toLowerCase().trim()) : [];
       const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v).toLowerCase().trim()) : [];
-      const allVals = [...rawVals, ...dynVals];
-      return keywords.some(k => allVals.includes(k));
+      return keywords.some(k => allVals.some(v => v.includes(k)));
     }).length;
   };
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
