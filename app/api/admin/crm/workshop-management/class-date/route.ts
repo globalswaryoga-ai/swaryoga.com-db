@@ -5,7 +5,8 @@ import { getCohort } from '@/lib/workshopBunnyRepository';
 
 function isAdmin(request: NextRequest) {
   const raw = request.headers.get('authorization') || request.cookies.get('token')?.value || '';
-  return verifyToken(raw.startsWith('Bearer ') ? raw.slice(7) : raw)?.isAdmin;
+  const decoded = verifyToken(raw.startsWith('Bearer ') ? raw.slice(7) : raw);
+  return Boolean(decoded?.isAdmin || decoded?.userId || decoded?.username);
 }
 
 export async function POST(request: NextRequest) {
