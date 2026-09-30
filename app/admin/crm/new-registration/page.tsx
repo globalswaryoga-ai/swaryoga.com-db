@@ -990,8 +990,64 @@ export default function NewRegistrationPage() {
                   toast.success(`🤖 AI-4: Found ${newLeads.length} new leads, but none matched your filter.`);
                 }
 
-                setWorkshops((prev: any[]) => (prev || []).map((w: any) => w?.formId === currentFormId ? { ...w, leads: (w.leads || 0) + newLeads.length } : w));
-                setSelectedWorkshop((prev: any) => prev && prev.formId === currentFormId ? { ...prev, leads: (prev.leads || 0) + newLeads.length } : prev);
+                setWorkshops((prev: any[]) => {
+                  return (prev || []).map((w: any) => {
+                    if (w?.formId === currentFormId) {
+                      const f1 = w.formFilterKeyword || w.metadata?.mainFilter || '';
+                      const f2 = w.metadata?.subFilter || '';
+                      
+                      if (String(w.id).startsWith('master_')) {
+                        // Master lists match by language
+                        const matchedLangs = newLeads.filter((l: any) => matchesLanguage({ language: currentWorkshop?.language || selectedDashboardLang }, w.language));
+                        return { ...w, leads: (w.leads || 0) + matchedLangs.length };
+                      }
+
+                      if (!f1 && !f2) {
+                        return { ...w, leads: (w.leads || 0) + newLeads.length };
+                      }
+
+                      // Filter new leads based on batch keywords
+                      const matched = newLeads.filter((lead: any) => {
+                        const vals = [
+                          lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                          ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                          ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
+                        ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+                        
+                        const keywords = f1.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
+                        const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => v.includes(k)));
+                        const m2 = !f2 || vals.some((v: any) => v.includes(f2.toLowerCase()));
+                        return m1 && m2;
+                      });
+                      
+                      return { ...w, leads: (w.leads || 0) + matched.length };
+                    }
+                    return w;
+                  });
+                });
+                
+                setSelectedWorkshop((prev: any) => {
+                  if (prev && prev.formId === currentFormId) {
+                    const f1 = prev.formFilterKeyword || prev.metadata?.mainFilter || '';
+                    const f2 = prev.metadata?.subFilter || '';
+                    if (!f1 && !f2) return { ...prev, leads: (prev.leads || 0) + newLeads.length };
+                    
+                    const matched = newLeads.filter((lead: any) => {
+                      const vals = [
+                        lead.name, lead.email, lead.mobile, lead.city, lead.country, lead.gender,
+                        ...(lead.dynamicAnswers ? Object.values(lead.dynamicAnswers) : []),
+                        ...(lead._rawRecord ? Object.values(lead._rawRecord) : [])
+                      ].filter(Boolean).map((v: any) => String(v).toLowerCase());
+                      
+                      const keywords = f1.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
+                      const m1 = keywords.length === 0 || keywords.some((k: string) => vals.some((v: any) => v.includes(k)));
+                      const m2 = !f2 || vals.some((v: any) => v.includes(f2.toLowerCase()));
+                      return m1 && m2;
+                    });
+                    return { ...prev, leads: (prev.leads || 0) + matched.length };
+                  }
+                  return prev;
+                });
 
                 return [...(prevLeads || []).filter(Boolean), ...newLeads];
               } else {
