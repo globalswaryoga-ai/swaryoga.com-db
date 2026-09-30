@@ -217,7 +217,7 @@ export function LeadsManagementTab({
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
 
-    if (activeBatchId) {
+    if (activeBatchId && /^[0-9a-fA-F]{24}$/.test(activeBatchId)) {
       const metadata = { ...(activeBatch?.metadata || {}), aiSettings: newSettings };
       fetch('/api/admin/crm/workshop-management', {
         method: 'PATCH',

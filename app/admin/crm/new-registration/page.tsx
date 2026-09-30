@@ -27,7 +27,7 @@ export default function NewRegistrationPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'my_batches' | 'leads_management' | 'whatsapp_messenger' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
+  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'my_batches' | 'leads_management' | 'whatsapp_messenger' | 'setup' | 'workshop_details' | 'leads' | 'closing' | 'templates' | 'forms' | 'details'>('all_leads');
   const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
@@ -71,6 +71,20 @@ export default function NewRegistrationPage() {
     const currentBaseLang = getBaseLanguage(selectedDashboardLang);
     return leadsData.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
   }, [leadsData, selectedDashboardLang]);
+
+  const getDynamicBatchLeads = (batch: any) => {
+    if (!batch) return 0;
+    if (!batch.formFilterKeyword) return batch.leads || 0;
+    
+    const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim());
+    
+    return masterViewLanguageFilteredLeads.filter((l: any) => {
+      const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v).toLowerCase().trim()) : [];
+      const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v).toLowerCase().trim()) : [];
+      const allVals = [...rawVals, ...dynVals];
+      return keywords.some(k => allVals.includes(k));
+    }).length;
+  };
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [isAiWorkerActive, setIsAiWorkerActive] = useState(false);
@@ -439,6 +453,25 @@ export default function NewRegistrationPage() {
           uniqueDates.add(String(dateVal).trim());
         }
       });
+
+      if (uniqueDates.size === 0 && manualCol) {
+        const searchWord = manualCol.toLowerCase();
+        leadsData.forEach((lead: any) => {
+          const findAnswer = (obj: any) => {
+            if (!obj) return undefined;
+            for (const k of Object.keys(obj)) {
+              const v = String(obj[k]);
+              if (v.toLowerCase().includes(searchWord)) return v;
+            }
+            return undefined;
+          };
+          let val = findAnswer(lead._rawRecord);
+          if (val === undefined) val = findAnswer(lead.dynamicAnswers);
+          if (val && String(val).trim() !== '') {
+            uniqueDates.add(String(val).trim());
+          }
+        });
+      }
 
       if (uniqueDates.size === 0) return;
 
@@ -1382,18 +1415,20 @@ export default function NewRegistrationPage() {
       body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
     }).catch(console.error);
 
-    try {
-      await fetch('/api/admin/crm/workshop-management', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          cohortId: targetWorkshop.id,
-          googleFormLink: googleFormUrl,
-          metadata: updatedMetadata
-        })
-      });
-    } catch (e) {
-      console.error('Failed to sync to workshop-management backend:', e);
+    if (/^[0-9a-fA-F]{24}$/.test(targetWorkshop.id)) {
+      try {
+        await fetch('/api/admin/crm/workshop-management', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            cohortId: targetWorkshop.id,
+            googleFormLink: googleFormUrl,
+            metadata: updatedMetadata
+          })
+        });
+      } catch (e) {
+        console.error('Failed to sync to workshop-management backend:', e);
+      }
     }
 
     toast.success('Workshop settings saved successfully!');
@@ -1531,7 +1566,7 @@ export default function NewRegistrationPage() {
   const TopTabs = [
     { id: 'all_leads', label: 'All Leads Data', icon: Users },
     { id: 'my_data', label: 'My Data', icon: Database },
-    { id: 'my_batches', label: 'My Batches', icon: Folder },
+    { id: 'our_workshops', label: 'Our Workshops', icon: Target },
     { id: 'leads_management', label: 'Leads Management', icon: Users },
     { id: 'whatsapp_messenger', label: 'WhatsApp Messenger', icon: MessageSquare },
   ] as const;
@@ -1557,7 +1592,7 @@ export default function NewRegistrationPage() {
   }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, studentKotaLeadIds]);
 
   const canAccessTab = (tabId: string) => {
-    if (tabId === "all_leads" || tabId === "my_data") return true;
+    if (tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops") return true;
     return !!selectedWorkshop;
   };
 
@@ -1743,8 +1778,27 @@ export default function NewRegistrationPage() {
         }
       });
 
+      if (uniqueDates.size === 0 && manualCol) {
+        const searchWord = manualCol.toLowerCase();
+        leadsData.forEach((lead: any) => {
+          const findAnswer = (obj: any) => {
+            if (!obj) return undefined;
+            for (const k of Object.keys(obj)) {
+              const v = String(obj[k]);
+              if (v.toLowerCase().includes(searchWord)) return v;
+            }
+            return undefined;
+          };
+          let val = findAnswer(lead._rawRecord);
+          if (val === undefined) val = findAnswer(lead.dynamicAnswers);
+          if (val && String(val).trim() !== '') {
+            uniqueDates.add(String(val).trim());
+          }
+        });
+      }
+
       if (uniqueDates.size === 0) {
-        toast.error('No dates found in the selected column for the current leads.');
+        toast.error('No valid answers found for the current leads matching your input.');
         setIsAi1Processing(false);
         return;
       }
@@ -1915,39 +1969,46 @@ export default function NewRegistrationPage() {
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {/* Languages Sidebar (Always visible) */}
-            {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches') && (
+            {(activeTab === 'all_leads' || activeTab === 'my_data' || activeTab === 'my_batches' || activeTab === 'our_workshops') && (
               <div className="mb-3 px-1">
                 {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">Languages</div>}
-                <select
-                  value={selectedDashboardLang}
-                  onChange={(e) => {
-                    const lang = e.target.value;
-                    setSelectedDashboardLang(lang);
-                    const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
-                    setSelectedWorkshop(masterWorkshop || null);
-                  }}
-                  className="w-full bg-white border border-indigo-200 text-slate-800 font-bold text-xs rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm cursor-pointer hover:border-indigo-400 transition-colors"
-                  title="Select Language"
-                >
+                <div className="grid grid-cols-2 gap-1.5">
                   {['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'].map((lang) => (
-                    <option key={lang} value={lang}>
-                      {isSidebarCollapsed ? lang.substring(0, 2) : lang}
-                    </option>
+                    <button
+                      key={lang}
+                      onClick={() => {
+                        setSelectedDashboardLang(lang);
+                        const masterWorkshop = workshops.find((w: any) => matchesLanguage(w, lang));
+                        setSelectedWorkshop(masterWorkshop || null);
+                      }}
+                      className={`w-full text-center px-2 py-2 rounded-xl text-xs font-bold transition-all ${
+                        selectedDashboardLang === lang 
+                          ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
+                          : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                      }`}
+                      title={lang}
+                    >
+                      {isSidebarCollapsed ? lang.substring(0, 2) : lang.split(' ')[0]}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
             )}
 
-                {/* Batches list only for My Batches */}
-                {activeTab === 'my_batches' && !isSidebarCollapsed && (
+                {/* Batches list only for My Batches and Our Workshops */}
+                {(activeTab === 'my_batches' || activeTab === 'our_workshops') && !isSidebarCollapsed && (
                   <div className="mt-6 animate-fade-in">
-                    <div className="flex items-center justify-between mb-2 px-2 border-t pt-4">
+                    <hr className="my-4 border-slate-200" />
+                    <div className="text-[13px] font-bold text-slate-700 uppercase tracking-wider px-2 mb-3">
+                      Workshop Details
+                    </div>
+                    <div className="flex items-center justify-between mb-2 px-2 border-t border-slate-100 pt-4">
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         {selectedDashboardLang} Batches
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                          {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).reduce((acc: number, b: any) => acc + (b.leads || 0), 0)} Leads
+                          {masterViewLanguageFilteredLeads.length} Leads
                         </span>
                         {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length > 0 && (
                           <button
@@ -1992,7 +2053,7 @@ export default function NewRegistrationPage() {
                         >
                           <span className="break-words w-full pr-2 leading-tight" title={batch.name}>{batch.name}</span>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{batch.leads || 0}</span>
+                            <span className="bg-white rounded-full px-2 py-0.5 border shadow-sm text-[10px]">{getDynamicBatchLeads(batch)}</span>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -2162,7 +2223,7 @@ export default function NewRegistrationPage() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          {(activeTab === "all_leads" || activeTab === "my_data" || activeTab === "my_batches") && (
+          {(activeTab === "all_leads" || activeTab === "my_data" || activeTab === "our_workshops" || activeTab === "my_batches") && (
             <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
               {renderWorkshopForm()}
             </div>

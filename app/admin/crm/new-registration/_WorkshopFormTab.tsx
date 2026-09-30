@@ -588,7 +588,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               </div>
 
               <div className="flex items-center gap-3">
-                {p.activeTab === 'my_batches' && (
+                {(p.activeTab === 'my_batches' || p.activeTab === 'our_workshops') && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsMergeModalOpen(true)}
@@ -617,7 +617,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                   </>
                 )}
 
-                {p.activeTab !== 'my_batches' && (
+                {p.activeTab !== 'my_batches' && p.activeTab !== 'our_workshops' && (
                   <>
                     <button 
                       onClick={() => {
