@@ -1792,6 +1792,7 @@ export default function NewRegistrationPage() {
       showDynamicColumns={showDynamicColumns} dynamicColumns={dynamicColumns}
       colWidths={colWidths} setColWidths={setColWidths} setTab2SortOrder={setTab2SortOrder}
       setLeadsData={setLeadsData} handleApprove={handleApprove}
+      selectedDashboardLang={selectedDashboardLang}
     />
   );
 
@@ -1876,12 +1877,12 @@ export default function NewRegistrationPage() {
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         {selectedDashboardLang} Batches
                       </div>
-                      {workshops.filter(w => w && w.id && matchesLanguage(w, selectedDashboardLang)).length > 0 && (
+                      {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length > 0 && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
-                              setWorkshops(prev => prev.filter(w => !matchesLanguage(w, selectedDashboardLang)));
+                              setWorkshops(prev => prev.filter(w => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_')));
                               if (selectedWorkshop) setSelectedWorkshop(null);
                             }
                           }}
@@ -1892,10 +1893,10 @@ export default function NewRegistrationPage() {
                       )}
                     </div>
                     <div className="space-y-1">
-                      {workshops.filter(w => w && w.id && matchesLanguage(w, selectedDashboardLang)).length === 0 && (
+                      {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length === 0 && (
                         <div className="px-2 py-3 text-xs text-slate-400 italic">No batches created yet. Go to My Data and click AI-1.</div>
                       )}
-                      {workshops.filter(w => w && w.id && matchesLanguage(w, selectedDashboardLang)).map(batch => (
+                      {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).map((batch: any) => (
                         <div
                           key={batch.id}
                           onClick={() => {

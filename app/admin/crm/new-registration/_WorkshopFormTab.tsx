@@ -3,6 +3,7 @@ import React from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Settings, Save, Database, Plus, X, Edit2, ArrowLeftRight } from 'lucide-react';
 
 export interface WorkshopFormTabProps {
+  selectedDashboardLang: string;
   [key: string]: any;
 }
 
@@ -24,6 +25,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
     leadsFilter, leadsSubFilter, leadsSubSubFilter, refreshLeadsCounter, setRefreshLeadsCounter,
     setIsLoadingGoogleForms, setGoogleFormsList, setNeedsGoogleAuth, setActiveTab, Users, leadsData, isLoadingLeads, selectedRowIds, renderBulkActions, handleAi7Categorize, isAi7Processing, handleApproveBulk, filterOptions, crmLeadIds, tab2SortOrder, setSelectedRowIds, showDynamicColumns, dynamicColumns, colWidths, setColWidths, setTab2SortOrder, setLeadsData, handleApprove,
     setLeadsFilter, setLeadsSubFilter, setLeadsSubSubFilter,
+    selectedDashboardLang,
   } = props;
 
   const [isMergeModalOpen, setIsMergeModalOpen] = React.useState(false);
@@ -46,6 +48,26 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
       return true;
     });
   }
+
+  const getBaseLanguage = (langStr?: string): string => {
+    if (!langStr) return 'english';
+    const lower = langStr.toLowerCase();
+    if (lower.includes('hindi')) return 'hindi';
+    if (lower.includes('marathi')) return 'marathi';
+    if (lower.includes('kannada')) return 'kannada';
+    return 'english';
+  };
+
+  const isBatchMatchingLanguage = (w: any) => {
+    if (!w) return false;
+    const wLang = w.language || w.name || '';
+    return getBaseLanguage(wLang) === getBaseLanguage(selectedDashboardLang);
+  };
+
+  // Only show google form batches (not "master" or system batches) that match the language
+  const availableMergeBatches = workshops.filter((w: any) => 
+    w && w.id && isBatchMatchingLanguage(w) && !String(w.id).startsWith('master_')
+  );
 
   React.useEffect(() => {
     // Auto-run AI-2 on load and every 5 minutes
@@ -867,7 +889,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                   }}
                 >
                   <option value="">Select destination form/batch...</option>
-                  {workshops.filter((w: any) => w && w.id).map((w: any) => (
+                  {availableMergeBatches.map((w: any) => (
                     <option key={w.id} value={w.id}>{w.name} ({w.leads || 0} leads)</option>
                   ))}
                 </select>
@@ -876,10 +898,10 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700">2. Select Source Batches / Forms (Move leads FROM these)</label>
                 <div className="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white min-h-[120px] max-h-[200px] overflow-y-auto space-y-1">
-                  {workshops.filter((w: any) => w && w.id && w.id !== mergeTargetId).length === 0 ? (
+                  {availableMergeBatches.filter((w: any) => w.id !== mergeTargetId).length === 0 ? (
                     <div className="text-slate-400 p-2 text-center italic">No other batches or forms available</div>
                   ) : (
-                    workshops.filter((w: any) => w && w.id && w.id !== mergeTargetId).map((w: any) => (
+                    availableMergeBatches.filter((w: any) => w.id !== mergeTargetId).map((w: any) => (
                       <label key={w.id} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer transition-colors">
                         <input
                           type="checkbox"
