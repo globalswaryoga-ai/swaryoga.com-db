@@ -1877,20 +1877,25 @@ export default function NewRegistrationPage() {
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         {selectedDashboardLang} Batches
                       </div>
-                      {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
-                              setWorkshops(prev => prev.filter(w => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_')));
-                              if (selectedWorkshop) setSelectedWorkshop(null);
-                            }
-                          }}
-                          className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
-                        >
-                          <Trash2 size={10} /> Clear All
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                          {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).reduce((acc: number, b: any) => acc + (b.leads || 0), 0)} Leads
+                        </span>
+                        {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Are you sure you want to delete ALL ${selectedDashboardLang} batches? This will not delete the leads data, only the batch folders.`)) {
+                                setWorkshops(prev => prev.filter(w => !matchesLanguage(w, selectedDashboardLang) || String(w?.id).startsWith('master_')));
+                                if (selectedWorkshop) setSelectedWorkshop(null);
+                              }
+                            }}
+                            className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded"
+                          >
+                            <Trash2 size={10} /> Clear All
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-1">
                       {workshops.filter((w: any) => w && w.id && matchesLanguage(w, selectedDashboardLang) && !String(w.id).startsWith('master_')).length === 0 && (
