@@ -71,7 +71,14 @@ export function LeadsManagementTab({
 
   // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
   const activeBatchLeads = React.useMemo(() => {
-    if (!activeBatch || !activeBatch.formFilterKeyword || !leadsData) return [];
+    if (!activeBatch || !leadsData) return [];
+
+    if (String(activeBatch.id).startsWith('master_')) {
+      const currentBaseLang = getBaseLanguage(selectedLanguage);
+      return leadsData.filter(l => getBaseLanguage(l.language || l.workshopName || l.formName) === currentBaseLang);
+    }
+
+    if (!activeBatch.formFilterKeyword) return [];
 
     const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
     const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
@@ -443,9 +450,16 @@ export function LeadsManagementTab({
   }, [activeBatchId, activeBatchLeads, aiSettings, toast]);
 
   // Filter batches by language to populate the dropdown (Only show batches moved by AI-2)
-  const filteredBatches = (workshops || []).filter(
-    (w) => w && w.id && matchesLanguage(w, selectedLanguage) && w.isMovedToLeadsManagement
-  );
+  const filteredBatches = (workshops || [])
+    .filter((w) => w && w.id && matchesLanguage(w, selectedLanguage) && w.isMovedToLeadsManagement)
+    .reduce((acc, current) => {
+      const x = acc.find((item: any) => item.name === current.name);
+      if (!x) {
+        return acc.concat([current]);
+      } else {
+        return acc;
+      }
+    }, []);
 
   const handleSubmit = () => {
     if (!selectedBatchId) {
