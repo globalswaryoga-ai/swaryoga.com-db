@@ -1081,12 +1081,30 @@ export default function NewRegistrationPage() {
       language: 'English'
     };
 
+    const deduplicateWorkshops = (workshopsArray: any[]) => {
+      if (!Array.isArray(workshopsArray)) return workshopsArray;
+      const unique = new Map();
+      const deduplicated = [];
+      for (const w of workshopsArray) {
+        if (String(w.id).startsWith('master_')) {
+          deduplicated.push(w);
+        } else {
+          const key = `${w.language || ''}-${w.formFilterKeyword || ''}-${w.name || ''}`;
+          if (!unique.has(key)) {
+            unique.set(key, w);
+            deduplicated.push(w);
+          }
+        }
+      }
+      return deduplicated;
+    };
+
     const saved = localStorage.getItem('crm_workshops');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setWorkshops(parsed);
+          setWorkshops(deduplicateWorkshops(parsed));
         } else {
           setWorkshops([defaultBatch]);
         }
@@ -1138,7 +1156,7 @@ export default function NewRegistrationPage() {
           if (res.ok) {
             const data = await res.json();
             if (data) {
-              if (data.crm_workshops) setWorkshops(JSON.parse(data.crm_workshops));
+              if (data.crm_workshops) setWorkshops(deduplicateWorkshops(JSON.parse(data.crm_workshops)));
               if (data.crm_ai_worker_active) setIsAiWorkerActive(data.crm_ai_worker_active === 'true');
               if (data.crm_approved_ai_active) setIsApprovedAiWorkerActive(data.crm_approved_ai_active === 'true');
               if (data.crm_registered_ai_active) setIsRegisteredAiWorkerActive(data.crm_registered_ai_active === 'true');
