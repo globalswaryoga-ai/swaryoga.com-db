@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Handshake, Search, Calendar, ChevronRight, ChevronUp, ChevronDown, FileCheck } from 'lucide-react';
-import { toast } from '@/components/admin/crm/ui/Toast';
+import { useToast } from '@/components/admin/crm/ui/Toast';
 
 export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { leads: any[], selectedDashboardLang: string }) {
+  const toast = useToast();
   const [leadData, setLeadData] = useState<Record<string, any>>({});
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-09');
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);

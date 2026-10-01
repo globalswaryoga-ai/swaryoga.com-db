@@ -8,10 +8,12 @@ export async function GET(request: Request) {
   const error = url.searchParams.get('error');
 
   if (error) {
+    console.log('[CALLBACK ERROR] Canva OAuth Error:', error);
     return NextResponse.json({ error: `Canva OAuth Error: ${error}` }, { status: 400 });
   }
 
   if (!code) {
+    console.log('[CALLBACK ERROR] No code provided. URL:', request.url);
     return NextResponse.json({ error: 'No authorization code provided' }, { status: 400 });
   }
 
