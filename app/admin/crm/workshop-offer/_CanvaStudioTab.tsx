@@ -20,6 +20,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [canvaDesigns, setCanvaDesigns] = useState<any[]>([]);
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(false);
   const [designError, setDesignError] = useState('');
+  const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('crm_offer_data');
@@ -451,9 +452,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                       </p>
                    </div>
                  ) : (
-                   <div className="flex gap-8 h-[calc(100vh-12rem)] min-h-[600px]">
+                   <div className="flex gap-8 h-[calc(100vh-16rem)] min-h-[500px] overflow-hidden">
                      {/* Data Form Preview */}
-                     <div className="w-80 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col shrink-0">
+                     <div className="w-80 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col shrink-0 h-full overflow-hidden">
                        <h4 className="font-black text-slate-800 text-lg mb-6 flex items-center gap-2">
                          <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
                          {activeSection === 'receipts' ? 'Receipt Data' : 'Certificate Data'}
@@ -563,6 +564,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  clearInterval(poll);
                                  if (btn) btn.innerText = 'Opening Design...';
                                  const designId = statusJson.job.result.design.id;
+                                  setGeneratedDesignId(designId);
                                  window.open(`https://www.canva.com/design/${designId}/edit`, '_blank');
                                  if (btn) btn.innerText = 'Generate in Canva';
                                } else if (statusJson.job.status === 'failed') {
@@ -586,16 +588,26 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
                      {/* Canva Embed Area */}
                      <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col items-center justify-center p-8 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-slate-50/50"></div>
-                        <div className="relative z-10 flex flex-col items-center">
-                          <div className="bg-white p-6 rounded-2xl shadow-sm mb-6">
-                            {activeSection === 'receipts' ? <FileText className="h-16 w-16 text-indigo-300" /> : <Share2 className="h-16 w-16 text-indigo-300" />}
-                          </div>
-                          <h4 className="text-2xl font-black text-slate-700 mb-3">Canva Autofill Embed</h4>
-                          <p className="text-slate-500 text-center max-w-md text-lg">
-                            The Canva editor will load here, automatically injecting the {activeSection === 'receipts' ? 'receipt' : 'certificate'} data into your template.
-                          </p>
-                        </div>
+                        {generatedDesignId ? (
+                          <iframe 
+                            src={`https://www.canva.com/design/${generatedDesignId}/view?embed`} 
+                            className="w-full h-full border-0 rounded-xl"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <>
+                            <div className="absolute inset-0 bg-slate-50/50"></div>
+                            <div className="relative z-10 flex flex-col items-center">
+                              <div className="bg-white p-6 rounded-2xl shadow-sm mb-6">
+                                {activeSection === 'receipts' ? <FileText className="h-16 w-16 text-indigo-300" /> : <Share2 className="h-16 w-16 text-indigo-300" />}
+                              </div>
+                              <h4 className="text-2xl font-black text-slate-700 mb-3">Canva Autofill Embed</h4>
+                              <p className="text-slate-500 text-center max-w-md text-lg">
+                                The Canva editor will load here, automatically injecting the {activeSection === 'receipts' ? 'receipt' : 'certificate'} data into your template.
+                              </p>
+                            </div>
+                          </>
+                        )}
                      </div>
                    </div>
                  )}
