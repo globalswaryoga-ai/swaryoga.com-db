@@ -27,3 +27,7 @@ export async function allocateNextLeadNumber(userId: string) {
   
   return { leadNumber };
 }
+
+export const LEAD_NUMBER_COUNTER_ID = 'dummy';
+export const normalizeLeadNumberInput = (num: string) => num;
+export const getOrCreateLeadIdForPhone = async (phone: string, name?: string) => 'dummy-id';

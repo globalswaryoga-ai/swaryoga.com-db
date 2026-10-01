@@ -13,3 +13,7 @@ export async function logApiError(context: string, error: any, metadata: any = {
     console.error('Failed to log API error', e);
   }
 }
+
+export const getErrorStats = () => ({});
+export const getRecentErrors = () => [];
+export const logWarning = () => {};

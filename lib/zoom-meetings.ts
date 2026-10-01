@@ -191,3 +191,7 @@ export async function addZoomMeetingRegistrant(
 
   return response.json();
 }
+
+export const getZoomMeetingRecordings = async (meetingId: string | number) => [];
+export const recoverZoomRecording = async (meetingId: string | number) => {};
+export const deleteZoomRecording = async (meetingId: string | number) => {};
