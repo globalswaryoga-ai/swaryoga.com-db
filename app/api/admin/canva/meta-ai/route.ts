@@ -99,7 +99,8 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
 
     // 2. Generate Image if requested
     let imageUrl = null;
-    if (shouldGenerateImage || shouldGenerateAdCopy) {
+    const aiDecidedToGenerate = aiText.toLowerCase().includes('generate this image');
+    if (shouldGenerateImage || shouldGenerateAdCopy || aiDecidedToGenerate) {
       try {
         const imagePrompt = shouldGenerateAdCopy && aiData
           ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
