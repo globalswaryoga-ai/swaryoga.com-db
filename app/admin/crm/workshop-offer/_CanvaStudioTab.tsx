@@ -602,7 +602,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 ? 'bg-slate-100 text-slate-800' 
                                 : msg.error 
                                   ? 'bg-red-50 text-red-600 border border-red-200' 
-                                  : 'bg-transparent text-slate-700'
+                                  : 'bg-white shadow-sm text-slate-700 border border-slate-100'
                             }`}>
                                {msg.role === 'ai' && !msg.error && (
                                  <div className="flex items-center gap-2 mb-3">
@@ -637,7 +637,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                       
                       {isGeneratingMeta && (
                         <div className="flex justify-start">
-                          <div className="max-w-[80%] rounded-2xl p-4 bg-transparent text-slate-700">
+                          <div className="max-w-[80%] rounded-2xl p-4 bg-white shadow-sm border border-slate-100 text-slate-700">
                              <div className="flex items-center gap-2 mb-3">
                                <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center animate-pulse">
                                  <Sparkles size={14} className="text-indigo-600" />
