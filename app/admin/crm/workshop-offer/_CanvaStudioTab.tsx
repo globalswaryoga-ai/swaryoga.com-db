@@ -393,7 +393,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
            {/* RECEIPTS & CERTIFICATES */}
            {(activeSection === 'receipts' || activeSection === 'certificate') && (
-              <div className="flex flex-col h-full max-w-7xl mx-auto">
+              <div className="flex flex-col min-h-full max-w-7xl mx-auto">
                  <div className="mb-8">
                    <h3 className="text-3xl font-black text-slate-800 tracking-tight flex items-center justify-between">
                      <span>{activeSection === 'receipts' ? 'Receipt Generator' : 'Certificate Generator'}</span>
