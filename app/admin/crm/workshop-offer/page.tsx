@@ -22,7 +22,7 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
 };
 import {
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
-  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder
+  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder, CheckCircle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -2217,17 +2217,41 @@ export default function WorkshopOfferPage() {
 
         {/* Header for Tabs */}
         <header className="bg-white px-6 pt-5 pb-0 border-b border-slate-200 flex-shrink-0 z-10 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
-              <FileText className="h-6 w-6" />
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
+                <FileText className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">
+                  {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
+                </h1>
+                <p className="text-sm text-slate-500 font-medium">
+                  {selectedWorkshop ? 'Manage leads, workflow, and settings' : 'Choose from the sidebar on the left'}
+                </p>
+              </div>
             </div>
+            
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                {selectedWorkshop ? selectedWorkshop.name : 'Select a Batch to begin'}
-              </h1>
-              <p className="text-sm text-slate-500 font-medium">
-                {selectedWorkshop ? 'Manage leads, workflow, and settings' : 'Choose from the sidebar on the left'}
-              </p>
+              <button 
+                onClick={() => {
+                  if (!isCanvaConnected) {
+                    window.location.href = '/api/admin/canva/oauth';
+                  } else {
+                    toast.info("Canva is already connected. Ready to generate designs!");
+                  }
+                }}
+                className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-black shadow-sm transition-transform ${isCanvaConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-yellow-400 text-slate-900 hover:bg-yellow-500 hover:scale-[1.02]'}`}
+              >
+                {isCanvaConnected ? (
+                  <>
+                    <CheckCircle size={18} className="text-emerald-500" />
+                    Canva Connected
+                  </>
+                ) : (
+                  'Connect Canva'
+                )}
+              </button>
             </div>
           </div>
 

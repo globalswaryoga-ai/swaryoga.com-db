@@ -183,29 +183,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                 <Download size={18} className={activeSection === 'downloads' ? 'text-indigo-600' : 'text-slate-400'} />
                 Download Section
              </button>
-          </div>
-        </div>
-        
-        <div className="p-4 border-t border-slate-200 bg-white">
-           <button 
-            onClick={() => {
-              if (!isCanvaConnected) {
-                window.location.href = '/api/admin/canva/oauth';
-              } else {
-                toast.info("Canva is already connected. Ready to generate designs!");
-              }
-            }}
-            className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-black shadow-sm transition-transform ${isCanvaConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-[1.02]'}`}
-          >
-            {isCanvaConnected ? (
-              <>
-                <CheckCircle size={18} className="text-emerald-500" />
-                Canva Connected
-              </>
-            ) : (
-              'Connect Canva'
-            )}
-          </button>
+         </div>
         </div>
       </div>
 
