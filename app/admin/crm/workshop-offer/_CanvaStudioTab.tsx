@@ -127,7 +127,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       const res = await fetch('/api/admin/canva/meta-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId })
+        body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId, messages: chatMessages })
       });
 
       
@@ -143,9 +143,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       }
       const data = await res.json();
       
-      const aiText = data.generatedText ? `Headline: ${data.generatedText.Headline}\nSubheading: ${data.generatedText.Subheading}\nCTA: ${data.generatedText.CTA}` : '';
+      // Use aiText directly from the smart backend
+      const aiText = data.aiText || '';
       
-      if (data.generatedText) {
+      if (aiText) {
         setGeneratedAiText(aiText);
       }
       

@@ -4,63 +4,134 @@ import OpenAI from 'openai';
 
 export const dynamic = 'force-dynamic';
 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Detect if the user is asking for an image
+function wantsImage(prompt: string): boolean {
+  const keywords = [
+    'create image', 'generate image', 'make image', 'create a image',
+    'generate a image', 'make an image', 'create an image', 'draw',
+    'create poster', 'generate poster', 'make poster', 'design poster',
+    'create ad', 'generate ad', 'make ad', 'create advertisement',
+    'create banner', 'generate banner', 'create graphic', 'create visual',
+    'image banao', 'photo banao', 'poster banao'
+  ];
+  const lower = prompt.toLowerCase();
+  return keywords.some(k => lower.includes(k));
+}
+
+// Detect if the user is asking for ad copy specifically
+function wantsAdCopy(prompt: string): boolean {
+  const keywords = [
+    'headline', 'subheading', 'cta', 'call to action',
+    'ad copy', 'advertisement', 'social media ad',
+    'instagram ad', 'facebook ad', 'meta ad', 'canva ad'
+  ];
+  const lower = prompt.toLowerCase();
+  return keywords.some(k => lower.includes(k));
+}
+
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
     const accessToken = cookieStore.get('canva_access_token')?.value;
 
     const body = await request.json();
-    const { prompt, templateId } = body;
+    const { prompt, templateId, messages } = body;
 
     if (!prompt) {
       return NextResponse.json({ error: 'Missing prompt' }, { status: 400 });
     }
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const shouldGenerateImage = wantsImage(prompt);
+    const shouldGenerateAdCopy = wantsAdCopy(prompt);
 
-    // 1. Generate Text (Headline, Subheading, CTA)
-    const chatCompletion = await openai.chat.completions.create({
-      messages: [
-        { 
-          role: 'system', 
-          content: 'You are an expert social media copywriter. Given a prompt for an ad, you will generate exactly 3 things: a catchy Headline, a Subheading, and a Call-to-Action (CTA). Return them strictly as a JSON object with keys: "Headline", "Subheading", "CTA".'
-        },
-        { role: 'user', content: prompt }
-      ],
-      model: 'gpt-4o',
-      response_format: { type: 'json_object' }
-    });
+    // Build conversation history for context
+    const conversationHistory = (messages || []).map((m: any) => ({
+      role: m.role === 'user' ? 'user' : 'assistant',
+      content: m.content,
+    }));
 
-    const aiTextContent = chatCompletion.choices[0].message.content;
-    const aiData = JSON.parse(aiTextContent || '{}');
+    // 1. Generate Chat Response
+    let aiText = '';
+    let aiData: any = null;
 
-    // 2. Generate Background Image via DALL-E 3
-    let imageUrl = null;
-    try {
-      const imageResponse = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: `A beautiful, clean, modern social media background image without any text for this topic: ${prompt}`,
-        n: 1,
-        size: "1024x1024",
+    if (shouldGenerateAdCopy) {
+      // Generate structured Ad Copy (JSON)
+      const chatCompletion = await openai.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert social media copywriter. Given a prompt for an ad, generate exactly 3 things: a catchy Headline, a Subheading, and a Call-to-Action (CTA). Return them strictly as a JSON object with keys: "Headline", "Subheading", "CTA".'
+          },
+          ...conversationHistory,
+          { role: 'user', content: prompt }
+        ],
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' }
       });
-      imageUrl = imageResponse.data[0].url;
-    } catch(e) {
-      console.error("DALL-E generation failed:", e);
-      // We continue even if image generation fails
+
+      const content = chatCompletion.choices[0].message.content || '{}';
+      aiData = JSON.parse(content);
+      aiText = `Headline: ${aiData.Headline}\nSubheading: ${aiData.Subheading}\nCTA: ${aiData.CTA}`;
+
+    } else {
+      // General conversational chat
+      const chatCompletion = await openai.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a helpful AI assistant specialized in social media marketing, image creation, content writing, and creative design. 
+You help users create ads, posters, book content, and any creative content they need.
+When a user asks to create an image or poster, acknowledge that you are generating it.
+Respond naturally and conversationally. Keep responses concise and helpful.`
+          },
+          ...conversationHistory,
+          { role: 'user', content: prompt }
+        ],
+        model: 'gpt-4o',
+      });
+
+      aiText = chatCompletion.choices[0].message.content || '';
     }
 
-    // 3. Send Text to Canva Autofill (Only if templateId exists)
-    let job = null;
-    if (templateId) {
-      if (!accessToken) {
-        return NextResponse.json({ error: 'Not authenticated with Canva. Please connect Canva first to use Template IDs.' }, { status: 401 });
+    // 2. Generate Image if requested
+    let imageUrl = null;
+    if (shouldGenerateImage || shouldGenerateAdCopy) {
+      try {
+        const imagePrompt = shouldGenerateAdCopy && aiData
+          ? `A beautiful, clean, modern social media background image without any text. Theme: ${prompt}`
+          : `Create a high-quality image based on this request: ${prompt}. Make it visually stunning with no text overlaid.`;
+
+        const imageResponse = await openai.images.generate({
+          model: 'dall-e-3',
+          prompt: imagePrompt,
+          n: 1,
+          size: '1024x1024',
+        });
+        imageUrl = imageResponse.data[0].url;
+      } catch (e: any) {
+        console.error('DALL-E generation failed:', e.message);
       }
-      
+    }
+
+    // 3. Send to Canva Autofill (only if templateId provided AND ad copy generated)
+    let job = null;
+    if (templateId && aiData) {
+      if (!accessToken) {
+        return NextResponse.json({
+          aiText,
+          imageUrl,
+          generatedText: aiData,
+          error: 'Not connected to Canva. Text and image generated successfully.'
+        });
+      }
+
       const dataToFill = {
         Headline: { type: 'text', text: aiData.Headline || 'Amazing Offer' },
-        Subheading: { type: 'text', text: aiData.Subheading || 'Don\'t miss out on this.' },
+        Subheading: { type: 'text', text: aiData.Subheading || "Don't miss out." },
         CTA: { type: 'text', text: aiData.CTA || 'Learn More' }
       };
 
@@ -78,19 +149,16 @@ export async function POST(request: Request) {
       });
 
       const responseData = await response.json();
-
-      if (!response.ok) {
-        console.error('Canva Autofill Error:', responseData);
-        return NextResponse.json({ error: responseData.message || 'Failed to autofill template' }, { status: response.status });
+      if (response.ok) {
+        job = responseData.job;
       }
-      job = responseData.job;
     }
 
-    // Return the autofill job (if any) AND the generated image URL to the frontend
     return NextResponse.json({
-      job: job,
-      imageUrl: imageUrl,
-      generatedText: aiData
+      aiText,
+      job,
+      imageUrl,
+      generatedText: aiData,
     });
 
   } catch (error: any) {
