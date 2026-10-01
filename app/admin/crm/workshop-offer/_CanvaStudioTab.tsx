@@ -675,8 +675,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <span className="font-bold text-sm">AI is thinking...</span>
                              </div>
                              <div className="flex items-center gap-3">
-                               <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-200 border-t-indigo-600"></div>
-                               <span className="text-slate-500 text-sm italic">Generating response...</span>
+                               <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                               <span className="text-slate-500 text-sm italic font-medium">Working...</span>
                              </div>
                           </div>
                         </div>
