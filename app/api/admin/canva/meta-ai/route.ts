@@ -111,9 +111,18 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
           n: 1,
           size: '1024x1024',
         });
-        imageUrl = imageResponse.data[0].url;
+        
+        const imgData = imageResponse.data[0];
+        if (imgData.b64_json) {
+          imageUrl = `data:image/png;base64,${imgData.b64_json}`;
+        } else if (imgData.url) {
+          imageUrl = imgData.url;
+        }
       } catch (e: any) {
-        console.error('DALL-E generation failed:', e.message);
+        console.error('Image generation failed with error:', e.name, e.message);
+        if (e.response) {
+          console.error('Response data:', e.response.data);
+        }
       }
     }
 
