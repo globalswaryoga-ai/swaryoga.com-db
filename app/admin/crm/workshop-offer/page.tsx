@@ -1002,6 +1002,12 @@ export default function WorkshopOfferPage() {
 
                 fetchedLeads = mappedLeads;
                 if (json.questionMap) newQuestionMap = json.questionMap;
+              } else if (syncRes.status === 401) {
+                setNeedsGoogleAuth(true);
+                toast.error('Please connect your Google Account to sync forms.');
+              } else {
+                const err = await syncRes.json().catch(() => ({}));
+                toast.error(err.error || 'Failed to sync form');
               }
             }
           } else {
