@@ -348,10 +348,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
               Certificate
             </button>
               <button 
-                onClick={() => { setActiveSection('downloads'); setDownloadTab('receipts'); }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' && downloadTab !== 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+                onClick={() => { setActiveSection('downloads'); setDownloadTab('meta'); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
              >
-               <Download size={16} className={activeSection === 'downloads' && downloadTab !== 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
+               <Download size={16} className={activeSection === 'downloads' ? 'text-indigo-600' : 'text-slate-400'} />
                Downloads
              </button>
           </div>
@@ -843,22 +843,22 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
               <div className="max-w-6xl mx-auto flex flex-col">
                  
                  {/* Top Tabs */}
-                 <div className="flex gap-4 mb-8">
+                 <div className="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
                    <button
                      onClick={() => setDownloadTab('meta')}
-                     className={`px-8 py-3 rounded-full text-sm font-black transition-all ${downloadTab === 'meta' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'meta' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
                    >
                      Meta Work
                    </button>
                    <button
                      onClick={() => setDownloadTab('receipts')}
-                     className={`px-8 py-3 rounded-full text-sm font-black transition-all ${downloadTab === 'receipts' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'receipts' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
                    >
                      Receipts
                    </button>
                    <button
                      onClick={() => setDownloadTab('certificate')}
-                     className={`px-8 py-3 rounded-full text-sm font-black transition-all ${downloadTab === 'certificate' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                     className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${downloadTab === 'certificate' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'}`}
                    >
                      Certificates
                    </button>
@@ -910,9 +910,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                      </div>
 
                      {/* Main Area */}
-                     <div className="flex-1 max-w-3xl">
+                     <div className="flex-1 w-full max-w-5xl">
                        {/* Platform Tabs */}
-                       <div className="flex gap-2 mb-6 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
+                       <div className="flex items-center gap-2 mb-6 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
                          {metaPlatformsList.map(plat => (
                            <button 
                              key={plat} 
@@ -922,6 +922,12 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              {plat}
                            </button>
                          ))}
+                         <button onClick={handleAddPlatform} className="text-slate-500 hover:text-indigo-600 hover:bg-white p-2 rounded-xl transition-colors ml-1" title="Add Platform">
+                            <Plus size={20} />
+                         </button>
+                         <button onClick={handleSavePlatforms} className="bg-white hover:bg-slate-100 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm ml-1">
+                            Save
+                         </button>
                        </div>
 
                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col p-8 w-full">
