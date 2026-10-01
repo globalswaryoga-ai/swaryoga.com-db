@@ -332,6 +332,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     return {
       name: lead.name || lead.Name || receivedData.name || 'Unknown',
       whatsapp: lead.whatsapp || lead.mobile || lead.Mobile || receivedData.phone || 'Unknown',
+      address: lead.address || lead.Address || receivedData.address || `${lead.city || ''} ${lead.country || ''}`.trim() || 'N/A',
       amount: amount,
       paymentMode: receivedData.paymentMode || lead.paymentMode || lead.payment_mode || 'UPI / Online',
       paymentDetails: receivedData.transactionId || lead.paymentDetails || lead.transactionId || 'N/A',
@@ -984,6 +985,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  Name: { type: 'text', text: (document.getElementById('receipt-name') as HTMLInputElement)?.value || '' },
                                  Amount: { type: 'text', text: (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '' },
                                  Mode: { type: 'text', text: (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '' },
+                                  Address: { type: 'text', text: (document.getElementById('receipt-address') as HTMLInputElement)?.value || '' },
                                  ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' },
                                  WorkshopName: { type: 'text', text: (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '' },
                                  Date: { type: 'text', text: (document.getElementById('receipt-date') as HTMLInputElement)?.value || '' }
@@ -1454,6 +1456,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                Name: { type: 'text', text: name },
                                Amount: { type: 'text', text: crmData.amount || lead.amount || '1000' },
                                Mode: { type: 'text', text: crmData.paymentMode || 'Online' },
+                               Address: { type: 'text', text: lead.address || lead.Address || crmData.address || `${lead.city || ''} ${lead.country || ''}`.trim() || 'N/A' },
                                ReceiptNo: { type: 'text', text: (localStorage.getItem('canvaReceiptPrefix') || 'RCPT-') + (i + 1) },
                                WorkshopName: { type: 'text', text: crmData.workshopName || 'Workshop' },
                                Date: { type: 'text', text: new Date().toLocaleDateString('en-GB') }
