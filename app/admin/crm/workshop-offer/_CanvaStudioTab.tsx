@@ -712,18 +712,24 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           </div>
                           
                           {/* Input */}
-                          <input 
-                            className="flex-1 bg-transparent px-4 py-3 text-slate-700 outline-none text-base"
+                          <textarea
+                            className="flex-1 bg-transparent px-4 py-3 text-slate-700 outline-none text-base resize-none leading-relaxed"
                             placeholder="Message AI..."
                             value={metaPrompt}
-                            onChange={e => setMetaPrompt(e.target.value)}
+                            rows={1}
+                            style={{ maxHeight: '150px', overflowY: 'auto' }}
+                            onChange={e => {
+                              setMetaPrompt(e.target.value);
+                              e.target.style.height = 'auto';
+                              e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
+                              if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
                                 handleGenerateMetaAI();
                               }
                             }}
-                          />
+                          ></textarea>
                           
                           {/* Right Button */}
                           <button 
