@@ -12,8 +12,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { prompt, templateId } = body;
 
-    if (!prompt || !templateId) {
-      return NextResponse.json({ error: 'Missing prompt or templateId' }, { status: 400 });
+    if (!prompt) {
+      return NextResponse.json({ error: 'Missing prompt' }, { status: 400 });
     }
 
     const openai = new OpenAI({
