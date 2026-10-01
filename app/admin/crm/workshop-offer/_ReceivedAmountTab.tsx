@@ -200,10 +200,11 @@ export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { le
                       const phone = lead.mobile || lead.phoneNumber || lead.phone || answers['WhatsApp Number'] || answers['Mobile'] || '-';
                       
                       const rowData = leadData[lead.id] || {};
+                      const isPushed = rowData.pushedToCreateReceipts === true;
                       
                       return (
-                        <tr key={lead.id} className="hover:bg-slate-50 transition-colors group">
-                          <td className="px-4 py-3 sticky left-0 bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] z-10">
+                        <tr key={lead.id} className={`transition-colors group ${isPushed ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-slate-50'}`}>
+                          <td className={`px-4 py-3 sticky left-0 shadow-[1px_0_0_0_#e2e8f0] z-10 ${isPushed ? 'bg-emerald-50 group-hover:bg-emerald-100' : 'bg-white group-hover:bg-slate-50'}`}>
                             <input 
                               type="checkbox" 
                               className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
@@ -217,16 +218,17 @@ export default function ReceivedAmountTab({ leads, selectedDashboardLang }: { le
                               }}
                             />
                           </td>
-                          <td className="px-4 py-3 font-bold text-slate-500 sticky left-10 bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] z-10">
+                          <td className={`px-4 py-3 font-bold sticky left-10 shadow-[1px_0_0_0_#e2e8f0] z-10 ${isPushed ? 'bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600' : 'bg-white group-hover:bg-slate-50 text-slate-500'}`}>
                             {i + 1}
                           </td>
-                          <td className="px-4 py-3 font-bold text-slate-800 sticky left-[5.5rem] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] z-10">
+                          <td className={`px-4 py-3 font-bold sticky left-[5.5rem] shadow-[1px_0_0_0_#e2e8f0] z-10 ${isPushed ? 'bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700' : 'bg-white group-hover:bg-slate-50 text-slate-800'}`}>
                             {name}
+                            {isPushed && <span className="ml-2 text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Pushed</span>}
                           </td>
-                          <td className="px-4 py-3 text-slate-600">{phone}</td>
-                          <td className="px-4 py-3 text-slate-600">{email}</td>
+                          <td className={`px-4 py-3 ${isPushed ? 'text-emerald-700' : 'text-slate-600'}`}>{phone}</td>
+                          <td className={`px-4 py-3 ${isPushed ? 'text-emerald-700' : 'text-slate-600'}`}>{email}</td>
                           <td className="px-4 py-3 font-bold text-emerald-600">{rowData.amount || '-'}</td>
-                          <td className="px-4 py-3 text-slate-600">{rowData.date || '-'}</td>
+                          <td className={`px-4 py-3 ${isPushed ? 'text-emerald-700' : 'text-slate-600'}`}>{rowData.date || '-'}</td>
                         </tr>
                       );
                     })}

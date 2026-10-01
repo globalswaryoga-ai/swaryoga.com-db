@@ -5,7 +5,9 @@ import { LeadsManagementTab } from './_LeadsManagementTab';
 import { WhatsAppMessengerTab } from './_WhatsAppMessengerTab';
 import OfferDetailsTab from './_OfferDetailsTab';
 import ReceivedAmountTab from './_ReceivedAmountTab';
+import { CanvaStudioTab } from './_CanvaStudioTab';
 import { useToast } from '@/components/admin/crm/ui/Toast';
+import QRGroupSchedulerPage from '../qr/group-scheduler/page';
 
 
 // Helper to prevent double counting on long overlapping form answers
@@ -29,7 +31,7 @@ export default function WorkshopOfferPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'offer_details' | 'received_amount' | 'create_receipts' | 'create_certificate'>('all_leads');
+  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'offer_details' | 'received_amount' | 'create_receipts'>('all_leads');
   const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
@@ -1600,8 +1602,8 @@ export default function WorkshopOfferPage() {
     { id: 'our_workshops', label: 'Offers Batches', icon: Target },
     { id: 'offer_details', label: 'Offer details', icon: FileText },
     { id: 'received_amount', label: 'Received amount', icon: Handshake },
-    { id: 'create_receipts', label: 'Create receipts', icon: FileText },
-    { id: 'create_certificate', label: 'Create certificate', icon: Share2 },
+    { id: 'create_receipts', label: 'Canva Studio', icon: FileText },
+    { id: 'wt_group_message', label: 'WT-Group message', icon: MessageSquare },
   ] as const;
 
   const LeadSubTabs = [
@@ -1625,7 +1627,7 @@ export default function WorkshopOfferPage() {
   }, [leadsData, crmLeadIds, approvedLeadIds, pendingLeadIds, pending2LeadIds, registeredLeadIds, studentKotaLeadIds]);
 
   const canAccessTab = (tabId: string) => {
-    if (tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops") return true;
+    if (tabId === "all_leads" || tabId === "my_data" || tabId === "our_workshops" || tabId === "wt_group_message") return true;
     return !!selectedWorkshop;
   };
 
@@ -1956,7 +1958,7 @@ export default function WorkshopOfferPage() {
     <div className={`flex h-screen bg-slate-50 font-sans overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : 'flex-row'}`}>
 
       {/* Global Sidebar for Batch Selection */}
-      {(activeTab !== 'leads_management' && activeTab !== 'whatsapp_messenger' && activeTab !== 'offer_details' && activeTab !== 'received_amount' && activeTab !== 'create_receipts' && activeTab !== 'create_certificate') && (
+      {(activeTab !== 'leads_management' && activeTab !== 'whatsapp_messenger' && activeTab !== 'offer_details' && activeTab !== 'received_amount' && activeTab !== 'create_receipts') && (
         <aside className={`bg-white flex flex-col flex-shrink-0 z-20 transition-all duration-300 ${sidebarPosition === 'right' ? 'border-l border-slate-200' : 'border-r border-slate-200'} ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
           <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -2256,7 +2258,7 @@ export default function WorkshopOfferPage() {
           </div>
         </header>
 
-        <main className={`flex-1 flex flex-col bg-slate-50 ${['offer_details', 'received_amount', 'create_receipts', 'create_certificate'].includes(activeTab) ? '' : 'overflow-y-auto p-6'}`}>
+        <main className={`flex-1 flex flex-col bg-slate-50 ${['offer_details', 'received_amount', 'create_receipts'].includes(activeTab) ? '' : 'overflow-y-auto p-6'}`}>
           {(activeTab === "all_leads" || activeTab === "my_data" || activeTab === "our_workshops" || activeTab === "my_batches") && (
             <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
               {renderWorkshopForm()}
@@ -2285,61 +2287,12 @@ export default function WorkshopOfferPage() {
           )}
           {activeTab === 'create_receipts' && (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white shadow-sm overflow-hidden animate-fade-in h-full w-full">
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600">
-                    <FileText size={18} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800">Create Receipts</h3>
-                    <p className="text-xs text-slate-500">Automatically generate receipts using Canva</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <button className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors">
-                    Create Receipts
-                  </button>
-                  <button className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors">
-                    Leads Section
-                  </button>
-                  <button className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors">
-                    Download Section
-                  </button>
-                  <button className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors">
-                    Send to Group
-                  </button>
-                  
-                  <button 
-                    onClick={() => {
-                      if (!isCanvaConnected) {
-                        window.location.href = '/api/admin/canva/oauth';
-                      } else {
-                        toast.info('Canva is already connected!');
-                      }
-                    }}
-                    className={`${isCanvaConnected ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-yellow-500 hover:bg-yellow-600'} text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-transform hover:scale-105 flex items-center gap-2 ml-2`}
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                    </svg>
-                    {isCanvaConnected ? 'Canva Connected' : 'Connect Canva'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50">
-                <FileText className="h-16 w-16 text-slate-300 mb-4 opacity-50" />
-                <h3 className="text-lg font-bold text-slate-500 mb-1">No Canva Connection</h3>
-                <p className="text-sm text-center max-w-md">Connect your Canva account to start generating automated receipts for your received payments.</p>
-              </div>
+              <CanvaStudioTab isCanvaConnected={isCanvaConnected} leadsData={leadsData} />
             </div>
           )}
-          {activeTab === 'create_certificate' && (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 min-h-[400px]">
-              <Share2 className="h-12 w-12 text-slate-300 mb-4" />
-              <h2 className="text-xl font-bold text-slate-700">Create Certificate</h2>
-              <p className="mt-2 text-sm text-center max-w-md">Automatically generate certificates for workshop participants.</p>
+          {activeTab === 'wt_group_message' && (
+            <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white shadow-sm overflow-hidden animate-fade-in h-full w-full overflow-y-auto">
+              <QRGroupSchedulerPage />
             </div>
           )}
         </main>
