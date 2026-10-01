@@ -131,8 +131,17 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       });
 
       
+      if (!res.ok) {
+        let errorMsg = 'Failed to generate content';
+        try {
+          const errData = await res.json();
+          if (errData.error) errorMsg = errData.error;
+        } catch(e) {
+          errorMsg = `Server Error: ${res.status} ${res.statusText}`;
+        }
+        throw new Error(errorMsg);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to generate content');
       
       const aiText = data.generatedText ? `Headline: ${data.generatedText.Headline}\n\nSubheading: ${data.generatedText.Subheading}\n\nCTA: ${data.generatedText.CTA}` : '';
       
