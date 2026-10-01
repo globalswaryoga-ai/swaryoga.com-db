@@ -2282,7 +2282,7 @@ export default function WorkshopOfferPage() {
           </div>
         </header>
 
-        <main className={`flex-1 flex flex-col bg-slate-50 ${['offer_details', 'received_amount', 'create_receipts'].includes(activeTab) ? '' : 'overflow-y-auto p-6'}`}>
+        <main className={`flex-1 flex flex-col min-h-0 bg-slate-50 ${['offer_details', 'received_amount', 'create_receipts'].includes(activeTab) ? '' : 'overflow-y-auto p-6'}`}>
           {(activeTab === "all_leads" || activeTab === "my_data" || activeTab === "our_workshops" || activeTab === "my_batches") && (
             <div className="flex-1 min-w-0 overflow-y-auto space-y-6 animate-fade-in">
               {renderWorkshopForm()}
@@ -2310,7 +2310,7 @@ export default function WorkshopOfferPage() {
             </div>
           )}
           {activeTab === 'create_receipts' && (
-            <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white shadow-sm overflow-hidden animate-fade-in h-full w-full">
+            <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white shadow-sm overflow-y-auto animate-fade-in h-full w-full">
               <CanvaStudioTab isCanvaConnected={isCanvaConnected} leadsData={leadsData} />
             </div>
           )}

@@ -196,6 +196,27 @@ export default function OfferDetailsTab({
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+            <input 
+                type="text" 
+                className="w-24 bg-slate-50 border border-slate-200 rounded p-1.5 text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500" 
+                placeholder="Prefix" 
+                defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptPrefix') || '') : ''}
+                onChange={(e) => {
+                  if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptPrefix', e.target.value);
+                }}
+              />
+            <input 
+                type="text" 
+                className="w-32 bg-slate-50 border border-slate-200 rounded p-1.5 text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500" 
+                placeholder="Canva Template ID" 
+                defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'}
+                onChange={(e) => {
+                  if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value);
+                }}
+              />
+          </div>
+
           <label className="flex items-center gap-2 cursor-pointer group bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
             <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isAutoSyncing ? 'bg-emerald-500' : 'bg-slate-300'}`}>
               <input type="checkbox" className="sr-only peer" checked={isAutoSyncing} onChange={(e) => setIsAutoSyncing(e.target.checked)} />

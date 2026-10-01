@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare } from 'lucide-react';
+import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 interface CanvaStudioTabProps {
@@ -127,13 +127,29 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     let amount = receivedData.amount || lead.amount || lead.payment || lead['Offer-1'] || lead['Offer-2'] || '₹1,500';
     if (typeof amount === 'string' && amount.toLowerCase().includes('offer')) amount = '₹1,500';
     
+    // Find lead index in batches to get a consistent sequential number
+    let srNo = 1;
+    for (const batch of Object.values(batches) as any[][]) {
+       const index = batch.findIndex(l => (l.id || l._id) === leadId);
+       if (index !== -1) {
+          srNo = index + 1;
+          break;
+       }
+    }
+    
+    let rawPrefix = typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptPrefix') || '') : '';
+    // Strip trailing digits so if they type SW2609/M001, we just use SW2609/M and append the real sequence
+    const prefix = rawPrefix.replace(/\d+$/, '');
+    const finalPrefix = prefix || `RCPT-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}-`;
+    
     return {
       name: lead.name || lead.Name || receivedData.name || 'Unknown',
       whatsapp: lead.whatsapp || lead.mobile || lead.Mobile || receivedData.phone || 'Unknown',
       amount: amount,
       paymentMode: receivedData.paymentMode || lead.paymentMode || lead.payment_mode || 'UPI / Online',
       paymentDetails: receivedData.transactionId || lead.paymentDetails || lead.transactionId || 'N/A',
-      receiptNumber: `${typeof window !== 'undefined' && localStorage.getItem('canvaReceiptPrefix') ? localStorage.getItem('canvaReceiptPrefix') : `RCPT-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}-`}${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`
+      workshopName: lead.workshopName || lead.workshop_name || lead.course || 'Swar Yoga L-1',
+      receiptNumber: `${finalPrefix}${srNo.toString().padStart(3,'0')}`
     };
   };
 
@@ -146,11 +162,12 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     const srNo = Math.floor(Math.random()*1000).toString().padStart(3,'0');
     
     return {
-      firstName: (lead.name || lead.Name || '').split(' ')[0] || 'Participant',
+      firstName: lead.name || lead.Name || 'Participant Name',
       fullName: lead.name || lead.Name || 'Participant Name',
       city: lead.city || lead.City || 'Unknown City',
       country: lead.country || lead.Country || 'Unknown Country',
       batchName: `${month} ${year}`, 
+      workshopName: lead.workshopName || lead.workshop_name || lead.course || 'Swar Yoga L-1',
       certificateNumber: `${year}${month}${lang}${srNo}`
     };
   };
@@ -159,7 +176,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const certificateData = activeSection === 'certificate' ? getCertificateData(selectedLead) : null;
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50 overflow-auto">
+    <div className="flex flex-col min-h-full w-full bg-slate-50 overflow-auto">
       {/* Top Navigation Header */}
       <div className="w-full bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between flex-shrink-0 z-20 sticky top-0">
         <div className="flex items-center gap-6">
@@ -203,10 +220,54 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
             </button>
           </div>
         </div>
+
+        {/* Global Canva Settings */}
+        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-1.5 rounded-xl shadow-inner">
+          <input 
+            type="text" 
+            id="header-receipt-prefix"
+            className="w-24 bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400" 
+            placeholder="RCPT-" 
+            defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptPrefix') || '') : ''}
+          />
+          <input 
+            type="text" 
+            id="header-canva-id"
+            className="w-36 bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-mono text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400" 
+            placeholder="Canva ID" 
+            defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'}
+          />
+          <button 
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                const prefix = (document.getElementById('header-receipt-prefix') as HTMLInputElement)?.value;
+                const templateId = (document.getElementById('header-canva-id') as HTMLInputElement)?.value;
+                localStorage.setItem('canvaReceiptPrefix', prefix);
+                localStorage.setItem('canvaReceiptTemplateId', templateId);
+                const btn = document.getElementById('header-save-btn');
+                if (btn) {
+                  const original = btn.innerText;
+                  btn.innerText = 'Saved!';
+                  btn.classList.add('bg-emerald-500', 'text-white');
+                  btn.classList.remove('bg-indigo-100', 'text-indigo-700');
+                  setTimeout(() => {
+                    btn.innerText = original;
+                    btn.classList.remove('bg-emerald-500', 'text-white');
+                    btn.classList.add('bg-indigo-100', 'text-indigo-700');
+                  }, 2000);
+                }
+              }
+            }}
+            id="header-save-btn"
+            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+          >
+            Save
+          </button>
+        </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-visible bg-white max-w-[1600px] mx-auto w-full">
+      <div className="flex-1 flex overflow-hidden bg-white max-w-[1600px] mx-auto w-full min-h-0">
         
         {/* Inner Sidebar: Batch and Lead Selection */}
         {activeSection !== 'meta' && (
@@ -397,32 +458,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                  <div className="mb-8">
                    <h3 className="text-3xl font-black text-slate-800 tracking-tight flex items-center justify-between">
                      <span>{activeSection === 'receipts' ? 'Receipt Generator' : 'Certificate Generator'}</span>
-                     <div className="flex items-center gap-3 w-[500px]">
-                       <input 
-                           type="text" 
-                           id="global-receipt-prefix"
-                           className="w-1/3 bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm font-mono text-slate-700" 
-                           placeholder="Prefix (RCPT-)" 
-                           defaultValue={typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptPrefix') || '' : ''}
-                           onChange={(e) => {
-                             if (typeof window !== 'undefined') {
-                               localStorage.setItem('canvaReceiptPrefix', e.target.value);
-                             }
-                           }}
-                         />
-                       <input 
-                           type="text" 
-                           id="global-template-id"
-                           className="w-2/3 bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm font-mono text-slate-700" 
-                           placeholder="Brand Template ID (DAE...)" 
-                           defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'}
-                           onChange={(e) => {
-                             if (typeof window !== 'undefined') {
-                               localStorage.setItem('canvaReceiptTemplateId', e.target.value);
-                             }
-                           }}
-                         />
-                     </div>
+                     
                    </h3>
                    <p className="text-slate-500 mt-2 text-lg">
                      {activeSection === 'receipts' 
@@ -444,7 +480,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                  ) : (
                    <div className="flex gap-8 h-auto min-h-[600px] pb-24">
                      {/* Data Form Preview */}
-                     <div className="w-80 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col shrink-0 h-[700px] overflow-hidden">
+                     <div className="w-80 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col shrink-0">
                        <h4 className="font-black text-slate-800 text-lg mb-6 flex items-center gap-2">
                          <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
                          {activeSection === 'receipts' ? 'Receipt Data' : 'Certificate Data'}
@@ -471,6 +507,14 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Payment Details</label>
                                <input id="receipt-details" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm truncate" defaultValue={receiptData.paymentDetails} />
+                             </div>
+                             <div>
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Workshop Name</label>
+                               <input id="receipt-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={receiptData.workshopName} />
+                             </div>
+                             <div>
+                               <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Template ID</label>
+                               <input id="global-template-id" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Receipt No.</label>
@@ -504,6 +548,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <input id="cert-batch" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData.batchName} />
                              </div>
                              <div>
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Workshop Name</label>
+                               <input id="cert-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData.workshopName} />
+                             </div>
+                             <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Certificate No.</label>
                                <input id="cert-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={certificateData.certificateNumber} />
                              </div>
@@ -517,7 +565,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            if (btn) btn.innerText = 'Generating...';
                            
                            try {
-                             const templateId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId');
+                             const templateId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo';
                              if (!templateId) {
                                alert('Please enter a Brand Template ID at the top right of this screen.');
                                if (btn) btn.innerText = 'Generate in Canva';
@@ -530,7 +578,18 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  Name: { type: 'text', text: (document.getElementById('receipt-name') as HTMLInputElement)?.value || '' },
                                  Amount: { type: 'text', text: (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '' },
                                  Mode: { type: 'text', text: (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '' },
-                                 ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' }
+                                 ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' },
+                                 WorkshopName: { type: 'text', text: (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '' }
+                               };
+                             } else if (activeSection === 'certificate') {
+                               dataToFill = {
+                                 FirstName: { type: 'text', text: (document.getElementById('cert-firstname') as HTMLInputElement)?.value || '' },
+                                 FullName: { type: 'text', text: (document.getElementById('cert-fullname') as HTMLInputElement)?.value || '' },
+                                 City: { type: 'text', text: (document.getElementById('cert-city') as HTMLInputElement)?.value || '' },
+                                 Country: { type: 'text', text: (document.getElementById('cert-country') as HTMLInputElement)?.value || '' },
+                                 BatchName: { type: 'text', text: (document.getElementById('cert-batch') as HTMLInputElement)?.value || '' },
+                                 WorkshopName: { type: 'text', text: (document.getElementById('cert-workshop') as HTMLInputElement)?.value || '' },
+                                 CertificateNo: { type: 'text', text: (document.getElementById('cert-number') as HTMLInputElement)?.value || '' }
                                };
                              }
                              
@@ -606,7 +665,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
            {/* DOWNLOADS SECTION */}
            {activeSection === 'downloads' && (
-              <div className="max-w-6xl mx-auto flex flex-col h-full">
+              <div className="max-w-6xl mx-auto flex flex-col">
                  
                  {/* Top Tabs */}
                  <div className="flex gap-4 mb-8">
@@ -631,7 +690,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                  </div>
 
                  {/* Batch List Area */}
-                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col flex-1 h-[calc(100vh-12rem)] min-h-[500px] overflow-hidden">
+                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col mb-12 overflow-hidden">
                     
                     {/* Header Controls */}
                     <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
@@ -677,7 +736,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                     </div>
                     
                     {/* Leads List */}
-                    <div className="flex-1 overflow-y-auto bg-white p-2">
+                    <div className="bg-white p-2">
                        {leadsInSelectedBatch.length > 0 ? (
                          <div className="divide-y divide-slate-100">
                            {leadsInSelectedBatch.map((lead, i) => {
@@ -720,6 +779,16 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                        <option value="pdf">PDF</option>
                                      </select>
                                    </div>
+                                   <button 
+                                     onClick={() => {
+                                       setSelectedLead(lead);
+                                       setActiveSection(downloadTab === 'certificate' ? 'certificate' : 'receipts');
+                                     }}
+                                     className="flex items-center gap-2 px-4 h-9 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold transition-all"
+                                   >
+                                     <Eye size={16} />
+                                     Preview
+                                   </button>
                                    <button className="flex items-center gap-2 px-4 h-9 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 rounded-lg text-sm font-bold transition-all">
                                      <Download size={16} />
                                      Download
