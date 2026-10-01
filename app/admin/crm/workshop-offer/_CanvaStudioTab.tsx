@@ -29,13 +29,15 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
   const [metaLanguagesList, setMetaLanguagesList] = useState<string[]>(['English', 'Hindi', 'Marathi', 'Kannada']);
   const [metaLanguage, setMetaLanguage] = useState<string>('English');
-  const [metaPlatformsList] = useState<string[]>(['FB(size)', 'Insta(size)', 'YouTube(16:9)', '1:1', 'PDF']);
+  const [metaPlatformsList, setMetaPlatformsList] = useState<string[]>(['FB(size)', 'Insta(size)', 'YouTube(16:9)', '1:1', 'PDF']);
   const [metaPlatform, setMetaPlatform] = useState<string>('FB');
   const [metaTemplatesMap, setMetaTemplatesMap] = useState<Record<string, string>>({});
   const [savedMetaAds, setSavedMetaAds] = useState<any[]>([]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const storedPlats = localStorage.getItem('meta_platforms');
+      if (storedPlats) setMetaPlatformsList(JSON.parse(storedPlats));
       const storedLangs = localStorage.getItem('meta_languages');
       if (storedLangs) setMetaLanguagesList(JSON.parse(storedLangs));
       
@@ -55,6 +57,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       if (typeof window !== 'undefined') localStorage.setItem('meta_languages', JSON.stringify(newLangs));
       if (metaLanguage === oldLang) setMetaLanguage(newLang.trim());
     }
+  };
+
+  const handleAddPlatform = () => {
+    const plat = prompt('Enter new platform (e.g., Twitter, LinkedIn):');
+    if (plat && plat.trim()) {
+      const newPlats = [...metaPlatformsList, plat.trim()];
+      setMetaPlatformsList(newPlats);
+      if (typeof window !== 'undefined') localStorage.setItem('meta_platforms', JSON.stringify(newPlats));
+    }
+  };
+  
+  const handleSavePlatforms = () => {
+    if (typeof window !== 'undefined') localStorage.setItem('meta_platforms', JSON.stringify(metaPlatformsList));
+    alert('Platforms saved successfully!');
   };
 
   const handleAddLanguage = () => {
@@ -547,7 +563,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                        <div className="flex items-center justify-between mb-2">
                          <label className="text-sm font-bold text-slate-700">Platform to Generate</label>
                        </div>
-                       <div className="flex gap-2 flex-wrap mb-4">
+                       <div className="flex gap-2 flex-wrap mb-4 items-center">
                          {metaPlatformsList.map(plat => (
                            <button 
                              key={plat} 
@@ -557,6 +573,12 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              {plat}
                            </button>
                          ))}
+                         <button onClick={handleAddPlatform} className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded transition-colors" title="Add Platform">
+                            <Plus size={18} />
+                         </button>
+                         <button onClick={handleSavePlatforms} className="ml-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-xs font-bold transition-colors">
+                            Save
+                         </button>
                        </div>
                      </div>
                      <div>
