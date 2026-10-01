@@ -143,7 +143,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       }
       const data = await res.json();
       
-      const aiText = data.generatedText ? `Headline: ${data.generatedText.Headline}\n\nSubheading: ${data.generatedText.Subheading}\n\nCTA: ${data.generatedText.CTA}` : '';
+      const aiText = data.generatedText ? `Headline: ${data.generatedText.Headline}\nSubheading: ${data.generatedText.Subheading}\nCTA: ${data.generatedText.CTA}` : '';
       
       if (data.generatedText) {
         setGeneratedAiText(aiText);
