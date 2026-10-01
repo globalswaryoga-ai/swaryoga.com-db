@@ -31,7 +31,7 @@ export default function WorkshopOfferPage() {
   const router = useRouter();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'offer_details' | 'received_amount' | 'create_receipts'>('all_leads');
+  const [activeTab, setActiveTab] = useState<'all_leads' | 'my_data' | 'our_workshops' | 'offer_details' | 'received_amount' | 'create_receipts'>('create_receipts');
   const [leadSubTab, setLeadSubTab] = useState<'new' | 'approved' | 'pending' | 'pending2' | 'registered' | 'student_kota'>('new');
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
