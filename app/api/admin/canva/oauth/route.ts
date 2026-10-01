@@ -4,9 +4,10 @@ import crypto from 'crypto';
 export async function GET(request: Request) {
   const clientId = process.env.CANVA_CLIENT_ID;
   
-  // Dynamically generate the redirect URI based on the current host
-  const url = new URL(request.url);
-  const redirectUri = `${url.protocol}//${url.host}/api/admin/canva/callback`;
+  // Dynamically generate the redirect URI based on the current host header or .env
+  const protocol = request.headers.get('x-forwarded-proto') || 'http';
+  const host = request.headers.get('host') || '127.0.0.1:3000';
+  const redirectUri = process.env.CANVA_REDIRECT_URI || `${protocol}://${host}/api/admin/canva/callback`;
   
   if (!clientId) {
     return NextResponse.json({ error: 'Canva Client ID not configured in environment variables' }, { status: 500 });
