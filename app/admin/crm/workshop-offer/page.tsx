@@ -22,7 +22,7 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
 };
 import {
   FileText, Plus, Users, Handshake, MessageSquare, QrCode, Mail, Share2, Target, Calendar, CheckSquare, Square,
-  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder, CheckCircle, RefreshCw
+  UserPlus, X, Edit2, Trash2, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Database, Save, Settings, Folder, CheckCircle, RefreshCw, LogOut
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -2254,13 +2254,27 @@ export default function WorkshopOfferPage() {
               </button>
               
               {isCanvaConnected && (
-                <button
-                  onClick={() => window.location.href = '/api/admin/canva/oauth'}
-                  className="p-2.5 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 text-xs font-bold rounded-lg transition-colors border border-slate-200"
-                  title="Reconnect Canva"
-                >
-                  <RefreshCw size={18} />
-                </button>
+                <>
+                  <button
+                    onClick={() => window.location.href = '/api/admin/canva/oauth'}
+                    className="p-2.5 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 text-xs font-bold rounded-lg transition-colors border border-slate-200"
+                    title="Reconnect Canva"
+                  >
+                    <RefreshCw size={18} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if(confirm('Are you sure you want to disconnect Canva?')) {
+                        await fetch('/api/admin/canva/disconnect', { method: 'POST' });
+                        window.location.reload();
+                      }
+                    }}
+                    className="p-2.5 bg-slate-100 text-red-500 hover:bg-red-50 hover:text-red-600 text-xs font-bold rounded-lg transition-colors border border-slate-200"
+                    title="Disconnect Canva"
+                  >
+                    <LogOut size={18} />
+                  </button>
+                </>
               )}
             </div>
           </div>
