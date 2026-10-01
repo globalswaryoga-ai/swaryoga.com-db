@@ -495,7 +495,79 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                          )}
                        </div>
 
+                       <div className="mt-4">
+                         <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Canva Brand Template ID</label>
+                         <input 
+                           type="text" 
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-mono text-slate-700" 
+                           placeholder="DAExxxxx" 
+                           value={activeSection === 'receipts' ? (typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || '' : '') : ''}
+                           onChange={(e) => {
+                             if (activeSection === 'receipts' && typeof window !== 'undefined') {
+                               localStorage.setItem('canvaReceiptTemplateId', e.target.value);
+                             }
+                           }}
+                         />
+                         <p className="text-xs text-slate-400 mt-2">Find this in your Canva URL when editing a Brand Template.</p>
+                       </div>
+
                        <button 
+                         onClick={async () => {
+                           const btn = document.getElementById('btn-generate-canva');
+                           if (btn) btn.innerText = 'Generating...';
+                           
+                           try {
+                             const templateId = localStorage.getItem('canvaReceiptTemplateId');
+                             if (!templateId) {
+                               alert('Please enter a Brand Template ID');
+                               if (btn) btn.innerText = 'Generate in Canva';
+                               return;
+                             }
+                             
+                             let dataToFill = {};
+                             if (activeSection === 'receipts' && receiptData) {
+                               dataToFill = {
+                                 Name: { type: 'text', text: receiptData.name || '' },
+                                 Amount: { type: 'text', text: receiptData.amount || '' },
+                                 Mode: { type: 'text', text: receiptData.paymentMode || '' }
+                               };
+                             }
+                             
+                             const res = await fetch('/api/admin/canva/autofill', {
+                               method: 'POST',
+                               headers: { 'Content-Type': 'application/json' },
+                               body: JSON.stringify({ templateId, data: dataToFill })
+                             });
+                             
+                             const json = await res.json();
+                             if (json.error) throw new Error(json.error);
+                             
+                             const jobId = json.job.id;
+                             
+                             // Poll status
+                             const poll = setInterval(async () => {
+                               const statusRes = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`);
+                               const statusJson = await statusRes.json();
+                               
+                               if (statusJson.job.status === 'success') {
+                                 clearInterval(poll);
+                                 if (btn) btn.innerText = 'Opening Design...';
+                                 const designId = statusJson.job.result.design.id;
+                                 window.open(`https://www.canva.com/design/${designId}/edit`, '_blank');
+                                 if (btn) btn.innerText = 'Generate in Canva';
+                               } else if (statusJson.job.status === 'failed') {
+                                 clearInterval(poll);
+                                 alert('Canva failed to generate the design.');
+                                 if (btn) btn.innerText = 'Generate in Canva';
+                               }
+                             }, 2000);
+                             
+                           } catch (error: any) {
+                             alert(error.message);
+                             if (btn) btn.innerText = 'Generate in Canva';
+                           }
+                         }}
+                         id="btn-generate-canva"
                          className="mt-6 py-3.5 rounded-xl font-black text-sm w-full transition-all bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md hover:-translate-y-0.5"
                        >
                          Generate in Canva
