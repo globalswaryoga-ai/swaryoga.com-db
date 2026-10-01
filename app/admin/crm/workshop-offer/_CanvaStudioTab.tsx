@@ -612,6 +612,12 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           placeholder="Message Canva Studio AI..."
                           value={metaPrompt}
                           onChange={e => setMetaPrompt(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleGenerateMetaAI();
+                            }
+                          }}
                         />
                         <div className="flex items-center justify-between px-2 pb-2">
                            <div className="flex items-center gap-3">
