@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye } from 'lucide-react';
+import { FileText, Share2, Image as ImageIcon, Download, Search, CheckCircle, Info, ChevronDown, ChevronRight, Folder, CheckSquare, Eye, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 
 interface CanvaStudioTabProps {
@@ -21,6 +21,115 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(false);
   const [designError, setDesignError] = useState('');
   const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
+
+  const [metaPrompt, setMetaPrompt] = useState<string>('');
+  const [isGeneratingMeta, setIsGeneratingMeta] = useState(false);
+  const [generatedAiText, setGeneratedAiText] = useState<any>(null);
+  const [generatedAiImage, setGeneratedAiImage] = useState<string | null>(null);
+
+  const [metaLanguagesList, setMetaLanguagesList] = useState<string[]>(['English', 'Marathi', 'Hindi']);
+  const [metaLanguage, setMetaLanguage] = useState<string>('English');
+  const [metaPlatformsList] = useState<string[]>(['FB', 'Insta', 'YouTube', '1:1', 'PDF']);
+  const [metaPlatform, setMetaPlatform] = useState<string>('FB');
+  const [metaTemplatesMap, setMetaTemplatesMap] = useState<Record<string, string>>({});
+  const [savedMetaAds, setSavedMetaAds] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedLangs = localStorage.getItem('meta_languages');
+      if (storedLangs) setMetaLanguagesList(JSON.parse(storedLangs));
+      
+      const storedMap = localStorage.getItem('meta_templates_map');
+      if (storedMap) setMetaTemplatesMap(JSON.parse(storedMap));
+      
+      const storedAds = localStorage.getItem('saved_meta_ads');
+      if (storedAds) setSavedMetaAds(JSON.parse(storedAds));
+    }
+  }, []);
+
+  const handleAddLanguage = () => {
+    const lang = prompt('Enter new language name:');
+    if (lang && lang.trim()) {
+      const newLangs = [...metaLanguagesList, lang.trim()];
+      setMetaLanguagesList(newLangs);
+      if (typeof window !== 'undefined') localStorage.setItem('meta_languages', JSON.stringify(newLangs));
+    }
+  };
+
+  const handleDeleteLanguage = (lang: string) => {
+    if (confirm(`Are you sure you want to delete ${lang}?`)) {
+      const newLangs = metaLanguagesList.filter(l => l !== lang);
+      setMetaLanguagesList(newLangs);
+      if (typeof window !== 'undefined') localStorage.setItem('meta_languages', JSON.stringify(newLangs));
+      if (metaLanguage === lang) setMetaLanguage(newLangs[0] || '');
+    }
+  };
+
+  const handleUpdateTemplate = (val: string) => {
+    const newMap = { ...metaTemplatesMap, [metaPlatform]: val };
+    setMetaTemplatesMap(newMap);
+    if (typeof window !== 'undefined') localStorage.setItem('meta_templates_map', JSON.stringify(newMap));
+  };
+
+
+  const handleGenerateMetaAI = async () => {
+    if (!metaPrompt.trim()) {
+      alert('Please enter a description for the ad');
+      return;
+    }
+    
+    setIsGeneratingMeta(true);
+    setGeneratedAiText(null);
+    setGeneratedAiImage(null);
+    setGeneratedDesignId(null);
+    
+    try {
+      const targetTemplateId = metaTemplatesMap[metaPlatform];
+      if (!targetTemplateId) {
+        alert(`Please enter a Canva Template ID for ${metaPlatform}`);
+        setIsGeneratingMeta(false);
+        return;
+      }
+      const fullPrompt = `Target Language: ${metaLanguage}\nPlatform: ${metaPlatform}\n\n${metaPrompt}`;
+      
+
+      const res = await fetch('/api/admin/canva/meta-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: fullPrompt, templateId: targetTemplateId })
+      });
+
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to generate content');
+      
+      setGeneratedAiText(data.content);
+      
+      if (data.canvaDesignId) {
+          setGeneratedDesignId(data.canvaDesignId);
+          // Auto-save the generated ad
+          const newAd = {
+            id: Date.now().toString(),
+            prompt: metaPrompt,
+            language: metaLanguage,
+            platform: metaPlatform,
+            text: data.content,
+            imageUrl: data.imageUrl,
+            designId: data.canvaDesignId,
+            createdAt: new Date().toISOString()
+          };
+          const updatedAds = [newAd, ...savedMetaAds];
+          setSavedMetaAds(updatedAds);
+          if (typeof window !== 'undefined') localStorage.setItem('saved_meta_ads', JSON.stringify(updatedAds));
+      }
+      
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setIsGeneratingMeta(false);
+    }
+  };
+
 
   useEffect(() => {
     const saved = localStorage.getItem('crm_offer_data');
@@ -190,20 +299,24 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
           </h2>
           
           <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-            <button 
-              onClick={() => setActiveSection('meta')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
-            >
-              <ImageIcon size={16} className={activeSection === 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
-              Meta Work
-            </button>
-            <button 
-              onClick={() => setActiveSection('receipts')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'receipts' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
-            >
-              <FileText size={16} className={activeSection === 'receipts' ? 'text-indigo-600' : 'text-slate-400'} />
-              Receipts
-            </button>
+            
+             <button 
+               onClick={() => {
+                 setActiveSection('downloads');
+                 setDownloadTab('meta');
+               }}
+               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' && downloadTab === 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+             >
+               <ImageIcon size={16} className={activeSection === 'downloads' && downloadTab === 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
+               Meta Advertise
+             </button>
+             <button 
+               onClick={() => setActiveSection('receipts')}
+               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'receipts' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+             >
+               <FileText size={16} className={activeSection === 'receipts' ? 'text-indigo-600' : 'text-slate-400'} />
+               Receipts
+             </button>
             <button 
               onClick={() => setActiveSection('certificate')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'certificate' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
@@ -211,13 +324,13 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
               <Share2 size={16} className={activeSection === 'certificate' ? 'text-indigo-600' : 'text-slate-400'} />
               Certificate
             </button>
-            <button 
-               onClick={() => setActiveSection('downloads')}
-               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
-            >
-               <Download size={16} className={activeSection === 'downloads' ? 'text-indigo-600' : 'text-slate-400'} />
+              <button 
+                onClick={() => { setActiveSection('downloads'); setDownloadTab('receipts'); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' && downloadTab !== 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+             >
+               <Download size={16} className={activeSection === 'downloads' && downloadTab !== 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
                Downloads
-            </button>
+             </button>
           </div>
         </div>
 
@@ -613,6 +726,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  clearInterval(poll);
                                  if (btn) btn.innerText = 'Opening Design...';
                                  const designId = statusJson.job.result.design.id;
+                                  
                                   setGeneratedDesignId(designId);
                                  window.open(`https://www.canva.com/design/${designId}/edit`, '_blank');
                                  if (btn) btn.innerText = 'Generate in Canva';
@@ -673,7 +787,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                      onClick={() => setDownloadTab('meta')}
                      className={`px-8 py-3 rounded-full text-sm font-black transition-all ${downloadTab === 'meta' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
                    >
-                     Meta Work
+                     Meta Advertise
                    </button>
                    <button
                      onClick={() => setDownloadTab('receipts')}
@@ -689,7 +803,163 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                    </button>
                  </div>
 
+                 {/* Meta Ad Studio Area */}
+                 {downloadTab === 'meta' && (
+                   <div className="flex flex-col gap-12 w-full pb-12">
+                      {/* Meta Ad Studio Layout */}
+                      <div className="flex min-h-[500px] gap-8 w-full">
+                        {/* Sidebar */}
+                        <div className="w-64 flex-shrink-0 flex flex-col gap-6">
+                          <div className="mb-2">
+                            <h3 className="text-3xl font-black text-slate-800 tracking-tight">Ad Studio</h3>
+                            <p className="text-slate-500 mt-1 text-sm font-medium">Generate AI copy and images</p>
+                          </div>
+                          
+                          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="font-bold text-slate-700">Languages</h4>
+                              <button onClick={handleAddLanguage} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded transition-colors">
+                                <Plus size={18} />
+                              </button>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {metaLanguagesList.map(lang => (
+                                <div 
+                                  key={lang} 
+                                  className={`group flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-colors ${metaLanguage === lang ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-100' : 'hover:bg-slate-50 text-slate-600 font-medium border border-transparent'}`} 
+                                  onClick={() => setMetaLanguage(lang)}
+                                >
+                                  <span>{lang}</span>
+                                  {metaLanguagesList.length > 1 && (
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteLanguage(lang); }} 
+                                      className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                      title="Delete Language"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Main Area */}
+                        <div className="flex-1 flex flex-col">
+                           {/* Platform Tabs */}
+                           <div className="flex items-center gap-2 mb-6 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
+                             {metaPlatformsList.map(plat => (
+                               <button 
+                                 key={plat} 
+                                 onClick={() => setMetaPlatform(plat)}
+                                 className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${metaPlatform === plat ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                               >
+                                 {plat}
+                               </button>
+                             ))}
+                           </div>
+
+                           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col p-8">
+                              <div className="flex flex-col gap-6 max-w-2xl w-full">
+                                 <div>
+                                   <label className="text-sm font-bold text-slate-700 mb-2 block">What is the ad about?</label>
+                                   <textarea 
+                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-700 min-h-[120px] focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                                     placeholder={`e.g., A 3-day Swar Yoga workshop focusing on stress relief. Target audience is stressed professionals. (Will generate in ${metaLanguage})`}
+                                     value={metaPrompt}
+                                     onChange={e => setMetaPrompt(e.target.value)}
+                                   />
+                                 </div>
+                                 
+                                 <div>
+                                   <label className="text-sm font-bold text-slate-700 mb-2 block">Canva Ad Template ID for {metaPlatform}</label>
+                                   <input 
+                                     type="text" 
+                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-700 font-mono focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                     value={metaTemplatesMap[metaPlatform] || ''}
+                                     onChange={e => handleUpdateTemplate(e.target.value)}
+                                     placeholder={`Enter Template ID for ${metaPlatform}`}
+                                   />
+                                   <p className="text-xs text-slate-500 mt-2">
+                                     Make sure your Canva template has text placeholders named <code className="bg-slate-100 px-1 py-0.5 rounded">Headline</code>, <code className="bg-slate-100 px-1 py-0.5 rounded">Subheading</code>, and <code className="bg-slate-100 px-1 py-0.5 rounded">CTA</code>.
+                                   </p>
+                                 </div>
+                                 
+                                 <button 
+                                   onClick={handleGenerateMetaAI}
+                                   disabled={isGeneratingMeta}
+                                   className={`mt-4 w-full py-4 rounded-xl font-black text-white text-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 ${isGeneratingMeta ? 'bg-indigo-400 cursor-not-allowed' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500'}`}
+                                 >
+                                   {isGeneratingMeta ? (
+                                     <>
+                                       <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white"></div>
+                                       Generating {metaPlatform} Ad in {metaLanguage}...
+                                     </>
+                                   ) : (
+                                     <>
+                                       ✨ Generate AI Ad & Open in Canva
+                                     </>
+                                   )}
+                                 </button>
+                              </div>
+                           </div>
+                        </div>
+                      </div>
+
+                      {/* Saved Ads Section */}
+                      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+                        <h3 className="font-black text-slate-800 text-xl mb-6">Saved AI Meta Ads</h3>
+                        {savedMetaAds.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {savedMetaAds.map(ad => (
+                              <div key={ad.id} className="border border-slate-200 rounded-2xl p-5 hover:shadow-md transition-all flex flex-col h-full bg-slate-50">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div>
+                                    <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mr-2">{ad.platform}</span>
+                                    <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">{ad.language}</span>
+                                  </div>
+                                  <span className="text-xs font-medium text-slate-400">{new Date(ad.createdAt).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-sm font-bold text-slate-700 mb-4 line-clamp-2">{ad.prompt}</p>
+                                
+                                <div className="flex-1">
+                                  {ad.imageUrl && (
+                                    <div className="mb-4 aspect-video rounded-xl overflow-hidden bg-slate-200">
+                                      <img src={ad.imageUrl} alt="Generated Ad" className="w-full h-full object-cover" />
+                                    </div>
+                                  )}
+                                  {ad.text?.Headline && (
+                                    <p className="text-xs text-slate-600 font-bold mb-1">"{ad.text.Headline}"</p>
+                                  )}
+                                </div>
+                                
+                                <div className="mt-4 pt-4 border-t border-slate-200 flex gap-3">
+                                  <a 
+                                    href={`https://www.canva.com/design/${ad.designId}/edit`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex-1 bg-indigo-50 text-indigo-700 py-2 rounded-lg text-sm font-bold text-center hover:bg-indigo-100 transition-colors"
+                                  >
+                                    Edit in Canva
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                            <ImageIcon size={48} className="mb-4 opacity-20" />
+                            <p className="font-bold text-slate-600 mb-1 text-lg">No saved Meta ads found.</p>
+                            <p className="text-sm">Use the Ad Studio above to generate some AI ads!</p>
+                          </div>
+                        )}
+                      </div>
+                   </div>
+                 )}
+
                  {/* Batch List Area */}
+                 {downloadTab !== 'meta' && (
                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col mb-12 overflow-hidden">
                     
                     {/* Header Controls */}
@@ -781,7 +1051,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                    </div>
                                    <button 
                                      onClick={() => {
-                                       setSelectedLead(lead);
+                                       setSelectedLeadId(lead.id || lead._id);
                                        setActiveSection(downloadTab === 'certificate' ? 'certificate' : 'receipts');
                                      }}
                                      className="flex items-center gap-2 px-4 h-9 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold transition-all"
@@ -807,6 +1077,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                     </div>
                     
                  </div>
+                 )}
               </div>
            )}
         </div>
