@@ -49,13 +49,15 @@ export async function GET(request: Request) {
   authUrl.searchParams.append('response_type', 'code');
   authUrl.searchParams.append('client_id', clientId);
   authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('scope', scopes);
   authUrl.searchParams.append('state', state);
   authUrl.searchParams.append('code_challenge', codeChallenge);
-  authUrl.searchParams.append('code_challenge_method', 'S256');
+  authUrl.searchParams.append('code_challenge_method', 's256');
+
+  // Fix URLSearchParams encoding `+` instead of `%20` for scope which can break some strict OAuth providers
+  const finalUrl = authUrl.toString() + '&scope=' + scopes.split(' ').map(encodeURIComponent).join('%20');
 
   // Redirect the user to Canva to approve the connection
-  const response = NextResponse.redirect(authUrl.toString());
+  const response = NextResponse.redirect(finalUrl);
   
   // Store code_verifier in cookie for the callback route to use
   response.cookies.set('canva_code_verifier', codeVerifier, { 
