@@ -13,13 +13,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'No authorization code provided' }, { status: 400 });
   }
 
-  const clientId = process.env.CANVA_CLIENT_ID;
-  const clientSecret = process.env.CANVA_CLIENT_SECRET;
+  const clientId = process.env.CANVA_CLIENT_ID?.trim();
+  const clientSecret = process.env.CANVA_CLIENT_SECRET?.trim();
   
   // Dynamically generate the redirect URI based on the current host header or .env
   const protocol = request.headers.get('x-forwarded-proto') || 'http';
   const host = request.headers.get('host') || '127.0.0.1:3000';
-  const redirectUri = process.env.CANVA_REDIRECT_URI || `${protocol}://${host}/api/admin/canva/callback`;
+  const redirectUri = process.env.CANVA_REDIRECT_URI?.trim() || `${protocol}://${host}/api/admin/canva/callback`;
   
   // Read code_verifier from cookies
   const codeVerifier = request.headers.get('cookie')?.split('; ')?.find(c => c.startsWith('canva_code_verifier='))?.split('=')[1];
