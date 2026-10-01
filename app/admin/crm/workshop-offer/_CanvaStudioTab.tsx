@@ -545,7 +545,14 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                 {/* ChatGPT Style Left Sidebar */}
                 <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col h-full flex-shrink-0">
                   <div className="p-4 border-b border-slate-200">
-                    <button className="flex items-center gap-2 w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
+                    <button 
+                      onClick={() => {
+                        setChatMessages([]);
+                        setGeneratedAiImage('');
+                        setGeneratedAiText('');
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                    >
                       <Plus size={16} /> New Ad
                     </button>
                   </div>
@@ -553,7 +560,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                     <div className="text-xs font-bold text-slate-400 mb-2 px-2">Recent Ads</div>
                     <div className="flex flex-col gap-1">
                       {savedMetaAds.length > 0 ? savedMetaAds.map((ad, i) => (
-                        <div key={i} className="px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-200/50 cursor-pointer truncate">
+                        <div 
+                          key={i} 
+                          onClick={() => {
+                            setChatMessages([
+                              { role: 'user', content: ad.prompt },
+                              { role: 'ai', content: ad.text, imageUrl: ad.imageUrl }
+                            ]);
+                            setGeneratedAiImage(ad.imageUrl || '');
+                            setGeneratedAiText(ad.text || '');
+                            setMetaLanguage(ad.language);
+                            setMetaPlatform(ad.platform);
+                          }}
+                          className="px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-200/50 cursor-pointer truncate"
+                        >
                           {ad.prompt || `Ad ${i+1}`}
                         </div>
                       )) : (
