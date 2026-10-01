@@ -102,8 +102,8 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
     if (shouldGenerateImage || shouldGenerateAdCopy) {
       try {
         const imagePrompt = shouldGenerateAdCopy && aiData
-          ? `A beautiful, clean, modern social media background image without any text. Theme: ${prompt}`
-          : `Create a high-quality image based on this request: ${prompt}. Make it visually stunning with no text overlaid.`;
+          ? `A beautiful, clean, modern social media background image. Theme: ${prompt}`
+          : `Create a high-quality image based on this request: ${prompt}. If the request includes text or is for a thumbnail, make sure to beautifully integrate that text into the design.`;
 
         const imageResponse = await openai.images.generate({
           model: 'gpt-image-2',
