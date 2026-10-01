@@ -609,7 +609,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                    <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
                                      <Sparkles size={14} className="text-indigo-600" />
                                    </div>
-                                   <span className="font-bold text-sm">Canva Studio AI</span>
+                                   <span className="font-bold text-sm">AI</span>
                                  </div>
                                )}
                                
@@ -642,7 +642,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center animate-pulse">
                                  <Sparkles size={14} className="text-indigo-600" />
                                </div>
-                               <span className="font-bold text-sm">Canva Studio AI is thinking...</span>
+                               <span className="font-bold text-sm">AI is thinking...</span>
                              </div>
                              <div className="flex space-x-2">
                                <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce"></div>
@@ -704,7 +704,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           {/* Input */}
                           <input 
                             className="flex-1 bg-transparent px-4 py-3 text-slate-700 outline-none text-base"
-                            placeholder="Message Canva Studio AI..."
+                            placeholder="Message AI..."
                             value={metaPrompt}
                             onChange={e => setMetaPrompt(e.target.value)}
                             onKeyDown={(e) => {
@@ -730,7 +730,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                         </div>
                      </div>
                      <div className="text-center mt-3 text-xs text-slate-400">
-                       Canva Studio AI can make mistakes. Consider verifying important information.
+                       AI can make mistakes. Consider verifying important information.
                      </div>
                   </div>
                   
