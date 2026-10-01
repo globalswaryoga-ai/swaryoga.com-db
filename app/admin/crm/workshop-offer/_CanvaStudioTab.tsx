@@ -111,11 +111,6 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     
     try {
       const targetTemplateId = metaTemplatesMap[metaPlatform];
-      if (!targetTemplateId) {
-        alert(`Please enter a Canva Template ID for ${metaPlatform}`);
-        setIsGeneratingMeta(false);
-        return;
-      }
       const fullPrompt = `Target Language: ${metaLanguage}\nPlatform: ${metaPlatform}\n\n${metaPrompt}`;
       
 
@@ -129,25 +124,29 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate content');
       
-      setGeneratedAiText(data.content);
-      
-      if (data.canvaDesignId) {
-          setGeneratedDesignId(data.canvaDesignId);
-          // Auto-save the generated ad
-          const newAd = {
-            id: Date.now().toString(),
-            prompt: metaPrompt,
-            language: metaLanguage,
-            platform: metaPlatform,
-            text: data.content,
-            imageUrl: data.imageUrl,
-            designId: data.canvaDesignId,
-            createdAt: new Date().toISOString()
-          };
-          const updatedAds = [newAd, ...savedMetaAds];
-          setSavedMetaAds(updatedAds);
-          if (typeof window !== 'undefined') localStorage.setItem('saved_meta_ads', JSON.stringify(updatedAds));
+      if (data.generatedText) {
+        setGeneratedAiText(`Headline: ${data.generatedText.Headline}\n\nSubheading: ${data.generatedText.Subheading}\n\nCTA: ${data.generatedText.CTA}`);
       }
+      
+      if (data.imageUrl) {
+        setGeneratedAiImage(data.imageUrl);
+      }
+      
+      // We auto-save the generated ad to history
+      const newAd = {
+        id: Date.now().toString(),
+        prompt: metaPrompt,
+        language: metaLanguage,
+        platform: metaPlatform,
+        text: data.generatedText ? JSON.stringify(data.generatedText) : '',
+        imageUrl: data.imageUrl,
+        createdAt: new Date().toISOString()
+      };
+      const updatedAds = [newAd, ...savedMetaAds];
+      setSavedMetaAds(updatedAds);
+      if (typeof window !== 'undefined') localStorage.setItem('saved_meta_ads', JSON.stringify(updatedAds));
+      
+      setMetaPrompt('');
       
     } catch (error: any) {
       alert(error.message);
