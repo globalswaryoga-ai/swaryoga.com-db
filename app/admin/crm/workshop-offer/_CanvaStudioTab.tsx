@@ -912,6 +912,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <input id="receipt-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={receiptData.workshopName} />
                              </div>
                              <div>
+                               <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Date</label>
+                               <input id="receipt-date" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={new Date().toLocaleDateString('en-GB')} />
+                             </div>
+                             <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Template ID</label>
                                <input id="global-template-id" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
                              </div>
@@ -978,7 +982,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  Amount: { type: 'text', text: (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '' },
                                  Mode: { type: 'text', text: (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '' },
                                  ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' },
-                                 WorkshopName: { type: 'text', text: (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '' }
+                                 WorkshopName: { type: 'text', text: (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '' },
+                                 Date: { type: 'text', text: (document.getElementById('receipt-date') as HTMLInputElement)?.value || '' }
                                };
                              } else if (activeSection === 'certificate') {
                                dataToFill = {
