@@ -20,12 +20,28 @@ export async function GET(request: Request) {
   const codeVerifier = crypto.randomBytes(32).toString('base64url');
   const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 
-  // The scopes needed to use the Autofill API and create designs
+  // The scopes enabled for this app in the Canva Developer Portal
   const scopes = [
-    'autofill:write',
+    'folder:permission:write',
+    'folder:read',
+    'design:meta:write',
+    'comment:write',
     'design:content:read',
+    'folder:write',
+    'design:permission:write',
+    'folder:permission:read',
+    'app:write',
+    'asset:read',
+    'comment:read',
+    'brandtemplate:content:write',
+    'app:read',
+    'brandtemplate:content:read',
+    'profile:read',
     'design:meta:read',
-    'design:content:write'
+    'asset:write',
+    'brandtemplate:meta:read',
+    'design:content:write',
+    'design:permission:read'
   ].join(' ');
 
   // Canva's authorization URL
