@@ -570,7 +570,13 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
 
                   {/* Middle Area: Chat / Generated Output */}
                   <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-6">
-                    {!generatedAiImage && !generatedAiText ? (
+                    
+                    {metaError && (
+                      <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl text-sm mb-4">
+                        <strong>Error:</strong> {metaError}
+                      </div>
+                    )}
+                    {!generatedAiImage && !generatedAiText && !metaError ? (
                       <div className="h-full flex flex-col items-center justify-center text-slate-400">
                          <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
                            <ImageIcon className="text-slate-300 h-8 w-8" />
