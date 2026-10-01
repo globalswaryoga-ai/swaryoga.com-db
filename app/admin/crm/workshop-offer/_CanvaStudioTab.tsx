@@ -22,7 +22,8 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [designError, setDesignError] = useState('');
   const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
 
-  const [metaPrompt, setMetaPrompt] = useState<string>('');\n  const [showCanvaPopup, setShowCanvaPopup] = useState(false);
+  const [metaPrompt, setMetaPrompt] = useState<string>('');
+  const [showCanvaPopup, setShowCanvaPopup] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [isGeneratingMeta, setIsGeneratingMeta] = useState(false);
   const [generatedAiText, setGeneratedAiText] = useState<any>(null);
