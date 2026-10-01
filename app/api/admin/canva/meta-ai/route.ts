@@ -106,7 +106,7 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
           : `Create a high-quality image based on this request: ${prompt}. If the request includes text or is for a thumbnail, make sure to beautifully integrate that text into the design.`;
 
         const imageResponse = await openai.images.generate({
-          model: 'gpt-image-2',
+          model: 'dall-e-3',
           prompt: imagePrompt,
           n: 1,
           size: '1024x1024',
