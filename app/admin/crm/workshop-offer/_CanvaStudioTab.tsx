@@ -927,6 +927,26 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Receipt No.</label>
                                <input id="receipt-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={receiptData.receiptNumber} />
                              </div>
+                             
+                             <div className="mt-4 pt-4 border-t border-slate-200">
+                               <label className="text-[10px] uppercase font-black text-pink-500 tracking-widest mb-1.5 block">Canva Design ID (Edit directly)</label>
+                               <div className="flex gap-2">
+                                 <input id="receipt-design-id" type="text" placeholder="e.g. DAGw5Hx3Vmo" className="flex-1 bg-pink-50 p-3 rounded-xl border border-pink-200 font-mono font-bold text-pink-700" />
+                                 <button 
+                                   onClick={() => {
+                                     const id = (document.getElementById('receipt-design-id') as HTMLInputElement)?.value;
+                                     if (id) {
+                                       setGeneratedDesignId(id);
+                                     } else {
+                                       alert('Please enter a Canva Design ID');
+                                     }
+                                   }}
+                                   className="px-4 py-3 rounded-xl bg-pink-600 text-white font-black text-sm hover:bg-pink-700 transition-all shadow-sm"
+                                 >
+                                   Open Editor
+                                 </button>
+                               </div>
+                             </div>
                            </>
                          )}
                          
