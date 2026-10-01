@@ -23,6 +23,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
 
   const [metaPrompt, setMetaPrompt] = useState<string>('');
+  const [metaError, setMetaError] = useState<string | null>(null);
   const [isGeneratingMeta, setIsGeneratingMeta] = useState(false);
   const [generatedAiText, setGeneratedAiText] = useState<any>(null);
   const [generatedAiImage, setGeneratedAiImage] = useState<string | null>(null);
@@ -108,6 +109,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     setGeneratedAiText(null);
     setGeneratedAiImage(null);
     setGeneratedDesignId(null);
+    setMetaError(null);
     
     try {
       const targetTemplateId = metaTemplatesMap[metaPlatform];
@@ -149,7 +151,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       setMetaPrompt('');
       
     } catch (error: any) {
-      alert(error.message);
+      setMetaError(error.message);
     } finally {
       setIsGeneratingMeta(false);
     }
