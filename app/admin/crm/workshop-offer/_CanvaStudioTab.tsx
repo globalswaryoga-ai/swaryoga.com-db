@@ -654,10 +654,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                </div>
                                <span className="font-bold text-sm">AI is thinking...</span>
                              </div>
-                             <div className="flex space-x-2">
-                               <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce"></div>
-                               <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                               <div className="w-2 h-2 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                             <div className="flex items-center gap-3">
+                               <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-200 border-t-indigo-600"></div>
+                               <span className="text-slate-500 text-sm italic">Generating response...</span>
                              </div>
                           </div>
                         </div>
