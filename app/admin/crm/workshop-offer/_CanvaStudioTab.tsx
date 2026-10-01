@@ -650,10 +650,37 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                  <div className="mb-4">
                                    <img src={msg.imageUrl} alt="Generated" className="rounded-xl max-w-sm w-full border border-slate-200 shadow-sm" />
                                    <div className="mt-3 flex gap-2">
-                                     <button className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2">
+                                     <button 
+                                       onClick={async () => {
+                                         try {
+                                           const response = await fetch(msg.imageUrl);
+                                           const blob = await response.blob();
+                                           await navigator.clipboard.write([
+                                             new ClipboardItem({ [blob.type]: blob })
+                                           ]);
+                                           if(confirm("Image copied to clipboard! Ready to paste (Ctrl+V) into Canva?")) {
+                                             window.open('https://www.canva.com/design/create', '_blank');
+                                           }
+                                         } catch(e) {
+                                           alert("Could not copy automatically. Please right-click the image to copy it, then paste it in Canva.");
+                                           window.open('https://www.canva.com/design/create', '_blank');
+                                         }
+                                       }}
+                                       className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"
+                                     >
                                        <Share2 size={14} /> Open in Canva
                                      </button>
-                                     <button className="flex-1 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                                     <button 
+                                       onClick={() => {
+                                         const a = document.createElement('a');
+                                         a.href = msg.imageUrl;
+                                         a.download = `AI-Design-${Date.now()}.png`;
+                                         document.body.appendChild(a);
+                                         a.click();
+                                         document.body.removeChild(a);
+                                       }}
+                                       className="flex-1 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                     >
                                        <Download size={14} /> Download
                                      </button>
                                    </div>
