@@ -724,7 +724,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           <div className="absolute bottom-full mb-4 left-4 bg-white border border-slate-200 shadow-xl rounded-xl p-4 w-72 animate-in fade-in slide-in-from-bottom-2 z-50">
                             <h4 className="text-sm font-bold text-slate-800 mb-2">Canva Template Settings</h4>
                             <div className="mb-3">
-                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Template ID for {metaPlatform}</label>
+                              <label className="text-xs font-semibold text-slate-500 mb-1 block">Brand Template ID for {metaPlatform}</label>
+                              <div className="text-[10px] text-slate-400 mb-2 leading-tight">
+                                Note: This must be a published Canva "Brand Template" (not just a standard design URL).
+                              </div>
                               <input 
                                 type="text" 
                                 className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
