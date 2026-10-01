@@ -502,7 +502,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
            
            {/* META ADVERTISE */}
            {activeSection === 'meta' && (
-              <div className="max-w-3xl mx-auto flex flex-col h-full items-center pt-8">
+              <div className="max-w-5xl mx-auto flex flex-col h-full items-center pt-8">
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col p-8 w-full">
                   <div className="flex flex-col gap-6 w-full">
                      <div>
