@@ -29,6 +29,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [metaPrompt, setMetaPrompt] = useState<string>('');
   const [showCanvaPopup, setShowCanvaPopup] = useState(false);
+  const [metaCanvaUrl, setMetaCanvaUrl] = useState<string | null>(null);
   const [showBatchCanvaPopup, setShowBatchCanvaPopup] = useState(false);
   const [batchCanvaProgress, setBatchCanvaProgress] = useState<{current: number, total: number, status: string, links: string[]}>({current: 0, total: 0, status: '', links: []});
   const [batchCanvaTemplateId, setBatchCanvaTemplateId] = useState('');
@@ -572,8 +573,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
            {/* META ADVERTISE */}
            {activeSection === 'meta' && (
               <div className="flex w-full h-[calc(100vh-140px)]">
-                {/* ChatGPT Style Left Sidebar */}
-                <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col h-full flex-shrink-0">
+                {/* Meta Main Area (Chat + History) */}
+                <div className={`flex flex-col h-full transition-all duration-300 ${metaCanvaUrl ? 'w-1/2 border-r-4 border-slate-200' : 'w-full'}`}>
+                  <div className="flex flex-1 overflow-hidden">
+                    {/* ChatGPT Style Left Sidebar */}
+                    <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col h-full flex-shrink-0">
                   <div className="p-4 border-b border-slate-200">
                     <button 
                       onClick={() => {
@@ -686,11 +690,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                              new ClipboardItem({ [blob.type]: blob })
                                            ]);
                                            if(confirm("Image copied to clipboard! Ready to paste (Ctrl+V) into Canva?")) {
-                                             window.open('https://www.canva.com/design/create', '_blank');
+                                             setMetaCanvaUrl('https://www.canva.com/design/create');
                                            }
                                          } catch(e) {
                                            alert("Could not copy automatically. Please right-click the image to copy it, then paste it in Canva.");
-                                           window.open('https://www.canva.com/design/create', '_blank');
+                                           setMetaCanvaUrl('https://www.canva.com/design/create');
                                          }
                                        }}
                                        className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"
