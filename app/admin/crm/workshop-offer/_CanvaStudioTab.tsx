@@ -791,6 +791,28 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
            {activeSection === 'downloads' && (
               <div className="max-w-6xl mx-auto flex flex-col">
                  
+                 {/* Top Tabs */}
+                 <div className="flex gap-4 mb-8">
+                   <button
+                     onClick={() => setDownloadTab('meta')}
+                     className={`px-8 py-3 rounded-full text-sm font-black transition-all ${downloadTab === 'meta' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                   >
+                     Meta Work
+                   </button>
+                   <button
+                     onClick={() => setDownloadTab('receipts')}
+                     className={`px-8 py-3 rounded-full text-sm font-black transition-all ${downloadTab === 'receipts' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                   >
+                     Receipts
+                   </button>
+                   <button
+                     onClick={() => setDownloadTab('certificate')}
+                     className={`px-8 py-3 rounded-full text-sm font-black transition-all ${downloadTab === 'certificate' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                   >
+                     Certificates
+                   </button>
+                 </div>
+
                  {/* Meta Ad Studio Area */}
                  {downloadTab === 'meta' && (
                    <div className="flex flex-col gap-12 w-full pb-12 items-center justify-center pt-8">
@@ -874,6 +896,65 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                </>
                              )}
                            </button>
+
+                           {/* Generated Image Preview & Saved Ads */}
+                           {(generatedAiImage || savedMetaAds.length > 0) && (
+                             <div className="mt-8 pt-8 border-t border-slate-200">
+                               {generatedAiImage && (
+                                 <div className="mb-8 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
+                                   <h4 className="font-bold text-indigo-800 mb-4 text-center">Just Generated</h4>
+                                   <div className="rounded-xl overflow-hidden shadow-sm">
+                                     <img src={generatedAiImage} alt="Generated AI Preview" className="w-full h-auto object-contain bg-white" />
+                                   </div>
+                                   {generatedAiText?.Headline && (
+                                     <p className="mt-4 text-center font-bold text-indigo-900">"{generatedAiText.Headline}"</p>
+                                   )}
+                                   {generatedDesignId && (
+                                     <a 
+                                       href={`https://www.canva.com/design/${generatedDesignId}/edit`} 
+                                       target="_blank" 
+                                       rel="noopener noreferrer"
+                                       className="mt-4 block w-full bg-indigo-600 text-white py-3 rounded-lg font-bold text-center hover:bg-indigo-700 transition-colors shadow-md"
+                                     >
+                                       Edit Current Ad in Canva
+                                     </a>
+                                   )}
+                                 </div>
+                               )}
+                               
+                               {savedMetaAds.length > 0 && (
+                                 <div>
+                                   <h4 className="font-bold text-slate-700 mb-4 text-center">Previous Ads</h4>
+                                   <div className="flex flex-col gap-4">
+                                     {savedMetaAds.map(ad => (
+                                       <div key={ad.id} className="border border-slate-200 rounded-xl p-4 flex gap-4 bg-slate-50 items-center">
+                                         {ad.imageUrl && (
+                                           <div className="w-32 h-auto flex-shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-white">
+                                             <img src={ad.imageUrl} alt="Past Ad Preview" className="w-full h-full object-cover" />
+                                           </div>
+                                         )}
+                                         <div className="flex-1">
+                                           <div className="flex items-center gap-2 mb-1">
+                                             <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{ad.platform}</span>
+                                             <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{ad.language}</span>
+                                           </div>
+                                           {ad.text?.Headline && <p className="font-bold text-slate-800 text-sm mb-2 leading-tight">"{ad.text.Headline}"</p>}
+                                           <a 
+                                             href={`https://www.canva.com/design/${ad.designId}/edit`} 
+                                             target="_blank" 
+                                             rel="noopener noreferrer"
+                                             className="inline-block bg-white border border-slate-200 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors"
+                                           >
+                                             Open in Canva
+                                           </a>
+                                         </div>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </div>
+                               )}
+                             </div>
+                           )}
                         </div>
                      </div>
                    </div>
