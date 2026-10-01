@@ -613,7 +613,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           value={metaPrompt}
                           onChange={e => setMetaPrompt(e.target.value)}
                         />
-                        <div className="flex items-center justify-between p-2 border-t border-slate-200 mt-2">
+                        <div className="flex items-center justify-between px-2 pb-2">
                            <div className="flex items-center gap-3">
                              <label className="text-slate-400 hover:text-indigo-600 cursor-pointer p-1.5 hover:bg-indigo-50 rounded-lg transition-colors" title="Upload Image from PC">
                                <input type="file" className="hidden" accept="image/*" onChange={(e) => {
