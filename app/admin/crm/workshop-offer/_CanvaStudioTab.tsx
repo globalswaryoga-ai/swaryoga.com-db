@@ -390,7 +390,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       <div className="flex-1 flex overflow-hidden bg-white max-w-[1600px] mx-auto w-full min-h-0">
         
         {/* Inner Sidebar: Batch and Lead Selection */}
-        {!(activeSection === 'downloads' && downloadTab === 'meta') && (
+        {!(activeSection === 'meta' || (activeSection === 'downloads' && downloadTab === 'meta')) && (
           <div className="w-72 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
              <div className="p-5 border-b border-slate-100">
                 <h3 className="font-black text-slate-800 text-lg tracking-tight">
