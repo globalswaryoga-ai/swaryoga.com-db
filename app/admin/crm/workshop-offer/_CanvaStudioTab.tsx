@@ -21,6 +21,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(false);
   const [designError, setDesignError] = useState('');
   const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
+  
+  const [brandTemplates, setBrandTemplates] = useState<any[]>([]);
+  const [isLoadingBrandTemplates, setIsLoadingBrandTemplates] = useState(false);
 
   type ChatMessage = { role: 'user' | 'ai'; content: string; imageUrl?: string | null; error?: boolean };
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -215,6 +218,26 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       setIsLoadingDesigns(false);
     }
   };
+
+  const fetchBrandTemplates = async () => {
+    setIsLoadingBrandTemplates(true);
+    try {
+      const res = await fetch('/api/admin/canva/brand-templates');
+      const data = await res.json();
+      if(data.items) {
+        setBrandTemplates(data.items);
+      }
+    } catch(e) {
+      console.error(e);
+    }
+    setIsLoadingBrandTemplates(false);
+  };
+
+  useEffect(() => {
+    if (showCanvaPopup && brandTemplates.length === 0) {
+      fetchBrandTemplates();
+    }
+  }, [showCanvaPopup]);
 
   // Filter to only show leads that have been PUSHED
   const pushedLeads = useMemo(() => {
@@ -726,15 +749,33 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                             <div className="mb-3">
                               <label className="text-xs font-semibold text-slate-500 mb-1 block">Brand Template ID for {metaPlatform}</label>
                               <div className="text-[10px] text-slate-400 mb-2 leading-tight">
-                                Note: This must be a published Canva "Brand Template" (not just a standard design URL).
+                                Note: This must be a published Canva "Brand Template".
                               </div>
-                              <input 
-                                type="text" 
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder="e.g. hd9r4z1rp2m"
-                                value={metaTemplatesMap[metaPlatform] || ''}
-                                onChange={e => handleUpdateTemplate(e.target.value)}
-                              />
+                              {isLoadingBrandTemplates ? (
+                                <div className="text-xs text-slate-500 italic">Loading your brand templates...</div>
+                              ) : brandTemplates.length > 0 ? (
+                                <select
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                  value={metaTemplatesMap[metaPlatform] || ''}
+                                  onChange={e => handleUpdateTemplate(e.target.value)}
+                                >
+                                  <option value="">Select a brand template...</option>
+                                  {brandTemplates.map((t: any) => (
+                                    <option key={t.id} value={t.id}>{t.title} ({t.id})</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div>
+                                  <input 
+                                    type="text" 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    placeholder="e.g. DAGw5Hx3Vmo"
+                                    value={metaTemplatesMap[metaPlatform] || ''}
+                                    onChange={e => handleUpdateTemplate(e.target.value)}
+                                  />
+                                  <div className="text-xs text-red-500 mt-1">No Brand Templates found in your Canva account.</div>
+                                </div>
+                              )}
                             </div>
                             <button onClick={() => setShowCanvaPopup(false)} className="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">Done</button>
                           </div>
