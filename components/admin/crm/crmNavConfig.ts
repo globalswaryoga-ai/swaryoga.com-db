@@ -311,14 +311,11 @@ export const sectionConfigs: SectionConfig[] = [
     title: 'Zoom Management',
     icon: Video,
     items: [
-      { label: 'Recordings', href: '/admin/crm/recording-management', icon: Video },
-      { label: 'Zoom Analytics', href: '/admin/crm/zoom-analytics', icon: BarChart2 },
-      { label: 'Workshop Students', href: '/admin/crm/workshop-management', icon: Users },
-      { label: 'Register New Batch', href: '/admin/crm/new-registration', icon: Plus, highlight: true },
+
     ],
     moreItems: [],
     prefixes: [
-      '/admin/crm/recording-management', '/admin/crm/zoom-analytics', '/admin/crm/workshop-management', '/admin/crm/new-registration',
+      '/admin/crm/recording-management', '/admin/crm/zoom-analytics', '/admin/crm/workshop-management', '/admin/crm/new-registration', '/admin/crm/workshop-offer'
     ],
   },
 
@@ -437,7 +434,6 @@ export const sectionConfigs: SectionConfig[] = [
     moreItems: [
       { label: 'Meta Reports', href: '/admin/crm/reports/meta', icon: FileText, bundle: 'whatsapp_meta' },
       { label: 'QR Reports', href: '/admin/crm/reports/qr', icon: FileText, bundle: 'whatsapp_qr' },
-      { label: 'Zoom Analytics', href: '/admin/crm/zoom-analytics', icon: Video, bundle: 'community' },
     ],
     prefixes: ['/admin/crm/analytics', '/admin/crm/reports', '/admin/crm/all-reports', '/admin/crm/whatsapp-analytics'],
   },

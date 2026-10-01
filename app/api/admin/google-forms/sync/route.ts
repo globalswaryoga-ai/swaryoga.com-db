@@ -180,7 +180,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       data: leads,
       questionMap,
-      rawResponses: responses
+      rawResponses: responses,
+      linkedSheetId: formData.linkedSheetId || null
     });
   } catch (error) {
     console.error('Google Forms API Error:', error);

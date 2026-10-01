@@ -392,6 +392,17 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                         {(Object.keys(googleFormQuestionMap).length > 0 || isManualFormId) && formSource === 'google' && (
                           <div className="mt-6 pt-4 border-t border-slate-200">
 
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-sm text-amber-900">
+                              <h5 className="font-bold mb-2">Swar Yoga – Seva & Contribution Options</h5>
+                              <ul className="space-y-1 text-xs">
+                                <li><strong>Offer 1 – ₹1,500 / 750 MUR:</strong> 🙏 You will be eligible for 21 Days Follow-Up Sadhana Sessions after the workshop.</li>
+                                <li><strong>Offer 2 – ₹2,100 / 1,100 MUR:</strong> 🙏 You will be eligible for Swar Yoga Level-2 along with the 21 Days Follow-Up Sadhana Sessions.</li>
+                                <li><strong>Offer 3 – ₹3,100 / 1,550 MUR:</strong> 🙏 You will be eligible to repeat Swar Yoga Level-1 twice during the year, along with the benefits included in the previous offers.</li>
+                                <li><strong>Offer 4 – ₹6,999 / 3,500 MUR:</strong> 🙏 You will receive Swar Yoga Level-1 Recording Access for 1 Year, along with all the benefits included in Offers 1, 2 and 3.</li>
+                                <li><strong>Offer 5 – Your Voluntary Seva 🌸:</strong> 🙏 If you wish to offer more than the above options, you are welcome to contribute any amount of your choice as Voluntary Seva.</li>
+                              </ul>
+                            </div>
+
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="font-bold text-slate-800 text-sm">Map Google Form Fields to CRM</h4>
                               <div className="flex gap-2">
@@ -1001,13 +1012,13 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                     setWorkshops(newWorkshops);
                     
                     if (typeof window !== 'undefined') {
-                      localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+                      localStorage.setItem('crm_offers', JSON.stringify(newWorkshops));
                       const t = localStorage.getItem('crm_token');
                       if (t) {
                         fetch('/api/admin/crm/new-registration/state', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-                          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+                          body: JSON.stringify({ crm_offers: JSON.stringify(newWorkshops) })
                         }).catch(console.error);
                       }
                     }

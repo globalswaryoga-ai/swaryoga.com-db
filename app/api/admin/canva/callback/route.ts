@@ -15,10 +15,19 @@ export async function GET(request: Request) {
 
   const clientId = process.env.CANVA_CLIENT_ID;
   const clientSecret = process.env.CANVA_CLIENT_SECRET;
-  const redirectUri = process.env.CANVA_REDIRECT_URI;
+  
+  // Dynamically generate the redirect URI based on the current host
+  const redirectUri = `${url.protocol}//${url.host}/api/admin/canva/callback`;
+  
+  // Read code_verifier from cookies
+  const codeVerifier = request.headers.get('cookie')?.split('; ')?.find(c => c.startsWith('canva_code_verifier='))?.split('=')[1];
 
-  if (!clientId || !clientSecret || !redirectUri) {
+  if (!clientId || !clientSecret) {
     return NextResponse.json({ error: 'Canva credentials not configured' }, { status: 500 });
+  }
+
+  if (!codeVerifier) {
+    return NextResponse.json({ error: 'Session expired. Please try connecting to Canva again.' }, { status: 400 });
   }
 
   try {
@@ -33,6 +42,7 @@ export async function GET(request: Request) {
         grant_type: 'authorization_code',
         code: code,
         redirect_uri: redirectUri,
+        code_verifier: codeVerifier
       }).toString(),
     });
 
@@ -50,8 +60,8 @@ export async function GET(request: Request) {
     console.log('Access Token:', tokenData.access_token);
     console.log('Refresh Token:', tokenData.refresh_token);
 
-    // Redirect the user back to the workshop management page with a success flag
-    const returnUrl = new URL('/admin/crm/workshop-management', request.url);
+    // Redirect the user back to the workshop offer page with a success flag
+    const returnUrl = new URL('/admin/crm/workshop-offer', request.url);
     returnUrl.searchParams.append('canva_connected', 'true');
     return NextResponse.redirect(returnUrl.toString());
 

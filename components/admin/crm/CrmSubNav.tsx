@@ -17,6 +17,8 @@ import {
   ArrowUpRight,
   Landmark,
   Receipt,
+  Users,
+  Plus,
 } from 'lucide-react';
 
 export interface SubNavItem {
@@ -376,9 +378,9 @@ export default function CrmSubNav({
           </div>
         </div>
 
-        {/* Center: Nav items + More dropdown — all inline */}
+        {/* Center/Right: Nav items + More dropdown */}
         {(visibleItems.length > 0 || visibleMore.length > 0) && (
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide mx-3">
+          <div className="flex flex-1 justify-end items-center gap-4 overflow-x-auto scrollbar-hide mx-6">
             {visibleItems.map(item => {
               const active = isActive(item.href);
               const ItemIcon = item.icon;
@@ -505,6 +507,31 @@ export default function CrmSubNav({
             )}
           </div>
         )}
+
+        {/* Global Action Buttons */}
+        <div className="flex items-center gap-3 shrink-0 ml-auto mr-4">
+          <Link
+            href="/admin/crm/workshop-management"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform bg-emerald-600 hover:bg-emerald-700 hover:scale-105 text-white shadow-sm"
+          >
+            <Users className="h-4 w-4" />
+            Workshop Students
+          </Link>
+          <Link
+            href="/admin/crm/new-registration"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform bg-emerald-600 hover:bg-emerald-700 hover:scale-105 text-white shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Register New Batch
+          </Link>
+          <Link
+            href="/admin/crm/workshop-offer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform bg-emerald-600 hover:bg-emerald-700 hover:scale-105 text-white shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Workshop Offer
+          </Link>
+        </div>
 
         {/* Right: Profile Menu */}
         <div className="flex items-center gap-1 shrink-0 relative">

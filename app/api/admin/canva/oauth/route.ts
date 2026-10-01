@@ -1,15 +1,23 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 
-export async function GET() {
+export async function GET(request: Request) {
   const clientId = process.env.CANVA_CLIENT_ID;
-  const redirectUri = process.env.CANVA_REDIRECT_URI;
   
-  if (!clientId || !redirectUri) {
-    return NextResponse.json({ error: 'Canva credentials not configured in environment variables' }, { status: 500 });
+  // Dynamically generate the redirect URI based on the current host
+  const url = new URL(request.url);
+  const redirectUri = `${url.protocol}//${url.host}/api/admin/canva/callback`;
+  
+  if (!clientId) {
+    return NextResponse.json({ error: 'Canva Client ID not configured in environment variables' }, { status: 500 });
   }
 
-  // Generate a random state string for security (CSRF protection)
+  // Generate a random state string for security
   const state = Math.random().toString(36).substring(7);
+
+  // Generate PKCE code_verifier and code_challenge
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 
   // The scopes needed to use the Autofill API and create designs
   const scopes = [
@@ -26,7 +34,19 @@ export async function GET() {
   authUrl.searchParams.append('redirect_uri', redirectUri);
   authUrl.searchParams.append('scope', scopes);
   authUrl.searchParams.append('state', state);
+  authUrl.searchParams.append('code_challenge', codeChallenge);
+  authUrl.searchParams.append('code_challenge_method', 'S256');
 
   // Redirect the user to Canva to approve the connection
-  return NextResponse.redirect(authUrl.toString());
+  const response = NextResponse.redirect(authUrl.toString());
+  
+  // Store code_verifier in cookie for the callback route to use
+  response.cookies.set('canva_code_verifier', codeVerifier, { 
+    httpOnly: true, 
+    secure: process.env.NODE_ENV === 'production', 
+    path: '/',
+    maxAge: 60 * 10 // 10 minutes
+  });
+  
+  return response;
 }
