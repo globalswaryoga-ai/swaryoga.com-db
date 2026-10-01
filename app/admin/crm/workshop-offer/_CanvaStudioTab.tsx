@@ -204,6 +204,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
         throw new Error('Failed to fetch designs');
       }
       const data = await res.json();
+      if (data.needsAuth) {
+        throw new Error('Not authenticated');
+      }
       setCanvaDesigns(data.items || []);
     } catch (err: any) {
       console.error(err);

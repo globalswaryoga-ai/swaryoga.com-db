@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const accessToken = cookieStore.get('canva_access_token')?.value;
 
   if (!accessToken) {
-    return NextResponse.json({ error: 'Not authenticated with Canva' }, { status: 401 });
+    return NextResponse.json({ error: 'Not authenticated with Canva', needsAuth: true }, { status: 200 });
   }
 
   try {
@@ -23,10 +23,10 @@ export async function GET(request: Request) {
       if (response.status === 401) {
         // Token expired, clear it
         cookieStore.delete('canva_access_token');
+        return NextResponse.json({ error: 'Session expired', needsAuth: true }, { status: 200 });
       }
       const errorData = await response.text();
-      console.error('Failed to fetch Canva designs:', errorData);
-      return NextResponse.json({ error: 'Failed to fetch designs from Canva', details: errorData }, { status: response.status });
+      return NextResponse.json({ error: 'Failed to fetch designs from Canva', details: errorData, needsAuth: true }, { status: 200 });
     }
 
     const data = await response.json();
