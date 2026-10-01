@@ -132,7 +132,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       amount: amount,
       paymentMode: receivedData.paymentMode || lead.paymentMode || lead.payment_mode || 'UPI / Online',
       paymentDetails: receivedData.transactionId || lead.paymentDetails || lead.transactionId || 'N/A',
-      receiptNumber: `RCPT-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}-${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`
+      receiptNumber: `${typeof window !== 'undefined' && localStorage.getItem('canvaReceiptPrefix') ? localStorage.getItem('canvaReceiptPrefix') : `RCPT-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2,'0')}-`}${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`
     };
   };
 
@@ -404,8 +404,34 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
            {(activeSection === 'receipts' || activeSection === 'certificate') && (
               <div className="flex flex-col h-full max-w-7xl mx-auto">
                  <div className="mb-8">
-                   <h3 className="text-3xl font-black text-slate-800 tracking-tight">
-                     {activeSection === 'receipts' ? 'Receipt Generator' : 'Certificate Generator'}
+                   <h3 className="text-3xl font-black text-slate-800 tracking-tight flex items-center justify-between">
+                     <span>{activeSection === 'receipts' ? 'Receipt Generator' : 'Certificate Generator'}</span>
+                     <div className="flex items-center gap-3 w-[500px]">
+                       <input 
+                           type="text" 
+                           id="global-receipt-prefix"
+                           className="w-1/3 bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm font-mono text-slate-700" 
+                           placeholder="Prefix (RCPT-)" 
+                           defaultValue={typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptPrefix') || '' : ''}
+                           onChange={(e) => {
+                             if (typeof window !== 'undefined') {
+                               localStorage.setItem('canvaReceiptPrefix', e.target.value);
+                             }
+                           }}
+                         />
+                       <input 
+                           type="text" 
+                           id="global-template-id"
+                           className="w-2/3 bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm font-mono text-slate-700" 
+                           placeholder="Brand Template ID (DAE...)" 
+                           defaultValue={typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || '' : ''}
+                           onChange={(e) => {
+                             if (typeof window !== 'undefined') {
+                               localStorage.setItem('canvaReceiptTemplateId', e.target.value);
+                             }
+                           }}
+                         />
+                     </div>
                    </h3>
                    <p className="text-slate-500 mt-2 text-lg">
                      {activeSection === 'receipts' 
@@ -432,33 +458,32 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                          <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
                          {activeSection === 'receipts' ? 'Receipt Data' : 'Certificate Data'}
                        </h4>
-                       
-                       <div className="flex-1 overflow-y-auto pr-2 space-y-5">
+                                           <div className="flex-1 overflow-y-auto pr-2 space-y-5" key={selectedLead?._id || selectedLead?.id}>
                          {activeSection === 'receipts' && receiptData && (
                            <>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Name</label>
-                               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700">{receiptData.name}</div>
+                               <input id="receipt-name" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={receiptData.name} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">WhatsApp</label>
-                               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700">{receiptData.whatsapp}</div>
+                               <input id="receipt-whatsapp" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={receiptData.whatsapp} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Amount</label>
-                               <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 font-black text-emerald-700 text-lg">{receiptData.amount}</div>
+                               <input id="receipt-amount" type="text" className="w-full bg-emerald-50 p-3 rounded-xl border border-emerald-200 font-black text-emerald-700 text-lg" defaultValue={receiptData.amount} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Payment Mode</label>
-                               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700 uppercase">{receiptData.paymentMode}</div>
+                               <input id="receipt-mode" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 uppercase" defaultValue={receiptData.paymentMode} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Payment Details</label>
-                               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700 text-sm truncate">{receiptData.paymentDetails}</div>
+                               <input id="receipt-details" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm truncate" defaultValue={receiptData.paymentDetails} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Receipt No.</label>
-                               <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 font-mono font-bold text-indigo-700">{receiptData.receiptNumber}</div>
+                               <input id="receipt-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={receiptData.receiptNumber} />
                              </div>
                            </>
                          )}
@@ -467,48 +492,32 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            <>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Name (Big Letters)</label>
-                               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-black text-slate-800 text-xl uppercase">{certificateData.firstName}</div>
+                               <input id="cert-firstname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-black text-slate-800 text-xl uppercase" defaultValue={certificateData.firstName} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Full Name</label>
-                               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700">{certificateData.fullName}</div>
+                               <input id="cert-fullname" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData.fullName} />
                              </div>
                              <div className="grid grid-cols-2 gap-4">
                                <div>
                                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">City</label>
-                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700 text-sm">{certificateData.city}</div>
+                                 <input id="cert-city" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData.city} />
                                </div>
                                <div>
                                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Country</label>
-                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700 text-sm">{certificateData.country}</div>
+                                 <input id="cert-country" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData.country} />
                                </div>
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Batch Name</label>
-                               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 font-bold text-slate-700">{certificateData.batchName}</div>
+                               <input id="cert-batch" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700" defaultValue={certificateData.batchName} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Certificate No.</label>
-                               <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 font-mono font-bold text-indigo-700">{certificateData.certificateNumber}</div>
+                               <input id="cert-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={certificateData.certificateNumber} />
                              </div>
                            </>
                          )}
-                       </div>
-
-                       <div className="mt-4">
-                         <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1.5 block">Canva Brand Template ID</label>
-                         <input 
-                           type="text" 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-mono text-slate-700" 
-                           placeholder="DAExxxxx" 
-                           defaultValue={typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || '' : ''}
-                           onChange={(e) => {
-                             if (typeof window !== 'undefined') {
-                               localStorage.setItem('canvaReceiptTemplateId', e.target.value);
-                             }
-                           }}
-                         />
-                         <p className="text-xs text-slate-400 mt-2">Find this in your Canva URL when editing a Brand Template.</p>
                        </div>
 
                        <button 
@@ -517,19 +526,20 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            if (btn) btn.innerText = 'Generating...';
                            
                            try {
-                             const templateId = localStorage.getItem('canvaReceiptTemplateId');
+                             const templateId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId');
                              if (!templateId) {
-                               alert('Please enter a Brand Template ID');
+                               alert('Please enter a Brand Template ID at the top right of this screen.');
                                if (btn) btn.innerText = 'Generate in Canva';
                                return;
                              }
                              
                              let dataToFill = {};
-                             if (activeSection === 'receipts' && receiptData) {
+                             if (activeSection === 'receipts') {
                                dataToFill = {
-                                 Name: { type: 'text', text: receiptData.name || '' },
-                                 Amount: { type: 'text', text: receiptData.amount || '' },
-                                 Mode: { type: 'text', text: receiptData.paymentMode || '' }
+                                 Name: { type: 'text', text: (document.getElementById('receipt-name') as HTMLInputElement)?.value || '' },
+                                 Amount: { type: 'text', text: (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '' },
+                                 Mode: { type: 'text', text: (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '' },
+                                 ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' }
                                };
                              }
                              
