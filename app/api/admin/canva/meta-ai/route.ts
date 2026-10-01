@@ -16,7 +16,7 @@ function wantsImage(prompt: string): boolean {
     'create poster', 'generate poster', 'make poster', 'design poster',
     'create ad', 'generate ad', 'make ad', 'create advertisement',
     'create banner', 'generate banner', 'create graphic', 'create visual',
-    'image banao', 'photo banao', 'poster banao'
+    'image banao', 'photo banao', 'poster banao', 'thumbnail', 'picture', 'background'
   ];
   const lower = prompt.toLowerCase();
   return keywords.some(k => lower.includes(k));
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
             role: 'system',
             content: `You are a helpful AI assistant specialized in social media marketing, image creation, content writing, and creative design. 
 You help users create ads, posters, book content, and any creative content they need.
-When a user asks to create an image or poster, acknowledge that you are generating it.
+IMPORTANT INSTRUCTION: If the user asks for an image, a poster, or a thumbnail, DO NOT say you cannot generate images. The system WILL automatically generate and attach the image to your response. You should simply say: "I will generate this image for you now." and briefly describe the style or elements you are incorporating.
 Respond naturally and conversationally. Keep responses concise and helpful.`
           },
           ...conversationHistory,
