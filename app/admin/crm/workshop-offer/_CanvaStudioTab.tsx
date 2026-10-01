@@ -501,9 +501,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            type="text" 
                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-mono text-slate-700" 
                            placeholder="DAExxxxx" 
-                           value={activeSection === 'receipts' ? (typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || '' : '') : ''}
+                           defaultValue={typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || '' : ''}
                            onChange={(e) => {
-                             if (activeSection === 'receipts' && typeof window !== 'undefined') {
+                             if (typeof window !== 'undefined') {
                                localStorage.setItem('canvaReceiptTemplateId', e.target.value);
                              }
                            }}
