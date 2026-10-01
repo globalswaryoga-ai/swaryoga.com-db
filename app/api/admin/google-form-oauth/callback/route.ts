@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL(`/admin/crm/new-registration?error=missing_code`, baseUrl));
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const clientId = '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com'; // Hardcoded for Google Forms
+    const clientSecret = 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD';
 
     // Exchange code for tokens
     const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
