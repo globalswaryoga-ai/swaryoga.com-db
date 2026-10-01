@@ -21,25 +21,31 @@ export async function GET(request: Request) {
   const host = request.headers.get('host') || '127.0.0.1:3000';
   const redirectUri = process.env.CANVA_REDIRECT_URI?.trim() || `${protocol}://${host}/api/admin/canva/callback`;
   
+  // Read code_verifier from cookies
+  const codeVerifier = request.headers.get('cookie')?.split('; ')?.find(c => c.startsWith('canva_code_verifier='))?.split('=')[1];
+
   if (!clientId || !clientSecret) {
     return NextResponse.json({ error: 'Canva credentials not configured' }, { status: 500 });
   }
 
+  if (!codeVerifier) {
+    return NextResponse.json({ error: 'Session expired. Please try connecting to Canva again.' }, { status: 400 });
+  }
+
   try {
-    // Exchange the authorization code for an access token using Basic Auth
-    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    
+    // Exchange the authorization code for an access token
     const tokenResponse = await fetch('https://api.canva.com/rest/v1/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`
+        'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: redirectUri
-      }).toString()
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier
+      }).toString(),
     });
 
     if (!tokenResponse.ok) {
