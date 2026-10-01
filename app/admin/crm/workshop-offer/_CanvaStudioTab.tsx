@@ -17,6 +17,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const [expandedBatches, setExpandedBatches] = useState<string[]>([]);
   const [downloadTab, setDownloadTab] = useState<'meta' | 'receipts' | 'certificate'>('receipts');
   const [selectedForDownload, setSelectedForDownload] = useState<string[]>([]);
+  const [canvaDesigns, setCanvaDesigns] = useState<any[]>([]);
+  const [isLoadingDesigns, setIsLoadingDesigns] = useState(false);
+  const [designError, setDesignError] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('crm_offer_data');
@@ -26,6 +29,30 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       } catch(e) {}
     }
   }, []);
+
+  useEffect(() => {
+    if (activeSection === 'meta' && isCanvaConnected) {
+      fetchCanvaDesigns();
+    }
+  }, [activeSection, isCanvaConnected]);
+
+  const fetchCanvaDesigns = async () => {
+    try {
+      setIsLoadingDesigns(true);
+      setDesignError('');
+      const res = await fetch('/api/admin/canva/designs');
+      if (!res.ok) {
+        throw new Error('Failed to fetch designs');
+      }
+      const data = await res.json();
+      setCanvaDesigns(data.items || []);
+    } catch (err: any) {
+      console.error(err);
+      setDesignError('Could not load designs. You may need to reconnect Canva.');
+    } finally {
+      setIsLoadingDesigns(false);
+    }
+  };
 
   // Filter to only show leads that have been PUSHED
   const pushedLeads = useMemo(() => {
@@ -309,15 +336,66 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                    <p className="text-slate-500 mt-2 text-lg">Create Facebook ads, YouTube thumbnails, and Instagram templates.</p>
                  </div>
                  
-                 <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col items-center justify-center p-12">
-                    <ImageIcon className="h-20 w-20 text-indigo-100 mb-6" />
-                    <h4 className="text-xl font-bold text-slate-700 mb-3">Canva Design Embed</h4>
-                    <p className="text-slate-500 text-center max-w-md mb-8">
-                      Once template IDs are provided, the Canva editor will embed directly here for creating promotional materials.
-                    </p>
-                    <button className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all hover:shadow-md hover:-translate-y-0.5">
-                      Open Canva Editor
-                    </button>
+                 <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col p-6 overflow-hidden">
+                    {isLoadingDesigns ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mb-4"></div>
+                        <p className="font-medium">Loading your Canva designs...</p>
+                      </div>
+                    ) : designError ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-red-400">
+                        <Info size={24} className="mb-2" />
+                        <p className="font-medium">{designError}</p>
+                        <button 
+                          onClick={() => window.location.href = '/api/admin/canva/oauth'}
+                          className="mt-4 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-sm"
+                        >
+                          Reconnect Canva
+                        </button>
+                      </div>
+                    ) : canvaDesigns.length > 0 ? (
+                      <div className="flex-1 overflow-y-auto">
+                        <div className="grid grid-cols-3 gap-6">
+                          {canvaDesigns.map((design, i) => (
+                            <div key={design.id || i} className="group relative bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+                              <div className="aspect-video bg-slate-200 relative">
+                                {design.thumbnail?.url ? (
+                                  <img src={design.thumbnail.url} alt={design.title} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <ImageIcon className="text-slate-400 h-8 w-8" />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-indigo-900/0 group-hover:bg-indigo-900/10 transition-colors"></div>
+                              </div>
+                              <div className="p-4">
+                                <h5 className="font-bold text-slate-700 truncate">{design.title || 'Untitled Design'}</h5>
+                                <p className="text-xs text-slate-500 mt-1">ID: {design.id}</p>
+                              </div>
+                              <a 
+                                href={design.urls?.edit_url || `https://canva.com/design/${design.id}/edit`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="absolute top-2 right-2 bg-white/90 backdrop-blur text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                              >
+                                Edit in Canva
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center">
+                        <ImageIcon className="h-20 w-20 text-indigo-100 mb-6" />
+                        <h4 className="text-xl font-bold text-slate-700 mb-3">No Designs Found</h4>
+                        <p className="text-slate-500 text-center max-w-md mb-8">
+                          You don't have any designs in your Canva account yet, or the app doesn't have permission to view them.
+                        </p>
+                        <a href="https://canva.com" target="_blank" rel="noopener noreferrer" className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all">
+                          Create a Design
+                        </a>
+                      </div>
+                    )}
                  </div>
               </div>
            )}

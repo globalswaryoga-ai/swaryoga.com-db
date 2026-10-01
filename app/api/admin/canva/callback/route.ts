@@ -58,16 +58,29 @@ export async function GET(request: Request) {
 
     const tokenData = await tokenResponse.json();
 
-    // In a real application, you would save these tokens to your database here.
-    // For now, we will log them so we can see it's working.
-    console.log('Successfully connected to Canva!');
-    console.log('Access Token:', tokenData.access_token);
-    console.log('Refresh Token:', tokenData.refresh_token);
-
-    // Redirect the user back to the workshop offer page with a success flag
+    // Store tokens in cookies
     const returnUrl = new URL('/admin/crm/workshop-offer', request.url);
     returnUrl.searchParams.append('canva_connected', 'true');
-    return NextResponse.redirect(returnUrl.toString());
+    
+    const res = NextResponse.redirect(returnUrl.toString());
+    
+    // Cookie options
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: tokenData.expires_in || 3600 // usually 1 hour
+    };
+
+    res.cookies.set('canva_access_token', tokenData.access_token, cookieOptions);
+    if (tokenData.refresh_token) {
+      res.cookies.set('canva_refresh_token', tokenData.refresh_token, {
+        ...cookieOptions,
+        maxAge: 60 * 60 * 24 * 30 // 30 days for refresh token
+      });
+    }
+
+    return res;
 
   } catch (err) {
     console.error('Error during Canva OAuth callback:', err);
