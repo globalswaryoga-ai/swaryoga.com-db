@@ -9,7 +9,7 @@ interface CanvaStudioTabProps {
 
 export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudioTabProps) {
   const toast = useToast();
-  const [activeSection, setActiveSection] = useState<'meta' | 'receipts' | 'certificate' | 'downloads'>('receipts');
+  const [activeSection, setActiveSection] = useState<'meta' | 'receipts' | 'certificate' | 'downloads'>('meta');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [selectedBatchForDownload, setSelectedBatchForDownload] = useState<string | null>(null);
