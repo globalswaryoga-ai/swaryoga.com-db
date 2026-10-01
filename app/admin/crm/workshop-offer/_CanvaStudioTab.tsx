@@ -159,11 +159,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
   const certificateData = activeSection === 'certificate' ? getCertificateData(selectedLead) : null;
 
   return (
-    <div className="flex h-full w-full bg-white overflow-hidden">
-      {/* Primary Sidebar (Leftmost) */}
-      <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0 z-20">
-        <div className="p-4 border-b border-slate-200 bg-slate-100">
-          <h2 className="font-black text-slate-800 flex items-center gap-2">
+    <div className="flex flex-col h-full w-full bg-slate-50 overflow-auto">
+      {/* Top Navigation Header */}
+      <div className="w-full bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between flex-shrink-0 z-20 sticky top-0">
+        <div className="flex items-center gap-6">
+          <h2 className="font-black text-slate-800 flex items-center gap-2 mr-4">
             <span className="bg-indigo-600 text-white p-1.5 rounded-lg shadow-sm">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
@@ -171,52 +171,42 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
             </span>
             Canva Studio
           </h2>
-          <p className="text-xs text-slate-500 mt-2 font-medium">Manage designs and assets</p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-4">
-          <div className="px-3 mb-2">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 pl-2">Design Sections</p>
-            <div className="space-y-1">
-              <button 
-                onClick={() => setActiveSection('meta')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${activeSection === 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-white/50'}`}
-              >
-                <ImageIcon size={18} className={activeSection === 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
-                Meta Work
-              </button>
-              <button 
-                onClick={() => setActiveSection('receipts')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${activeSection === 'receipts' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-white/50'}`}
-              >
-                <FileText size={18} className={activeSection === 'receipts' ? 'text-indigo-600' : 'text-slate-400'} />
-                Receipts
-              </button>
-              <button 
-                onClick={() => setActiveSection('certificate')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${activeSection === 'certificate' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-white/50'}`}
-              >
-                <Share2 size={18} className={activeSection === 'certificate' ? 'text-indigo-600' : 'text-slate-400'} />
-                Certificate
-              </button>
-            </div>
-          </div>
           
-          <div className="px-3 mt-8">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 pl-2">Actions</p>
-             <button 
-                onClick={() => setActiveSection('downloads')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-white/50'}`}
-             >
-                <Download size={18} className={activeSection === 'downloads' ? 'text-indigo-600' : 'text-slate-400'} />
-                Download Section
-             </button>
-         </div>
+          <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+            <button 
+              onClick={() => setActiveSection('meta')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'meta' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+              <ImageIcon size={16} className={activeSection === 'meta' ? 'text-indigo-600' : 'text-slate-400'} />
+              Meta Work
+            </button>
+            <button 
+              onClick={() => setActiveSection('receipts')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'receipts' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+              <FileText size={16} className={activeSection === 'receipts' ? 'text-indigo-600' : 'text-slate-400'} />
+              Receipts
+            </button>
+            <button 
+              onClick={() => setActiveSection('certificate')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'certificate' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+              <Share2 size={16} className={activeSection === 'certificate' ? 'text-indigo-600' : 'text-slate-400'} />
+              Certificate
+            </button>
+            <button 
+               onClick={() => setActiveSection('downloads')}
+               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeSection === 'downloads' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:bg-slate-200/50'}`}
+            >
+               <Download size={16} className={activeSection === 'downloads' ? 'text-indigo-600' : 'text-slate-400'} />
+               Downloads
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-visible bg-white max-w-[1600px] mx-auto w-full">
         
         {/* Inner Sidebar: Batch and Lead Selection */}
         {activeSection !== 'meta' && (
@@ -425,7 +415,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                            id="global-template-id"
                            className="w-2/3 bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm font-mono text-slate-700" 
                            placeholder="Brand Template ID (DAE...)" 
-                           defaultValue={typeof window !== 'undefined' ? localStorage.getItem('canvaReceiptTemplateId') || '' : ''}
+                           defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'}
                            onChange={(e) => {
                              if (typeof window !== 'undefined') {
                                localStorage.setItem('canvaReceiptTemplateId', e.target.value);
@@ -452,9 +442,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                       </p>
                    </div>
                  ) : (
-                   <div className="flex gap-8 h-[calc(100vh-16rem)] min-h-[500px] overflow-hidden">
+                   <div className="flex gap-8 h-auto min-h-[600px] pb-24">
                      {/* Data Form Preview */}
-                     <div className="w-80 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col shrink-0 h-full overflow-hidden">
+                     <div className="w-80 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col shrink-0 h-[700px] overflow-hidden">
                        <h4 className="font-black text-slate-800 text-lg mb-6 flex items-center gap-2">
                          <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
                          {activeSection === 'receipts' ? 'Receipt Data' : 'Certificate Data'}
