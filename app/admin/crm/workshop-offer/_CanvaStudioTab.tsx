@@ -696,7 +696,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <input type="file" className="hidden" accept="image/*" onChange={(e) => {
                                   if(e.target.files && e.target.files[0]){
                                     const reader = new FileReader();
-                                    reader.onload = (e) => setGeneratedAiImage(e.target?.result as string);
+                                    reader.onload = (e) => {
+                                      const imgData = e.target?.result as string;
+                                      setGeneratedAiImage(imgData);
+                                      setChatMessages(prev => [...prev, { role: 'user', content: 'Uploaded an image', imageUrl: imgData }]);
+                                    };
                                     reader.readAsDataURL(e.target.files[0]);
                                   }
                                }} />
