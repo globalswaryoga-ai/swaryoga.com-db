@@ -9,10 +9,6 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     const accessToken = cookieStore.get('canva_access_token')?.value;
 
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Not authenticated with Canva' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { prompt, templateId } = body;
 
@@ -58,6 +54,10 @@ export async function POST(request: Request) {
     // 3. Send Text to Canva Autofill (Only if templateId exists)
     let job = null;
     if (templateId) {
+      if (!accessToken) {
+        return NextResponse.json({ error: 'Not authenticated with Canva. Please connect Canva first to use Template IDs.' }, { status: 401 });
+      }
+      
       const dataToFill = {
         Headline: { type: 'text', text: aiData.Headline || 'Amazing Offer' },
         Subheading: { type: 'text', text: aiData.Subheading || 'Don\'t miss out on this.' },
