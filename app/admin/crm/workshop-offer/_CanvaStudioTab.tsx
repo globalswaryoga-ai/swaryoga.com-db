@@ -707,10 +707,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           </div>
                         )}
                         
-                        <div className="bg-slate-50 border border-slate-200 rounded-full flex items-center p-2 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
+                        <div className="bg-slate-50 border border-slate-200 rounded-3xl flex items-end p-2 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
                           
                           {/* Left Icons */}
-                          <div className="flex items-center gap-1 pl-2">
+                          <div className="flex items-center gap-1 pl-2 mb-1">
                              <label className="text-slate-400 hover:text-indigo-600 cursor-pointer p-2 hover:bg-indigo-50 rounded-full transition-colors flex-shrink-0" title="Upload Image">
                                <input type="file" className="hidden" accept="image/*" onChange={(e) => {
                                   if(e.target.files && e.target.files[0]){
@@ -758,7 +758,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                           <button 
                             onClick={handleGenerateMetaAI}
                             disabled={isGeneratingMeta || !metaPrompt.trim()}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 mr-1 ${(!metaPrompt.trim() || isGeneratingMeta) ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md'}`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 mr-1 mb-1 ${(!metaPrompt.trim() || isGeneratingMeta) ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md'}`}
                           >
                             {isGeneratingMeta ? (
                               <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white"></div>
