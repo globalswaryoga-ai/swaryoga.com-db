@@ -665,17 +665,17 @@ export function LeadsManagementTab({
       } else if (tab.id === 'pending_leads') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected && !dec.isRegistered;
+          return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected;
         }).length;
       } else if (tab.id === 'approval_1') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
+          return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected;
         }).length;
       } else if (tab.id === 'approval_2') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
+          return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected;
         }).length;
       } else if (tab.id === 'registered_leads') {
         count = activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered).length;
@@ -684,7 +684,7 @@ export function LeadsManagementTab({
       } else if (tab.id === 'pending_leads_3') {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3')) && !dec.isRegistered;
+          return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3'));
         }).length;
       } else {
         count = activeBatchLeads.filter(l => {
@@ -696,7 +696,7 @@ export function LeadsManagementTab({
             getCategoryLabel(dec.status) === tab.label ||
             (dec.history || []).some((h: string) => getCategoryLabel(h) === tab.label) ||
             (dec.copies || []).some((c: string) => getCategoryLabel(c) === tab.label);
-          return matches && !dec.isRejected && !dec.isRegistered;
+          return matches && !dec.isRejected;
         }).length;
       }
       counts[tab.id] = count;
@@ -715,19 +715,19 @@ export function LeadsManagementTab({
     if (activeTab === 'pending_leads') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected && !dec.isRegistered;
+        return (dec.status?.includes('pending') || (dec.copies || []).some((c: string) => c.includes('pending'))) && !dec.isRejected;
       });
     }
     if (activeTab === 'approval_1') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected && !dec.isRegistered;
+        return (dec.status === 'approval_1' || dec.history?.includes('approval_1') || dec.copies?.includes('approval_1')) && !dec.isRejected;
       });
     }
     if (activeTab === 'approval_2') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected && !dec.isRegistered;
+        return (dec.status === 'approval_2' || dec.history?.includes('approval_2') || dec.copies?.includes('approval_2')) && !dec.isRejected;
       });
     }
     if (activeTab === 'registered_leads') {
@@ -739,7 +739,7 @@ export function LeadsManagementTab({
     if (activeTab === 'pending_leads_3') {
       return activeBatchLeads.filter(l => {
         const dec = batchDecisions[l.id] || {};
-        return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3')) && !dec.isRegistered;
+        return (dec.status === 'pending_leads_3' || dec.copies?.includes('pending_leads_3'));
       });
     }
     return activeBatchLeads.filter(l => {
@@ -752,7 +752,7 @@ export function LeadsManagementTab({
         (dec.history || []).some((h: string) => getCategoryLabel(h) === activeTabLabel) ||
         (dec.copies || []).some((c: string) => getCategoryLabel(c) === activeTabLabel);
 
-      return matches && !dec.isRejected && !dec.isRegistered;
+      return matches && !dec.isRejected;
     });
   }, [activeBatchLeads, activeTab, batchDecisions]);
 
