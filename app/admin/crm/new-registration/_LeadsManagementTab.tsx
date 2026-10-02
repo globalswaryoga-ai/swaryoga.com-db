@@ -1151,7 +1151,7 @@ export function LeadsManagementTab({
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                🤖 {activeModal} Configuration
+                🤖 {activeModal} Configuration | {activeBatchName} - {SIDEBAR_TABS.find(t => t.id === activeTab)?.label || activeTab}
               </h2>
               <button
                 onClick={() => setActiveModal(null)}
