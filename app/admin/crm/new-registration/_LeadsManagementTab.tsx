@@ -909,7 +909,7 @@ export function LeadsManagementTab({
                       {activeTab === 'new_leads' && (
                         <button
                           onClick={() => openAiModal('AI-4')}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
                         >
                           🤖 {(aiSettings['AI-4'] || []).some((c: any) => c.keyword) ? `AI-4 Active` : 'Configure AI-4'}
                         </button>
