@@ -22,11 +22,11 @@ const DEFAULT_SIDEBAR_TABS = [
 
 const INITIAL_CUSTOM_CATEGORIES = [
   { id: 'pending_leads', label: 'Pending Leads', icon: Clock, isSystem: false },
-  { id: 'pending_leads_1', label: 'Pending Leads-1', icon: Clock, isSystem: false },
-  { id: 'pending_leads_2', label: 'Pending Leads-2', icon: Clock, isSystem: false },
-  { id: 'pending_leads_3', label: 'Pending Leads-3', icon: Clock, isSystem: false },
-  { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle, isSystem: false },
-  { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle, isSystem: false },
+  { id: 'pending_leads_1', label: 'Pending Leads-1', icon: Clock, isSystem: false, aiAssignment: 'AI-4A' },
+  { id: 'pending_leads_2', label: 'Pending Leads-2', icon: Clock, isSystem: false, aiAssignment: 'AI-4B' },
+  { id: 'pending_leads_3', label: 'Pending Leads-3', icon: Clock, isSystem: false, aiAssignment: 'AI-4C' },
+  { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4D' },
+  { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4E' },
   { id: 'registered_leads', label: 'Registerd leads', icon: UserCheck, isSystem: true },
   { id: 'set_zoom_meeting', label: 'Set zoom meeting', icon: Calendar, isSystem: true },
   { id: 'take_zoom_meeting', label: 'Take Zoom Meeting', icon: Video, isSystem: true },
@@ -865,7 +865,7 @@ export function LeadsManagementTab({
                       {assignedAi && (
                         <button
                           onClick={() => openAiModal(assignedAi)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
                         >
                           🤖 {(aiSettings[assignedAi] || []).some((c: any) => c.keyword) ? `${assignedAi} Active` : `Configure ${assignedAi}`}
                         </button>
