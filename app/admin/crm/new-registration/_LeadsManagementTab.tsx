@@ -717,27 +717,48 @@ export function LeadsManagementTab({
           </h2>
         </div>
         <div className="p-3 flex-1 overflow-y-auto space-y-1">
-          {SIDEBAR_TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 transition-all ${activeTab === tab.id
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-                }`}
-            >
-              <tab.icon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
-              <span className="flex-1">{tab.label}</span>
-              {activeBatchId && tabCounts[tab.id] !== undefined && (
-                <span className={`ml-auto text-[11px] font-black px-2 py-0.5 rounded-full ${activeTab === tab.id
-                    ? 'bg-white/20 text-white'
-                    : 'bg-slate-200 text-slate-600'
-                  }`}>
-                  {tabCounts[tab.id]}
-                </span>
-              )}
+          <div className="flex items-center justify-between px-2 mb-2">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dynamic</h3>
+            <button onClick={() => { setEditingCategory(null); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors">
+              <Plus className="h-4 w-4" />
             </button>
-          ))}
+          </div>
+          {SIDEBAR_TABS.map(tab => {
+            const TabIcon = tab.icon || Clock;
+            const isSystem = tab.isSystem;
+            const isCustom = !isSystem;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                }`}
+              >
+                <TabIcon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                <span className="flex-1 truncate">{tab.label}</span>
+                {activeBatchId && tabCounts[tab.id] !== undefined && (
+                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${
+                    activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {tabCounts[tab.id]}
+                  </span>
+                )}
+                {isCustom && (
+                  <div className={`flex gap-1 ml-1 ${activeTab === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <div onClick={(e) => { e.stopPropagation(); setEditingCategory(tab); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-indigo-700 hover:text-white rounded text-indigo-200 transition-colors cursor-pointer">
+                      <Plus className="h-3 w-3" />
+                    </div>
+                    <div onClick={(e) => deleteCategory(tab.id, e)} className="p-1 hover:bg-red-500 hover:text-white rounded text-red-200 transition-colors cursor-pointer">
+                      <Trash2 className="h-3 w-3" />
+                    </div>
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </aside>
 
