@@ -278,19 +278,24 @@ export function LeadsManagementTab({
       activeBatchLeads.forEach(lead => {
         const currentDec = batchDecisions[lead.id];
         if (!currentDec) return;
-        const currentStatus = currentDec.status || 'new_leads';
-        if (type === 'AI-4' && ['approval_1', 'pending_leads_1'].includes(currentStatus)) {
-          if (currentDec.isRegistered) {
-            newDecisions[lead.id] = { ...currentDec, status: 'new_leads', reason: 'Reset' };
-          } else {
-            delete newDecisions[lead.id];
+        
+        if (currentDec.processedBy === type) {
+          delete newDecisions[lead.id];
+        } else {
+          const currentStatus = currentDec.status || 'new_leads';
+          if (type === 'AI-4' && ['approval_1', 'pending_leads_1'].includes(currentStatus)) {
+            if (currentDec.isRegistered) {
+              newDecisions[lead.id] = { ...currentDec, status: 'new_leads', reason: 'Reset' };
+            } else {
+              delete newDecisions[lead.id];
+            }
           }
-        }
-        if (type === 'AI-4A' && ['approval_2', 'pending_leads_2'].includes(currentStatus)) {
-          newDecisions[lead.id] = { ...currentDec, status: 'approval_1', reason: 'Reset' };
-        }
-        if (type === 'AI-4B' && (currentDec.isRegistered || currentStatus === 'pending_leads_3')) {
-          newDecisions[lead.id] = { ...currentDec, isRegistered: false, status: 'approval_2', reason: 'Reset' };
+          if (type === 'AI-4A' && ['approval_2', 'pending_leads_2'].includes(currentStatus)) {
+            newDecisions[lead.id] = { ...currentDec, status: 'approval_1', reason: 'Reset' };
+          }
+          if (type === 'AI-4B' && (currentDec.isRegistered || currentStatus === 'pending_leads_3')) {
+            newDecisions[lead.id] = { ...currentDec, isRegistered: false, status: 'approval_2', reason: 'Reset' };
+          }
         }
       });
       setBatchDecisions(newDecisions);
@@ -355,7 +360,7 @@ export function LeadsManagementTab({
 
       if (finalCategory) {
         const currentDec = batchDecisions[lead.id] || {};
-        newDecisions[lead.id] = { ...currentDec, status: finalCategory, reason: finalReason };
+        newDecisions[lead.id] = { ...currentDec, status: finalCategory, reason: finalReason, processedBy: type };
         if (isSuccess) approvedCount++;
         else pendingCount++;
       }
