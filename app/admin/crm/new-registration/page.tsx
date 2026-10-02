@@ -1993,8 +1993,8 @@ export default function NewRegistrationPage() {
                       }}
                       className={`w-full text-center px-2 py-2 rounded-xl text-xs font-bold transition-all ${
                         selectedDashboardLang === lang 
-                          ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
-                          : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                          ? 'bg-blue-600 text-white border border-blue-600 shadow-sm' 
+                          : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                       }`}
                       title={lang}
                     >
@@ -2218,13 +2218,13 @@ export default function NewRegistrationPage() {
                     setActiveTab(tab.id as any);
                   }}
                   className={`pb-4 text-sm font-bold border-b-[3px] transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id
-                    ? 'border-indigo-600 text-indigo-700'
+                    ? 'border-blue-600 text-blue-700'
                     : canAccessTab(tab.id)
                       ? 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
                       : 'border-transparent text-slate-300 cursor-not-allowed'
                     }`}
                 >
-                  <tab.icon size={16} className={activeTab === tab.id ? "text-indigo-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
+                  <tab.icon size={16} className={activeTab === tab.id ? "text-blue-600" : (canAccessTab(tab.id) ? "text-slate-400" : "text-slate-300")} />
                   {tab.label} {count !== null && `- ${count}`}
                 </button>
               )
