@@ -759,7 +759,7 @@ export function LeadsManagementTab({
                 }`}
               >
                 <TabIcon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
-                <span className="flex-1 whitespace-normal text-left">{tab.label}</span>
+                <span className="flex-1 whitespace-nowrap truncate text-left">{tab.label}</span>
                 {activeBatchId && tabCounts[tab.id] !== undefined && (
                   <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${
                     activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
@@ -767,7 +767,7 @@ export function LeadsManagementTab({
                     {tabCounts[tab.id]}
                   </span>
                 )}
-                <div className={`flex gap-0.5 ml-1 ${activeTab === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                <div className={`gap-0.5 ml-1 ${activeTab === tab.id ? 'flex opacity-100' : 'hidden'}`}>
                   {tab.id !== 'new_leads' && (
                     <>
                       <div onClick={(e) => moveCategory(customCategories.findIndex(c => c.id === tab.id), 'up', e)} className="p-1 hover:bg-slate-700 hover:text-white rounded text-slate-300 transition-colors cursor-pointer" title="Move Up">
