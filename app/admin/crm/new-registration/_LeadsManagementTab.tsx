@@ -616,14 +616,17 @@ export function LeadsManagementTab({
     toast.success(`Opening WhatsApp Messenger for ${selectedLeads.length} leads...`);
   };
 
-  const getEmail = (raw: any) => {
-    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('email'));
-    return key ? raw[key] : '-';
+  const getMappedValue = (raw: any, standardKey: string, fallbackKeywords: string[]) => {
+    const mapping = activeBatch?.metadata?.googleFormMapping || {};
+    const mappedQuestion = mapping[standardKey] || mapping[standardKey.toUpperCase()];
+    if (mappedQuestion && raw[mappedQuestion]) return raw[mappedQuestion];
+
+    const guessedKey = Object.keys(raw || {}).find(k => fallbackKeywords.some(fk => k.toLowerCase().includes(fk)));
+    return guessedKey ? raw[guessedKey] : '-';
   };
-  const getCountry = (raw: any) => {
-    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('country'));
-    return key ? raw[key] : '-';
-  };
+
+  const getEmail = (raw: any) => getMappedValue(raw, 'Email', ['email']);
+  const getCountry = (raw: any) => getMappedValue(raw, 'Country', ['country']);
   const handleMoveSelected = (targetStatus: string) => {
     if (!targetStatus) return;
     const newDecisions = { ...batchDecisions };
@@ -637,14 +640,8 @@ export function LeadsManagementTab({
     toast.success(`Moved ${selectedLeads.length} leads!`);
   };
 
-  const getAge = (raw: any) => {
-    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('age'));
-    return key ? raw[key] : '-';
-  };
-  const getProfession = (raw: any) => {
-    const key = Object.keys(raw || {}).find(k => k.toLowerCase().includes('profession') || k.toLowerCase().includes('occupation'));
-    return key ? raw[key] : '-';
-  };
+  const getAge = (raw: any) => getMappedValue(raw, 'Age', ['age']);
+  const getProfession = (raw: any) => getMappedValue(raw, 'Profession', ['profession', 'occupation']);
 
   const updateZoomField = (leadId: string, field: string, val: string) => {
     setBatchDecisions(prev => {
