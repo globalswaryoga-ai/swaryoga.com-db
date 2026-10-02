@@ -233,7 +233,7 @@ export function LeadsManagementTab({
   
   const getCategoryLabel = (id: string) => {
     const tab = SIDEBAR_TABS.find((t: any) => t.id === id);
-    return tab ? tab.label : id.replace(/_/g, ' ');
+    return tab ? tab.label : "Deleted Folder (" + id.replace(/_/g, ' ') + ")";
   };
 
   const [batchDecisions, setBatchDecisions] = useState<Record<string, any>>(() => {

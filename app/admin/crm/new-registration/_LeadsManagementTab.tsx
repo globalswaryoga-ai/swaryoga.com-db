@@ -610,7 +610,7 @@ export function LeadsManagementTab({
 
   const getCategoryLabel = (id: string) => {
     const tab = SIDEBAR_TABS.find((t: any) => t.id === id);
-    return tab ? tab.label : id.replace(/_/g, ' ');
+    return tab ? tab.label : "Deleted Folder (" + id.replace(/_/g, ' ') + ")";
   };
 
   const toggleLeadSelection = (leadId: string) => {
@@ -652,7 +652,9 @@ export function LeadsManagementTab({
     const newDecisions = { ...batchDecisions };
     selectedLeads.forEach(leadId => {
       const current = newDecisions[leadId] || {};
-      newDecisions[leadId] = { ...current, status: targetStatus, reason: 'Manual Move' };
+      const oldStatus = current.status || 'new_leads';
+      const history = Array.from(new Set([...(current.history || []), oldStatus, targetStatus]));
+      newDecisions[leadId] = { ...current, status: targetStatus, reason: 'Manual Move', history };
     });
     setBatchDecisions(newDecisions);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
