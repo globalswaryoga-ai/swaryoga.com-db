@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import dbConnect from '@/lib/mongodb';
 import { isSuperAdmin, getViewerUserId, generateInvoiceNumber } from '@/lib/crm-handlers';
 import { formatPersonName } from '@/lib/formatName';
 import { getBunnyReceiptById, getBunnyReceiptBySaleId, getBunnyReceiptsByLeadId, getBunnyReceiptByLeadId, createBunnyReceipt, updateBunnyReceipt } from '@/lib/bunnyReceiptRepository';
@@ -24,11 +25,9 @@ function paymentSnapshotFromSale(sale: any) {
 
 export const dynamic = 'force-dynamic';
 
-// Mark as dynamic since this route uses request.headers or request.url
-
-
 export async function GET(request: NextRequest) {
   try {
+    await dbConnect();
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
@@ -78,6 +77,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await dbConnect();
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin && !decoded?.userId) return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
@@ -96,8 +96,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
 
-    const lead: any = await getBunnyLeadById(leadId);
-    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    let lead: any = await getBunnyLeadById(leadId);
+    if (!lead) {
+      // If the lead doesn't exist (e.g. unapproved google form lead), create a virtual one from the body
+      lead = {
+        name: body.customerName,
+        userName: body.customerName,
+        phoneNumber: body.customerPhone,
+        email: body.customerEmail,
+        leadNumber: String(leadId).substring(0, 8),
+        workshopName: body.workshopName,
+        sales: { payment: body.payment, workshop: { slug: '', scheduleId: '' } }
+      };
+    }
 
     // The actual sale record (SalesReport) is the source of truth for amounts.
     // Prefer the exact sale the admin clicked from; otherwise fall back to the
@@ -179,7 +190,9 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await saveBunnyLead({ ...lead, lastReceiptId: receipt._id });
+      if (lead._id) {
+        await saveBunnyLead({ ...lead, lastReceiptId: receipt._id });
+      }
     }
 
     if (sale?._id) {

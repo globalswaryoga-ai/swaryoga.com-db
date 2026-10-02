@@ -24,8 +24,7 @@ export async function initBunnyReceiptsSchema() {
     },
     { sql: `CREATE INDEX IF NOT EXISTS idx_crm_receipts_lead_id ON crm_receipts_sql(lead_id)`, args: [] },
     { sql: `CREATE INDEX IF NOT EXISTS idx_crm_receipts_sale_id ON crm_receipts_sql(sale_id)`, args: [] },
-    { sql: `CREATE INDEX IF NOT EXISTS idx_crm_receipts_customer_phone ON crm_receipts_sql(customer_phone)`, args: [] },
-    { sql: `CREATE INDEX IF NOT EXISTS idx_crm_receipts_issued_at ON crm_receipts_sql(issued_at)`, args: [] }
+    { sql: `CREATE INDEX IF NOT EXISTS idx_crm_receipts_customer_phone ON crm_receipts_sql(customer_phone)`, args: [] }
   ]);
 }
 
@@ -43,7 +42,7 @@ function normalizeReceipt(row: any) {
 export async function getBunnyReceiptById(id: string) {
   await initBunnyReceiptsSchema();
   const result = await bunnyExecute({
-    sql: 'SELECT document_id, data_json, issued_at, created_at, updated_at FROM crm_receipts_sql WHERE document_id = ?',
+    sql: 'SELECT document_id, data_json, created_at, updated_at FROM crm_receipts_sql WHERE document_id = ?',
     args: [id]
   });
   if (!result.rows[0]) return null;
@@ -53,7 +52,7 @@ export async function getBunnyReceiptById(id: string) {
 export async function getBunnyReceiptBySaleId(saleId: string) {
   await initBunnyReceiptsSchema();
   const result = await bunnyExecute({
-    sql: 'SELECT document_id, data_json, issued_at, created_at, updated_at FROM crm_receipts_sql WHERE sale_id = ? ORDER BY issued_at DESC LIMIT 1',
+    sql: 'SELECT document_id, data_json, created_at, updated_at FROM crm_receipts_sql WHERE sale_id = ? ORDER BY created_at DESC LIMIT 1',
     args: [saleId]
   });
   if (!result.rows[0]) return null;
@@ -63,7 +62,7 @@ export async function getBunnyReceiptBySaleId(saleId: string) {
 export async function getBunnyReceiptByLeadId(leadId: string) {
   await initBunnyReceiptsSchema();
   const result = await bunnyExecute({
-    sql: 'SELECT document_id, data_json, issued_at, created_at, updated_at FROM crm_receipts_sql WHERE lead_id = ? ORDER BY issued_at DESC LIMIT 1',
+    sql: 'SELECT document_id, data_json, created_at, updated_at FROM crm_receipts_sql WHERE lead_id = ? ORDER BY created_at DESC LIMIT 1',
     args: [leadId]
   });
   if (!result.rows[0]) return null;
@@ -80,16 +79,21 @@ export async function createBunnyReceipt(input: any) {
 
   await bunnyExecute({
     sql: `INSERT INTO crm_receipts_sql (
-      document_id, lead_id, sale_id, receipt_number, issued_by_user_id, customer_phone, issued_at, data_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      document_id, receipt_key, lead_id, sale_id, lead_number, receipt_number, issued_by_user_id, customer_name, customer_phone, customer_email, workshop_name, status, data_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
+      input.receiptNumber ? String(input.receiptNumber) : id,
       String(input.leadId || ''),
       String(input.saleId || ''),
+      String(input.leadNumber || ''),
       input.receiptNumber ? String(input.receiptNumber) : null,
       String(input.issuedByUserId || ''),
+      String(input.customerName || ''),
       String(input.customerPhone || ''),
-      issuedAt,
+      String(input.customerEmail || ''),
+      String(input.workshopName || ''),
+      'completed',
       JSON.stringify(data),
       now,
       now
@@ -109,7 +113,7 @@ export async function updateBunnyReceipt(id: string, updates: any) {
 
   await bunnyExecute({
     sql: `UPDATE crm_receipts_sql SET 
-      lead_id = ?, sale_id = ?, receipt_number = ?, issued_by_user_id = ?, customer_phone = ?, issued_at = ?, data_json = ?, updated_at = ?
+      lead_id = ?, sale_id = ?, receipt_number = ?, issued_by_user_id = ?, customer_phone = ?, data_json = ?, updated_at = ?
       WHERE document_id = ?`,
     args: [
       String(updatedData.leadId || ''),
@@ -117,7 +121,6 @@ export async function updateBunnyReceipt(id: string, updates: any) {
       updatedData.receiptNumber ? String(updatedData.receiptNumber) : null,
       String(updatedData.issuedByUserId || ''),
       String(updatedData.customerPhone || ''),
-      updatedData.issuedAt ? new Date(updatedData.issuedAt).toISOString() : existing.issuedAt,
       JSON.stringify(updatedData),
       now,
       id
@@ -130,7 +133,7 @@ export async function updateBunnyReceipt(id: string, updates: any) {
 export async function getBunnyReceiptsByLeadId(leadId: string, limit: number = 50) {
   await initBunnyReceiptsSchema();
   const result = await bunnyExecute({
-    sql: 'SELECT document_id, data_json, issued_at, created_at, updated_at FROM crm_receipts_sql WHERE lead_id = ? ORDER BY issued_at DESC LIMIT ?',
+    sql: 'SELECT document_id, data_json, created_at, updated_at FROM crm_receipts_sql WHERE lead_id = ? ORDER BY created_at DESC LIMIT ?',
     args: [leadId, limit]
   });
   return result.rows.map(normalizeReceipt);
