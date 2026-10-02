@@ -1225,6 +1225,9 @@ export default function NewRegistrationPage() {
               if (data.crm_selected_form_id) {
                 setSelectedFormId(data.crm_selected_form_id);
               }
+              if (data.crm_ai1_column) {
+                setAi1ColumnInput(data.crm_ai1_column);
+              }
               // Sync all keys back to localStorage so the rest of the app doesn't break
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'string') localStorage.setItem(k, v);
@@ -1700,28 +1703,39 @@ export default function NewRegistrationPage() {
   );
 
   useEffect(() => {
-    if (selectedWorkshop) {
-      setAi1ColumnInput(selectedWorkshop.metadata?.ai1Column || '');
+    if (selectedWorkshop?.metadata?.ai1Column) {
+      setAi1ColumnInput(selectedWorkshop.metadata.ai1Column);
     }
   }, [selectedWorkshop?.id]);
 
   const saveAi1Column = () => {
-    if (!selectedWorkshop) return;
-    const updatedMetadata = { ...selectedWorkshop.metadata, ai1Column: ai1ColumnInput };
-    const updatedWorkshop = { ...selectedWorkshop, metadata: updatedMetadata };
-    setSelectedWorkshop(updatedWorkshop);
-    setWorkshops(prev => {
-      const newWorkshops = prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
-        fetch('/api/admin/crm/new-registration/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
-        }).catch(console.error);
-      }
-      return newWorkshops;
-    });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crm_ai1_column', ai1ColumnInput);
+      fetch('/api/admin/crm/new-registration/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ crm_ai1_column: ai1ColumnInput })
+      }).catch(console.error);
+    }
+    
+    // Also save to workshop if one is active
+    if (selectedWorkshop) {
+      const updatedMetadata = { ...selectedWorkshop.metadata, ai1Column: ai1ColumnInput };
+      const updatedWorkshop = { ...selectedWorkshop, metadata: updatedMetadata };
+      setSelectedWorkshop(updatedWorkshop);
+      setWorkshops(prev => {
+        const newWorkshops = prev.map(w => w.id === selectedWorkshop.id ? updatedWorkshop : w);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+          fetch('/api/admin/crm/new-registration/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+          }).catch(console.error);
+        }
+        return newWorkshops;
+      });
+    }
     toast.success('AI-1 Column setting saved permanently!');
   };
 
