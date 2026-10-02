@@ -13,7 +13,7 @@ async function test() {
       n: 1,
       size: '1024x1024',
     });
-    console.log("Success! Image URL:", response.data[0].url);
+    console.log("Success! Full Response:", JSON.stringify(response, null, 2));
   } catch (err) {
     console.error("OpenAI Error chatgpt-image-latest:", err.message);
   }
