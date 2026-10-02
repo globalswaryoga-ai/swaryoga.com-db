@@ -777,7 +777,7 @@ export function LeadsManagementTab({
             </button>
           </div>
           {SIDEBAR_TABS.map(tab => {
-            const TabIcon = typeof tab.icon === 'function' || (tab.icon && tab.icon.$typeof) ? tab.icon : (
+            const TabIcon = typeof tab.icon === 'function' || (tab.icon && tab.icon.$$typeof) ? tab.icon : (
   tab.id.includes('pending') ? Clock :
   tab.id.includes('approval') ? CheckCircle :
   tab.id.includes('registered') ? UserCheck :
