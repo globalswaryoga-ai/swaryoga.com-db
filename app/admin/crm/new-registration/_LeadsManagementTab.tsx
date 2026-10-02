@@ -153,12 +153,13 @@ export function LeadsManagementTab({
     const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
     const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
 
-    return leadsData.filter(lead => {
+    return (leadsData || []).filter(lead => {
+      if (!lead) return false;
       if (lead._rawRecord) {
         if (ai7MappedQuestion && lead._rawRecord[ai7MappedQuestion]) {
           return keywords.some((k: string) => isLeadMatchingKeyword(lead._rawRecord[ai7MappedQuestion], k));
         } else {
-          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val as string, k)));
+          return keywords.some((k: string) => Object.values(lead._rawRecord).some(val => isLeadMatchingKeyword(val == null ? '' : String(val), k)));
         }
       }
       return true;

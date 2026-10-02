@@ -70,7 +70,8 @@ export default function NewRegistrationPage() {
 
   const masterViewLanguageFilteredLeads = useMemo(() => {
     const currentBaseLang = getBaseLanguage(selectedDashboardLang);
-    return leadsData.filter(l => {
+    return (leadsData || []).filter(l => {
+      if (!l) return false;
       const leadLang = l.language || l.workshopName || l.formName;
       if (!leadLang) return true;
       return getBaseLanguage(leadLang) === currentBaseLang;
@@ -81,11 +82,12 @@ export default function NewRegistrationPage() {
     if (!batch) return 0;
     if (!batch.formFilterKeyword) return batch.leads || 0;
     
-    const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim());
+    const keywords = String(batch.formFilterKeyword).toLowerCase().split('|').map(k => k.trim()).filter(Boolean);
     
-    return masterViewLanguageFilteredLeads.filter((l: any) => {
-      const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v).toLowerCase().trim()) : [];
-      const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v).toLowerCase().trim()) : [];
+    return (masterViewLanguageFilteredLeads || []).filter((l: any) => {
+      if (!l) return false;
+      const rawVals = l._rawRecord ? Object.values(l._rawRecord).map(v => String(v ?? '').toLowerCase().trim()) : [];
+      const dynVals = l.dynamicAnswers ? Object.values(l.dynamicAnswers).map(v => String(v ?? '').toLowerCase().trim()) : [];
       const allVals = [...rawVals, ...dynVals];
       return keywords.some(k => allVals.some(v => v.includes(k)));
     }).length;
