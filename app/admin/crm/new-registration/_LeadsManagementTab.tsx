@@ -149,7 +149,12 @@ export function LeadsManagementTab({
 
   // Calculate leads for this batch based on the exact logic used in WorkshopFormTab
   const activeBatchLeads = React.useMemo(() => {
-    if (!activeBatch || !activeBatch.formFilterKeyword || !leadsData) return [];
+    if (!leadsData || leadsData.length === 0) return [];
+
+    // If no batch selected OR batch has no keyword → show ALL leads so counts aren't stuck at 0
+    if (!activeBatch || !activeBatch.formFilterKeyword) {
+      return (leadsData || []).filter(Boolean);
+    }
 
     const keywords = activeBatch.formFilterKeyword.toLowerCase().split('|').map((k: string) => k.trim()).filter(Boolean);
     const ai7MappedQuestion = activeBatch?.metadata?.googleFormMapping?.['AI-7'] || activeBatch?.metadata?.googleFormMapping?.['ai7'];
