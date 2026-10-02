@@ -31,7 +31,7 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
   });
 };
 
-const SIDEBAR_TABS = [
+const DEFAULT_SIDEBAR_TABS = [
   { id: 'new_leads', label: 'New Leads', icon: FileText },
   { id: 'pending_leads', label: 'Pending Leads', icon: Clock },
   { id: 'pending_leads_1', label: 'Pending Leads-1', icon: Clock },
@@ -45,6 +45,8 @@ const SIDEBAR_TABS = [
   { id: 'rejected_leads', label: 'Rejected leads', icon: XCircle },
   { id: 'ai_triggers', label: 'AI Triggers-WT', icon: Zap },
 ];
+    
+const INITIAL_CUSTOM_CATEGORIES: any[] = []; // workshop-offer doesn't strictly need the initial ones, but we'll fetch from localStorage inside the component.
 
 const LANGUAGES = ['English Workshop', 'Hindi Workshop', 'Marathi Workshop', 'Kannada Workshop'];
 
@@ -217,6 +219,21 @@ export function LeadsManagementTab({
     const current = aiSettings[type] || [{ question: '', keyword: '' }];
     setModalConditions(current.map(c => ({ ...c })));
     setActiveModal(type);
+  };
+
+  const [customCategories, setCustomCategories] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_custom_categories');
+      if (saved) return JSON.parse(saved);
+    }
+    return [];
+  });
+  
+  const SIDEBAR_TABS = React.useMemo(() => [...DEFAULT_SIDEBAR_TABS, ...customCategories], [customCategories]);
+  
+  const getCategoryLabel = (id: string) => {
+    const tab = SIDEBAR_TABS.find((t: any) => t.id === id);
+    return tab ? tab.label : id.replace(/_/g, ' ');
   };
 
   const [batchDecisions, setBatchDecisions] = useState<Record<string, any>>(() => {
@@ -925,7 +942,7 @@ export function LeadsManagementTab({
                                         : (leadStatus.includes('pending') || (batchDecisions[lead.id]?.history || []).some((h: string) => h.includes('pending'))) ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
                                           : 'bg-blue-50 text-blue-700 border-blue-100'
                                     }`}>
-                                      {leadStatus.replace(/_/g, ' ')}
+                                      {getCategoryLabel(leadStatus)}
                                     </span>
                                   )}
                                   {leadStatus.includes('pending') && batchDecisions[lead.id]?.reason && (
