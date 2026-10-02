@@ -155,6 +155,30 @@ export function LeadsManagementTab({
     }
   }, [activeBatchId, workshops, selectedLanguage]);
 
+  // Ensure we get the latest state from backend, overriding stale local storage on mount
+  useEffect(() => {
+    fetch('/api/admin/crm/new-registration/state')
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+          if (data.crm_custom_categories) {
+            try {
+              const parsed = typeof data.crm_custom_categories === 'string' ? JSON.parse(data.crm_custom_categories) : data.crm_custom_categories;
+              const missing = INITIAL_CUSTOM_CATEGORIES.filter(ic => !parsed.find((p: any) => p.id === ic.id));
+              setCustomCategories([...parsed, ...missing]);
+            } catch (_) {}
+          }
+          if (data.crm_ai4_decisions) {
+            try {
+              const parsed = typeof data.crm_ai4_decisions === 'string' ? JSON.parse(data.crm_ai4_decisions) : data.crm_ai4_decisions;
+              setBatchDecisions(parsed);
+            } catch (_) {}
+          }
+        }
+      })
+      .catch(console.error);
+  }, []);
+
   const activeBatch = workshops?.find(w => w.id === activeBatchId);
   const activeBatchName = activeBatch?.name || '';
 
