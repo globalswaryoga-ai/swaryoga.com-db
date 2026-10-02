@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown } from 'lucide-react';
+import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2 } from 'lucide-react';
 import { useToast } from '@/components/admin/crm/ui/Toast';
 import { ZoomMeetingSetupCalendar } from '@/components/admin/crm/ZoomMeetingSetupCalendar';
 import { AITriggersPanel } from './_AITriggersPanel';
@@ -780,8 +780,8 @@ export function LeadsManagementTab({
                   )}
                   {isCustom && (
                     <>
-                      <div onClick={(e) => { e.stopPropagation(); setEditingCategory(tab); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-blue-700 hover:text-white rounded text-blue-200 transition-colors cursor-pointer">
-                        <Plus className="h-3 w-3" />
+                      <div onClick={(e) => { e.stopPropagation(); setEditingCategory(tab); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-blue-700 hover:text-white rounded text-blue-200 transition-colors cursor-pointer" title="Edit">
+                        <Edit2 className="h-3 w-3" />
                       </div>
                       <div onClick={(e) => deleteCategory(tab.id, e)} className="p-1 hover:bg-red-500 hover:text-white rounded text-red-200 transition-colors cursor-pointer">
                         <Trash2 className="h-3 w-3" />
