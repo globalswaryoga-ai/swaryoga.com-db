@@ -512,21 +512,33 @@ export default function CrmSubNav({
         <div className="flex items-center gap-3 shrink-0 ml-auto mr-4">
           <Link
             href="/admin/crm/workshop-management"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform bg-emerald-600 hover:bg-emerald-700 hover:scale-105 text-white shadow-sm"
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 text-white shadow-sm ${
+              pathname === '/admin/crm/workshop-management'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
           >
             <Users className="h-4 w-4" />
             Workshop Students
           </Link>
           <Link
             href="/admin/crm/new-registration"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform bg-emerald-600 hover:bg-emerald-700 hover:scale-105 text-white shadow-sm"
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 text-white shadow-sm ${
+              pathname === '/admin/crm/new-registration'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
           >
             <Plus className="h-4 w-4" />
             Register New Batch
           </Link>
           <Link
             href="/admin/crm/workshop-offer"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform bg-emerald-600 hover:bg-emerald-700 hover:scale-105 text-white shadow-sm"
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-transform hover:scale-105 text-white shadow-sm ${
+              pathname === '/admin/crm/workshop-offer'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
           >
             <Plus className="h-4 w-4" />
             Workshop Offer
