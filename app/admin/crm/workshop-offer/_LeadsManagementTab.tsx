@@ -8,19 +8,24 @@ import { AITriggersPanel } from './_AITriggersPanel';
 // Helper to prevent double counting on long overlapping form answers
 const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
   const v = String(valStr).toLowerCase().trim();
-  const k = String(keyword).toLowerCase().trim();
-  if (!v || !k) return false;
-  if (v === k) return true;
-  if (k.split(/\s+/).length <= 3) {
+  const kStr = String(keyword).toLowerCase().trim();
+  if (!v || !kStr) return false;
+  
+  // Handle multiple keywords separated by commas (OR logic)
+  const keywords = kStr.split(',').map(k => k.trim()).filter(Boolean);
+  
+  return keywords.some(k => {
+    if (v === k) return true;
+    
+    // Strict 100% word boundary match
     try {
       const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(?:^|\\W)${escapedK}(?:\\W|$)`, 'i');
       if (regex.test(v)) return true;
     } catch (e) {}
-    // Only fall back to simple includes if the word boundary fails, but we should avoid generic substring matching for common short words
-    if (v.includes(k) && k.length > 4) return true;
-  }
-  return false;
+    
+    return false; // Strict matching only
+  });
 };
 
 const SIDEBAR_TABS = [
