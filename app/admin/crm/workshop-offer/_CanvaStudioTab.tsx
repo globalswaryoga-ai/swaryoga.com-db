@@ -60,6 +60,18 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     }
   }, []);
 
+  const openCanvaPopup = (url: string) => {
+    const width = 1000;
+    const height = 800;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    window.open(
+      url,
+      'CanvaEditor',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,status=no,location=no,directories=no`
+    );
+  };
+
   const handleEditLanguage = (oldLang: string) => {
     const newLang = prompt('Enter new language name:', oldLang);
     if (newLang && newLang.trim() && newLang.trim() !== oldLang) {
@@ -718,11 +730,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                              new ClipboardItem({ [blob.type]: blob })
                                            ]);
                                            if(confirm("Image copied to clipboard! Ready to paste (Ctrl+V) into Canva?")) {
-                                             window.open('https://www.canva.com/design/create', '_blank');
+                                             openCanvaPopup('https://www.canva.com/');
                                            }
                                          } catch(e) {
                                            alert("Could not copy automatically. Please right-click the image to copy it, then paste it in Canva.");
-                                           window.open('https://www.canva.com/design/create', '_blank');
+                                           openCanvaPopup('https://www.canva.com/');
                                          }
                                        }}
                                        className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"
@@ -1127,7 +1139,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 const res = await fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, data: dataToFill }) });
                                 const json = await res.json(); if (json.error) throw new Error(json.error);
                                 const jobId = json.job.id;
-                                const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); window.open(`https://www.canva.com/design/${sj.job.result.design.id}/edit`, '_blank'); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
+                                const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${jobId}`); const sj = await sr.json(); if (sj.job.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); openCanvaPopup(`https://www.canva.com/design/${sj.job.result.design.id}/edit`); if (btn) btn.innerText = 'Canva'; } else if (sj.job.status === 'failed') { clearInterval(poll); alert('Canva autofill requires Canva Teams plan.'); if (btn) btn.innerText = 'Canva'; } }, 2000);
                               } catch (error: any) { alert(error.message); if (btn) btn.innerText = 'Canva'; }
                             }}
                             id="btn-generate-canva"
@@ -1155,10 +1167,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <h3 className="text-2xl font-black text-slate-800">Design Ready!</h3>
                                <p className="text-slate-500 max-w-sm text-lg">Your template has been populated with the data and is ready for editing.</p>
                                <div className="flex gap-4 mt-4 w-full">
-                                 <button onClick={() => window.open(`https://www.canva.com/design/${generatedDesignId}/edit`, '_blank')} className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5">
+                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5">
                                    Edit in Canva
                                  </button>
-                                 <button onClick={() => window.open(`https://www.canva.com/design/${generatedDesignId}/view`, '_blank')} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 transition-all transform hover:-translate-y-0.5">
+                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 transition-all transform hover:-translate-y-0.5">
                                    View & Download
                                  </button>
                                </div>
