@@ -79,6 +79,17 @@ export function LeadsManagementTab({
 }) {
   const toast = useToast();
 
+  const syncStateToBackend = (key: string, data: any) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, typeof data === 'string' ? data : JSON.stringify(data));
+      fetch('/api/admin/crm/new-registration/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: typeof data === 'string' ? data : JSON.stringify(data) })
+      }).catch(console.error);
+    }
+  };
+
   const [selectedLanguage, setSelectedLanguage] = useState(selectedDashboardLang);
   const [selectedBatchId, setSelectedBatchId] = useState(selectedWorkshop?.id ? selectedWorkshop.id : '');
   const [activeBatchId, setActiveBatchId] = useState('');
@@ -221,7 +232,7 @@ export function LeadsManagementTab({
 
           if (changed) {
             if (typeof window !== 'undefined') {
-              localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+              syncStateToBackend('crm_ai4_decisions', newDecisions);
               localStorage.setItem('crm_public_zoom_bookings', JSON.stringify(remainingBookings));
             }
             toast.success('New public Zoom bookings synced successfully!');
@@ -349,7 +360,7 @@ export function LeadsManagementTab({
         }
       });
       setBatchDecisions(newDecisions);
-      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+      syncStateToBackend('crm_ai4_decisions', newDecisions);
       toast.success(`🤖 ${type} filters cleared. Leads reset!`);
       setActiveModal(null);
       return;
@@ -440,7 +451,7 @@ export function LeadsManagementTab({
     });
 
     setBatchDecisions(newDecisions);
-    if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+    syncStateToBackend('crm_ai4_decisions', newDecisions);
     toast.success(`🤖 ${type} Evaluated! ${approvedCount} Approved, ${pendingCount} Pending. ${modalCopyMode ? '(All data saved here & copies sent ahead)' : ''}`);
 
     setActiveModal(null);
@@ -468,96 +479,98 @@ export function LeadsManagementTab({
     }
   }, [batchDecisions, activeBatchId]);
 
-  // AI-4B Background Worker (Runs every 10 minutes)
+  // Background AI Auto-Worker (Runs every 10 minutes for all AI-4A to AI-4P)
   React.useEffect(() => {
     if (!activeBatchId || !activeBatchLeads || activeBatchLeads.length === 0) return;
-
-    const conditions = aiSettings['AI-4B'];
-    if (!conditions) return;
-
-    const hasValidCondition = conditions.some(c => c.keyword.trim() || c.question.toLowerCase().includes('age'));
-    if (!hasValidCondition) return;
 
     const intervalId = setInterval(() => {
       setBatchDecisions(prev => {
         const newDecisions = { ...prev };
         let hasChanges = false;
-        let approvedCount = 0;
-        let pendingCount = 0;
+        let totalProcessed = 0;
 
-        const targetLeads = activeBatchLeads.filter(lead => {
-          const dec = prev[lead.id] || {};
-          const currentStatus = dec.status || 'new_leads';
-          if (dec.isRejected) return false;
-          if (dec.status === 'approval_2' && dec.isRegistered) return false;
-          if (dec.status === 'pending_leads_3') return false;
-          return ['new_leads', 'approval_1', 'approval_2'].includes(currentStatus);
-        });
+        // Run through all defined AI triggers
+        Object.entries(aiSettings).forEach(([type, conditions]) => {
+          if (!type.startsWith('AI-4')) return;
+          if (!conditions || conditions.length === 0) return;
+          const hasValidCondition = conditions.some((c: any) => c.keyword?.trim() || (c.question || '').toLowerCase().includes('age'));
+          if (!hasValidCondition) return;
 
-        if (targetLeads.length === 0) return prev;
-
-        targetLeads.forEach(lead => {
-          const raw = lead._rawRecord || {};
-          const allText = JSON.stringify(raw).toLowerCase();
-
-          const reasons: string[] = [];
-          let passed = true;
-
-          conditions.forEach(c => {
-            const isAge = c.question.toLowerCase().includes('age');
-            if (!c.keyword.trim() && !isAge) return;
-
-            const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
-
-            if (isAge) {
-              const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
-              if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
-                // passes background check
-              } else {
-                passed = false;
-                reasons.push(`Age not 30-64 (Found: ${textToSearch || 'None'})`);
-              }
-              return;
-            }
-
-            const kw = c.keyword.toLowerCase().trim();
-            const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
-
-            const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
-
-            if (!matchedAny) {
-              passed = false;
-              const shortQ = c.question ? c.question.substring(0, 35) + '...' : `Keyword "${c.keyword}"`;
-              reasons.push(`Failed: ${shortQ}`);
-            }
+          // Target leads currently in new_leads (or no decision)
+          const targetLeads = activeBatchLeads.filter(lead => {
+            const dec = prev[lead.id] || {};
+            const currentStatus = dec.status || 'new_leads';
+            if (dec.isRejected || dec.isRegistered) return false;
+            // Background worker only auto-processes leads that are untouched or specifically new
+            return currentStatus === 'new_leads';
           });
 
-          const currentStatus = newDecisions[lead.id]?.status || 'new_leads';
-          const isCurrentlyRegistered = newDecisions[lead.id]?.isRegistered;
+          if (targetLeads.length === 0) return;
 
-          if (passed) {
-            if (currentStatus !== 'approval_2' || !isCurrentlyRegistered) {
-              newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
-              approvedCount++;
-              hasChanges = true;
+          targetLeads.forEach(lead => {
+            const raw = lead._rawRecord || {};
+            const allText = JSON.stringify(raw).toLowerCase();
+            
+            let finalCategory = '';
+            let finalReason = '';
+
+            for (const c of conditions as any[]) {
+              if (!c.keyword || !c.keyword.trim()) continue;
+              const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
+              const kw = c.keyword.toLowerCase().trim();
+              
+              let matchedAny = false;
+              if (c.question && c.question.toLowerCase().includes('age')) {
+                const ageVal = parseInt(textToSearch.replace(/\D/g, ''), 10);
+                if (!isNaN(ageVal) && ageVal >= 30 && ageVal <= 64) {
+                   matchedAny = true;
+                }
+              } else {
+                matchedAny = isLeadMatchingKeyword(textToSearch, c.keyword);
+              }
+
+              if (matchedAny) {
+                if (c.successCategory) {
+                  finalCategory = c.successCategory;
+                  finalReason = `Matched: ${c.keyword}`;
+                  break;
+                }
+              } else {
+                if (c.failCategory) {
+                  finalCategory = c.failCategory;
+                  finalReason = `Failed: ${c.keyword}`;
+                  break;
+                }
+              }
             }
-          } else {
-            if (currentStatus !== 'pending_leads_3') {
-              newDecisions[lead.id] = { ...(prev[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
-              pendingCount++;
-              hasChanges = true;
+
+            if (finalCategory) {
+              const currentDec = newDecisions[lead.id] || prev[lead.id] || {};
+              const oldStatus = currentDec.status || 'new_leads';
+              if (oldStatus !== finalCategory) {
+                const history = Array.from(new Set([...(currentDec.history || []), oldStatus, finalCategory]));
+                newDecisions[lead.id] = {
+                  ...currentDec,
+                  status: finalCategory,
+                  reason: 'Auto Worker: ' + finalReason,
+                  processedBy: type,
+                  history
+                };
+                hasChanges = true;
+                totalProcessed++;
+              }
             }
-          }
+          });
         });
 
         if (hasChanges) {
-          if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
-          setTimeout(() => toast.info(`🤖 AI-4B Auto-Worker processed ${approvedCount + pendingCount} new leads!`), 0);
+          syncStateToBackend('crm_ai4_decisions', newDecisions);
+          setTimeout(() => toast.info(`🤖 Background Auto-Worker processed ${totalProcessed} leads!`), 0);
           return newDecisions;
         }
         return prev;
       });
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 10 * 60 * 1000); // 10 minutes
 
     return () => clearInterval(intervalId);
   }, [activeBatchId, activeBatchLeads, aiSettings, toast]);
@@ -724,7 +737,7 @@ export function LeadsManagementTab({
       newDecisions[leadId] = { ...current, status: targetStatus, reason: 'Manual Move', history };
     });
     setBatchDecisions(newDecisions);
-    if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+    syncStateToBackend('crm_ai4_decisions', newDecisions);
     setSelectedLeads([]);
     toast.success(`Moved ${selectedLeads.length} leads!`);
   };
@@ -735,7 +748,7 @@ export function LeadsManagementTab({
   const updateZoomField = (leadId: string, field: string, val: string) => {
     setBatchDecisions(prev => {
       const nd = { ...prev, [leadId]: { ...(prev[leadId] || {}), [field]: val } };
-      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(nd));
+      syncStateToBackend('crm_ai4_decisions', nd);
       return nd;
     });
   };
@@ -747,7 +760,7 @@ export function LeadsManagementTab({
         nd[leadId].isRejected = true;
         nd[leadId].isRegistered = false;
       }
-      if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(nd));
+      syncStateToBackend('crm_ai4_decisions', nd);
       return nd;
     });
     toast.success(`Zoom Meeting Status: ${status}`);
@@ -774,7 +787,7 @@ export function LeadsManagementTab({
       });
     }
     setCustomCategories(newCats);
-    if (typeof window !== 'undefined') localStorage.setItem('crm_custom_categories', JSON.stringify(newCats));
+    syncStateToBackend('crm_custom_categories', newCats);
     setIsCategoryModalOpen(false);
     setEditingCategory(null);
     toast.success('Category saved!');
@@ -785,7 +798,7 @@ export function LeadsManagementTab({
     if (!confirm('Delete this category?')) return;
     const newCats = customCategories.filter(c => c.id !== id);
     setCustomCategories(newCats);
-    if (typeof window !== 'undefined') localStorage.setItem('crm_custom_categories', JSON.stringify(newCats));
+    syncStateToBackend('crm_custom_categories', newCats);
     if (activeTab === id) setActiveTab('new_leads');
   };
 
@@ -799,7 +812,7 @@ export function LeadsManagementTab({
       [newCats[index + 1], newCats[index]] = [newCats[index], newCats[index + 1]];
     }
     setCustomCategories(newCats);
-    if (typeof window !== 'undefined') localStorage.setItem('crm_custom_categories', JSON.stringify(newCats));
+    syncStateToBackend('crm_custom_categories', newCats);
   };
 
   // Render the Category Modal
@@ -1207,7 +1220,7 @@ export function LeadsManagementTab({
                                           const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
                                           const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRegistered: true, isRejected: false } };
                                           setBatchDecisions(newDecisions);
-                                          if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                          syncStateToBackend('crm_ai4_decisions', newDecisions);
                                           toast.success('Lead marked as Registered!');
                                         }}
                                         className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2 py-1 rounded hover:bg-emerald-100 transition-colors"
@@ -1219,7 +1232,7 @@ export function LeadsManagementTab({
                                           const currentDec = batchDecisions[lead.id] || { status: 'new_leads', reason: '' };
                                           const newDecisions = { ...batchDecisions, [lead.id]: { ...currentDec, isRejected: true, isRegistered: false } };
                                           setBatchDecisions(newDecisions);
-                                          if (typeof window !== 'undefined') localStorage.setItem('crm_ai4_decisions', JSON.stringify(newDecisions));
+                                          syncStateToBackend('crm_ai4_decisions', newDecisions);
                                           toast.success('Lead marked as Rejected!');
                                         }}
                                         className="text-xs bg-red-50 text-red-700 font-bold px-2 py-1 rounded hover:bg-red-100 transition-colors"
