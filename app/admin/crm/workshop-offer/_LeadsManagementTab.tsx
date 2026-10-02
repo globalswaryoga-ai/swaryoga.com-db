@@ -343,20 +343,35 @@ export function LeadsManagementTab({
 
       if (passed) {
         if (type === 'AI-4B') {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'approval_2', isRegistered: true, reason: 'Passed filters' };
+          const oldDec = batchDecisions[lead.id] || {};
+          const oldStatus = oldDec.status || 'new_leads';
+          const history = Array.from(new Set([...(oldDec.history || []), oldStatus, 'approval_2']));
+          newDecisions[lead.id] = { ...oldDec, status: 'approval_2', isRegistered: true, reason: 'Passed filters', history };
         } else if (type === 'AI-4C') {
           // Keep their current pending status if they pass
         } else {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetApprove, reason: 'Passed filters' };
+          const oldDec = batchDecisions[lead.id] || {};
+          const oldStatus = oldDec.status || 'new_leads';
+          const history = Array.from(new Set([...(oldDec.history || []), oldStatus, targetApprove]));
+          newDecisions[lead.id] = { ...oldDec, status: targetApprove, reason: 'Passed filters', history };
         }
         approvedCount++;
       } else {
         if (type === 'AI-4B') {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | ') };
+          const oldDec = batchDecisions[lead.id] || {};
+          const oldStatus = oldDec.status || 'new_leads';
+          const history = Array.from(new Set([...(oldDec.history || []), oldStatus, 'pending_leads_3']));
+          newDecisions[lead.id] = { ...oldDec, status: 'pending_leads_3', isRegistered: false, reason: reasons.join(' | '), history };
         } else if (type === 'AI-4C') {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: 'rejected_leads', isRejected: true, reason: '100% Failed: ' + reasons.join(' | ') };
+          const oldDec = batchDecisions[lead.id] || {};
+          const oldStatus = oldDec.status || 'new_leads';
+          const history = Array.from(new Set([...(oldDec.history || []), oldStatus, 'rejected_leads']));
+          newDecisions[lead.id] = { ...oldDec, status: 'rejected_leads', isRejected: true, reason: '100% Failed: ' + reasons.join(' | '), history };
         } else {
-          newDecisions[lead.id] = { ...(batchDecisions[lead.id] || {}), status: targetPending, isRegistered: false, reason: reasons.join(' | ') };
+          const oldDec = batchDecisions[lead.id] || {};
+          const oldStatus = oldDec.status || 'new_leads';
+          const history = Array.from(new Set([...(oldDec.history || []), oldStatus, targetPending]));
+          newDecisions[lead.id] = { ...oldDec, status: targetPending, isRegistered: false, reason: reasons.join(' | '), history };
         }
         pendingCount++;
       }
@@ -520,7 +535,7 @@ export function LeadsManagementTab({
       } else {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return dec.status === tab.id && !dec.isRejected && !dec.isRegistered;
+          return (dec.status === tab.id || dec.history?.includes(tab.id)) && !dec.isRejected && !dec.isRegistered;
         }).length;
       }
       counts[tab.id] = count;
@@ -569,7 +584,7 @@ export function LeadsManagementTab({
     }
     return activeBatchLeads.filter(l => {
       const dec = batchDecisions[l.id] || {};
-      return dec.status === activeTab && !dec.isRejected && !dec.isRegistered;
+      return (dec.status === activeTab || dec.history?.includes(activeTab)) && !dec.isRejected && !dec.isRegistered;
     });
   }, [activeBatchLeads, activeTab, batchDecisions]);
 

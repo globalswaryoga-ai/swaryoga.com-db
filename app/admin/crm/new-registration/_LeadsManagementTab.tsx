@@ -375,7 +375,9 @@ export function LeadsManagementTab({
 
       if (finalCategory) {
         const currentDec = batchDecisions[lead.id] || {};
-        newDecisions[lead.id] = { ...currentDec, status: finalCategory, reason: finalReason, processedBy: type };
+        const oldStatus = currentDec.status || 'new_leads';
+        const history = Array.from(new Set([...(currentDec.history || []), oldStatus, finalCategory]));
+        newDecisions[lead.id] = { ...currentDec, status: finalCategory, reason: finalReason, processedBy: type, history };
         if (isSuccess) approvedCount++;
         else pendingCount++;
       }
@@ -555,7 +557,7 @@ export function LeadsManagementTab({
       } else {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return dec.status === tab.id && !dec.isRejected && !dec.isRegistered;
+          return (dec.status === tab.id || dec.history?.includes(tab.id)) && !dec.isRejected && !dec.isRegistered;
         }).length;
       }
       counts[tab.id] = count;
@@ -604,7 +606,7 @@ export function LeadsManagementTab({
     }
     return activeBatchLeads.filter(l => {
       const dec = batchDecisions[l.id] || {};
-      return dec.status === activeTab && !dec.isRejected && !dec.isRegistered;
+      return (dec.status === activeTab || dec.history?.includes(activeTab)) && !dec.isRejected && !dec.isRegistered;
     });
   }, [activeBatchLeads, activeTab, batchDecisions]);
 
