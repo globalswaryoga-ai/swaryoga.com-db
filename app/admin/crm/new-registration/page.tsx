@@ -33,7 +33,7 @@ export default function NewRegistrationPage() {
   const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null); // State for the selected workshop
 
   const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>('left');
-  const [selectedDashboardLang, setSelectedDashboardLang] = useState<string>('English');
+  const [selectedDashboardLang, setSelectedDashboardLang] = useState<string>('English Workshop');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMapDataCollapsed, setIsMapDataCollapsed] = useState(false);
   const [isStatsCollapsed, setIsStatsCollapsed] = useState(false);
