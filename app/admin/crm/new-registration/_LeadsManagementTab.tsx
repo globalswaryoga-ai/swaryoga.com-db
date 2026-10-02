@@ -122,6 +122,11 @@ export function LeadsManagementTab({
   });
   
   const SIDEBAR_TABS = React.useMemo(() => [...DEFAULT_SIDEBAR_TABS, ...customCategories], [customCategories]);
+
+  const getCategoryLabel = React.useCallback((id: string) => {
+    const tab = SIDEBAR_TABS.find((t: any) => t.id === id);
+    return tab ? tab.label : "Deleted Folder (" + id.replace(/_/g, ' ') + ")";
+  }, [SIDEBAR_TABS]);
   
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
@@ -557,7 +562,7 @@ export function LeadsManagementTab({
       } else {
         count = activeBatchLeads.filter(l => {
           const dec = batchDecisions[l.id] || {};
-          return (dec.status === tab.id || dec.history?.includes(tab.id)) && !dec.isRejected && !dec.isRegistered;
+          return (dec.status === tab.id || dec.history?.includes(tab.id) || getCategoryLabel(dec.status) === tab.label || (dec.history || []).some((h: string) => getCategoryLabel(h) === tab.label)) && !dec.isRejected && !dec.isRegistered;
         }).length;
       }
       counts[tab.id] = count;
@@ -566,6 +571,7 @@ export function LeadsManagementTab({
   }, [activeBatchLeads, batchDecisions]);
 
   const currentTabLeads = React.useMemo(() => {
+    const activeTabLabel = getCategoryLabel(activeTab);
     if (activeTab === 'take_zoom_meeting') {
       return activeBatchLeads.filter(l => batchDecisions[l.id]?.isRegistered);
     }
@@ -604,14 +610,9 @@ export function LeadsManagementTab({
     }
     return activeBatchLeads.filter(l => {
       const dec = batchDecisions[l.id] || {};
-      return (dec.status === activeTab || dec.history?.includes(activeTab)) && !dec.isRejected && !dec.isRegistered;
+      return (dec.status === activeTab || dec.history?.includes(activeTab) || getCategoryLabel(dec.status) === activeTabLabel || (dec.history || []).some((h: string) => getCategoryLabel(h) === activeTabLabel)) && !dec.isRejected && !dec.isRegistered;
     });
   }, [activeBatchLeads, activeTab, batchDecisions]);
-
-  const getCategoryLabel = (id: string) => {
-    const tab = SIDEBAR_TABS.find((t: any) => t.id === id);
-    return tab ? tab.label : "Deleted Folder (" + id.replace(/_/g, ' ') + ")";
-  };
 
   const toggleLeadSelection = (leadId: string) => {
     setSelectedLeads(prev =>
