@@ -1726,8 +1726,14 @@ export default function NewRegistrationPage() {
   };
 
   const handleAi1BatchCreate = async () => {
-    if (!selectedWorkshop) {
-      toast.error('Please select a master list first.');
+    // Auto-select the first available workshop if none is selected
+    let activeWorkshop = selectedWorkshop;
+    if (!activeWorkshop && workshops.length > 0) {
+      activeWorkshop = workshops.find(w => w && w.id) || workshops[0];
+      if (activeWorkshop) setSelectedWorkshop(activeWorkshop);
+    }
+    if (!activeWorkshop) {
+      toast.error('No workshop found. Please create a batch first.');
       return;
     }
 
@@ -1735,7 +1741,7 @@ export default function NewRegistrationPage() {
     let formField = '';
 
     // First, try the manual column input from the UI or workshop metadata
-    const manualCol = (selectedWorkshop?.metadata?.ai1Column || ai1ColumnInput || '').trim();
+    const manualCol = (activeWorkshop?.metadata?.ai1Column || ai1ColumnInput || '').trim();
 
     // Collect all available column headers across ALL leads
     const allLeadKeys = new Set<string>();
@@ -1885,12 +1891,12 @@ export default function NewRegistrationPage() {
             id: `batch_${selectedDashboardLang.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             name: `${selectedDashboardLang} - ${date.substring(0, 30)}${date.length > 30 ? '...' : ''}`,
             language: selectedDashboardLang,
-            formId: selectedWorkshop.formId,
+            formId: activeWorkshop.formId,
             formFilterKeyword: date,
             metadata: {
               batchDate: date,
-              googleFormMapping: selectedWorkshop.metadata?.googleFormMapping,
-              formSource: selectedWorkshop.metadata?.formSource
+              googleFormMapping: activeWorkshop.metadata?.googleFormMapping,
+              formSource: activeWorkshop.metadata?.formSource
             },
             leads: leadsData.filter((l: any) => l._rawRecord && String(l._rawRecord[formField]).trim() === date).length
           };
