@@ -1160,18 +1160,19 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                className="w-full h-full border-0 rounded-xl"
                              />
                            ) : (
-                             <div className="flex flex-col items-center text-center justify-center space-y-6 animate-in zoom-in-95 duration-300">
-                               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-2 shadow-sm">
-                                 <CheckCircle className="w-10 h-10 text-emerald-500" />
-                               </div>
-                               <h3 className="text-2xl font-black text-slate-800">Design Ready!</h3>
-                               <p className="text-slate-500 max-w-sm text-lg">Your template has been populated with the data and is ready for editing.</p>
-                               <div className="flex gap-4 mt-4 w-full">
-                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5">
+                             <div className="flex flex-col w-full h-full p-2">
+                               <iframe 
+                                 src={`https://www.canva.com/design/${generatedDesignId}/view?embed`}
+                                 className="flex-1 w-full rounded-xl border-none shadow-sm mb-4"
+                                 allowFullScreen
+                                 allow="fullscreen"
+                               ></iframe>
+                               <div className="flex gap-4 w-full h-14">
+                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/edit`)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all">
                                    Edit in Canva
                                  </button>
-                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 transition-all transform hover:-translate-y-0.5">
-                                   View & Download
+                                 <button onClick={() => openCanvaPopup(`https://www.canva.com/design/${generatedDesignId}/view`)} className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-md transition-all">
+                                   Download
                                  </button>
                                </div>
                              </div>
