@@ -219,7 +219,7 @@ export function LeadsManagementTab({
     setActiveModal(type);
   };
 
-  const [batchDecisions, setBatchDecisions] = useState<Record<string, { status: string; reason: string }>>(() => {
+  const [batchDecisions, setBatchDecisions] = useState<Record<string, any>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('crm_ai4_decisions');
       return saved ? JSON.parse(saved) : {};
@@ -839,11 +839,13 @@ export function LeadsManagementTab({
 
                             const isPending = leadStatus.includes('pending');
 
-                            const rowBg = activeTab.includes('approval') || isRegistered || leadStatus.includes('approval') || leadStatus.includes('aprovel') || leadStatus === 'registered_leads'
+                            const hasApproval = (leadStatus.includes('approval') || leadStatus.includes('aprovel') || (batchDecisions[lead.id]?.history || []).some((h: string) => h.includes('approval') || h.includes('aprovel'))) || leadStatus === 'registered_leads' || (leadDec.history || []).some((h: string) => h.includes('approval') || h.includes('aprovel') || h === 'registered_leads');
+                            const hasPending = leadStatus.includes('pending') || (leadDec.history || []).some((h: string) => h.includes('pending'));
+                            const rowBg = activeTab.includes('approval') || isRegistered || hasApproval
                               ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
                               : isRejected
                                 ? 'bg-purple-100/70 hover:bg-purple-200/70'
-                                : isPending
+                                : hasPending
                                   ? 'bg-yellow-50/70 hover:bg-yellow-100/70'
                                   : 'hover:bg-slate-50 transition-colors';
 
@@ -918,10 +920,9 @@ export function LeadsManagementTab({
                                 <td className="px-4 py-3 text-right flex justify-end gap-2">
                                   {leadStatus !== 'new_leads' && leadStatus !== '' && !batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
                                     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border ${
-                                      leadStatus.includes('approval') || leadStatus.includes('aprovel') 
+                                      (leadStatus.includes('approval') || leadStatus.includes('aprovel') || (batchDecisions[lead.id]?.history || []).some((h: string) => h.includes('approval') || h.includes('aprovel'))) 
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                        : leadStatus.includes('pending')
-                                          ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
+                                        : (leadStatus.includes('pending') || (batchDecisions[lead.id]?.history || []).some((h: string) => h.includes('pending'))) ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
                                           : 'bg-blue-50 text-blue-700 border-blue-100'
                                     }`}>
                                       {leadStatus.replace(/_/g, ' ')}

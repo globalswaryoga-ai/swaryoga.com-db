@@ -683,7 +683,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                      <button 
                                        onClick={async () => {
                                          try {
-                                           const response = await fetch(msg.imageUrl);
+                                           const response = await fetch(msg.imageUrl!);
                                            const blob = await response.blob();
                                            await navigator.clipboard.write([
                                              new ClipboardItem({ [blob.type]: blob })
