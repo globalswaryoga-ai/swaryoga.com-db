@@ -901,6 +901,11 @@ export function LeadsManagementTab({
                                   {lead._rawRecord?.['Timestamp'] || '-'}
                                 </td>
                                 <td className="px-4 py-3 text-right flex justify-end gap-2">
+                                  {leadStatus !== 'new_leads' && leadStatus !== '' && !batchDecisions[lead.id]?.isRegistered && !batchDecisions[lead.id]?.isRejected && (
+                                    <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border border-blue-100">
+                                      {leadStatus.replace(/_/g, ' ')}
+                                    </span>
+                                  )}
                                   {leadStatus.includes('pending') && batchDecisions[lead.id]?.reason && (
                                     <button
                                       onClick={() => setSelectedQueryLeadId(lead.id)}
