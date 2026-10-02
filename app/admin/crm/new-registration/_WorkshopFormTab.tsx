@@ -226,9 +226,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                            }} className="bg-white border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-100 shadow-sm transition-all">
                              📝 Paste Form URL
                            </button>
-                           {p.activeLinkedSheetId && (
-                             
-                           )}
+                           
                         </div>
 
                         <div className="flex items-center gap-2">
