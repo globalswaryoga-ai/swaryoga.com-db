@@ -777,7 +777,16 @@ export function LeadsManagementTab({
             </button>
           </div>
           {SIDEBAR_TABS.map(tab => {
-            const TabIcon = tab.icon || Clock;
+            const TabIcon = typeof tab.icon === 'function' || (tab.icon && tab.icon.$typeof) ? tab.icon : (
+  tab.id.includes('pending') ? Clock :
+  tab.id.includes('approval') ? CheckCircle :
+  tab.id.includes('registered') ? UserCheck :
+  tab.id.includes('set_zoom') ? Calendar :
+  tab.id.includes('take_zoom') ? Video :
+  tab.id.includes('rejected') ? XCircle :
+  tab.id.includes('ai_triggers') ? Zap :
+  tab.id.includes('new_leads') ? FileText : Clock
+);
             const isSystem = tab.isSystem;
             const isCustom = !isSystem;
             return (

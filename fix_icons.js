@@ -2,19 +2,18 @@ const fs = require('fs');
 const file = '/Users/mohankalburgi/swaryoga.com-db/app/admin/crm/new-registration/_LeadsManagementTab.tsx';
 let content = fs.readFileSync(file, 'utf8');
 
-// Ensure Edit2 is imported
-if (!content.includes('Edit2')) {
-  content = content.replace("import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown } from 'lucide-react';", "import { FileText, Clock, CheckCircle, UserCheck, Users, XCircle, Video, Copy, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Link as LinkIcon, X, Zap, ChevronUp, ChevronDown, Edit2 } from 'lucide-react';");
-}
+const oldIcon = 'const TabIcon = tab.icon || Clock;';
+const newIcon = `const TabIcon = typeof tab.icon === 'function' || (tab.icon && tab.icon.$$typeof) ? tab.icon : (
+  tab.id.includes('pending') ? Clock :
+  tab.id.includes('approval') ? CheckCircle :
+  tab.id.includes('registered') ? UserCheck :
+  tab.id.includes('set_zoom') ? Calendar :
+  tab.id.includes('take_zoom') ? Video :
+  tab.id.includes('rejected') ? XCircle :
+  tab.id.includes('ai_triggers') ? Zap :
+  tab.id.includes('new_leads') ? FileText : Clock
+);`;
 
-// Replace the Edit button's Plus icon with Edit2
-const searchStr = `<div onClick={(e) => { e.stopPropagation(); setEditingCategory(tab); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-blue-700 hover:text-white rounded text-blue-200 transition-colors cursor-pointer">
-                        <Plus className="h-3 w-3" />
-                      </div>`;
-const replaceStr = `<div onClick={(e) => { e.stopPropagation(); setEditingCategory(tab); setIsCategoryModalOpen(true); }} className="p-1 hover:bg-blue-700 hover:text-white rounded text-blue-200 transition-colors cursor-pointer" title="Edit">
-                        <Edit2 className="h-3 w-3" />
-                      </div>`;
-
-content = content.replace(searchStr, replaceStr);
+content = content.replace(oldIcon, newIcon);
 fs.writeFileSync(file, content);
-console.log("Updated icons");
+console.log("Updated TabIcon to fix serialization crash");
