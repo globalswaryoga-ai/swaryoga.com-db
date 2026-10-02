@@ -36,12 +36,14 @@ const DEFAULT_SIDEBAR_TABS = [
 ];
 
 const INITIAL_CUSTOM_CATEGORIES = [
-  { id: 'pending_leads', label: 'Pending Leads', icon: Clock, isSystem: false },
-  { id: 'pending_leads_1', label: 'Pending Leads-1', icon: Clock, isSystem: false, aiAssignment: 'AI-4A' },
-  { id: 'pending_leads_2', label: 'Pending Leads-2', icon: Clock, isSystem: false, aiAssignment: 'AI-4B' },
-  { id: 'pending_leads_3', label: 'Pending Leads-3', icon: Clock, isSystem: false, aiAssignment: 'AI-4C' },
-  { id: 'approval_1', label: 'Aprovel-1', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4D' },
-  { id: 'approval_2', label: 'Aprovel-2', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4E' },
+  { id: 'pending_leads_1', label: 'Pending-1', icon: Clock, isSystem: false, aiAssignment: 'AI-4A' },
+  { id: 'pending_leads_2', label: 'Pending-2', icon: Clock, isSystem: false, aiAssignment: 'AI-4B' },
+  { id: 'pending_leads_3', label: 'Pending-3', icon: Clock, isSystem: false, aiAssignment: 'AI-4C' },
+  { id: 'pending_leads_4', label: 'Pending-4', icon: Clock, isSystem: false, aiAssignment: 'AI-4D' },
+  { id: 'approval_1', label: 'Approvel-1', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4E' },
+  { id: 'approval_2', label: 'Approvel-2', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4F' },
+  { id: 'approval_3', label: 'Approvel-3', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4G' },
+  { id: 'approval_4', label: 'Approvel-4', icon: CheckCircle, isSystem: false, aiAssignment: 'AI-4H' },
   { id: 'registered_leads', label: 'Registerd leads', icon: UserCheck, isSystem: true },
   { id: 'set_zoom_meeting', label: 'Set zoom meeting', icon: Calendar, isSystem: true },
   { id: 'take_zoom_meeting', label: 'Take Zoom Meeting', icon: Video, isSystem: true },
@@ -163,10 +165,24 @@ export function LeadsManagementTab({
         if (data) {
           if (data.crm_custom_categories) {
             try {
-              const parsed = typeof data.crm_custom_categories === 'string' ? JSON.parse(data.crm_custom_categories) : data.crm_custom_categories;
+              let parsed = typeof data.crm_custom_categories === 'string' ? JSON.parse(data.crm_custom_categories) : data.crm_custom_categories;
+              
+              // MIGRATION: Remove old custom categories that the user explicitly wants deleted
+              const labelsToRemove = ['Male Leads New', 'Female Leads New', 'Pending Leads-1F', 'Pending Leads-1M', 'Pending Leads -2F', 'Pending Leads-2F', 'Pending Leads-2M', 'Pending Leads', 'Aprovel-1', 'Aprovel-2', 'Pending Leads-1', 'Pending Leads-2', 'Pending Leads-3'];
+              parsed = parsed.filter((p: any) => !labelsToRemove.includes(p.label));
+              
               const missing = INITIAL_CUSTOM_CATEGORIES.filter(ic => !parsed.find((p: any) => p.id === ic.id));
-              setCustomCategories([...parsed, ...missing]);
+              const finalCategories = [...parsed, ...missing];
+              setCustomCategories(finalCategories);
+              
+              // Save the cleaned version back to backend to finalize deletion
+              if (parsed.length !== data.crm_custom_categories.length) {
+                syncStateToBackend('crm_custom_categories', finalCategories);
+              }
             } catch (_) {}
+          } else {
+             setCustomCategories(INITIAL_CUSTOM_CATEGORIES);
+             syncStateToBackend('crm_custom_categories', INITIAL_CUSTOM_CATEGORIES);
           }
           if (data.crm_ai4_decisions) {
             try {
