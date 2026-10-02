@@ -22,7 +22,10 @@ const isLeadMatchingKeyword = (valStr: string, keyword: string) => {
       if (regex.test(v)) return true;
     } catch (e) {}
     
-    return false; // Strict matching only
+    // Safe substring fallback for long phrases (avoids the male/female issue while supporting long batch names)
+    if (k.length > 15 && v.includes(k)) return true;
+    
+    return false; // Strict matching for short words
   });
 };
 
