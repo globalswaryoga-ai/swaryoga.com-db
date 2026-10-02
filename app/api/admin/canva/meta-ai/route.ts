@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import OpenAI from 'openai';
-import Replicate from 'replicate';
 
 export const dynamic = 'force-dynamic';
 
@@ -115,54 +114,47 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
           targetSize = '1024x1792';
         }
 
-        if (process.env.REPLICATE_API_TOKEN) {
-          const replicate = new Replicate({
-            auth: process.env.REPLICATE_API_TOKEN,
-          });
-
-          // Define aspect ratio based on targetSize
-          let aspectRatio = '1:1';
-          if (targetSize === '1792x1024') aspectRatio = '16:9';
-          else if (targetSize === '1024x1792') aspectRatio = '9:16';
-
-          console.log(`Generating image using Replicate FLUX (Ratio: ${aspectRatio})...`);
-          
-          const output = await replicate.run(
-            "black-forest-labs/flux-schnell",
-            {
-              input: {
-                prompt: imagePrompt,
-                aspect_ratio: aspectRatio,
-                output_format: "png",
-                output_quality: 100
-              }
-            }
-          );
-          
-          // Replicate returns an array of URLs
-          if (Array.isArray(output) && output.length > 0) {
-            imageUrl = output[0];
-          }
-        } else {
-          // Fallback to DALL-E 2 if Replicate token is not provided
-          console.log('No REPLICATE_API_TOKEN found, falling back to DALL-E 2...');
-          const fallbackResponse = await openai.images.generate({
-            model: 'dall-e-2',
-            prompt: imagePrompt,
-            n: 1,
-            size: '1024x1024',
-          });
-          const imgData = fallbackResponse.data[0];
-          if (imgData.b64_json) {
-            imageUrl = `data:image/png;base64,${imgData.b64_json}`;
-          } else if (imgData.url) {
-            imageUrl = imgData.url;
-          }
+        const imageResponse = await openai.images.generate({
+          model: 'dall-e-3',
+          prompt: imagePrompt,
+          n: 1,
+          size: targetSize,
+        });
+        
+        const imgData = imageResponse.data[0];
+        if (imgData.b64_json) {
+          imageUrl = `data:image/png;base64,${imgData.b64_json}`;
+        } else if (imgData.url) {
+          imageUrl = imgData.url;
         }
       } catch (e: any) {
-        const errorMsg = e.message || "Unknown error";
-        console.error('Image generation failed with error:', errorMsg);
-        aiText += `\n\n[System Error: Image generation failed: ${errorMsg}. If using Replicate, please check your REPLICATE_API_TOKEN.]`;
+        const errorMsg = e.response?.data?.error?.message || e.message || "Unknown error";
+        
+        // Fallback to dall-e-2 if dall-e-3 doesn't exist
+        if (errorMsg.includes('does not exist') || errorMsg.includes('model')) {
+          try {
+            console.log('Falling back to dall-e-2...');
+            const fallbackResponse = await openai.images.generate({
+              model: 'dall-e-2',
+              prompt: imagePrompt,
+              n: 1,
+              size: '1024x1024',
+            });
+            const imgData = fallbackResponse.data[0];
+            if (imgData.b64_json) {
+              imageUrl = `data:image/png;base64,${imgData.b64_json}`;
+            } else if (imgData.url) {
+              imageUrl = imgData.url;
+            }
+          } catch (fallbackErr: any) {
+            const fallbackMsg = fallbackErr.response?.data?.error?.message || fallbackErr.message || "Unknown error";
+            console.error('Image generation failed with error:', fallbackMsg);
+            aiText += `\n\n[System Error: Image generation failed: ${fallbackMsg}]`;
+          }
+        } else {
+          console.error('Image generation failed with error:', errorMsg);
+          aiText += `\n\n[System Error: Image generation failed: ${errorMsg}]`;
+        }
       }
     }
 
