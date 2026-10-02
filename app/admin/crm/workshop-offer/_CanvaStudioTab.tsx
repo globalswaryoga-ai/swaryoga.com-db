@@ -1008,6 +1008,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                <input id="cert-workshop" type="text" className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 font-bold text-slate-700 text-sm" defaultValue={certificateData.workshopName} />
                              </div>
                              <div>
+                               <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Certificate Template ID</label>
+                               <input id="cert-template-id" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaCertificateTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaCertificateTemplateId', e.target.value); }} />
+                             </div>
+                             <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Certificate No.</label>
                                <input id="cert-number" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={certificateData.certificateNumber} />
                              </div>
@@ -1068,7 +1072,9 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                               const btn = document.getElementById('btn-generate-canva');
                               if (btn) btn.innerText = '...';
                               try {
-                                const templateId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || '';
+                                const templateId = activeSection === 'receipts' 
+                                  ? ((document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || '')
+                                  : ((document.getElementById('cert-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaCertificateTemplateId') || '');
                                 if (!templateId) { alert('Canva Autofill requires Canva Teams plan + Brand Template ID.'); if (btn) btn.innerText = 'Canva'; return; }
                                 let dataToFill: any = {};
                                 if (activeSection === 'receipts') {
@@ -1100,11 +1106,21 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                className="w-full h-full border-0 rounded-xl"
                              />
                            ) : (
-                             <iframe 
-                               src={`https://www.canva.com/design/${generatedDesignId}/view?embed`} 
-                               className="w-full h-full border-0 rounded-xl"
-                               allowFullScreen
-                             />
+                             <div className="flex flex-col items-center text-center justify-center space-y-6 animate-in zoom-in-95 duration-300">
+                               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-2 shadow-sm">
+                                 <CheckCircle className="w-10 h-10 text-emerald-500" />
+                               </div>
+                               <h3 className="text-2xl font-black text-slate-800">Design Ready!</h3>
+                               <p className="text-slate-500 max-w-sm text-lg">Your template has been populated with the data and is ready for editing.</p>
+                               <div className="flex gap-4 mt-4 w-full">
+                                 <button onClick={() => window.open(`https://www.canva.com/design/${generatedDesignId}/edit`, '_blank')} className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5">
+                                   Edit in Canva
+                                 </button>
+                                 <button onClick={() => window.open(`https://www.canva.com/design/${generatedDesignId}/view`, '_blank')} className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 transition-all transform hover:-translate-y-0.5">
+                                   View & Download
+                                 </button>
+                               </div>
+                             </div>
                            )
                          ) : (
                            <>

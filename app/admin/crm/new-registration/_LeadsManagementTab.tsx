@@ -1201,7 +1201,18 @@ export function LeadsManagementTab({
             <div className="p-6 overflow-y-auto space-y-6 bg-slate-50 flex-1">
               
               {modalConditions.map((condition, idx) => (
-                <div key={idx} className="space-y-4 border border-slate-200 rounded-xl p-5 bg-white shadow-sm relative">
+                <div key={idx} className="space-y-4 border border-slate-200 rounded-xl p-5 bg-white shadow-sm relative group">
+                  <button
+                    onClick={() => {
+                      const updated = [...modalConditions];
+                      updated.splice(idx, 1);
+                      setModalConditions(updated);
+                    }}
+                    className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"
+                    title="Remove Filter"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                   {/* Row 1: Question Key */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Question Key (or column name)</label>
