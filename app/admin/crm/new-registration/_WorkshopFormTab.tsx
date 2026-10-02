@@ -644,47 +644,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
 
                 {p.activeTab !== 'my_batches' && p.activeTab !== 'our_workshops' && (
                   <>
-                    <button 
-                      onClick={() => {
-                        if (p.handleAi7Categorize) p.handleAi7Categorize();
-                      }}
-                      disabled={p.isAi7Processing}
-                      className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 transition-colors px-3 py-1.5 rounded-lg border border-blue-200 shadow-sm mr-2 cursor-pointer disabled:opacity-50 text-blue-700 font-bold text-xs"
-                      title="Run AI-7: Categorize leads and send all data to My Data"
-                    >
-                      <Sparkles size={14} className="text-blue-600" />
-                      <span>{p.isAi7Processing ? '🤖 AI-7 Processing...' : '🤖 AI-7 To My Data'}</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        const next = !p.isAi7Active;
-                        if (p.setIsAi7Active) p.setIsAi7Active(next);
-                        localStorage.setItem('crm_ai_7_active', String(next));
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm mr-2 ${
-                        p.isAi7Active
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                          : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
-                      }`}
-                      title="Auto-sync every 10 minutes"
-                    >
-                      <span className={`h-2 w-2 rounded-full ${p.isAi7Active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
-                      <span>Auto-Sync (10m): {p.isAi7Active ? 'ON' : 'OFF'}</span>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (p.handleAi1BatchCreate) p.handleAi1BatchCreate();
-                      }}
-                      disabled={p.isAi1Processing}
-                      className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100 transition-colors px-3 py-1.5 rounded-lg border border-purple-200 shadow-sm mr-2 cursor-pointer disabled:opacity-50"
-                      title="Click to instantly run Auto-Sync, or let it run every 10 minutes"
-                    >
-                      <span className="text-xs font-bold text-purple-700">🤖 AI-1A Auto-Sync {p.isAi1Processing ? '...' : ''}</span>
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
-                      </span>
-                    </button>
+                    {/* AI-7 and AI-1A sync buttons hidden as they now run automatically from the backend */}
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 mr-2">
                       <span className="text-xs font-bold text-indigo-700">AI-1</span>
                       <input
