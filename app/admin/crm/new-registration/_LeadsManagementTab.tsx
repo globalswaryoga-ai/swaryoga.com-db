@@ -800,14 +800,9 @@ export function LeadsManagementTab({
                 }`}
               >
                 <TabIcon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} />
-                <span className="flex-1 whitespace-nowrap truncate text-left">{tab.label}</span>
-                {activeBatchId && tabCounts[tab.id] !== undefined && (
-                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${
-                    activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    {tabCounts[tab.id]}
-                  </span>
-                )}
+                <span className="flex-1 whitespace-nowrap truncate text-left">
+                  {tab.label} ({tabCounts[tab.id] || 0})
+                </span>
                 <div className={`gap-0.5 ml-1 ${activeTab === tab.id ? 'flex opacity-100' : 'hidden'}`}>
                   {tab.id !== 'new_leads' && (
                     <>
