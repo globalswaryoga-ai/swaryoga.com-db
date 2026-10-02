@@ -150,6 +150,13 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
       }
       const data = await res.json();
       
+      if (data.error) {
+        toast.warning(data.error);
+        if (data.error.includes("Not connected")) {
+          setShowCanvaPopup(true);
+        }
+      }
+      
       // Use aiText directly from the smart backend
       const aiText = data.aiText || '';
       
@@ -692,17 +699,30 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                      <button 
                                        onClick={async () => {
                                          try {
-                                           const response = await fetch(msg.imageUrl!);
-                                           const blob = await response.blob();
+                                           let blob: Blob;
+                                           if (msg.imageUrl!.startsWith('data:')) {
+                                             const parts = msg.imageUrl!.split(',');
+                                             const byteString = atob(parts[1]);
+                                             const mimeString = parts[0].split(':')[1].split(';')[0];
+                                             const ab = new ArrayBuffer(byteString.length);
+                                             const ia = new Uint8Array(ab);
+                                             for (let i = 0; i < byteString.length; i++) {
+                                               ia[i] = byteString.charCodeAt(i);
+                                             }
+                                             blob = new Blob([ab], { type: mimeString });
+                                           } else {
+                                             const response = await fetch(msg.imageUrl!);
+                                             blob = await response.blob();
+                                           }
                                            await navigator.clipboard.write([
                                              new ClipboardItem({ [blob.type]: blob })
                                            ]);
                                            if(confirm("Image copied to clipboard! Ready to paste (Ctrl+V) into Canva?")) {
-                                             setMetaCanvaUrl('https://www.canva.com/design/create');
+                                             window.open('https://www.canva.com/design/create', '_blank');
                                            }
                                          } catch(e) {
                                            alert("Could not copy automatically. Please right-click the image to copy it, then paste it in Canva.");
-                                           setMetaCanvaUrl('https://www.canva.com/design/create');
+                                           window.open('https://www.canva.com/design/create', '_blank');
                                          }
                                        }}
                                        className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all flex items-center justify-center gap-2"

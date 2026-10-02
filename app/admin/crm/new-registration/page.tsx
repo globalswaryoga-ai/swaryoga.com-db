@@ -1340,7 +1340,7 @@ export default function NewRegistrationPage() {
       if (selectedWorkshop.metadata?.googleFormMapping) {
         setFieldMapping(selectedWorkshop.metadata.googleFormMapping);
       } else {
-        setFieldMapping({});
+        setFieldMapping(prev => Object.keys(prev).length === 0 ? prev : {});
       }
 
       setLeadsFilter(selectedWorkshop.metadata?.mainFilter || '');
@@ -1470,7 +1470,19 @@ export default function NewRegistrationPage() {
       [field]: value
     };
     setSelectedWorkshop(updated);
-    setWorkshops((workshops || []).map(w => w?.id === updated.id ? updated : w));
+    const newWorkshops = (workshops || []).map(w => w?.id === updated.id ? updated : w);
+    setWorkshops(newWorkshops);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crm_workshops', JSON.stringify(newWorkshops));
+      if (token) {
+        fetch('/api/admin/crm/new-registration/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ crm_workshops: JSON.stringify(newWorkshops) })
+        }).catch(console.error);
+      }
+    }
   };
 
   const handleDeleteBatch = (e: React.MouseEvent, id: string) => {
