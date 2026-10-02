@@ -115,7 +115,7 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
         }
 
         const imageResponse = await openai.images.generate({
-          model: 'dall-e-3',
+          model: 'chatgpt-image-latest',
           prompt: imagePrompt,
           n: 1,
           size: targetSize,
@@ -133,9 +133,9 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
         // Fallback to dall-e-2 if dall-e-3 doesn't exist
         if (errorMsg.includes('does not exist') || errorMsg.includes('model')) {
           try {
-            console.log('Falling back to dall-e-2...');
+            console.log('Falling back to gpt-image-2.5-sunburst...');
             const fallbackResponse = await openai.images.generate({
-              model: 'dall-e-2',
+              model: 'gpt-image-2.5-sunburst',
               prompt: imagePrompt,
               n: 1,
               size: '1024x1024',
