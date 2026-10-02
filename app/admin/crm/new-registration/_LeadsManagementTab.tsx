@@ -350,7 +350,7 @@ export function LeadsManagementTab({
              matchedAny = true;
           }
         } else {
-          matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
+          matchedAny = isLeadMatchingKeyword(textToSearch, c.keyword);
         }
 
         if (matchedAny) {

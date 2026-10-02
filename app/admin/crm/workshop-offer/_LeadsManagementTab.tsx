@@ -322,7 +322,7 @@ export function LeadsManagementTab({
         const kw = c.keyword.toLowerCase().trim();
         const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
 
-        const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
+        const matchedAny = isLeadMatchingKeyword(textToSearch, c.keyword);
 
         if (matchedAny) {
           hasAnyMatch = true;
@@ -427,7 +427,7 @@ export function LeadsManagementTab({
             const kw = c.keyword.toLowerCase().trim();
             const subKeywords = kw.split(',').map(k => k.trim()).filter(Boolean);
 
-            const matchedAny = subKeywords.some(subKw => textToSearch.includes(subKw));
+            const matchedAny = isLeadMatchingKeyword(textToSearch, c.keyword);
 
             if (!matchedAny) {
               passed = false;
