@@ -227,12 +227,7 @@ export function WorkshopFormTab(props: WorkshopFormTabProps) {
                              📝 Paste Form URL
                            </button>
                            {p.activeLinkedSheetId && (
-                             <button onClick={() => {
-                               setIsManualFormId(true);
-                               setGoogleFormUrl(`https://docs.google.com/spreadsheets/d/${p.activeLinkedSheetId}/edit`);
-                             }} className="bg-white border border-emerald-200 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-100 shadow-sm transition-all">
-                               📊 Paste Linked Sheet URL
-                             </button>
+                             
                            )}
                         </div>
 

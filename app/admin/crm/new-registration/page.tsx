@@ -831,6 +831,7 @@ export default function NewRegistrationPage() {
             } else {
               const err = await syncRes.json();
               setGoogleAuthError(err.error || 'Failed to sync form');
+              toast.error("Google Forms Sync Failed: " + (err.error || 'Invalid Form ID'));
               // Fallback to webhook checking
               const res = await fetch(`/api/admin/enquiries?workshopId=${encodeURIComponent(linkedFormId)}`, {
                 headers: { Authorization: `Bearer ${token}` }
