@@ -69,6 +69,29 @@ export function LeadsManagementTab({
   const [activeBatchId, setActiveBatchId] = useState('');
   const [activeTab, setActiveTab] = useState('new_leads');
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const sidebarRef = React.useRef<HTMLElement>(null);
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !sidebarRef.current) return;
+      const sidebarLeft = sidebarRef.current.getBoundingClientRect().left;
+      const newWidth = Math.max(200, Math.min(e.clientX - sidebarLeft, 600));
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
 
   const [customCategories, setCustomCategories] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
@@ -736,7 +759,11 @@ export function LeadsManagementTab({
     <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[calc(100vh-140px)] animate-fade-in">
 
       {/* Sidebar Section */}
-      <aside className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col z-10 flex-shrink-0">
+      <aside ref={sidebarRef} className="bg-slate-50 border-r border-slate-200 flex flex-col z-10 flex-shrink-0 relative transition-none select-none" style={{ width: sidebarWidth }}>
+        <div 
+          className="absolute right-[-4px] top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 z-50 transition-colors"
+          onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
+        />
         <div className="p-4 border-b border-slate-200">
           <h2 className="font-black text-slate-900 text-lg">
             Categories
