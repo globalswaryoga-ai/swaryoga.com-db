@@ -793,7 +793,10 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 </div>
                               )}
                             </div>
-                            <button onClick={() => setShowCanvaPopup(false)} className="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">Done</button>
+                            <div className="flex gap-2">
+                               <button onClick={() => window.location.href = '/api/admin/canva/auth'} className="w-full py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-lg hover:opacity-90 shadow-sm transition-all">Connect Canva</button>
+                               <button onClick={() => setShowCanvaPopup(false)} className="w-full py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 shadow-sm transition-all">Done</button>
+                            </div>
                           </div>
                         )}
                         

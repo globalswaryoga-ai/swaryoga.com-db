@@ -128,10 +128,9 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
           imageUrl = imgData.url;
         }
       } catch (e: any) {
-        console.error('Image generation failed with error:', e.name, e.message);
-        if (e.response) {
-          console.error('Response data:', e.response.data);
-        }
+        const errorMsg = e.response?.data?.error?.message || e.message || "Unknown error";
+        console.error('Image generation failed with error:', errorMsg);
+        aiText += `\n\n[System Error: Image generation failed: ${errorMsg}]`;
       }
     }
 
