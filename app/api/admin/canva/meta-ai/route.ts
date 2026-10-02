@@ -129,8 +129,32 @@ Respond naturally and conversationally. Keep responses concise and helpful.`
         }
       } catch (e: any) {
         const errorMsg = e.response?.data?.error?.message || e.message || "Unknown error";
-        console.error('Image generation failed with error:', errorMsg);
-        aiText += `\n\n[System Error: Image generation failed: ${errorMsg}]`;
+        
+        // Fallback to dall-e-2 if dall-e-3 doesn't exist
+        if (errorMsg.includes('does not exist') || errorMsg.includes('model')) {
+          try {
+            console.log('Falling back to dall-e-2...');
+            const fallbackResponse = await openai.images.generate({
+              model: 'dall-e-2',
+              prompt: imagePrompt,
+              n: 1,
+              size: '1024x1024',
+            });
+            const imgData = fallbackResponse.data[0];
+            if (imgData.b64_json) {
+              imageUrl = `data:image/png;base64,${imgData.b64_json}`;
+            } else if (imgData.url) {
+              imageUrl = imgData.url;
+            }
+          } catch (fallbackErr: any) {
+            const fallbackMsg = fallbackErr.response?.data?.error?.message || fallbackErr.message || "Unknown error";
+            console.error('Image generation failed with error:', fallbackMsg);
+            aiText += `\n\n[System Error: Image generation failed: ${fallbackMsg}]`;
+          }
+        } else {
+          console.error('Image generation failed with error:', errorMsg);
+          aiText += `\n\n[System Error: Image generation failed: ${errorMsg}]`;
+        }
       }
     }
 
