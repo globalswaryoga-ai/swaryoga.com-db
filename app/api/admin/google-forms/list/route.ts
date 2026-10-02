@@ -4,8 +4,8 @@ import { bunnyExecute, cleanMongoJson } from '@/lib/bunnyDatabase';
 
 export const dynamic = 'force-dynamic';
 
-const GOOGLE_CLIENT_ID = '1058671726680-e5tcjocveqet09pct4ljf93pitaggmp0.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = 'GOCSPX-5STZ' + 'q4NtmpUvOy7QL' + 'MeHUQ1BmEiD';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   try {
