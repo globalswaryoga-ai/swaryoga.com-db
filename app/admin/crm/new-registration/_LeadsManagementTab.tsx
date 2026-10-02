@@ -373,7 +373,7 @@ export function LeadsManagementTab({
       }).catch(console.error);
     }
 
-    const hasValidCondition = conditions.some(c => c.keyword.trim() || c.question.toLowerCase().includes('age'));
+    const hasValidCondition = conditions.some(c => c.directMoveCategory || c.keyword.trim() || c.question.toLowerCase().includes('age'));
 
     if (!hasValidCondition) {
       const newDecisions = { ...batchDecisions };
@@ -431,6 +431,15 @@ export function LeadsManagementTab({
       let isSuccess = false;
 
       for (const c of conditions) {
+        // 1. Direct Move (Bypasses keyword matching)
+        if (c.directMoveCategory) {
+          finalCategory = c.directMoveCategory;
+          finalReason = `Direct Move from UI`;
+          isSuccess = true;
+          break;
+        }
+
+        // 2. Normal matching
         if (!c.keyword || !c.keyword.trim()) continue;
         const textToSearch = c.question ? String(raw[c.question] || '').toLowerCase() : allText;
         const kw = c.keyword.toLowerCase().trim();
