@@ -139,7 +139,11 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
     setMetaPrompt('');
     
     try {
-      const targetTemplateId = metaTemplatesMap[metaPlatform];
+      let targetTemplateId = metaTemplatesMap[metaPlatform];
+      if (targetTemplateId && targetTemplateId.includes('canva.com/')) {
+        const match = targetTemplateId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/);
+        if (match) targetTemplateId = match[1];
+      }
       const fullPrompt = `Target Language: ${metaLanguage}\nPlatform: ${metaPlatform}\n\n${currentPrompt}`;
       
 
@@ -1004,7 +1008,7 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Canva Template ID</label>
-                               <input id="global-template-id" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'DAGw5Hx3Vmo') : 'DAGw5Hx3Vmo'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
+                               <input id="global-template-id" type="text" className="w-full bg-indigo-50 p-3 rounded-xl border border-indigo-200 font-mono font-bold text-indigo-700" defaultValue={typeof window !== 'undefined' ? (localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4') : 'https://www.canva.com/brand/brand-templates/EAHW508uKP4'} onChange={(e) => { if (typeof window !== 'undefined') localStorage.setItem('canvaReceiptTemplateId', e.target.value); }} />
                              </div>
                              <div>
                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-1.5 block">Receipt No.</label>
@@ -1114,6 +1118,19 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                                 setGeneratedDesignId(`PDF_${leadId}`);
                                 setTimeout(() => { const frame = document.getElementById('receipt-preview-frame') as HTMLIFrameElement; if (frame) frame.src = `/api/admin/crm/receipts/pdf?leadId=${leadId}&token=${token}`; }, 100);
                                 if (btn) { btn.innerText = '\u2705 Done!'; setTimeout(() => { if (btn) btn.innerText = '\ud83d\udcc4 Generate PDF'; }, 2000); }
+                                 // Auto-trigger Canva with default receipt template
+                                 let tplId = (document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || 'https://www.canva.com/brand/brand-templates/EAHW508uKP4';
+                                 if (tplId.includes('canva.com/')) { const m = tplId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/); if (m) tplId = m[1]; }
+                                 if (tplId) {
+                                   const date = (document.getElementById('receipt-date') as HTMLInputElement)?.value || '';
+                                   const canvaData = { Name: { type: 'text', text: name }, Amount: { type: 'text', text: amount }, Mode: { type: 'text', text: mode }, ReceiptNo: { type: 'text', text: receiptNo }, WorkshopName: { type: 'text', text: workshop }, Date: { type: 'text', text: date } };
+                                   fetch('/api/admin/canva/autofill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId: tplId, data: canvaData }) })
+                                     .then(r => r.json()).then(cj => {
+                                       if (!cj.error && cj.job?.id) {
+                                         const poll = setInterval(async () => { const sr = await fetch(`/api/admin/canva/autofill/status?jobId=${cj.job.id}`); const sj = await sr.json(); if (sj.job?.status === 'success') { clearInterval(poll); setGeneratedDesignId(sj.job.result.design.id); } else if (sj.job?.status === 'failed') { clearInterval(poll); } }, 2000);
+                                       }
+                                     }).catch(() => {});
+                                 }
                               } catch (error: any) { alert(error.message); if (btn) btn.innerText = '\ud83d\udcc4 Generate PDF'; }
                             }}
                             id="btn-generate-pdf"
@@ -1126,10 +1143,16 @@ export function CanvaStudioTab({ isCanvaConnected, leadsData = [] }: CanvaStudio
                               const btn = document.getElementById('btn-generate-canva');
                               if (btn) btn.innerText = '...';
                               try {
-                                const templateId = activeSection === 'receipts' 
+                                let templateId = activeSection === 'receipts' 
                                   ? ((document.getElementById('global-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaReceiptTemplateId') || '')
                                   : ((document.getElementById('cert-template-id') as HTMLInputElement)?.value || localStorage.getItem('canvaCertificateTemplateId') || '');
-                                if (!templateId) { alert('Canva Autofill requires Canva Teams plan + Brand Template ID.'); if (btn) btn.innerText = 'Canva'; return; }
+                                
+                                if (templateId.includes('canva.com/')) {
+                                  const match = templateId.match(/(?:design|brand-templates)\/([A-Za-z0-9_-]+)/);
+                                  if (match) templateId = match[1];
+                                }
+                                
+                                if (!templateId) { alert('Canva Autofill requires a valid Canva Brand Template URL or ID.'); if (btn) btn.innerText = 'Canva'; return; }
                                 let dataToFill: any = {};
                                 if (activeSection === 'receipts') {
                                   dataToFill = { Name: { type: 'text', text: (document.getElementById('receipt-name') as HTMLInputElement)?.value || '' }, Amount: { type: 'text', text: (document.getElementById('receipt-amount') as HTMLInputElement)?.value || '' }, Mode: { type: 'text', text: (document.getElementById('receipt-mode') as HTMLInputElement)?.value || '' }, ReceiptNo: { type: 'text', text: (document.getElementById('receipt-number') as HTMLInputElement)?.value || '' }, WorkshopName: { type: 'text', text: (document.getElementById('receipt-workshop') as HTMLInputElement)?.value || '' }, Date: { type: 'text', text: (document.getElementById('receipt-date') as HTMLInputElement)?.value || '' } };
