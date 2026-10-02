@@ -216,11 +216,11 @@ export function LeadsManagementTab({
     return { 'AI-4': [{ question: '', keyword: '' }, { question: '', keyword: '' }] };
   });
 
-  const [activeModal, setActiveModal] = useState<'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C' | null>(null);
+  const [activeModal, setActiveModal] = useState<string | null>(null);
   const [modalConditions, setModalConditions] = useState<FilterCondition[]>([]);
   const [selectedQueryLeadId, setSelectedQueryLeadId] = useState<string | null>(null);
 
-  const openAiModal = (type: 'AI-4' | 'AI-4A' | 'AI-4B' | 'AI-4C') => {
+  const openAiModal = (type: string) => {
     const current = aiSettings[type] || [{ question: '', keyword: '' }];
     setModalConditions(current.map(c => ({ ...c })));
     setActiveModal(type);
@@ -234,7 +234,7 @@ export function LeadsManagementTab({
     return {};
   });
 
-  const saveAiFilter = (type: 'AI-4' | 'AI-4A' | 'AI-4B', conditions: FilterCondition[]) => {
+  const saveAiFilter = (type: string, conditions: FilterCondition[]) => {
     const newSettings = { ...aiSettings, [type]: conditions };
     setAiSettings(newSettings);
     if (typeof window !== 'undefined') localStorage.setItem('crm_ai_settings_v3', JSON.stringify(newSettings));
@@ -693,6 +693,12 @@ export function LeadsManagementTab({
   // Render the Category Modal
   const renderCategoryModal = () => {
     if (!isCategoryModalOpen) return null;
+    
+    // Generate AI-4A to AI-4P
+    const allAIs = Array.from({length: 16}, (_, i) => 'AI-4' + String.fromCharCode(65 + i));
+    const usedAIs = customCategories.map(c => c.aiAssignment).filter(Boolean);
+    const availableAIs = allAIs.filter(ai => !usedAIs.includes(ai) || editingCategory?.aiAssignment === ai);
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl shadow-xl w-[400px] overflow-hidden">
@@ -711,10 +717,9 @@ export function LeadsManagementTab({
               <label className="block text-sm font-medium text-gray-700 mb-1">Assign AI (Optional)</label>
               <select name="aiAssign" defaultValue={editingCategory?.aiAssignment || ''} className="w-full p-2 border rounded-lg">
                 <option value="">None</option>
-                <option value="AI-4A">AI-4A</option>
-                <option value="AI-4B">AI-4B</option>
-                <option value="AI-4C">AI-4C</option>
-                <option value="AI-4D">AI-4D</option>
+                {availableAIs.map(ai => (
+                  <option key={ai} value={ai}>{ai}</option>
+                ))}
               </select>
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t">
@@ -852,48 +857,38 @@ export function LeadsManagementTab({
                     Showing batch-wise private data for: <strong className="text-slate-700">{activeBatchName}</strong>
                   </p>
                 </div>
-                {activeTab === 'new_leads' && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openAiModal('AI-4')}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
-                    >
-                      🤖 {(aiSettings['AI-4'] || []).some(c => c.keyword) ? `AI-4 Active` : 'Configure AI-4'}
-                    </button>
-                  </div>
-                )}
-                {activeTab === 'approval_1' && (
-                  <button
-                    onClick={() => openAiModal('AI-4A')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
-                  >
-                    🤖 {(aiSettings['AI-4A'] || []).some(c => c.keyword) ? `AI-4A Active` : 'Configure AI-4A'}
-                  </button>
-                )}
-                {activeTab === 'take_zoom_meeting' && (
-                  <button
-                    onClick={handleWhatsAppMessengerClick}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
-                  >
-                    💬 WhatsApp Messenger
-                  </button>
-                )}
-                {activeTab === 'approval_2' && (
-                  <button
-                    onClick={() => openAiModal('AI-4B')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
-                  >
-                    🤖 {(aiSettings['AI-4B'] || []).some(c => c.keyword) ? `AI-4B Active` : 'Configure AI-4B'}
-                  </button>
-                )}
-                {activeTab === 'pending_leads_3' && (
-                  <button
-                    onClick={() => openAiModal('AI-4C')}
-                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
-                  >
-                    🤖 {(aiSettings['AI-4C'] || []).some(c => c.keyword) ? `AI-4C Active` : 'Configure AI-4C'}
-                  </button>
-                )}
+                {(() => {
+                  const activeCat = SIDEBAR_TABS.find(t => t.id === activeTab);
+                  const assignedAi = activeCat?.aiAssignment;
+                  return (
+                    <div className="flex gap-2">
+                      {assignedAi && (
+                        <button
+                          onClick={() => openAiModal(assignedAi)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                        >
+                          🤖 {(aiSettings[assignedAi] || []).some((c: any) => c.keyword) ? `${assignedAi} Active` : `Configure ${assignedAi}`}
+                        </button>
+                      )}
+                      {activeTab === 'new_leads' && (
+                        <button
+                          onClick={() => openAiModal('AI-4')}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                        >
+                          🤖 {(aiSettings['AI-4'] || []).some((c: any) => c.keyword) ? `AI-4 Active` : 'Configure AI-4'}
+                        </button>
+                      )}
+                      {activeTab === 'take_zoom_meeting' && (
+                        <button
+                          onClick={handleWhatsAppMessengerClick}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"
+                        >
+                          💬 WhatsApp Messenger
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {activeTab === 'set_zoom_meeting' ? (
